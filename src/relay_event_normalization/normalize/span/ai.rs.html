@@ -7,7 +7,7 @@
 <a href=#7 id=7 data-nosnippet>7</a>
 <a href=#8 id=8 data-nosnippet>8</a><span class="doccomment">/// Calculates the cost of an AI model based on the model cost and the tokens used.
 <a href=#9 id=9 data-nosnippet>9</a>/// Calculated cost is in US dollars.
-<a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">fn </span>extract_ai_model_cost_data(model_cost: <span class="prelude-ty">Option</span>&lt;ModelCostV2&gt;, data: <span class="kw-2">&amp;mut </span>SpanData) {
+<a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">fn </span>extract_ai_model_cost_data(model_cost: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ModelCostV2&gt;, data: <span class="kw-2">&amp;mut </span>SpanData) {
 <a href=#11 id=11 data-nosnippet>11</a>    <span class="kw">let </span>cost_per_token = <span class="kw">match </span>model_cost {
 <a href=#12 id=12 data-nosnippet>12</a>        <span class="prelude-val">Some</span>(v) =&gt; v,
 <a href=#13 id=13 data-nosnippet>13</a>        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
@@ -123,89 +123,87 @@
 <a href=#123 id=123 data-nosnippet>123</a>        .and_then(|v| v.as_f64())
 <a href=#124 id=124 data-nosnippet>124</a>        .unwrap_or(<span class="number">0.0</span>);
 <a href=#125 id=125 data-nosnippet>125</a>
-<a href=#126 id=126 data-nosnippet>126</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(data) = span.data.value_mut() <span class="kw">else </span>{
-<a href=#127 id=127 data-nosnippet>127</a>        <span class="kw">return</span>;
-<a href=#128 id=128 data-nosnippet>128</a>    };
-<a href=#129 id=129 data-nosnippet>129</a>
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="comment">// Extracts the response tokens per second
-<a href=#131 id=131 data-nosnippet>131</a>    </span><span class="kw">if </span>data.gen_ai_response_tokens_per_second.value().is_none()
-<a href=#132 id=132 data-nosnippet>132</a>        &amp;&amp; duration &gt; <span class="number">0.0
-<a href=#133 id=133 data-nosnippet>133</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(output_tokens) = data
-<a href=#134 id=134 data-nosnippet>134</a>            .gen_ai_usage_output_tokens
-<a href=#135 id=135 data-nosnippet>135</a>            .value()
-<a href=#136 id=136 data-nosnippet>136</a>            .and_then(Value::as_f64)
-<a href=#137 id=137 data-nosnippet>137</a>    {
-<a href=#138 id=138 data-nosnippet>138</a>        data.gen_ai_response_tokens_per_second
-<a href=#139 id=139 data-nosnippet>139</a>            .set_value(Value::F64(output_tokens / (duration / <span class="number">1000.0</span>)).into());
-<a href=#140 id=140 data-nosnippet>140</a>    }
-<a href=#141 id=141 data-nosnippet>141</a>
-<a href=#142 id=142 data-nosnippet>142</a>    <span class="comment">// Extracts the total cost of the AI model used
-<a href=#143 id=143 data-nosnippet>143</a>    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(model_id) = data
-<a href=#144 id=144 data-nosnippet>144</a>        .gen_ai_request_model
-<a href=#145 id=145 data-nosnippet>145</a>        .value()
-<a href=#146 id=146 data-nosnippet>146</a>        .and_then(|val| val.as_str())
-<a href=#147 id=147 data-nosnippet>147</a>        .or_else(|| {
-<a href=#148 id=148 data-nosnippet>148</a>            data.gen_ai_response_model
-<a href=#149 id=149 data-nosnippet>149</a>                .value()
-<a href=#150 id=150 data-nosnippet>150</a>                .and_then(|val| val.as_str())
-<a href=#151 id=151 data-nosnippet>151</a>        })
-<a href=#152 id=152 data-nosnippet>152</a>    {
-<a href=#153 id=153 data-nosnippet>153</a>        extract_ai_model_cost_data(ai_model_costs.cost_per_token(model_id), data)
-<a href=#154 id=154 data-nosnippet>154</a>    }
-<a href=#155 id=155 data-nosnippet>155</a>}
-<a href=#156 id=156 data-nosnippet>156</a>
-<a href=#157 id=157 data-nosnippet>157</a><span class="doccomment">/// Enrich the AI span data
-<a href=#158 id=158 data-nosnippet>158</a></span><span class="kw">pub fn </span>enrich_ai_span_data(
-<a href=#159 id=159 data-nosnippet>159</a>    span: <span class="kw-2">&amp;mut </span>Span,
-<a href=#160 id=160 data-nosnippet>160</a>    model_costs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ModelCosts&gt;,
-<a href=#161 id=161 data-nosnippet>161</a>    operation_type_map: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AiOperationTypeMap&gt;,
-<a href=#162 id=162 data-nosnippet>162</a>) {
-<a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">if </span>!is_ai_span(span) {
-<a href=#164 id=164 data-nosnippet>164</a>        <span class="kw">return</span>;
-<a href=#165 id=165 data-nosnippet>165</a>    }
-<a href=#166 id=166 data-nosnippet>166</a>
-<a href=#167 id=167 data-nosnippet>167</a>    map_ai_measurements_to_data(span);
-<a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(model_costs) = model_costs {
-<a href=#169 id=169 data-nosnippet>169</a>        extract_ai_data(span, model_costs);
-<a href=#170 id=170 data-nosnippet>170</a>    }
-<a href=#171 id=171 data-nosnippet>171</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(operation_type_map) = operation_type_map {
-<a href=#172 id=172 data-nosnippet>172</a>        infer_ai_operation_type(span, operation_type_map);
-<a href=#173 id=173 data-nosnippet>173</a>    }
-<a href=#174 id=174 data-nosnippet>174</a>}
-<a href=#175 id=175 data-nosnippet>175</a>
-<a href=#176 id=176 data-nosnippet>176</a><span class="doccomment">/// Extract the ai data from all of an event's spans
-<a href=#177 id=177 data-nosnippet>177</a></span><span class="kw">pub fn </span>enrich_ai_event_data(
-<a href=#178 id=178 data-nosnippet>178</a>    event: <span class="kw-2">&amp;mut </span>Event,
-<a href=#179 id=179 data-nosnippet>179</a>    model_costs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ModelCosts&gt;,
-<a href=#180 id=180 data-nosnippet>180</a>    operation_type_map: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AiOperationTypeMap&gt;,
-<a href=#181 id=181 data-nosnippet>181</a>) {
-<a href=#182 id=182 data-nosnippet>182</a>    <span class="kw">let </span>spans = event.spans.value_mut().iter_mut().flatten();
-<a href=#183 id=183 data-nosnippet>183</a>    <span class="kw">let </span>spans = spans.filter_map(|span| span.value_mut().as_mut());
-<a href=#184 id=184 data-nosnippet>184</a>
-<a href=#185 id=185 data-nosnippet>185</a>    <span class="kw">for </span>span <span class="kw">in </span>spans {
-<a href=#186 id=186 data-nosnippet>186</a>        enrich_ai_span_data(span, model_costs, operation_type_map);
-<a href=#187 id=187 data-nosnippet>187</a>    }
-<a href=#188 id=188 data-nosnippet>188</a>}
-<a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a><span class="doccomment">///  Infer AI operation type mapping to a span.
-<a href=#191 id=191 data-nosnippet>191</a>///
-<a href=#192 id=192 data-nosnippet>192</a>/// This function maps span.op values to gen_ai.operation.type based on the provided
-<a href=#193 id=193 data-nosnippet>193</a>/// operation type map configuration.
-<a href=#194 id=194 data-nosnippet>194</a></span><span class="kw">fn </span>infer_ai_operation_type(span: <span class="kw-2">&amp;mut </span>Span, operation_type_map: <span class="kw-2">&amp;</span>AiOperationTypeMap) {
-<a href=#195 id=195 data-nosnippet>195</a>    <span class="kw">let </span>data = span.data.get_or_insert_with(SpanData::default);
-<a href=#196 id=196 data-nosnippet>196</a>
-<a href=#197 id=197 data-nosnippet>197</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = span.op.value()
-<a href=#198 id=198 data-nosnippet>198</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(operation_type) = operation_type_map.get_operation_type(op)
-<a href=#199 id=199 data-nosnippet>199</a>    {
-<a href=#200 id=200 data-nosnippet>200</a>        data.gen_ai_operation_type
-<a href=#201 id=201 data-nosnippet>201</a>            .set_value(<span class="prelude-val">Some</span>(operation_type.to_owned()));
-<a href=#202 id=202 data-nosnippet>202</a>    }
-<a href=#203 id=203 data-nosnippet>203</a>}
-<a href=#204 id=204 data-nosnippet>204</a>
-<a href=#205 id=205 data-nosnippet>205</a><span class="doccomment">/// Returns true if the span is an AI span.
-<a href=#206 id=206 data-nosnippet>206</a>/// AI spans are spans with op starting with "ai." (legacy) or "gen_ai." (new).
-<a href=#207 id=207 data-nosnippet>207</a></span><span class="kw">fn </span>is_ai_span(span: <span class="kw-2">&amp;</span>Span) -&gt; bool {
-<a href=#208 id=208 data-nosnippet>208</a>    span.op
-<a href=#209 id=209 data-nosnippet>209</a>        .value()
-<a href=#210 id=210 data-nosnippet>210</a>        .is_some_and(|op| op.starts_with(<span class="string">"ai."</span>) || op.starts_with(<span class="string">"gen_ai."</span>))
-<a href=#211 id=211 data-nosnippet>211</a>}</code></pre></div></section></main></body></html>
+<a href=#126 id=126 data-nosnippet>126</a>    <span class="kw">let </span>data = span.data.get_or_insert_with(SpanData::default);
+<a href=#127 id=127 data-nosnippet>127</a>
+<a href=#128 id=128 data-nosnippet>128</a>    <span class="comment">// Extracts the response tokens per second
+<a href=#129 id=129 data-nosnippet>129</a>    </span><span class="kw">if </span>data.gen_ai_response_tokens_per_second.value().is_none()
+<a href=#130 id=130 data-nosnippet>130</a>        &amp;&amp; duration &gt; <span class="number">0.0
+<a href=#131 id=131 data-nosnippet>131</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(output_tokens) = data
+<a href=#132 id=132 data-nosnippet>132</a>            .gen_ai_usage_output_tokens
+<a href=#133 id=133 data-nosnippet>133</a>            .value()
+<a href=#134 id=134 data-nosnippet>134</a>            .and_then(Value::as_f64)
+<a href=#135 id=135 data-nosnippet>135</a>    {
+<a href=#136 id=136 data-nosnippet>136</a>        data.gen_ai_response_tokens_per_second
+<a href=#137 id=137 data-nosnippet>137</a>            .set_value(Value::F64(output_tokens / (duration / <span class="number">1000.0</span>)).into());
+<a href=#138 id=138 data-nosnippet>138</a>    }
+<a href=#139 id=139 data-nosnippet>139</a>
+<a href=#140 id=140 data-nosnippet>140</a>    <span class="comment">// Extracts the total cost of the AI model used
+<a href=#141 id=141 data-nosnippet>141</a>    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(model_id) = data
+<a href=#142 id=142 data-nosnippet>142</a>        .gen_ai_request_model
+<a href=#143 id=143 data-nosnippet>143</a>        .value()
+<a href=#144 id=144 data-nosnippet>144</a>        .and_then(|val| val.as_str())
+<a href=#145 id=145 data-nosnippet>145</a>        .or_else(|| {
+<a href=#146 id=146 data-nosnippet>146</a>            data.gen_ai_response_model
+<a href=#147 id=147 data-nosnippet>147</a>                .value()
+<a href=#148 id=148 data-nosnippet>148</a>                .and_then(|val| val.as_str())
+<a href=#149 id=149 data-nosnippet>149</a>        })
+<a href=#150 id=150 data-nosnippet>150</a>    {
+<a href=#151 id=151 data-nosnippet>151</a>        extract_ai_model_cost_data(ai_model_costs.cost_per_token(model_id), data)
+<a href=#152 id=152 data-nosnippet>152</a>    }
+<a href=#153 id=153 data-nosnippet>153</a>}
+<a href=#154 id=154 data-nosnippet>154</a>
+<a href=#155 id=155 data-nosnippet>155</a><span class="doccomment">/// Enrich the AI span data
+<a href=#156 id=156 data-nosnippet>156</a></span><span class="kw">pub fn </span>enrich_ai_span_data(
+<a href=#157 id=157 data-nosnippet>157</a>    span: <span class="kw-2">&amp;mut </span>Span,
+<a href=#158 id=158 data-nosnippet>158</a>    model_costs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ModelCosts&gt;,
+<a href=#159 id=159 data-nosnippet>159</a>    operation_type_map: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AiOperationTypeMap&gt;,
+<a href=#160 id=160 data-nosnippet>160</a>) {
+<a href=#161 id=161 data-nosnippet>161</a>    <span class="kw">if </span>!is_ai_span(span) {
+<a href=#162 id=162 data-nosnippet>162</a>        <span class="kw">return</span>;
+<a href=#163 id=163 data-nosnippet>163</a>    }
+<a href=#164 id=164 data-nosnippet>164</a>
+<a href=#165 id=165 data-nosnippet>165</a>    map_ai_measurements_to_data(span);
+<a href=#166 id=166 data-nosnippet>166</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(model_costs) = model_costs {
+<a href=#167 id=167 data-nosnippet>167</a>        extract_ai_data(span, model_costs);
+<a href=#168 id=168 data-nosnippet>168</a>    }
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(operation_type_map) = operation_type_map {
+<a href=#170 id=170 data-nosnippet>170</a>        infer_ai_operation_type(span, operation_type_map);
+<a href=#171 id=171 data-nosnippet>171</a>    }
+<a href=#172 id=172 data-nosnippet>172</a>}
+<a href=#173 id=173 data-nosnippet>173</a>
+<a href=#174 id=174 data-nosnippet>174</a><span class="doccomment">/// Extract the ai data from all of an event's spans
+<a href=#175 id=175 data-nosnippet>175</a></span><span class="kw">pub fn </span>enrich_ai_event_data(
+<a href=#176 id=176 data-nosnippet>176</a>    event: <span class="kw-2">&amp;mut </span>Event,
+<a href=#177 id=177 data-nosnippet>177</a>    model_costs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ModelCosts&gt;,
+<a href=#178 id=178 data-nosnippet>178</a>    operation_type_map: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AiOperationTypeMap&gt;,
+<a href=#179 id=179 data-nosnippet>179</a>) {
+<a href=#180 id=180 data-nosnippet>180</a>    <span class="kw">let </span>spans = event.spans.value_mut().iter_mut().flatten();
+<a href=#181 id=181 data-nosnippet>181</a>    <span class="kw">let </span>spans = spans.filter_map(|span| span.value_mut().as_mut());
+<a href=#182 id=182 data-nosnippet>182</a>
+<a href=#183 id=183 data-nosnippet>183</a>    <span class="kw">for </span>span <span class="kw">in </span>spans {
+<a href=#184 id=184 data-nosnippet>184</a>        enrich_ai_span_data(span, model_costs, operation_type_map);
+<a href=#185 id=185 data-nosnippet>185</a>    }
+<a href=#186 id=186 data-nosnippet>186</a>}
+<a href=#187 id=187 data-nosnippet>187</a>
+<a href=#188 id=188 data-nosnippet>188</a><span class="doccomment">///  Infer AI operation type mapping to a span.
+<a href=#189 id=189 data-nosnippet>189</a>///
+<a href=#190 id=190 data-nosnippet>190</a>/// This function maps span.op values to gen_ai.operation.type based on the provided
+<a href=#191 id=191 data-nosnippet>191</a>/// operation type map configuration.
+<a href=#192 id=192 data-nosnippet>192</a></span><span class="kw">fn </span>infer_ai_operation_type(span: <span class="kw-2">&amp;mut </span>Span, operation_type_map: <span class="kw-2">&amp;</span>AiOperationTypeMap) {
+<a href=#193 id=193 data-nosnippet>193</a>    <span class="kw">let </span>data = span.data.get_or_insert_with(SpanData::default);
+<a href=#194 id=194 data-nosnippet>194</a>
+<a href=#195 id=195 data-nosnippet>195</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = span.op.value()
+<a href=#196 id=196 data-nosnippet>196</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(operation_type) = operation_type_map.get_operation_type(op)
+<a href=#197 id=197 data-nosnippet>197</a>    {
+<a href=#198 id=198 data-nosnippet>198</a>        data.gen_ai_operation_type
+<a href=#199 id=199 data-nosnippet>199</a>            .set_value(<span class="prelude-val">Some</span>(operation_type.to_owned()));
+<a href=#200 id=200 data-nosnippet>200</a>    }
+<a href=#201 id=201 data-nosnippet>201</a>}
+<a href=#202 id=202 data-nosnippet>202</a>
+<a href=#203 id=203 data-nosnippet>203</a><span class="doccomment">/// Returns true if the span is an AI span.
+<a href=#204 id=204 data-nosnippet>204</a>/// AI spans are spans with op starting with "ai." (legacy) or "gen_ai." (new).
+<a href=#205 id=205 data-nosnippet>205</a></span><span class="kw">fn </span>is_ai_span(span: <span class="kw-2">&amp;</span>Span) -&gt; bool {
+<a href=#206 id=206 data-nosnippet>206</a>    span.op
+<a href=#207 id=207 data-nosnippet>207</a>        .value()
+<a href=#208 id=208 data-nosnippet>208</a>        .is_some_and(|op| op.starts_with(<span class="string">"ai."</span>) || op.starts_with(<span class="string">"gen_ai."</span>))
+<a href=#209 id=209 data-nosnippet>209</a>}</code></pre></div></section></main></body></html>
