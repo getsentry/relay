@@ -11,3 +11,5 @@ mod size;
 
 pub use self::otel_to_sentry::otel_to_sentry_log;
 pub use self::size::calculate_size;
+
+pub use opentelemetry_proto::tonic::logs::v1 as otel_logs;
