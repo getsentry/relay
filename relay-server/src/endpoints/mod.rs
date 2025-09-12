@@ -14,7 +14,8 @@ mod health_check;
 mod minidump;
 mod monitor;
 mod nel;
-mod otel_log;
+mod otlp_log;
+mod otlp_traces;
 #[cfg(sentry)]
 mod playstation;
 mod project_configs;
@@ -22,7 +23,6 @@ mod public_keys;
 mod security_report;
 mod statics;
 mod store;
-mod traces;
 mod unreal;
 
 use axum::extract::DefaultBodyLimit;
@@ -81,9 +81,9 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         // https://opentelemetry.io/docs/specs/otlp/#otlphttp-request
         // Because we initially released this endpoint with a trailing slash, keeping it for
         // backwards compatibility.
-        .route("/api/{project_id}/otlp/v1/traces", traces::route(config))
-        .route("/api/{project_id}/otlp/v1/traces/", traces::route(config))
-        .route("/api/{project_id}/otlp/v1/logs", otel_log::route(config));
+        .route("/api/{project_id}/otlp/v1/traces", otlp_traces::route(config))
+        .route("/api/{project_id}/otlp/v1/traces/", otlp_traces::route(config))
+        .route("/api/{project_id}/otlp/v1/logs", otlp_log::route(config));
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
 
