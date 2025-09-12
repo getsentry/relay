@@ -86,8 +86,18 @@ pub fn convert_otel_logs(envelope: &mut ManagedEnvelope) {
     }
 
     let mut item = Item::new(ItemType::Log);
-    if let Ok(()) = ItemContainer::from(logs).write_to(&mut item) {
-        envelope.envelope_mut().add_item(item);
+    match ItemContainer::from(logs).write_to(&mut item) {
+        Ok(()) => {
+            envelope.envelope_mut().add_item(item);
+        }
+        Err(err) => {
+            relay_log::error!("failed to serialize logs: {err}");
+            envelope.track_outcome(
+                Outcome::Invalid(DiscardReason::Internal),
+                DataCategory::LogItem,
+                1,
+            );
+        }
     }
 }
 
