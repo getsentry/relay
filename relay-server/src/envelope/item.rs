@@ -136,10 +136,9 @@ impl Item {
             ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, item_count)],
             // NOTE: semantically wrong, but too expensive to parse.
             ItemType::OtelTracesData => smallvec![(DataCategory::Span, item_count)],
-            // NOTE: semantically wrong, but too expensive to parse.
             ItemType::OtelLogsData => smallvec![
                 (DataCategory::LogByte, self.len().max(1)),
-                (DataCategory::LogItem, item_count)
+                (DataCategory::LogItem, item_count) // NOTE: semantically wrong, but too expensive to parse.
             ],
             ItemType::ProfileChunk => match self.profile_type() {
                 Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
