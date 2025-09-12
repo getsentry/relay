@@ -6,6 +6,7 @@
 
 - Removes support for the deprecated and early alpha only otel log item type. ([#5082](https://github.com/getsentry/relay/pull/5082))
 - Remove static mode. ([#5108](https://github.com/getsentry/relay/pull/5108))
+- Change the feature flag for the alpha OTLP trace endpoint from `projects:relay-otel-endpoint` to `organizations:relay-otlp-trace-endpoint`. ([#5133](https://github.com/getsentry/relay/pull/5133))
 
 **Features**:
 
