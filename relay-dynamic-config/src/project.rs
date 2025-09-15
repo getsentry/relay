@@ -47,6 +47,9 @@ pub struct ProjectConfig {
     /// Maximum sampled event retention for the organization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub downsampled_event_retention: Option<u16>,
+    /// Standard and down sampled event retentions per DataCategory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retentions: Option<u16>,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
@@ -142,6 +145,7 @@ impl Default for ProjectConfig {
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
             downsampled_event_retention: None,
+            retentions: None,
             quotas: Vec::new(),
             sampling: None,
             measurements: None,
