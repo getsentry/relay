@@ -9,6 +9,7 @@ use relay_quotas::Quota;
 use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
@@ -18,6 +19,11 @@ use crate::metrics::{
 };
 use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
+
+pub struct RetentionSettings {
+    pub standard: Option<u16>,
+    pub down_sampled: Option<u16>,
+}
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,8 +54,9 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub downsampled_event_retention: Option<u16>,
     /// Standard and down sampled event retentions per DataCategory.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub retentions: Option<u16>,
+    /// The key is the string DataCategory.name
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub retentions: HashMap<String, RetentionSettings>,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
