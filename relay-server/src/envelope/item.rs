@@ -136,6 +136,10 @@ impl Item {
             ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, item_count)],
             // NOTE: semantically wrong, but too expensive to parse.
             ItemType::OtelTracesData => smallvec![(DataCategory::Span, item_count)],
+            ItemType::OtelLogsData => smallvec![
+                (DataCategory::LogByte, self.len().max(1)),
+                (DataCategory::LogItem, item_count) // NOTE: semantically wrong, but too expensive to parse.
+            ],
             ItemType::ProfileChunk => match self.profile_type() {
                 Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
                 Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
@@ -418,6 +422,7 @@ impl Item {
             | ItemType::Log
             | ItemType::OtelSpan
             | ItemType::OtelTracesData
+            | ItemType::OtelLogsData
             | ItemType::ProfileChunk => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
@@ -453,6 +458,7 @@ impl Item {
             ItemType::Log => false,
             ItemType::OtelSpan => false,
             ItemType::OtelTracesData => false,
+            ItemType::OtelLogsData => false,
             ItemType::ProfileChunk => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
@@ -530,6 +536,8 @@ pub enum ItemType {
     OtelSpan,
     /// An OTLP TracesData container.
     OtelTracesData,
+    /// An OTLP LogsData container.
+    OtelLogsData,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
@@ -585,6 +593,7 @@ impl ItemType {
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
             Self::OtelTracesData => "otel_traces_data",
+            Self::OtelLogsData => "otel_logs_data",
             Self::ProfileChunk => "profile_chunk",
             Self::Unknown(_) => "unknown",
         }
@@ -635,7 +644,8 @@ impl ItemType {
             ItemType::Log => true,
             ItemType::Span => true,
             ItemType::OtelSpan => true,
-            ItemType::OtelTracesData => true,
+            ItemType::OtelTracesData => false,
+            ItemType::OtelLogsData => false,
             ItemType::UserReportV2 => false,
             ItemType::ProfileChunk => true,
             ItemType::Unknown(_) => true,
@@ -678,6 +688,7 @@ impl std::str::FromStr for ItemType {
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
             "otel_traces_data" => Self::OtelTracesData,
+            "otel_logs_data" => Self::OtelLogsData,
             "profile_chunk" => Self::ProfileChunk,
             // "profile_chunk_ui" is to be treated as an alias for `ProfileChunk`
             // because Android 8.10.0 and 8.11.0 is sending it as the item type.
