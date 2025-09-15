@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["calculate_size","otel_to_sentry_log"]};
+window.SIDEBAR_ITEMS = {"fn":["calculate_size","otel_to_sentry_log"],"mod":["otel_logs"]};
