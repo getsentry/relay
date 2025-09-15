@@ -261,27 +261,24 @@ impl ModelCosts {
     }
 
     /// Gets the cost per token, if defined for the given model.
-    pub fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
+    pub fn cost_per_token(&self, model_id: &str) -> Option<&ModelCostV2> {
         if !self.is_enabled() {
             return None;
         }
 
         // First try exact match by creating a Pattern from the model_id
-        let exact_key = Pattern::new(model_id).ok()?;
-        if self.models.contains_key(&exact_key) {
-            return self.models.get(&exact_key).copied();
+        if let Some(value) = self.models.get(model_id) {
+            return Some(value);
         }
 
         // if there is not a direct match, try to find the match using a pattern
-        let cost = self.models.iter().find_map(|(key, value)| {
+        self.models.iter().find_map(|(key, value)| {
             if key.is_match(model_id) {
                 Some(value)
             } else {
                 None
             }
-        });
-
-        cost.copied()
+        })
     }
 }
 
@@ -298,7 +295,69 @@ pub struct ModelCostV2 {
     /// The cost per input cached token
     pub input_cached_per_token: f64,
 }
+/// A mapping of AI operation types from span.op to gen_ai.operation.type.
+///
+/// This struct uses a dictionary-based mapping structure with pattern-based span operation keys
+/// and corresponding AI operation type values.
+///
+/// Example JSON:
+/// ```json
+/// {
+///   "version": 1,
+///   "operation_types": {
+///     "gen_ai.execute_tool": "tool",
+///     "gen_ai.handoff": "handoff",
+///     "gen_ai.invoke_agent": "agent",
+///   }
+/// }
+/// ```
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiOperationTypeMap {
+    /// The version of the operation type mapping struct
+    pub version: u16,
 
+    /// The mappings of span.op => gen_ai.operation.type as a dictionary
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub operation_types: HashMap<Pattern, String>,
+}
+
+impl AiOperationTypeMap {
+    const SUPPORTED_VERSION: u16 = 1;
+
+    /// `true` if the operation type mapping is empty and the version is supported.
+    pub fn is_empty(&self) -> bool {
+        self.operation_types.is_empty() || !self.is_enabled()
+    }
+
+    /// `false` if operation type mapping should be skipped.
+    pub fn is_enabled(&self) -> bool {
+        self.version == Self::SUPPORTED_VERSION
+    }
+
+    /// Gets the AI operation type for the given span operation, if defined.
+    pub fn get_operation_type(&self, span_op: &str) -> Option<&str> {
+        if !self.is_enabled() {
+            return None;
+        }
+
+        // try first direct match with span_op
+        if let Some(value) = self.operation_types.get(span_op) {
+            return Some(value.as_str());
+        }
+
+        // if there is not a direct match, try to find the match using a pattern
+        let operation_type = self.operation_types.iter().find_map(|(key, value)| {
+            if key.is_match(span_op) {
+                Some(value)
+            } else {
+                None
+            }
+        });
+
+        operation_type.map(String::as_str)
+    }
+}
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
@@ -419,7 +478,7 @@ mod tests {
         let cost = v2_config.cost_per_token("gpt-4").unwrap();
         assert_eq!(
             cost,
-            ModelCostV2 {
+            &ModelCostV2 {
                 input_per_token: 0.03,
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
@@ -461,7 +520,7 @@ mod tests {
         let cost = v2_config.cost_per_token("gpt-4-v1").unwrap();
         assert_eq!(
             cost,
-            ModelCostV2 {
+            &ModelCostV2 {
                 input_per_token: 0.03,
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
@@ -472,7 +531,7 @@ mod tests {
         let cost = v2_config.cost_per_token("gpt-4-2xxx").unwrap();
         assert_eq!(
             cost,
-            ModelCostV2 {
+            &ModelCostV2 {
                 input_per_token: 0.0007,
                 output_per_token: 0.0008,
                 output_reasoning_per_token: 0.0016,
@@ -497,6 +556,61 @@ mod tests {
         let deserialized: ModelCosts = serde_json::from_str(version_zero_json).unwrap();
         assert_eq!(deserialized.version, 0);
         assert!(!deserialized.is_enabled());
+    }
+
+    #[test]
+    fn test_ai_operation_type_map_serialization() {
+        // Test serialization and deserialization with patterns
+        let mut operation_types = HashMap::new();
+        operation_types.insert(
+            Pattern::new("gen_ai.chat*").unwrap(),
+            "Inference".to_owned(),
+        );
+        operation_types.insert(
+            Pattern::new("gen_ai.execute_tool").unwrap(),
+            "Tool".to_owned(),
+        );
+
+        let original = AiOperationTypeMap {
+            version: 1,
+            operation_types,
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: AiOperationTypeMap = serde_json::from_str(&json).unwrap();
+
+        assert!(deserialized.is_enabled());
+        assert_eq!(
+            deserialized.get_operation_type("gen_ai.chat.completions"),
+            Some("Inference")
+        );
+        assert_eq!(
+            deserialized.get_operation_type("gen_ai.execute_tool"),
+            Some("Tool")
+        );
+        assert_eq!(deserialized.get_operation_type("unknown_op"), None);
+    }
+
+    #[test]
+    fn test_ai_operation_type_map_pattern_matching() {
+        let mut operation_types = HashMap::new();
+        operation_types.insert(Pattern::new("gen_ai.*").unwrap(), "default".to_owned());
+        operation_types.insert(Pattern::new("gen_ai.chat").unwrap(), "chat".to_owned());
+
+        let map = AiOperationTypeMap {
+            version: 1,
+            operation_types,
+        };
+
+        let result = map.get_operation_type("gen_ai.chat");
+        assert!(Some("chat") == result);
+
+        let result = map.get_operation_type("gen_ai.chat.completions");
+        assert!(Some("default") == result);
+
+        assert_eq!(map.get_operation_type("gen_ai.other"), Some("default"));
+
+        assert_eq!(map.get_operation_type("other.operation"), None);
     }
 
     #[test]

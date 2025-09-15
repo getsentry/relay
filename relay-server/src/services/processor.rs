@@ -827,7 +827,7 @@ fn event_type(event: &Annotated<Event>) -> Option<EventType> {
 /// If the project config did not come from the upstream, we keep the items.
 fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
     match config.relay_mode() {
-        RelayMode::Proxy | RelayMode::Static => false,
+        RelayMode::Proxy => false,
         RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
@@ -1518,7 +1518,8 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         let global_config = self.inner.global_config.current();
-        let ai_model_costs = global_config.ai_model_costs.clone().ok();
+        let ai_model_costs = global_config.ai_model_costs.as_ref().ok();
+        let ai_operation_type_map = global_config.ai_operation_type_map.as_ref().ok();
         let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
         let retention_days: i64 = project_info
@@ -1590,7 +1591,8 @@ impl EnvelopeProcessorService {
                 emit_event_errors: full_normalization,
                 span_description_rules: project_info.config.span_description_rules.as_ref(),
                 geoip_lookup: Some(&self.inner.geoip_lookup),
-                ai_model_costs: ai_model_costs.as_ref(),
+                ai_model_costs,
+                ai_operation_type_map,
                 enable_trimming: true,
                 measurements: Some(CombinedMeasurementsConfig::new(
                     project_info.config().measurements.as_ref(),

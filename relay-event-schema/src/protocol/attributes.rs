@@ -1,10 +1,14 @@
+use std::borrow::{Borrow, Cow};
+use std::fmt;
+
 use enumset::EnumSet;
 use relay_protocol::{
     Annotated, Empty, FromValue, IntoValue, Meta, Object, SkipSerialization, Value,
 };
-use std::{borrow::Borrow, fmt};
 
-use crate::processor::{ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType};
+use crate::processor::{
+    Pii, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType,
+};
 
 #[derive(Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct Attribute {
@@ -40,9 +44,9 @@ impl fmt::Debug for Attribute {
 
 #[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct AttributeValue {
-    #[metastructure(field = "type", required = true, trim = false)]
+    #[metastructure(field = "type", required = true, trim = false, pii = "false")]
     pub ty: Annotated<AttributeType>,
-    #[metastructure(required = true, pii = "true")]
+    #[metastructure(required = true, pii = "attribute_pii_from_conventions")]
     pub value: Annotated<Value>,
 }
 
@@ -82,6 +86,32 @@ impl From<Value> for AttributeValue {
             Value::Object(map) => stringify(map),
         }
     }
+}
+
+/// Determines the `Pii` value for an attribute (or, more exactly, the
+/// attribute's `value` field) by looking it up in `relay-conventions`.
+///
+/// The attribute's value may be addressed by `<key>.value` (for advanced
+/// scrubbing rules) or by just `<key>` (for default scrubbing rules). Therefore,
+/// we iterate backwards through the processing state's segments and try to look
+/// up each in the conventions.
+///
+/// If the attribute is not found in the conventions, this returns `Pii::True`
+/// as a precaution.
+pub fn attribute_pii_from_conventions(state: &ProcessingState) -> Pii {
+    for key in state.keys() {
+        let Some(info) = relay_conventions::attribute_info(key) else {
+            continue;
+        };
+
+        return match info.pii {
+            relay_conventions::Pii::True => Pii::True,
+            relay_conventions::Pii::False => Pii::False,
+            relay_conventions::Pii::Maybe => Pii::Maybe,
+        };
+    }
+
+    Pii::True
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -233,6 +263,11 @@ impl Attributes {
         self.0.contains_key(key)
     }
 
+    /// Iterates over this collection's attribute keys and values.
+    pub fn iter(&self) -> std::collections::btree_map::Iter<'_, String, Annotated<Attribute>> {
+        self.0.iter()
+    }
+
     /// Iterates mutably over this collection's attribute keys and values.
     pub fn iter_mut(
         &mut self,
@@ -278,12 +313,13 @@ impl ProcessValue for Attributes {
 
     fn process_child_values<P>(
         &mut self,
-        _processor: &mut P,
-        _state: &ProcessingState<'_>,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
     ) -> ProcessingResult
     where
         P: Processor,
     {
-        Ok(())
+        let enter_state = state.enter_nothing(Some(Cow::Borrowed(state.attrs())));
+        self.0.process_child_values(processor, &enter_state)
     }
 }

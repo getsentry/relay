@@ -6,7 +6,6 @@ use relay_system::{Addr, ServiceSpawn, ServiceSpawnExt as _};
 use std::convert::Infallible;
 use std::sync::Arc;
 
-pub mod local;
 #[cfg(feature = "processing")]
 pub mod redis;
 pub mod upstream;
@@ -14,7 +13,6 @@ pub mod upstream;
 use crate::services::projects::project::{ProjectState, Revision};
 use crate::services::upstream::UpstreamRelay;
 
-use self::local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
 use self::redis::RedisProjectSource;
 use self::upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
@@ -23,7 +21,6 @@ use self::upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 #[derive(Clone, Debug)]
 pub struct ProjectSource {
     config: Arc<Config>,
-    local_source: Option<Addr<LocalProjectSource>>,
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
     redis_source: Option<RedisProjectSource>,
@@ -37,12 +34,6 @@ impl ProjectSource {
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] _redis: Option<RedisClients>,
     ) -> Self {
-        let local_source = if config.relay_mode() == RelayMode::Static {
-            Some(services.start(LocalProjectSourceService::new(config.clone())))
-        } else {
-            None
-        };
-
         let upstream_source = services.start(UpstreamProjectSourceService::new(
             config.clone(),
             upstream_relay,
@@ -54,7 +45,6 @@ impl ProjectSource {
 
         Self {
             config,
-            local_source,
             upstream_source,
             #[cfg(feature = "processing")]
             redis_source,
@@ -73,15 +63,6 @@ impl ProjectSource {
         match self.config.relay_mode() {
             RelayMode::Proxy => return Ok(ProjectState::new_allowed().into()),
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
-            RelayMode::Static => {
-                return Ok(match self.local_source {
-                    Some(local) => local
-                        .send(FetchOptionalProjectState { project_key })
-                        .await?
-                        .map_or(ProjectState::Disabled.into(), Into::into),
-                    None => ProjectState::Disabled.into(),
-                });
-            }
         }
 
         #[cfg(feature = "processing")]
@@ -160,17 +141,6 @@ pub struct FetchProjectState {
 
     /// If true, all caches should be skipped and a fresh state should be computed.
     pub no_cache: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct FetchOptionalProjectState {
-    project_key: ProjectKey,
-}
-
-impl FetchOptionalProjectState {
-    pub fn project_key(&self) -> ProjectKey {
-        self.project_key
-    }
 }
 
 /// Response indicating whether a project state needs to be updated

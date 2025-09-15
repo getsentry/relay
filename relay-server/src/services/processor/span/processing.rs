@@ -21,7 +21,8 @@ use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
-use relay_event_normalization::span::ai::{extract_ai_data, map_ai_measurements_to_data};
+use relay_event_normalization::AiOperationTypeMap;
+use relay_event_normalization::span::ai::enrich_ai_span_data;
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
     GeoIpLookup, MeasurementsConfig, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo,
@@ -435,6 +436,8 @@ struct NormalizeSpanConfig<'a> {
     measurements: Option<CombinedMeasurementsConfig<'a>>,
     /// Configuration for AI model cost calculation
     ai_model_costs: Option<&'a ModelCosts>,
+    /// Configuration to derive the `gen_ai.operation.type` field from other fields
+    ai_operation_type_map: Option<&'a AiOperationTypeMap>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
@@ -478,10 +481,8 @@ impl<'a> NormalizeSpanConfig<'a> {
                 project_config.measurements.as_ref(),
                 global_config.measurements.as_ref(),
             )),
-            ai_model_costs: match &global_config.ai_model_costs {
-                ErrorBoundary::Err(_) => None,
-                ErrorBoundary::Ok(costs) => Some(costs),
-            },
+            ai_model_costs: global_config.ai_model_costs.as_ref().ok(),
+            ai_operation_type_map: global_config.ai_operation_type_map.as_ref().ok(),
             max_name_and_unit_len: aggregator_config
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
@@ -544,6 +545,7 @@ fn normalize(
         performance_score,
         measurements,
         ai_model_costs,
+        ai_operation_type_map,
         max_name_and_unit_len,
         tx_name_rules,
         user_agent,
@@ -651,10 +653,7 @@ fn normalize(
 
     normalize_performance_score(span, performance_score);
 
-    map_ai_measurements_to_data(span);
-    if let Some(model_costs_config) = ai_model_costs {
-        extract_ai_data(span, model_costs_config);
-    }
+    enrich_ai_span_data(span, ai_model_costs, ai_operation_type_map);
 
     tag_extraction::extract_measurements(span, is_mobile);
 
@@ -1253,6 +1252,7 @@ mod tests {
             performance_score: None,
             measurements: None,
             ai_model_costs: None,
+            ai_operation_type_map: None,
             max_name_and_unit_len: 200,
             tx_name_rules: &[],
             user_agent: None,

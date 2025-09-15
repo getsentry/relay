@@ -1,3 +1,4 @@
+mod compat;
 mod convert;
 
 use std::fmt;
@@ -505,6 +506,10 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
 
+    /// The total cost for the tokens used (duplicate field for migration)
+    #[metastructure(field = "gen_ai.cost.total_tokens")]
+    pub gen_ai_cost_total_tokens: Annotated<Value>,
+
     /// The cost for input tokens used
     #[metastructure(field = "gen_ai.cost.input_tokens")]
     pub gen_ai_cost_input_tokens: Annotated<Value>,
@@ -635,6 +640,10 @@ pub struct SpanData {
     /// The name of the operation being performed.
     #[metastructure(field = "gen_ai.operation.name", pii = "maybe")]
     pub gen_ai_operation_name: Annotated<String>,
+
+    /// The type of the operation being performed.
+    #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
+    pub gen_ai_operation_type: Annotated<String>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -952,6 +961,7 @@ impl Getter for SpanData {
             "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
+            "gen_ai\\.cost\\.total_tokens" => self.gen_ai_cost_total_tokens.value()?.into(),
             "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
             "gen_ai\\.cost\\.output_tokens" => self.gen_ai_cost_output_tokens.value()?.into(),
             "http\\.decoded_response_content_length" => {
@@ -1413,6 +1423,7 @@ mod tests {
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
+            gen_ai_cost_total_tokens: ~,
             gen_ai_cost_input_tokens: ~,
             gen_ai_cost_output_tokens: ~,
             gen_ai_prompt: ~,
@@ -1436,6 +1447,7 @@ mod tests {
             gen_ai_system: ~,
             gen_ai_tool_name: ~,
             gen_ai_operation_name: ~,
+            gen_ai_operation_type: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",

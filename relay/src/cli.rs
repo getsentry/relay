@@ -281,14 +281,12 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
                 .with_prompt("How should this relay operate?")
                 .default(0)
                 .item("Managed through upstream")
-                .item("Statically configured")
                 .item("Proxy for all events")
                 .interact()?;
 
             mincfg.relay.mode = match mode {
                 0 => RelayMode::Managed,
-                1 => RelayMode::Static,
-                2 => RelayMode::Proxy,
+                1 => RelayMode::Proxy,
                 _ => unreachable!(),
             };
 
