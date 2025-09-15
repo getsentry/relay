@@ -18,16 +18,28 @@ pub struct UnknownDataCategory(pub u8);
 #[repr(i8)]
 pub enum DataCategory {
     /// Reserved and unused.
+    ///
+    /// SDK rate limiting behavior: ignore.
     Default = 0,
     /// Error events and Events with an `event_type` not explicitly listed below.
+    ///
+    /// SDK rate limiting behavior: Apply to envelope items of type `event`.
     Error = 1,
     /// Transaction events.
+    ///
+    /// SDK rate limiting behavior: Apply to envelope items of type `transaction`.
     Transaction = 2,
     /// Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.
+    ///
+    /// SDK rate limiting behavior: ignore (?).
     Security = 3,
     /// An attachment. Quantity is the size of the attachment in bytes.
+    ///
+    /// SDK rate limiting behavior: Apply to all attachments.
     Attachment = 4,
     /// Session updates. Quantity is the number of updates in the batch.
+    ///
+    /// SDK rate limiting behavior: Apply to all sessions and session aggregates.
     Session = 5,
     /// Profile
     ///
