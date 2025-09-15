@@ -41,14 +41,11 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     // Top-level fields have higher precedence than `data`:
     attributes.insert("sentry.op", op);
 
-    attributes.insert("sentry.segment.id", segment_id); // TODO: test
+    attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string())); // TODO: test
     attributes.insert("sentry.is_segment", is_segment);
     attributes.insert("sentry.description", description);
     attributes.insert("sentry.origin", origin);
-    attributes.insert(
-        "sentry.profile_id",
-        profile_id.map_value(|v| EventId::to_string),
-    ); // TODO: test
+    attributes.insert("sentry.profile_id", profile_id.map_value(|v| v.to_string())); // TODO: test
     attributes.insert("sentry.platform", platform);
     attributes.insert("sentry.was_transaction", was_transaction);
     attributes.insert(
