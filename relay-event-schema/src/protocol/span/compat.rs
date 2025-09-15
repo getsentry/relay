@@ -49,7 +49,7 @@ impl TryFrom<SpanV2> for CompatSpan {
             compat_span.duration_ms = u64::try_from(delta).unwrap_or(0).into();
         }
 
-        if let Some(attributes) = span_v2.attributes.value() {
+        if let Some(attributes) = span_v2.attributes.value_mut() {
             for (key, value) in attributes
                 .iter()
                 .filter_map(|(k, a)| Some((k, a.value()?.value.value.value()?)))
@@ -82,13 +82,17 @@ impl TryFrom<SpanV2> for CompatSpan {
                 compat_span.segment_id = Annotated::from(segment_id.to_owned());
             }
 
-            if let Some(Annotated(Some(Value::Bool(value)), meta)) =
-                attributes.get_annotated_value("sentry._internal.performance_issues_spans")
+            if let Some(Annotated(Some(Value::Bool(value)), meta)) = attributes
+                .0
+                .get_mut("sentry._internal.performance_issues_spans")
+                .and_then(|a| Some(&mut a.value_mut().as_mut()?.value.value))
             {
-                compat_span.performance_issues_spans = Annotated(Some(*value), meta);
+                compat_span.performance_issues_spans =
+                    Annotated(Some(*value), std::mem::take(meta));
             }
         }
 
+        // FIXME: preserve _meta everywhere (see a test failure).
         compat_span.span_v2 = span_v2;
         Ok(compat_span)
     }
