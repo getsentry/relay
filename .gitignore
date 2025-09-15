@@ -17,7 +17,9 @@ target
 
 # Editors
 /.idea/
+/*.sln
 .DS_Store
+
 
 # NPM utilities for building docs
 /node_modules/
