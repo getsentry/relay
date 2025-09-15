@@ -211,7 +211,7 @@ impl Attributes {
         String: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        self.get_attribute(key)?.value.value.value()
+        self.get_annotated_value(key)?.value()
     }
 
     /// Returns the attribute with the given key.
@@ -221,6 +221,15 @@ impl Attributes {
         Q: Ord + ?Sized,
     {
         self.0.get(key)?.value()
+    }
+
+    /// Returns the attribute value as annotated.
+    pub fn get_annotated_value<Q>(&self, key: &Q) -> Option<&Annotated<Value>>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        Some(&self.0.get(key)?.value()?.value.value)
     }
 
     /// Inserts an attribute with the given value into this collection.

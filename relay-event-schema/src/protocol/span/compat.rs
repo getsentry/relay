@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
-use crate::protocol::{EventId, SpanV2, Timestamp};
+use crate::protocol::{Attribute, AttributeValue, EventId, SpanV2, Timestamp};
 
 /// Temporary type that amends a SpansV2 span with fields needed by the sentry span consumer.
 /// This can be removed once the consumer has been updated to use the new schema.
@@ -20,6 +20,9 @@ pub struct CompatSpan {
     pub segment_id: Annotated<String>,
     pub start_timestamp_ms: Annotated<u64>, // TODO: remove from kafka schema, no longer used in consumer
     pub start_timestamp_precise: Annotated<Timestamp>,
+
+    #[metastructure(rename = "_performance_issues_spans")]
+    pub performance_issues_spans: Annotated<bool>, // TODO: add to Kafka schema?
 }
 
 impl TryFrom<SpanV2> for CompatSpan {
@@ -73,10 +76,16 @@ impl TryFrom<SpanV2> for CompatSpan {
             }
 
             if let Some(segment_id) = attributes
-                .get_value("sentry.segment.id") // TODO: EAP expects `sentry.segment_id`, double write this somewhere.
+                .get_value("sentry.segment.id")
                 .and_then(Value::as_str)
             {
                 compat_span.segment_id = Annotated::from(segment_id.to_owned());
+            }
+
+            if let Some(Annotated(Some(Value::Bool(value)), meta)) =
+                attributes.get_annotated_value("sentry._internal.performance_issues_spans")
+            {
+                compat_span.performance_issues_spans = Annotated(Some(*value), meta);
             }
         }
 

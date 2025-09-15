@@ -1756,8 +1756,12 @@ struct SpanKafkaMessage<'a> {
     )]
     meta: Option<&'a RawValue>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    _performance_issues_spans: Option<bool>,
+    #[serde(
+        default,
+        rename = "_performance_issues_spans",
+        skip_serializing_if = "Option::is_none"
+    )]
+    performance_issues_spans: Option<bool>,
 
     // Required for the buffer to emit outcomes scoped to the DSN.
     #[serde(skip_serializing_if = "Option::is_none")]
