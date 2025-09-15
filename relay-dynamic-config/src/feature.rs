@@ -119,11 +119,6 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction-addons")]
     DeprecatedExtractAddonsSpanMetricsFromEvent,
-    /// This feature has been deprecated in favor of `OtelEndpoint` and is kept for external Relays.
-    ///
-    /// Serialized as `projects:relay-otel-endpoint`.
-    #[serde(rename = "projects:relay-otel-endpoint")]
-    DeprecatedProjectScopedOtelEndpoint,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
