@@ -37,6 +37,7 @@
 //!
 //! For untrusted user input it is highly recommended to limit the maximum complexity.
 
+use std::borrow::Borrow;
 use std::fmt;
 use std::num::NonZeroUsize;
 
@@ -142,6 +143,12 @@ impl PartialEq for Pattern {
 }
 
 impl Eq for Pattern {}
+
+impl Borrow<str> for Pattern {
+    fn borrow(&self) -> &str {
+        &self.pattern
+    }
+}
 
 impl std::hash::Hash for Pattern {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {

@@ -55,6 +55,11 @@ pub enum Feature {
     /// Serialized as `organizations:relay-otlp-traces-endpoint`.
     #[serde(rename = "organizations:relay-otlp-traces-endpoint")]
     OtelEndpoint,
+    /// Enable logs ingestion via the `/logs/` OTel endpoint.
+    ///
+    /// Serialized as `organizations:relay-otel-logs-endpoint`.
+    #[serde(rename = "organizations:relay-otel-logs-endpoint")]
+    OtelLogsEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.

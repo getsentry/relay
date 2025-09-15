@@ -25,6 +25,8 @@
 - Add gen_ai_cost_total_tokens attribute and double write total tokens cost. ([#5121](https://github.com/getsentry/relay/pull/5121))
 - Change mapping of incoming OTLP spans with `ERROR` status to Sentry's `internal_error` status. ([#5127](https://github.com/getsentry/relay/pull/5127))
 - Change the feature flag for the alpha OTLP trace endpoint from `projects:relay-otel-endpoint` to `organizations:relay-otlp-trace-endpoint`. ([#5133](https://github.com/getsentry/relay/pull/5133))
+- Add `ai_operation_type_map` to global config. ([#5125](https://github.com/getsentry/relay/pull/5125))
+- Infer `gen_ai.operation.type` from `span.op`. ([#5129](https://github.com/getsentry/relay/pull/5129))
 
 ## 25.8.0
 

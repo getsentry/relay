@@ -2961,6 +2961,7 @@ dependencies = [
  "opentelemetry",
  "percent-encoding",
  "rand 0.9.1",
+ "serde_json",
  "thiserror 2.0.12",
 ]
 
@@ -3660,7 +3661,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.14"
+version = "0.9.15"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3981,6 +3982,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-otel"
+version = "25.8.0"
+dependencies = [
+ "insta",
+ "opentelemetry-proto",
+ "relay-event-schema",
+ "relay-protocol",
+ "serde_json",
+]
+
+[[package]]
 name = "relay-ourlogs"
 version = "25.8.0"
 dependencies = [
@@ -3988,8 +4000,10 @@ dependencies = [
  "hex",
  "insta",
  "once_cell",
+ "opentelemetry-proto",
  "relay-common",
  "relay-event-schema",
+ "relay-otel",
  "relay-protocol",
  "serde_json",
 ]
@@ -4290,6 +4304,7 @@ dependencies = [
  "once_cell",
  "opentelemetry-proto",
  "relay-event-schema",
+ "relay-otel",
  "relay-protocol",
  "serde_json",
  "url",
