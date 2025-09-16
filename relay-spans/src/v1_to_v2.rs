@@ -83,16 +83,16 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
             }
         }
     }
-    if let Some(tags) = sentry_tags.into_value() {
-        if let Value::Object(tags) = tags.into_value() {
-            for (key, value) in tags {
-                let key = match key.as_str() {
-                    "description" => "sentry.normalized_description".into(),
-                    other => Cow::Owned(format!("sentry.{}", other)),
-                };
-                if !value.is_empty() && !attributes.contains_key(key.as_ref()) {
-                    attributes.insert_raw(key.into_owned(), Attribute::annotated_from_value(value));
-                }
+    if let Some(tags) = sentry_tags.into_value()
+        && let Value::Object(tags) = tags.into_value()
+    {
+        for (key, value) in tags {
+            let key = match key.as_str() {
+                "description" => "sentry.normalized_description".into(),
+                other => Cow::Owned(format!("sentry.{}", other)),
+            };
+            if !value.is_empty() && !attributes.contains_key(key.as_ref()) {
+                attributes.insert_raw(key.into_owned(), Attribute::annotated_from_value(value));
             }
         }
     }
