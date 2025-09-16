@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 const ATTRIBUTE_DIR: &str = "sentry-conventions/model/attributes";
+const NAME_DIR: &str = "sentry-conventions/model/name";
 
 fn main() {
     let crate_dir: PathBuf = env::var("CARGO_MANIFEST_DIR").unwrap().into();
@@ -32,6 +33,32 @@ fn main() {
     writeln!(
         &mut out_file,
         "static ATTRIBUTES: phf::Map<&'static str, AttributeInfo> = {};",
+        map.build()
+    )
+    .unwrap();
+
+    let mut map = phf_codegen::Map::new();
+
+    for file in WalkDir::new(crate_dir.join(NAME_DIR)) {
+        let file = file.unwrap();
+        if file.file_type().is_file()
+            && let Some(ext) = file.path().extension()
+            && ext.to_str() == Some("json")
+        {
+            let contents = std::fs::read_to_string(file.path()).unwrap();
+            let name: raw::Name = serde_json::from_str(&contents).unwrap();
+            for (key, value) in raw::format_name_info(name) {
+                map.entry(key, value);
+            }
+        }
+    }
+
+    let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("name_map.rs");
+    let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
+
+    writeln!(
+        &mut out_file,
+        "static NAMES: phf::Map<&'static str, NameInfo> = {};",
         map.build()
     )
     .unwrap();

@@ -1,0 +1,4 @@
+attribute_name = ${ (ASCII_ALPHA | "." | "_")+ }
+attribute = _{ "{{" ~ attribute_name ~ "}}" }
+text = ${ ( !"{{" ~ ANY )+ }
+root = ${ SOI ~ (text | attribute)+ ~ EOI }

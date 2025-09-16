@@ -4,6 +4,7 @@
 //! are parsed at compile time and can be accessed via the `attribute_info` function.
 
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
+include!(concat!(env!("OUT_DIR"), "/name_map.rs"));
 
 /// Whether an attribute should be PII-strippable/should be subject to datascrubbers
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -47,6 +48,15 @@ pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
     ATTRIBUTES.get(key)
 }
 
+#[derive(Debug, Clone)]
+pub struct NameInfo {
+    pub templates: &'static [&'static str],
+}
+
+pub fn name_info(key: &str) -> Option<&'static NameInfo> {
+    NAMES.get(key)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -64,6 +74,20 @@ mod tests {
             aliases: [
                 "http.response.body.size",
                 "http.response.header.content-length",
+            ],
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_name_for_db_op() {
+        let info = NAMES.get("http.graphql").unwrap();
+
+        insta::assert_debug_snapshot!(info, @r###"
+        NameInfo {
+            templates: [
+                "GraphQL {{graphql.operation.type}}",
+                "GraphQL Operation",
             ],
         }
         "###);

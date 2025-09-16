@@ -89,3 +89,32 @@ pub fn format_attribute_info(attr: Attribute) -> (String, String) {
     );
     (key, value)
 }
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Operation {
+    ops: Vec<String>,
+    templates: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Name {
+    operations: Vec<Operation>,
+}
+
+pub fn format_name_info(name: Name) -> Vec<(String, String)> {
+    let mut result: Vec<(String, String)> = Vec::new();
+    for Operation { mut ops, templates } in name.operations {
+        // TODO: Remove after https://github.com/getsentry/sentry-conventions/pull/152 is merged
+        ops.dedup();
+
+        let value = format!(
+            "NameInfo {{
+                templates: &{templates:?}
+            }}"
+        );
+        for op in ops {
+            result.push((op, value.clone()));
+        }
+    }
+    result
+}
