@@ -34,7 +34,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         platform,
         was_transaction,
         kind,
-        performance_issues_spans: _performance_issues_spans,
+        performance_issues_spans,
         other,
     } = span_v1;
 
@@ -57,7 +57,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     attributes.insert("sentry.was_transaction", was_transaction);
     attributes.insert(
         "sentry._internal.performance_issues_spans",
-        _performance_issues_spans,
+        performance_issues_spans,
     );
 
     // Use same precedence as `backfill_data` for data bags:
