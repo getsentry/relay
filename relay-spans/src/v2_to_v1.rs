@@ -5,7 +5,7 @@ use relay_event_schema::protocol::{SpanKind, SpanV2Link};
 use crate::status_codes;
 use relay_event_schema::protocol::{
     Attributes, EventId, Span as SpanV1, SpanData, SpanId, SpanLink, SpanStatus, SpanV2,
-    SpanV2Kind, SpanV2Status,
+    SpanV2Status,
 };
 use relay_protocol::{Annotated, FromValue, Object, Value};
 use url::Url;
@@ -151,7 +151,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         timestamp: end_timestamp,
         trace_id,
         platform,
-        kind: kind.map_value(span_v2_kind_to_span_v1_kind),
+        kind,
         links,
         ..Default::default()
     }
@@ -186,17 +186,6 @@ fn span_v2_status_to_span_v1_status(
         })
         .or_else(|| Annotated::new(SpanStatus::Unknown))
 }
-
-fn span_v2_kind_to_span_v1_kind(kind: SpanV2Kind) -> SpanKind {
-    match kind {
-        SpanV2Kind::Internal => SpanKind::Internal,
-        SpanV2Kind::Server => SpanKind::Server,
-        SpanV2Kind::Client => SpanKind::Client,
-        SpanV2Kind::Producer => SpanKind::Producer,
-        SpanV2Kind::Consumer => SpanKind::Consumer,
-    }
-}
-
 fn span_v2_link_to_span_v1_link(link: SpanV2Link) -> SpanLink {
     let SpanV2Link {
         trace_id,
@@ -242,8 +231,8 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
 
     if attributes.contains_key("http.request.method") || attributes.contains_key("http.method") {
         return match span.kind.value() {
-            Some(SpanV2Kind::Client) => String::from("http.client"),
-            Some(SpanV2Kind::Server) => String::from("http.server"),
+            Some(SpanKind::Client) => String::from("http.client"),
+            Some(SpanKind::Server) => String::from("http.server"),
             _ => {
                 if attributes.contains_key("sentry.http.prefetch") {
                     String::from("http.prefetch")
@@ -304,7 +293,7 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
     description
 }
 
-fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanV2Kind>) -> Option<String> {
+fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanKind>) -> Option<String> {
     // Get HTTP method
     let http_method = attributes
         .get_value("http.request.method")
@@ -315,8 +304,8 @@ fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanV2Kind>) 
 
     // Get URL path information
     let url_path = match kind {
-        Some(SpanV2Kind::Server) => get_server_url_path(attributes),
-        Some(SpanV2Kind::Client) => get_client_url_path(attributes),
+        Some(SpanKind::Server) => get_server_url_path(attributes),
+        Some(SpanKind::Client) => get_client_url_path(attributes),
         _ => None,
     };
 
