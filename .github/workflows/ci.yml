@@ -471,7 +471,7 @@ jobs:
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
+        uses: getsentry/action-build-and-push-images@0a2c1207d9c733c838e443c35a4174a738977bd1
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -484,7 +484,7 @@ jobs:
 
       - name: Build and publish docker artifact
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
+        uses: getsentry/action-build-and-push-images@0a2c1207d9c733c838e443c35a4174a738977bd1
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -559,7 +559,7 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
+        uses: getsentry/action-build-and-push-images@0a2c1207d9c733c838e443c35a4174a738977bd1
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
