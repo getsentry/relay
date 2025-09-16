@@ -6,11 +6,13 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Value};
 
+const MILLIS_TO_NANOS: f64 = 1000. * 1000.;
+
 pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let SpanV1 {
         timestamp,
         start_timestamp,
-        exclusive_time: _exclusive_time, // set by span consumer
+        exclusive_time,
         op,
         span_id,
         parent_span_id,
@@ -31,7 +33,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         platform,
         was_transaction,
         kind,
-        _performance_issues_spans,
+        performance_issues_spans: _performance_issues_spans,
         other,
     } = span_v1;
 
@@ -39,6 +41,10 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let attributes = annotated_attributes.get_or_insert_with(Default::default);
 
     // Top-level fields have higher precedence than `data`:
+    attributes.insert(
+        "sentry.exclusive_time_nano", // TODO: update conventions, they list `sentry.exclusive_time`
+        exclusive_time.map_value(|v| (v * MILLIS_TO_NANOS) as i64),
+    );
     attributes.insert("sentry.op", op);
 
     attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string())); // TODO: test
@@ -49,7 +55,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     attributes.insert("sentry.platform", platform);
     attributes.insert("sentry.was_transaction", was_transaction);
     attributes.insert(
-        "sentry._performance_issues_spans",
+        "sentry._internal.performance_issues_spans",
         _performance_issues_spans,
     );
 
@@ -84,7 +90,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
                     "description" => "sentry.normalized_description".into(),
                     other => Cow::Owned(format!("sentry.{}", other)),
                 };
-                if !attributes.contains_key(key.as_ref()) {
+                if !value.is_empty() && !attributes.contains_key(key.as_ref()) {
                     attributes.insert_raw(key.into_owned(), Attribute::annotated_from_value(value));
                 }
             }
@@ -145,18 +151,11 @@ fn span_v1_links_to_span_v2_links(links: Vec<Annotated<SpanLink>>) -> Vec<Annota
                         span_id,
                         sampled,
                         attributes: attributes.map_value(|attrs| {
-                            Attributes::from_iter(attrs.into_iter().filter_map(|(key, value)| {
-                                Some((
-                                    key,
-                                    Attribute {
-                                        value: dbg!(
-                                            dbg!(AttributeValue::from_value(value)).into_value()?
-                                        ),
-                                        other: Default::default(),
-                                    }
-                                    .into(),
-                                ))
-                            }))
+                            Attributes::from_iter(
+                                attrs.into_iter().map(|(key, value)| {
+                                    (key, Attribute::annotated_from_value(value))
+                                }),
+                            )
                         }),
                         other,
                     }
@@ -167,32 +166,23 @@ fn span_v1_links_to_span_v2_links(links: Vec<Annotated<SpanLink>>) -> Vec<Annota
 }
 
 fn attributes_from_data(data: Annotated<SpanData>) -> Annotated<Attributes> {
-    let Some(data) = data.into_value() else {
-        return Annotated::empty();
+    let Annotated(data, meta) = data;
+    let Some(data) = data else {
+        return Annotated(None, meta);
     };
     let Value::Object(data) = data.into_value() else {
-        return Annotated::empty();
+        return Annotated(None, meta);
     };
 
-    Annotated::new(Attributes::from_iter(data.into_iter().map(
-        |(key, Annotated(value, meta))| {
-            (
-                key,
-                Annotated::new(Attribute {
-                    value: AttributeValue {
-                        ty: todo!(),
-                        value: Annotated(value, meta),
-                    },
-                    other: Default::default(),
-                }),
-            )
-        },
+    Annotated::new(Attributes::from_iter(data.into_iter().filter_map(
+        |(key, value)| (!value.is_empty()).then_some((key, Attribute::annotated_from_value(value))),
     )))
 }
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::SerializableAnnotated;
+    use relay_event_schema::protocol::{JsonLenientString, Measurement};
+    use relay_protocol::{FiniteF64, SerializableAnnotated};
 
     use crate::span_v2_to_span_v1;
 
@@ -276,7 +266,20 @@ mod tests {
               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
               "span_id": "fa90fdead5f74052",
               "sampled": true,
-              "attributes": {}
+              "attributes": {
+                "boolAttr": {
+                  "type": "boolean",
+                  "value": true
+                },
+                "numAttr": {
+                  "type": "integer",
+                  "value": 123
+                },
+                "stringAttr": {
+                  "type": "string",
+                  "value": "foo"
+                }
+              }
             }
           ],
           "attributes": {
@@ -288,7 +291,11 @@ mod tests {
               "type": "double",
               "value": 9001.0
             },
-            "sentry._performance_issues_spans": {
+            "my.data.field": {
+              "type": "string",
+              "value": "my.data.value"
+            },
+            "sentry._internal.performance_issues_spans": {
               "type": "boolean",
               "value": true
             },
@@ -300,9 +307,17 @@ mod tests {
               "type": "string",
               "value": "raw description"
             },
+            "sentry.exclusive_time_nano": {
+              "type": "integer",
+              "value": 1230000
+            },
             "sentry.is_segment": {
               "type": "boolean",
               "value": true
+            },
+            "sentry.normalized_description": {
+              "type": "string",
+              "value": "normalized description"
             },
             "sentry.op": {
               "type": "string",
@@ -318,7 +333,7 @@ mod tests {
             },
             "sentry.profile_id": {
               "type": "string",
-              "value": "4c79f60c-1121-4eb3-8604-f4ae0781bfb0"
+              "value": "4c79f60c11214eb38604f4ae0781bfb0"
             },
             "sentry.segment.id": {
               "type": "string",
@@ -327,6 +342,10 @@ mod tests {
             "sentry.server_sample_rate": {
               "type": "double",
               "value": 0.22
+            },
+            "sentry.user": {
+              "type": "string",
+              "value": "id:user123"
             },
             "sentry.was_transaction": {
               "type": "boolean",
@@ -337,7 +356,49 @@ mod tests {
         }
         "###);
 
-        let span_v1 = span_v2_to_span_v1(annotated_span_v2.into_value().unwrap());
-        assert_eq!(json, Annotated::new(span_v1).to_json_pretty().unwrap(),);
+        let mut reconstructed_span_v1 = span_v2_to_span_v1(annotated_span_v2.into_value().unwrap());
+
+        // User tags cannot be converted losslessly:
+        let data = reconstructed_span_v1.data.value_mut().as_mut().unwrap();
+        let tags = reconstructed_span_v1
+            .tags
+            .get_or_insert_with(Default::default);
+        let value = data.other.remove("foo").unwrap().into_value().unwrap();
+        tags.insert(
+            dbg!("foo").to_owned(),
+            Annotated::new(dbg!(value).as_str().unwrap().to_owned().into()),
+        );
+
+        // Measurements cannot be converted losslessly:
+        let measurements = reconstructed_span_v1
+            .measurements
+            .get_or_insert_with(Default::default);
+        for key in ["client_sample_rate", "memory", "server_sample_rate"] {
+            let value = data
+                .other
+                .remove(match key {
+                    "memory" => "memory",
+                    "client_sample_rate" => "sentry.client_sample_rate",
+                    "server_sample_rate" => "sentry.server_sample_rate",
+                    _ => panic!(),
+                })
+                .unwrap()
+                .into_value()
+                .unwrap();
+            measurements.insert(
+                key.to_owned(),
+                Annotated::new(Measurement {
+                    value: FiniteF64::new(value.as_f64().unwrap()).unwrap().into(),
+                    unit: Annotated::empty(),
+                }),
+            );
+        }
+
+        assert_eq!(
+            json,
+            Annotated::new(reconstructed_span_v1)
+                .to_json_pretty()
+                .unwrap(),
+        );
     }
 }

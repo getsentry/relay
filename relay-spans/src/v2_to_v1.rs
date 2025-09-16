@@ -57,7 +57,10 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let mut grpc_status_code = Annotated::empty();
     let mut platform = Annotated::empty();
     let mut segment_id = Annotated::empty();
+    let mut is_segment = Annotated::empty();
+    let mut origin = Annotated::empty();
     let mut profile_id = Annotated::empty();
+    let mut performance_issues_spans = Annotated::empty();
 
     for (key, value) in attributes.into_value().into_iter().flat_map(|attributes| {
         attributes.into_iter().flat_map(|(key, attribute)| {
@@ -96,8 +99,11 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
             "sentry.segment.id" => {
                 segment_id = SpanId::from_value(value);
             }
-            "sentry.profile_id" => {
-                profile_id = EventId::from_value(value);
+            "sentry.is_segment" => is_segment = bool::from_value(value),
+            "sentry.origin" => origin = String::from_value(value),
+            "sentry.profile_id" => profile_id = EventId::from_value(value),
+            "sentry._internal.performance_issues_spans" => {
+                performance_issues_spans = bool::from_value(value)
             }
             _ => {
                 data.insert(key.to_owned(), value);
@@ -145,6 +151,8 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         segment_id,
         span_id,
         is_remote,
+        is_segment,
+        origin,
         profile_id,
         start_timestamp,
         status,
@@ -153,6 +161,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         platform,
         kind: kind.map_value(span_v2_kind_to_span_v1_kind),
         links,
+        performance_issues_spans,
         ..Default::default()
     }
 }

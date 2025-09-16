@@ -128,8 +128,12 @@ pub struct Span {
     /// is a root (segment) instead of the transaction event.
     ///
     /// Only set on root spans extracted from transactions.
-    #[metastructure(skip_serialization = "empty", trim = false)]
-    pub _performance_issues_spans: Annotated<bool>,
+    #[metastructure(
+        field = "_performance_issues_spans",
+        skip_serialization = "empty",
+        trim = false
+    )]
+    pub performance_issues_spans: Annotated<bool>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
