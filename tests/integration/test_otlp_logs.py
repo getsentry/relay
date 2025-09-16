@@ -1,7 +1,7 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
-from .asserts import time_within_delta
+from .asserts import time_within_delta, time_within
 
 
 def test_otlp_logs_conversion(mini_sentry, relay):
@@ -13,6 +13,9 @@ def test_otlp_logs_conversion(mini_sentry, relay):
         "organizations:relay-otel-logs-endpoint",
     ]
     relay = relay(mini_sentry)
+
+    ts = datetime.now(timezone.utc)
+    ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
 
     otel_logs_payload = {
         "resourceLogs": [
@@ -30,8 +33,8 @@ def test_otlp_logs_conversion(mini_sentry, relay):
                         "scope": {"name": "test-library"},
                         "logRecords": [
                             {
-                                "timeUnixNano": "1544712660300000000",
-                                "observedTimeUnixNano": "1544712660300000000",
+                                "timeUnixNano": ts_nanos,
+                                "observedTimeUnixNano": ts_nanos,
                                 "severityNumber": 10,
                                 "severityText": "Information",
                                 "traceId": "5B8EFFF798038103D269B633813FC60C",
@@ -95,58 +98,37 @@ def test_otlp_logs_conversion(mini_sentry, relay):
     envelope = mini_sentry.captured_events.get(timeout=5)
 
     assert [item.type for item in envelope.items] == ["log"]
-
     log_item = json.loads(envelope.items[0].payload.bytes)
 
-    # Verify the structure contains our log entry
-    assert "items" in log_item
-    assert len(log_item["items"]) == 1
-
-    log_entry = log_item["items"][0]
-
-    # Verify basic structure
-    assert "timestamp" in log_entry
-    assert "trace_id" in log_entry
-    assert "level" in log_entry
-    assert "body" in log_entry
-    assert "attributes" in log_entry
-
-    # Verify specific values
-    assert log_entry["body"] == "Example log record"
-    assert log_entry["level"] == "info"
-    assert log_entry["trace_id"] == "5b8efff798038103d269b633813fc60c"
-
-    # Verify attributes were preserved
-    attributes = log_entry["attributes"]
-    assert "string.attribute" in attributes
-    assert attributes["string.attribute"]["value"] == "some string"
-    assert attributes["string.attribute"]["type"] == "string"
-
-    assert "boolean.attribute" in attributes
-    assert attributes["boolean.attribute"]["value"] is True
-    assert attributes["boolean.attribute"]["type"] == "boolean"
-
-    assert "int.attribute" in attributes
-    assert attributes["int.attribute"]["value"] == 10
-    assert attributes["int.attribute"]["type"] == "integer"
-
-    assert "double.attribute" in attributes
-    assert attributes["double.attribute"]["value"] == 637.704
-    assert attributes["double.attribute"]["type"] == "double"
-
-    # Test array attribute (should be serialized as JSON string)
-    assert "array.attribute" in attributes
-    assert attributes["array.attribute"]["type"] == "string"
-    assert attributes["array.attribute"]["value"] == '["first","second"]'
-
-    # Test map attribute (should be serialized as JSON string)
-    assert "map.attribute" in attributes
-    assert attributes["map.attribute"]["type"] == "string"
-    assert attributes["map.attribute"]["value"] == '{"nested.key":"nested value"}'
-
-    # Verify timestamp conversion (from unix nano to seconds)
-    expected_timestamp = datetime.fromtimestamp(1544712660.3, tz=timezone.utc)
-    assert log_entry["timestamp"] == time_within_delta(expected_timestamp)
+    assert log_item["items"] == [
+        {
+            "__header": {"byte_size": 248},
+            "attributes": {
+                "array.attribute": {"type": "string", "value": '["first","second"]'},
+                "boolean.attribute": {"type": "boolean", "value": True},
+                "double.attribute": {"type": "double", "value": 637.704},
+                "instrumentation.name": {"type": "string", "value": "test-library"},
+                "int.attribute": {"type": "integer", "value": 10},
+                "map.attribute": {
+                    "type": "string",
+                    "value": '{"nested.key":"nested value"}',
+                },
+                "resource.service.name": {"type": "string", "value": "test-service"},
+                "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+                "sentry.browser.version": {"type": "string", "value": "2.32"},
+                "sentry.observed_timestamp_nanos": {
+                    "type": "string",
+                    "value": time_within(ts, expect_resolution="ns"),
+                },
+                "string.attribute": {"type": "string", "value": "some string"},
+            },
+            "body": "Example log record",
+            "level": "info",
+            "span_id": "eee19b7ec3c1b174",
+            "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+        }
+    ]
 
     assert mini_sentry.captured_events.empty()
 
@@ -161,6 +143,9 @@ def test_otlp_logs_multiple_records(mini_sentry, relay):
     ]
     relay = relay(mini_sentry)
 
+    ts = datetime.now(timezone.utc)
+    ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
+
     otel_logs_payload = {
         "resourceLogs": [
             {
@@ -168,7 +153,7 @@ def test_otlp_logs_multiple_records(mini_sentry, relay):
                     {
                         "logRecords": [
                             {
-                                "timeUnixNano": "1544712660300000000",
+                                "timeUnixNano": ts_nanos,
                                 "severityNumber": 18,
                                 "severityText": "Error",
                                 "traceId": "5B8EFFF798038103D269B633813FC60C",
@@ -176,7 +161,7 @@ def test_otlp_logs_multiple_records(mini_sentry, relay):
                                 "body": {"stringValue": "First log entry"},
                             },
                             {
-                                "timeUnixNano": "1544712661300000000",
+                                "timeUnixNano": ts_nanos,
                                 "severityNumber": 6,
                                 "severityText": "Debug",
                                 "traceId": "5B8EFFF798038103D269B633813FC60C",
@@ -191,22 +176,45 @@ def test_otlp_logs_multiple_records(mini_sentry, relay):
     }
 
     relay.send_otel_logs(project_id, json=otel_logs_payload)
-    envelope = mini_sentry.captured_events.get(timeout=3)
+
+    envelope = mini_sentry.captured_events.get(timeout=5)
+
+    assert [item.type for item in envelope.items] == ["log"]
     log_item = json.loads(envelope.items[0].payload.bytes)
 
-    # Should have both log entries
-    assert len(log_item["items"]) == 2
-
-    # Verify first log entry
-    first_log = log_item["items"][0]
-    assert first_log["body"] == "First log entry"
-    assert first_log["level"] == "error"
-    assert first_log["span_id"] == "eee19b7ec3c1b174"
-
-    # Verify second log entry
-    second_log = log_item["items"][1]
-    assert second_log["body"] == "Second log entry"
-    assert second_log["level"] == "debug"
-    assert second_log["span_id"] == "eee19b7ec3c1b175"
+    assert log_item["items"] == [
+        {
+            "__header": {"byte_size": 15},
+            "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "error",
+            "body": "First log entry",
+            "attributes": {
+                "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+                "sentry.browser.version": {"type": "string", "value": "2.32"},
+                "sentry.observed_timestamp_nanos": {
+                    "type": "string",
+                    "value": time_within(ts, expect_resolution="ns"),
+                },
+            },
+        },
+        {
+            "__header": {"byte_size": 16},
+            "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "debug",
+            "body": "Second log entry",
+            "attributes": {
+                "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+                "sentry.browser.version": {"type": "string", "value": "2.32"},
+                "sentry.observed_timestamp_nanos": {
+                    "type": "string",
+                    "value": time_within(ts, expect_resolution="ns"),
+                },
+            },
+        },
+    ]
 
     assert mini_sentry.captured_events.empty()
