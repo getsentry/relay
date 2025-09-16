@@ -20,6 +20,7 @@ use crate::metrics::{
 use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetentionSettings {
     pub standard: u16,
     pub down_sampled: u16,
