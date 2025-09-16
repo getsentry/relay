@@ -19,6 +19,7 @@ use crate::processing::{
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod filter;
+mod otel;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
@@ -112,7 +113,16 @@ impl processing::Processor for LogsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::Log))
             .into_vec();
 
-        let work = SerializedLogs { headers, logs };
+        let otel_logs = envelope
+            .envelope_mut()
+            .take_items_by(|item| matches!(*item.ty(), ItemType::OtelLogsData))
+            .into_vec();
+
+        let work = SerializedLogs {
+            headers,
+            logs,
+            otel_logs,
+        };
         Some(Managed::from_envelope(envelope, work))
     }
 
@@ -219,11 +229,38 @@ pub struct SerializedLogs {
     ///
     /// But at this point this has not yet been validated.
     logs: Vec<Item>,
+
+    /// Logs which Relay received from the OTLP logs endpoint.
+    otel_logs: Vec<Item>,
 }
 
 impl SerializedLogs {
     fn serialize_envelope(self) -> Box<Envelope> {
-        Envelope::from_parts(self.headers, Items::from_vec(self.logs))
+        // `Items` can be constructed with zero cost from a Vec (cap > inline cap).
+        //
+        // We want to minimize the work necessary to copy/merge data. If either vec is empty,
+        // we can construct the items from the other vec, if both vectors contain items,
+        // we can use the bigger one as a base.
+        let items = match (self.logs.len(), self.otel_logs.len()) {
+            (0, 0) => Items::new(),
+            (_, 0) => Items::from_vec(self.logs),
+            (0, _) => Items::from_vec(self.otel_logs),
+            (logs, otel) if logs > otel => {
+                let mut items = Items::from_vec(self.logs);
+                items.extend(self.otel_logs);
+                items
+            }
+            (_, _) => {
+                let mut items = Items::from_vec(self.otel_logs);
+                items.extend(self.logs);
+                items
+            }
+        };
+        Envelope::from_parts(self.headers, items)
+    }
+
+    fn items(&self) -> impl Iterator<Item = &Item> {
+        self.otel_logs.iter().chain(self.logs.iter())
     }
 
     /// Returns the total count of all logs contained.
@@ -231,15 +268,14 @@ impl SerializedLogs {
     /// This contains all logical log items, not just envelope items and is safe
     /// to use for rate limiting.
     fn count(&self) -> usize {
-        self.logs
-            .iter()
+        self.items()
             .map(|item| item.item_count().unwrap_or(1) as usize)
             .sum()
     }
 
     /// Returns the sum of bytes of all logs contained.
     fn bytes(&self) -> usize {
-        self.logs.iter().map(|item| item.len()).sum()
+        self.items().map(|item| item.len()).sum()
     }
 }
 
@@ -302,6 +338,7 @@ impl ExpandedLogs {
         Ok(SerializedLogs {
             headers: self.headers,
             logs,
+            otel_logs: Vec::new(),
         })
     }
 }
