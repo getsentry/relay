@@ -238,29 +238,20 @@ impl SerializedLogs {
     fn serialize_envelope(self) -> Box<Envelope> {
         // `Items` can be constructed with zero cost from a Vec (cap > inline cap).
         //
-        // We want to minimize the work necessary to copy/merge data. If either vec is empty,
-        // we can construct the items from the other vec, if both vectors contain items,
-        // we can use the bigger one as a base.
-        let items = match (self.logs.len(), self.otel_logs.len()) {
-            (0, 0) => Items::new(),
-            (_, 0) => Items::from_vec(self.logs),
-            (0, _) => Items::from_vec(self.otel_logs),
-            (logs, otel) if logs > otel => {
-                let mut items = Items::from_vec(self.logs);
-                items.extend(self.otel_logs);
-                items
-            }
-            (_, _) => {
-                let mut items = Items::from_vec(self.otel_logs);
-                items.extend(self.logs);
-                items
-            }
+        // We want to minimize the work necessary to copy/merge data.
+        // Both vectors can contain items, but very likely only one does.
+        // We can use the bigger one as a base to copy/allocate less data.
+        // This implicitly also assumes the capacity of the vectors follows the length.
+        let (mut long, short) = match self.logs.len() > self.otel_logs.len() {
+            true => (self.logs, self.otel_logs),
+            false => (self.otel_logs, self.logs),
         };
-        Envelope::from_parts(self.headers, items)
+        long.extend(short);
+        Envelope::from_parts(self.headers, Items::from_vec(long))
     }
 
     fn items(&self) -> impl Iterator<Item = &Item> {
-        self.otel_logs.iter().chain(self.logs.iter())
+        self.logs.iter().chain(self.otel_logs.iter())
     }
 
     /// Returns the total count of all logs contained.
