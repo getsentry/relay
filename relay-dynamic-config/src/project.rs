@@ -23,7 +23,7 @@ use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetentionSettings {
     pub standard: u16,
-    pub down_sampled: u16,
+    pub downsampled: u16,
 }
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
