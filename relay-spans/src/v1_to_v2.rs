@@ -75,7 +75,6 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     }
     if let Some(tags) = tags.into_value() {
         for (key, value) in tags {
-            // TODO: special cases (see backfill_data)
             if !attributes.contains_key(&key) {
                 attributes.insert_raw(
                     key,

@@ -21,7 +21,7 @@ pub struct CompatSpan {
     pub start_timestamp_ms: Annotated<u64>, // TODO: remove from kafka schema, no longer used in consumer
     pub start_timestamp_precise: Annotated<Timestamp>,
 
-    #[metastructure(rename = "_performance_issues_spans")]
+    #[metastructure(field = "_performance_issues_spans")]
     pub performance_issues_spans: Annotated<bool>, // TODO: add to Kafka schema?
 }
 
@@ -153,6 +153,10 @@ mod tests {
                 "sentry.segment.name": {
                     "value": "my 1st transaction",
                     "type": "string"
+                },
+                "sentry._internal.performance_issues_spans": {
+                    "value": true,
+                    "type": "bool"
                 }
             }
         }"#;
@@ -174,6 +178,10 @@ mod tests {
             "browser.name": {
               "type": "string",
               "value": "Chrome"
+            },
+            "sentry._internal.performance_issues_spans": {
+              "type": "bool",
+              "value": true
             },
             "sentry.description": {
               "type": "string",
@@ -214,6 +222,7 @@ mod tests {
           },
           "data": {
             "browser.name": "Chrome",
+            "sentry._internal.performance_issues_spans": true,
             "sentry.description": "mydescription",
             "sentry.environment": "prod",
             "sentry.op": "myop",
@@ -230,7 +239,8 @@ mod tests {
           "profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
           "segment_id": "FA90FDEAD5F74052",
           "start_timestamp_ms": 123000,
-          "start_timestamp_precise": 123.0
+          "start_timestamp_precise": 123.0,
+          "_performance_issues_spans": true
         }
         "###);
     }
