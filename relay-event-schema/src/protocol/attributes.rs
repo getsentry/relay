@@ -21,7 +21,6 @@ pub struct Attribute {
 }
 
 impl Attribute {
-    // TODO: remove this function.
     pub fn new(attribute_type: AttributeType, value: Value) -> Self {
         Self {
             value: AttributeValue {

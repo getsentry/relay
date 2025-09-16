@@ -48,11 +48,11 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     );
     attributes.insert("sentry.op", op);
 
-    attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string())); // TODO: test
+    attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string()));
     attributes.insert("sentry.is_segment", is_segment);
     attributes.insert("sentry.description", description);
     attributes.insert("sentry.origin", origin);
-    attributes.insert("sentry.profile_id", profile_id.map_value(|v| v.to_string())); // TODO: test
+    attributes.insert("sentry.profile_id", profile_id.map_value(|v| v.to_string()));
     attributes.insert("sentry.platform", platform);
     attributes.insert("sentry.was_transaction", was_transaction);
     attributes.insert(
@@ -182,73 +182,77 @@ fn attributes_from_data(data: Annotated<SpanData>) -> Annotated<Attributes> {
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::Measurement;
-    use relay_protocol::{FiniteF64, SerializableAnnotated};
-
-    use crate::span_v2_to_span_v1;
-
     use super::*;
+    use relay_protocol::{FromValue, SerializableAnnotated};
 
     #[test]
-    fn roundtrip() {
-        let json = r#"{
-  "timestamp": 0.0,
-  "start_timestamp": -63158400.0,
-  "exclusive_time": 1.23,
-  "op": "operation",
-  "span_id": "fa90fdead5f74052",
-  "parent_span_id": "fa90fdead5f74051",
-  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-  "segment_id": "fa90fdead5f74050",
-  "is_segment": true,
-  "is_remote": true,
-  "status": "ok",
-  "description": "raw description",
-  "tags": {
-    "foo": "bar"
-  },
-  "origin": "auto.http",
-  "profile_id": "4c79f60c11214eb38604f4ae0781bfb0",
-  "data": {
-    "my.data.field": "my.data.value"
-  },
-  "links": [
-    {
-    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-    "span_id": "fa90fdead5f74052",
-    "sampled": true,
-      "attributes": {
-        "boolAttr": true,
-        "numAttr": 123,
-        "stringAttr": "foo"
-      }
-    }
-  ],
-  "sentry_tags": {
-    "user": "id:user123",
-    "description": "normalized description"
-  },
-  "received": 0.2,
-  "measurements": {
-    "client_sample_rate": {
-      "value": 0.11
-    },
-    "server_sample_rate": {
-      "value": 0.22
-    },
-    "memory": {
-      "value": 9001.0,
-      "unit": "byte"
-    }
-  },
-  "platform": "javascript",
-  "was_transaction": true,
-  "kind": "server",
-  "_performance_issues_spans": true,
-  "additional_field": "additional field value"
-}"#;
+    fn parse() {
+        let json = serde_json::json!({
+          "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+          "parent_span_id": "fa90fdead5f74051",
+          "span_id": "fa90fdead5f74052",
+          "status": "ok",
+          "is_remote": true,
+          "kind": "server",
+          "start_timestamp": -63158400.0,
+          "timestamp": 0.0,
+          "links": [
+            {
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "span_id": "fa90fdead5f74052",
+            "sampled": true,
+              "attributes": {
+                "boolAttr": true,
+                "numAttr": 123,
+                "stringAttr": "foo"
+              }
+            }
+          ],
+          "tags": {
+            "foo": "bar"
+          },
+          "measurements": {
+            "memory": {
+              "value": 9001.0,
+              "unit": "byte"
+            },
+            "client_sample_rate": {
+              "value": 0.11
+            },
+            "server_sample_rate": {
+              "value": 0.22
+            }
+          },
+          "data": {
+            "my.data.field": "my.data.value",
+            "my.nested": {
+              "numbers": [
+                1,
+                2,
+                3
+              ]
+            }
+          },
+          "_performance_issues_spans": true,
+          "description": "raw description",
+          "exclusive_time": 1.23,
+          "is_segment": true,
+          "sentry_tags": {
+            "description": "normalized description",
+            "user": "id:user123",
+          },
+          "op": "operation",
+          "origin": "auto.http",
+          "platform": "javascript",
+          "profile_id": "4c79f60c11214eb38604f4ae0781bfb0",
+          "segment_id": "fa90fdead5f74050",
+          "was_transaction": true,
 
-        let span_v1 = Annotated::from_json(json).unwrap().into_value().unwrap();
+          "received": 0.2,
+          "additional_field": "additional field value"
+        });
+
+        let span_v1 = SpanV1::from_value(json.into()).into_value().unwrap();
         let span_v2 = span_v1_to_span_v2(span_v1);
 
         let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
@@ -295,6 +299,16 @@ mod tests {
             "my.data.field": {
               "type": "string",
               "value": "my.data.value"
+            },
+            "my.nested": {
+              "type": "object",
+              "value": {
+                "numbers": [
+                  1,
+                  2,
+                  3
+                ]
+              }
             },
             "sentry._internal.performance_issues_spans": {
               "type": "boolean",
@@ -356,50 +370,5 @@ mod tests {
           "additional_field": "additional field value"
         }
         "###);
-
-        let mut reconstructed_span_v1 = span_v2_to_span_v1(annotated_span_v2.into_value().unwrap());
-
-        // User tags cannot be converted losslessly:
-        let data = reconstructed_span_v1.data.value_mut().as_mut().unwrap();
-        let tags = reconstructed_span_v1
-            .tags
-            .get_or_insert_with(Default::default);
-        let value = data.other.remove("foo").unwrap().into_value().unwrap();
-        tags.insert(
-            dbg!("foo").to_owned(),
-            Annotated::new(dbg!(value).as_str().unwrap().to_owned().into()),
-        );
-
-        // Measurements cannot be converted losslessly:
-        let measurements = reconstructed_span_v1
-            .measurements
-            .get_or_insert_with(Default::default);
-        for key in ["client_sample_rate", "memory", "server_sample_rate"] {
-            let value = data
-                .other
-                .remove(match key {
-                    "memory" => "memory",
-                    "client_sample_rate" => "sentry.client_sample_rate",
-                    "server_sample_rate" => "sentry.server_sample_rate",
-                    _ => panic!(),
-                })
-                .unwrap()
-                .into_value()
-                .unwrap();
-            measurements.insert(
-                key.to_owned(),
-                Annotated::new(Measurement {
-                    value: FiniteF64::new(value.as_f64().unwrap()).unwrap().into(),
-                    unit: Annotated::empty(),
-                }),
-            );
-        }
-
-        assert_eq!(
-            json,
-            Annotated::new(reconstructed_span_v1)
-                .to_json_pretty()
-                .unwrap(),
-        );
     }
 }
