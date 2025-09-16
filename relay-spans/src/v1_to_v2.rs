@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 
 use relay_event_schema::protocol::{
     Attribute, AttributeValue, Attributes, Span as SpanV1, SpanData, SpanKind as SpanV1Kind,
@@ -36,7 +35,8 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         other,
     } = span_v1;
 
-    let mut attributes = attributes_from_data(data).get_or_insert_with(Default::default);
+    let mut annotated_attributes = attributes_from_data(data);
+    let attributes = annotated_attributes.get_or_insert_with(Default::default);
 
     // Top-level fields have higher precedence than `data`:
     attributes.insert("sentry.op", op);
@@ -68,9 +68,12 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     }
     if let Some(tags) = tags.into_value() {
         for (key, value) in tags {
-            // TODO: exceptions (see backfill_data)
-            if let Some(value) = value.into_value() {
-                attributes.insert_if_missing(&key, || value.0);
+            // TODO: special cases (see backfill_data)
+            if !attributes.contains_key(&key) {
+                attributes.insert_raw(
+                    key,
+                    Attribute::annotated_from_value(value.map_value(IntoValue::into_value)),
+                );
             }
         }
     }
@@ -81,7 +84,9 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
                     "description" => "sentry.normalized_description".into(),
                     other => Cow::Owned(format!("sentry.{}", other)),
                 };
-                attributes.insert_if_missing(&key, || value);
+                if !attributes.contains_key(key.as_ref()) {
+                    attributes.insert_raw(key.into_owned(), Attribute::annotated_from_value(value));
+                }
             }
         }
     }
@@ -91,8 +96,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         parent_span_id,
         span_id,
         name: attributes
-            .value()
-            .and_then(|attrs| attrs.get_value("sentry.name"))
+            .get_value("sentry.name")
             .and_then(|v| Some(v.as_str()?.to_owned()))
             .into(),
         status: Annotated::map_value(status, span_v1_status_to_span_v2_status),
@@ -101,7 +105,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         start_timestamp,
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
-        attributes,
+        attributes: annotated_attributes,
         other,
     }
 }
@@ -170,18 +174,20 @@ fn attributes_from_data(data: Annotated<SpanData>) -> Annotated<Attributes> {
         return Annotated::empty();
     };
 
-    // Annotated::new(Attributes::from_iter(data.into_iter().filter_map(
-    //     |(key, value)| {
-    //         Some((
-    //             key,
-    //             Attribute {
-    //                 value: AttributeValue { ty: (), value: () }
-    //                 other: BTreeMap::new(),
-    //             }
-    //             .into(),
-    //         ))
-    //     },
-    // )))
+    Annotated::new(Attributes::from_iter(data.into_iter().map(
+        |(key, Annotated(value, meta))| {
+            (
+                key,
+                Annotated::new(Attribute {
+                    value: AttributeValue {
+                        ty: todo!(),
+                        value: Annotated(value, meta),
+                    },
+                    other: Default::default(),
+                }),
+            )
+        },
+    )))
 }
 
 #[cfg(test)]

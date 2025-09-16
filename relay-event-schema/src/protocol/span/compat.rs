@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
-use crate::protocol::{Attribute, AttributeValue, EventId, SpanV2, Timestamp};
+use crate::protocol::{EventId, SpanV2, Timestamp};
 
 /// Temporary type that amends a SpansV2 span with fields needed by the sentry span consumer.
 /// This can be removed once the consumer has been updated to use the new schema.
