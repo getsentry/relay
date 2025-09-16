@@ -4,7 +4,6 @@
 
 - Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077)))
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
-- Add `retentions` to the project configuration. ([#5135](https://github.com/getsentry/relay/pull/5135))
 
 ## 0.9.15
 
