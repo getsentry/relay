@@ -625,7 +625,7 @@ jobs:
 
   gocd-artifacts:
     timeout-minutes: 10
-    needs: [build-setup, build-internal, publish-to-ar-internal]
+    needs: [build-setup, build-internal, publish-to-ar-internal, publish-to-gcr]
 
     name: Upload build artifacts to gocd
     runs-on: ubuntu-latest
