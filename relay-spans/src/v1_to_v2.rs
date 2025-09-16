@@ -1,13 +1,14 @@
 use std::borrow::Cow;
 
 use relay_event_schema::protocol::{
-    Attribute, AttributeValue, Attributes, Span as SpanV1, SpanData, SpanKind as SpanV1Kind,
-    SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Kind, SpanV2Link, SpanV2Status,
+    Attribute, Attributes, Span as SpanV1, SpanData, SpanKind as SpanV1Kind, SpanLink,
+    SpanStatus as SpanV1Status, SpanV2, SpanV2Kind, SpanV2Link, SpanV2Status,
 };
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Value};
+use relay_protocol::{Annotated, Empty, IntoValue, Value};
 
 const MILLIS_TO_NANOS: f64 = 1000. * 1000.;
 
+#[allow(dead_code)]
 pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let SpanV1 {
         timestamp,
@@ -181,7 +182,7 @@ fn attributes_from_data(data: Annotated<SpanData>) -> Annotated<Attributes> {
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{JsonLenientString, Measurement};
+    use relay_event_schema::protocol::Measurement;
     use relay_protocol::{FiniteF64, SerializableAnnotated};
 
     use crate::span_v2_to_span_v1;
