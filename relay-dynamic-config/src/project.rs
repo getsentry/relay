@@ -21,8 +21,8 @@ use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
 pub struct RetentionSettings {
-    pub standard: Option<u16>,
-    pub down_sampled: Option<u16>,
+    pub standard: u16,
+    pub down_sampled: u16,
 }
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
