@@ -17,7 +17,7 @@
 <a href=#17 id=17 data-nosnippet>17</a>
 <a href=#18 id=18 data-nosnippet>18</a>            measurements,
 <a href=#19 id=19 data-nosnippet>19</a>            _metrics,
-<a href=#20 id=20 data-nosnippet>20</a>            _performance_issues_spans,
+<a href=#20 id=20 data-nosnippet>20</a>            performance_issues_spans,
 <a href=#21 id=21 data-nosnippet>21</a>            ..
 <a href=#22 id=22 data-nosnippet>22</a>        } = event;
 <a href=#23 id=23 data-nosnippet>23</a>
@@ -72,7 +72,7 @@
 <a href=#72 id=72 data-nosnippet>72</a>            platform: platform.clone(),
 <a href=#73 id=73 data-nosnippet>73</a>            was_transaction: <span class="bool-val">true</span>.into(),
 <a href=#74 id=74 data-nosnippet>74</a>            kind: Default::default(),
-<a href=#75 id=75 data-nosnippet>75</a>            _performance_issues_spans: _performance_issues_spans.clone(),
+<a href=#75 id=75 data-nosnippet>75</a>            performance_issues_spans: performance_issues_spans.clone(),
 <a href=#76 id=76 data-nosnippet>76</a>            other: Default::default(),
 <a href=#77 id=77 data-nosnippet>77</a>        }
 <a href=#78 id=78 data-nosnippet>78</a>    }
@@ -134,7 +134,7 @@
 <a href=#134 id=134 data-nosnippet>134</a>        .unwrap();
 <a href=#135 id=135 data-nosnippet>135</a>
 <a href=#136 id=136 data-nosnippet>136</a>        <span class="kw">let </span>span_from_event = Span::from(<span class="kw-2">&amp;</span>event);
-<a href=#137 id=137 data-nosnippet>137</a>        <span class="macro">insta::assert_debug_snapshot!</span>(span_from_event, @<span class="string">r#"
+<a href=#137 id=137 data-nosnippet>137</a>        <span class="macro">insta::assert_debug_snapshot!</span>(span_from_event, @<span class="string">r###"
 <a href=#138 id=138 data-nosnippet>138</a>        Span {
 <a href=#139 id=139 data-nosnippet>139</a>            timestamp: ~,
 <a href=#140 id=140 data-nosnippet>140</a>            start_timestamp: ~,
@@ -287,9 +287,9 @@
 <a href=#287 id=287 data-nosnippet>287</a>            platform: "php",
 <a href=#288 id=288 data-nosnippet>288</a>            was_transaction: true,
 <a href=#289 id=289 data-nosnippet>289</a>            kind: ~,
-<a href=#290 id=290 data-nosnippet>290</a>            _performance_issues_spans: ~,
+<a href=#290 id=290 data-nosnippet>290</a>            performance_issues_spans: ~,
 <a href=#291 id=291 data-nosnippet>291</a>            other: {},
 <a href=#292 id=292 data-nosnippet>292</a>        }
-<a href=#293 id=293 data-nosnippet>293</a>        "#</span>);
+<a href=#293 id=293 data-nosnippet>293</a>        "###</span>);
 <a href=#294 id=294 data-nosnippet>294</a>    }
 <a href=#295 id=295 data-nosnippet>295</a>}</code></pre></div></section></main></body></html>

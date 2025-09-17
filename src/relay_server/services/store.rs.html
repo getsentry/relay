@@ -1756,443 +1756,447 @@
 <a href=#1756 id=1756 data-nosnippet>1756</a>    </span>)]
 <a href=#1757 id=1757 data-nosnippet>1757</a>    </span>meta: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
 <a href=#1758 id=1758 data-nosnippet>1758</a>
-<a href=#1759 id=1759 data-nosnippet>1759</a>    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#1760 id=1760 data-nosnippet>1760</a>    </span>_performance_issues_spans: <span class="prelude-ty">Option</span>&lt;bool&gt;,
-<a href=#1761 id=1761 data-nosnippet>1761</a>
-<a href=#1762 id=1762 data-nosnippet>1762</a>    <span class="comment">// Required for the buffer to emit outcomes scoped to the DSN.
-<a href=#1763 id=1763 data-nosnippet>1763</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#1764 id=1764 data-nosnippet>1764</a>    </span>key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-<a href=#1765 id=1765 data-nosnippet>1765</a>}
-<a href=#1766 id=1766 data-nosnippet>1766</a>
-<a href=#1767 id=1767 data-nosnippet>1767</a><span class="kw">impl </span>SpanKafkaMessage&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#1768 id=1768 data-nosnippet>1768</a>    <span class="doccomment">/// Backfills `data` based on `sentry_tags`, `tags`, and `measurements`.
-<a href=#1769 id=1769 data-nosnippet>1769</a>    ///
-<a href=#1770 id=1770 data-nosnippet>1770</a>    /// * Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
-<a href=#1771 id=1771 data-nosnippet>1771</a>    ///   The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
-<a href=#1772 id=1772 data-nosnippet>1772</a>    ///
-<a href=#1773 id=1773 data-nosnippet>1773</a>    /// * Every item in `tags` is copied to `data` verbatim, with the exception of `description`, which
-<a href=#1774 id=1774 data-nosnippet>1774</a>    ///   is copied as `sentry.normalized_description`.
-<a href=#1775 id=1775 data-nosnippet>1775</a>    ///
-<a href=#1776 id=1776 data-nosnippet>1776</a>    /// * The value of every item in `measurements` is copied to `data` with the same key, with the exceptions
-<a href=#1777 id=1777 data-nosnippet>1777</a>    ///   of `client_sample_rate` and `server_sample_rate`. Those measurements are instead written to the top-level
-<a href=#1778 id=1778 data-nosnippet>1778</a>    ///   fields of the same names.
+<a href=#1759 id=1759 data-nosnippet>1759</a>    <span class="attr">#[serde(
+<a href=#1760 id=1760 data-nosnippet>1760</a>        default,
+<a href=#1761 id=1761 data-nosnippet>1761</a>        rename = <span class="string">"_performance_issues_spans"</span>,
+<a href=#1762 id=1762 data-nosnippet>1762</a>        skip_serializing_if = <span class="string">"Option::is_none"
+<a href=#1763 id=1763 data-nosnippet>1763</a>    </span>)]
+<a href=#1764 id=1764 data-nosnippet>1764</a>    </span>performance_issues_spans: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+<a href=#1765 id=1765 data-nosnippet>1765</a>
+<a href=#1766 id=1766 data-nosnippet>1766</a>    <span class="comment">// Required for the buffer to emit outcomes scoped to the DSN.
+<a href=#1767 id=1767 data-nosnippet>1767</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#1768 id=1768 data-nosnippet>1768</a>    </span>key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+<a href=#1769 id=1769 data-nosnippet>1769</a>}
+<a href=#1770 id=1770 data-nosnippet>1770</a>
+<a href=#1771 id=1771 data-nosnippet>1771</a><span class="kw">impl </span>SpanKafkaMessage&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1772 id=1772 data-nosnippet>1772</a>    <span class="doccomment">/// Backfills `data` based on `sentry_tags`, `tags`, and `measurements`.
+<a href=#1773 id=1773 data-nosnippet>1773</a>    ///
+<a href=#1774 id=1774 data-nosnippet>1774</a>    /// * Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
+<a href=#1775 id=1775 data-nosnippet>1775</a>    ///   The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+<a href=#1776 id=1776 data-nosnippet>1776</a>    ///
+<a href=#1777 id=1777 data-nosnippet>1777</a>    /// * Every item in `tags` is copied to `data` verbatim, with the exception of `description`, which
+<a href=#1778 id=1778 data-nosnippet>1778</a>    ///   is copied as `sentry.normalized_description`.
 <a href=#1779 id=1779 data-nosnippet>1779</a>    ///
-<a href=#1780 id=1780 data-nosnippet>1780</a>    /// In no case are existing keys overwritten. Thus, from highest to lowest, the order of precedence is
-<a href=#1781 id=1781 data-nosnippet>1781</a>    /// * existing values in `data`
-<a href=#1782 id=1782 data-nosnippet>1782</a>    /// * `measurements`
-<a href=#1783 id=1783 data-nosnippet>1783</a>    /// * `tags`
-<a href=#1784 id=1784 data-nosnippet>1784</a>    /// * `sentry_tags`
-<a href=#1785 id=1785 data-nosnippet>1785</a>    </span><span class="kw">fn </span>backfill_data(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-<a href=#1786 id=1786 data-nosnippet>1786</a>        <span class="kw">let </span>data = <span class="self">self</span>.data.get_or_insert_default();
-<a href=#1787 id=1787 data-nosnippet>1787</a>
-<a href=#1788 id=1788 data-nosnippet>1788</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = <span class="kw-2">&amp;</span><span class="self">self</span>.measurements {
-<a href=#1789 id=1789 data-nosnippet>1789</a>            <span class="kw">for </span>(key, value) <span class="kw">in </span>measurements {
-<a href=#1790 id=1790 data-nosnippet>1790</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(value) = value.as_ref().and_then(|v| v.value) <span class="kw">else </span>{
-<a href=#1791 id=1791 data-nosnippet>1791</a>                    <span class="kw">continue</span>;
-<a href=#1792 id=1792 data-nosnippet>1792</a>                };
-<a href=#1793 id=1793 data-nosnippet>1793</a>
-<a href=#1794 id=1794 data-nosnippet>1794</a>                <span class="kw">match </span>key.as_ref() {
-<a href=#1795 id=1795 data-nosnippet>1795</a>                    <span class="string">"client_sample_rate" </span>=&gt; {
-<a href=#1796 id=1796 data-nosnippet>1796</a>                        data.entry(Cow::Borrowed(<span class="string">"sentry.client_sample_rate"</span>))
-<a href=#1797 id=1797 data-nosnippet>1797</a>                            .or_insert(<span class="prelude-val">Some</span>(value));
-<a href=#1798 id=1798 data-nosnippet>1798</a>
-<a href=#1799 id=1799 data-nosnippet>1799</a>                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(client_sample_rate) = Deserialize::deserialize(value) {
-<a href=#1800 id=1800 data-nosnippet>1800</a>                            <span class="self">self</span>.client_sample_rate = <span class="prelude-val">Some</span>(client_sample_rate);
-<a href=#1801 id=1801 data-nosnippet>1801</a>                        }
-<a href=#1802 id=1802 data-nosnippet>1802</a>                    }
-<a href=#1803 id=1803 data-nosnippet>1803</a>                    <span class="string">"server_sample_rate" </span>=&gt; {
-<a href=#1804 id=1804 data-nosnippet>1804</a>                        data.entry(Cow::Borrowed(<span class="string">"sentry.server_sample_rate"</span>))
-<a href=#1805 id=1805 data-nosnippet>1805</a>                            .or_insert(<span class="prelude-val">Some</span>(value));
-<a href=#1806 id=1806 data-nosnippet>1806</a>
-<a href=#1807 id=1807 data-nosnippet>1807</a>                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(server_sample_rate) = Deserialize::deserialize(value) {
-<a href=#1808 id=1808 data-nosnippet>1808</a>                            <span class="self">self</span>.server_sample_rate = <span class="prelude-val">Some</span>(server_sample_rate);
-<a href=#1809 id=1809 data-nosnippet>1809</a>                        }
-<a href=#1810 id=1810 data-nosnippet>1810</a>                    }
-<a href=#1811 id=1811 data-nosnippet>1811</a>                    <span class="kw">_ </span>=&gt; {
-<a href=#1812 id=1812 data-nosnippet>1812</a>                        data.entry(key.clone()).or_insert(<span class="prelude-val">Some</span>(value));
-<a href=#1813 id=1813 data-nosnippet>1813</a>                    }
-<a href=#1814 id=1814 data-nosnippet>1814</a>                }
-<a href=#1815 id=1815 data-nosnippet>1815</a>            }
-<a href=#1816 id=1816 data-nosnippet>1816</a>        }
-<a href=#1817 id=1817 data-nosnippet>1817</a>
-<a href=#1818 id=1818 data-nosnippet>1818</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(tags) = <span class="kw-2">&amp;</span><span class="self">self</span>.tags {
-<a href=#1819 id=1819 data-nosnippet>1819</a>            <span class="kw">for </span>(key, value) <span class="kw">in </span>tags {
-<a href=#1820 id=1820 data-nosnippet>1820</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(value) = value <span class="kw">else </span>{
-<a href=#1821 id=1821 data-nosnippet>1821</a>                    <span class="kw">continue</span>;
-<a href=#1822 id=1822 data-nosnippet>1822</a>                };
-<a href=#1823 id=1823 data-nosnippet>1823</a>
-<a href=#1824 id=1824 data-nosnippet>1824</a>                <span class="kw">let </span>key = <span class="kw">if </span><span class="kw-2">*</span>key == <span class="string">"description" </span>{
-<a href=#1825 id=1825 data-nosnippet>1825</a>                    Cow::Borrowed(<span class="string">"sentry.normalized_description"</span>)
-<a href=#1826 id=1826 data-nosnippet>1826</a>                } <span class="kw">else </span>{
-<a href=#1827 id=1827 data-nosnippet>1827</a>                    key.clone()
-<a href=#1828 id=1828 data-nosnippet>1828</a>                };
-<a href=#1829 id=1829 data-nosnippet>1829</a>
-<a href=#1830 id=1830 data-nosnippet>1830</a>                data.entry(key).or_insert(<span class="prelude-val">Some</span>(value));
-<a href=#1831 id=1831 data-nosnippet>1831</a>            }
-<a href=#1832 id=1832 data-nosnippet>1832</a>        }
+<a href=#1780 id=1780 data-nosnippet>1780</a>    /// * The value of every item in `measurements` is copied to `data` with the same key, with the exceptions
+<a href=#1781 id=1781 data-nosnippet>1781</a>    ///   of `client_sample_rate` and `server_sample_rate`. Those measurements are instead written to the top-level
+<a href=#1782 id=1782 data-nosnippet>1782</a>    ///   fields of the same names.
+<a href=#1783 id=1783 data-nosnippet>1783</a>    ///
+<a href=#1784 id=1784 data-nosnippet>1784</a>    /// In no case are existing keys overwritten. Thus, from highest to lowest, the order of precedence is
+<a href=#1785 id=1785 data-nosnippet>1785</a>    /// * existing values in `data`
+<a href=#1786 id=1786 data-nosnippet>1786</a>    /// * `measurements`
+<a href=#1787 id=1787 data-nosnippet>1787</a>    /// * `tags`
+<a href=#1788 id=1788 data-nosnippet>1788</a>    /// * `sentry_tags`
+<a href=#1789 id=1789 data-nosnippet>1789</a>    </span><span class="kw">fn </span>backfill_data(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+<a href=#1790 id=1790 data-nosnippet>1790</a>        <span class="kw">let </span>data = <span class="self">self</span>.data.get_or_insert_default();
+<a href=#1791 id=1791 data-nosnippet>1791</a>
+<a href=#1792 id=1792 data-nosnippet>1792</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = <span class="kw-2">&amp;</span><span class="self">self</span>.measurements {
+<a href=#1793 id=1793 data-nosnippet>1793</a>            <span class="kw">for </span>(key, value) <span class="kw">in </span>measurements {
+<a href=#1794 id=1794 data-nosnippet>1794</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(value) = value.as_ref().and_then(|v| v.value) <span class="kw">else </span>{
+<a href=#1795 id=1795 data-nosnippet>1795</a>                    <span class="kw">continue</span>;
+<a href=#1796 id=1796 data-nosnippet>1796</a>                };
+<a href=#1797 id=1797 data-nosnippet>1797</a>
+<a href=#1798 id=1798 data-nosnippet>1798</a>                <span class="kw">match </span>key.as_ref() {
+<a href=#1799 id=1799 data-nosnippet>1799</a>                    <span class="string">"client_sample_rate" </span>=&gt; {
+<a href=#1800 id=1800 data-nosnippet>1800</a>                        data.entry(Cow::Borrowed(<span class="string">"sentry.client_sample_rate"</span>))
+<a href=#1801 id=1801 data-nosnippet>1801</a>                            .or_insert(<span class="prelude-val">Some</span>(value));
+<a href=#1802 id=1802 data-nosnippet>1802</a>
+<a href=#1803 id=1803 data-nosnippet>1803</a>                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(client_sample_rate) = Deserialize::deserialize(value) {
+<a href=#1804 id=1804 data-nosnippet>1804</a>                            <span class="self">self</span>.client_sample_rate = <span class="prelude-val">Some</span>(client_sample_rate);
+<a href=#1805 id=1805 data-nosnippet>1805</a>                        }
+<a href=#1806 id=1806 data-nosnippet>1806</a>                    }
+<a href=#1807 id=1807 data-nosnippet>1807</a>                    <span class="string">"server_sample_rate" </span>=&gt; {
+<a href=#1808 id=1808 data-nosnippet>1808</a>                        data.entry(Cow::Borrowed(<span class="string">"sentry.server_sample_rate"</span>))
+<a href=#1809 id=1809 data-nosnippet>1809</a>                            .or_insert(<span class="prelude-val">Some</span>(value));
+<a href=#1810 id=1810 data-nosnippet>1810</a>
+<a href=#1811 id=1811 data-nosnippet>1811</a>                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(server_sample_rate) = Deserialize::deserialize(value) {
+<a href=#1812 id=1812 data-nosnippet>1812</a>                            <span class="self">self</span>.server_sample_rate = <span class="prelude-val">Some</span>(server_sample_rate);
+<a href=#1813 id=1813 data-nosnippet>1813</a>                        }
+<a href=#1814 id=1814 data-nosnippet>1814</a>                    }
+<a href=#1815 id=1815 data-nosnippet>1815</a>                    <span class="kw">_ </span>=&gt; {
+<a href=#1816 id=1816 data-nosnippet>1816</a>                        data.entry(key.clone()).or_insert(<span class="prelude-val">Some</span>(value));
+<a href=#1817 id=1817 data-nosnippet>1817</a>                    }
+<a href=#1818 id=1818 data-nosnippet>1818</a>                }
+<a href=#1819 id=1819 data-nosnippet>1819</a>            }
+<a href=#1820 id=1820 data-nosnippet>1820</a>        }
+<a href=#1821 id=1821 data-nosnippet>1821</a>
+<a href=#1822 id=1822 data-nosnippet>1822</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(tags) = <span class="kw-2">&amp;</span><span class="self">self</span>.tags {
+<a href=#1823 id=1823 data-nosnippet>1823</a>            <span class="kw">for </span>(key, value) <span class="kw">in </span>tags {
+<a href=#1824 id=1824 data-nosnippet>1824</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(value) = value <span class="kw">else </span>{
+<a href=#1825 id=1825 data-nosnippet>1825</a>                    <span class="kw">continue</span>;
+<a href=#1826 id=1826 data-nosnippet>1826</a>                };
+<a href=#1827 id=1827 data-nosnippet>1827</a>
+<a href=#1828 id=1828 data-nosnippet>1828</a>                <span class="kw">let </span>key = <span class="kw">if </span><span class="kw-2">*</span>key == <span class="string">"description" </span>{
+<a href=#1829 id=1829 data-nosnippet>1829</a>                    Cow::Borrowed(<span class="string">"sentry.normalized_description"</span>)
+<a href=#1830 id=1830 data-nosnippet>1830</a>                } <span class="kw">else </span>{
+<a href=#1831 id=1831 data-nosnippet>1831</a>                    key.clone()
+<a href=#1832 id=1832 data-nosnippet>1832</a>                };
 <a href=#1833 id=1833 data-nosnippet>1833</a>
-<a href=#1834 id=1834 data-nosnippet>1834</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_tags) = <span class="kw-2">&amp;</span><span class="self">self</span>.sentry_tags {
-<a href=#1835 id=1835 data-nosnippet>1835</a>            <span class="kw">for </span>(key, value) <span class="kw">in </span>sentry_tags {
-<a href=#1836 id=1836 data-nosnippet>1836</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(value) = value <span class="kw">else </span>{
-<a href=#1837 id=1837 data-nosnippet>1837</a>                    <span class="kw">continue</span>;
-<a href=#1838 id=1838 data-nosnippet>1838</a>                };
-<a href=#1839 id=1839 data-nosnippet>1839</a>
-<a href=#1840 id=1840 data-nosnippet>1840</a>                <span class="kw">let </span>key = <span class="kw">if </span><span class="kw-2">*</span>key == <span class="string">"description" </span>{
-<a href=#1841 id=1841 data-nosnippet>1841</a>                    Cow::Borrowed(<span class="string">"sentry.normalized_description"</span>)
-<a href=#1842 id=1842 data-nosnippet>1842</a>                } <span class="kw">else </span>{
-<a href=#1843 id=1843 data-nosnippet>1843</a>                    Cow::Owned(<span class="macro">format!</span>(<span class="string">"sentry.{key}"</span>))
-<a href=#1844 id=1844 data-nosnippet>1844</a>                };
-<a href=#1845 id=1845 data-nosnippet>1845</a>
-<a href=#1846 id=1846 data-nosnippet>1846</a>                data.entry(key).or_insert(<span class="prelude-val">Some</span>(value));
-<a href=#1847 id=1847 data-nosnippet>1847</a>            }
-<a href=#1848 id=1848 data-nosnippet>1848</a>        }
-<a href=#1849 id=1849 data-nosnippet>1849</a>    }
-<a href=#1850 id=1850 data-nosnippet>1850</a>}
-<a href=#1851 id=1851 data-nosnippet>1851</a>
-<a href=#1852 id=1852 data-nosnippet>1852</a><span class="kw">fn </span>none_or_empty_object(value: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>RawValue&gt;) -&gt; bool {
-<a href=#1853 id=1853 data-nosnippet>1853</a>    <span class="kw">match </span>value {
-<a href=#1854 id=1854 data-nosnippet>1854</a>        <span class="prelude-val">None </span>=&gt; <span class="bool-val">true</span>,
-<a href=#1855 id=1855 data-nosnippet>1855</a>        <span class="prelude-val">Some</span>(raw) =&gt; raw.get() == <span class="string">"{}"</span>,
-<a href=#1856 id=1856 data-nosnippet>1856</a>    }
-<a href=#1857 id=1857 data-nosnippet>1857</a>}
-<a href=#1858 id=1858 data-nosnippet>1858</a>
-<a href=#1859 id=1859 data-nosnippet>1859</a><span class="kw">fn </span>none_or_empty_vec&lt;T&gt;(value: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;Vec&lt;T&gt;&gt;) -&gt; bool {
-<a href=#1860 id=1860 data-nosnippet>1860</a>    <span class="kw">match </span><span class="kw-2">&amp;</span>value {
-<a href=#1861 id=1861 data-nosnippet>1861</a>        <span class="prelude-val">Some</span>(vec) =&gt; vec.is_empty(),
-<a href=#1862 id=1862 data-nosnippet>1862</a>        <span class="prelude-val">None </span>=&gt; <span class="bool-val">true</span>,
-<a href=#1863 id=1863 data-nosnippet>1863</a>    }
-<a href=#1864 id=1864 data-nosnippet>1864</a>}
-<a href=#1865 id=1865 data-nosnippet>1865</a>
-<a href=#1866 id=1866 data-nosnippet>1866</a><span class="kw">fn </span>none_or_empty_map&lt;S, T&gt;(value: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;BTreeMap&lt;S, T&gt;&gt;) -&gt; bool {
-<a href=#1867 id=1867 data-nosnippet>1867</a>    value.as_ref().is_none_or(BTreeMap::is_empty)
+<a href=#1834 id=1834 data-nosnippet>1834</a>                data.entry(key).or_insert(<span class="prelude-val">Some</span>(value));
+<a href=#1835 id=1835 data-nosnippet>1835</a>            }
+<a href=#1836 id=1836 data-nosnippet>1836</a>        }
+<a href=#1837 id=1837 data-nosnippet>1837</a>
+<a href=#1838 id=1838 data-nosnippet>1838</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_tags) = <span class="kw-2">&amp;</span><span class="self">self</span>.sentry_tags {
+<a href=#1839 id=1839 data-nosnippet>1839</a>            <span class="kw">for </span>(key, value) <span class="kw">in </span>sentry_tags {
+<a href=#1840 id=1840 data-nosnippet>1840</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(value) = value <span class="kw">else </span>{
+<a href=#1841 id=1841 data-nosnippet>1841</a>                    <span class="kw">continue</span>;
+<a href=#1842 id=1842 data-nosnippet>1842</a>                };
+<a href=#1843 id=1843 data-nosnippet>1843</a>
+<a href=#1844 id=1844 data-nosnippet>1844</a>                <span class="kw">let </span>key = <span class="kw">if </span><span class="kw-2">*</span>key == <span class="string">"description" </span>{
+<a href=#1845 id=1845 data-nosnippet>1845</a>                    Cow::Borrowed(<span class="string">"sentry.normalized_description"</span>)
+<a href=#1846 id=1846 data-nosnippet>1846</a>                } <span class="kw">else </span>{
+<a href=#1847 id=1847 data-nosnippet>1847</a>                    Cow::Owned(<span class="macro">format!</span>(<span class="string">"sentry.{key}"</span>))
+<a href=#1848 id=1848 data-nosnippet>1848</a>                };
+<a href=#1849 id=1849 data-nosnippet>1849</a>
+<a href=#1850 id=1850 data-nosnippet>1850</a>                data.entry(key).or_insert(<span class="prelude-val">Some</span>(value));
+<a href=#1851 id=1851 data-nosnippet>1851</a>            }
+<a href=#1852 id=1852 data-nosnippet>1852</a>        }
+<a href=#1853 id=1853 data-nosnippet>1853</a>    }
+<a href=#1854 id=1854 data-nosnippet>1854</a>}
+<a href=#1855 id=1855 data-nosnippet>1855</a>
+<a href=#1856 id=1856 data-nosnippet>1856</a><span class="kw">fn </span>none_or_empty_object(value: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>RawValue&gt;) -&gt; bool {
+<a href=#1857 id=1857 data-nosnippet>1857</a>    <span class="kw">match </span>value {
+<a href=#1858 id=1858 data-nosnippet>1858</a>        <span class="prelude-val">None </span>=&gt; <span class="bool-val">true</span>,
+<a href=#1859 id=1859 data-nosnippet>1859</a>        <span class="prelude-val">Some</span>(raw) =&gt; raw.get() == <span class="string">"{}"</span>,
+<a href=#1860 id=1860 data-nosnippet>1860</a>    }
+<a href=#1861 id=1861 data-nosnippet>1861</a>}
+<a href=#1862 id=1862 data-nosnippet>1862</a>
+<a href=#1863 id=1863 data-nosnippet>1863</a><span class="kw">fn </span>none_or_empty_vec&lt;T&gt;(value: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;Vec&lt;T&gt;&gt;) -&gt; bool {
+<a href=#1864 id=1864 data-nosnippet>1864</a>    <span class="kw">match </span><span class="kw-2">&amp;</span>value {
+<a href=#1865 id=1865 data-nosnippet>1865</a>        <span class="prelude-val">Some</span>(vec) =&gt; vec.is_empty(),
+<a href=#1866 id=1866 data-nosnippet>1866</a>        <span class="prelude-val">None </span>=&gt; <span class="bool-val">true</span>,
+<a href=#1867 id=1867 data-nosnippet>1867</a>    }
 <a href=#1868 id=1868 data-nosnippet>1868</a>}
 <a href=#1869 id=1869 data-nosnippet>1869</a>
-<a href=#1870 id=1870 data-nosnippet>1870</a><span class="attr">#[derive(Clone, Debug, Serialize)]
-<a href=#1871 id=1871 data-nosnippet>1871</a></span><span class="kw">struct </span>ProfileChunkKafkaMessage {
-<a href=#1872 id=1872 data-nosnippet>1872</a>    organization_id: OrganizationId,
-<a href=#1873 id=1873 data-nosnippet>1873</a>    project_id: ProjectId,
-<a href=#1874 id=1874 data-nosnippet>1874</a>    received: u64,
-<a href=#1875 id=1875 data-nosnippet>1875</a>    retention_days: u16,
-<a href=#1876 id=1876 data-nosnippet>1876</a>    payload: Bytes,
-<a href=#1877 id=1877 data-nosnippet>1877</a>}
-<a href=#1878 id=1878 data-nosnippet>1878</a>
-<a href=#1879 id=1879 data-nosnippet>1879</a><span class="doccomment">/// An enum over all possible ingest messages.
-<a href=#1880 id=1880 data-nosnippet>1880</a></span><span class="attr">#[derive(Debug, Serialize)]
-<a href=#1881 id=1881 data-nosnippet>1881</a>#[serde(tag = <span class="string">"type"</span>, rename_all = <span class="string">"snake_case"</span>)]
-<a href=#1882 id=1882 data-nosnippet>1882</a>#[allow(clippy::large_enum_variant)]
-<a href=#1883 id=1883 data-nosnippet>1883</a></span><span class="kw">enum </span>KafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#1884 id=1884 data-nosnippet>1884</a>    Event(EventKafkaMessage),
-<a href=#1885 id=1885 data-nosnippet>1885</a>    UserReport(UserReportKafkaMessage),
-<a href=#1886 id=1886 data-nosnippet>1886</a>    Metric {
-<a href=#1887 id=1887 data-nosnippet>1887</a>        <span class="attr">#[serde(skip)]
-<a href=#1888 id=1888 data-nosnippet>1888</a>        </span>headers: BTreeMap&lt;String, String&gt;,
-<a href=#1889 id=1889 data-nosnippet>1889</a>        <span class="attr">#[serde(flatten)]
-<a href=#1890 id=1890 data-nosnippet>1890</a>        </span>message: MetricKafkaMessage&lt;<span class="lifetime">'a</span>&gt;,
-<a href=#1891 id=1891 data-nosnippet>1891</a>    },
-<a href=#1892 id=1892 data-nosnippet>1892</a>    CheckIn(CheckInKafkaMessage),
-<a href=#1893 id=1893 data-nosnippet>1893</a>    Item {
-<a href=#1894 id=1894 data-nosnippet>1894</a>        <span class="attr">#[serde(skip)]
-<a href=#1895 id=1895 data-nosnippet>1895</a>        </span>headers: BTreeMap&lt;String, String&gt;,
-<a href=#1896 id=1896 data-nosnippet>1896</a>        <span class="attr">#[serde(skip)]
-<a href=#1897 id=1897 data-nosnippet>1897</a>        </span>item_type: TraceItemType,
+<a href=#1870 id=1870 data-nosnippet>1870</a><span class="kw">fn </span>none_or_empty_map&lt;S, T&gt;(value: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;BTreeMap&lt;S, T&gt;&gt;) -&gt; bool {
+<a href=#1871 id=1871 data-nosnippet>1871</a>    value.as_ref().is_none_or(BTreeMap::is_empty)
+<a href=#1872 id=1872 data-nosnippet>1872</a>}
+<a href=#1873 id=1873 data-nosnippet>1873</a>
+<a href=#1874 id=1874 data-nosnippet>1874</a><span class="attr">#[derive(Clone, Debug, Serialize)]
+<a href=#1875 id=1875 data-nosnippet>1875</a></span><span class="kw">struct </span>ProfileChunkKafkaMessage {
+<a href=#1876 id=1876 data-nosnippet>1876</a>    organization_id: OrganizationId,
+<a href=#1877 id=1877 data-nosnippet>1877</a>    project_id: ProjectId,
+<a href=#1878 id=1878 data-nosnippet>1878</a>    received: u64,
+<a href=#1879 id=1879 data-nosnippet>1879</a>    retention_days: u16,
+<a href=#1880 id=1880 data-nosnippet>1880</a>    payload: Bytes,
+<a href=#1881 id=1881 data-nosnippet>1881</a>}
+<a href=#1882 id=1882 data-nosnippet>1882</a>
+<a href=#1883 id=1883 data-nosnippet>1883</a><span class="doccomment">/// An enum over all possible ingest messages.
+<a href=#1884 id=1884 data-nosnippet>1884</a></span><span class="attr">#[derive(Debug, Serialize)]
+<a href=#1885 id=1885 data-nosnippet>1885</a>#[serde(tag = <span class="string">"type"</span>, rename_all = <span class="string">"snake_case"</span>)]
+<a href=#1886 id=1886 data-nosnippet>1886</a>#[allow(clippy::large_enum_variant)]
+<a href=#1887 id=1887 data-nosnippet>1887</a></span><span class="kw">enum </span>KafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#1888 id=1888 data-nosnippet>1888</a>    Event(EventKafkaMessage),
+<a href=#1889 id=1889 data-nosnippet>1889</a>    UserReport(UserReportKafkaMessage),
+<a href=#1890 id=1890 data-nosnippet>1890</a>    Metric {
+<a href=#1891 id=1891 data-nosnippet>1891</a>        <span class="attr">#[serde(skip)]
+<a href=#1892 id=1892 data-nosnippet>1892</a>        </span>headers: BTreeMap&lt;String, String&gt;,
+<a href=#1893 id=1893 data-nosnippet>1893</a>        <span class="attr">#[serde(flatten)]
+<a href=#1894 id=1894 data-nosnippet>1894</a>        </span>message: MetricKafkaMessage&lt;<span class="lifetime">'a</span>&gt;,
+<a href=#1895 id=1895 data-nosnippet>1895</a>    },
+<a href=#1896 id=1896 data-nosnippet>1896</a>    CheckIn(CheckInKafkaMessage),
+<a href=#1897 id=1897 data-nosnippet>1897</a>    Item {
 <a href=#1898 id=1898 data-nosnippet>1898</a>        <span class="attr">#[serde(skip)]
-<a href=#1899 id=1899 data-nosnippet>1899</a>        </span>message: TraceItem,
-<a href=#1900 id=1900 data-nosnippet>1900</a>    },
-<a href=#1901 id=1901 data-nosnippet>1901</a>    Span {
+<a href=#1899 id=1899 data-nosnippet>1899</a>        </span>headers: BTreeMap&lt;String, String&gt;,
+<a href=#1900 id=1900 data-nosnippet>1900</a>        <span class="attr">#[serde(skip)]
+<a href=#1901 id=1901 data-nosnippet>1901</a>        </span>item_type: TraceItemType,
 <a href=#1902 id=1902 data-nosnippet>1902</a>        <span class="attr">#[serde(skip)]
-<a href=#1903 id=1903 data-nosnippet>1903</a>        </span>headers: BTreeMap&lt;String, String&gt;,
-<a href=#1904 id=1904 data-nosnippet>1904</a>        <span class="attr">#[serde(flatten)]
-<a href=#1905 id=1905 data-nosnippet>1905</a>        </span>message: SpanKafkaMessage&lt;<span class="lifetime">'a</span>&gt;,
-<a href=#1906 id=1906 data-nosnippet>1906</a>    },
-<a href=#1907 id=1907 data-nosnippet>1907</a>
-<a href=#1908 id=1908 data-nosnippet>1908</a>    Attachment(AttachmentKafkaMessage),
-<a href=#1909 id=1909 data-nosnippet>1909</a>    AttachmentChunk(AttachmentChunkKafkaMessage),
-<a href=#1910 id=1910 data-nosnippet>1910</a>
-<a href=#1911 id=1911 data-nosnippet>1911</a>    Profile(ProfileKafkaMessage),
-<a href=#1912 id=1912 data-nosnippet>1912</a>    ProfileChunk(ProfileChunkKafkaMessage),
-<a href=#1913 id=1913 data-nosnippet>1913</a>
-<a href=#1914 id=1914 data-nosnippet>1914</a>    ReplayEvent(ReplayEventKafkaMessage&lt;<span class="lifetime">'a</span>&gt;),
-<a href=#1915 id=1915 data-nosnippet>1915</a>    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage&lt;<span class="lifetime">'a</span>&gt;),
-<a href=#1916 id=1916 data-nosnippet>1916</a>}
+<a href=#1903 id=1903 data-nosnippet>1903</a>        </span>message: TraceItem,
+<a href=#1904 id=1904 data-nosnippet>1904</a>    },
+<a href=#1905 id=1905 data-nosnippet>1905</a>    Span {
+<a href=#1906 id=1906 data-nosnippet>1906</a>        <span class="attr">#[serde(skip)]
+<a href=#1907 id=1907 data-nosnippet>1907</a>        </span>headers: BTreeMap&lt;String, String&gt;,
+<a href=#1908 id=1908 data-nosnippet>1908</a>        <span class="attr">#[serde(flatten)]
+<a href=#1909 id=1909 data-nosnippet>1909</a>        </span>message: SpanKafkaMessage&lt;<span class="lifetime">'a</span>&gt;,
+<a href=#1910 id=1910 data-nosnippet>1910</a>    },
+<a href=#1911 id=1911 data-nosnippet>1911</a>
+<a href=#1912 id=1912 data-nosnippet>1912</a>    Attachment(AttachmentKafkaMessage),
+<a href=#1913 id=1913 data-nosnippet>1913</a>    AttachmentChunk(AttachmentChunkKafkaMessage),
+<a href=#1914 id=1914 data-nosnippet>1914</a>
+<a href=#1915 id=1915 data-nosnippet>1915</a>    Profile(ProfileKafkaMessage),
+<a href=#1916 id=1916 data-nosnippet>1916</a>    ProfileChunk(ProfileChunkKafkaMessage),
 <a href=#1917 id=1917 data-nosnippet>1917</a>
-<a href=#1918 id=1918 data-nosnippet>1918</a><span class="kw">impl </span>Message <span class="kw">for </span>KafkaMessage&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#1919 id=1919 data-nosnippet>1919</a>    <span class="kw">fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#1920 id=1920 data-nosnippet>1920</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#1921 id=1921 data-nosnippet>1921</a>            KafkaMessage::Event(<span class="kw">_</span>) =&gt; <span class="string">"event"</span>,
-<a href=#1922 id=1922 data-nosnippet>1922</a>            KafkaMessage::UserReport(<span class="kw">_</span>) =&gt; <span class="string">"user_report"</span>,
-<a href=#1923 id=1923 data-nosnippet>1923</a>            KafkaMessage::Metric { message, .. } =&gt; <span class="kw">match </span>message.name.namespace() {
-<a href=#1924 id=1924 data-nosnippet>1924</a>                MetricNamespace::Sessions =&gt; <span class="string">"metric_sessions"</span>,
-<a href=#1925 id=1925 data-nosnippet>1925</a>                MetricNamespace::Transactions =&gt; <span class="string">"metric_transactions"</span>,
-<a href=#1926 id=1926 data-nosnippet>1926</a>                MetricNamespace::Spans =&gt; <span class="string">"metric_spans"</span>,
-<a href=#1927 id=1927 data-nosnippet>1927</a>                MetricNamespace::Custom =&gt; <span class="string">"metric_custom"</span>,
-<a href=#1928 id=1928 data-nosnippet>1928</a>                MetricNamespace::Unsupported =&gt; <span class="string">"metric_unsupported"</span>,
-<a href=#1929 id=1929 data-nosnippet>1929</a>            },
-<a href=#1930 id=1930 data-nosnippet>1930</a>            KafkaMessage::CheckIn(<span class="kw">_</span>) =&gt; <span class="string">"check_in"</span>,
-<a href=#1931 id=1931 data-nosnippet>1931</a>            KafkaMessage::Span { .. } =&gt; <span class="string">"span"</span>,
-<a href=#1932 id=1932 data-nosnippet>1932</a>            KafkaMessage::Item { item_type, .. } =&gt; item_type.as_str_name(),
-<a href=#1933 id=1933 data-nosnippet>1933</a>
-<a href=#1934 id=1934 data-nosnippet>1934</a>            KafkaMessage::Attachment(<span class="kw">_</span>) =&gt; <span class="string">"attachment"</span>,
-<a href=#1935 id=1935 data-nosnippet>1935</a>            KafkaMessage::AttachmentChunk(<span class="kw">_</span>) =&gt; <span class="string">"attachment_chunk"</span>,
-<a href=#1936 id=1936 data-nosnippet>1936</a>
-<a href=#1937 id=1937 data-nosnippet>1937</a>            KafkaMessage::Profile(<span class="kw">_</span>) =&gt; <span class="string">"profile"</span>,
-<a href=#1938 id=1938 data-nosnippet>1938</a>            KafkaMessage::ProfileChunk(<span class="kw">_</span>) =&gt; <span class="string">"profile_chunk"</span>,
-<a href=#1939 id=1939 data-nosnippet>1939</a>
-<a href=#1940 id=1940 data-nosnippet>1940</a>            KafkaMessage::ReplayEvent(<span class="kw">_</span>) =&gt; <span class="string">"replay_event"</span>,
-<a href=#1941 id=1941 data-nosnippet>1941</a>            KafkaMessage::ReplayRecordingNotChunked(<span class="kw">_</span>) =&gt; <span class="string">"replay_recording_not_chunked"</span>,
-<a href=#1942 id=1942 data-nosnippet>1942</a>        }
-<a href=#1943 id=1943 data-nosnippet>1943</a>    }
-<a href=#1944 id=1944 data-nosnippet>1944</a>
-<a href=#1945 id=1945 data-nosnippet>1945</a>    <span class="doccomment">/// Returns the partitioning key for this Kafka message determining.
-<a href=#1946 id=1946 data-nosnippet>1946</a>    </span><span class="kw">fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;relay_kafka::Key&gt; {
-<a href=#1947 id=1947 data-nosnippet>1947</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#1948 id=1948 data-nosnippet>1948</a>            <span class="self">Self</span>::Event(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
-<a href=#1949 id=1949 data-nosnippet>1949</a>            <span class="self">Self</span>::UserReport(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
-<a href=#1950 id=1950 data-nosnippet>1950</a>            <span class="self">Self</span>::Span { message, .. } =&gt; <span class="prelude-val">Some</span>(message.trace_id.<span class="number">0</span>),
-<a href=#1951 id=1951 data-nosnippet>1951</a>
-<a href=#1952 id=1952 data-nosnippet>1952</a>            <span class="comment">// Monitor check-ins use the hinted UUID passed through from the Envelope.
-<a href=#1953 id=1953 data-nosnippet>1953</a>            //
-<a href=#1954 id=1954 data-nosnippet>1954</a>            // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
-<a href=#1955 id=1955 data-nosnippet>1955</a>            // recieve the routing_key_hint form their envelopes.
-<a href=#1956 id=1956 data-nosnippet>1956</a>            </span><span class="self">Self</span>::CheckIn(message) =&gt; message.routing_key_hint,
-<a href=#1957 id=1957 data-nosnippet>1957</a>
-<a href=#1958 id=1958 data-nosnippet>1958</a>            <span class="self">Self</span>::Attachment(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
-<a href=#1959 id=1959 data-nosnippet>1959</a>            <span class="self">Self</span>::AttachmentChunk(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
-<a href=#1960 id=1960 data-nosnippet>1960</a>            <span class="self">Self</span>::ReplayEvent(message) =&gt; <span class="prelude-val">Some</span>(message.replay_id.<span class="number">0</span>),
+<a href=#1918 id=1918 data-nosnippet>1918</a>    ReplayEvent(ReplayEventKafkaMessage&lt;<span class="lifetime">'a</span>&gt;),
+<a href=#1919 id=1919 data-nosnippet>1919</a>    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage&lt;<span class="lifetime">'a</span>&gt;),
+<a href=#1920 id=1920 data-nosnippet>1920</a>}
+<a href=#1921 id=1921 data-nosnippet>1921</a>
+<a href=#1922 id=1922 data-nosnippet>1922</a><span class="kw">impl </span>Message <span class="kw">for </span>KafkaMessage&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1923 id=1923 data-nosnippet>1923</a>    <span class="kw">fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#1924 id=1924 data-nosnippet>1924</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1925 id=1925 data-nosnippet>1925</a>            KafkaMessage::Event(<span class="kw">_</span>) =&gt; <span class="string">"event"</span>,
+<a href=#1926 id=1926 data-nosnippet>1926</a>            KafkaMessage::UserReport(<span class="kw">_</span>) =&gt; <span class="string">"user_report"</span>,
+<a href=#1927 id=1927 data-nosnippet>1927</a>            KafkaMessage::Metric { message, .. } =&gt; <span class="kw">match </span>message.name.namespace() {
+<a href=#1928 id=1928 data-nosnippet>1928</a>                MetricNamespace::Sessions =&gt; <span class="string">"metric_sessions"</span>,
+<a href=#1929 id=1929 data-nosnippet>1929</a>                MetricNamespace::Transactions =&gt; <span class="string">"metric_transactions"</span>,
+<a href=#1930 id=1930 data-nosnippet>1930</a>                MetricNamespace::Spans =&gt; <span class="string">"metric_spans"</span>,
+<a href=#1931 id=1931 data-nosnippet>1931</a>                MetricNamespace::Custom =&gt; <span class="string">"metric_custom"</span>,
+<a href=#1932 id=1932 data-nosnippet>1932</a>                MetricNamespace::Unsupported =&gt; <span class="string">"metric_unsupported"</span>,
+<a href=#1933 id=1933 data-nosnippet>1933</a>            },
+<a href=#1934 id=1934 data-nosnippet>1934</a>            KafkaMessage::CheckIn(<span class="kw">_</span>) =&gt; <span class="string">"check_in"</span>,
+<a href=#1935 id=1935 data-nosnippet>1935</a>            KafkaMessage::Span { .. } =&gt; <span class="string">"span"</span>,
+<a href=#1936 id=1936 data-nosnippet>1936</a>            KafkaMessage::Item { item_type, .. } =&gt; item_type.as_str_name(),
+<a href=#1937 id=1937 data-nosnippet>1937</a>
+<a href=#1938 id=1938 data-nosnippet>1938</a>            KafkaMessage::Attachment(<span class="kw">_</span>) =&gt; <span class="string">"attachment"</span>,
+<a href=#1939 id=1939 data-nosnippet>1939</a>            KafkaMessage::AttachmentChunk(<span class="kw">_</span>) =&gt; <span class="string">"attachment_chunk"</span>,
+<a href=#1940 id=1940 data-nosnippet>1940</a>
+<a href=#1941 id=1941 data-nosnippet>1941</a>            KafkaMessage::Profile(<span class="kw">_</span>) =&gt; <span class="string">"profile"</span>,
+<a href=#1942 id=1942 data-nosnippet>1942</a>            KafkaMessage::ProfileChunk(<span class="kw">_</span>) =&gt; <span class="string">"profile_chunk"</span>,
+<a href=#1943 id=1943 data-nosnippet>1943</a>
+<a href=#1944 id=1944 data-nosnippet>1944</a>            KafkaMessage::ReplayEvent(<span class="kw">_</span>) =&gt; <span class="string">"replay_event"</span>,
+<a href=#1945 id=1945 data-nosnippet>1945</a>            KafkaMessage::ReplayRecordingNotChunked(<span class="kw">_</span>) =&gt; <span class="string">"replay_recording_not_chunked"</span>,
+<a href=#1946 id=1946 data-nosnippet>1946</a>        }
+<a href=#1947 id=1947 data-nosnippet>1947</a>    }
+<a href=#1948 id=1948 data-nosnippet>1948</a>
+<a href=#1949 id=1949 data-nosnippet>1949</a>    <span class="doccomment">/// Returns the partitioning key for this Kafka message determining.
+<a href=#1950 id=1950 data-nosnippet>1950</a>    </span><span class="kw">fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;relay_kafka::Key&gt; {
+<a href=#1951 id=1951 data-nosnippet>1951</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1952 id=1952 data-nosnippet>1952</a>            <span class="self">Self</span>::Event(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
+<a href=#1953 id=1953 data-nosnippet>1953</a>            <span class="self">Self</span>::UserReport(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
+<a href=#1954 id=1954 data-nosnippet>1954</a>            <span class="self">Self</span>::Span { message, .. } =&gt; <span class="prelude-val">Some</span>(message.trace_id.<span class="number">0</span>),
+<a href=#1955 id=1955 data-nosnippet>1955</a>
+<a href=#1956 id=1956 data-nosnippet>1956</a>            <span class="comment">// Monitor check-ins use the hinted UUID passed through from the Envelope.
+<a href=#1957 id=1957 data-nosnippet>1957</a>            //
+<a href=#1958 id=1958 data-nosnippet>1958</a>            // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
+<a href=#1959 id=1959 data-nosnippet>1959</a>            // recieve the routing_key_hint form their envelopes.
+<a href=#1960 id=1960 data-nosnippet>1960</a>            </span><span class="self">Self</span>::CheckIn(message) =&gt; message.routing_key_hint,
 <a href=#1961 id=1961 data-nosnippet>1961</a>
-<a href=#1962 id=1962 data-nosnippet>1962</a>            <span class="comment">// Random partitioning
-<a href=#1963 id=1963 data-nosnippet>1963</a>            </span><span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-<a href=#1964 id=1964 data-nosnippet>1964</a>        }
-<a href=#1965 id=1965 data-nosnippet>1965</a>        .filter(|uuid| !uuid.is_nil())
-<a href=#1966 id=1966 data-nosnippet>1966</a>        .map(|uuid| uuid.as_u128())
-<a href=#1967 id=1967 data-nosnippet>1967</a>    }
-<a href=#1968 id=1968 data-nosnippet>1968</a>
-<a href=#1969 id=1969 data-nosnippet>1969</a>    <span class="kw">fn </span>headers(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;&gt; {
-<a href=#1970 id=1970 data-nosnippet>1970</a>        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
-<a href=#1971 id=1971 data-nosnippet>1971</a>            KafkaMessage::Metric { headers, .. }
-<a href=#1972 id=1972 data-nosnippet>1972</a>            | KafkaMessage::Span { headers, .. }
-<a href=#1973 id=1973 data-nosnippet>1973</a>            | KafkaMessage::Item { headers, .. }
-<a href=#1974 id=1974 data-nosnippet>1974</a>            | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) =&gt; <span class="prelude-val">Some</span>(headers),
-<a href=#1975 id=1975 data-nosnippet>1975</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-<a href=#1976 id=1976 data-nosnippet>1976</a>        }
-<a href=#1977 id=1977 data-nosnippet>1977</a>    }
-<a href=#1978 id=1978 data-nosnippet>1978</a>
-<a href=#1979 id=1979 data-nosnippet>1979</a>    <span class="kw">fn </span>serialize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;SerializationOutput&lt;<span class="lifetime">'_</span>&gt;, ClientError&gt; {
-<a href=#1980 id=1980 data-nosnippet>1980</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#1981 id=1981 data-nosnippet>1981</a>            KafkaMessage::Metric { message, .. } =&gt; serialize_as_json(message),
-<a href=#1982 id=1982 data-nosnippet>1982</a>            KafkaMessage::ReplayEvent(message) =&gt; serialize_as_json(message),
-<a href=#1983 id=1983 data-nosnippet>1983</a>            KafkaMessage::Span { message, .. } =&gt; serialize_as_json(message),
-<a href=#1984 id=1984 data-nosnippet>1984</a>            KafkaMessage::Item { message, .. } =&gt; {
-<a href=#1985 id=1985 data-nosnippet>1985</a>                <span class="kw">let </span><span class="kw-2">mut </span>payload = Vec::new();
-<a href=#1986 id=1986 data-nosnippet>1986</a>                <span class="kw">match </span>message.encode(<span class="kw-2">&amp;mut </span>payload) {
-<a href=#1987 id=1987 data-nosnippet>1987</a>                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(SerializationOutput::Protobuf(Cow::Owned(payload))),
-<a href=#1988 id=1988 data-nosnippet>1988</a>                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ClientError::ProtobufEncodingFailed),
-<a href=#1989 id=1989 data-nosnippet>1989</a>                }
-<a href=#1990 id=1990 data-nosnippet>1990</a>            }
-<a href=#1991 id=1991 data-nosnippet>1991</a>            <span class="kw">_ </span>=&gt; <span class="kw">match </span>rmp_serde::to_vec_named(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-<a href=#1992 id=1992 data-nosnippet>1992</a>                <span class="prelude-val">Ok</span>(x) =&gt; <span class="prelude-val">Ok</span>(SerializationOutput::MsgPack(Cow::Owned(x))),
-<a href=#1993 id=1993 data-nosnippet>1993</a>                <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(ClientError::InvalidMsgPack(err)),
-<a href=#1994 id=1994 data-nosnippet>1994</a>            },
-<a href=#1995 id=1995 data-nosnippet>1995</a>        }
-<a href=#1996 id=1996 data-nosnippet>1996</a>    }
-<a href=#1997 id=1997 data-nosnippet>1997</a>}
-<a href=#1998 id=1998 data-nosnippet>1998</a>
-<a href=#1999 id=1999 data-nosnippet>1999</a><span class="kw">fn </span>serialize_as_json&lt;T: serde::Serialize&gt;(
-<a href=#2000 id=2000 data-nosnippet>2000</a>    value: <span class="kw-2">&amp;</span>T,
-<a href=#2001 id=2001 data-nosnippet>2001</a>) -&gt; <span class="prelude-ty">Result</span>&lt;SerializationOutput&lt;<span class="lifetime">'_</span>&gt;, ClientError&gt; {
-<a href=#2002 id=2002 data-nosnippet>2002</a>    <span class="kw">match </span>serde_json::to_vec(value) {
-<a href=#2003 id=2003 data-nosnippet>2003</a>        <span class="prelude-val">Ok</span>(vec) =&gt; <span class="prelude-val">Ok</span>(SerializationOutput::Json(Cow::Owned(vec))),
-<a href=#2004 id=2004 data-nosnippet>2004</a>        <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(ClientError::InvalidJson(err)),
-<a href=#2005 id=2005 data-nosnippet>2005</a>    }
-<a href=#2006 id=2006 data-nosnippet>2006</a>}
-<a href=#2007 id=2007 data-nosnippet>2007</a>
-<a href=#2008 id=2008 data-nosnippet>2008</a><span class="doccomment">/// Determines if the given item is considered slow.
-<a href=#2009 id=2009 data-nosnippet>2009</a>///
-<a href=#2010 id=2010 data-nosnippet>2010</a>/// Slow items must be routed to the `Attachments` topic.
-<a href=#2011 id=2011 data-nosnippet>2011</a></span><span class="kw">fn </span>is_slow_item(item: <span class="kw-2">&amp;</span>Item) -&gt; bool {
-<a href=#2012 id=2012 data-nosnippet>2012</a>    item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment || item.ty() == <span class="kw-2">&amp;</span>ItemType::UserReport
-<a href=#2013 id=2013 data-nosnippet>2013</a>}
-<a href=#2014 id=2014 data-nosnippet>2014</a>
-<a href=#2015 id=2015 data-nosnippet>2015</a><span class="kw">fn </span>bool_to_str(value: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#2016 id=2016 data-nosnippet>2016</a>    <span class="kw">if </span>value { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>}
+<a href=#1962 id=1962 data-nosnippet>1962</a>            <span class="self">Self</span>::Attachment(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
+<a href=#1963 id=1963 data-nosnippet>1963</a>            <span class="self">Self</span>::AttachmentChunk(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
+<a href=#1964 id=1964 data-nosnippet>1964</a>            <span class="self">Self</span>::ReplayEvent(message) =&gt; <span class="prelude-val">Some</span>(message.replay_id.<span class="number">0</span>),
+<a href=#1965 id=1965 data-nosnippet>1965</a>
+<a href=#1966 id=1966 data-nosnippet>1966</a>            <span class="comment">// Random partitioning
+<a href=#1967 id=1967 data-nosnippet>1967</a>            </span><span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#1968 id=1968 data-nosnippet>1968</a>        }
+<a href=#1969 id=1969 data-nosnippet>1969</a>        .filter(|uuid| !uuid.is_nil())
+<a href=#1970 id=1970 data-nosnippet>1970</a>        .map(|uuid| uuid.as_u128())
+<a href=#1971 id=1971 data-nosnippet>1971</a>    }
+<a href=#1972 id=1972 data-nosnippet>1972</a>
+<a href=#1973 id=1973 data-nosnippet>1973</a>    <span class="kw">fn </span>headers(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;&gt; {
+<a href=#1974 id=1974 data-nosnippet>1974</a>        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
+<a href=#1975 id=1975 data-nosnippet>1975</a>            KafkaMessage::Metric { headers, .. }
+<a href=#1976 id=1976 data-nosnippet>1976</a>            | KafkaMessage::Span { headers, .. }
+<a href=#1977 id=1977 data-nosnippet>1977</a>            | KafkaMessage::Item { headers, .. }
+<a href=#1978 id=1978 data-nosnippet>1978</a>            | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) =&gt; <span class="prelude-val">Some</span>(headers),
+<a href=#1979 id=1979 data-nosnippet>1979</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#1980 id=1980 data-nosnippet>1980</a>        }
+<a href=#1981 id=1981 data-nosnippet>1981</a>    }
+<a href=#1982 id=1982 data-nosnippet>1982</a>
+<a href=#1983 id=1983 data-nosnippet>1983</a>    <span class="kw">fn </span>serialize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;SerializationOutput&lt;<span class="lifetime">'_</span>&gt;, ClientError&gt; {
+<a href=#1984 id=1984 data-nosnippet>1984</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1985 id=1985 data-nosnippet>1985</a>            KafkaMessage::Metric { message, .. } =&gt; serialize_as_json(message),
+<a href=#1986 id=1986 data-nosnippet>1986</a>            KafkaMessage::ReplayEvent(message) =&gt; serialize_as_json(message),
+<a href=#1987 id=1987 data-nosnippet>1987</a>            KafkaMessage::Span { message, .. } =&gt; serialize_as_json(message),
+<a href=#1988 id=1988 data-nosnippet>1988</a>            KafkaMessage::Item { message, .. } =&gt; {
+<a href=#1989 id=1989 data-nosnippet>1989</a>                <span class="kw">let </span><span class="kw-2">mut </span>payload = Vec::new();
+<a href=#1990 id=1990 data-nosnippet>1990</a>                <span class="kw">match </span>message.encode(<span class="kw-2">&amp;mut </span>payload) {
+<a href=#1991 id=1991 data-nosnippet>1991</a>                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(SerializationOutput::Protobuf(Cow::Owned(payload))),
+<a href=#1992 id=1992 data-nosnippet>1992</a>                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ClientError::ProtobufEncodingFailed),
+<a href=#1993 id=1993 data-nosnippet>1993</a>                }
+<a href=#1994 id=1994 data-nosnippet>1994</a>            }
+<a href=#1995 id=1995 data-nosnippet>1995</a>            <span class="kw">_ </span>=&gt; <span class="kw">match </span>rmp_serde::to_vec_named(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+<a href=#1996 id=1996 data-nosnippet>1996</a>                <span class="prelude-val">Ok</span>(x) =&gt; <span class="prelude-val">Ok</span>(SerializationOutput::MsgPack(Cow::Owned(x))),
+<a href=#1997 id=1997 data-nosnippet>1997</a>                <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(ClientError::InvalidMsgPack(err)),
+<a href=#1998 id=1998 data-nosnippet>1998</a>            },
+<a href=#1999 id=1999 data-nosnippet>1999</a>        }
+<a href=#2000 id=2000 data-nosnippet>2000</a>    }
+<a href=#2001 id=2001 data-nosnippet>2001</a>}
+<a href=#2002 id=2002 data-nosnippet>2002</a>
+<a href=#2003 id=2003 data-nosnippet>2003</a><span class="kw">fn </span>serialize_as_json&lt;T: serde::Serialize&gt;(
+<a href=#2004 id=2004 data-nosnippet>2004</a>    value: <span class="kw-2">&amp;</span>T,
+<a href=#2005 id=2005 data-nosnippet>2005</a>) -&gt; <span class="prelude-ty">Result</span>&lt;SerializationOutput&lt;<span class="lifetime">'_</span>&gt;, ClientError&gt; {
+<a href=#2006 id=2006 data-nosnippet>2006</a>    <span class="kw">match </span>serde_json::to_vec(value) {
+<a href=#2007 id=2007 data-nosnippet>2007</a>        <span class="prelude-val">Ok</span>(vec) =&gt; <span class="prelude-val">Ok</span>(SerializationOutput::Json(Cow::Owned(vec))),
+<a href=#2008 id=2008 data-nosnippet>2008</a>        <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(ClientError::InvalidJson(err)),
+<a href=#2009 id=2009 data-nosnippet>2009</a>    }
+<a href=#2010 id=2010 data-nosnippet>2010</a>}
+<a href=#2011 id=2011 data-nosnippet>2011</a>
+<a href=#2012 id=2012 data-nosnippet>2012</a><span class="doccomment">/// Determines if the given item is considered slow.
+<a href=#2013 id=2013 data-nosnippet>2013</a>///
+<a href=#2014 id=2014 data-nosnippet>2014</a>/// Slow items must be routed to the `Attachments` topic.
+<a href=#2015 id=2015 data-nosnippet>2015</a></span><span class="kw">fn </span>is_slow_item(item: <span class="kw-2">&amp;</span>Item) -&gt; bool {
+<a href=#2016 id=2016 data-nosnippet>2016</a>    item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment || item.ty() == <span class="kw-2">&amp;</span>ItemType::UserReport
 <a href=#2017 id=2017 data-nosnippet>2017</a>}
 <a href=#2018 id=2018 data-nosnippet>2018</a>
-<a href=#2019 id=2019 data-nosnippet>2019</a><span class="doccomment">/// Returns a safe timestamp for Kafka.
-<a href=#2020 id=2020 data-nosnippet>2020</a>///
-<a href=#2021 id=2021 data-nosnippet>2021</a>/// Kafka expects timestamps to be in UTC and in seconds since epoch.
-<a href=#2022 id=2022 data-nosnippet>2022</a></span><span class="kw">fn </span>safe_timestamp(timestamp: DateTime&lt;Utc&gt;) -&gt; u64 {
-<a href=#2023 id=2023 data-nosnippet>2023</a>    <span class="kw">let </span>ts = timestamp.timestamp();
-<a href=#2024 id=2024 data-nosnippet>2024</a>    <span class="kw">if </span>ts &gt;= <span class="number">0 </span>{
-<a href=#2025 id=2025 data-nosnippet>2025</a>        <span class="kw">return </span>ts <span class="kw">as </span>u64;
-<a href=#2026 id=2026 data-nosnippet>2026</a>    }
-<a href=#2027 id=2027 data-nosnippet>2027</a>
-<a href=#2028 id=2028 data-nosnippet>2028</a>    <span class="comment">// We assume this call can't return &lt; 0.
-<a href=#2029 id=2029 data-nosnippet>2029</a>    </span>Utc::now().timestamp() <span class="kw">as </span>u64
-<a href=#2030 id=2030 data-nosnippet>2030</a>}
+<a href=#2019 id=2019 data-nosnippet>2019</a><span class="kw">fn </span>bool_to_str(value: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#2020 id=2020 data-nosnippet>2020</a>    <span class="kw">if </span>value { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>}
+<a href=#2021 id=2021 data-nosnippet>2021</a>}
+<a href=#2022 id=2022 data-nosnippet>2022</a>
+<a href=#2023 id=2023 data-nosnippet>2023</a><span class="doccomment">/// Returns a safe timestamp for Kafka.
+<a href=#2024 id=2024 data-nosnippet>2024</a>///
+<a href=#2025 id=2025 data-nosnippet>2025</a>/// Kafka expects timestamps to be in UTC and in seconds since epoch.
+<a href=#2026 id=2026 data-nosnippet>2026</a></span><span class="kw">fn </span>safe_timestamp(timestamp: DateTime&lt;Utc&gt;) -&gt; u64 {
+<a href=#2027 id=2027 data-nosnippet>2027</a>    <span class="kw">let </span>ts = timestamp.timestamp();
+<a href=#2028 id=2028 data-nosnippet>2028</a>    <span class="kw">if </span>ts &gt;= <span class="number">0 </span>{
+<a href=#2029 id=2029 data-nosnippet>2029</a>        <span class="kw">return </span>ts <span class="kw">as </span>u64;
+<a href=#2030 id=2030 data-nosnippet>2030</a>    }
 <a href=#2031 id=2031 data-nosnippet>2031</a>
-<a href=#2032 id=2032 data-nosnippet>2032</a><span class="attr">#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-<a href=#2033 id=2033 data-nosnippet>2033</a></span><span class="kw">enum </span>SpansTarget {
-<a href=#2034 id=2034 data-nosnippet>2034</a>    <span class="attr">#[default]
-<a href=#2035 id=2035 data-nosnippet>2035</a>    </span>Protobuf,
-<a href=#2036 id=2036 data-nosnippet>2036</a>    Json,
-<a href=#2037 id=2037 data-nosnippet>2037</a>    Both,
-<a href=#2038 id=2038 data-nosnippet>2038</a>}
-<a href=#2039 id=2039 data-nosnippet>2039</a>
-<a href=#2040 id=2040 data-nosnippet>2040</a><span class="kw">impl </span>SpansTarget {
-<a href=#2041 id=2041 data-nosnippet>2041</a>    <span class="kw">fn </span>is_protobuf(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#2042 id=2042 data-nosnippet>2042</a>        <span class="macro">matches!</span>(<span class="self">self</span>, SpansTarget::Protobuf | SpansTarget::Both)
-<a href=#2043 id=2043 data-nosnippet>2043</a>    }
-<a href=#2044 id=2044 data-nosnippet>2044</a>
-<a href=#2045 id=2045 data-nosnippet>2045</a>    <span class="kw">fn </span>is_json(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#2046 id=2046 data-nosnippet>2046</a>        <span class="macro">matches!</span>(<span class="self">self</span>, SpansTarget::Json | SpansTarget::Both)
+<a href=#2032 id=2032 data-nosnippet>2032</a>    <span class="comment">// We assume this call can't return &lt; 0.
+<a href=#2033 id=2033 data-nosnippet>2033</a>    </span>Utc::now().timestamp() <span class="kw">as </span>u64
+<a href=#2034 id=2034 data-nosnippet>2034</a>}
+<a href=#2035 id=2035 data-nosnippet>2035</a>
+<a href=#2036 id=2036 data-nosnippet>2036</a><span class="attr">#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+<a href=#2037 id=2037 data-nosnippet>2037</a></span><span class="kw">enum </span>SpansTarget {
+<a href=#2038 id=2038 data-nosnippet>2038</a>    <span class="attr">#[default]
+<a href=#2039 id=2039 data-nosnippet>2039</a>    </span>Protobuf,
+<a href=#2040 id=2040 data-nosnippet>2040</a>    Json,
+<a href=#2041 id=2041 data-nosnippet>2041</a>    Both,
+<a href=#2042 id=2042 data-nosnippet>2042</a>}
+<a href=#2043 id=2043 data-nosnippet>2043</a>
+<a href=#2044 id=2044 data-nosnippet>2044</a><span class="kw">impl </span>SpansTarget {
+<a href=#2045 id=2045 data-nosnippet>2045</a>    <span class="kw">fn </span>is_protobuf(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#2046 id=2046 data-nosnippet>2046</a>        <span class="macro">matches!</span>(<span class="self">self</span>, SpansTarget::Protobuf | SpansTarget::Both)
 <a href=#2047 id=2047 data-nosnippet>2047</a>    }
-<a href=#2048 id=2048 data-nosnippet>2048</a>}
-<a href=#2049 id=2049 data-nosnippet>2049</a>
-<a href=#2050 id=2050 data-nosnippet>2050</a><span class="attr">#[cfg(test)]
-<a href=#2051 id=2051 data-nosnippet>2051</a></span><span class="kw">mod </span>tests {
-<a href=#2052 id=2052 data-nosnippet>2052</a>
-<a href=#2053 id=2053 data-nosnippet>2053</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#2054 id=2054 data-nosnippet>2054</a>
-<a href=#2055 id=2055 data-nosnippet>2055</a>    <span class="attr">#[test]
-<a href=#2056 id=2056 data-nosnippet>2056</a>    </span><span class="kw">fn </span>disallow_outcomes() {
-<a href=#2057 id=2057 data-nosnippet>2057</a>        <span class="kw">let </span>config = Config::default();
-<a href=#2058 id=2058 data-nosnippet>2058</a>        <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config).unwrap();
-<a href=#2059 id=2059 data-nosnippet>2059</a>
-<a href=#2060 id=2060 data-nosnippet>2060</a>        <span class="kw">for </span>topic <span class="kw">in </span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-<a href=#2061 id=2061 data-nosnippet>2061</a>            <span class="kw">let </span>res = producer
-<a href=#2062 id=2062 data-nosnippet>2062</a>                .client
-<a href=#2063 id=2063 data-nosnippet>2063</a>                .send(topic, <span class="prelude-val">Some</span>(<span class="number">0x0123456789abcdef</span>), <span class="prelude-val">None</span>, <span class="string">"foo"</span>, <span class="string">b""</span>);
-<a href=#2064 id=2064 data-nosnippet>2064</a>
-<a href=#2065 id=2065 data-nosnippet>2065</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, <span class="prelude-val">Err</span>(ClientError::InvalidTopicName)));
-<a href=#2066 id=2066 data-nosnippet>2066</a>        }
-<a href=#2067 id=2067 data-nosnippet>2067</a>    }
+<a href=#2048 id=2048 data-nosnippet>2048</a>
+<a href=#2049 id=2049 data-nosnippet>2049</a>    <span class="kw">fn </span>is_json(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#2050 id=2050 data-nosnippet>2050</a>        <span class="macro">matches!</span>(<span class="self">self</span>, SpansTarget::Json | SpansTarget::Both)
+<a href=#2051 id=2051 data-nosnippet>2051</a>    }
+<a href=#2052 id=2052 data-nosnippet>2052</a>}
+<a href=#2053 id=2053 data-nosnippet>2053</a>
+<a href=#2054 id=2054 data-nosnippet>2054</a><span class="attr">#[cfg(test)]
+<a href=#2055 id=2055 data-nosnippet>2055</a></span><span class="kw">mod </span>tests {
+<a href=#2056 id=2056 data-nosnippet>2056</a>
+<a href=#2057 id=2057 data-nosnippet>2057</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#2058 id=2058 data-nosnippet>2058</a>
+<a href=#2059 id=2059 data-nosnippet>2059</a>    <span class="attr">#[test]
+<a href=#2060 id=2060 data-nosnippet>2060</a>    </span><span class="kw">fn </span>disallow_outcomes() {
+<a href=#2061 id=2061 data-nosnippet>2061</a>        <span class="kw">let </span>config = Config::default();
+<a href=#2062 id=2062 data-nosnippet>2062</a>        <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config).unwrap();
+<a href=#2063 id=2063 data-nosnippet>2063</a>
+<a href=#2064 id=2064 data-nosnippet>2064</a>        <span class="kw">for </span>topic <span class="kw">in </span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
+<a href=#2065 id=2065 data-nosnippet>2065</a>            <span class="kw">let </span>res = producer
+<a href=#2066 id=2066 data-nosnippet>2066</a>                .client
+<a href=#2067 id=2067 data-nosnippet>2067</a>                .send(topic, <span class="prelude-val">Some</span>(<span class="number">0x0123456789abcdef</span>), <span class="prelude-val">None</span>, <span class="string">"foo"</span>, <span class="string">b""</span>);
 <a href=#2068 id=2068 data-nosnippet>2068</a>
-<a href=#2069 id=2069 data-nosnippet>2069</a>    <span class="attr">#[test]
-<a href=#2070 id=2070 data-nosnippet>2070</a>    </span><span class="kw">fn </span>backfill() {
-<a href=#2071 id=2071 data-nosnippet>2071</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#2072 id=2072 data-nosnippet>2072</a>            "description": "/api/0/relays/projectconfigs/",
-<a href=#2073 id=2073 data-nosnippet>2073</a>            "duration_ms": 152,
-<a href=#2074 id=2074 data-nosnippet>2074</a>            "exclusive_time": 0.228,
-<a href=#2075 id=2075 data-nosnippet>2075</a>            "is_segment": true,
-<a href=#2076 id=2076 data-nosnippet>2076</a>            "data": {
-<a href=#2077 id=2077 data-nosnippet>2077</a>                "sentry.environment": "development",
-<a href=#2078 id=2078 data-nosnippet>2078</a>                "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
-<a href=#2079 id=2079 data-nosnippet>2079</a>                "thread.name": "uWSGIWorker1Core0",
-<a href=#2080 id=2080 data-nosnippet>2080</a>                "thread.id": "8522009600",
-<a href=#2081 id=2081 data-nosnippet>2081</a>                "sentry.segment.name": "/api/0/relays/projectconfigs/",
-<a href=#2082 id=2082 data-nosnippet>2082</a>                "sentry.sdk.name": "sentry.python.django",
-<a href=#2083 id=2083 data-nosnippet>2083</a>                "sentry.sdk.version": "2.7.0",
-<a href=#2084 id=2084 data-nosnippet>2084</a>                "my.float.field": 101.2,
-<a href=#2085 id=2085 data-nosnippet>2085</a>                "my.int.field": 2000,
-<a href=#2086 id=2086 data-nosnippet>2086</a>                "my.neg.field": -100,
-<a href=#2087 id=2087 data-nosnippet>2087</a>                "my.neg.float.field": -101.2,
-<a href=#2088 id=2088 data-nosnippet>2088</a>                "my.true.bool.field": true,
-<a href=#2089 id=2089 data-nosnippet>2089</a>                "my.false.bool.field": false,
-<a href=#2090 id=2090 data-nosnippet>2090</a>                "my.dict.field": {
-<a href=#2091 id=2091 data-nosnippet>2091</a>                    "id": 42,
-<a href=#2092 id=2092 data-nosnippet>2092</a>                    "name": "test"
-<a href=#2093 id=2093 data-nosnippet>2093</a>                },
-<a href=#2094 id=2094 data-nosnippet>2094</a>                "my.u64.field": 9447000002305251000,
-<a href=#2095 id=2095 data-nosnippet>2095</a>                "my.array.field": [1, 2, ["nested", "array"]]
-<a href=#2096 id=2096 data-nosnippet>2096</a>            },
-<a href=#2097 id=2097 data-nosnippet>2097</a>            "measurements": {
-<a href=#2098 id=2098 data-nosnippet>2098</a>                "num_of_spans": {"value": 50.0},
-<a href=#2099 id=2099 data-nosnippet>2099</a>                "client_sample_rate": {"value": 0.1},
-<a href=#2100 id=2100 data-nosnippet>2100</a>                "server_sample_rate": {"value": 0.2}
-<a href=#2101 id=2101 data-nosnippet>2101</a>            },
-<a href=#2102 id=2102 data-nosnippet>2102</a>            "profile_id": "56c7d1401ea14ad7b4ac86de46baebae",
-<a href=#2103 id=2103 data-nosnippet>2103</a>            "organization_id": 1,
-<a href=#2104 id=2104 data-nosnippet>2104</a>            "origin": "auto.http.django",
-<a href=#2105 id=2105 data-nosnippet>2105</a>            "project_id": 1,
-<a href=#2106 id=2106 data-nosnippet>2106</a>            "received": 1721319572.877828,
-<a href=#2107 id=2107 data-nosnippet>2107</a>            "retention_days": 90,
-<a href=#2108 id=2108 data-nosnippet>2108</a>            "segment_id": "8873a98879faf06d",
-<a href=#2109 id=2109 data-nosnippet>2109</a>            "sentry_tags": {
-<a href=#2110 id=2110 data-nosnippet>2110</a>                "description": "normalized_description",
-<a href=#2111 id=2111 data-nosnippet>2111</a>                "category": "http",
-<a href=#2112 id=2112 data-nosnippet>2112</a>                "environment": "development",
-<a href=#2113 id=2113 data-nosnippet>2113</a>                "op": "http.server",
-<a href=#2114 id=2114 data-nosnippet>2114</a>                "platform": "python",
-<a href=#2115 id=2115 data-nosnippet>2115</a>                "release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
-<a href=#2116 id=2116 data-nosnippet>2116</a>                "sdk.name": "sentry.python.django",
-<a href=#2117 id=2117 data-nosnippet>2117</a>                "sdk.version": "2.7.0",
-<a href=#2118 id=2118 data-nosnippet>2118</a>                "status": "ok",
-<a href=#2119 id=2119 data-nosnippet>2119</a>                "status_code": "200",
-<a href=#2120 id=2120 data-nosnippet>2120</a>                "thread.id": "8522009600",
-<a href=#2121 id=2121 data-nosnippet>2121</a>                "thread.name": "uWSGIWorker1Core0",
-<a href=#2122 id=2122 data-nosnippet>2122</a>                "trace.status": "ok",
-<a href=#2123 id=2123 data-nosnippet>2123</a>                "transaction": "/api/0/relays/projectconfigs/",
-<a href=#2124 id=2124 data-nosnippet>2124</a>                "transaction.method": "POST",
-<a href=#2125 id=2125 data-nosnippet>2125</a>                "transaction.op": "http.server",
-<a href=#2126 id=2126 data-nosnippet>2126</a>                "user": "ip:127.0.0.1"
-<a href=#2127 id=2127 data-nosnippet>2127</a>            },
-<a href=#2128 id=2128 data-nosnippet>2128</a>            "span_id": "8873a98879faf06d",
-<a href=#2129 id=2129 data-nosnippet>2129</a>            "tags": {
-<a href=#2130 id=2130 data-nosnippet>2130</a>                "http.status_code": "200",
-<a href=#2131 id=2131 data-nosnippet>2131</a>                "relay_endpoint_version": "3",
-<a href=#2132 id=2132 data-nosnippet>2132</a>                "relay_id": "88888888-4444-4444-8444-cccccccccccc",
-<a href=#2133 id=2133 data-nosnippet>2133</a>                "relay_no_cache": "False",
-<a href=#2134 id=2134 data-nosnippet>2134</a>                "relay_protocol_version": "3",
-<a href=#2135 id=2135 data-nosnippet>2135</a>                "relay_use_post_or_schedule": "True",
-<a href=#2136 id=2136 data-nosnippet>2136</a>                "relay_use_post_or_schedule_rejected": "version",
-<a href=#2137 id=2137 data-nosnippet>2137</a>                "server_name": "D23CXQ4GK2.local",
-<a href=#2138 id=2138 data-nosnippet>2138</a>                "spans_over_limit": "False"
-<a href=#2139 id=2139 data-nosnippet>2139</a>            },
-<a href=#2140 id=2140 data-nosnippet>2140</a>            "trace_id": "d099bf9ad5a143cf8f83a98081d0ed3b",
-<a href=#2141 id=2141 data-nosnippet>2141</a>            "start_timestamp_ms": 1721319572616,
-<a href=#2142 id=2142 data-nosnippet>2142</a>            "start_timestamp": 1721319572.616648,
-<a href=#2143 id=2143 data-nosnippet>2143</a>            "timestamp": 1721319572.768806
-<a href=#2144 id=2144 data-nosnippet>2144</a>        }"#</span>;
-<a href=#2145 id=2145 data-nosnippet>2145</a>        <span class="kw">let </span><span class="kw-2">mut </span>span: SpanKafkaMessage = serde_json::from_str(json).unwrap();
-<a href=#2146 id=2146 data-nosnippet>2146</a>        span.backfill_data();
-<a href=#2147 id=2147 data-nosnippet>2147</a>
-<a href=#2148 id=2148 data-nosnippet>2148</a>        <span class="macro">assert_eq!</span>(
-<a href=#2149 id=2149 data-nosnippet>2149</a>            serde_json::to_string_pretty(<span class="kw-2">&amp;</span>span.data).unwrap(),
-<a href=#2150 id=2150 data-nosnippet>2150</a>            <span class="string">r#"{
-<a href=#2151 id=2151 data-nosnippet>2151</a>  "http.status_code": "200",
-<a href=#2152 id=2152 data-nosnippet>2152</a>  "my.array.field": [1, 2, ["nested", "array"]],
-<a href=#2153 id=2153 data-nosnippet>2153</a>  "my.dict.field": {
-<a href=#2154 id=2154 data-nosnippet>2154</a>                    "id": 42,
-<a href=#2155 id=2155 data-nosnippet>2155</a>                    "name": "test"
-<a href=#2156 id=2156 data-nosnippet>2156</a>                },
-<a href=#2157 id=2157 data-nosnippet>2157</a>  "my.false.bool.field": false,
-<a href=#2158 id=2158 data-nosnippet>2158</a>  "my.float.field": 101.2,
-<a href=#2159 id=2159 data-nosnippet>2159</a>  "my.int.field": 2000,
-<a href=#2160 id=2160 data-nosnippet>2160</a>  "my.neg.field": -100,
-<a href=#2161 id=2161 data-nosnippet>2161</a>  "my.neg.float.field": -101.2,
-<a href=#2162 id=2162 data-nosnippet>2162</a>  "my.true.bool.field": true,
-<a href=#2163 id=2163 data-nosnippet>2163</a>  "my.u64.field": 9447000002305251000,
-<a href=#2164 id=2164 data-nosnippet>2164</a>  "num_of_spans": 50.0,
-<a href=#2165 id=2165 data-nosnippet>2165</a>  "relay_endpoint_version": "3",
-<a href=#2166 id=2166 data-nosnippet>2166</a>  "relay_id": "88888888-4444-4444-8444-cccccccccccc",
-<a href=#2167 id=2167 data-nosnippet>2167</a>  "relay_no_cache": "False",
-<a href=#2168 id=2168 data-nosnippet>2168</a>  "relay_protocol_version": "3",
-<a href=#2169 id=2169 data-nosnippet>2169</a>  "relay_use_post_or_schedule": "True",
-<a href=#2170 id=2170 data-nosnippet>2170</a>  "relay_use_post_or_schedule_rejected": "version",
-<a href=#2171 id=2171 data-nosnippet>2171</a>  "sentry.category": "http",
-<a href=#2172 id=2172 data-nosnippet>2172</a>  "sentry.client_sample_rate": 0.1,
-<a href=#2173 id=2173 data-nosnippet>2173</a>  "sentry.environment": "development",
-<a href=#2174 id=2174 data-nosnippet>2174</a>  "sentry.normalized_description": "normalized_description",
-<a href=#2175 id=2175 data-nosnippet>2175</a>  "sentry.op": "http.server",
-<a href=#2176 id=2176 data-nosnippet>2176</a>  "sentry.platform": "python",
-<a href=#2177 id=2177 data-nosnippet>2177</a>  "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
-<a href=#2178 id=2178 data-nosnippet>2178</a>  "sentry.sdk.name": "sentry.python.django",
-<a href=#2179 id=2179 data-nosnippet>2179</a>  "sentry.sdk.version": "2.7.0",
-<a href=#2180 id=2180 data-nosnippet>2180</a>  "sentry.segment.name": "/api/0/relays/projectconfigs/",
-<a href=#2181 id=2181 data-nosnippet>2181</a>  "sentry.server_sample_rate": 0.2,
-<a href=#2182 id=2182 data-nosnippet>2182</a>  "sentry.status": "ok",
-<a href=#2183 id=2183 data-nosnippet>2183</a>  "sentry.status_code": "200",
-<a href=#2184 id=2184 data-nosnippet>2184</a>  "sentry.thread.id": "8522009600",
-<a href=#2185 id=2185 data-nosnippet>2185</a>  "sentry.thread.name": "uWSGIWorker1Core0",
-<a href=#2186 id=2186 data-nosnippet>2186</a>  "sentry.trace.status": "ok",
-<a href=#2187 id=2187 data-nosnippet>2187</a>  "sentry.transaction": "/api/0/relays/projectconfigs/",
-<a href=#2188 id=2188 data-nosnippet>2188</a>  "sentry.transaction.method": "POST",
-<a href=#2189 id=2189 data-nosnippet>2189</a>  "sentry.transaction.op": "http.server",
-<a href=#2190 id=2190 data-nosnippet>2190</a>  "sentry.user": "ip:127.0.0.1",
-<a href=#2191 id=2191 data-nosnippet>2191</a>  "server_name": "D23CXQ4GK2.local",
-<a href=#2192 id=2192 data-nosnippet>2192</a>  "spans_over_limit": "False",
-<a href=#2193 id=2193 data-nosnippet>2193</a>  "thread.id": "8522009600",
-<a href=#2194 id=2194 data-nosnippet>2194</a>  "thread.name": "uWSGIWorker1Core0"
-<a href=#2195 id=2195 data-nosnippet>2195</a>}"#
-<a href=#2196 id=2196 data-nosnippet>2196</a>        </span>);
-<a href=#2197 id=2197 data-nosnippet>2197</a>    }
-<a href=#2198 id=2198 data-nosnippet>2198</a>}</code></pre></div></section></main></body></html>
+<a href=#2069 id=2069 data-nosnippet>2069</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, <span class="prelude-val">Err</span>(ClientError::InvalidTopicName)));
+<a href=#2070 id=2070 data-nosnippet>2070</a>        }
+<a href=#2071 id=2071 data-nosnippet>2071</a>    }
+<a href=#2072 id=2072 data-nosnippet>2072</a>
+<a href=#2073 id=2073 data-nosnippet>2073</a>    <span class="attr">#[test]
+<a href=#2074 id=2074 data-nosnippet>2074</a>    </span><span class="kw">fn </span>backfill() {
+<a href=#2075 id=2075 data-nosnippet>2075</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#2076 id=2076 data-nosnippet>2076</a>            "description": "/api/0/relays/projectconfigs/",
+<a href=#2077 id=2077 data-nosnippet>2077</a>            "duration_ms": 152,
+<a href=#2078 id=2078 data-nosnippet>2078</a>            "exclusive_time": 0.228,
+<a href=#2079 id=2079 data-nosnippet>2079</a>            "is_segment": true,
+<a href=#2080 id=2080 data-nosnippet>2080</a>            "data": {
+<a href=#2081 id=2081 data-nosnippet>2081</a>                "sentry.environment": "development",
+<a href=#2082 id=2082 data-nosnippet>2082</a>                "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+<a href=#2083 id=2083 data-nosnippet>2083</a>                "thread.name": "uWSGIWorker1Core0",
+<a href=#2084 id=2084 data-nosnippet>2084</a>                "thread.id": "8522009600",
+<a href=#2085 id=2085 data-nosnippet>2085</a>                "sentry.segment.name": "/api/0/relays/projectconfigs/",
+<a href=#2086 id=2086 data-nosnippet>2086</a>                "sentry.sdk.name": "sentry.python.django",
+<a href=#2087 id=2087 data-nosnippet>2087</a>                "sentry.sdk.version": "2.7.0",
+<a href=#2088 id=2088 data-nosnippet>2088</a>                "my.float.field": 101.2,
+<a href=#2089 id=2089 data-nosnippet>2089</a>                "my.int.field": 2000,
+<a href=#2090 id=2090 data-nosnippet>2090</a>                "my.neg.field": -100,
+<a href=#2091 id=2091 data-nosnippet>2091</a>                "my.neg.float.field": -101.2,
+<a href=#2092 id=2092 data-nosnippet>2092</a>                "my.true.bool.field": true,
+<a href=#2093 id=2093 data-nosnippet>2093</a>                "my.false.bool.field": false,
+<a href=#2094 id=2094 data-nosnippet>2094</a>                "my.dict.field": {
+<a href=#2095 id=2095 data-nosnippet>2095</a>                    "id": 42,
+<a href=#2096 id=2096 data-nosnippet>2096</a>                    "name": "test"
+<a href=#2097 id=2097 data-nosnippet>2097</a>                },
+<a href=#2098 id=2098 data-nosnippet>2098</a>                "my.u64.field": 9447000002305251000,
+<a href=#2099 id=2099 data-nosnippet>2099</a>                "my.array.field": [1, 2, ["nested", "array"]]
+<a href=#2100 id=2100 data-nosnippet>2100</a>            },
+<a href=#2101 id=2101 data-nosnippet>2101</a>            "measurements": {
+<a href=#2102 id=2102 data-nosnippet>2102</a>                "num_of_spans": {"value": 50.0},
+<a href=#2103 id=2103 data-nosnippet>2103</a>                "client_sample_rate": {"value": 0.1},
+<a href=#2104 id=2104 data-nosnippet>2104</a>                "server_sample_rate": {"value": 0.2}
+<a href=#2105 id=2105 data-nosnippet>2105</a>            },
+<a href=#2106 id=2106 data-nosnippet>2106</a>            "profile_id": "56c7d1401ea14ad7b4ac86de46baebae",
+<a href=#2107 id=2107 data-nosnippet>2107</a>            "organization_id": 1,
+<a href=#2108 id=2108 data-nosnippet>2108</a>            "origin": "auto.http.django",
+<a href=#2109 id=2109 data-nosnippet>2109</a>            "project_id": 1,
+<a href=#2110 id=2110 data-nosnippet>2110</a>            "received": 1721319572.877828,
+<a href=#2111 id=2111 data-nosnippet>2111</a>            "retention_days": 90,
+<a href=#2112 id=2112 data-nosnippet>2112</a>            "segment_id": "8873a98879faf06d",
+<a href=#2113 id=2113 data-nosnippet>2113</a>            "sentry_tags": {
+<a href=#2114 id=2114 data-nosnippet>2114</a>                "description": "normalized_description",
+<a href=#2115 id=2115 data-nosnippet>2115</a>                "category": "http",
+<a href=#2116 id=2116 data-nosnippet>2116</a>                "environment": "development",
+<a href=#2117 id=2117 data-nosnippet>2117</a>                "op": "http.server",
+<a href=#2118 id=2118 data-nosnippet>2118</a>                "platform": "python",
+<a href=#2119 id=2119 data-nosnippet>2119</a>                "release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+<a href=#2120 id=2120 data-nosnippet>2120</a>                "sdk.name": "sentry.python.django",
+<a href=#2121 id=2121 data-nosnippet>2121</a>                "sdk.version": "2.7.0",
+<a href=#2122 id=2122 data-nosnippet>2122</a>                "status": "ok",
+<a href=#2123 id=2123 data-nosnippet>2123</a>                "status_code": "200",
+<a href=#2124 id=2124 data-nosnippet>2124</a>                "thread.id": "8522009600",
+<a href=#2125 id=2125 data-nosnippet>2125</a>                "thread.name": "uWSGIWorker1Core0",
+<a href=#2126 id=2126 data-nosnippet>2126</a>                "trace.status": "ok",
+<a href=#2127 id=2127 data-nosnippet>2127</a>                "transaction": "/api/0/relays/projectconfigs/",
+<a href=#2128 id=2128 data-nosnippet>2128</a>                "transaction.method": "POST",
+<a href=#2129 id=2129 data-nosnippet>2129</a>                "transaction.op": "http.server",
+<a href=#2130 id=2130 data-nosnippet>2130</a>                "user": "ip:127.0.0.1"
+<a href=#2131 id=2131 data-nosnippet>2131</a>            },
+<a href=#2132 id=2132 data-nosnippet>2132</a>            "span_id": "8873a98879faf06d",
+<a href=#2133 id=2133 data-nosnippet>2133</a>            "tags": {
+<a href=#2134 id=2134 data-nosnippet>2134</a>                "http.status_code": "200",
+<a href=#2135 id=2135 data-nosnippet>2135</a>                "relay_endpoint_version": "3",
+<a href=#2136 id=2136 data-nosnippet>2136</a>                "relay_id": "88888888-4444-4444-8444-cccccccccccc",
+<a href=#2137 id=2137 data-nosnippet>2137</a>                "relay_no_cache": "False",
+<a href=#2138 id=2138 data-nosnippet>2138</a>                "relay_protocol_version": "3",
+<a href=#2139 id=2139 data-nosnippet>2139</a>                "relay_use_post_or_schedule": "True",
+<a href=#2140 id=2140 data-nosnippet>2140</a>                "relay_use_post_or_schedule_rejected": "version",
+<a href=#2141 id=2141 data-nosnippet>2141</a>                "server_name": "D23CXQ4GK2.local",
+<a href=#2142 id=2142 data-nosnippet>2142</a>                "spans_over_limit": "False"
+<a href=#2143 id=2143 data-nosnippet>2143</a>            },
+<a href=#2144 id=2144 data-nosnippet>2144</a>            "trace_id": "d099bf9ad5a143cf8f83a98081d0ed3b",
+<a href=#2145 id=2145 data-nosnippet>2145</a>            "start_timestamp_ms": 1721319572616,
+<a href=#2146 id=2146 data-nosnippet>2146</a>            "start_timestamp": 1721319572.616648,
+<a href=#2147 id=2147 data-nosnippet>2147</a>            "timestamp": 1721319572.768806
+<a href=#2148 id=2148 data-nosnippet>2148</a>        }"#</span>;
+<a href=#2149 id=2149 data-nosnippet>2149</a>        <span class="kw">let </span><span class="kw-2">mut </span>span: SpanKafkaMessage = serde_json::from_str(json).unwrap();
+<a href=#2150 id=2150 data-nosnippet>2150</a>        span.backfill_data();
+<a href=#2151 id=2151 data-nosnippet>2151</a>
+<a href=#2152 id=2152 data-nosnippet>2152</a>        <span class="macro">assert_eq!</span>(
+<a href=#2153 id=2153 data-nosnippet>2153</a>            serde_json::to_string_pretty(<span class="kw-2">&amp;</span>span.data).unwrap(),
+<a href=#2154 id=2154 data-nosnippet>2154</a>            <span class="string">r#"{
+<a href=#2155 id=2155 data-nosnippet>2155</a>  "http.status_code": "200",
+<a href=#2156 id=2156 data-nosnippet>2156</a>  "my.array.field": [1, 2, ["nested", "array"]],
+<a href=#2157 id=2157 data-nosnippet>2157</a>  "my.dict.field": {
+<a href=#2158 id=2158 data-nosnippet>2158</a>                    "id": 42,
+<a href=#2159 id=2159 data-nosnippet>2159</a>                    "name": "test"
+<a href=#2160 id=2160 data-nosnippet>2160</a>                },
+<a href=#2161 id=2161 data-nosnippet>2161</a>  "my.false.bool.field": false,
+<a href=#2162 id=2162 data-nosnippet>2162</a>  "my.float.field": 101.2,
+<a href=#2163 id=2163 data-nosnippet>2163</a>  "my.int.field": 2000,
+<a href=#2164 id=2164 data-nosnippet>2164</a>  "my.neg.field": -100,
+<a href=#2165 id=2165 data-nosnippet>2165</a>  "my.neg.float.field": -101.2,
+<a href=#2166 id=2166 data-nosnippet>2166</a>  "my.true.bool.field": true,
+<a href=#2167 id=2167 data-nosnippet>2167</a>  "my.u64.field": 9447000002305251000,
+<a href=#2168 id=2168 data-nosnippet>2168</a>  "num_of_spans": 50.0,
+<a href=#2169 id=2169 data-nosnippet>2169</a>  "relay_endpoint_version": "3",
+<a href=#2170 id=2170 data-nosnippet>2170</a>  "relay_id": "88888888-4444-4444-8444-cccccccccccc",
+<a href=#2171 id=2171 data-nosnippet>2171</a>  "relay_no_cache": "False",
+<a href=#2172 id=2172 data-nosnippet>2172</a>  "relay_protocol_version": "3",
+<a href=#2173 id=2173 data-nosnippet>2173</a>  "relay_use_post_or_schedule": "True",
+<a href=#2174 id=2174 data-nosnippet>2174</a>  "relay_use_post_or_schedule_rejected": "version",
+<a href=#2175 id=2175 data-nosnippet>2175</a>  "sentry.category": "http",
+<a href=#2176 id=2176 data-nosnippet>2176</a>  "sentry.client_sample_rate": 0.1,
+<a href=#2177 id=2177 data-nosnippet>2177</a>  "sentry.environment": "development",
+<a href=#2178 id=2178 data-nosnippet>2178</a>  "sentry.normalized_description": "normalized_description",
+<a href=#2179 id=2179 data-nosnippet>2179</a>  "sentry.op": "http.server",
+<a href=#2180 id=2180 data-nosnippet>2180</a>  "sentry.platform": "python",
+<a href=#2181 id=2181 data-nosnippet>2181</a>  "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+<a href=#2182 id=2182 data-nosnippet>2182</a>  "sentry.sdk.name": "sentry.python.django",
+<a href=#2183 id=2183 data-nosnippet>2183</a>  "sentry.sdk.version": "2.7.0",
+<a href=#2184 id=2184 data-nosnippet>2184</a>  "sentry.segment.name": "/api/0/relays/projectconfigs/",
+<a href=#2185 id=2185 data-nosnippet>2185</a>  "sentry.server_sample_rate": 0.2,
+<a href=#2186 id=2186 data-nosnippet>2186</a>  "sentry.status": "ok",
+<a href=#2187 id=2187 data-nosnippet>2187</a>  "sentry.status_code": "200",
+<a href=#2188 id=2188 data-nosnippet>2188</a>  "sentry.thread.id": "8522009600",
+<a href=#2189 id=2189 data-nosnippet>2189</a>  "sentry.thread.name": "uWSGIWorker1Core0",
+<a href=#2190 id=2190 data-nosnippet>2190</a>  "sentry.trace.status": "ok",
+<a href=#2191 id=2191 data-nosnippet>2191</a>  "sentry.transaction": "/api/0/relays/projectconfigs/",
+<a href=#2192 id=2192 data-nosnippet>2192</a>  "sentry.transaction.method": "POST",
+<a href=#2193 id=2193 data-nosnippet>2193</a>  "sentry.transaction.op": "http.server",
+<a href=#2194 id=2194 data-nosnippet>2194</a>  "sentry.user": "ip:127.0.0.1",
+<a href=#2195 id=2195 data-nosnippet>2195</a>  "server_name": "D23CXQ4GK2.local",
+<a href=#2196 id=2196 data-nosnippet>2196</a>  "spans_over_limit": "False",
+<a href=#2197 id=2197 data-nosnippet>2197</a>  "thread.id": "8522009600",
+<a href=#2198 id=2198 data-nosnippet>2198</a>  "thread.name": "uWSGIWorker1Core0"
+<a href=#2199 id=2199 data-nosnippet>2199</a>}"#
+<a href=#2200 id=2200 data-nosnippet>2200</a>        </span>);
+<a href=#2201 id=2201 data-nosnippet>2201</a>    }
+<a href=#2202 id=2202 data-nosnippet>2202</a>}</code></pre></div></section></main></body></html>

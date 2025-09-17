@@ -348,7 +348,7 @@
 <a href=#348 id=348 data-nosnippet>348</a>    }
 <a href=#349 id=349 data-nosnippet>349</a>
 <a href=#350 id=350 data-nosnippet>350</a>    <span class="kw">if </span>config.performance_issues_spans &amp;&amp; event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-<a href=#351 id=351 data-nosnippet>351</a>        event._performance_issues_spans = Annotated::new(<span class="bool-val">true</span>);
+<a href=#351 id=351 data-nosnippet>351</a>        event.performance_issues_spans = Annotated::new(<span class="bool-val">true</span>);
 <a href=#352 id=352 data-nosnippet>352</a>    }
 <a href=#353 id=353 data-nosnippet>353</a>
 <a href=#354 id=354 data-nosnippet>354</a>    <span class="kw">if </span>config.enrich_spans {
