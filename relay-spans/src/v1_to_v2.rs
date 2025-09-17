@@ -1,10 +1,11 @@
 use std::borrow::Cow;
 
 use relay_event_schema::protocol::{
-    Attribute, Attributes, Span as SpanV1, SpanData, SpanKind as SpanV1Kind, SpanLink,
-    SpanStatus as SpanV1Status, SpanV2, SpanV2Kind, SpanV2Link, SpanV2Status,
+    Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
+    SpanData, SpanKind as SpanV1Kind, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Kind,
+    SpanV2Link, SpanV2Status,
 };
-use relay_protocol::{Annotated, Empty, IntoValue, Value};
+use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 
 const MILLIS_TO_NANOS: f64 = 1000. * 1000.;
 
@@ -80,8 +81,10 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
             if !attributes.contains_key(&key) {
                 attributes.insert_raw(
                     key,
-                    Attribute::annotated_from_value(value.map_value(IntoValue::into_value)),
-                );
+                    value
+                        .map_value(|JsonLenientString(s)| AttributeValue::from(s))
+                        .and_then(Attribute::from),
+                )
             }
         }
     }
@@ -94,7 +97,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
                 other => Cow::Owned(format!("sentry.{}", other)),
             };
             if !value.is_empty() && !attributes.contains_key(key.as_ref()) {
-                attributes.insert_raw(key.into_owned(), Attribute::annotated_from_value(value));
+                attributes.insert_raw(key.into_owned(), attribute_from_value(value));
             }
         }
     }
@@ -154,9 +157,9 @@ fn span_v1_links_to_span_v2_links(links: Vec<Annotated<SpanLink>>) -> Vec<Annota
                         sampled,
                         attributes: attributes.map_value(|attrs| {
                             Attributes::from_iter(
-                                attrs.into_iter().map(|(key, value)| {
-                                    (key, Attribute::annotated_from_value(value))
-                                }),
+                                attrs
+                                    .into_iter()
+                                    .map(|(key, value)| (key, attribute_from_value(value))),
                             )
                         }),
                         other,
@@ -178,8 +181,47 @@ fn attributes_from_data(data: Annotated<SpanData>) -> Annotated<Attributes> {
     };
 
     Annotated::new(Attributes::from_iter(data.into_iter().filter_map(
-        |(key, value)| (!value.is_empty()).then_some((key, Attribute::annotated_from_value(value))),
+        |(key, value)| (!value.is_empty()).then_some((key, attribute_from_value(value))),
     )))
+}
+
+/// Converts a generic [`Value`] into an annotated attribute with the proper type.
+///
+/// - Any conversion errors are documented in [`Meta`].
+/// - Nested values are serialized into strings.
+fn attribute_from_value(value: Annotated<Value>) -> Annotated<Attribute> {
+    let value: Annotated<AttributeValue> =
+        value.and_then(|value| attribute_value_from_value(value));
+    value.map_value(Attribute::from)
+}
+
+fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
+    match value {
+        Value::Bool(v) => AttributeValue::from(v),
+        Value::I64(v) => AttributeValue::from(v),
+        Value::U64(v) => match i64::try_from(v) {
+            Ok(i) => AttributeValue::from(i),
+            Err(_) => return Annotated::from_error(Error::invalid("integer too large"), None),
+        },
+        Value::F64(v) => AttributeValue::from(v),
+        Value::String(v) => AttributeValue::from(v),
+        Value::Array(_) | Value::Object(_) => {
+            return match Annotated::new(value).to_json() {
+                Ok(s) => Annotated(
+                    Some(AttributeValue {
+                        ty: AttributeType::String.into(),
+                        value: Value::String(s).into(),
+                    }),
+                    Meta::from_error(Error::expected("scalar attribute")),
+                ),
+                Err(_) => Annotated::from_error(
+                    Error::invalid("failed to serialize nested attribute"),
+                    None,
+                ),
+            };
+        }
+    }
+    .into()
 }
 
 #[cfg(test)]
@@ -303,14 +345,8 @@ mod tests {
               "value": "my.data.value"
             },
             "my.nested": {
-              "type": "object",
-              "value": {
-                "numbers": [
-                  1,
-                  2,
-                  3
-                ]
-              }
+              "type": "string",
+              "value": "{\"numbers\":[1,2,3]}"
             },
             "sentry._internal.performance_issues_spans": {
               "type": "boolean",
@@ -369,7 +405,23 @@ mod tests {
               "value": true
             }
           },
-          "additional_field": "additional field value"
+          "additional_field": "additional field value",
+          "_meta": {
+            "attributes": {
+              "my.nested": {
+                "": {
+                  "err": [
+                    [
+                      "invalid_data",
+                      {
+                        "reason": "expected scalar attribute"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
         }
         "###);
     }
