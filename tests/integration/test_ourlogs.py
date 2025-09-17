@@ -491,30 +491,26 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
     relay.send_envelope(project_id, envelope)
 
     item = items_consumer.get_item()
-    # Some of the following should not be redacted, but currently they are inside the `Attributes` object which
-    # treats every PII field as 'true' (default field), thus it's targetable by rules like '**'.
     assert item == {
         "attributes": {
-            "sentry._meta.fields.attributes.sentry.browser.version": {
-                "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":4}}}}'
-            },
             "sentry._meta.fields.attributes.custom_field": {
                 "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":12}}}}'
             },
-            "sentry.browser.version": {"stringValue": "[REDACTED]"},
-            "sentry._meta.fields.attributes.sentry.observed_timestamp_nanos": {
-                "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":19}}}}'
-            },
+            "sentry.browser.version": {"stringValue": "2.32"},
             "custom_field": {"stringValue": "[REDACTED]"},
             "sentry.body": {"stringValue": "[REDACTED]"},
-            "sentry._meta.fields.attributes.sentry.browser.name": {
-                "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":15}}}}'
-            },
             "sentry.severity_text": {"stringValue": "info"},
-            "sentry.observed_timestamp_nanos": {"stringValue": "[REDACTED]"},
+            "sentry.observed_timestamp_nanos": {
+                "stringValue": time_within_delta(
+                    ts,
+                    delta=timedelta(seconds=1),
+                    expect_resolution="ns",
+                    precision="us",
+                )
+            },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
             "sentry.payload_size_bytes": mock.ANY,
-            "sentry.browser.name": {"stringValue": "[REDACTED]"},
+            "sentry.browser.name": {"stringValue": "Python Requests"},
             "sentry._meta.fields.body": {
                 "stringValue": '{"meta":{"":{"rem":[["remove_custom_field","s",0,10]],"len":8}}}'
             },
