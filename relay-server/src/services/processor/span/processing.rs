@@ -813,19 +813,16 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
 }
 
 fn generate_name(span: &mut Span) {
-    println!("generate_name!");
     if span
         .data
         .value()
         .and_then(|v| v.get_value("sentry\\.name"))
         .is_some()
     {
-        println!("name is some");
         return;
     }
 
     if let Some(name) = name_for_span(span) {
-        println!("inserting {}", name);
         span.data.value_mut().as_mut().and_then(|data| {
             data.other
                 .insert("sentry.name".to_owned(), Value::String(name).into())
