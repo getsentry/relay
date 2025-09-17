@@ -9,7 +9,6 @@ use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 
 const MILLIS_TO_NANOS: f64 = 1000. * 1000.;
 
-#[allow(dead_code)]
 pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let SpanV1 {
         timestamp,

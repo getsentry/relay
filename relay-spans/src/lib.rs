@@ -16,3 +16,5 @@ mod otel_to_sentry_v2;
 mod status_codes;
 mod v1_to_v2;
 mod v2_to_v1;
+
+pub use v1_to_v2::span_v1_to_span_v2;

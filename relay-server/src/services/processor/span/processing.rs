@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
 use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
 use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -32,7 +32,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::{
-    BrowserContext, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
+    BrowserContext, CompatSpan, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
@@ -231,16 +231,40 @@ pub async fn process(
 
         // Write back:
         let mut new_item = Item::new(ItemType::Span);
-        let payload = match annotated_span.to_json() {
-            Ok(payload) => payload,
-            Err(err) => {
-                relay_log::debug!("failed to serialize span: {}", err);
-                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-            }
-        };
-        new_item.set_payload(ContentType::Json, payload);
-        new_item.set_metrics_extracted(item.metrics_extracted());
+        let produce_compat_spans = false;
+        if produce_compat_spans {
+            let span_v2 = annotated_span.map_value(relay_spans::span_v1_to_span_v2);
+            let compat_span = match span_v2.map_value(CompatSpan::try_from) {
+                Annotated(Some(Result::Err(err)), _) => {
+                    relay_log::debug!("failed to create compat span: {}", err);
+                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+                }
+                Annotated(Some(Result::Ok(compat_span)), meta) => {
+                    Annotated(Some(compat_span), meta)
+                }
+                Annotated(None, meta) => Annotated(None, meta),
+            };
+            let payload = match compat_span.to_json() {
+                Ok(payload) => payload,
+                Err(err) => {
+                    relay_log::debug!("failed to serialize compat span: {}", err);
+                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+                }
+            };
 
+            new_item.set_payload(ContentType::CompatSpan, payload);
+        } else {
+            let payload = match annotated_span.to_json() {
+                Ok(payload) => payload,
+                Err(err) => {
+                    relay_log::debug!("failed to serialize span: {}", err);
+                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+                }
+            };
+            new_item.set_payload(ContentType::Json, payload);
+        }
+
+        new_item.set_metrics_extracted(item.metrics_extracted());
         *item = new_item;
 
         ItemAction::Keep

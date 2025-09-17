@@ -1,6 +1,8 @@
 mod compat;
 mod convert;
 
+pub use compat::CompatSpan;
+
 use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;

@@ -37,7 +37,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::managed::{Counted, Managed, OutcomeError, Quantities, TypedEnvelope};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
@@ -288,6 +288,7 @@ impl StoreService {
         .is_keep();
 
         for item in envelope.items() {
+            let content_type = item.content_type();
             match item.ty() {
                 ItemType::Attachment => {
                     if let Some(attachment) = self.produce_attachment(
@@ -354,7 +355,7 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span => self.produce_span(
+                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
                     scoping,
                     received_at,
                     event_id,
@@ -362,6 +363,15 @@ impl StoreService {
                     downsampled_retention,
                     item,
                 )?,
+                ItemType::Span if content_type == Some(&ContentType::CompatSpan) => self
+                    .produce_span_v2(
+                        scoping,
+                        received_at,
+                        event_id,
+                        retention,
+                        downsampled_retention,
+                        item,
+                    )?,
                 ty @ ItemType::Log => {
                     debug_assert!(
                         false,
@@ -1083,6 +1093,21 @@ impl StoreService {
             scoping,
             timestamp: received_at,
         });
+
+        Ok(())
+    }
+
+    fn produce_span_v2(
+        &self,
+        scoping: Scoping,
+        received_at: DateTime<Utc>,
+        event_id: Option<EventId>,
+        retention_days: u16,
+        downsampled_retention_days: u16,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        debug_assert_eq!(item.ty(), &ItemType::Span);
+        debug_assert_eq!(item.content_type(), Some(&ContentType::CompatSpan));
 
         Ok(())
     }
