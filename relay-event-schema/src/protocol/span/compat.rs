@@ -27,15 +27,15 @@ impl TryFrom<SpanV2> for CompatSpan {
     type Error = uuid::Error;
 
     fn try_from(span_v2: SpanV2) -> Result<Self, uuid::Error> {
-        let mut compat_span = Self::default();
-
-        compat_span.start_timestamp_precise = span_v2.start_timestamp.clone();
-        compat_span.start_timestamp_ms = span_v2
-            .start_timestamp
-            .clone()
-            .map_value(|ts| (ts.0.timestamp_millis() as u64).into());
-
-        compat_span.end_timestamp_precise = span_v2.end_timestamp.clone();
+        let mut compat_span = CompatSpan {
+            start_timestamp_precise: span_v2.start_timestamp.clone(),
+            start_timestamp_ms: span_v2
+                .start_timestamp
+                .clone()
+                .map_value(|ts| ts.0.timestamp_millis() as u64),
+            end_timestamp_precise: span_v2.end_timestamp.clone(),
+            ..Default::default()
+        };
 
         if let (Some(start_timestamp), Some(end_timestamp)) = (
             span_v2.start_timestamp.value(),
