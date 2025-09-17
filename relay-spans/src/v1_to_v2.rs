@@ -185,16 +185,15 @@ fn attributes_from_data(data: Annotated<SpanData>) -> Annotated<Attributes> {
     )))
 }
 
-/// Converts a generic [`Value`] into an annotated attribute with the proper type.
-///
-/// - Any conversion errors are documented in [`Meta`].
-/// - Nested values are serialized into strings.
 fn attribute_from_value(value: Annotated<Value>) -> Annotated<Attribute> {
-    let value: Annotated<AttributeValue> =
-        value.and_then(|value| attribute_value_from_value(value));
+    let value: Annotated<AttributeValue> = value.and_then(attribute_value_from_value);
     value.map_value(Attribute::from)
 }
 
+/// Converts a generic [`Value`] into an annotated attribute value with the proper type.
+///
+/// - Any conversion errors are documented in [`Meta`].
+/// - Nested values are serialized into strings.
 fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
     match value {
         Value::Bool(v) => AttributeValue::from(v),
