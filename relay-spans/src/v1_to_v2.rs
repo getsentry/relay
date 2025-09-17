@@ -63,14 +63,16 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     // Use same precedence as `backfill_data` for data bags:
     if let Some(measurements) = measurements.into_value() {
         for (key, measurement) in measurements.0 {
-            if let Some(measurement) = measurement.into_value() {
-                let key = match key.as_str() {
-                    "client_sample_rate" => "sentry.client_sample_rate",
-                    "server_sample_rate" => "sentry.server_sample_rate",
-                    other => other,
-                };
-                attributes.insert_if_missing(key, || measurement.value.map_value(|a| a.to_f64()));
-            }
+            let key = match key.as_str() {
+                "client_sample_rate" => "sentry.client_sample_rate",
+                "server_sample_rate" => "sentry.server_sample_rate",
+                other => other,
+            };
+
+            attributes.insert_if_missing(key, || match measurement {
+                Annotated(Some(measurement), _) => measurement.value.map_value(|f| f.to_f64()),
+                Annotated(None, meta) => Annotated(None, meta),
+            });
         }
     }
     if let Some(tags) = tags.into_value() {
@@ -171,6 +173,7 @@ fn attributes_from_data(data: Annotated<SpanData>) -> Annotated<Attributes> {
         return Annotated(None, meta);
     };
     let Value::Object(data) = data.into_value() else {
+        debug_assert!(false, "`SpanData` must convert to Object");
         return Annotated(None, meta);
     };
 
