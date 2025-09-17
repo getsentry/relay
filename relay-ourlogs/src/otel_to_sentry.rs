@@ -11,7 +11,7 @@ use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLogRecord;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_otel::otel_value_to_attribute;
-use relay_protocol::{Annotated, Object};
+use relay_protocol::{Annotated, Meta, Object, Remark, RemarkType};
 
 /// Maps OpenTelemetry severity number to Sentry log level.
 ///
@@ -62,9 +62,18 @@ pub fn otel_to_sentry_log(
     } = otel_log;
 
     let span_id = SpanId::try_from(span_id.as_slice())
-        .map_or_else(|err| Annotated::from_error(err, None), Annotated::new);
-    let trace_id = TraceId::try_from(trace_id.as_slice())
-        .map_or_else(|err| Annotated::from_error(err, None), Annotated::new);
+        .map(Annotated::new)
+        .unwrap_or_default();
+    let trace_id = match TraceId::try_from(trace_id.as_slice()) {
+        Ok(id) => Annotated::new(id),
+        Err(_) => {
+            // Generate a new trace ID when missing or invalid
+            let generated_id = TraceId::random();
+            let mut meta = Meta::default();
+            meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
+            Annotated(Some(generated_id), meta)
+        }
+    };
     let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
     let level = map_severity_to_level(severity_number, &severity_text);
     let body = body.and_then(|v| v.value).and_then(|v| match v {
@@ -128,6 +137,44 @@ pub fn otel_to_sentry_log(
 mod tests {
     use super::*;
     use relay_protocol::{SerializableAnnotated, get_path};
+
+    /// Helper function to create a deterministic log for snapshot testing
+    /// Replaces the random trace_id with a fixed one while preserving the substitution remark
+    fn create_deterministic_log_for_snapshot(
+        annotated_log: &Annotated<OurLog>,
+    ) -> Annotated<OurLog> {
+        let mut deterministic_log = annotated_log.clone();
+        if let Some(log) = deterministic_log.value_mut() {
+            // Replace with a fixed trace ID for deterministic snapshots
+            log.trace_id = {
+                let mut meta = Meta::default();
+                meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
+                let fixed_trace_id: TraceId =
+                    "4bf92f35-77b3-4da6-a3ce-929d0e0e4736".parse().unwrap();
+                Annotated(Some(fixed_trace_id), meta)
+            };
+        }
+        deterministic_log
+    }
+
+    /// Helper function to assert that a trace ID was generated (has the substitution remark)
+    fn assert_trace_id_generated(log: &OurLog) {
+        assert!(log.trace_id.value().is_some(), "Trace ID should be present");
+        assert!(
+            log.trace_id.meta().iter_remarks().any(|remark| {
+                remark.ty() == RemarkType::Substituted && remark.rule_id() == "trace_id.missing"
+            }),
+            "Trace ID should have a 'trace_id.missing' substitution remark"
+        );
+    }
+
+    /// Helper function to assert that span ID is empty/default
+    fn assert_span_id_empty(log: &OurLog) {
+        assert!(
+            log.span_id.value().is_none(),
+            "Span ID should be empty/default"
+        );
+    }
 
     #[test]
     fn parse_otel_log() {
@@ -394,5 +441,265 @@ mod tests {
                 expected_level
             );
         }
+    }
+
+    #[test]
+    fn parse_otel_log_without_span_and_trace_ids() {
+        // Test with completely missing traceId and spanId fields
+        let json = r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "1544712660300000000",
+            "severityNumber": 10,
+            "severityText": "Information",
+            "body": {
+                "stringValue": "Log without trace context"
+            },
+            "attributes": [
+                {
+                    "key": "test.attribute",
+                    "value": {
+                        "stringValue": "test value"
+                    }
+                }
+            ]
+        }"#;
+
+        let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
+        let our_log = otel_to_sentry_log(otel_log, None, None);
+        let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
+
+        assert_eq!(
+            get_path!(annotated_log.body),
+            Some(&Annotated::new("Log without trace context".into()))
+        );
+        assert_eq!(
+            annotated_log.value().unwrap().level.value().unwrap(),
+            &OurLogLevel::Info
+        );
+
+        let our_log = annotated_log.value().unwrap();
+        assert_trace_id_generated(our_log);
+        assert_span_id_empty(our_log);
+
+        assert_eq!(
+            annotated_log
+                .value()
+                .unwrap()
+                .attributes
+                .value()
+                .unwrap()
+                .get_value("test.attribute")
+                .unwrap()
+                .as_str(),
+            Some("test value")
+        );
+
+        // Note: trace_id will be a random UUID, so we only check that it exists and has the right metadata
+        let trace_id_value = annotated_log.value().unwrap().trace_id.value().unwrap();
+        assert!(!trace_id_value.to_string().is_empty());
+
+        let deterministic_log = create_deterministic_log_for_snapshot(&annotated_log);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&deterministic_log), @r#"
+        {
+          "timestamp": 1544712660.3,
+          "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "level": "info",
+          "body": "Log without trace context",
+          "attributes": {
+            "test.attribute": {
+              "type": "string",
+              "value": "test value"
+            }
+          },
+          "_meta": {
+            "trace_id": {
+              "": {
+                "rem": [
+                  [
+                    "trace_id.missing",
+                    "s"
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_otel_log_with_empty_trace_ids() {
+        // Test with empty traceId and spanId byte arrays
+        let json = r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "1544712660300000000",
+            "severityNumber": 17,
+            "severityText": "Error",
+            "traceId": "",
+            "spanId": "",
+            "body": {
+                "stringValue": "Error log with empty trace IDs"
+            },
+            "attributes": [
+                {
+                    "key": "error.type",
+                    "value": {
+                        "stringValue": "ValidationError"
+                    }
+                }
+            ]
+        }"#;
+
+        let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
+        let our_log = otel_to_sentry_log(otel_log, None, None);
+        let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
+
+        assert_eq!(
+            get_path!(annotated_log.body),
+            Some(&Annotated::new("Error log with empty trace IDs".into()))
+        );
+        assert_eq!(
+            annotated_log.value().unwrap().level.value().unwrap(),
+            &OurLogLevel::Error
+        );
+
+        let our_log = annotated_log.value().unwrap();
+        assert_trace_id_generated(our_log);
+        assert_span_id_empty(our_log);
+
+        assert_eq!(
+            annotated_log
+                .value()
+                .unwrap()
+                .attributes
+                .value()
+                .unwrap()
+                .get_value("error.type")
+                .unwrap()
+                .as_str(),
+            Some("ValidationError")
+        );
+
+        // Note: trace_id will be a random UUID, so we only check that it exists and has the right metadata
+        let trace_id_value = annotated_log.value().unwrap().trace_id.value().unwrap();
+        assert!(!trace_id_value.to_string().is_empty());
+
+        let deterministic_log = create_deterministic_log_for_snapshot(&annotated_log);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&deterministic_log), @r#"
+        {
+          "timestamp": 1544712660.3,
+          "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "level": "error",
+          "body": "Error log with empty trace IDs",
+          "attributes": {
+            "error.type": {
+              "type": "string",
+              "value": "ValidationError"
+            }
+          },
+          "_meta": {
+            "trace_id": {
+              "": {
+                "rem": [
+                  [
+                    "generated_trace_id",
+                    "s"
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_otel_log_with_invalid_trace_ids() {
+        // Test with invalid traceId and spanId formats (wrong length)
+        let json = r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "1544712660300000000",
+            "severityNumber": 13,
+            "severityText": "Warning",
+            "traceId": "abc123",
+            "spanId": "def456",
+            "body": {
+                "stringValue": "Warning log with invalid trace IDs"
+            },
+            "attributes": [
+                {
+                    "key": "warning.code",
+                    "value": {
+                        "intValue": "42"
+                    }
+                }
+            ]
+        }"#;
+
+        let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
+        let our_log = otel_to_sentry_log(otel_log, None, None);
+        let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
+
+        assert_eq!(
+            get_path!(annotated_log.body),
+            Some(&Annotated::new("Warning log with invalid trace IDs".into()))
+        );
+        assert_eq!(
+            annotated_log.value().unwrap().level.value().unwrap(),
+            &OurLogLevel::Warn
+        );
+
+        let our_log = annotated_log.value().unwrap();
+        assert_trace_id_generated(our_log);
+        assert_span_id_empty(our_log);
+
+        let warning_code_value = annotated_log
+            .value()
+            .unwrap()
+            .attributes
+            .value()
+            .unwrap()
+            .get_value("warning.code")
+            .unwrap();
+
+        match warning_code_value {
+            relay_protocol::Value::I64(val) => assert_eq!(*val, 42),
+            _ => panic!("Expected integer value for warning.code"),
+        }
+
+        // Note: trace_id will be a random UUID, so we only check that it exists and has the right metadata
+        let trace_id_value = annotated_log.value().unwrap().trace_id.value().unwrap();
+        assert!(!trace_id_value.to_string().is_empty());
+
+        let deterministic_log = create_deterministic_log_for_snapshot(&annotated_log);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&deterministic_log), @r#"
+        {
+          "timestamp": 1544712660.3,
+          "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "level": "warn",
+          "body": "Warning log with invalid trace IDs",
+          "attributes": {
+            "warning.code": {
+              "type": "integer",
+              "value": 42
+            }
+          },
+          "_meta": {
+            "trace_id": {
+              "": {
+                "rem": [
+                  [
+                    "generated_trace_id",
+                    "s"
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
     }
 }
