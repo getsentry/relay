@@ -1,6 +1,7 @@
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
+use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
 use relay_otel::otel_value_to_attribute;
 use relay_protocol::ErrorKind;
@@ -85,7 +86,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
         .collect::<Result<_, _>>()?;
 
     if let Some(status_message) = status.clone().map(|status| status.message) {
-        sentry_attributes.insert("sentry.status.message".to_owned(), status_message);
+        sentry_attributes.insert(STATUS_MESSAGE.to_owned(), status_message);
     }
 
     let event_span = SentrySpanV2 {

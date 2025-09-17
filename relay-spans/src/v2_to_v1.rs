@@ -1,5 +1,10 @@
 use std::str::FromStr;
 
+use relay_conventions::{
+    DB_QUERY_TEXT, DB_STATEMENT, DB_SYSTEM_NAME, FAAS_TRIGGER, GEN_AI_SYSTEM, GRAPHQL_OPERATION,
+    HTTP_PREFETCH, HTTP_REQUEST_METHOD, HTTP_ROUTE, HTTP_TARGET, MESSAGING_SYSTEM, OP, RPC_SERVICE,
+    URL_FULL, URL_PATH,
+};
 use relay_event_schema::protocol::{SpanKind, SpanV2Link};
 
 use crate::status_codes;
@@ -229,12 +234,13 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
         return op;
     };
 
-    if attributes.contains_key("http.request.method") || attributes.contains_key("http.method") {
+    // TODO: `http.method` is deprecated. This should probably be taken care of during normalization.
+    if attributes.contains_key(HTTP_REQUEST_METHOD) || attributes.contains_key("http.method") {
         return match span.kind.value() {
             Some(SpanKind::Client) => String::from("http.client"),
             Some(SpanKind::Server) => String::from("http.server"),
             _ => {
-                if attributes.contains_key("sentry.http.prefetch") {
+                if attributes.contains_key(HTTP_PREFETCH) {
                     String::from("http.prefetch")
                 } else {
                     String::from("http")
@@ -243,26 +249,24 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
         };
     }
 
-    if attributes.contains_key("db.system") || attributes.contains_key("db.system.name") {
+    // TODO: `db.system` is deprecated. This should probably be taken care of during normalization.
+    if attributes.contains_key(DB_SYSTEM_NAME) || attributes.contains_key("db.system") {
         return String::from("db");
     }
 
-    if attributes.contains_key("gen_ai.system") {
+    if attributes.contains_key(GEN_AI_SYSTEM) {
         return String::from("gen_ai");
     }
 
-    if attributes.contains_key("rpc.service") {
+    if attributes.contains_key(RPC_SERVICE) {
         return String::from("rpc");
     }
 
-    if attributes.contains_key("messaging.system") {
+    if attributes.contains_key(MESSAGING_SYSTEM) {
         return String::from("message");
     }
 
-    if let Some(faas_trigger) = attributes
-        .get_value("faas.trigger")
-        .and_then(|v| v.as_str())
-    {
+    if let Some(faas_trigger) = attributes.get_value(FAAS_TRIGGER).and_then(|v| v.as_str()) {
         return faas_trigger.to_owned();
     }
 
@@ -296,7 +300,8 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
 fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanKind>) -> Option<String> {
     // Get HTTP method
     let http_method = attributes
-        .get_value("http.request.method")
+        .get_value(HTTP_REQUEST_METHOD)
+        // TODO: `http.method` is deprecated. This should probably be taken care of during normalization.
         .or_else(|| attributes.get_value("http.method"))
         .and_then(|v| v.as_str())?;
 
@@ -316,7 +321,7 @@ fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanKind>) ->
 
     // Check for GraphQL operations
     if let Some(graphql_ops) = attributes
-        .get_value("sentry.graphql.operation")
+        .get_value(GRAPHQL_OPERATION)
         .and_then(|v| v.as_str())
     {
         return Some(format!("{base_description} ({graphql_ops})"));
@@ -330,7 +335,7 @@ fn derive_db_description(attributes: &Attributes) -> Option<String> {
     // operations, since they have a `db.system` attribute, but should be treated differently, since
     // we don't want their statements to end up in description for now.
     if attributes
-        .get_value("sentry.op")
+        .get_value(OP)
         .and_then(|v| v.as_str())
         .is_some_and(|op| op.starts_with("cache."))
     {
@@ -340,24 +345,19 @@ fn derive_db_description(attributes: &Attributes) -> Option<String> {
     // Check the `db.system` attribute. It's mandatory, so if it's missing, return `None` right
     // away, since there's not much point trying to derive a description.
     attributes
-        .get_value("db.system")
-        .or_else(|| attributes.get_value("db.system.name"))
+        .get_value(DB_SYSTEM_NAME)
+        // TODO: `db.system` is deprecated. This should probably be taken care of during normalization.
+        .or_else(|| attributes.get_value("db.system"))
         .and_then(|v| v.as_str())?;
 
     // `db.query.text` is a recommended attribute, and it contains the full query text if available.
     // This is the ideal description.
-    if let Some(query_text) = attributes
-        .get_value("db.query.text")
-        .and_then(|v| v.as_str())
-    {
+    if let Some(query_text) = attributes.get_value(DB_QUERY_TEXT).and_then(|v| v.as_str()) {
         return Some(query_text.to_owned());
     }
 
     // Other SDKs check for `db.statement`, it's a legacy OTel attribute, useful as a fallback in some cases.
-    if let Some(statement) = attributes
-        .get_value("db.statement")
-        .and_then(|v| v.as_str())
-    {
+    if let Some(statement) = attributes.get_value(DB_STATEMENT).and_then(|v| v.as_str()) {
         return Some(statement.to_owned());
     }
 
@@ -367,17 +367,17 @@ fn derive_db_description(attributes: &Attributes) -> Option<String> {
 fn get_server_url_path(attributes: &Attributes) -> Option<String> {
     // `http.route` takes precedence. If available, this is the matched route of the server
     // framework for server spans. Not always available, even for server spans.
-    if let Some(route) = attributes.get_value("http.route").and_then(|v| v.as_str()) {
+    if let Some(route) = attributes.get_value(HTTP_ROUTE).and_then(|v| v.as_str()) {
         return Some(route.to_owned());
     }
 
     // `url.path` is the path of the HTTP request for server spans. This is required for server spans.
-    if let Some(path) = attributes.get_value("url.path").and_then(|v| v.as_str()) {
+    if let Some(path) = attributes.get_value(URL_PATH).and_then(|v| v.as_str()) {
         return Some(path.to_owned());
     }
 
     // `http.target` is deprecated, but might be present in older data. Here as a fallback
-    if let Some(target) = attributes.get_value("http.target").and_then(|v| v.as_str()) {
+    if let Some(target) = attributes.get_value(HTTP_TARGET).and_then(|v| v.as_str()) {
         return Some(strip_url_query_and_fragment(target));
     }
 
@@ -390,7 +390,8 @@ fn strip_url_query_and_fragment(url: &str) -> String {
 
 fn get_client_url_path(attributes: &Attributes) -> Option<String> {
     let url = attributes
-        .get_value("url.full")
+        .get_value(URL_FULL)
+        // TODO: `http.url` is deprecated. This should probably be taken care of during normalization.
         .or_else(|| attributes.get_value("http.url"))?
         .as_str()?;
 

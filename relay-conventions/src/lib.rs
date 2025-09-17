@@ -3,6 +3,10 @@
 //! This crate contains the `sentry-conventions` repository as a git submodule. Attribute definitions in the submodule
 //! are parsed at compile time and can be accessed via the `attribute_info` function.
 
+mod consts;
+
+pub use consts::*;
+
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
 
 /// Whether an attribute should be PII-strippable/should be subject to datascrubbers
