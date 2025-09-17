@@ -23,7 +23,7 @@ use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 /// Settings for retention policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetentionSettings {
-    /// standard / full fidelity rentention policy in days
+    /// Standard / full fidelity rentention policy in days.
     pub standard: u16,
     /// downsampled rentention policy in days
     pub downsampled: u16,
