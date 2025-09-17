@@ -25,7 +25,7 @@ use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 pub struct RetentionSettings {
     /// Standard / full fidelity rentention policy in days.
     pub standard: u16,
-    /// downsampled rentention policy in days
+    /// Downsampled rentention policy in days.
     pub downsampled: u16,
 }
 
