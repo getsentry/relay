@@ -37,6 +37,7 @@
 //!
 //! For untrusted user input it is highly recommended to limit the maximum complexity.
 
+use std::borrow::Borrow;
 use std::fmt;
 use std::num::NonZeroUsize;
 
@@ -132,6 +133,47 @@ impl Pattern {
 impl fmt::Display for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.pattern)
+    }
+}
+
+impl PartialEq for Pattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.pattern == other.pattern
+    }
+}
+
+impl Eq for Pattern {}
+
+impl Borrow<str> for Pattern {
+    fn borrow(&self) -> &str {
+        &self.pattern
+    }
+}
+
+impl std::hash::Hash for Pattern {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.pattern.hash(state);
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for Pattern {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.pattern)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Pattern {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let pattern = String::deserialize(deserializer)?;
+        Pattern::new(&pattern).map_err(serde::de::Error::custom)
     }
 }
 

@@ -57,7 +57,7 @@ mod tests {
         process_value(
             &mut value,
             &mut processor,
-            &ProcessingState::root().enter_static("foo", None, None),
+            &ProcessingState::root().enter_borrowed("foo", None, None),
         )
         .unwrap();
 
@@ -82,7 +82,7 @@ mod tests {
         process_value(
             &mut value,
             &mut processor,
-            &ProcessingState::root().enter_static("foo", None, None),
+            &ProcessingState::root().enter_borrowed("foo", None, None),
         )
         .unwrap();
 

@@ -13,7 +13,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
 use syn::meta::ParseNestedMeta;
-use syn::{Ident, Lit, LitBool, LitInt, LitStr};
+use syn::{ExprPath, Ident, Lit, LitBool, LitInt, LitStr};
 use synstructure::decl_derive;
 
 mod utils;
@@ -129,7 +129,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                 }
             } else {
                 quote! {
-                    __state.enter_static(
+                    __state.enter_borrowed(
                         #field_name,
                         Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)),
                         crate::processor::ValueType::for_field(#ident),
@@ -300,19 +300,27 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> syn::Result<TypeAtt
     Ok(rv)
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 enum Pii {
     True,
     False,
     Maybe,
+    Dynamic(ExprPath),
 }
 
 impl Pii {
-    fn as_tokens(self) -> TokenStream {
+    fn as_tokens(&self) -> TokenStream {
         match self {
-            Pii::True => quote!(crate::processor::Pii::True),
-            Pii::False => quote!(crate::processor::Pii::False),
-            Pii::Maybe => quote!(crate::processor::Pii::Maybe),
+            Pii::True => quote!(crate::processor::PiiMode::Static(
+                crate::processor::Pii::True
+            )),
+            Pii::False => quote!(crate::processor::PiiMode::Static(
+                crate::processor::Pii::False
+            )),
+            Pii::Maybe => quote!(crate::processor::PiiMode::Static(
+                crate::processor::Pii::Maybe
+            )),
+            Pii::Dynamic(fun) => quote!(crate::processor::PiiMode::Dynamic(#fun)),
         }
     }
 }
@@ -373,12 +381,14 @@ impl FieldAttrs {
             quote!(false)
         };
 
-        let pii = if let Some(pii) = self.pii.or(type_attrs.pii) {
+        let pii = if let Some(pii) = self.pii.as_ref().or(type_attrs.pii.as_ref()) {
             pii.as_tokens()
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.pii)
         } else {
-            quote!(crate::processor::Pii::False)
+            quote!(crate::processor::PiiMode::Static(
+                crate::processor::Pii::False
+            ))
         };
 
         let trim = if let Some(trim) = self.trim.or(type_attrs.trim) {
@@ -596,6 +606,8 @@ fn parse_pii_value(value: LitStr, meta: &ParseNestedMeta) -> syn::Result<Option<
         "true" => Pii::True,
         "false" => Pii::False,
         "maybe" => Pii::Maybe,
-        _ => return Err(meta.error("Expected one of `true`, `false`, `maybe`")),
+        _ => Pii::Dynamic(value.parse().map_err(|_| {
+            meta.error("Expected one of `true`, `false`, `maybe`, or a function name")
+        })?),
     }))
 }

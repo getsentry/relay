@@ -45,7 +45,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::FormDataIter;
+use crate::utils::{self, FormDataIter, PickResult};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -279,11 +279,13 @@ impl StoreService {
         let mut replay_recording = None;
 
         // Whether Relay will submit the replay-event to snuba or not.
-        let replay_relay_snuba_publish_disabled = self
-            .global_config
-            .current()
-            .options
-            .replay_relay_snuba_publish_disabled;
+        let replay_relay_snuba_publish_disabled = utils::sample(
+            self.global_config
+                .current()
+                .options
+                .replay_relay_snuba_publish_disabled_sample_rate,
+        )
+        .is_keep();
 
         for item in envelope.items() {
             match item.ty() {
@@ -1055,7 +1057,8 @@ impl StoreService {
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
         span.key_id = scoping.key_id;
 
-        if self.config.produce_protobuf_spans() {
+        let spans_target = self.spans_target(span.organization_id);
+        if spans_target.is_protobuf() {
             self.inner_produce_protobuf_span(
                 scoping,
                 received_at,
@@ -1063,23 +1066,44 @@ impl StoreService {
                 retention_days,
                 span.clone(),
             )?;
-
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::SpanIndexed,
-                event_id: None,
-                outcome: Outcome::Accepted,
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
         }
 
-        if self.config.produce_json_spans() {
+        if spans_target.is_json() {
             self.inner_produce_json_span(scoping, span)?;
         }
 
+        // XXX: Temporarily produce span outcomes also for JSON spans. Keep in sync with either EAP
+        // or the segments consumer, depending on which will produce outcomes later.
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::SpanIndexed,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: 1,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
+
         Ok(())
+    }
+
+    fn spans_target(&self, org_id: u64) -> SpansTarget {
+        let config = self.config.span_producers();
+        if config.produce_json_orgs.contains(&org_id) {
+            return SpansTarget::Json;
+        } else if let Some(rate) = config.produce_json_sample_rate {
+            return match utils::is_rolled_out(org_id, rate) {
+                PickResult::Keep => SpansTarget::Json,
+                PickResult::Discard => SpansTarget::Protobuf,
+            };
+        }
+
+        match (config.produce_json, config.produce_protobuf) {
+            (true, true) => SpansTarget::Both,
+            (true, false) => SpansTarget::Json,
+            (false, true) => SpansTarget::Protobuf,
+            (false, false) => SpansTarget::default(),
+        }
     }
 
     fn inner_produce_json_span(
@@ -1732,8 +1756,12 @@ struct SpanKafkaMessage<'a> {
     )]
     meta: Option<&'a RawValue>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    _performance_issues_spans: Option<bool>,
+    #[serde(
+        default,
+        rename = "_performance_issues_spans",
+        skip_serializing_if = "Option::is_none"
+    )]
+    performance_issues_spans: Option<bool>,
 
     // Required for the buffer to emit outcomes scoped to the DSN.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1901,7 +1929,6 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Transactions => "metric_transactions",
                 MetricNamespace::Spans => "metric_spans",
                 MetricNamespace::Custom => "metric_custom",
-                MetricNamespace::Stats => "metric_metric_stats",
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
             KafkaMessage::CheckIn(_) => "check_in",
@@ -2006,8 +2033,27 @@ fn safe_timestamp(timestamp: DateTime<Utc>) -> u64 {
     Utc::now().timestamp() as u64
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum SpansTarget {
+    #[default]
+    Protobuf,
+    Json,
+    Both,
+}
+
+impl SpansTarget {
+    fn is_protobuf(&self) -> bool {
+        matches!(self, SpansTarget::Protobuf | SpansTarget::Both)
+    }
+
+    fn is_json(&self) -> bool {
+        matches!(self, SpansTarget::Json | SpansTarget::Both)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -2022,5 +2068,135 @@ mod tests {
 
             assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }
+    }
+
+    #[test]
+    fn backfill() {
+        let json = r#"{
+            "description": "/api/0/relays/projectconfigs/",
+            "duration_ms": 152,
+            "exclusive_time": 0.228,
+            "is_segment": true,
+            "data": {
+                "sentry.environment": "development",
+                "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+                "thread.name": "uWSGIWorker1Core0",
+                "thread.id": "8522009600",
+                "sentry.segment.name": "/api/0/relays/projectconfigs/",
+                "sentry.sdk.name": "sentry.python.django",
+                "sentry.sdk.version": "2.7.0",
+                "my.float.field": 101.2,
+                "my.int.field": 2000,
+                "my.neg.field": -100,
+                "my.neg.float.field": -101.2,
+                "my.true.bool.field": true,
+                "my.false.bool.field": false,
+                "my.dict.field": {
+                    "id": 42,
+                    "name": "test"
+                },
+                "my.u64.field": 9447000002305251000,
+                "my.array.field": [1, 2, ["nested", "array"]]
+            },
+            "measurements": {
+                "num_of_spans": {"value": 50.0},
+                "client_sample_rate": {"value": 0.1},
+                "server_sample_rate": {"value": 0.2}
+            },
+            "profile_id": "56c7d1401ea14ad7b4ac86de46baebae",
+            "organization_id": 1,
+            "origin": "auto.http.django",
+            "project_id": 1,
+            "received": 1721319572.877828,
+            "retention_days": 90,
+            "segment_id": "8873a98879faf06d",
+            "sentry_tags": {
+                "description": "normalized_description",
+                "category": "http",
+                "environment": "development",
+                "op": "http.server",
+                "platform": "python",
+                "release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+                "sdk.name": "sentry.python.django",
+                "sdk.version": "2.7.0",
+                "status": "ok",
+                "status_code": "200",
+                "thread.id": "8522009600",
+                "thread.name": "uWSGIWorker1Core0",
+                "trace.status": "ok",
+                "transaction": "/api/0/relays/projectconfigs/",
+                "transaction.method": "POST",
+                "transaction.op": "http.server",
+                "user": "ip:127.0.0.1"
+            },
+            "span_id": "8873a98879faf06d",
+            "tags": {
+                "http.status_code": "200",
+                "relay_endpoint_version": "3",
+                "relay_id": "88888888-4444-4444-8444-cccccccccccc",
+                "relay_no_cache": "False",
+                "relay_protocol_version": "3",
+                "relay_use_post_or_schedule": "True",
+                "relay_use_post_or_schedule_rejected": "version",
+                "server_name": "D23CXQ4GK2.local",
+                "spans_over_limit": "False"
+            },
+            "trace_id": "d099bf9ad5a143cf8f83a98081d0ed3b",
+            "start_timestamp_ms": 1721319572616,
+            "start_timestamp": 1721319572.616648,
+            "timestamp": 1721319572.768806
+        }"#;
+        let mut span: SpanKafkaMessage = serde_json::from_str(json).unwrap();
+        span.backfill_data();
+
+        assert_eq!(
+            serde_json::to_string_pretty(&span.data).unwrap(),
+            r#"{
+  "http.status_code": "200",
+  "my.array.field": [1, 2, ["nested", "array"]],
+  "my.dict.field": {
+                    "id": 42,
+                    "name": "test"
+                },
+  "my.false.bool.field": false,
+  "my.float.field": 101.2,
+  "my.int.field": 2000,
+  "my.neg.field": -100,
+  "my.neg.float.field": -101.2,
+  "my.true.bool.field": true,
+  "my.u64.field": 9447000002305251000,
+  "num_of_spans": 50.0,
+  "relay_endpoint_version": "3",
+  "relay_id": "88888888-4444-4444-8444-cccccccccccc",
+  "relay_no_cache": "False",
+  "relay_protocol_version": "3",
+  "relay_use_post_or_schedule": "True",
+  "relay_use_post_or_schedule_rejected": "version",
+  "sentry.category": "http",
+  "sentry.client_sample_rate": 0.1,
+  "sentry.environment": "development",
+  "sentry.normalized_description": "normalized_description",
+  "sentry.op": "http.server",
+  "sentry.platform": "python",
+  "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+  "sentry.sdk.name": "sentry.python.django",
+  "sentry.sdk.version": "2.7.0",
+  "sentry.segment.name": "/api/0/relays/projectconfigs/",
+  "sentry.server_sample_rate": 0.2,
+  "sentry.status": "ok",
+  "sentry.status_code": "200",
+  "sentry.thread.id": "8522009600",
+  "sentry.thread.name": "uWSGIWorker1Core0",
+  "sentry.trace.status": "ok",
+  "sentry.transaction": "/api/0/relays/projectconfigs/",
+  "sentry.transaction.method": "POST",
+  "sentry.transaction.op": "http.server",
+  "sentry.user": "ip:127.0.0.1",
+  "server_name": "D23CXQ4GK2.local",
+  "spans_over_limit": "False",
+  "thread.id": "8522009600",
+  "thread.name": "uWSGIWorker1Core0"
+}"#
+        );
     }
 }

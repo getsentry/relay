@@ -3,9 +3,19 @@
 //! This crate contains the `sentry-conventions` repository as a git submodule. Attribute definitions in the submodule
 //! are parsed at compile time and can be accessed via the `attribute_info` function.
 
-use relay_event_schema::processor::Pii;
-
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
+
+/// Whether an attribute should be PII-strippable/should be subject to datascrubbers
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum Pii {
+    /// The field will be stripped by default
+    True,
+    /// The field cannot be stripped at all
+    False,
+    /// The field will only be stripped when addressed with a specific path selector, but generic
+    /// selectors such as `$string` do not apply.
+    Maybe,
+}
 
 /// Under which names an attribute should be saved.
 #[derive(Debug, Clone, Copy)]
@@ -54,7 +64,6 @@ mod tests {
             aliases: [
                 "http.response.body.size",
                 "http.response.header.content-length",
-                "http.response.header['content-length']",
             ],
         }
         "###);

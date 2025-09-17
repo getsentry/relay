@@ -600,8 +600,6 @@ pub enum DiscardItemType {
     ReplayVideo,
     /// Monitor check-in encoded as JSON.
     CheckIn,
-    /// A log from the [OTEL Log format](https://opentelemetry.io/docs/specs/otel/logs/data-model/#log-and-event-record-definition)
-    OtelLog,
     /// A log for the log product, not internal logs.
     Log,
     /// A standalone span.
@@ -610,6 +608,8 @@ pub enum DiscardItemType {
     OtelSpan,
     /// An OTLP TracesData container.
     OtelTracesData,
+    /// An OTLP LogsData container.
+    OtelLogsData,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
@@ -660,11 +660,11 @@ impl DiscardItemType {
             Self::ReplayRecording => "replay_recording",
             Self::ReplayVideo => "replay_video",
             Self::CheckIn => "check_in",
-            Self::OtelLog => "otel_log",
             Self::Log => "log",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
             Self::OtelTracesData => "otel_traces_data",
+            Self::OtelLogsData => "otel_logs_data",
             Self::UserReportV2 => "user_report_v2",
             Self::ProfileChunk => "profile_chunk",
         }
@@ -693,11 +693,11 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::ReplayRecording => Self::ReplayRecording,
             ItemType::ReplayVideo => Self::ReplayVideo,
             ItemType::CheckIn => Self::CheckIn,
-            ItemType::OtelLog => Self::OtelLog,
             ItemType::Log => Self::Log,
             ItemType::Span => Self::Span,
             ItemType::OtelSpan => Self::OtelSpan,
             ItemType::OtelTracesData => Self::OtelTracesData,
+            ItemType::OtelLogsData => Self::OtelLogsData,
             ItemType::UserReportV2 => Self::UserReportV2,
             ItemType::ProfileChunk => Self::ProfileChunk,
             ItemType::Unknown(_) => Self::Unknown,

@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Relay support for Sentry Semantic Conventions"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.7.0"
+version = "25.9.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 build = "build/build.rs"
@@ -15,7 +15,6 @@ workspace = true
 
 [dependencies]
 phf = { workspace = true }
-relay-event-schema = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

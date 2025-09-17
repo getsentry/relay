@@ -12,6 +12,10 @@ pub enum PickResult {
 ///
 /// Deterministically makes a rollout decision for an id, usually organization id,
 /// and rate.
+#[allow(
+    dead_code,
+    reason = "A utility which is frequently used and removed again"
+)]
 pub fn is_rolled_out(id: u64, rate: f32) -> PickResult {
     match ((id % 100000) as f32 / 100000.0f32) < rate {
         true => PickResult::Keep,

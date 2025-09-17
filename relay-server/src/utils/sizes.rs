@@ -74,7 +74,7 @@ pub fn check_envelope_size_limits(
             ItemType::CheckIn => config.max_check_in_size(),
             ItemType::Statsd => config.max_statsd_size(),
             ItemType::MetricBuckets => config.max_metric_buckets_size(),
-            ItemType::Log | ItemType::OtelLog => {
+            ItemType::Log => {
                 log_count += item.item_count().unwrap_or(1) as usize;
                 config.max_log_size()
             }
@@ -83,6 +83,7 @@ pub fn check_envelope_size_limits(
                 config.max_span_size()
             }
             ItemType::OtelTracesData => config.max_event_size(), // a spans container similar to `Transaction`
+            ItemType::OtelLogsData => config.max_event_size(), // a logs container similar to `Transaction`
             ItemType::ProfileChunk => config.max_profile_size(),
             ItemType::Unknown(_) => NO_LIMIT,
         };

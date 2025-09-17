@@ -324,7 +324,7 @@ impl RelayInfo {
 }
 
 /// The operation mode of a relay.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RelayMode {
     /// This relay acts as a proxy for all requests and events.
@@ -334,12 +334,6 @@ pub enum RelayMode {
     /// accepted unless overridden on the file system.
     Proxy,
 
-    /// This relay is configured statically in the file system.
-    ///
-    /// Events are only accepted for projects configured statically in the file system. All other
-    /// events are rejected. If configured, PII stripping is also performed on those events.
-    Static,
-
     /// Project configurations are managed by the upstream.
     ///
     /// Project configurations are always fetched from the upstream, unless they are statically
@@ -348,11 +342,30 @@ pub enum RelayMode {
     Managed,
 }
 
+impl<'de> Deserialize<'de> for RelayMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "proxy" => Ok(RelayMode::Proxy),
+            "managed" => Ok(RelayMode::Managed),
+            "static" => Err(serde::de::Error::custom(
+                "Relay mode 'static' has been removed. Please use 'managed' or 'proxy' instead.",
+            )),
+            other => Err(serde::de::Error::unknown_variant(
+                other,
+                &["proxy", "managed"],
+            )),
+        }
+    }
+}
+
 impl fmt::Display for RelayMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             RelayMode::Proxy => write!(f, "proxy"),
-            RelayMode::Static => write!(f, "static"),
             RelayMode::Managed => write!(f, "managed"),
         }
     }
@@ -402,10 +415,7 @@ pub struct ParseRelayModeError;
 
 impl fmt::Display for ParseRelayModeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Relay mode must be one of: managed, static, proxy, capture"
-        )
+        write!(f, "Relay mode must be one of: managed or proxy")
     }
 }
 
@@ -417,7 +427,6 @@ impl FromStr for RelayMode {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "proxy" => Ok(RelayMode::Proxy),
-            "static" => Ok(RelayMode::Static),
             "managed" => Ok(RelayMode::Managed),
             _ => Err(ParseRelayModeError),
         }
@@ -573,23 +582,6 @@ impl Default for Metrics {
             allow_high_cardinality_tags: false,
         }
     }
-}
-
-/// Controls processing of Sentry metrics and metric metadata.
-#[derive(Serialize, Deserialize, Debug, Default)]
-#[serde(default)]
-pub struct SentryMetrics {
-    /// Whether metric stats are collected and emitted.
-    ///
-    /// Metric stats are always collected and emitted when processing
-    /// is enabled.
-    ///
-    /// This option is required for running multiple trusted Relays in a chain
-    /// and you want the metric stats to be collected and forwarded from
-    /// the first Relay in the chain.
-    ///
-    /// Defaults to `false`.
-    pub metric_stats_enabled: bool,
 }
 
 /// Controls various limits
@@ -1214,6 +1206,14 @@ impl Default for Processing {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SpanProducers {
+    /// Random sample of organizations to produce json and no protobuf.
+    ///
+    /// Overrides both `produce_json` and `produce_protobuf` for matching orgs.
+    pub produce_json_sample_rate: Option<f32>,
+    /// List of organization IDs to produce JSON spans for.
+    ///
+    /// Overrides both `produce_json` and `produce_protobuf` for matching orgs.
+    pub produce_json_orgs: Vec<u64>,
     /// Send JSON spans to `ingest-spans`.
     pub produce_json: bool,
     /// Send Protobuf (TraceItem) to `snuba-items`.
@@ -1223,6 +1223,8 @@ pub struct SpanProducers {
 impl Default for SpanProducers {
     fn default() -> Self {
         Self {
+            produce_json_sample_rate: None,
+            produce_json_orgs: vec![],
             produce_json: false,
             produce_protobuf: true,
         }
@@ -1611,8 +1613,6 @@ struct ConfigValues {
     routing: Routing,
     #[serde(default)]
     metrics: Metrics,
-    #[serde(default)]
-    sentry_metrics: SentryMetrics,
     #[serde(default)]
     sentry: relay_log::SentryConfig,
     #[serde(default)]
@@ -2365,14 +2365,6 @@ impl Config {
         self.values.limits.max_metric_buckets_size.as_bytes()
     }
 
-    /// Whether metric stats are collected and emitted.
-    ///
-    /// Metric stats are always collected and emitted when processing
-    /// is enabled.
-    pub fn metric_stats_enabled(&self) -> bool {
-        self.values.sentry_metrics.metric_stats_enabled || self.values.processing.enabled
-    }
-
     /// Returns the maximum payload size for general API requests.
     pub fn max_api_payload_size(&self) -> usize {
         self.values.limits.max_api_payload_size.as_bytes()
@@ -2641,14 +2633,9 @@ impl Config {
         forward.unwrap_or_else(|| !self.processing_enabled())
     }
 
-    /// Returns `true` if we should produce TraceItem spans on `snuba-items`.
-    pub fn produce_protobuf_spans(&self) -> bool {
-        self.values.processing.span_producers.produce_protobuf
-    }
-
-    /// Returns `true` if we should produce JSON spans on `ingest-spans`.
-    pub fn produce_json_spans(&self) -> bool {
-        self.values.processing.span_producers.produce_json
+    /// Returns the configuration for span producers.
+    pub fn span_producers(&self) -> &SpanProducers {
+        &self.values.processing.span_producers
     }
 }
 

@@ -27,8 +27,9 @@ use relay_protocol::{
 use smallvec::SmallVec;
 use uuid::Uuid;
 
+use crate::normalize::AiOperationTypeMap;
 use crate::normalize::request;
-use crate::span::ai::enrich_ai_span_data;
+use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
@@ -140,6 +141,9 @@ pub struct NormalizationConfig<'a> {
     /// Configuration for calculating the cost of AI model runs
     pub ai_model_costs: Option<&'a ModelCosts>,
 
+    /// Configuration for mapping AI operation types from span.op to gen_ai.operation.type
+    pub ai_operation_type_map: Option<&'a AiOperationTypeMap>,
+
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
 
@@ -194,6 +198,7 @@ impl Default for NormalizationConfig<'_> {
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
             ai_model_costs: Default::default(),
+            ai_operation_type_map: Default::default(),
             enable_trimming: false,
             measurements: None,
             normalize_spans: true,
@@ -323,7 +328,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             .get_or_default::<PerformanceScoreContext>()
             .score_profile_version = Annotated::new(version);
     }
-    enrich_ai_span_data(event, config.ai_model_costs);
+    enrich_ai_event_data(event, config.ai_model_costs, config.ai_operation_type_map);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
     normalize_trace_context_tags(event);
@@ -343,7 +348,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     }
 
     if config.performance_issues_spans && event.ty.value() == Some(&EventType::Transaction) {
-        event._performance_issues_spans = Annotated::new(true);
+        event.performance_issues_spans = Annotated::new(true);
     }
 
     if config.enrich_spans {
@@ -1514,6 +1519,7 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 #[cfg(test)]
 mod tests {
 
+    use relay_pattern::Pattern;
     use std::collections::BTreeMap;
     use std::collections::HashMap;
 
@@ -2285,7 +2291,7 @@ mod tests {
                     version: 2,
                     models: HashMap::from([
                         (
-                            "claude-2.1".to_owned(),
+                            Pattern::new("claude-2.1").unwrap(),
                             ModelCostV2 {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
@@ -2294,7 +2300,7 @@ mod tests {
                             },
                         ),
                         (
-                            "gpt4-21-04".to_owned(),
+                            Pattern::new("gpt4-21-04").unwrap(),
                             ModelCostV2 {
                                 input_per_token: 0.02,
                                 output_per_token: 0.03,
@@ -2320,11 +2326,59 @@ mod tests {
         );
         assert_eq!(
             spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
+            Some(&Value::F64(50.0))
+        );
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(10.0))
+        );
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(40.0))
+        );
+        assert_eq!(
+            spans
                 .get(1)
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(80.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
+            Some(&Value::F64(80.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(20.0)) // 1000 * 0.02
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(60.0)) // 2000 * 0.03
         );
     }
 
@@ -2390,7 +2444,7 @@ mod tests {
                     version: 2,
                     models: HashMap::from([
                         (
-                            "claude-2.1".to_owned(),
+                            Pattern::new("claude-2.1").unwrap(),
                             ModelCostV2 {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
@@ -2399,7 +2453,7 @@ mod tests {
                             },
                         ),
                         (
-                            "gpt4-21-04".to_owned(),
+                            Pattern::new("gpt4-21-04").unwrap(),
                             ModelCostV2 {
                                 input_per_token: 0.09,
                                 output_per_token: 0.05,
@@ -2424,6 +2478,18 @@ mod tests {
             Some(&Value::F64(75.0))
         );
         assert_eq!(
+            first_span_data.and_then(|data| data.gen_ai_cost_total_tokens.value()),
+            Some(&Value::F64(75.0))
+        );
+        assert_eq!(
+            first_span_data.and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(25.0))
+        );
+        assert_eq!(
+            first_span_data.and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(50.0))
+        );
+        assert_eq!(
             first_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
             Some(&Value::F64(2000.0))
         );
@@ -2435,6 +2501,18 @@ mod tests {
         assert_eq!(
             second_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_cost_total_tokens.value()),
+            Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(90.0))
+        );
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(100.0))
         );
         assert_eq!(
             second_span_data.and_then(|data| data.gen_ai_usage_total_tokens.value()),
@@ -2453,6 +2531,18 @@ mod tests {
         assert_eq!(
             third_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            third_span_data.and_then(|data| data.gen_ai_cost_total_tokens.value()),
+            Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            third_span_data.and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(90.0))
+        );
+        assert_eq!(
+            third_span_data.and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(100.0))
         );
     }
 
@@ -2485,7 +2575,7 @@ mod tests {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
                     models: HashMap::from([(
-                        "claude-2.1".to_owned(),
+                        Pattern::new("claude-2.1").unwrap(),
                         ModelCostV2 {
                             input_per_token: 0.01,
                             output_per_token: 0.02,
@@ -2508,6 +2598,14 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            None
+        );
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
             None
         );
         // total_tokens shouldn't be set if no tokens are present on span data
@@ -2569,7 +2667,7 @@ mod tests {
                     version: 2,
                     models: HashMap::from([
                         (
-                            "claude-2.1".to_owned(),
+                            Pattern::new("claude-2.1").unwrap(),
                             ModelCostV2 {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
@@ -2578,7 +2676,7 @@ mod tests {
                             },
                         ),
                         (
-                            "gpt4-21-04".to_owned(),
+                            Pattern::new("gpt4-21-04").unwrap(),
                             ModelCostV2 {
                                 input_per_token: 0.09,
                                 output_per_token: 0.05,
@@ -2604,11 +2702,59 @@ mod tests {
         );
         assert_eq!(
             spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
+            Some(&Value::F64(65.0))
+        );
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(25.0))
+        );
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(40.0))
+        );
+        assert_eq!(
+            spans
                 .get(1)
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
+            Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(90.0)) // 1000 * 0.09
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(100.0)) // 2000 * 0.05
         );
         assert_eq!(
             spans
@@ -2704,6 +2850,161 @@ mod tests {
                 .value()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn test_ai_operation_type_mapping() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "transaction": "test-transaction",
+                "spans": [
+                    {
+                        "op": "gen_ai.chat",
+                        "description": "AI chat completion",
+                        "data": {}
+                    },
+                    {
+                        "op": "gen_ai.handoff",
+                        "description": "AI agent handoff",
+                        "data": {}
+                    },
+                    {
+                        "op": "gen_ai.unknown",
+                        "description": "Unknown AI operation",
+                        "data": {}
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let operation_type_map = AiOperationTypeMap {
+            version: 1,
+            operation_types: HashMap::from([
+                (Pattern::new("gen_ai.chat").unwrap(), "chat".to_owned()),
+                (
+                    Pattern::new("gen_ai.execute_tool").unwrap(),
+                    "execute_tool".to_owned(),
+                ),
+                (
+                    Pattern::new("gen_ai.handoff").unwrap(),
+                    "handoff".to_owned(),
+                ),
+                (
+                    Pattern::new("gen_ai.invoke_agent").unwrap(),
+                    "invoke_agent".to_owned(),
+                ),
+                // fallback to agent
+                (Pattern::new("gen_ai.*").unwrap(), "agent".to_owned()),
+            ]),
+        };
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_operation_type_map: Some(&operation_type_map),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let span_data_0 = get_value!(event.spans[0].data!);
+        let span_data_1 = get_value!(event.spans[1].data!);
+        let span_data_2 = get_value!(event.spans[2].data!);
+
+        assert_eq!(
+            span_data_0.gen_ai_operation_type.value(),
+            Some(&"chat".to_owned())
+        );
+
+        assert_eq!(
+            span_data_1.gen_ai_operation_type.value(),
+            Some(&"handoff".to_owned())
+        );
+
+        // Third span should have operation type mapped to "agent" fallback
+        assert_eq!(
+            span_data_2.gen_ai_operation_type.value(),
+            Some(&"agent".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_ai_operation_type_disabled_map() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "transaction": "test-transaction",
+                "spans": [
+                    {
+                        "op": "gen_ai.chat",
+                        "description": "AI chat completion",
+                        "data": {}
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let operation_type_map = AiOperationTypeMap {
+            version: 0, // Disabled version
+            operation_types: HashMap::from([(
+                Pattern::new("gen_ai.chat").unwrap(),
+                "chat".to_owned(),
+            )]),
+        };
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_operation_type_map: Some(&operation_type_map),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let span_data = get_value!(event.spans[0].data!);
+
+        // Should not set operation type when map is disabled
+        assert_eq!(span_data.gen_ai_operation_type.value(), None);
+    }
+
+    #[test]
+    fn test_ai_operation_type_empty_map() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "transaction": "test-transaction",
+                "spans": [
+                    {
+                        "op": "gen_ai.chat",
+                        "description": "AI chat completion",
+                        "data": {}
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let operation_type_map = AiOperationTypeMap {
+            version: 1,
+            operation_types: HashMap::new(),
+        };
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_operation_type_map: Some(&operation_type_map),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let span_data = get_value!(event.spans[0].data!);
+
+        // Should not set operation type when map is empty
+        assert_eq!(span_data.gen_ai_operation_type.value(), None);
     }
 
     #[test]

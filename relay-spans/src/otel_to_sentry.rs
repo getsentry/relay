@@ -19,7 +19,7 @@ use relay_protocol::Error;
 /// * The Sentry span's `exclusive_time` field is set based on the OTEL span's `exclusive_time_nano`
 ///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 /// * The Sentry span's `platform` field is set based on the OTEL span's `sentry.platform` attribute.
-/// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile.id` attribute.
+/// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile_id` attribute.
 /// * The Sentry span's `segment_id` field is set based on the OTEL span's `sentry.segment.id` attribute.
 ///
 /// All other attributes are carried over from the OTEL span to the Sentry span's `data`.
@@ -503,7 +503,7 @@ mod tests {
                     }
                 },
                 {
-                    "key" : "sentry.profile.id",
+                    "key" : "sentry.profile_id",
                     "value": {
                         "stringValue": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
                     }
@@ -778,6 +778,36 @@ mod tests {
               }
             }
           ]
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_span_error_status() {
+        let json = r#"{
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "status": {
+            "code": 2,
+            "message": "2 is the error status code"
+          }
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 0.0,
+          "start_timestamp": 0.0,
+          "exclusive_time": 0.0,
+          "op": "default",
+          "span_id": "e342abb1214ca181",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "internal_error",
+          "data": {
+            "sentry.status.message": "2 is the error status code"
+          },
+          "links": []
         }
         "###);
     }

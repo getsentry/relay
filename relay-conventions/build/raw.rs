@@ -29,7 +29,7 @@ enum DeprecationStatus {
 #[derive(Debug, Clone, Deserialize)]
 struct Deprecation {
     /// The attribute's new name.
-    replacement: String,
+    replacement: Option<String>,
     /// How to handle the attribute's deprecation.
     #[serde(rename = "_status")]
     status: Option<DeprecationStatus>,
@@ -55,18 +55,19 @@ pub struct Attribute {
 
 /// Formats an attribute's deprecation information as a `WriteBehavior`.
 fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
-    let Some(deprecation) = deprecation else {
+    let Some((status, replacement)) =
+        deprecation.and_then(|d| d.status.zip(d.replacement.as_ref()))
+    else {
         return "WriteBehavior::CurrentName".to_owned();
     };
 
-    match deprecation.status {
-        Some(DeprecationStatus::Backfill) => {
-            format!("WriteBehavior::BothNames({:?})", deprecation.replacement)
+    match status {
+        DeprecationStatus::Backfill => {
+            format!("WriteBehavior::BothNames({:?})", replacement)
         }
-        Some(DeprecationStatus::Normalize) => {
-            format!("WriteBehavior::NewName({:?})", deprecation.replacement)
+        DeprecationStatus::Normalize => {
+            format!("WriteBehavior::NewName({:?})", replacement)
         }
-        None => "WriteBehavior::CurrentName".to_owned(),
     }
 }
 

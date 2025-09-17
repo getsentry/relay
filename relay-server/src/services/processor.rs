@@ -335,9 +335,8 @@ impl ProcessingGroup {
         }
 
         // Extract logs.
-        let logs_items =
-            envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Log | &ItemType::OtelLog));
-
+        let logs_items = envelope
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Log | &ItemType::OtelLogsData));
         if !logs_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Log,
@@ -829,7 +828,7 @@ fn event_type(event: &Annotated<Event>) -> Option<EventType> {
 /// If the project config did not come from the upstream, we keep the items.
 fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
     match config.relay_mode() {
-        RelayMode::Proxy | RelayMode::Static => false,
+        RelayMode::Proxy => false,
         RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
@@ -1520,7 +1519,8 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         let global_config = self.inner.global_config.current();
-        let ai_model_costs = global_config.ai_model_costs.clone().ok();
+        let ai_model_costs = global_config.ai_model_costs.as_ref().ok();
+        let ai_operation_type_map = global_config.ai_operation_type_map.as_ref().ok();
         let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
         let retention_days: i64 = project_info
@@ -1592,7 +1592,8 @@ impl EnvelopeProcessorService {
                 emit_event_errors: full_normalization,
                 span_description_rules: project_info.config.span_description_rules.as_ref(),
                 geoip_lookup: Some(&self.inner.geoip_lookup),
-                ai_model_costs: ai_model_costs.as_ref(),
+                ai_model_costs,
+                ai_operation_type_map,
                 enable_trimming: true,
                 measurements: Some(CombinedMeasurementsConfig::new(
                     project_info.config().measurements.as_ref(),
@@ -2159,6 +2160,16 @@ impl EnvelopeProcessorService {
         Ok(None)
     }
 
+    async fn process_nel(
+        &self,
+        mut managed_envelope: ManagedEnvelope,
+        ctx: processing::Context<'_>,
+    ) -> Result<ProcessingResult, ProcessingError> {
+        nel::convert_to_logs(&mut managed_envelope);
+        self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
+            .await
+    }
+
     async fn process_with_processor<P: processing::Processor>(
         &self,
         processor: &P,
@@ -2375,10 +2386,8 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
-            ProcessingGroup::Log | ProcessingGroup::Nel => {
-                if matches!(group, ProcessingGroup::Nel) {
-                    nel::convert_to_logs(&mut managed_envelope);
-                }
+            ProcessingGroup::Nel => self.process_nel(managed_envelope, ctx).await,
+            ProcessingGroup::Log => {
                 self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
                     .await
             }
@@ -2633,7 +2642,7 @@ impl EnvelopeProcessorService {
                 return false;
             }
 
-            if !self::metrics::is_valid_namespace(bucket, source) {
+            if !self::metrics::is_valid_namespace(bucket) {
                 return false;
             }
 

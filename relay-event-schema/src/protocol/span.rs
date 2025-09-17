@@ -1,3 +1,4 @@
+mod compat;
 mod convert;
 
 use std::fmt;
@@ -127,8 +128,12 @@ pub struct Span {
     /// is a root (segment) instead of the transaction event.
     ///
     /// Only set on root spans extracted from transactions.
-    #[metastructure(skip_serialization = "empty", trim = false)]
-    pub _performance_issues_spans: Annotated<bool>,
+    #[metastructure(
+        field = "_performance_issues_spans",
+        skip_serialization = "empty",
+        trim = false
+    )]
+    pub performance_issues_spans: Annotated<bool>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
@@ -505,6 +510,18 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
 
+    /// The total cost for the tokens used (duplicate field for migration)
+    #[metastructure(field = "gen_ai.cost.total_tokens")]
+    pub gen_ai_cost_total_tokens: Annotated<Value>,
+
+    /// The cost for input tokens used
+    #[metastructure(field = "gen_ai.cost.input_tokens")]
+    pub gen_ai_cost_input_tokens: Annotated<Value>,
+
+    /// The cost for output tokens used
+    #[metastructure(field = "gen_ai.cost.output_tokens")]
+    pub gen_ai_cost_output_tokens: Annotated<Value>,
+
     /// Prompt passed to LLM (Vercel AI SDK)
     #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
     pub gen_ai_prompt: Annotated<Value>,
@@ -625,8 +642,12 @@ pub struct SpanData {
     pub gen_ai_tool_name: Annotated<Value>,
 
     /// The name of the operation being performed.
-    #[metastructure(field = "gen_ai.operation.name", pii = "false")]
+    #[metastructure(field = "gen_ai.operation.name", pii = "maybe")]
     pub gen_ai_operation_name: Annotated<String>,
+
+    /// The type of the operation being performed.
+    #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
+    pub gen_ai_operation_type: Annotated<String>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -944,6 +965,9 @@ impl Getter for SpanData {
             "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
+            "gen_ai\\.cost\\.total_tokens" => self.gen_ai_cost_total_tokens.value()?.into(),
+            "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
+            "gen_ai\\.cost\\.output_tokens" => self.gen_ai_cost_output_tokens.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
@@ -1403,6 +1427,9 @@ mod tests {
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
+            gen_ai_cost_total_tokens: ~,
+            gen_ai_cost_input_tokens: ~,
+            gen_ai_cost_output_tokens: ~,
             gen_ai_prompt: ~,
             gen_ai_request_messages: ~,
             gen_ai_tool_input: ~,
@@ -1424,6 +1451,7 @@ mod tests {
             gen_ai_system: ~,
             gen_ai_tool_name: ~,
             gen_ai_operation_name: ~,
+            gen_ai_operation_type: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",

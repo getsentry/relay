@@ -1,3 +1,5 @@
+#[cfg(debug_assertions)]
+use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::fmt;
 use std::iter::FusedIterator;
@@ -496,6 +498,8 @@ pub struct RecordKeeper<'a> {
     on_drop: Quantities,
     #[cfg(debug_assertions)]
     lenient: SmallVec<[DataCategory; 1]>,
+    #[cfg(debug_assertions)]
+    modifications: BTreeMap<DataCategory, isize>,
     in_flight: SmallVec<[(DataCategory, usize, Option<Outcome>); 2]>,
 }
 
@@ -506,11 +510,15 @@ impl<'a> RecordKeeper<'a> {
             on_drop: quantities,
             #[cfg(debug_assertions)]
             lenient: Default::default(),
+            #[cfg(debug_assertions)]
+            modifications: Default::default(),
             in_flight: Default::default(),
         }
     }
 
     /// Marking a data category as lenient exempts this category from outcome quantity validations.
+    ///
+    /// Consider using [`Self::modify_by`] instead.
     ///
     /// This can be used in cases where the quantity is knowingly modified, which is quite common
     /// for data categories which count bytes.
@@ -518,6 +526,22 @@ impl<'a> RecordKeeper<'a> {
         let _category = category;
         #[cfg(debug_assertions)]
         self.lenient.push(_category);
+    }
+
+    /// Modifies the expected count for a category.
+    ///
+    /// When extracting payloads category counts may expectedly change, these changes can be
+    /// tracked using this function.
+    ///
+    /// Prefer using [`Self::modify_by`] over [`Self::lenient`] as lenient completely disables
+    /// validation for the entire category.
+    pub fn modify_by(&mut self, category: DataCategory, offset: isize) {
+        let _category = category;
+        let _offset = offset;
+        #[cfg(debug_assertions)]
+        {
+            *self.modifications.entry(_category).or_default() += offset;
+        }
     }
 
     /// Finalizes all records and emits the necessary outcomes.
@@ -576,8 +600,6 @@ impl<'a> RecordKeeper<'a> {
     /// outcomes.
     #[cfg(debug_assertions)]
     fn assert_quantities(&self, original: Quantities, new: Quantities) {
-        let mut original_sums = debug::Quantities::from(&original).0;
-
         macro_rules! emit {
             ($category:expr, $($tt:tt)*) => {{
                 match self.lenient.contains(&$category) {
@@ -587,6 +609,7 @@ impl<'a> RecordKeeper<'a> {
                     false  => {
                         relay_log::error!("Original: {original:?}");
                         relay_log::error!("New: {new:?}");
+                        relay_log::error!("Modifications: {:?}", self.modifications);
                         relay_log::error!("In Flight: {:?}", self.in_flight);
                         panic!($($tt)*)
                     }
@@ -594,8 +617,20 @@ impl<'a> RecordKeeper<'a> {
             }};
         }
 
+        let mut sums = debug::Quantities::from(&original).0;
+        for (category, offset) in &self.modifications {
+            let v = sums.entry(*category).or_default();
+            match v.checked_add_signed(*offset) {
+                Some(result) => *v = result,
+                None => emit!(
+                    category,
+                    "Attempted to modify original quantity {v} into the negative ({offset})"
+                ),
+            }
+        }
+
         for (category, quantity, outcome) in &self.in_flight {
-            match original_sums.get_mut(category) {
+            match sums.get_mut(category) {
                 Some(c) if *c >= *quantity => *c -= *quantity,
                 Some(c) => emit!(
                     category,
@@ -609,7 +644,7 @@ impl<'a> RecordKeeper<'a> {
         }
 
         for (category, quantity) in &new {
-            match original_sums.get_mut(category) {
+            match sums.get_mut(category) {
                 Some(c) if *c >= *quantity => *c -= *quantity,
                 Some(c) => emit!(
                     category,
@@ -622,7 +657,7 @@ impl<'a> RecordKeeper<'a> {
             }
         }
 
-        for (category, quantity) in original_sums {
+        for (category, quantity) in sums {
             if quantity > 0 {
                 emit!(
                     category,

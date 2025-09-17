@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 use relay_event_schema::processor::{
-    self, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
-    ValueType, enum_set, process_value,
+    self, Chunk, FieldAttrs, Pii, ProcessValue, ProcessingAction, ProcessingResult,
+    ProcessingState, Processor, ValueType, enum_set, process_value,
 };
 use relay_event_schema::protocol::{
     AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
@@ -19,8 +19,21 @@ use crate::redactions::Redaction;
 use crate::regexes::{self, ANYTHING_REGEX, PatternType, ReplaceBehavior};
 use crate::utils;
 
+/// Controls how scrubbing rules are applied to attributes.
+#[derive(Debug, Clone, Copy)]
+pub enum AttributeMode {
+    /// Treat the attribute as an object and allow referring
+    /// to individual fields.
+    Object,
+    /// Identify the attribute with its value and apply all
+    /// rules there directly.
+    ValueOnly,
+}
+
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
+    /// Controls how rules are applied to attributes.
+    attribute_mode: AttributeMode,
     compiled_config: &'a CompiledPiiConfig,
 }
 
@@ -29,7 +42,16 @@ impl<'a> PiiProcessor<'a> {
     pub fn new(compiled_config: &'a CompiledPiiConfig) -> PiiProcessor<'a> {
         // this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
         // any init logic into CompiledPiiConfig::new.
-        PiiProcessor { compiled_config }
+        PiiProcessor {
+            compiled_config,
+            attribute_mode: AttributeMode::Object,
+        }
+    }
+
+    /// Sets an `AttributeMode` on this processor.
+    pub fn attribute_mode(mut self, attribute_mode: AttributeMode) -> Self {
+        self.attribute_mode = attribute_mode;
+        self
     }
 
     fn apply_all_rules(
@@ -38,7 +60,7 @@ impl<'a> PiiProcessor<'a> {
         state: &ProcessingState<'_>,
         mut value: Option<&mut String>,
     ) -> ProcessingResult {
-        let pii = state.attrs().pii;
+        let pii = state.pii();
         if pii == Pii::False {
             return Ok(());
         }
@@ -205,7 +227,33 @@ impl Processor for PiiProcessor<'_> {
         _meta: &mut Meta,
         state: &ProcessingState,
     ) -> ProcessingResult {
-        utils::process_attributes(value, self, state)
+        match self.attribute_mode {
+            // Treat each attribute as an object and just process them field by field.
+            AttributeMode::Object => value.process_child_values(self, state),
+            // Identify each attribute with its `value` and only process that.
+            AttributeMode::ValueOnly => {
+                for (key, attribute) in value.0.iter_mut() {
+                    let Some(attribute) = attribute.value_mut() else {
+                        continue;
+                    };
+
+                    // We need some manual state management here because we're bypassing all the
+                    // intermediate structures and pointing at the value directly. This essentially
+                    // mimics the attributes and value type that the metastructure derivation would
+                    // produce for the attribute vaue.
+                    let attrs = FieldAttrs::new()
+                        .pii_dynamic(relay_event_schema::protocol::attribute_pii_from_conventions);
+                    let inner_value = &mut attribute.value.value;
+                    let inner_value_type = ValueType::for_field(inner_value);
+                    let entered =
+                        state.enter_borrowed(key, Some(Cow::Borrowed(&attrs)), inner_value_type);
+
+                    processor::process_value(inner_value, self, &entered)?;
+                    self.process_other(&mut attribute.other, state)?;
+                }
+                Ok(())
+            }
+        }
     }
 
     fn process_user(

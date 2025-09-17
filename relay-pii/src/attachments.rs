@@ -365,7 +365,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         // any init logic into CompiledPiiConfig::new.
 
         let root_state =
-            ProcessingState::root().enter_static("", None, Some(ValueType::Attachments));
+            ProcessingState::root().enter_borrowed("", None, Some(ValueType::Attachments));
 
         PiiAttachmentsProcessor {
             compiled_config,
@@ -395,7 +395,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         state: &ProcessingState<'_>,
         encodings: ScrubEncodings,
     ) -> bool {
-        let pii = state.attrs().pii;
+        let pii = state.pii();
         if pii == Pii::False {
             return false;
         }

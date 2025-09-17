@@ -694,7 +694,7 @@ def test_span_ingestion(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "projects:relay-otel-endpoint",
+        "organizations:relay-otlp-traces-endpoint",
     ]
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
@@ -1217,7 +1217,6 @@ def test_standalone_span_ingestion_metric_extraction(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        # "projects:relay-otel-endpoint",
     ]
 
     duration = timedelta(milliseconds=500)
@@ -1786,6 +1785,7 @@ def test_rate_limit_indexed_consistent(
     relay.send_envelope(project_id, envelope)
     spans = spans_consumer.get_spans(n=6, timeout=10)
     assert len(spans) == 6
+    assert summarize_outcomes() == {(16, 0): 6}  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
@@ -1860,6 +1860,7 @@ def test_rate_limit_consistent_extracted(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     # one for the transaction, one for the contained span
     assert len(spans) == 2
+    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
     metrics = metrics_consumer.get_metrics(n=7)
     span_count = sum(
@@ -2011,6 +2012,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     # We have one nested span and the transaction itself becomes a span
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
+    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     assert usage_metrics() == (1, 2)
 
     # Second batch nothing passes
@@ -2268,7 +2270,8 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = spans_consumer.get_spans(timeout=10, n=6)
         assert len(spans) == 6
-        outcomes_consumer.assert_empty()
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=6)
+        assert summarize_outcomes(outcomes) == {(16, 0): 6}  # SpanIndexed, Accepted
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
         assert summarize_outcomes(outcomes) == {
@@ -2622,22 +2625,21 @@ def test_span_ingestion_kafka(
     if ingest_format == "proto":
         assert items_consumer.get_item() is not None
         spans_consumer.assert_empty()
-
-        outcomes = outcomes_consumer.get_outcomes(n=1)
-        outcomes.sort(key=lambda o: sorted(o.items()))
-
-        assert outcomes == [
-            {
-                "category": DataCategory.SPAN_INDEXED.value,
-                "timestamp": time_within_delta(),
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            }
-        ]
     else:
         assert spans_consumer.get_span() is not None
         items_consumer.assert_empty()
-        outcomes_consumer.assert_empty()
+
+    outcomes = outcomes_consumer.get_outcomes(n=1)
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    assert outcomes == [
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "timestamp": time_within_delta(),
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        }
+    ]

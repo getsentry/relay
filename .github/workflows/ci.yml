@@ -45,7 +45,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -214,7 +214,7 @@ jobs:
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -445,6 +445,10 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      packages: write
+
     strategy:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
@@ -467,26 +471,28 @@ jobs:
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        run: |
-          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${IS_MASTER}" == "true" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
-            --file Dockerfile.release \
-            --push \
-            .
+        uses: getsentry/action-build-and-push-images@f6e4a98f7ed028edcfb1159f3a2905b30e51f1fd
+        with:
+          image_name: ${{ matrix.image_name }}
+          platforms: ${{ env.PLATFORMS }}
+          dockerfile_path: "./Dockerfile.release"
+          ghcr: true
+          tag_nightly: true
+          tag_latest: true
+          google_ar: false
+          publish_on_pr: true
 
       - name: Build and publish docker artifact
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        run: |
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${DOCKER_IMAGE}:${REVISION}" \
-            --file Dockerfile.release \
-            --output type=docker,dest=${{ matrix.image_name }}-docker-image \
-            .
+        uses: getsentry/action-build-and-push-images@f6e4a98f7ed028edcfb1159f3a2905b30e51f1fd
+        with:
+          image_name: ${{ matrix.image_name }}
+          platforms: ${{ env.PLATFORMS }}
+          dockerfile_path: "./Dockerfile.release"
+          ghcr: false
+          google_ar: false
+          outputs: "type=docker,dest=${{ matrix.image_name }}-docker-image"
+          tags: "ghcr.io/getsentry/${{ matrix.image_name }}:${{ github.event.pull_request.head.sha || github.sha }}"
 
       - name: Upload docker image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
@@ -527,7 +533,7 @@ jobs:
       # Logic taken from: publish-to-gcr
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
           service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
@@ -553,48 +559,18 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        run: |
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${AR_DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${IS_MASTER}" == "true" ]] && printf %s "--tag ${AR_DOCKER_IMAGE}:latest" ) \
-            --file Dockerfile.release \
-            --push \
-            .
-
-  publish-to-dockerhub:
-    needs: [build-setup, build-docker]
-
-    runs-on: ubuntu-22.04
-    name: Publish Relay to DockerHub
-
-    strategy:
-      matrix:
-        image_name: ["relay"] # Don't publish relay-pop (for now)
-
-    if: github.event_name == 'merge_group'
-
-    env:
-      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
-      DH_DOCKER_IMAGE: "getsentry/${{ matrix.image_name }}"
-      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
-
-    steps:
-      - name: Login to DockerHub
-        run: docker login --username=sentrybuilder --password ${{ secrets.DOCKER_HUB_RW_TOKEN }}
-
-      - name: Copy Image from GHCR to DockerHub
-        run: |
-          # We push 3 tags to Dockerhub:
-          # 1) the full sha of the commit
-          docker buildx imagetools create --tag "${DH_DOCKER_IMAGE}:${REVISION}" "${GHCR_DOCKER_IMAGE}:${REVISION}"
-
-          # 2) the short sha
-          SHORT_SHA=$(echo ${GITHUB_SHA} | cut -c1-8)
-          docker buildx imagetools create --tag "${DH_DOCKER_IMAGE}:${SHORT_SHA}" "${GHCR_DOCKER_IMAGE}:${REVISION}"
-
-          # 3) nightly
-          docker buildx imagetools create --tag "${DH_DOCKER_IMAGE}:nightly" "${GHCR_DOCKER_IMAGE}:${REVISION}"
+        uses: getsentry/action-build-and-push-images@f6e4a98f7ed028edcfb1159f3a2905b30e51f1fd
+        with:
+          image_name: ${{ matrix.image_name }}
+          platforms: ${{ env.PLATFORMS }}
+          dockerfile_path: "./Dockerfile.release"
+          ghcr: false
+          publish_on_pr: true
+          tag_latest: true
+          google_ar: true
+          google_ar_image_name: ${{ env.AR_DOCKER_IMAGE }}
+          google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          google_service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
 
   publish-to-gcr:
     timeout-minutes: 5
@@ -624,13 +600,13 @@ jobs:
     steps:
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
           service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
 
       - name: "Set up Cloud SDK"
-        uses: "google-github-actions/setup-gcloud@v2"
+        uses: "google-github-actions/setup-gcloud@v3"
         with:
           # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
           # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
@@ -671,7 +647,7 @@ jobs:
     steps:
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
           service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
@@ -681,7 +657,7 @@ jobs:
           gcloud auth configure-docker us-central1-docker.pkg.dev
 
       - name: "Set up Cloud SDK"
-        uses: "google-github-actions/setup-gcloud@v2"
+        uses: "google-github-actions/setup-gcloud@v3"
         with:
           # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
           # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
@@ -773,7 +749,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 

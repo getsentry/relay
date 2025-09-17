@@ -17,7 +17,7 @@ impl From<&Event> for Span {
 
             measurements,
             _metrics,
-            _performance_issues_spans,
+            performance_issues_spans,
             ..
         } = event;
 
@@ -72,7 +72,7 @@ impl From<&Event> for Span {
             platform: platform.clone(),
             was_transaction: true.into(),
             kind: Default::default(),
-            _performance_issues_spans: _performance_issues_spans.clone(),
+            performance_issues_spans: performance_issues_spans.clone(),
             other: Default::default(),
         }
     }
@@ -134,7 +134,7 @@ mod tests {
         .unwrap();
 
         let span_from_event = Span::from(&event);
-        insta::assert_debug_snapshot!(span_from_event, @r#"
+        insta::assert_debug_snapshot!(span_from_event, @r###"
         Span {
             timestamp: ~,
             start_timestamp: ~,
@@ -165,6 +165,9 @@ mod tests {
                 gen_ai_response_model: ~,
                 gen_ai_request_model: ~,
                 gen_ai_usage_total_cost: ~,
+                gen_ai_cost_total_tokens: ~,
+                gen_ai_cost_input_tokens: ~,
+                gen_ai_cost_output_tokens: ~,
                 gen_ai_prompt: ~,
                 gen_ai_request_messages: ~,
                 gen_ai_tool_input: ~,
@@ -186,6 +189,7 @@ mod tests {
                 gen_ai_system: ~,
                 gen_ai_tool_name: ~,
                 gen_ai_operation_name: ~,
+                gen_ai_operation_type: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,
@@ -283,9 +287,9 @@ mod tests {
             platform: "php",
             was_transaction: true,
             kind: ~,
-            _performance_issues_spans: ~,
+            performance_issues_spans: ~,
             other: {},
         }
-        "#);
+        "###);
     }
 }

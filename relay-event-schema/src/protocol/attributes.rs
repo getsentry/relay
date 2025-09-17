@@ -1,10 +1,14 @@
+use std::borrow::{Borrow, Cow};
+use std::fmt;
+
 use enumset::EnumSet;
 use relay_protocol::{
     Annotated, Empty, FromValue, IntoValue, Meta, Object, SkipSerialization, Value,
 };
-use std::{borrow::Borrow, fmt};
 
-use crate::processor::{ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType};
+use crate::processor::{
+    Pii, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType,
+};
 
 #[derive(Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct Attribute {
@@ -38,11 +42,20 @@ impl fmt::Debug for Attribute {
     }
 }
 
+impl From<AttributeValue> for Attribute {
+    fn from(value: AttributeValue) -> Self {
+        Self {
+            value,
+            other: Default::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct AttributeValue {
-    #[metastructure(field = "type", required = true, trim = false)]
+    #[metastructure(field = "type", required = true, trim = false, pii = "false")]
     pub ty: Annotated<AttributeType>,
-    #[metastructure(required = true, pii = "true")]
+    #[metastructure(required = true, pii = "attribute_pii_from_conventions")]
     pub value: Annotated<Value>,
 }
 
@@ -69,6 +82,32 @@ impl_from!(String, AttributeType::String);
 impl_from!(i64, AttributeType::Integer);
 impl_from!(f64, AttributeType::Double);
 impl_from!(bool, AttributeType::Boolean);
+
+/// Determines the `Pii` value for an attribute (or, more exactly, the
+/// attribute's `value` field) by looking it up in `relay-conventions`.
+///
+/// The attribute's value may be addressed by `<key>.value` (for advanced
+/// scrubbing rules) or by just `<key>` (for default scrubbing rules). Therefore,
+/// we iterate backwards through the processing state's segments and try to look
+/// up each in the conventions.
+///
+/// If the attribute is not found in the conventions, this returns `Pii::True`
+/// as a precaution.
+pub fn attribute_pii_from_conventions(state: &ProcessingState) -> Pii {
+    for key in state.keys() {
+        let Some(info) = relay_conventions::attribute_info(key) else {
+            continue;
+        };
+
+        return match info.pii {
+            relay_conventions::Pii::True => Pii::True,
+            relay_conventions::Pii::False => Pii::False,
+            relay_conventions::Pii::Maybe => Pii::Maybe,
+        };
+    }
+
+    Pii::True
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeType {
@@ -167,7 +206,7 @@ impl Attributes {
         String: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        self.get_attribute(key)?.value.value.value()
+        self.get_annotated_value(key)?.value()
     }
 
     /// Returns the attribute with the given key.
@@ -179,8 +218,17 @@ impl Attributes {
         self.0.get(key)?.value()
     }
 
+    /// Returns the attribute value as annotated.
+    pub fn get_annotated_value<Q>(&self, key: &Q) -> Option<&Annotated<Value>>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        Some(&self.0.get(key)?.value()?.value.value)
+    }
+
     /// Inserts an attribute with the given value into this collection.
-    pub fn insert<V: Into<AttributeValue>>(&mut self, key: String, value: V) {
+    pub fn insert<K: Into<String>, V: Into<AttributeValue>>(&mut self, key: K, value: V) {
         fn inner(slf: &mut Attributes, key: String, value: AttributeValue) {
             let attribute = Annotated::new(Attribute {
                 value,
@@ -190,7 +238,7 @@ impl Attributes {
         }
         let value = value.into();
         if !value.value.is_empty() {
-            inner(self, key, value);
+            inner(self, key.into(), value);
         }
     }
 
@@ -217,6 +265,11 @@ impl Attributes {
         Q: Ord + ?Sized,
     {
         self.0.contains_key(key)
+    }
+
+    /// Iterates over this collection's attribute keys and values.
+    pub fn iter(&self) -> std::collections::btree_map::Iter<'_, String, Annotated<Attribute>> {
+        self.0.iter()
     }
 
     /// Iterates mutably over this collection's attribute keys and values.
@@ -264,12 +317,13 @@ impl ProcessValue for Attributes {
 
     fn process_child_values<P>(
         &mut self,
-        _processor: &mut P,
-        _state: &ProcessingState<'_>,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
     ) -> ProcessingResult
     where
         P: Processor,
     {
-        Ok(())
+        let enter_state = state.enter_nothing(Some(Cow::Borrowed(state.attrs())));
+        self.0.process_child_values(processor, &enter_state)
     }
 }

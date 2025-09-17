@@ -5,7 +5,9 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::{MeasurementsConfig, ModelCosts, SpanOpDefaults};
+use relay_event_normalization::{
+    AiOperationTypeMap, MeasurementsConfig, ModelCosts, SpanOpDefaults,
+};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
@@ -49,6 +51,10 @@ pub struct GlobalConfig {
     /// Configuration for AI span measurements.
     #[serde(skip_serializing_if = "is_model_costs_empty")]
     pub ai_model_costs: ErrorBoundary<ModelCosts>,
+
+    /// Configuration to derive the `gen_ai.operation.type` field from other fields
+    #[serde(skip_serializing_if = "is_ai_operation_type_map_empty")]
+    pub ai_operation_type_map: ErrorBoundary<AiOperationTypeMap>,
 
     /// Configuration to derive the `span.op` from other span fields.
     #[serde(
@@ -147,17 +153,6 @@ pub struct Options {
     )]
     pub metric_bucket_dist_encodings: BucketEncodings,
 
-    /// Rollout rate for metric stats.
-    ///
-    /// Rate needs to be between `0.0` and `1.0`.
-    /// If set to `1.0` all organizations will have metric stats enabled.
-    #[serde(
-        rename = "relay.metric-stats.rollout-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub metric_stats_rollout_rate: f32,
-
     /// Overall sampling of span extraction.
     ///
     /// This number represents the fraction of transactions for which
@@ -185,11 +180,11 @@ pub struct Options {
 
     /// Disables Relay from sending replay-events to Snuba.
     #[serde(
-        rename = "replay.relay-snuba-publishing-disabled",
+        rename = "replay.relay-snuba-publishing-disabled.sample-rate",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub replay_relay_snuba_publish_disabled: bool,
+    pub replay_relay_snuba_publish_disabled_sample_rate: f32,
 
     /// All other unknown options.
     #[serde(flatten)]
@@ -220,7 +215,6 @@ pub struct BucketEncodings {
     spans: BucketEncoding,
     profiles: BucketEncoding,
     custom: BucketEncoding,
-    metric_stats: BucketEncoding,
 }
 
 impl BucketEncodings {
@@ -230,7 +224,6 @@ impl BucketEncodings {
             MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
             MetricNamespace::Custom => self.custom,
-            MetricNamespace::Stats => self.metric_stats,
             // Always force the legacy encoding for sessions,
             // sessions are not part of the generic metrics platform with different
             // consumer which are not (yet) updated to support the new data.
@@ -266,7 +259,6 @@ where
                 spans: encoding,
                 profiles: encoding,
                 custom: encoding,
-                metric_stats: encoding,
             })
         }
 
@@ -346,6 +338,10 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
 
 fn is_model_costs_empty(value: &ErrorBoundary<ModelCosts>) -> bool {
     matches!(value, ErrorBoundary::Ok(model_costs) if model_costs.is_empty())
+}
+
+fn is_ai_operation_type_map_empty(value: &ErrorBoundary<AiOperationTypeMap>) -> bool {
+    matches!(value, ErrorBoundary::Ok(ai_operation_type_map) if ai_operation_type_map.is_empty())
 }
 
 #[cfg(test)]
@@ -470,7 +466,6 @@ mod tests {
                 spans: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
                 custom: BucketEncoding::Legacy,
-                metric_stats: BucketEncoding::Legacy,
             }
         );
         assert_eq!(
@@ -480,7 +475,6 @@ mod tests {
                 spans: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
                 custom: BucketEncoding::Zstd,
-                metric_stats: BucketEncoding::Zstd,
             }
         );
     }
@@ -492,7 +486,6 @@ mod tests {
             spans: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
             custom: BucketEncoding::Zstd,
-            metric_stats: BucketEncoding::Base64,
         };
         let s = serde_json::to_string(&original).unwrap();
         let s = format!(

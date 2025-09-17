@@ -1,13 +1,12 @@
 use chrono::Utc;
 use relay_metrics::{
     Bucket, BucketMetadata, BucketView, BucketViewValue, MetricName, MetricNamespace,
-    MetricResourceIdentifier, MetricType,
+    MetricResourceIdentifier,
 };
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
-use crate::metrics::MetricStats;
 use crate::services::outcome::{Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
@@ -19,17 +18,13 @@ use relay_cardinality::{CardinalityLimit, CardinalityReport};
 /// like custom.
 #[derive(Debug, Clone)]
 pub struct MetricOutcomes {
-    metric_stats: MetricStats,
     outcomes: Addr<TrackOutcome>,
 }
 
 impl MetricOutcomes {
     /// Creates a new [`MetricOutcomes`].
-    pub fn new(metric_stats: MetricStats, outcomes: Addr<TrackOutcome>) -> Self {
-        Self {
-            metric_stats,
-            outcomes,
-        }
+    pub fn new(outcomes: Addr<TrackOutcome>) -> Self {
+        Self { outcomes }
     }
 
     /// Tracks an outcome for a list of buckets and generates the necessary outcomes.
@@ -67,28 +62,16 @@ impl MetricOutcomes {
                 }
             }
         }
-
-        // When rejecting metrics, we need to make sure that the number of merges is correctly handled
-        // for buckets views, since if we have a bucket which has 5 merges, and it's split into 2
-        // bucket views, we will emit the volume of the rejection as 5 + 5 merges since we still read
-        // the underlying metadata for each view, and it points to the same bucket reference.
-        // Possible solutions to this problem include emitting the merges only if the bucket view is
-        // the first of view or distributing uniformly the metadata between split views.
-        for bucket in buckets {
-            relay_log::trace!("{:<50} -> {outcome}", bucket.name());
-            self.metric_stats.track_metric(scoping, bucket, &outcome)
-        }
     }
 
     /// Tracks the cardinality of a metric.
     #[cfg(feature = "processing")]
     pub fn cardinality(
         &self,
-        scoping: Scoping,
-        limit: &CardinalityLimit,
-        report: &CardinalityReport,
+        _scoping: Scoping,
+        _limit: &CardinalityLimit,
+        _report: &CardinalityReport,
     ) {
-        self.metric_stats.track_cardinality(scoping, limit, report)
     }
 }
 
@@ -108,9 +91,6 @@ pub trait TrackableBucket {
     /// Full mri of the bucket.
     fn name(&self) -> &MetricName;
 
-    /// Type of the metric bucket.
-    fn ty(&self) -> MetricType;
-
     /// Extracts quota information from the metric bucket.
     ///
     /// If the metric was extracted from one or more transactions or spans, it returns the amount
@@ -124,10 +104,6 @@ pub trait TrackableBucket {
 impl<T: TrackableBucket> TrackableBucket for &T {
     fn name(&self) -> &MetricName {
         (**self).name()
-    }
-
-    fn ty(&self) -> MetricType {
-        (**self).ty()
     }
 
     fn summary(&self) -> BucketSummary {
@@ -144,10 +120,6 @@ impl TrackableBucket for Bucket {
         &self.name
     }
 
-    fn ty(&self) -> MetricType {
-        self.value.ty()
-    }
-
     fn summary(&self) -> BucketSummary {
         BucketView::new(self).summary()
     }
@@ -160,10 +132,6 @@ impl TrackableBucket for Bucket {
 impl TrackableBucket for BucketView<'_> {
     fn name(&self) -> &MetricName {
         self.name()
-    }
-
-    fn ty(&self) -> MetricType {
-        self.ty()
     }
 
     fn summary(&self) -> BucketSummary {

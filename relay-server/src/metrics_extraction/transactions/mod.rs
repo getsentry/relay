@@ -630,7 +630,7 @@ mod tests {
                 platform: ~,
                 was_transaction: ~,
                 kind: ~,
-                _performance_issues_spans: ~,
+                performance_issues_spans: ~,
                 other: {},
             },
         ]
