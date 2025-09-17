@@ -52,8 +52,8 @@ pub enum Feature {
     StandaloneSpanIngestion,
     /// Enable standalone span ingestion via the `/traces/` OTel endpoint.
     ///
-    /// Serialized as `projects:relay-otel-endpoint`.
-    #[serde(rename = "projects:relay-otel-endpoint")]
+    /// Serialized as `organizations:relay-otlp-traces-endpoint`.
+    #[serde(rename = "organizations:relay-otlp-traces-endpoint")]
     OtelEndpoint,
     /// Enable logs ingestion via the `/logs/` OTel endpoint.
     ///

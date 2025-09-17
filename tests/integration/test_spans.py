@@ -694,7 +694,7 @@ def test_span_ingestion(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "projects:relay-otel-endpoint",
+        "organizations:relay-otlp-traces-endpoint",
     ]
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
@@ -1220,7 +1220,6 @@ def test_standalone_span_ingestion_metric_extraction(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        # "projects:relay-otel-endpoint",
     ]
 
     duration = timedelta(milliseconds=500)

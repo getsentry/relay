@@ -496,8 +496,12 @@ pub struct Event {
     ///
     /// When the flag is set to true, this transaction event will be skipped for performance issue
     /// detection in favor of the spans pipeline.
-    #[metastructure(skip_serialization = "empty", trim = false)]
-    pub _performance_issues_spans: Annotated<bool>,
+    #[metastructure(
+        field = "_performance_issues_spans",
+        skip_serialization = "empty",
+        trim = false
+    )]
+    pub performance_issues_spans: Annotated<bool>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]

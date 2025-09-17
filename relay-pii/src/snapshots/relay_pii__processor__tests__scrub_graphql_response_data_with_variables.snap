@@ -109,6 +109,6 @@ Event {
     scraping_attempts: ~,
     _metrics: ~,
     _dsc: ~,
-    _performance_issues_spans: ~,
+    performance_issues_spans: ~,
     other: {},
 }

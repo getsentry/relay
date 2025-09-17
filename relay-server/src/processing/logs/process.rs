@@ -7,7 +7,7 @@ use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::{RequestMeta, RequestTrust};
-use crate::processing::logs::{Error, ExpandedLogs, Result, SerializedLogs};
+use crate::processing::logs::{self, Error, ExpandedLogs, Result, SerializedLogs};
 use crate::processing::{Context, Managed};
 use crate::services::outcome::DiscardReason;
 
@@ -26,6 +26,8 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
             let expanded = records.or_default(expanded, logs);
             all_logs.extend(expanded);
         }
+
+        logs::otel::expand_into(&mut all_logs, records, logs.otel_logs);
 
         ExpandedLogs {
             headers: logs.headers,
