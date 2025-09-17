@@ -30,21 +30,6 @@ impl Attribute {
             other: Object::new(),
         }
     }
-
-    /// Stores `meta` information in the attribute value, unless it is [`None`].
-    pub fn annotated_from_value(value: Annotated<Value>) -> Annotated<Self> {
-        let Annotated(value, meta) = value;
-        let Some(value) = value else {
-            return Annotated(None, meta);
-        };
-        Annotated::new(Attribute {
-            value: AttributeValue {
-                ty: Annotated::new(AttributeType::derive_from_value(&value)),
-                value: Annotated(Some(value), meta),
-            },
-            other: Default::default(),
-        })
-    }
 }
 
 impl fmt::Debug for Attribute {
@@ -54,6 +39,15 @@ impl fmt::Debug for Attribute {
             .field("type", &self.value.ty)
             .field("other", &self.other)
             .finish()
+    }
+}
+
+impl From<AttributeValue> for Attribute {
+    fn from(value: AttributeValue) -> Self {
+        Self {
+            value,
+            other: Default::default(),
+        }
     }
 }
 
@@ -121,34 +115,18 @@ pub enum AttributeType {
     Integer,
     Double,
     String,
-    Array,
-    Object,
     Unknown(String),
 }
 
 impl ProcessValue for AttributeType {}
 
 impl AttributeType {
-    pub fn derive_from_value(value: &Value) -> Self {
-        match value {
-            Value::Bool(_) => Self::Boolean,
-            Value::I64(_) => Self::Integer,
-            Value::U64(_) => Self::Integer,
-            Value::F64(_) => Self::Double,
-            Value::String(_) => Self::String,
-            Value::Array(_) => Self::Array,
-            Value::Object(_) => Self::Object,
-        }
-    }
-
     pub fn as_str(&self) -> &str {
         match self {
             Self::Boolean => "boolean",
             Self::Integer => "integer",
             Self::Double => "double",
             Self::String => "string",
-            Self::Array => "array",
-            Self::Object => "object",
             Self::Unknown(value) => value,
         }
     }
@@ -171,8 +149,6 @@ impl From<String> for AttributeType {
             "integer" => Self::Integer,
             "double" => Self::Double,
             "string" => Self::String,
-            "array" => Self::Array,
-            "object" => Self::Object,
             _ => Self::Unknown(value),
         }
     }
