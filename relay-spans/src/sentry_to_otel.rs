@@ -1,79 +1,45 @@
-use pest::Parser;
-use relay_conventions::name_info;
+use relay_conventions::name_for_op_and_attributes;
 use relay_event_schema::protocol::Span;
-use relay_protocol::Getter;
-
-enum TemplatePart<'a> {
-    Literal(&'a str),
-    Attribute(&'a str),
-}
+use relay_protocol::{Getter, GetterIter, Val};
 
 /// Constructs a name attribute for a span, following the rules defined in sentry-conventions.
 pub fn name_for_span(span: &Span) -> Option<String> {
     let op = span.op.value()?;
-    let Some(info) = name_info(op) else {
-        return Some(op.to_owned());
+
+    let Some(data) = span.data.value() else {
+        return Some(name_for_op_and_attributes(op, &EmptyGetter {}));
     };
 
-    let data = span.data.value();
+    Some(name_for_op_and_attributes(
+        op,
+        // SpanData's Getter impl treats dots in attribute names as object traversals.
+        // They have to be escaped in order for an attribute name with dots to be treated as a root
+        // attribute.
+        &EscapedGetter { getter: data },
+    ))
+}
 
-    for template in info.templates {
-        let Ok(mut parsed) = TemplateParser::parse(Rule::root, template) else {
-            continue;
-        };
-        let root = parsed.next().unwrap();
+struct EmptyGetter {}
 
-        let mut parts: Vec<TemplatePart> = Vec::new();
-        for part in root.into_inner() {
-            match part.as_rule() {
-                Rule::text => parts.push(TemplatePart::Literal(part.as_str())),
-                Rule::attribute_name => parts.push(TemplatePart::Attribute(part.as_str())),
-                Rule::EOI => {}
-                Rule::root | Rule::attribute => unreachable!(),
-            }
-        }
+impl Getter for EmptyGetter {
+    fn get_value(&self, _path: &str) -> Option<Val<'_>> {
+        None
+    }
+}
 
-        // Ensure that all referenced attributes are present and strings.
-        // Otherwise, continue onwards through the template list.
-        if parts.iter().any(|part| match part {
-            TemplatePart::Attribute(name) => data
-                .and_then(|data| data.get_value(name.replace(".", "\\.").as_str()))
-                .is_none_or(|v| v.as_str().is_none()),
-            _ => false,
-        }) {
-            continue;
-        }
+struct EscapedGetter<'a> {
+    getter: &'a dyn Getter,
+}
 
-        // Build + return a name using this template.
-        let mut name = String::new();
-        parts.iter().for_each(|part| match part {
-            TemplatePart::Literal(str) => name.push_str(str),
-            TemplatePart::Attribute(attr) => {
-                if let Some(str_val) = data
-                    .and_then(|data| data.get_value(attr.replace(".", "\\.").as_str()))
-                    .and_then(|v| v.as_str())
-                {
-                    name.push_str(str_val);
-                }
-            }
-        });
-        return Some(name);
+impl Getter for EscapedGetter<'_> {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        self.getter.get_value(&path.replace(".", "\\."))
     }
 
-    // Name template lists typically have a final entry without attributes, but
-    // in case we don't, fall back to op again here.
-    Some(op.to_owned())
+    fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+        self.getter.get_iter(&path.replace(".", "\\."))
+    }
 }
-
-mod parser {
-    use pest_derive::Parser;
-
-    #[derive(Parser)]
-    #[grammar = "name_template.pest"]
-    pub struct TemplateParser;
-}
-
-use self::parser::{Rule, TemplateParser};
 
 #[cfg(test)]
 mod tests {

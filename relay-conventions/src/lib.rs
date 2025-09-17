@@ -48,17 +48,10 @@ pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
     ATTRIBUTES.get(key)
 }
 
-#[derive(Debug, Clone)]
-pub struct NameInfo {
-    pub templates: &'static [&'static str],
-}
-
-pub fn name_info(key: &str) -> Option<&'static NameInfo> {
-    NAMES.get(key)
-}
-
 #[cfg(test)]
 mod tests {
+    use relay_protocol::{Getter, Val};
+
     use super::*;
 
     #[test]
@@ -79,17 +72,17 @@ mod tests {
         "###);
     }
 
-    #[test]
-    fn test_name_for_db_op() {
-        let info = NAMES.get("http.graphql").unwrap();
+    struct TestGetter {}
 
-        insta::assert_debug_snapshot!(info, @r###"
-        NameInfo {
-            templates: [
-                "GraphQL {{graphql.operation.type}}",
-                "GraphQL Operation",
-            ],
+    impl Getter for TestGetter {
+        fn get_value(&self, _path: &str) -> Option<Val<'_>> {
+            Some(Val::String("test"))
         }
-        "###);
+    }
+
+    #[test]
+    fn test_name_for_op_and_attributes() {
+        assert_eq!(name_for_op_and_attributes("db", &TestGetter {}), "test");
+        assert_eq!(name_for_op_and_attributes("foo", &TestGetter {}), "foo");
     }
 }

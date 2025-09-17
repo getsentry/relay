@@ -1,3 +1,4 @@
+mod name;
 mod raw;
 
 use std::env;
@@ -37,31 +38,30 @@ fn main() {
     )
     .unwrap();
 
-    let mut map = phf_codegen::Map::new();
+    write_name_rs(&crate_dir);
 
-    for file in WalkDir::new(crate_dir.join(NAME_DIR)) {
-        let file = file.unwrap();
-        if file.file_type().is_file()
-            && let Some(ext) = file.path().extension()
-            && ext.to_str() == Some("json")
-        {
-            let contents = std::fs::read_to_string(file.path()).unwrap();
-            let name: raw::Name = serde_json::from_str(&contents).unwrap();
-            for (key, value) in raw::format_name_info(name) {
-                map.entry(key, value);
+    println!("cargo::rerun-if-changed=.");
+}
+
+fn write_name_rs(crate_dir: &Path) {
+    let names = WalkDir::new(crate_dir.join(NAME_DIR))
+        .into_iter()
+        .flat_map(|file| {
+            let file = file.unwrap();
+            if file.file_type().is_file()
+                && let Some(ext) = file.path().extension()
+                && ext.to_str() == Some("json")
+            {
+                let contents = std::fs::read_to_string(file.path()).unwrap();
+                Some(serde_json::from_str::<name::Name>(&contents).unwrap())
+            } else {
+                None
             }
-        }
-    }
+        });
 
     let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("name_map.rs");
     let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
+    let output = name::name_file_output(names);
 
-    writeln!(
-        &mut out_file,
-        "static NAMES: phf::Map<&'static str, NameInfo> = {};",
-        map.build()
-    )
-    .unwrap();
-
-    println!("cargo::rerun-if-changed=.");
+    writeln!(&mut out_file, "{}", output).unwrap();
 }
