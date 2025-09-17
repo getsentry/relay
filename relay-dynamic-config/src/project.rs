@@ -20,7 +20,7 @@ use crate::metrics::{
 use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
-/// settings for retention policy
+/// Settings for retention policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetentionSettings {
     /// standard / full fidelity rentention policy in days
