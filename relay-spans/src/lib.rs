@@ -14,4 +14,5 @@ pub use opentelemetry_proto::tonic::trace::v1 as otel_trace;
 mod otel_to_sentry;
 mod otel_to_sentry_v2;
 mod status_codes;
+mod v1_to_v2;
 mod v2_to_v1;

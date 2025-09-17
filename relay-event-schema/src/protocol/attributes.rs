@@ -42,6 +42,15 @@ impl fmt::Debug for Attribute {
     }
 }
 
+impl From<AttributeValue> for Attribute {
+    fn from(value: AttributeValue) -> Self {
+        Self {
+            value,
+            other: Default::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct AttributeValue {
     #[metastructure(field = "type", required = true, trim = false, pii = "false")]
@@ -197,7 +206,7 @@ impl Attributes {
         String: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        self.get_attribute(key)?.value.value.value()
+        self.get_annotated_value(key)?.value()
     }
 
     /// Returns the attribute with the given key.
@@ -209,8 +218,17 @@ impl Attributes {
         self.0.get(key)?.value()
     }
 
+    /// Returns the attribute value as annotated.
+    pub fn get_annotated_value<Q>(&self, key: &Q) -> Option<&Annotated<Value>>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        Some(&self.0.get(key)?.value()?.value.value)
+    }
+
     /// Inserts an attribute with the given value into this collection.
-    pub fn insert<V: Into<AttributeValue>>(&mut self, key: String, value: V) {
+    pub fn insert<K: Into<String>, V: Into<AttributeValue>>(&mut self, key: K, value: V) {
         fn inner(slf: &mut Attributes, key: String, value: AttributeValue) {
             let attribute = Annotated::new(Attribute {
                 value,
@@ -220,7 +238,7 @@ impl Attributes {
         }
         let value = value.into();
         if !value.value.is_empty() {
-            inner(self, key, value);
+            inner(self, key.into(), value);
         }
     }
 
