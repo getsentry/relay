@@ -1,5 +1,4 @@
 use pest::Parser;
-use pest::iterators::Pair;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Deserialize;
