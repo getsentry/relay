@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
 use relay_conventions::{
-    DB_QUERY_TEXT, DB_STATEMENT, DB_SYSTEM_NAME, FAAS_TRIGGER, GEN_AI_SYSTEM, GRAPHQL_OPERATION,
-    HTTP_PREFETCH, HTTP_REQUEST_METHOD, HTTP_ROUTE, HTTP_TARGET, MESSAGING_SYSTEM, OP, RPC_SERVICE,
-    URL_FULL, URL_PATH,
+    DB_QUERY_TEXT, DB_STATEMENT, DB_SYSTEM_NAME, DESCRIPTION, FAAS_TRIGGER, GEN_AI_SYSTEM,
+    GRAPHQL_OPERATION, HTTP_PREFETCH, HTTP_REQUEST_METHOD, HTTP_RESPONSE_STATUS_CODE, HTTP_ROUTE,
+    HTTP_TARGET, MESSAGING_SYSTEM, OP, PLATFORM, PROFILE_ID, RPC_GRPC_STATUS_CODE, RPC_SERVICE,
+    SEGMENT_ID, URL_FULL, URL_PATH,
 };
 use relay_event_schema::protocol::{SpanKind, SpanV2Link};
 
@@ -71,10 +72,10 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         })
     }) {
         match key.as_str() {
-            "sentry.description" => {
+            DESCRIPTION => {
                 description = String::from_value(value);
             }
-            "sentry.op" => {
+            OP => {
                 op = String::from_value(value);
             }
             key if key.contains("exclusive_time_nano") => {
@@ -87,21 +88,22 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
                 };
                 exclusive_time_ms = value / 1e6f64;
             }
-            "http.status_code" => {
+            // TODO: `http.status_code` is deprecated. This should probably be taken care of during normalization.
+            HTTP_RESPONSE_STATUS_CODE | "http.status_code" => {
                 http_status_code = i64::from_value(value.clone());
                 data.insert(key.to_owned(), value);
             }
-            "rpc.grpc.status_code" => {
+            RPC_GRPC_STATUS_CODE => {
                 grpc_status_code = i64::from_value(value.clone());
                 data.insert(key.to_owned(), value);
             }
-            "sentry.platform" => {
+            PLATFORM => {
                 platform = String::from_value(value);
             }
-            "sentry.segment.id" => {
+            SEGMENT_ID => {
                 segment_id = SpanId::from_value(value);
             }
-            "sentry.profile_id" => {
+            PROFILE_ID => {
                 profile_id = EventId::from_value(value);
             }
             _ => {
