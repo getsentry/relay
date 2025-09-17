@@ -6,6 +6,10 @@ pub const DB_SYSTEM_NAME: &str = "db.system.name";
 pub const DESCRIPTION: &str = "sentry.description";
 pub const FAAS_TRIGGER: &str = "faas.trigger";
 pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
+// This attribute is not defined in `sentry-conventions` yet.
+//
+// For now, it can be found in the JavaScript SDK:
+// https://github.com/getsentry/sentry-javascript/blob/4756112a9d233ca6f1b0be64d64d892279797a39/packages/opentelemetry/src/semanticAttributes.ts#L4-L5
 pub const GRAPHQL_OPERATION: &str = "sentry.graphql.operation";
 pub const HTTP_PREFETCH: &str = "sentry.http.prefetch";
 pub const HTTP_REQUEST_METHOD: &str = "http.request.method";
@@ -20,6 +24,10 @@ pub const RELEASE: &str = "sentry.release";
 pub const RPC_SERVICE: &str = "rpc.service";
 pub const SEGMENT_ID: &str = "sentry.segment.id";
 pub const SEGMENT_NAME: &str = "sentry.segment.name";
+// This attribute is not defined in `sentry-conventions` yet.
+//
+// It was introduced in `a1f1e89` (https://github.com/getsentry/relay/pull/4876)
+// to absorb the `status.message` field from OTEL.
 pub const STATUS_MESSAGE: &str = "sentry.status.message";
 pub const URL_FULL: &str = "url.full";
 pub const URL_PATH: &str = "url.path";
