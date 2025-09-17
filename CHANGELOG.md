@@ -12,6 +12,7 @@
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
 - Add dynamic PII derivation to `metastructure`. ([#5107](https://github.com/getsentry/relay/pull/5107))
 - Detect PII status of attributes based on `sentry-conventions`. ([#5113](https://github.com/getsentry/relay/pull/5113))
+- Generate `sentry.name` attributes for spans without names. ([#5143](https://github.com/getsentry/relay/pull/5143))
 
 **Internal**:
 
