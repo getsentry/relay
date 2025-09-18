@@ -604,7 +604,7 @@ mod tests {
               "": {
                 "rem": [
                   [
-                    "generated_trace_id",
+                    "trace_id.missing",
                     "s"
                   ]
                 ]
@@ -692,7 +692,7 @@ mod tests {
               "": {
                 "rem": [
                   [
-                    "generated_trace_id",
+                    "trace_id.missing",
                     "s"
                   ]
                 ]
