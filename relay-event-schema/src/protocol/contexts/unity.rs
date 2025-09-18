@@ -62,6 +62,7 @@ impl super::DefaultContext for UnityContext {
 mod tests {
     use super::*;
     use crate::protocol::Context;
+    use crate::protocol::contexts::DefaultContext;
 
     #[test]
     fn test_unity_context_roundtrip() {
