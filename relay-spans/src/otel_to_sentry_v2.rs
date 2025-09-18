@@ -1,7 +1,7 @@
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use relay_event_schema::protocol::{Attributes, SpanV2Kind};
+use relay_event_schema::protocol::{Attributes, SpanKind};
 use relay_otel::otel_value_to_attribute;
 use relay_protocol::ErrorKind;
 
@@ -116,14 +116,14 @@ fn otel_flags_is_remote(value: u32) -> Option<bool> {
     }
 }
 
-fn otel_to_sentry_kind(kind: i32) -> Annotated<SpanV2Kind> {
+fn otel_to_sentry_kind(kind: i32) -> Annotated<SpanKind> {
     match kind {
         kind if kind == OtelSpanKind::Unspecified as i32 => Annotated::empty(),
-        kind if kind == OtelSpanKind::Internal as i32 => Annotated::new(SpanV2Kind::Internal),
-        kind if kind == OtelSpanKind::Server as i32 => Annotated::new(SpanV2Kind::Server),
-        kind if kind == OtelSpanKind::Client as i32 => Annotated::new(SpanV2Kind::Client),
-        kind if kind == OtelSpanKind::Producer as i32 => Annotated::new(SpanV2Kind::Producer),
-        kind if kind == OtelSpanKind::Consumer as i32 => Annotated::new(SpanV2Kind::Consumer),
+        kind if kind == OtelSpanKind::Internal as i32 => Annotated::new(SpanKind::Internal),
+        kind if kind == OtelSpanKind::Server as i32 => Annotated::new(SpanKind::Server),
+        kind if kind == OtelSpanKind::Client as i32 => Annotated::new(SpanKind::Client),
+        kind if kind == OtelSpanKind::Producer as i32 => Annotated::new(SpanKind::Producer),
+        kind if kind == OtelSpanKind::Consumer as i32 => Annotated::new(SpanKind::Consumer),
         _ => Annotated::from_error(ErrorKind::InvalidData, Some(Value::I64(kind as i64))),
     }
 }
