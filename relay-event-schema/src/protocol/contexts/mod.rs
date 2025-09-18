@@ -101,6 +101,7 @@ pub enum Context {
     /// Spring / Spring Boot information.
     Spring(Box<SpringContext>),
     /// Thread pool information.
+    #[metastructure(tag = "threadpool_info")]
     ThreadPoolInfo(Box<ThreadPoolInfoContext>),
     /// OTA Updates information.
     OTAUpdates(Box<OTAUpdatesContext>),
