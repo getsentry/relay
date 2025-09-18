@@ -10,6 +10,7 @@
 
 ### Various fixes & improvements
 
+- feat(billing): Add retentions to the project configuration (#5135) by @vbro
 - release: 0.9.14 (fb0730ea) by @getsentry-bot
 - feat(preprod): Add SizeAnalysis, InstallableBuild data categories (#5084) by @chromy
 - feat(ds): Introduce a project dynamic sampling rule type (#5077) by @Dav1dde
