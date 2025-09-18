@@ -138,25 +138,6 @@ mod tests {
     use super::*;
     use relay_protocol::{SerializableAnnotated, get_path};
 
-    /// Helper function to create a deterministic log for snapshot testing
-    /// Replaces the random trace_id with a fixed one while preserving the substitution remark
-    fn create_deterministic_log_for_snapshot(
-        annotated_log: &Annotated<OurLog>,
-    ) -> Annotated<OurLog> {
-        let mut deterministic_log = annotated_log.clone();
-        if let Some(log) = deterministic_log.value_mut() {
-            // Replace with a fixed trace ID for deterministic snapshots
-            log.trace_id = {
-                let mut meta = Meta::default();
-                meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
-                let fixed_trace_id: TraceId =
-                    "4bf92f35-77b3-4da6-a3ce-929d0e0e4736".parse().unwrap();
-                Annotated(Some(fixed_trace_id), meta)
-            };
-        }
-        deterministic_log
-    }
-
     /// Helper function to assert that a trace ID was generated (has the substitution remark)
     fn assert_trace_id_generated(log: &OurLog) {
         assert!(log.trace_id.value().is_some(), "Trace ID should be present");
@@ -498,9 +479,9 @@ mod tests {
         let trace_id_value = annotated_log.value().unwrap().trace_id.value().unwrap();
         assert!(!trace_id_value.to_string().is_empty());
 
-        let deterministic_log = create_deterministic_log_for_snapshot(&annotated_log);
-
-        insta::assert_json_snapshot!(SerializableAnnotated(&deterministic_log), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_log), {
+            ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
+        }, @r#"
         {
           "timestamp": 1544712660.3,
           "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
@@ -585,9 +566,9 @@ mod tests {
         let trace_id_value = annotated_log.value().unwrap().trace_id.value().unwrap();
         assert!(!trace_id_value.to_string().is_empty());
 
-        let deterministic_log = create_deterministic_log_for_snapshot(&annotated_log);
-
-        insta::assert_json_snapshot!(SerializableAnnotated(&deterministic_log), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_log), {
+            ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
+        }, @r#"
         {
           "timestamp": 1544712660.3,
           "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
@@ -673,9 +654,9 @@ mod tests {
         let trace_id_value = annotated_log.value().unwrap().trace_id.value().unwrap();
         assert!(!trace_id_value.to_string().is_empty());
 
-        let deterministic_log = create_deterministic_log_for_snapshot(&annotated_log);
-
-        insta::assert_json_snapshot!(SerializableAnnotated(&deterministic_log), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_log), {
+            ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
+        }, @r#"
         {
           "timestamp": 1544712660.3,
           "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
