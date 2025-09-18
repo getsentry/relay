@@ -46,9 +46,9 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             // First, each attribute becomes a let clause for our if block.
             let if_clauses = parts.iter().flat_map(|part| {
                 if let TemplatePart::Attribute(name, ident) = part {
-                Some(quote! {
-                    let Some(#ident) = attributes.get_value(#name).and_then(val_to_string)
-                })
+                    Some(quote! {
+                        let Some(#ident) = attributes.get_value(#name).and_then(val_to_string)
+                    })
                 } else {
                     None
                 }
