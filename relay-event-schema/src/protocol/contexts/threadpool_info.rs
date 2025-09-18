@@ -4,16 +4,28 @@ use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 /// Thread pool info context.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct ThreadPoolInfoContext {
+    /// Number of worker threads currently available in the thread pool.
+    /// Worker threads are used for executing application code and handling CPU-bound tasks.
     pub available_worker_threads: Annotated<u64>,
 
+    /// Number of completion port threads (also known as I/O completion port threads) currently available.
+    /// These threads handle I/O operations and asynchronous callbacks.
     pub available_completion_port_threads: Annotated<u64>,
 
+    /// Maximum number of worker threads the thread pool can have.
+    /// This represents the upper limit for worker thread allocation.
     pub max_worker_threads: Annotated<u64>,
 
+    /// Maximum number of completion port threads the thread pool can maintain.
+    /// This sets the ceiling for I/O completion port thread allocation.
     pub max_completion_port_threads: Annotated<u64>,
 
+    /// Minimum number of worker threads maintained by the thread pool.
+    /// The thread pool will always keep at least this many worker threads active.
     pub min_worker_threads: Annotated<u64>,
 
+    /// Minimum number of completion port threads maintained by the thread pool.
+    /// This ensures a baseline number of threads are available for I/O operations.
     pub min_completion_port_threads: Annotated<u64>,
 
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
