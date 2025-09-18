@@ -84,6 +84,7 @@ pub enum Context {
     #[metastructure(tag = "feedback")]
     UserReportV2(Box<UserReportV2Context>),
     /// Information related to Memory usage and garbage collection metrics.
+    #[metastructure(tag = "memory_info")]
     MemoryInfo(Box<MemoryInfoContext>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),

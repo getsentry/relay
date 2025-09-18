@@ -156,7 +156,7 @@ mod tests {
         let json = r#"{
   "type": "memory_info"
 }"#;
-        let context = Annotated::new(Context::MemoryInfo(Box::new(MemoryInfoContext::default())));
+        let context = Annotated::new(Context::MemoryInfo(Box::default()));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
         assert_eq!(json, context.to_json_pretty().unwrap());
