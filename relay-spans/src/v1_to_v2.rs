@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
-    SpanData, SpanKind, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
+    SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
 };
 use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 

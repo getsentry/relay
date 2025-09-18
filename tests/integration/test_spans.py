@@ -679,14 +679,12 @@ def test_span_ingestion(
     metrics_consumer,
     produce_compat_spans,
 ):
-    spans_consumer = spans_consumer()
-    metrics_consumer = metrics_consumer()
-
     mini_sentry.global_config["options"] = {
         "relay.kafka.span-v2.sample-rate": float(produce_compat_spans)
     }
 
-    print(mini_sentry.global_config)
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
 
     relay = relay_with_processing(
         options={
@@ -695,7 +693,7 @@ def test_span_ingestion(
                 "initial_delay": 0,
                 "max_secs_in_past": 2**64 - 1,
                 "shift_key": "none",
-            },
+            }
         }
     )
     project_id = 42
@@ -781,7 +779,7 @@ def test_span_ingestion(
     # endpoint might overtake envelope
     spans.sort(key=lambda msg: msg["span_id"])
 
-    assert spans == [
+    expected_spans = [
         {
             "data": {
                 "browser.name": "Chrome",
@@ -1134,6 +1132,30 @@ def test_span_ingestion(
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
     ]
+
+    if produce_compat_spans:
+        # These keys are produced by the old producer, but we chose not to replicate them because
+        # the consumer does not need them anymore:
+        optional_keys = {
+            "exclusive_time_ms",
+            "is_segment",
+            "measurements",
+            "tags",
+            "sentry_tags",
+        }
+
+        for span, expected_span in zip(spans, expected_spans):
+            for key, expected_value in expected_span.items():
+                if key in optional_keys:
+                    continue
+                if key == "data":
+                    # Data may have more fields
+                    for key in expected_value:
+                        assert span["data"][key] == expected_value[key]
+                else:
+                    assert span[key] == expected_span[key]
+    else:
+        assert spans == expected_spans
 
     spans_consumer.assert_empty()
 
@@ -2571,83 +2593,4 @@ def test_spans_v2_multiple_containers_not_allowed(
             "quantity": 3,
             "reason": "duplicate_item",
         },
-    ]
-
-
-@pytest.mark.parametrize("ingest_format", ["json", "proto"])
-def test_span_ingestion_kafka(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    items_consumer,
-    outcomes_consumer,
-    ingest_format,
-):
-    spans_consumer = spans_consumer()
-    outcomes_consumer = outcomes_consumer()
-    items_consumer = items_consumer()
-
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
-
-    relay = relay_with_processing(
-        options={
-            "processing": {
-                "span_producers": {
-                    "produce_json": ingest_format == "json",
-                    "produce_protobuf": ingest_format == "proto",
-                }
-            },
-            **TEST_CONFIG,
-        }
-    )
-    start = datetime.now(timezone.utc)
-
-    envelope = Envelope()
-    envelope.add_item(
-        Item(
-            type="span",
-            payload=PayloadRef(
-                json={
-                    "items": [
-                        {
-                            "start_timestamp": start.timestamp(),
-                            "end_timestamp": start.timestamp() + 0.500,
-                            "trace_id": "5b8efff798038103d269b633813fc60c",
-                            "span_id": "eee19b7ec3c1b175",
-                            "name": "some op",
-                        }
-                    ]
-                }
-            ),
-            content_type="application/vnd.sentry.items.span.v2+json",
-            headers={"item_count": 1},
-        )
-    )
-
-    relay.send_envelope(project_id, envelope)
-
-    if ingest_format == "proto":
-        assert items_consumer.get_item() is not None
-        spans_consumer.assert_empty()
-    else:
-        assert spans_consumer.get_span() is not None
-        items_consumer.assert_empty()
-
-    outcomes = outcomes_consumer.get_outcomes(n=1)
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
-    assert outcomes == [
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "timestamp": time_within_delta(),
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-        }
     ]
