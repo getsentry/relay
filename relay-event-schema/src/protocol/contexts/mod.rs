@@ -18,6 +18,7 @@ mod response;
 mod runtime;
 mod spring;
 mod trace;
+mod unity;
 mod user_report_v2;
 pub use app::*;
 pub use browser::*;
@@ -38,6 +39,7 @@ pub use response::*;
 pub use runtime::*;
 pub use spring::*;
 pub use trace::*;
+pub use unity::*;
 pub use user_report_v2::*;
 
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
@@ -102,6 +104,8 @@ pub enum Context {
     OTAUpdates(Box<OTAUpdatesContext>),
     /// Chromium Stability Report from minidump.
     ChromiumStabilityReport(Box<StabilityReportContext>),
+    /// Unity information.
+    Unity(Box<UnityContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),
