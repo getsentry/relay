@@ -4,7 +4,6 @@ use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 /// Thread pool info context.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct ThreadPoolInfoContext {
-
     pub available_worker_threads: Annotated<u64>,
 
     pub available_completion_port_threads: Annotated<u64>,
