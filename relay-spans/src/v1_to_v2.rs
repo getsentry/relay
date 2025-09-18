@@ -2,8 +2,7 @@ use std::borrow::Cow;
 
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
-    SpanData, SpanKind as SpanV1Kind, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Kind,
-    SpanV2Link, SpanV2Status,
+    SpanData, SpanKind, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
 };
 use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 
@@ -115,7 +114,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
             .into(),
         status: Annotated::map_value(status, span_v1_status_to_span_v2_status),
         is_remote,
-        kind: Annotated::map_value(kind, span_v1_kind_to_span_v2_kind),
+        kind,
         start_timestamp,
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
@@ -128,17 +127,6 @@ fn span_v1_status_to_span_v2_status(status: SpanV1Status) -> SpanV2Status {
     match status {
         SpanV1Status::Ok => SpanV2Status::Ok,
         _ => SpanV2Status::Error,
-    }
-}
-
-fn span_v1_kind_to_span_v2_kind(kind: SpanV1Kind) -> SpanV2Kind {
-    match kind {
-        SpanV1Kind::Internal => SpanV2Kind::Internal,
-        SpanV1Kind::Server => SpanV2Kind::Server,
-        SpanV1Kind::Client => SpanV2Kind::Client,
-        SpanV1Kind::Producer => SpanV2Kind::Producer,
-        SpanV1Kind::Consumer => SpanV2Kind::Consumer,
-        // TODO: implement catchall type so outdated customer relays can still forward the field.
     }
 }
 
