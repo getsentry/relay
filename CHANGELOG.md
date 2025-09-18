@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
+
+**Features**:
+
+- Add Thread Pool Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))
+
 ## 25.9.0
 
 **Breaking Changes**:
