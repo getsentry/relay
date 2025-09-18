@@ -430,52 +430,13 @@ mod tests {
         }"#;
 
         let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log, None, None);
-        let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
-
-        assert_eq!(
-            get_path!(annotated_log.body),
-            Some(&Annotated::new("Log without trace context".into()))
-        );
-        assert_eq!(
-            annotated_log.value().unwrap().level.value().unwrap(),
-            &OurLogLevel::Info
-        );
-
-        let our_log = annotated_log.value().unwrap();
-        assert!(
-            our_log.trace_id.value().is_some(),
-            "Trace ID should be present"
-        );
-        assert!(
-            our_log.trace_id.meta().iter_remarks().any(|remark| {
-                remark.ty() == RemarkType::Substituted && remark.rule_id() == "trace_id.missing"
-            }),
-            "Trace ID should have a 'trace_id.missing' substitution remark"
-        );
-        assert!(
-            our_log.span_id.value().is_none(),
-            "Span ID should be empty/default"
-        );
-
-        assert_eq!(
-            annotated_log
-                .value()
-                .unwrap()
-                .attributes
-                .value()
-                .unwrap()
-                .get_value("test.attribute")
-                .unwrap()
-                .as_str(),
-            Some("test value")
-        );
+        let our_log: Annotated<OurLog> = Annotated::new(otel_to_sentry_log(otel_log, None, None));
 
         // Note: trace_id will be a random UUID, so we only check that it exists and has the right metadata
-        let trace_id_value = annotated_log.value().unwrap().trace_id.value().unwrap();
+        let trace_id_value = our_log.value().unwrap().trace_id.value().unwrap();
         assert!(!trace_id_value.to_string().is_empty());
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_log), {
+        insta::assert_json_snapshot!(SerializableAnnotated(&our_log), {
             ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
         }, @r#"
         {
@@ -529,52 +490,13 @@ mod tests {
         }"#;
 
         let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log, None, None);
-        let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
-
-        assert_eq!(
-            get_path!(annotated_log.body),
-            Some(&Annotated::new("Error log with empty trace IDs".into()))
-        );
-        assert_eq!(
-            annotated_log.value().unwrap().level.value().unwrap(),
-            &OurLogLevel::Error
-        );
-
-        let our_log = annotated_log.value().unwrap();
-        assert!(
-            our_log.trace_id.value().is_some(),
-            "Trace ID should be present"
-        );
-        assert!(
-            our_log.trace_id.meta().iter_remarks().any(|remark| {
-                remark.ty() == RemarkType::Substituted && remark.rule_id() == "trace_id.missing"
-            }),
-            "Trace ID should have a 'trace_id.missing' substitution remark"
-        );
-        assert!(
-            our_log.span_id.value().is_none(),
-            "Span ID should be empty/default"
-        );
-
-        assert_eq!(
-            annotated_log
-                .value()
-                .unwrap()
-                .attributes
-                .value()
-                .unwrap()
-                .get_value("error.type")
-                .unwrap()
-                .as_str(),
-            Some("ValidationError")
-        );
+        let our_log: Annotated<OurLog> = Annotated::new(otel_to_sentry_log(otel_log, None, None));
 
         // Note: trace_id will be a random UUID, so we only check that it exists and has the right metadata
-        let trace_id_value = annotated_log.value().unwrap().trace_id.value().unwrap();
+        let trace_id_value = our_log.value().unwrap().trace_id.value().unwrap();
         assert!(!trace_id_value.to_string().is_empty());
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_log), {
+        insta::assert_json_snapshot!(SerializableAnnotated(&our_log), {
             ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
         }, @r#"
         {
@@ -628,53 +550,13 @@ mod tests {
         }"#;
 
         let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log, None, None);
-        let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
-
-        assert_eq!(
-            get_path!(annotated_log.body),
-            Some(&Annotated::new("Warning log with invalid trace IDs".into()))
-        );
-        assert_eq!(
-            annotated_log.value().unwrap().level.value().unwrap(),
-            &OurLogLevel::Warn
-        );
-
-        let our_log = annotated_log.value().unwrap();
-        assert!(
-            our_log.trace_id.value().is_some(),
-            "Trace ID should be present"
-        );
-        assert!(
-            our_log.trace_id.meta().iter_remarks().any(|remark| {
-                remark.ty() == RemarkType::Substituted && remark.rule_id() == "trace_id.invalid"
-            }),
-            "Trace ID should have a 'trace_id.invalid' substitution remark"
-        );
-        assert!(
-            our_log.span_id.value().is_none(),
-            "Span ID should be empty/default"
-        );
-
-        let warning_code_value = annotated_log
-            .value()
-            .unwrap()
-            .attributes
-            .value()
-            .unwrap()
-            .get_value("warning.code")
-            .unwrap();
-
-        match warning_code_value {
-            relay_protocol::Value::I64(val) => assert_eq!(*val, 42),
-            _ => panic!("Expected integer value for warning.code"),
-        }
+        let our_log: Annotated<OurLog> = Annotated::new(otel_to_sentry_log(otel_log, None, None));
 
         // Note: trace_id will be a random UUID, so we only check that it exists and has the right metadata
-        let trace_id_value = annotated_log.value().unwrap().trace_id.value().unwrap();
+        let trace_id_value = our_log.value().unwrap().trace_id.value().unwrap();
         assert!(!trace_id_value.to_string().is_empty());
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_log), {
+        insta::assert_json_snapshot!(SerializableAnnotated(&our_log), {
             ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
         }, @r#"
         {
