@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+**Internal**:
+
+- No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
+
 **Features**:
 
+- Add Thread Pool Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))
 - Handle empty span id and trace id in otel log transform. ([#5134](https://github.com/getsentry/relay/pull/5134))
 
 ## 25.9.0

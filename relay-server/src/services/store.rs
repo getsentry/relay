@@ -11,13 +11,11 @@ use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use futures::future::BoxFuture;
 use prost::Message as _;
-use prost_types::Timestamp;
-use sentry_protos::snuba::v1::any_value::Value;
-use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType};
+use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
+use serde_json::Deserializer;
 use serde_json::value::RawValue;
-use serde_json::{Deserializer, Value as JsonValue};
 use uuid::Uuid;
 
 use relay_base_schema::data_category::DataCategory;
@@ -45,7 +43,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::{self, FormDataIter, PickResult};
+use crate::utils::{self, FormDataIter};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -1057,20 +1055,16 @@ impl StoreService {
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
         span.key_id = scoping.key_id;
 
-        let spans_target = self.spans_target(span.organization_id);
-        if spans_target.is_protobuf() {
-            self.inner_produce_protobuf_span(
-                scoping,
-                received_at,
-                event_id,
-                retention_days,
-                span.clone(),
-            )?;
-        }
-
-        if spans_target.is_json() {
-            self.inner_produce_json_span(scoping, span)?;
-        }
+        self.produce(
+            KafkaTopic::Spans,
+            KafkaMessage::Span {
+                headers: BTreeMap::from([(
+                    "project_id".to_owned(),
+                    scoping.project_id.to_string(),
+                )]),
+                message: span,
+            },
+        )?;
 
         // XXX: Temporarily produce span outcomes also for JSON spans. Keep in sync with either EAP
         // or the segments consumer, depending on which will produce outcomes later.
@@ -1083,264 +1077,6 @@ impl StoreService {
             scoping,
             timestamp: received_at,
         });
-
-        Ok(())
-    }
-
-    fn spans_target(&self, org_id: u64) -> SpansTarget {
-        let config = self.config.span_producers();
-        if config.produce_json_orgs.contains(&org_id) {
-            return SpansTarget::Json;
-        } else if let Some(rate) = config.produce_json_sample_rate {
-            return match utils::is_rolled_out(org_id, rate) {
-                PickResult::Keep => SpansTarget::Json,
-                PickResult::Discard => SpansTarget::Protobuf,
-            };
-        }
-
-        match (config.produce_json, config.produce_protobuf) {
-            (true, true) => SpansTarget::Both,
-            (true, false) => SpansTarget::Json,
-            (false, true) => SpansTarget::Protobuf,
-            (false, false) => SpansTarget::default(),
-        }
-    }
-
-    fn inner_produce_json_span(
-        &self,
-        scoping: Scoping,
-        span: SpanKafkaMessage,
-    ) -> Result<(), StoreError> {
-        self.produce(
-            KafkaTopic::Spans,
-            KafkaMessage::Span {
-                headers: BTreeMap::from([(
-                    "project_id".to_owned(),
-                    scoping.project_id.to_string(),
-                )]),
-                message: span,
-            },
-        )?;
-
-        Ok(())
-    }
-
-    fn inner_produce_protobuf_span(
-        &self,
-        scoping: Scoping,
-        received_at: DateTime<Utc>,
-        event_id: Option<EventId>,
-        _retention_days: u16,
-        span: SpanKafkaMessage,
-    ) -> Result<(), StoreError> {
-        let mut trace_item = TraceItem {
-            item_type: TraceItemType::Span.into(),
-            organization_id: scoping.organization_id.value(),
-            project_id: scoping.project_id.value(),
-            received: Some(Timestamp {
-                seconds: safe_timestamp(received_at) as i64,
-                nanos: 0,
-            }),
-            retention_days: span.retention_days.into(),
-            downsampled_retention_days: span.downsampled_retention_days.into(),
-            timestamp: Some(Timestamp {
-                seconds: span.start_timestamp_precise as i64,
-                nanos: 0,
-            }),
-            trace_id: span.trace_id.to_string(),
-            item_id: u128::from_str_radix(&span.span_id, 16)
-                .unwrap_or_default()
-                .to_le_bytes()
-                .to_vec(),
-            attributes: Default::default(),
-            client_sample_rate: span.client_sample_rate.unwrap_or_default(),
-            server_sample_rate: span.server_sample_rate.unwrap_or_default(),
-        };
-
-        if let Some(data) = span.data {
-            for (key, raw_value) in data {
-                let Some(raw_value) = raw_value else {
-                    continue;
-                };
-
-                let json_value = match Deserialize::deserialize(raw_value) {
-                    Ok(v) => v,
-                    Err(error) => {
-                        // This should not be possible: a `RawValue` is definitely valid JSON,
-                        // so deserializing it to a `json::Value` must succeed. But better safe
-                        // than sorry.
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            raw_value = %raw_value,
-                            "failed to parse JSON value"
-                        );
-                        continue;
-                    }
-                };
-
-                let any_value = match json_value {
-                    JsonValue::String(string) => AnyValue {
-                        value: Some(Value::StringValue(string)),
-                    },
-                    JsonValue::Number(number) => {
-                        if number.is_i64() || number.is_u64() {
-                            AnyValue {
-                                value: Some(Value::IntValue(number.as_i64().unwrap_or_default())),
-                            }
-                        } else {
-                            AnyValue {
-                                value: Some(Value::DoubleValue(
-                                    number.as_f64().unwrap_or_default(),
-                                )),
-                            }
-                        }
-                    }
-                    JsonValue::Bool(bool) => AnyValue {
-                        value: Some(Value::BoolValue(bool)),
-                    },
-                    JsonValue::Array(array) => AnyValue {
-                        value: Some(Value::StringValue(
-                            serde_json::to_string(&array).unwrap_or_default(),
-                        )),
-                    },
-                    JsonValue::Object(object) => AnyValue {
-                        value: Some(Value::StringValue(
-                            serde_json::to_string(&object).unwrap_or_default(),
-                        )),
-                    },
-                    _ => continue,
-                };
-
-                trace_item.attributes.insert(key.into(), any_value);
-            }
-        }
-
-        if let Some(description) = span.description {
-            trace_item.attributes.insert(
-                "sentry.raw_description".into(),
-                AnyValue {
-                    value: Some(Value::StringValue(description.into())),
-                },
-            );
-        }
-
-        trace_item.attributes.insert(
-            "sentry.duration_ms".into(),
-            AnyValue {
-                value: Some(Value::IntValue(span.duration_ms.into())),
-            },
-        );
-
-        if let Some(event_id) = event_id {
-            trace_item.attributes.insert(
-                "sentry.event_id".into(),
-                AnyValue {
-                    value: Some(Value::StringValue(event_id.0.as_simple().to_string())),
-                },
-            );
-        }
-
-        trace_item.attributes.insert(
-            "sentry.is_segment".into(),
-            AnyValue {
-                value: Some(Value::BoolValue(span.is_segment)),
-            },
-        );
-
-        trace_item.attributes.insert(
-            "sentry.exclusive_time_ms".into(),
-            AnyValue {
-                value: Some(Value::DoubleValue(span.exclusive_time_ms)),
-            },
-        );
-
-        trace_item.attributes.insert(
-            "sentry.start_timestamp_precise".into(),
-            AnyValue {
-                value: Some(Value::DoubleValue(span.start_timestamp_precise)),
-            },
-        );
-
-        trace_item.attributes.insert(
-            "sentry.end_timestamp_precise".into(),
-            AnyValue {
-                value: Some(Value::DoubleValue(span.end_timestamp_precise)),
-            },
-        );
-
-        trace_item.attributes.insert(
-            "sentry.start_timestamp_ms".into(),
-            AnyValue {
-                value: Some(Value::IntValue(span.start_timestamp_ms as i64)),
-            },
-        );
-
-        trace_item.attributes.insert(
-            "sentry.is_remote".into(),
-            AnyValue {
-                value: Some(Value::BoolValue(span.is_remote)),
-            },
-        );
-
-        if let Some(parent_span_id) = span.parent_span_id {
-            trace_item.attributes.insert(
-                "sentry.parent_span_id".into(),
-                AnyValue {
-                    value: Some(Value::StringValue(parent_span_id.into_owned())),
-                },
-            );
-        }
-
-        if let Some(profile_id) = span.profile_id {
-            trace_item.attributes.insert(
-                "sentry.profile_id".into(),
-                AnyValue {
-                    value: Some(Value::StringValue(profile_id.into_owned())),
-                },
-            );
-        }
-
-        if let Some(segment_id) = span.segment_id {
-            trace_item.attributes.insert(
-                "sentry.segment_id".into(),
-                AnyValue {
-                    value: Some(Value::StringValue(segment_id.into_owned())),
-                },
-            );
-        }
-
-        if let Some(origin) = span.origin {
-            trace_item.attributes.insert(
-                "sentry.origin".into(),
-                AnyValue {
-                    value: Some(Value::StringValue(origin.into_owned())),
-                },
-            );
-        }
-
-        if let Some(kind) = span.kind {
-            trace_item.attributes.insert(
-                "sentry.kind".into(),
-                AnyValue {
-                    value: Some(Value::StringValue(kind.into_owned())),
-                },
-            );
-        }
-
-        self.produce(
-            KafkaTopic::Items,
-            KafkaMessage::Item {
-                headers: BTreeMap::from([
-                    (
-                        "item_type".to_owned(),
-                        (TraceItemType::Span as i32).to_string(),
-                    ),
-                    ("project_id".to_owned(), scoping.project_id.to_string()),
-                ]),
-                item_type: TraceItemType::Span,
-                message: trace_item,
-            },
-        )?;
 
         Ok(())
     }
@@ -2031,24 +1767,6 @@ fn safe_timestamp(timestamp: DateTime<Utc>) -> u64 {
 
     // We assume this call can't return < 0.
     Utc::now().timestamp() as u64
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum SpansTarget {
-    #[default]
-    Protobuf,
-    Json,
-    Both,
-}
-
-impl SpansTarget {
-    fn is_protobuf(&self) -> bool {
-        matches!(self, SpansTarget::Protobuf | SpansTarget::Both)
-    }
-
-    fn is_json(&self) -> bool {
-        matches!(self, SpansTarget::Json | SpansTarget::Both)
-    }
 }
 
 #[cfg(test)]
