@@ -40,7 +40,8 @@ fn main() {
 
     write_name_rs(&crate_dir);
 
-    #[cfg(test)]
+    // Ideally this would only run when compiling for tests, but #[cfg(test)] doesn't seem to work
+    // here.
     write_test_name_rs();
 
     println!("cargo::rerun-if-changed=.");
@@ -70,7 +71,6 @@ fn write_name_rs(crate_dir: &Path) {
 }
 
 /// Writes a canned version of the `name_for_op_and_attributes` function exclusively for tests.
-#[cfg(test)]
 fn write_test_name_rs() {
     use crate::name::{Name, Operation};
 

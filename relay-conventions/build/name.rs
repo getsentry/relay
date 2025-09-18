@@ -101,8 +101,8 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             #literal_template.to_owned()
         };
 
-        // Assemble the match arm, with `ops` forming the match clause and the list of
-        // `template_stanzas` (one per template) forming the match body.
+        // Assemble the match arm, with `ops` forming the match clause and the match body checking
+        // each template in turn before falling back to a literal (zero-attribute) template.
         quote! {
             #(#ops)|* => {
                 #(#conditional_attribute_blocks)*

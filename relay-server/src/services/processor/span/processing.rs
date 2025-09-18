@@ -1448,7 +1448,7 @@ mod tests {
     }
 
     #[test]
-    fn derive_span_name() {
+    fn generate_span_name() {
         let mut span: Annotated<Span> = Annotated::from_json(
             r#"{
                 "start_timestamp": 0,
@@ -1471,6 +1471,34 @@ mod tests {
                 .and_then(|data| data.get_value("sentry\\.name"))
                 .and_then(|v| v.as_str()),
             Some("SELECT users")
+        );
+    }
+
+    #[test]
+    fn do_not_override_existing_span_name() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "start_timestamp": 0,
+                "timestamp": 1,
+                "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                "span_id": "922dda2462ea4ac2",
+                "op": "db",
+                "data": {
+                    "db.query.summary": "SELECT users",
+                    "sentry.name": "original name"
+                }
+            }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            span.value()
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.get_value("sentry\\.name"))
+                .and_then(|v| v.as_str()),
+            Some("original name")
         );
     }
 }
