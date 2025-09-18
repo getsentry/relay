@@ -6,6 +6,10 @@
 
 - No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
 
+**Features**:
+
+- Add Unity Context Info. ([#5155](https://github.com/getsentry/relay/pull/5155))
+
 ## 25.9.0
 
 **Breaking Changes**:
