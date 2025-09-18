@@ -63,7 +63,7 @@ struct EnvelopeContext {
     done: bool,
 }
 
-/// Error emitted when converting a [`ManagedEnvelope`] and [`ProcessingGroup`] into a [`TypedEnvelope`].
+/// Error emitted when converting a [`ManagedEnvelope`] and a processing group into a [`TypedEnvelope`].
 #[derive(Debug)]
 pub struct InvalidProcessingGroupType(pub ManagedEnvelope, pub ProcessingGroup);
 
@@ -484,7 +484,7 @@ impl ManagedEnvelope {
         self
     }
 
-    /// Returns the contained original [`RequestMeta`].
+    /// Returns the contained original request meta.
     pub fn meta(&self) -> &RequestMeta {
         self.envelope().meta()
     }
