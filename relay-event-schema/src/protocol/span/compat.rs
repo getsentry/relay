@@ -75,15 +75,8 @@ impl TryFrom<SpanV2> for CompatSpan {
                 // ignoring meta here is OK, internal attribute set by Relay.
                 compat_span.performance_issues_spans = Annotated::new(*b);
             }
-
-            if let Some(Value::Bool(b)) =
-                attributes.get_value("sentry._internal.performance_issues_spans")
-            {
-                compat_span.performance_issues_spans = Annotated::new(*b);
-            }
         }
 
-        // FIXME: preserve _meta everywhere (see a test failure).
         compat_span.span_v2 = span_v2;
         Ok(compat_span)
     }
@@ -97,6 +90,7 @@ fn get_string_or_error(attributes: &Attributes, key: &str) -> Option<Annotated<S
             Some(Annotated(Some(description), meta))
         }
         Annotated(None, meta) => Some(Annotated(None, meta)),
+        // Deliberate silent fail. We assume this is a naming collision, not invalid data.
         _ => None,
     }
 }
