@@ -75,7 +75,9 @@ mod tests {
   "type": "unity"
 }"#;
         let context = Annotated::new(Context::Unity(Box::new(UnityContext {
-            copy_texture_support: Annotated::new("Basic, Copy3D, DifferentTypes, TextureToRT, RTToTexture".to_owned()),
+            copy_texture_support: Annotated::new(
+                "Basic, Copy3D, DifferentTypes, TextureToRT, RTToTexture".to_owned(),
+            ),
             editor_version: Annotated::new("2022.1.23f1".to_owned()),
             install_mode: Annotated::new("Store".to_owned()),
             rendering_threading_mode: Annotated::new("LegacyJobified".to_owned()),
