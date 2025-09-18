@@ -1127,7 +1127,8 @@ impl StoreService {
                 downsampled_retention_days,
                 received: datetime_to_timestamp(received_at),
             },
-            compat_span: serde_json::from_slice(&payload).expect("RawValue should always convert"),
+            compat_span: serde_json::from_slice(&payload)
+                .map_err(|e| StoreError::EncodingFailed(e.into()))?,
         };
 
         self.produce(
@@ -1841,9 +1842,9 @@ struct SpanKafkaMessage<'a> {
 struct SpanV2KafkaMessage<'a> {
     #[serde(flatten)]
     meta: SpanMeta,
-
+    /// Use the lightest possible deserialization that supports `flatten`. `RawValue` does not.
     #[serde(flatten)]
-    compat_span: &'a RawValue,
+    compat_span: BTreeMap<&'a str, &'a RawValue>,
 }
 
 #[derive(Debug, Serialize)]

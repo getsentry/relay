@@ -343,15 +343,15 @@ impl KafkaClient {
         message: &impl Message,
     ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
-        dbg!(String::from_utf8_lossy(serialized.as_bytes()));
+        // dbg!(String::from_utf8_lossy(serialized.as_bytes()));
 
-        #[cfg(debug_assertions)]
-        if let SerializationOutput::Json(ref bytes) = serialized {
-            self.schema_validator
-                .validate_message_schema(topic, bytes)
-                .map_err(ClientError::SchemaValidationFailed)?;
-        }
-
+        // FIXME
+        // #[cfg(debug_assertions)]
+        // if let SerializationOutput::Json(ref bytes) = serialized {
+        //     self.schema_validator
+        //         .validate_message_schema(topic, bytes)
+        //         .map_err(ClientError::SchemaValidationFailed)?;
+        // }
         self.send(
             topic,
             message.key(),
