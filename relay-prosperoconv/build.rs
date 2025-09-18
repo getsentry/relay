@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::Write;
 use std::process::Command;
 
 use anyhow::Context;
@@ -66,6 +67,8 @@ fn main() -> anyhow::Result<()> {
         .run()
         .context("Failed to copy files")?;
 
+    patch_lib_rs().context("patching lib.rs")?;
+
     Command::new("git")
         .args(["update-index", "--skip-worktree", "src/lib.rs"])
         .status()
@@ -73,6 +76,22 @@ fn main() -> anyhow::Result<()> {
 
     std::fs::copy("prosperoconv.version", "src/prosperoconv.version")
         .context("Failed to copy prosperoconv.version")?;
+
+    Ok(())
+}
+
+/// Patch lib.rs to allow lints, these are already validated in the source repo,
+/// but regularly break on Rust updates.
+///
+/// Ideally we can do this via `Cargo.toml` but setting the level to `allow` for the
+/// groups does not seem to work.
+fn patch_lib_rs() -> anyhow::Result<()> {
+    let content = fs::read_to_string("src/lib.rs")?;
+    let mut f = fs::OpenOptions::new().write(true).open("src/lib.rs")?;
+
+    f.write_all(b"#![allow(warnings)]\n")?;
+    f.write_all(b"#![allow(clippy::all)]\n")?;
+    f.write_all(content.as_bytes())?;
 
     Ok(())
 }
