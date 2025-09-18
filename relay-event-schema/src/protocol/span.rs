@@ -1106,23 +1106,35 @@ impl FromValue for Route {
     }
 }
 
+/// The kind of a span.
+///
+/// This corresponds to OTEL's kind enum, plus a
+/// catchall variant for forward compatibility.
 #[derive(Clone, Debug, PartialEq, ProcessValue)]
 pub enum SpanKind {
+    /// An operation internal to an application.
     Internal,
+    /// Server-side processing requested by a client.
     Server,
+    /// A request from a client to a server.
     Client,
+    /// Scheduling of an operation.
     Producer,
+    /// Processing of a scheduled operation.
     Consumer,
+    /// Unknown kind, for forward compatibility.
+    Unknown(String),
 }
 
 impl SpanKind {
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Internal => "internal",
             Self::Server => "server",
             Self::Client => "client",
             Self::Producer => "producer",
             Self::Consumer => "consumer",
+            Self::Unknown(s) => s.as_str(),
         }
     }
 }
@@ -1146,7 +1158,7 @@ impl std::str::FromStr for SpanKind {
             "client" => SpanKind::Client,
             "producer" => SpanKind::Producer,
             "consumer" => SpanKind::Consumer,
-            _ => return Err(ParseSpanKindError),
+            other => SpanKind::Unknown(other.to_owned()),
         })
     }
 }
@@ -1620,6 +1632,22 @@ mod tests {
         assert_eq!(
             span.to_json().unwrap(),
             r#"{"links":[{"trace_id":"5c79f60c11214eb38604f4ae0781bfb2","span_id":"ab90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"previous_trace"}},{"trace_id":"4c79f60c11214eb38604f4ae0781bfb2","span_id":"fa90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"next_trace"}}]}"#
+        );
+    }
+
+    #[test]
+    fn test_span_kind() {
+        let span = Annotated::<Span>::from_json(
+            r#"{
+                "kind": "???"
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        assert_eq!(
+            span.kind.value().unwrap(),
+            &SpanKind::Unknown("???".to_owned())
         );
     }
 }
