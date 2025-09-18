@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Handle empty span id and trace id in otel log transform. ([#5134](https://github.com/getsentry/relay/pull/5134))
+
 ## 25.9.0
 
 **Breaking Changes**:
