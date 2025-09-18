@@ -20,6 +20,9 @@ pub struct CompatSpan {
     pub segment_id: Annotated<String>,
     pub start_timestamp_ms: Annotated<u64>, // TODO: remove from kafka schema, no longer used in consumer
     pub start_timestamp_precise: Annotated<Timestamp>,
+
+    #[metastructure(field = "_performance_issues_spans")]
+    pub performance_issues_spans: Annotated<bool>, // TODO: add to Kafka schema?
 }
 
 impl TryFrom<SpanV2> for CompatSpan {
@@ -73,13 +76,20 @@ impl TryFrom<SpanV2> for CompatSpan {
             }
 
             if let Some(segment_id) = attributes
-                .get_value("sentry.segment.id") // TODO: EAP expects `sentry.segment_id`, double write this somewhere.
+                .get_value("sentry.segment.id")
                 .and_then(Value::as_str)
             {
                 compat_span.segment_id = Annotated::from(segment_id.to_owned());
             }
+
+            if let Some(Value::Bool(b)) =
+                attributes.get_value("sentry._internal.performance_issues_spans")
+            {
+                compat_span.performance_issues_spans = Annotated::new(*b);
+            }
         }
 
+        // FIXME: preserve _meta everywhere (see a test failure).
         compat_span.span_v2 = span_v2;
         Ok(compat_span)
     }
@@ -143,6 +153,10 @@ mod tests {
                 "sentry.segment.name": {
                     "value": "my 1st transaction",
                     "type": "string"
+                },
+                "sentry._internal.performance_issues_spans": {
+                    "value": true,
+                    "type": "bool"
                 }
             }
         }"#;
@@ -164,6 +178,10 @@ mod tests {
             "browser.name": {
               "type": "string",
               "value": "Chrome"
+            },
+            "sentry._internal.performance_issues_spans": {
+              "type": "bool",
+              "value": true
             },
             "sentry.description": {
               "type": "string",
@@ -204,6 +222,7 @@ mod tests {
           },
           "data": {
             "browser.name": "Chrome",
+            "sentry._internal.performance_issues_spans": true,
             "sentry.description": "mydescription",
             "sentry.environment": "prod",
             "sentry.op": "myop",
@@ -220,7 +239,8 @@ mod tests {
           "profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
           "segment_id": "FA90FDEAD5F74052",
           "start_timestamp_ms": 123000,
-          "start_timestamp_precise": 123.0
+          "start_timestamp_precise": 123.0,
+          "_performance_issues_spans": true
         }
         "###);
     }

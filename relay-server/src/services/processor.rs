@@ -91,7 +91,6 @@ mod dynamic_sampling;
 mod event;
 mod metrics;
 mod nel;
-mod ourlog;
 mod profile;
 mod profile_chunk;
 mod replay;
@@ -2161,6 +2160,16 @@ impl EnvelopeProcessorService {
         Ok(None)
     }
 
+    async fn process_nel(
+        &self,
+        mut managed_envelope: ManagedEnvelope,
+        ctx: processing::Context<'_>,
+    ) -> Result<ProcessingResult, ProcessingError> {
+        nel::convert_to_logs(&mut managed_envelope);
+        self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
+            .await
+    }
+
     async fn process_with_processor<P: processing::Processor>(
         &self,
         processor: &P,
@@ -2377,12 +2386,8 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
-            ProcessingGroup::Log | ProcessingGroup::Nel => {
-                if matches!(group, ProcessingGroup::Nel) {
-                    nel::convert_to_logs(&mut managed_envelope);
-                }
-                // Convert OTLP logs data to individual log items
-                ourlog::convert_otel_logs(&mut managed_envelope);
+            ProcessingGroup::Nel => self.process_nel(managed_envelope, ctx).await,
+            ProcessingGroup::Log => {
                 self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
                     .await
             }

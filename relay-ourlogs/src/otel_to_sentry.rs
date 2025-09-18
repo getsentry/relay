@@ -4,12 +4,14 @@
 //! into Sentry's internal log format (`OurLog`).
 
 use chrono::{TimeZone, Utc};
+use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLogRecord;
 
+use opentelemetry_proto::tonic::resource::v1::Resource;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_otel::otel_value_to_attribute;
-use relay_protocol::{Annotated, Error, Object};
+use relay_protocol::{Annotated, Object};
 
 /// Maps OpenTelemetry severity number to Sentry log level.
 ///
@@ -43,7 +45,11 @@ fn map_severity_to_level(severity_number: i32, severity_text: &str) -> OurLogLev
 }
 
 /// Transforms an OpenTelemetry log record to a Sentry log.
-pub fn otel_to_sentry_log(otel_log: OtelLogRecord) -> Result<OurLog, Error> {
+pub fn otel_to_sentry_log(
+    otel_log: OtelLogRecord,
+    resource: Option<&Resource>,
+    scope: Option<&InstrumentationScope>,
+) -> OurLog {
     let OtelLogRecord {
         time_unix_nano,
         severity_number,
@@ -55,8 +61,10 @@ pub fn otel_to_sentry_log(otel_log: OtelLogRecord) -> Result<OurLog, Error> {
         ..
     } = otel_log;
 
-    let span_id = SpanId::try_from(span_id.as_slice())?;
-    let trace_id = TraceId::try_from(trace_id.as_slice())?;
+    let span_id = SpanId::try_from(span_id.as_slice())
+        .map_or_else(|err| Annotated::from_error(err, None), Annotated::new);
+    let trace_id = TraceId::try_from(trace_id.as_slice())
+        .map_or_else(|err| Annotated::from_error(err, None), Annotated::new);
     let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
     let level = map_severity_to_level(severity_number, &severity_text);
     let body = body.and_then(|v| v.value).and_then(|v| match v {
@@ -65,25 +73,55 @@ pub fn otel_to_sentry_log(otel_log: OtelLogRecord) -> Result<OurLog, Error> {
     });
 
     let mut attribute_data = Attributes::default();
+
+    for attribute in resource.into_iter().flat_map(|s| &s.attributes) {
+        if let Some(attr) = attribute
+            .value
+            .clone()
+            .and_then(|v| v.value)
+            .and_then(otel_value_to_attribute)
+        {
+            let key = format!("resource.{}", attribute.key);
+            attribute_data.insert_raw(key, Annotated::new(attr));
+        }
+    }
+
+    for attribute in scope.into_iter().flat_map(|s| &s.attributes) {
+        if let Some(attr) = attribute
+            .value
+            .clone()
+            .and_then(|v| v.value)
+            .and_then(otel_value_to_attribute)
+        {
+            let key = format!("instrumentation.{}", attribute.key);
+            attribute_data.insert_raw(key, Annotated::new(attr));
+        }
+    }
+
+    if let Some(scope) = scope {
+        attribute_data.insert("instrumentation.name".to_owned(), scope.name.clone());
+        attribute_data.insert("instrumentation.version".to_owned(), scope.version.clone());
+    }
+
     for attribute in attributes {
-        if let Some(value) = attribute.value.and_then(|v| v.value)
-            && let Some(attr) = otel_value_to_attribute(value)
+        if let Some(attr) = attribute
+            .value
+            .and_then(|v| v.value)
+            .and_then(otel_value_to_attribute)
         {
             attribute_data.insert_raw(attribute.key, Annotated::new(attr));
         }
     }
 
-    let ourlog = OurLog {
+    OurLog {
         timestamp: Annotated::new(Timestamp(timestamp)),
-        trace_id: Annotated::new(trace_id),
-        span_id: Annotated::new(span_id),
+        trace_id,
+        span_id,
         level: Annotated::new(level),
         body: Annotated::from(body),
         attributes: Annotated::new(attribute_data),
         other: Object::default(),
-    };
-
-    Ok(ourlog)
+    }
 }
 
 #[cfg(test)]
@@ -162,8 +200,23 @@ mod tests {
             ]
         }"#;
 
+        let resource = serde_json::from_value(serde_json::json!({
+            "attributes": [{
+                "key": "service.name",
+                "value": {"stringValue": "test-service"},
+            }]
+        }))
+        .unwrap();
+
+        let scope = InstrumentationScope {
+            name: "Eins Name".to_owned(),
+            version: "123.42".to_owned(),
+            attributes: Vec::new(),
+            dropped_attributes_count: 12,
+        };
+
         let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
-        let our_log: OurLog = otel_to_sentry_log(otel_log).unwrap();
+        let our_log: OurLog = otel_to_sentry_log(otel_log, Some(&resource), Some(&scope));
         let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
 
         assert_eq!(
@@ -172,7 +225,7 @@ mod tests {
         );
 
         // Snapshot test for comprehensive validation
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_log), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_log), @r#"
         {
           "timestamp": 1544712660.3,
           "trace_id": "5b8efff798038103d269b633813fc60c",
@@ -192,6 +245,14 @@ mod tests {
               "type": "double",
               "value": 637.704
             },
+            "instrumentation.name": {
+              "type": "string",
+              "value": "Eins Name"
+            },
+            "instrumentation.version": {
+              "type": "string",
+              "value": "123.42"
+            },
             "int.attribute": {
               "type": "integer",
               "value": 10
@@ -200,13 +261,17 @@ mod tests {
               "type": "string",
               "value": "{\"some.map.key\":\"some value\"}"
             },
+            "resource.service.name": {
+              "type": "string",
+              "value": "test-service"
+            },
             "string.attribute": {
               "type": "string",
               "value": "some string"
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -244,7 +309,7 @@ mod tests {
         }"#;
 
         let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log).unwrap();
+        let our_log = otel_to_sentry_log(otel_log, None, None);
         let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
 
         assert_eq!(
@@ -318,7 +383,7 @@ mod tests {
             );
 
             let otel_log: OtelLogRecord = serde_json::from_str(&json).unwrap();
-            let our_log = otel_to_sentry_log(otel_log).unwrap();
+            let our_log = otel_to_sentry_log(otel_log, None, None);
 
             assert_eq!(
                 our_log.level.value().unwrap(),

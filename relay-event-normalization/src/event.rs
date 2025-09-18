@@ -348,7 +348,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     }
 
     if config.performance_issues_spans && event.ty.value() == Some(&EventType::Transaction) {
-        event._performance_issues_spans = Annotated::new(true);
+        event.performance_issues_spans = Annotated::new(true);
     }
 
     if config.enrich_spans {
