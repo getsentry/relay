@@ -67,11 +67,14 @@ pub fn otel_to_sentry_log(
     let trace_id = match TraceId::try_from(trace_id.as_slice()) {
         Ok(id) => Annotated::new(id),
         Err(_) => {
-            // Generate a new trace ID when missing or invalid
-            let generated_id = TraceId::random();
             let mut meta = Meta::default();
-            meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
-            Annotated(Some(generated_id), meta)
+            let rule_id = if trace_id.is_empty() {
+                "trace_id.missing"
+            } else {
+                "trace_id.invalid"
+            };
+            meta.add_remark(Remark::new(RemarkType::Substituted, rule_id));
+            Annotated(Some(TraceId::random()), meta)
         }
     };
     let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
@@ -137,25 +140,6 @@ pub fn otel_to_sentry_log(
 mod tests {
     use super::*;
     use relay_protocol::{SerializableAnnotated, get_path};
-
-    /// Helper function to assert that a trace ID was generated (has the substitution remark)
-    fn assert_trace_id_generated(log: &OurLog) {
-        assert!(log.trace_id.value().is_some(), "Trace ID should be present");
-        assert!(
-            log.trace_id.meta().iter_remarks().any(|remark| {
-                remark.ty() == RemarkType::Substituted && remark.rule_id() == "trace_id.missing"
-            }),
-            "Trace ID should have a 'trace_id.missing' substitution remark"
-        );
-    }
-
-    /// Helper function to assert that span ID is empty/default
-    fn assert_span_id_empty(log: &OurLog) {
-        assert!(
-            log.span_id.value().is_none(),
-            "Span ID should be empty/default"
-        );
-    }
 
     #[test]
     fn parse_otel_log() {
@@ -459,8 +443,20 @@ mod tests {
         );
 
         let our_log = annotated_log.value().unwrap();
-        assert_trace_id_generated(our_log);
-        assert_span_id_empty(our_log);
+        assert!(
+            our_log.trace_id.value().is_some(),
+            "Trace ID should be present"
+        );
+        assert!(
+            our_log.trace_id.meta().iter_remarks().any(|remark| {
+                remark.ty() == RemarkType::Substituted && remark.rule_id() == "trace_id.missing"
+            }),
+            "Trace ID should have a 'trace_id.missing' substitution remark"
+        );
+        assert!(
+            our_log.span_id.value().is_none(),
+            "Span ID should be empty/default"
+        );
 
         assert_eq!(
             annotated_log
@@ -546,8 +542,20 @@ mod tests {
         );
 
         let our_log = annotated_log.value().unwrap();
-        assert_trace_id_generated(our_log);
-        assert_span_id_empty(our_log);
+        assert!(
+            our_log.trace_id.value().is_some(),
+            "Trace ID should be present"
+        );
+        assert!(
+            our_log.trace_id.meta().iter_remarks().any(|remark| {
+                remark.ty() == RemarkType::Substituted && remark.rule_id() == "trace_id.missing"
+            }),
+            "Trace ID should have a 'trace_id.missing' substitution remark"
+        );
+        assert!(
+            our_log.span_id.value().is_none(),
+            "Span ID should be empty/default"
+        );
 
         assert_eq!(
             annotated_log
@@ -597,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_otel_log_with_invalid_trace_ids() {
+    fn parse_otel_log_with_invalid_trace_and_span_ids() {
         // Test with invalid traceId and spanId formats (wrong length)
         let json = r#"{
             "timeUnixNano": "1544712660300000000",
@@ -633,8 +641,20 @@ mod tests {
         );
 
         let our_log = annotated_log.value().unwrap();
-        assert_trace_id_generated(our_log);
-        assert_span_id_empty(our_log);
+        assert!(
+            our_log.trace_id.value().is_some(),
+            "Trace ID should be present"
+        );
+        assert!(
+            our_log.trace_id.meta().iter_remarks().any(|remark| {
+                remark.ty() == RemarkType::Substituted && remark.rule_id() == "trace_id.invalid"
+            }),
+            "Trace ID should have a 'trace_id.invalid' substitution remark"
+        );
+        assert!(
+            our_log.span_id.value().is_none(),
+            "Span ID should be empty/default"
+        );
 
         let warning_code_value = annotated_log
             .value()
@@ -673,7 +693,7 @@ mod tests {
               "": {
                 "rem": [
                   [
-                    "trace_id.missing",
+                    "trace_id.invalid",
                     "s"
                   ]
                 ]
