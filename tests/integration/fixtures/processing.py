@@ -588,6 +588,7 @@ class SpansConsumer(ConsumerBase):
 
         for message in self.poll_many(timeout=timeout, n=n):
             assert message.error() is None
+            breakpoint()
             spans.append(json.loads(message.value()))
 
         return spans

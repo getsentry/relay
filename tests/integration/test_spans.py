@@ -671,14 +671,22 @@ def make_otel_span(start, end):
     }
 
 
+@pytest.mark.parametrize("produce_compat_spans", [False, True])
 def test_span_ingestion(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
+    produce_compat_spans,
 ):
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
+
+    mini_sentry.global_config["options"] = {
+        "relay.kafka.span-v2.sample-rate": float(produce_compat_spans)
+    }
+
+    print(mini_sentry.global_config)
 
     relay = relay_with_processing(
         options={
@@ -687,7 +695,7 @@ def test_span_ingestion(
                 "initial_delay": 0,
                 "max_secs_in_past": 2**64 - 1,
                 "shift_key": "none",
-            }
+            },
         }
     )
     project_id = 42

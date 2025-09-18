@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
+use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
 use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -13,7 +13,7 @@ use crate::services::processor::{
     TransactionGroup, dynamic_sampling, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::sample;
+use crate::utils::{self, sample};
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -231,7 +231,8 @@ pub async fn process(
 
         // Write back:
         let mut new_item = Item::new(ItemType::Span);
-        let produce_compat_spans = false;
+        let produce_compat_spans =
+            utils::sample(global_config.options.span_kafka_v2_sample_rate).is_keep();
         if produce_compat_spans {
             let span_v2 = annotated_span.map_value(relay_spans::span_v1_to_span_v2);
             let compat_span = match span_v2.map_value(CompatSpan::try_from) {

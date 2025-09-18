@@ -182,17 +182,6 @@ impl<T: ContainerItem> ItemContainer<T> {
         self.items
     }
 
-    pub fn new_without_headers(iter: impl Iterator<Item = Annotated<T>>) -> Self {
-        Self {
-            items: iter
-                .map(|value| WithHeader {
-                    header: None,
-                    value,
-                })
-                .collect(),
-        }
-    }
-
     /// Parses an [`ItemContainer`] from an envelope [`Item`].
     ///
     /// This function also validates metadata of the container, specifically the content type

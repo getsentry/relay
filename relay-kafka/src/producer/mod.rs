@@ -343,6 +343,7 @@ impl KafkaClient {
         message: &impl Message,
     ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
+        dbg!(String::from_utf8_lossy(serialized.as_bytes()));
 
         #[cfg(debug_assertions)]
         if let SerializationOutput::Json(ref bytes) = serialized {
