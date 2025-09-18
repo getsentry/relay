@@ -8,7 +8,7 @@
 
 **Features**:
 
-- Add Memory Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))
+- Add Memory Info context to event schema. ([#5154](https://github.com/getsentry/relay/pull/5154))
 
 ## 25.9.0
 
