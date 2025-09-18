@@ -17,6 +17,7 @@ mod reprocessing;
 mod response;
 mod runtime;
 mod spring;
+mod threadpool_info;
 mod trace;
 mod user_report_v2;
 pub use app::*;
@@ -37,6 +38,7 @@ pub use reprocessing::*;
 pub use response::*;
 pub use runtime::*;
 pub use spring::*;
+pub use threadpool_info::*;
 pub use trace::*;
 pub use user_report_v2::*;
 
@@ -98,6 +100,8 @@ pub enum Context {
     PerformanceScore(Box<PerformanceScoreContext>),
     /// Spring / Spring Boot information.
     Spring(Box<SpringContext>),
+    /// Thread pool information.
+    ThreadPoolInfo(Box<ThreadPoolInfoContext>),
     /// OTA Updates information.
     OTAUpdates(Box<OTAUpdatesContext>),
     /// Chromium Stability Report from minidump.
