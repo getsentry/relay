@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
+
 ## 25.9.0
 
 **Breaking Changes**:
