@@ -40,6 +40,9 @@ fn main() {
 
     write_name_rs(&crate_dir);
 
+    #[cfg(test)]
+    write_test_name_rs();
+
     println!("cargo::rerun-if-changed=.");
 }
 
@@ -59,9 +62,50 @@ fn write_name_rs(crate_dir: &Path) {
             }
         });
 
-    let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("name_map.rs");
+    let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("name_fn.rs");
     let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
     let output = name::name_file_output(names);
+
+    writeln!(&mut out_file, "{}", output).unwrap();
+}
+
+/// Writes a canned version of the `name_for_op_and_attributes` function exclusively for tests.
+#[cfg(test)]
+fn write_test_name_rs() {
+    use crate::name::{Name, Operation};
+
+    let names = vec![
+        Name {
+            operations: vec![
+                Operation {
+                    ops: vec!["op_with_literal_name".to_owned()],
+                    templates: vec!["literal name".to_owned()],
+                },
+                Operation {
+                    ops: vec![
+                        "op_with_attributes_1".to_owned(),
+                        "op_with_attributes_2".to_owned(),
+                    ],
+                    templates: vec![
+                        "{{attr1}}".to_owned(),
+                        "{{attr2}} {{attr3}}".to_owned(),
+                        "prefix {{attr3}} suffix".to_owned(),
+                        "fallback literal".to_owned(),
+                    ],
+                },
+            ],
+        },
+        Name {
+            operations: vec![Operation {
+                ops: vec!["op_in_second_name_file".to_owned()],
+                templates: vec!["second file literal name".to_owned()],
+            }],
+        },
+    ];
+
+    let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("test_name_fn.rs");
+    let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
+    let output = name::name_file_output(names.into_iter());
 
     writeln!(&mut out_file, "{}", output).unwrap();
 }

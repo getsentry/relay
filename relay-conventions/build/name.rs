@@ -1,17 +1,17 @@
 use pest::Parser;
-use proc_macro2::TokenStream;
-use quote::quote;
+use proc_macro2::{Ident, TokenStream};
+use quote::{format_ident, quote};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Operation {
-    ops: Vec<String>,
-    templates: Vec<String>,
+    pub ops: Vec<String>,
+    pub templates: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Name {
-    operations: Vec<Operation>,
+    pub operations: Vec<Operation>,
 }
 
 /// Returns a `TokenStream` representing Rust code defining a `name_for_op_and_attributes` method.
@@ -24,122 +24,144 @@ pub struct Name {
 ///
 /// In other words, each template list must have a fallback name for the case
 /// where all names are missing. These invariants are enforced by a test in `sentry-conventions`.
+///
+/// Some clippy lints are explicitly allowed, when fixing them would complicate the codegen.
 pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
     let operations = names.flat_map(|name| name.operations);
 
-    let match_arms = TokenStream::from_iter(operations.map(|Operation { ops, templates }| {
-        // Each template stanza handles a single template: if all referenced attributes are present,
-        // the name is constructed via that template and returned.
-        let template_stanzas = templates.into_iter().flat_map(|template| {
-            let Some(parts) = parse_template_into_parts(&template) else {
-                println!(
-                    "sentry_conventions contained unparseable template \"{}\"",
-                    template
-                );
-                return None;
-            };
+    let match_arms = operations.map(|Operation { ops, templates }| {
+        let Some((literal_template, templates_with_attributes)) = templates.split_last() else {
+            panic!("name definition had empty template list");
+        };
+        if literal_template.contains("{{") {
+            panic!("final template must not contain attributes (bad template: {})", literal_template);
+        }
 
-            let first_part = parts.first()?;
-            let referenced_attribute_names: Vec<&str> = parts
-                .iter()
-                .filter_map(|part| match part {
-                    TemplatePart::Literal(_) => None,
-                    TemplatePart::Attribute(attr) => Some(*attr),
-                })
-                .collect();
-
-            if referenced_attribute_names.is_empty() {
-                // There are no dynamic parts to this name - it consists of a single literal.
-                let static_name = match first_part {
-                    TemplatePart::Literal(s) => *s,
-                    _ => unreachable!(),
-                };
-                // Because of the enforced invariant that the single literal template is always
-                // last, no explicit return is needed. (Otherwise clippy complains.)
-                return Some(quote! {
-                    #static_name.to_owned()
-                });
+        let conditional_attribute_blocks = templates_with_attributes.iter().map(|template| {
+            let parts = parse_template_into_parts(template);
+            if !parts.iter().any(|part| matches!(part, TemplatePart::Attribute(_, _))) {
+                panic!("templates before the final template must contain attributes (bad template: {})", template);
             }
 
-            // Ensure that all referenced attributes are present in `attributes` before constructing
-            // a name from them.
-            let if_clauses = referenced_attribute_names.iter().map(|attribute_name| {
-                quote! {
-                    attributes.get_value(#attribute_name).and_then(|value| value.as_str()).is_some()
+            // First, each attribute becomes a let clause for our if block.
+            let if_clauses = parts.iter().flat_map(|part| {
+                if let TemplatePart::Attribute(name, ident) = part {
+                Some(quote! {
+                    let Some(#ident) = attributes.get_value(#name).and_then(val_to_string)
+                })
+                } else {
+                    None
                 }
             });
 
-            // Append each part to the String variable `name`.
-            let append_parts_to_string =
-                TokenStream::from_iter(parts.iter().map(|part| match part {
-                    TemplatePart::Literal(s) => {
-                        // This feels like a micro-optimization, but clippy complains without it.
-                        if s.chars().count() == 1 {
-                            let c = s.chars().next();
-                            quote! { name.push(#c); }
-                        } else {
-                            quote! { name.push_str(#s); }
-                        }
+            // Then, we allocate a string with the appropriate size to hold the name.
+            let declare_name_string = {
+                let literal_length = parts.iter().fold(0, |acc, part|{
+                    if let TemplatePart::Literal(s) = part {
+                        acc + s.len()
+                    } else {
+                        acc
                     }
-                    TemplatePart::Attribute(attribute_name) => quote! {
-                        name.push_str(attributes.get_value(#attribute_name).unwrap().as_str().unwrap());
-                    },
-                }));
+                });
+                let attribute_lengths = parts.iter().flat_map(|part|
+                    if let TemplatePart::Attribute(_, ident) = part {
+                        Some(quote! { #ident.len() })
+                    } else {
+                        None
+                    });
+                quote! {
+                    #[allow(clippy::identity_op)]
+                    let mut name = String::with_capacity(#literal_length + #(#attribute_lengths)+*);
+                }
+            };
 
-            // Assemble the pieces together into a single `if` block.
+            // Finally, append each template part (literal or dynamic) to the string.
+            let append_parts_to_name = parts.iter().map(|part| match part {
+                TemplatePart::Literal(s) => {
+                    quote! {
+                        #[allow(clippy::single_char_add_str)]
+                        name.push_str(#s);
+                    }
+                }
+                TemplatePart::Attribute(_, ident) => quote! {
+                    name.push_str(&#ident);
+                },
+            });
+
             Some(quote! {
                 if #(#if_clauses)&&* {
-                    let mut name = String::new();
-                    #append_parts_to_string
+                    #declare_name_string
+                    #(#append_parts_to_name)*
                     return name;
                 };
             })
         });
 
+        let literal_name_fallback = quote! {
+            #literal_template.to_owned()
+        };
+
         // Assemble the match arm, with `ops` forming the match clause and the list of
         // `template_stanzas` (one per template) forming the match body.
         quote! {
             #(#ops)|* => {
-                #(#template_stanzas)*
+                #(#conditional_attribute_blocks)*
+                #literal_name_fallback
             }
         }
-    }));
+    });
 
     quote! {
-        pub fn name_for_op_and_attributes(op: &str, attributes: &impl relay_protocol::Getter) -> String {
+        use relay_protocol::{Getter, Val};
+
+        pub fn name_for_op_and_attributes(op: &str, attributes: &impl Getter) -> String {
             match op {
-                #match_arms
+                #(#match_arms)*
                 _ => op.to_owned()
             }
+        }
+
+        fn val_to_string(val: Val) -> Option<String> {
+            Some(match val {
+                Val::String(s) => s.to_owned(),
+                Val::I64(i) => i.to_string(),
+                Val::U64(u) => u.to_string(),
+                Val::F64(f) => f.to_string(),
+                Val::Bool(b) => b.to_string(),
+                Val::HexId(_) | Val::Array(_) | Val::Object(_) => return None,
+            })
         }
     }
 }
 
 enum TemplatePart<'a> {
     Literal(&'a str),
-    Attribute(&'a str),
+    Attribute(&'a str, Ident),
 }
 
-fn parse_template_into_parts(template: &'_ str) -> Option<Vec<TemplatePart<'_>>> {
+fn parse_template_into_parts(template: &'_ str) -> Vec<TemplatePart<'_>> {
     let Ok(mut parsed) = TemplateParser::parse(Rule::root, template) else {
-        println!(
+        // This panic (at build time) will make it obvious if the sentry-conventions submodule ever
+        // contains an invalid template.
+        panic!(
             "sentry_conventions contained unparseable template \"{}\"",
             template
         );
-        return None;
     };
     let root = parsed.next().unwrap();
-
-    let mut parts: Vec<TemplatePart> = Vec::new();
-    for part in root.into_inner() {
-        match part.as_rule() {
-            Rule::text => parts.push(TemplatePart::Literal(part.as_str())),
-            Rule::attribute_name => parts.push(TemplatePart::Attribute(part.as_str())),
-            Rule::EOI => {}
-            Rule::root | Rule::attribute => unreachable!(),
-        }
-    }
-    Some(parts)
+    root.into_inner()
+        .enumerate()
+        .filter_map(|(i, part)| {
+            Some(match part.as_rule() {
+                Rule::text => TemplatePart::Literal(part.as_str()),
+                Rule::attribute_name => {
+                    TemplatePart::Attribute(part.as_str(), format_ident!("attribute_{}", i))
+                }
+                Rule::EOI => return None,
+                Rule::root | Rule::attribute => unreachable!(),
+            })
+        })
+        .collect()
 }
 
 mod parser {
