@@ -874,6 +874,7 @@ def test_span_ingestion(
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Chrome",
                 "sentry.category": "resource",
+                "sentry.name": "resource.script",
                 "sentry.normalized_description": "https://example.com/*/blah.js",
                 "sentry.domain": "example.com",
                 "sentry.file_extension": "js",
@@ -983,6 +984,7 @@ def test_span_ingestion(
                 "Chrome/111.0.0.0 Safari/537.36",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Chrome",
+                "sentry.name": "default",
                 "sentry.op": "default",
             },
             "description": r"test \" with \" escaped \" chars",
@@ -1056,6 +1058,7 @@ def test_span_ingestion(
                 "Chrome/111.0.0.0 Safari/537.36",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Chrome",
+                "sentry.name": "default",
                 "sentry.op": "default",
             },
             "downsampled_retention_days": 90,
@@ -1606,6 +1609,7 @@ def test_span_ingestion_with_performance_scores(
                 "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
+                "sentry.name": "ui.interaction.click",
                 "sentry.op": "ui.interaction.click",
                 # Backfilled from `measurements`:
                 "score.fcp": 0.14999972769539766,
@@ -1700,6 +1704,7 @@ def test_span_ingestion_with_performance_scores(
                 "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
+                "sentry.name": "ui.interaction.click",
                 "sentry.op": "ui.interaction.click",
                 "sentry.transaction": "/page/with/click/interaction/*/*",
                 "sentry.replay_id": "8477286c8e5148b386b71ade38374d58",

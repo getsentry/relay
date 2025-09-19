@@ -3757,8 +3757,13 @@ name = "relay-conventions"
 version = "25.9.0"
 dependencies = [
  "insta",
+ "pest",
+ "pest_derive",
  "phf",
  "phf_codegen",
+ "proc-macro2",
+ "quote",
+ "relay-protocol",
  "serde",
  "serde_json",
  "walkdir",

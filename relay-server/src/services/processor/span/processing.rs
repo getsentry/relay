@@ -37,9 +37,10 @@ use relay_event_schema::protocol::{
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty, Value};
+use relay_protocol::{Annotated, Empty, Getter, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::ReservoirEvaluator;
+use relay_spans::name_for_span;
 use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
 
@@ -657,6 +658,8 @@ fn normalize(
 
     tag_extraction::extract_measurements(span, is_mobile);
 
+    generate_name(span);
+
     process_value(
         annotated_span,
         &mut TrimmingProcessor::new(),
@@ -807,6 +810,24 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     }
 
     Ok(())
+}
+
+fn generate_name(span: &mut Span) {
+    if span
+        .data
+        .value()
+        .and_then(|v| v.get_value("sentry\\.name"))
+        .is_some()
+    {
+        return;
+    }
+
+    if let Some(name) = name_for_span(span) {
+        span.data.value_mut().as_mut().and_then(|data| {
+            data.other
+                .insert("sentry.name".to_owned(), Value::String(name).into())
+        });
+    }
 }
 
 #[cfg(test)]
@@ -1423,6 +1444,61 @@ mod tests {
         assert_eq!(
             get_value!(span.profile_id!),
             &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap())
+        );
+    }
+
+    #[test]
+    fn generate_span_name() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "start_timestamp": 0,
+                "timestamp": 1,
+                "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                "span_id": "922dda2462ea4ac2",
+                "op": "db",
+                "data": {
+                    "db.query.summary": "SELECT users"
+                }
+            }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            span.value()
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.get_value("sentry\\.name"))
+                .and_then(|v| v.as_str()),
+            Some("SELECT users")
+        );
+    }
+
+    #[test]
+    fn do_not_override_existing_span_name() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "start_timestamp": 0,
+                "timestamp": 1,
+                "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                "span_id": "922dda2462ea4ac2",
+                "op": "db",
+                "data": {
+                    "db.query.summary": "SELECT users",
+                    "sentry.name": "original name"
+                }
+            }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            span.value()
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.get_value("sentry\\.name"))
+                .and_then(|v| v.as_str()),
+            Some("original name")
         );
     }
 }
