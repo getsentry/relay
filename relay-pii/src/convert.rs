@@ -58,6 +58,40 @@ static SENSITIVE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
     .unwrap()
 });
 
+/// Certain fields in payloads are very important to the product and ideally are not destroyed by
+/// PII scrubbing. Our default scrubber is very aggressive and includes fully destructive rules.
+/// To still have some PII scrubbing applied, this manual override exists and injects replace only
+/// PII rules to these fields.
+///
+/// This is currently a workaround until we have a more powerful version of the PII processor
+/// in place: <https://github.com/getsentry/relay/issues/5158>.
+static REPLACE_ONLY_SELECTOR: Lazy<SelectorSpec> = Lazy::new(|| {
+    [
+        "$logentry.formatted",
+        "$span.data.'gen_ai.prompt'",
+        "attributes.'gen_ai.prompt'.value",
+        "$span.data.'gen_ai.request.messages'",
+        "attributes.'gen_ai.request.messages'.value",
+        "$span.data.'gen_ai.tool.input'",
+        "attributes.'gen_ai.tool.input'.value",
+        "$span.data.'gen_ai.tool.output'",
+        "attributes.'gen_ai.tool.output'.value",
+        "$span.data.'gen_ai.response.tool_calls'",
+        "attributes.'gen_ai.response.tool_calls'.value",
+        "$span.data.'gen_ai.response.text'",
+        "attributes.'gen_ai.response.text'.value",
+        "$span.data.'gen_ai.response.object'",
+        "attributes.'gen_ai.response.object'.value",
+        "$span.data.'gen_ai.request.available_tools'",
+        "attributes.'gen_ai.request.available_tools'.value",
+        "$span.data.'gen_ai.tool.name'",
+        "attributes.'gen_ai.tool.name'.value",
+    ]
+    .join("|")
+    .parse()
+    .unwrap()
+});
+
 pub fn to_pii_config(
     datascrubbing_config: &DataScrubbingConfig,
 ) -> Result<Option<PiiConfig>, PiiConfigError> {
@@ -72,14 +106,8 @@ pub fn to_pii_config(
             vec!["@anything:filter".to_owned()],
         );
 
-        let logentry_selector: SelectorSpec = SelectorSpec::Path(vec![
-            SelectorPathItem::Type(ValueType::LogEntry),
-            SelectorPathItem::Key("formatted".to_owned()),
-        ]);
-
-        // Apply smart scrubbing rules only to logentry.formatted
         applications.insert(
-            logentry_selector,
+            REPLACE_ONLY_SELECTOR.clone(),
             vec![
                 "@email:replace".to_owned(),
                 "@creditcard:replace".to_owned(),
@@ -190,7 +218,7 @@ pub fn to_pii_config(
 #[cfg(test)]
 mod tests {
     use relay_event_schema::processor::{ProcessingState, process_value};
-    use relay_event_schema::protocol::Event;
+    use relay_event_schema::protocol::{Event, SpanV2};
     use relay_protocol::{FromValue, assert_annotated_snapshot};
     use similar_asserts::assert_eq;
 
@@ -1802,5 +1830,99 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_replace_fields_applies_to_span_data() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "spans": [{
+                    "data": {
+                        "gen_ai.prompt": "Buy me a drink with my creditcard 4111-1111-1111-1111",
+                    }
+                }]
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&simple_enabled_config()).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data, @r#"
+        {
+          "spans": [
+            {
+              "data": {
+                "gen_ai.prompt": "Buy me a drink with my creditcard [creditcard]"
+              }
+            }
+          ],
+          "_meta": {
+            "spans": {
+              "0": {
+                "data": {
+                  "gen_ai.prompt": {
+                    "": {
+                      "rem": [
+                        [
+                          "@creditcard:replace",
+                          "s",
+                          34,
+                          46
+                        ]
+                      ],
+                      "len": 53
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_replace_fields_applies_to_attributes() {
+        let mut data = SpanV2::from_value(
+            serde_json::json!({
+                "attributes": {
+                    "gen_ai.prompt": {"value": "Buy me a drink with my creditcard 4111-1111-1111-1111"},
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&simple_enabled_config()).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data, @r#"
+        {
+          "attributes": {
+            "gen_ai.prompt": {
+              "value": "Buy me a drink with my creditcard [creditcard]"
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "gen_ai.prompt": {
+                "value": {
+                  "": {
+                    "rem": [
+                      [
+                        "@creditcard:replace",
+                        "s",
+                        34,
+                        46
+                      ]
+                    ],
+                    "len": 53
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#);
     }
 }
