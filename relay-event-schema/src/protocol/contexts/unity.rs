@@ -1,6 +1,7 @@
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
+use crate::protocol::contexts::DefaultContext;
 
 /// Unity context.
 ///
@@ -62,7 +63,6 @@ impl super::DefaultContext for UnityContext {
 mod tests {
     use super::*;
     use crate::protocol::Context;
-    use crate::protocol::contexts::DefaultContext;
 
     #[test]
     fn test_unity_context_roundtrip() {

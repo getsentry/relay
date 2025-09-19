@@ -8,7 +8,8 @@
 
 **Features**:
 
-- Add Unity Context Info. ([#5155](https://github.com/getsentry/relay/pull/5155))
+- Add Thread Pool Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))
+- Add Unity Info context to event schema. ([#5155](https://github.com/getsentry/relay/pull/5155))
 
 ## 25.9.0
 
