@@ -622,7 +622,7 @@ pub struct Limits {
     pub max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
     pub max_profile_size: ByteSize,
-    /// The maximum payload size for a span.
+    /// The maximum payload size for a log.
     pub max_log_size: ByteSize,
     /// The maximum payload size for a span.
     pub max_span_size: ByteSize,

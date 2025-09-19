@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/spans/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@mac|4a:00:04:10:9b:50": {
+    "type": "string",
+    "value": "*****************"
+  },
+  "_meta": {
+    "@mac|4a:00:04:10:9b:50": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@mac",
+              "m",
+              0,
+              17
+            ]
+          ],
+          "len": 17
+        }
+      }
+    }
+  }
+}
