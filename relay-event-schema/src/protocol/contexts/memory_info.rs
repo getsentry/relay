@@ -1,4 +1,4 @@
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Empty, Array, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
 
@@ -33,7 +33,7 @@ pub struct MemoryInfoContext {
     pub memory_load_bytes: Annotated<u64>,
 
     /// Array of GC pause durations in milliseconds.
-    pub pause_durations: Annotated<Arrayu64>>,
+    pub pause_durations: Annotated<Array<u64>>,
 
     /// Percentage of time spent in GC pauses.
     pub pause_time_percentage: Annotated<f64>,
