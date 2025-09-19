@@ -350,7 +350,6 @@ impl KafkaClient {
                 .validate_message_schema(topic, bytes)
                 .map_err(ClientError::SchemaValidationFailed)?;
         }
-
         self.send(
             topic,
             message.key(),

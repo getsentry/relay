@@ -8,7 +8,10 @@ use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 
 const MILLIS_TO_NANOS: f64 = 1000. * 1000.;
 
-#[allow(dead_code)]
+/// Converts a legacy span to the new Span V2 schema.
+///
+/// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
+/// - Nested `data` items are encoded as JSON.
 pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let SpanV1 {
         timestamp,

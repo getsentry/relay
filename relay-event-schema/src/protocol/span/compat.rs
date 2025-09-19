@@ -6,7 +6,6 @@ use crate::protocol::{Attributes, EventId, SpanV2, Timestamp};
 /// Temporary type that amends a SpansV2 span with fields needed by the sentry span consumer.
 /// This can be removed once the consumer has been updated to use the new schema.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue)]
-#[allow(dead_code)]
 pub struct CompatSpan {
     #[metastructure(flatten)]
     pub span_v2: SpanV2,

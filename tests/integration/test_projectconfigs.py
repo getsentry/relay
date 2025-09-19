@@ -40,7 +40,6 @@ def get_response(relay, packed, signature, *, version="3", relay_id=None, header
         )
         assert response.ok
         data = response.json()
-        print(data)
         if data["configs"] or data.get("global") or data.get("unchanged"):
             return data, response
         time.sleep(0.01)
