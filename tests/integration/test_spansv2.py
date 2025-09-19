@@ -611,7 +611,7 @@ def test_spanv2_with_string_pii_scrubbing(
 
     envelope = envelope_with_spans(
         {
-            "start_timestamp": ts.timestamp() + 0.5,
+            "start_timestamp": ts.timestamp(),
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b174",
@@ -677,7 +677,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
 
     envelope = envelope_with_spans(
         {
-            "start_timestamp": ts.timestamp() + 0.5,
+            "start_timestamp": ts.timestamp(),
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b174",
