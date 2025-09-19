@@ -3648,28 +3648,228 @@ impl ProxyProcessorService {
         // }
     }
 
+    // FIXME: 1 for 1 copy
+    fn check_buckets(
+        &self,
+        project_key: ProjectKey,
+        project_info: &ProjectInfo,
+        rate_limits: &RateLimits,
+        buckets: Vec<Bucket>,
+    ) -> Vec<Bucket> {
+        let Some(scoping) = project_info.scoping(project_key) else {
+            relay_log::error!(
+                tags.project_key = project_key.as_str(),
+                "there is no scoping: dropping {} buckets",
+                buckets.len(),
+            );
+            return Vec::new();
+        };
+
+        let mut buckets = self::metrics::apply_project_info(
+            buckets,
+            &self.inner.metric_outcomes,
+            project_info,
+            scoping,
+        );
+
+        let namespaces: BTreeSet<MetricNamespace> = buckets
+            .iter()
+            .filter_map(|bucket| bucket.name.try_namespace())
+            .collect();
+
+        for namespace in namespaces {
+            let limits = rate_limits.check_with_quotas(
+                project_info.get_quotas(),
+                scoping.item(DataCategory::MetricBucket),
+            );
+
+            if limits.is_limited() {
+                let rejected;
+                (buckets, rejected) = utils::split_off(buckets, |bucket| {
+                    bucket.name.try_namespace() == Some(namespace)
+                });
+
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                self.inner.metric_outcomes.track(
+                    scoping,
+                    &rejected,
+                    Outcome::RateLimited(reason_code),
+                );
+            }
+        }
+
+        let quotas = project_info.config.quotas.clone();
+        match MetricsLimiter::create(buckets, quotas, scoping) {
+            Ok(mut bucket_limiter) => {
+                bucket_limiter.enforce_limits(rate_limits, &self.inner.metric_outcomes);
+                bucket_limiter.into_buckets()
+            }
+            Err(buckets) => buckets,
+        }
+    }
+
+    // FIXME: 1 for 1 copy
+    /// Serializes metric buckets to JSON and sends them to the upstream.
+    ///
+    /// This function runs the following steps:
+    ///  - partitioning
+    ///  - batching by configured size limit
+    ///  - serialize to JSON and pack in an envelope
+    ///  - submit the envelope to upstream or kafka depending on configuration
+    ///
+    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
+    /// access to the central Redis instance. Cached rate limits are applied in the project cache
+    /// already.
+    fn encode_metrics_envelope(&self, cogs: &mut Token, message: FlushBuckets) {
+        let FlushBuckets {
+            partition_key,
+            buckets,
+        } = message;
+
+        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
+        let upstream = self.inner.config.upstream_descriptor();
+
+        for ProjectBuckets {
+            buckets, scoping, ..
+        } in buckets.values()
+        {
+            let dsn = PartialDsn::outbound(scoping, upstream);
+
+            relay_statsd::metric!(
+                histogram(RelayHistograms::PartitionKeys) = u64::from(partition_key)
+            );
+
+            let mut num_batches = 0;
+            for batch in BucketsView::from(buckets).by_size(batch_size) {
+                let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
+
+                let mut item = Item::new(ItemType::MetricBuckets);
+                item.set_source_quantities(crate::metrics::extract_quantities(batch));
+                item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
+                envelope.add_item(item);
+
+                let mut envelope =
+                    ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
+                envelope
+                    .set_partition_key(Some(partition_key))
+                    .scope(*scoping);
+
+                relay_statsd::metric!(
+                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
+                );
+
+                self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
+                num_batches += 1;
+            }
+
+            relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
+        }
+    }
+
+    // FIXME: 1 for 1 copy
+    /// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
+    fn send_global_partition(&self, partition_key: u32, partition: &mut Partition<'_>) {
+        if partition.is_empty() {
+            return;
+        }
+
+        let (unencoded, project_info) = partition.take();
+        let http_encoding = self.inner.config.http_encoding();
+        let encoded = match encode_payload(&unencoded, http_encoding) {
+            Ok(payload) => payload,
+            Err(error) => {
+                let error = &error as &dyn std::error::Error;
+                relay_log::error!(error, "failed to encode metrics payload");
+                return;
+            }
+        };
+
+        let request = SendMetricsRequest {
+            partition_key: partition_key.to_string(),
+            unencoded,
+            encoded,
+            project_info,
+            http_encoding,
+            metric_outcomes: self.inner.metric_outcomes.clone(),
+        };
+
+        self.inner.addrs.upstream_relay.send(SendRequest(request));
+    }
+
+    // FIXME: 1 for 1 copy
+    /// Serializes metric buckets to JSON and sends them to the upstream via the global endpoint.
+    ///
+    /// This function is similar to [`Self::encode_metrics_envelope`], but sends a global batched
+    /// payload directly instead of per-project Envelopes.
+    ///
+    /// This function runs the following steps:
+    ///  - partitioning
+    ///  - batching by configured size limit
+    ///  - serialize to JSON
+    ///  - submit directly to the upstream
+    ///
+    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
+    /// access to the central Redis instance. Cached rate limits are applied in the project cache
+    /// already.
+    fn encode_metrics_global(&self, message: FlushBuckets) {
+        let FlushBuckets {
+            partition_key,
+            buckets,
+        } = message;
+
+        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
+        let mut partition = Partition::new(batch_size);
+        let mut partition_splits = 0;
+
+        for ProjectBuckets {
+            buckets, scoping, ..
+        } in buckets.values()
+        {
+            for bucket in buckets {
+                let mut remaining = Some(BucketView::new(bucket));
+
+                while let Some(bucket) = remaining.take() {
+                    if let Some(next) = partition.insert(bucket, *scoping) {
+                        // A part of the bucket could not be inserted. Take the partition and submit
+                        // it immediately. Repeat until the final part was inserted. This should
+                        // always result in a request, otherwise we would enter an endless loop.
+                        self.send_global_partition(partition_key, &mut partition);
+                        remaining = Some(next);
+                        partition_splits += 1;
+                    }
+                }
+            }
+        }
+
+        if partition_splits > 0 {
+            metric!(histogram(RelayHistograms::PartitionSplits) = partition_splits);
+        }
+
+        self.send_global_partition(partition_key, &mut partition);
+    }
+
+    // FIXME: 1 for 1 copy
     async fn handle_flush_buckets(&self, cogs: &mut Token, mut message: FlushBuckets) {
-        todo!("Adapt the logic");
-        // for (project_key, pb) in message.buckets.iter_mut() {
-        //     let buckets = std::mem::take(&mut pb.buckets);
-        //     pb.buckets =
-        //         self.check_buckets(*project_key, &pb.project_info, &pb.rate_limits, buckets);
-        // }
+        for (project_key, pb) in message.buckets.iter_mut() {
+            let buckets = std::mem::take(&mut pb.buckets);
+            pb.buckets =
+                self.check_buckets(*project_key, &pb.project_info, &pb.rate_limits, buckets);
+        }
 
-        // #[cfg(feature = "processing")]
-        // if self.inner.config.processing_enabled()
-        //     && let Some(ref store_forwarder) = self.inner.addrs.store_forwarder
-        // {
-        //     return self
-        //         .encode_metrics_processing(message, store_forwarder)
-        //         .await;
-        // }
+        #[cfg(feature = "processing")]
+        if self.inner.config.processing_enabled()
+            && let Some(ref store_forwarder) = self.inner.addrs.store_forwarder
+        {
+            return self
+                .encode_metrics_processing(message, store_forwarder)
+                .await;
+        }
 
-        // if self.inner.config.http_global_metrics() {
-        //     self.encode_metrics_global(message)
-        // } else {
-        //     self.encode_metrics_envelope(cogs, message)
-        // }
+        if self.inner.config.http_global_metrics() {
+            self.encode_metrics_global(message)
+        } else {
+            self.encode_metrics_envelope(cogs, message)
+        }
     }
 
     // FIXME: 1 for 1 copy
