@@ -107,7 +107,7 @@ mod tests {
         let json = r#"{
   "type": "unity"
 }"#;
-        let context = Annotated::new(Context::Unity(Box::new(UnityContext::default())));
+        let context = Annotated::new(Context::Unity(Box::default()));
         assert_eq!(context, Annotated::from_json(json).unwrap());
         assert_eq!(json, context.to_json_pretty().unwrap());
     }
