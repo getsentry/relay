@@ -142,7 +142,7 @@ define_topic_assignments! {
     replay_events: (KafkaTopic::ReplayEvents, "ingest-replay-events", "Replay Events topic name."),
     replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
     monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
-    spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
+    spans: (KafkaTopic::Spans, "ingest-spans", "Standalone spans without a transaction."),
     feedback: (KafkaTopic::Feedback, "ingest-feedback-events", "Feedback events topic."),
     items: (KafkaTopic::Items, "snuba-items", "Items topic."),
 }
@@ -454,7 +454,7 @@ transactions: "ingest-transactions-kafka-topic"
             spans: TopicAssignment(
                 [
                     TopicConfig {
-                        topic_name: "snuba-spans",
+                        topic_name: "ingest-spans",
                         kafka_config_name: None,
                         key_rate_limit: None,
                     },
@@ -487,19 +487,9 @@ transactions: "ingest-transactions-kafka-topic"
 
     #[test]
     fn test_default_topic_is_valid() {
-        // A few topics are not defined currently, remove this once added to `sentry-kafka-schemas`.
-        let currrently_undefined_topics = [
-            "ingest-attachments",
-            "ingest-transactions",
-            "profiles",
-            "ingest-monitors",
-        ];
-
         for topic in KafkaTopic::iter() {
             let name = topic.logical_topic_name();
-            if !currrently_undefined_topics.contains(&name) {
-                assert!(sentry_kafka_schemas::get_schema(name, None).is_ok());
-            }
+            assert!(sentry_kafka_schemas::get_schema(name, None).is_ok());
         }
     }
 
