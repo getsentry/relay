@@ -1,4 +1,4 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from unittest import mock
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
