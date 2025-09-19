@@ -4,6 +4,10 @@
 
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
+use relay_conventions::{
+    BROWSER_NAME, BROWSER_VERSION, OBSERVED_TIMESTAMP_NANOS, USER_GEO_CITY, USER_GEO_COUNTRY_CODE,
+    USER_GEO_REGION, USER_GEO_SUBDIVISION,
+};
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Value};
 
@@ -62,7 +66,7 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
 pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: DateTime<Utc>) {
     attributes
         .get_or_insert_with(Default::default)
-        .insert_if_missing("sentry.observed_timestamp_nanos", || {
+        .insert_if_missing(OBSERVED_TIMESTAMP_NANOS, || {
             received
                 .timestamp_nanos_opt()
                 .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
@@ -80,9 +84,6 @@ pub fn normalize_user_agent(
     client_hints: ClientHints<&str>,
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
-
-    const BROWSER_NAME: &str = "sentry.browser.name";
-    const BROWSER_VERSION: &str = "sentry.browser.version";
 
     if attributes.contains_key(BROWSER_NAME) || attributes.contains_key(BROWSER_VERSION) {
         return;
@@ -109,14 +110,14 @@ pub fn normalize_user_geo(
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    const COUNTRY_CODE: &str = "user.geo.country_code";
-    const CITY: &str = "user.geo.city";
-    const SUBDIVISION: &str = "user.geo.subdivision";
-    const REGION: &str = "user.geo.region";
-
-    if [COUNTRY_CODE, CITY, SUBDIVISION, REGION]
-        .into_iter()
-        .any(|a| attributes.contains_key(a))
+    if [
+        USER_GEO_COUNTRY_CODE,
+        USER_GEO_CITY,
+        USER_GEO_SUBDIVISION,
+        USER_GEO_REGION,
+    ]
+    .into_iter()
+    .any(|a| attributes.contains_key(a))
     {
         return;
     }
@@ -125,10 +126,10 @@ pub fn normalize_user_geo(
         return;
     };
 
-    attributes.insert_if_missing(COUNTRY_CODE, || geo.country_code);
-    attributes.insert_if_missing(CITY, || geo.city);
-    attributes.insert_if_missing(SUBDIVISION, || geo.subdivision);
-    attributes.insert_if_missing(REGION, || geo.region);
+    attributes.insert_if_missing(USER_GEO_COUNTRY_CODE, || geo.country_code);
+    attributes.insert_if_missing(USER_GEO_CITY, || geo.city);
+    attributes.insert_if_missing(USER_GEO_SUBDIVISION, || geo.subdivision);
+    attributes.insert_if_missing(USER_GEO_REGION, || geo.region);
 }
 
 #[cfg(test)]

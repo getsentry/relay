@@ -51,6 +51,7 @@ impl<T> ManagedTestBuilder<T> {
         }
     }
 
+    /// Creates a new [`Managed`] instance and a [`ManagedTestHandle`] to assert outcomes.
     pub fn build(self) -> (Managed<T>, ManagedTestHandle)
     where
         T: Counted,
@@ -77,6 +78,7 @@ impl<T> ManagedTestBuilder<T> {
     }
 }
 
+/// A testing helper which can make sure the right outcomes have been emitted by the [`Managed`] instance.
 pub struct ManagedTestHandle {
     outcomes: UnboundedReceiver<TrackOutcome>,
     received_at: DateTime<Utc>,
