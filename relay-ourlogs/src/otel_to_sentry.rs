@@ -553,6 +553,7 @@ mod tests {
         {
           "timestamp": 1544712660.3,
           "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "span_id": null,
           "level": "warn",
           "body": "Warning log with invalid trace IDs",
           "attributes": {
@@ -562,6 +563,18 @@ mod tests {
             }
           },
           "_meta": {
+            "span_id": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "not a valid span id"
+                    }
+                  ]
+                ]
+              }
+            },
             "trace_id": {
               "": {
                 "rem": [
