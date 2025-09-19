@@ -15,7 +15,7 @@ pub fn name_for_span(span: &Span) -> Option<String> {
         // SpanData's Getter impl treats dots in attribute names as object traversals.
         // They have to be escaped in order for an attribute name with dots to be treated as a root
         // attribute.
-        &EscapedGetter { getter: data },
+        &EscapedGetter(data),
     ))
 }
 
@@ -27,17 +27,15 @@ impl Getter for EmptyGetter {
     }
 }
 
-struct EscapedGetter<'a> {
-    getter: &'a dyn Getter,
-}
+struct EscapedGetter<'a, T: Getter>(&'a T);
 
-impl Getter for EscapedGetter<'_> {
+impl<'a, T: Getter> Getter for EscapedGetter<'a, T> {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        self.getter.get_value(&path.replace(".", "\\."))
+        self.0.get_value(&path.replace(".", "\\."))
     }
 
     fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
-        self.getter.get_iter(&path.replace(".", "\\."))
+        self.0.get_iter(&path.replace(".", "\\."))
     }
 }
 

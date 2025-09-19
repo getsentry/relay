@@ -74,13 +74,11 @@ mod tests {
         "###);
     }
 
-    struct GetterMap<'a> {
-        map: HashMap<&'a str, Val<'a>>,
-    }
+    struct GetterMap<'a>(HashMap<&'a str, Val<'a>>);
 
     impl Getter for GetterMap<'_> {
         fn get_value(&self, path: &str) -> Option<Val<'_>> {
-            self.map.get(path).copied()
+            self.0.get(path).copied()
         }
     }
 
@@ -91,9 +89,7 @@ mod tests {
 
     #[test]
     fn only_literal_template() {
-        let attributes = GetterMap {
-            map: HashMap::new(),
-        };
+        let attributes = GetterMap(HashMap::new());
         assert_eq!(
             name_for_op_and_attributes("op_with_literal_name", &attributes,),
             "literal name"
@@ -102,9 +98,7 @@ mod tests {
 
     #[test]
     fn multiple_ops_same_template() {
-        let attributes = GetterMap {
-            map: HashMap::from([("attr1", Val::String("foo"))]),
-        };
+        let attributes = GetterMap(HashMap::from([("attr1", Val::String("foo"))]));
         assert_eq!(
             name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "foo"
@@ -117,9 +111,10 @@ mod tests {
 
     #[test]
     fn skips_templates_when_attrs_are_missing() {
-        let attributes = GetterMap {
-            map: HashMap::from([("attr2", Val::String("bar")), ("attr3", Val::String("baz"))]),
-        };
+        let attributes = GetterMap(HashMap::from([
+            ("attr2", Val::String("bar")),
+            ("attr3", Val::String("baz")),
+        ]));
         assert_eq!(
             name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "bar baz"
@@ -128,9 +123,7 @@ mod tests {
 
     #[test]
     fn handles_literal_prefixes_and_suffixes() {
-        let attributes = GetterMap {
-            map: HashMap::from([("attr3", Val::String("baz"))]),
-        };
+        let attributes = GetterMap(HashMap::from([("attr3", Val::String("baz"))]));
         assert_eq!(
             name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "prefix baz suffix",
@@ -139,9 +132,7 @@ mod tests {
 
     #[test]
     fn considers_multiple_files() {
-        let attributes = GetterMap {
-            map: HashMap::new(),
-        };
+        let attributes = GetterMap(HashMap::new());
         assert_eq!(
             name_for_op_and_attributes("op_in_second_name_file", &attributes),
             "second file literal name",
@@ -150,9 +141,7 @@ mod tests {
 
     #[test]
     fn falls_back_to_op_for_unknown_ops() {
-        let attributes = GetterMap {
-            map: HashMap::new(),
-        };
+        let attributes = GetterMap(HashMap::new());
         assert_eq!(
             name_for_op_and_attributes("unknown_op", &attributes),
             "unknown_op",
@@ -161,33 +150,25 @@ mod tests {
 
     #[test]
     fn handles_multiple_value_types() {
-        let attributes = GetterMap {
-            map: HashMap::from([("attr1", Val::Bool(true))]),
-        };
+        let attributes = GetterMap(HashMap::from([("attr1", Val::Bool(true))]));
         assert_eq!(
             name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "true",
         );
 
-        let attributes = GetterMap {
-            map: HashMap::from([("attr1", Val::I64(123))]),
-        };
+        let attributes = GetterMap(HashMap::from([("attr1", Val::I64(123))]));
         assert_eq!(
             name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "123",
         );
 
-        let attributes = GetterMap {
-            map: HashMap::from([("attr1", Val::U64(123))]),
-        };
+        let attributes = GetterMap(HashMap::from([("attr1", Val::U64(123))]));
         assert_eq!(
             name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "123",
         );
 
-        let attributes = GetterMap {
-            map: HashMap::from([("attr1", Val::F64(1.23))]),
-        };
+        let attributes = GetterMap(HashMap::from([("attr1", Val::F64(1.23))]));
         assert_eq!(
             name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "1.23",

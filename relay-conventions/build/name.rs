@@ -112,6 +112,7 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
     });
 
     quote! {
+        use std::borrow::Cow;
         use relay_protocol::{Getter, Val};
 
         pub fn name_for_op_and_attributes(op: &str, attributes: &impl Getter) -> String {
@@ -121,13 +122,13 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             }
         }
 
-        fn val_to_string(val: Val) -> Option<String> {
+        fn val_to_string(val: Val<'_>) -> Option<Cow<'_, str>> {
             Some(match val {
-                Val::String(s) => s.to_owned(),
-                Val::I64(i) => i.to_string(),
-                Val::U64(u) => u.to_string(),
-                Val::F64(f) => f.to_string(),
-                Val::Bool(b) => b.to_string(),
+                Val::String(s) => Cow::Borrowed(s),
+                Val::I64(i) => Cow::Owned(i.to_string()),
+                Val::U64(u) => Cow::Owned(u.to_string()),
+                Val::F64(f) => Cow::Owned(f.to_string()),
+                Val::Bool(b) => Cow::Borrowed(if b { "true" } else { "false" }),
                 Val::HexId(_) | Val::Array(_) | Val::Object(_) => return None,
             })
         }
