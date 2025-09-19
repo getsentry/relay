@@ -1,7 +1,26 @@
 import json
 from datetime import datetime, timezone, timedelta
 
+from sentry_relay.consts import DataCategory
+
 from .asserts import time_within_delta, time_within
+
+
+TEST_CONFIG = {
+    "outcomes": {
+        "emit_outcomes": True,
+        "batch_size": 1,
+        "batch_interval": 1,
+        "aggregator": {
+            "bucket_interval": 1,
+            "flush_interval": 1,
+        },
+    },
+    "aggregator": {
+        "bucket_interval": 1,
+        "initial_delay": 0,
+    },
+}
 
 
 def test_otlp_logs_conversion(mini_sentry, relay):
@@ -218,3 +237,67 @@ def test_otlp_logs_multiple_records(mini_sentry, relay):
     ]
 
     assert mini_sentry.captured_events.empty()
+
+
+def test_otlp_logs_outcomes(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    outcomes_consumer,
+):
+    """Test that OTLP logs produce proper outcomes."""
+    outcomes_consumer = outcomes_consumer()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+        "organizations:relay-otel-logs-endpoint",
+    ]
+
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
+
+    otel_logs_payload = {
+        "resourceLogs": [
+            {
+                "scopeLogs": [
+                    {
+                        "logRecords": [
+                            {
+                                "timeUnixNano": ts_nanos,
+                                "severityNumber": 18,
+                                "severityText": "Error",
+                                "traceId": "5B8EFFF798038103D269B633813FC60C",
+                                "spanId": "EEE19B7EC3C1B174",
+                                "body": {"stringValue": "Test log entry"},
+                            },
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+    relay.send_otel_logs(project_id, json=otel_logs_payload)
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+    assert outcomes == [
+        {
+            "category": DataCategory.LOG_ITEM.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.LOG_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 124,
+        },
+    ]
