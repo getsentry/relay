@@ -1,7 +1,6 @@
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
-use crate::protocol::contexts::DefaultContext;
 
 /// Unity context.
 ///
