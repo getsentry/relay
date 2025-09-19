@@ -33,7 +33,7 @@ pub struct MemoryInfoContext {
     pub memory_load_bytes: Annotated<u64>,
 
     /// Array of GC pause durations in milliseconds.
-    pub pause_durations: Annotated<Vec<Annotated<f64>>>,
+    pub pause_durations: Annotated<Vec<Annotated<u64>>>,
 
     /// Percentage of time spent in GC pauses.
     pub pause_time_percentage: Annotated<f64>,
@@ -125,9 +125,9 @@ mod tests {
             compacted: Annotated::new(true),
             concurrent: Annotated::new(true),
             pause_durations: Annotated::new(vec![
-                Annotated::new(10.0),
-                Annotated::new(5.0),
-                Annotated::new(3.0),
+                Annotated::new(10),
+                Annotated::new(5),
+                Annotated::new(3),
             ]),
             finalization_pending_count: Annotated::new(42),
             fragmented_bytes: Annotated::new(2048),
