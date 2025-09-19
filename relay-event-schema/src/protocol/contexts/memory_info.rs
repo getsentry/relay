@@ -98,19 +98,23 @@ mod tests {
     fn test_memory_info_context_roundtrip() {
         let json = r#"{
   "allocated_bytes": 1048576,
-  "total_allocated_bytes": 9437184,
-  "heap_size_bytes": 3145728,
-  "pinned_objects_count": 150,
-  "pause_time_percentage": 25.5,
   "compacted": true,
   "concurrent": true,
-  "pause_durations": [10, 5, 3],
   "finalization_pending_count": 42,
   "fragmented_bytes": 2048,
+  "heap_size_bytes": 3145728,
   "high_memory_load_threshold_bytes": 8388608,
   "index": 2,
   "memory_load_bytes": 5242880,
+  "pause_durations": [
+    10,
+    5,
+    3
+  ],
+  "pause_time_percentage": 25.5,
+  "pinned_objects_count": 150,
   "promoted_bytes": 524288,
+  "total_allocated_bytes": 9437184,
   "total_available_memory_bytes": 16777216,
   "total_committed_bytes": 12582912,
   "other": "value",
