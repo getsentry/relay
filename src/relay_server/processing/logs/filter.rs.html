@@ -17,25 +17,22 @@
 <a href=#17 id=17 data-nosnippet>17</a>
 <a href=#18 id=18 data-nosnippet>18</a><span class="doccomment">/// Applies inbound filters to individual logs.
 <a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">pub fn </span>filter(logs: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedLogs&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) {
-<a href=#20 id=20 data-nosnippet>20</a>    logs.modify(|logs, records| {
-<a href=#21 id=21 data-nosnippet>21</a>        <span class="kw">let </span>meta = logs.headers.meta();
-<a href=#22 id=22 data-nosnippet>22</a>        logs.logs.retain_mut(|log| {
-<a href=#23 id=23 data-nosnippet>23</a>            <span class="kw">let </span>r = filter_log(log, meta, ctx);
-<a href=#24 id=24 data-nosnippet>24</a>            records.or_default(r.map(|<span class="kw">_</span>| <span class="bool-val">true</span>), <span class="kw-2">&amp;*</span>log)
-<a href=#25 id=25 data-nosnippet>25</a>        })
-<a href=#26 id=26 data-nosnippet>26</a>    });
-<a href=#27 id=27 data-nosnippet>27</a>}
-<a href=#28 id=28 data-nosnippet>28</a>
-<a href=#29 id=29 data-nosnippet>29</a><span class="kw">fn </span>filter_log(log: <span class="kw-2">&amp;</span>Annotated&lt;OurLog&gt;, meta: <span class="kw-2">&amp;</span>RequestMeta, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#30 id=30 data-nosnippet>30</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(log) = log.value() <span class="kw">else </span>{
-<a href=#31 id=31 data-nosnippet>31</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-<a href=#32 id=32 data-nosnippet>32</a>    };
-<a href=#33 id=33 data-nosnippet>33</a>
-<a href=#34 id=34 data-nosnippet>34</a>    relay_filter::should_filter(
-<a href=#35 id=35 data-nosnippet>35</a>        log,
-<a href=#36 id=36 data-nosnippet>36</a>        meta.client_addr(),
-<a href=#37 id=37 data-nosnippet>37</a>        <span class="kw-2">&amp;</span>ctx.project_info.config.filter_settings,
-<a href=#38 id=38 data-nosnippet>38</a>        ctx.global_config.filters(),
-<a href=#39 id=39 data-nosnippet>39</a>    )
-<a href=#40 id=40 data-nosnippet>40</a>    .map_err(Error::Filtered)
-<a href=#41 id=41 data-nosnippet>41</a>}</code></pre></div></section></main></body></html>
+<a href=#20 id=20 data-nosnippet>20</a>    logs.retain_with_context(
+<a href=#21 id=21 data-nosnippet>21</a>        |logs| (<span class="kw-2">&amp;mut </span>logs.logs, logs.headers.meta()),
+<a href=#22 id=22 data-nosnippet>22</a>        |log, meta| filter_log(log, meta, ctx),
+<a href=#23 id=23 data-nosnippet>23</a>    );
+<a href=#24 id=24 data-nosnippet>24</a>}
+<a href=#25 id=25 data-nosnippet>25</a>
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">fn </span>filter_log(log: <span class="kw-2">&amp;</span>Annotated&lt;OurLog&gt;, meta: <span class="kw-2">&amp;</span>RequestMeta, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#27 id=27 data-nosnippet>27</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(log) = log.value() <span class="kw">else </span>{
+<a href=#28 id=28 data-nosnippet>28</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+<a href=#29 id=29 data-nosnippet>29</a>    };
+<a href=#30 id=30 data-nosnippet>30</a>
+<a href=#31 id=31 data-nosnippet>31</a>    relay_filter::should_filter(
+<a href=#32 id=32 data-nosnippet>32</a>        log,
+<a href=#33 id=33 data-nosnippet>33</a>        meta.client_addr(),
+<a href=#34 id=34 data-nosnippet>34</a>        <span class="kw-2">&amp;</span>ctx.project_info.config.filter_settings,
+<a href=#35 id=35 data-nosnippet>35</a>        ctx.global_config.filters(),
+<a href=#36 id=36 data-nosnippet>36</a>    )
+<a href=#37 id=37 data-nosnippet>37</a>    .map_err(Error::Filtered)
+<a href=#38 id=38 data-nosnippet>38</a>}</code></pre></div></section></main></body></html>
