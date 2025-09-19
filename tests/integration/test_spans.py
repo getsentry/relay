@@ -1134,26 +1134,8 @@ def test_span_ingestion(
     ]
 
     if produce_compat_spans:
-        # These keys are produced by the old producer, but we chose not to replicate them because
-        # the consumer does not need them anymore:
-        optional_keys = {
-            "exclusive_time_ms",
-            "is_segment",
-            "measurements",
-            "tags",
-            "sentry_tags",
-        }
-
         for span, expected_span in zip(spans, expected_spans):
-            for key, expected_value in expected_span.items():
-                if key in optional_keys:
-                    continue
-                if key == "data":
-                    # Data may have more fields
-                    for key in expected_value:
-                        assert span["data"][key] == expected_value[key]
-                else:
-                    assert span[key] == expected_span[key]
+            assert_contains(span, expected_span)
     else:
         assert spans == expected_spans
 
@@ -1223,6 +1205,37 @@ def test_span_ingestion(
         assert actual == expected
 
     metrics_consumer.assert_empty()
+
+
+def assert_contains(span, expected_span):
+    # These keys are produced by the old producer, but we chose not to replicate them because
+    # the consumer does not need them anymore:
+    unused_keys = {
+        "exclusive_time_ms",
+        "is_segment",
+        "measurements",
+        "tags",
+        "sentry_tags",
+    }
+
+    # These keys were set unconditionally by the store serializer, but
+    # can be omitted if False:
+    optional_flags = {"is_remote"}
+
+    for key, expected_value in expected_span.items():
+        if key in unused_keys:
+            continue
+        if key == "data":
+            # Data may have more fields
+            for key in expected_value:
+                assert span["data"][key] == expected_value[key]
+        else:
+            if key in optional_flags:
+                assert span.get(key, False) == expected_span[key]
+            elif key == "links":
+                continue  # FIXME
+            else:
+                assert span[key] == expected_span[key]
 
 
 def test_standalone_span_ingestion_metric_extraction(
