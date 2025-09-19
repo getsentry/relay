@@ -61,9 +61,12 @@ pub fn otel_to_sentry_log(
         ..
     } = otel_log;
 
-    let span_id = SpanId::try_from(span_id.as_slice())
-        .map(Annotated::new)
-        .unwrap_or_default();
+    let span_id = if span_id.is_empty() {
+        Annotated::empty()
+    } else {
+        SpanId::try_from(span_id.as_slice())
+            .map_or_else(|err| Annotated::from_error(err, None), Annotated::new)
+    };
     let trace_id = match TraceId::try_from(trace_id.as_slice()) {
         Ok(id) => Annotated::new(id),
         Err(_) => {
@@ -432,10 +435,6 @@ mod tests {
         let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
         let our_log: Annotated<OurLog> = Annotated::new(otel_to_sentry_log(otel_log, None, None));
 
-        // Note: trace_id will be a random UUID, so we only check that it exists and has the right metadata
-        let trace_id_value = our_log.value().unwrap().trace_id.value().unwrap();
-        assert!(!trace_id_value.to_string().is_empty());
-
         insta::assert_json_snapshot!(SerializableAnnotated(&our_log), {
             ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
         }, @r#"
@@ -492,10 +491,6 @@ mod tests {
         let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
         let our_log: Annotated<OurLog> = Annotated::new(otel_to_sentry_log(otel_log, None, None));
 
-        // Note: trace_id will be a random UUID, so we only check that it exists and has the right metadata
-        let trace_id_value = our_log.value().unwrap().trace_id.value().unwrap();
-        assert!(!trace_id_value.to_string().is_empty());
-
         insta::assert_json_snapshot!(SerializableAnnotated(&our_log), {
             ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
         }, @r#"
@@ -551,10 +546,6 @@ mod tests {
 
         let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
         let our_log: Annotated<OurLog> = Annotated::new(otel_to_sentry_log(otel_log, None, None));
-
-        // Note: trace_id will be a random UUID, so we only check that it exists and has the right metadata
-        let trace_id_value = our_log.value().unwrap().trace_id.value().unwrap();
-        assert!(!trace_id_value.to_string().is_empty());
 
         insta::assert_json_snapshot!(SerializableAnnotated(&our_log), {
             ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
