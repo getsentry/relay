@@ -24,6 +24,7 @@ psl = { workspace = true }
 regex = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
+relay-conventions = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-log = { workspace = true }
 relay-pattern = { workspace = true, features = ["serde"] }

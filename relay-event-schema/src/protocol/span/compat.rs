@@ -1,3 +1,4 @@
+use relay_conventions::{DESCRIPTION, PROFILE_ID, SEGMENT_ID};
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
 
 use crate::protocol::{Attributes, EventId, SpanV2, Timestamp};
@@ -55,18 +56,18 @@ impl TryFrom<SpanV2> for CompatSpan {
             }
 
             // Double-write some attributes to top-level fields:
-            if let Some(description) = get_string_or_error(attributes, "sentry.description")
+            if let Some(description) = get_string_or_error(attributes, DESCRIPTION)
             // TODO: EAP expects sentry.raw_description, double write this somewhere.
             {
                 compat_span.description = description;
             }
-            if let Some(profile_id) = get_string_or_error(attributes, "sentry.profile_id") {
+            if let Some(profile_id) = get_string_or_error(attributes, PROFILE_ID) {
                 compat_span.profile_id = profile_id.and_then(|s| match s.parse::<EventId>() {
                     Ok(id) => Annotated::from(id),
                     Err(_) => Annotated::from_error(Error::invalid("profile_id"), None),
                 });
             }
-            if let Some(segment_id) = get_string_or_error(attributes, "sentry.segment.id") {
+            if let Some(segment_id) = get_string_or_error(attributes, SEGMENT_ID) {
                 compat_span.segment_id = segment_id;
             }
             if let Some(Value::Bool(b)) =

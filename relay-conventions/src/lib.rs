@@ -2,6 +2,13 @@
 //!
 //! This crate contains the `sentry-conventions` repository as a git submodule. Attribute definitions in the submodule
 //! are parsed at compile time and can be accessed via the `attribute_info` function.
+//!
+//! It also exposes a number of constants for attribute names that Relay has specific logic for. It is recommended
+//! to use these constants instead of the bare attribute names to ensure consistency.
+
+mod consts;
+
+pub use consts::*;
 
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
 include!(concat!(env!("OUT_DIR"), "/name_fn.rs"));
