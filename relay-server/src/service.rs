@@ -17,6 +17,7 @@ use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOut
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{
     self, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
+    ProxyProcessorService,
 };
 use crate::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 use crate::services::projects::source::ProjectSource;
@@ -181,7 +182,11 @@ impl ServiceState {
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
-        let (processor, processor_rx) = channel(EnvelopeProcessorService::name());
+        let (processor, processor_rx) = match config.relay_mode() {
+            relay_config::RelayMode::Proxy => channel(ProxyProcessorService::name()),
+            relay_config::RelayMode::Managed => channel(EnvelopeProcessorService::name()),
+        };
+
         let outcome_producer = services.start(OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
@@ -247,28 +252,54 @@ impl ServiceState {
             .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
 
         let processor_pool = create_processor_pool(&config)?;
-        services.start_with(
-            EnvelopeProcessorService::new(
-                processor_pool.clone(),
-                config.clone(),
-                global_config_handle,
-                project_cache_handle.clone(),
-                cogs,
-                #[cfg(feature = "processing")]
-                redis_clients.clone(),
-                processor::Addrs {
-                    outcome_aggregator: outcome_aggregator.clone(),
-                    upstream_relay: upstream_relay.clone(),
+
+        // TODO: This can probably be done more elegantly
+        match config.relay_mode() {
+            relay_config::RelayMode::Proxy => services.start_with(
+                ProxyProcessorService::new(
+                    processor_pool.clone(),
+                    config.clone(),
+                    global_config_handle,
+                    project_cache_handle.clone(),
+                    cogs,
                     #[cfg(feature = "processing")]
-                    store_forwarder: store.clone(),
-                    aggregator: aggregator.clone(),
-                    #[cfg(feature = "processing")]
-                    global_rate_limits,
-                },
-                metric_outcomes.clone(),
+                    redis_clients.clone(),
+                    processor::Addrs {
+                        outcome_aggregator: outcome_aggregator.clone(),
+                        upstream_relay: upstream_relay.clone(),
+                        #[cfg(feature = "processing")]
+                        store_forwarder: store.clone(),
+                        aggregator: aggregator.clone(),
+                        #[cfg(feature = "processing")]
+                        global_rate_limits,
+                    },
+                    metric_outcomes.clone(),
+                ),
+                processor_rx,
             ),
-            processor_rx,
-        );
+            relay_config::RelayMode::Managed => services.start_with(
+                EnvelopeProcessorService::new(
+                    processor_pool.clone(),
+                    config.clone(),
+                    global_config_handle,
+                    project_cache_handle.clone(),
+                    cogs,
+                    #[cfg(feature = "processing")]
+                    redis_clients.clone(),
+                    processor::Addrs {
+                        outcome_aggregator: outcome_aggregator.clone(),
+                        upstream_relay: upstream_relay.clone(),
+                        #[cfg(feature = "processing")]
+                        store_forwarder: store.clone(),
+                        aggregator: aggregator.clone(),
+                        #[cfg(feature = "processing")]
+                        global_rate_limits,
+                    },
+                    metric_outcomes.clone(),
+                ),
+                processor_rx,
+            ),
+        }
 
         let envelope_buffer = PartitionedEnvelopeBuffer::create(
             config.spool_partitions(),
