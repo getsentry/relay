@@ -29,7 +29,7 @@ pub enum ContentType {
     LogContainer,
     /// `application/vnd.sentry.items.span.v2+json`
     SpanV2Container,
-    /// `application/vnd.sentry._internal.span.compat`
+    /// Internal, not serialized.
     CompatSpan,
     /// Any arbitrary content type not listed explicitly.
     Other(String),

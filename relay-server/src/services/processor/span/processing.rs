@@ -13,7 +13,7 @@ use crate::services::processor::{
     TransactionGroup, dynamic_sampling, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::{self, sample};
+use crate::utils;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -320,7 +320,7 @@ pub fn extract_from_event(
     }
 
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate
-        && sample(sample_rate).is_discard()
+        && utils::sample(sample_rate).is_discard()
     {
         return spans_extracted;
     }

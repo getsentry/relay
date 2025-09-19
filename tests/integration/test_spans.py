@@ -1208,6 +1208,10 @@ def test_span_ingestion(
 
 
 def assert_contains(span, expected_span):
+    """Assert that an old-style kafka span is contained within the new backward compatible span.
+
+    This function can be removed once the consumer uses the new fields."""
+
     # These keys are produced by the old producer, but we chose not to replicate them because
     # the consumer does not need them anymore:
     unused_keys = {
