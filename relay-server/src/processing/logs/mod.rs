@@ -25,6 +25,7 @@ mod process;
 mod store;
 mod utils;
 mod validate;
+mod vercel;
 
 pub use self::utils::get_calculated_byte_size;
 
@@ -118,10 +119,16 @@ impl processing::Processor for LogsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::OtelLogsData))
             .into_vec();
 
+        let vercel_logs = envelope
+            .envelope_mut()
+            .take_items_by(|item| matches!(*item.ty(), ItemType::VercelLog))
+            .into_vec();
+
         let work = SerializedLogs {
             headers,
             logs,
             otel_logs,
+            vercel_logs,
         };
         Some(Managed::from_envelope(envelope, work))
     }
@@ -232,6 +239,9 @@ pub struct SerializedLogs {
 
     /// Logs which Relay received from the OTLP logs endpoint.
     otel_logs: Vec<Item>,
+
+    /// Logs which Relay received from the Vercel logs endpoint.
+    vercel_logs: Vec<Item>,
 }
 
 impl SerializedLogs {
@@ -239,19 +249,21 @@ impl SerializedLogs {
         // `Items` can be constructed with zero cost from a Vec (cap > inline cap).
         //
         // We want to minimize the work necessary to copy/merge data.
-        // Both vectors can contain items, but very likely only one does.
-        // We can use the bigger one as a base to copy/allocate less data.
+        // All three vectors can contain items, but very likely only one does.
+        // We can use the biggest one as a base to copy/allocate less data.
         // This implicitly also assumes the capacity of the vectors follows the length.
-        let (mut long, short) = match self.logs.len() > self.otel_logs.len() {
-            true => (self.logs, self.otel_logs),
-            false => (self.otel_logs, self.logs),
-        };
-        long.extend(short);
-        Envelope::from_parts(self.headers, Items::from_vec(long))
+        let mut items = Vec::new();
+        items.extend(self.logs);
+        items.extend(self.otel_logs);
+        items.extend(self.vercel_logs);
+        Envelope::from_parts(self.headers, Items::from_vec(items))
     }
 
     fn items(&self) -> impl Iterator<Item = &Item> {
-        self.logs.iter().chain(self.otel_logs.iter())
+        self.logs
+            .iter()
+            .chain(self.otel_logs.iter())
+            .chain(self.vercel_logs.iter())
     }
 
     /// Returns the total count of all logs contained.
@@ -330,6 +342,7 @@ impl ExpandedLogs {
             headers: self.headers,
             logs,
             otel_logs: Vec::new(),
+            vercel_logs: Vec::new(),
         })
     }
 }

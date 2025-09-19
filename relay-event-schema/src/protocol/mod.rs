@@ -36,6 +36,7 @@ mod types;
 mod user;
 mod user_report;
 mod utils;
+mod vercel;
 
 #[doc(inline)]
 pub use relay_base_schema::{events::*, spans::*};
@@ -74,3 +75,4 @@ pub use self::transaction::*;
 pub use self::types::*;
 pub use self::user::*;
 pub use self::user_report::*;
+pub use self::vercel::*;

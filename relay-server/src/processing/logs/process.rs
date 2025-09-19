@@ -28,6 +28,7 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
         }
 
         logs::otel::expand_into(&mut all_logs, records, logs.otel_logs);
+        logs::vercel::expand_into(&mut all_logs, records, logs.vercel_logs);
 
         ExpandedLogs {
             headers: logs.headers,

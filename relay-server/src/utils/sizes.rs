@@ -84,6 +84,7 @@ pub fn check_envelope_size_limits(
             }
             ItemType::OtelTracesData => config.max_event_size(), // a spans container similar to `Transaction`
             ItemType::OtelLogsData => config.max_event_size(), // a logs container similar to `Transaction`
+            ItemType::VercelLog => config.max_event_size(), // a vercel logs container similar to `Transaction`
             ItemType::ProfileChunk => config.max_profile_size(),
             ItemType::Unknown(_) => NO_LIMIT,
         };

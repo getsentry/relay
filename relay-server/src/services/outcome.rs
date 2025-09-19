@@ -610,6 +610,8 @@ pub enum DiscardItemType {
     OtelTracesData,
     /// An OTLP LogsData container.
     OtelLogsData,
+    /// A Vercel log entry.
+    VercelLog,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
@@ -665,6 +667,7 @@ impl DiscardItemType {
             Self::OtelSpan => "otel_span",
             Self::OtelTracesData => "otel_traces_data",
             Self::OtelLogsData => "otel_logs_data",
+            Self::VercelLog => "vercel_log",
             Self::UserReportV2 => "user_report_v2",
             Self::ProfileChunk => "profile_chunk",
         }
@@ -698,6 +701,7 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::OtelSpan => Self::OtelSpan,
             ItemType::OtelTracesData => Self::OtelTracesData,
             ItemType::OtelLogsData => Self::OtelLogsData,
+            ItemType::VercelLog => Self::VercelLog,
             ItemType::UserReportV2 => Self::UserReportV2,
             ItemType::ProfileChunk => Self::ProfileChunk,
             ItemType::Unknown(_) => Self::Unknown,
