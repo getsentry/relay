@@ -2,15 +2,16 @@
 
 ## Unreleased
 
-**Internal**:
-
-- No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
-
 **Features**:
 
+- Enables more PII rules for AI attributes. ([#5166](https://github.com/getsentry/relay/pull/5166)
 - Add Memory Info context to event schema. ([#5154](https://github.com/getsentry/relay/pull/5154))
 - Add Thread Pool Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))
 - Add Unity Info context to event schema. ([#5155](https://github.com/getsentry/relay/pull/5155))
+
+**Internal**:
+
+- No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
 
 ## 25.9.0
 
