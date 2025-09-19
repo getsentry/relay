@@ -1,4 +1,4 @@
-use relay_statsd::TimerMetric;
+use relay_statsd::{CounterMetric, TimerMetric};
 
 pub enum SamplingTimers {
     /// Amount of time it took to increment the Redis reservoir.
@@ -9,6 +9,20 @@ impl TimerMetric for SamplingTimers {
     fn name(&self) -> &'static str {
         match self {
             Self::RedisReservoir => "sampling.redis.reservoir",
+        }
+    }
+}
+
+#[cfg(feature = "redis")]
+pub enum SamplingCounters {
+    Decision,
+}
+
+#[cfg(feature = "redis")]
+impl CounterMetric for SamplingCounters {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Decision => "sampling.decision",
         }
     }
 }
