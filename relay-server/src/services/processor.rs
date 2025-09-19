@@ -3693,22 +3693,9 @@ impl ProxyProcessorService {
         self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
     }
 
-    // FIXME: 1 for 1 copy
+    // FIXME: 1 for 1 copy (minus processing block)
     fn submit_upstream(&self, cogs: &mut Token, submit: Submit) {
         let _submit = cogs.start_category("submit");
-
-        #[cfg(feature = "processing")]
-        if self.inner.config.processing_enabled()
-            && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
-        {
-            match submit {
-                Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
-                Submit::Output(output) => output
-                    .forward_store(store_forwarder)
-                    .unwrap_or_else(|err| err.into_inner()),
-            }
-            return;
-        }
 
         let mut envelope = match submit {
             Submit::Envelope(envelope) => envelope,
