@@ -5,6 +5,7 @@ mod cloud_resource;
 mod device;
 mod flags;
 mod gpu;
+mod memory_info;
 mod monitor;
 mod nel;
 mod os;
@@ -27,6 +28,7 @@ pub use chromium_stability_report::*;
 pub use cloud_resource::*;
 pub use device::*;
 pub use gpu::*;
+pub use memory_info::*;
 pub use monitor::*;
 pub use nel::*;
 pub use os::*;
@@ -85,6 +87,9 @@ pub enum Context {
     /// Information related to User Report V2. TODO:(jferg): rename to UserFeedbackContext
     #[metastructure(tag = "feedback")]
     UserReportV2(Box<UserReportV2Context>),
+    /// Information related to Memory usage and garbage collection metrics.
+    #[metastructure(tag = "memory_info")]
+    MemoryInfo(Box<MemoryInfoContext>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),
     /// Auxilliary information for reprocessing.
