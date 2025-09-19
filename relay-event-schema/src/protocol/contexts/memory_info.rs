@@ -1,4 +1,4 @@
-use relay_protocol::{Annotated, Empty, Array, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
 
