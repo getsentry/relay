@@ -9,6 +9,7 @@ use relay_quotas::Quota;
 use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
@@ -18,6 +19,15 @@ use crate::metrics::{
 };
 use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
+
+/// Settings for retention policy.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetentionSettings {
+    /// Standard / full fidelity rentention policy in days.
+    pub standard: u16,
+    /// Downsampled rentention policy in days.
+    pub downsampled: u16,
+}
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +57,10 @@ pub struct ProjectConfig {
     /// Maximum sampled event retention for the organization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub downsampled_event_retention: Option<u16>,
+    /// Standard and down sampled event retentions per DataCategory.
+    /// The key is the string DataCategory.name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retentions: Option<HashMap<String, RetentionSettings>>,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
@@ -142,6 +156,7 @@ impl Default for ProjectConfig {
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
             downsampled_event_retention: None,
+            retentions: None,
             quotas: Vec::new(),
             sampling: None,
             measurements: None,
