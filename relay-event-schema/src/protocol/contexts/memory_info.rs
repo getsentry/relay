@@ -33,7 +33,7 @@ pub struct MemoryInfoContext {
     pub memory_load_bytes: Annotated<u64>,
 
     /// Array of GC pause durations in milliseconds.
-    pub pause_durations: Annotated<Vec<Annotated<u64>>>,
+    pub pause_durations: Annotated<Arrayu64>>,
 
     /// Percentage of time spent in GC pauses.
     pub pause_time_percentage: Annotated<f64>,
