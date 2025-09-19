@@ -21,6 +21,7 @@ opentelemetry-proto = { workspace = true, features = [
     "with-serde",
     "trace",
 ] }
+relay-conventions = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-otel = { workspace = true }
 relay-protocol = { workspace = true }
