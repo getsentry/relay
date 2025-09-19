@@ -3672,28 +3672,100 @@ impl ProxyProcessorService {
         // }
     }
 
+    // FIXME: 1 for 1 copy
     fn handle_submit_client_reports(&self, cogs: &mut Token, message: SubmitClientReports) {
-        todo!("Adapt the logic");
-        // let SubmitClientReports {
-        //     client_reports,
-        //     scoping,
-        // } = message;
+        let SubmitClientReports {
+            client_reports,
+            scoping,
+        } = message;
 
-        // let upstream = self.inner.config.upstream_descriptor();
-        // let dsn = PartialDsn::outbound(&scoping, upstream);
+        let upstream = self.inner.config.upstream_descriptor();
+        let dsn = PartialDsn::outbound(&scoping, upstream);
 
-        // let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
-        // for client_report in client_reports {
-        //     let mut item = Item::new(ItemType::ClientReport);
-        //     item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
-        //     envelope.add_item(item);
-        // }
+        let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
+        for client_report in client_reports {
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
+            envelope.add_item(item);
+        }
 
-        // let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
-        // self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
+        let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
+        self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
     }
 
-    // FIXME: Copy
+    // FIXME: 1 for 1 copy
+    fn submit_upstream(&self, cogs: &mut Token, submit: Submit) {
+        let _submit = cogs.start_category("submit");
+
+        #[cfg(feature = "processing")]
+        if self.inner.config.processing_enabled()
+            && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
+        {
+            match submit {
+                Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
+                Submit::Output(output) => output
+                    .forward_store(store_forwarder)
+                    .unwrap_or_else(|err| err.into_inner()),
+            }
+            return;
+        }
+
+        let mut envelope = match submit {
+            Submit::Envelope(envelope) => envelope,
+            Submit::Output(output) => match output.serialize_envelope() {
+                Ok(envelope) => ManagedEnvelope::from(envelope).into_processed(),
+                Err(_) => {
+                    relay_log::error!("failed to serialize output to an envelope");
+                    return;
+                }
+            },
+        };
+
+        if envelope.envelope_mut().is_empty() {
+            envelope.accept();
+            return;
+        }
+
+        // Override the `sent_at` timestamp. Since the envelope went through basic
+        // normalization, all timestamps have been corrected. We propagate the new
+        // `sent_at` to allow the next Relay to double-check this timestamp and
+        // potentially apply correction again. This is done as close to sending as
+        // possible so that we avoid internal delays.
+        envelope.envelope_mut().set_sent_at(Utc::now());
+
+        relay_log::trace!("sending envelope to sentry endpoint");
+        let http_encoding = self.inner.config.http_encoding();
+        let result = envelope.envelope().to_vec().and_then(|v| {
+            encode_payload(&v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
+        });
+
+        match result {
+            Ok(body) => {
+                self.inner
+                    .addrs
+                    .upstream_relay
+                    .send(SendRequest(SendEnvelope {
+                        envelope,
+                        body,
+                        http_encoding,
+                        project_cache: self.inner.project_cache.clone(),
+                    }));
+            }
+            Err(error) => {
+                // Errors are only logged for what we consider an internal discard reason. These
+                // indicate errors in the infrastructure or implementation bugs.
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    tags.project_key = %envelope.scoping().project_key,
+                    "failed to serialize envelope payload"
+                );
+
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+            }
+        }
+    }
+
+    // FIXME: 1 for 1 copy
     fn feature_weights(&self, message: &EnvelopeProcessor) -> FeatureWeights {
         match message {
             // Envelope is split later and tokens are attributed then.
@@ -3717,7 +3789,7 @@ impl ProxyProcessorService {
         }
     }
 
-    // FIXME: Copy
+    // FIXME: 1 for 1 copy (but can be simplified once we get rid of cogs)
     async fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();
 
