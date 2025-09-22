@@ -16,7 +16,6 @@ use crate::services::projects::project::ProjectInfo;
 use crate::utils;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
-use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::{
