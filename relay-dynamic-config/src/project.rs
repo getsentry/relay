@@ -33,9 +33,9 @@ pub struct RetentionSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Retentions {
     /// Setting for DataCategory.LOG_BYTE.
-    log_byte: Option<RetentionSettings>,
+    log_byte: RetentionSettings,
     /// Setting for DataCategory.SPAN.
-    span: Option<RetentionSettings>,
+    span: RetentionSettings,
 }
 
 impl Retentions {
