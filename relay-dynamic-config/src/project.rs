@@ -39,7 +39,7 @@ struct Retentions {
 }
 
 impl Retentions {
-    fn retention_for_trace_item(ty: TraceItemType) -> Option<&RetentionSettings> {
+    fn retention_for_trace_item(&self, ty: TraceItemType) -> Option<&RetentionSettings> {
         match ty {
             TraceItemType::Log => Some(&self.log_byte),
             TraceItemType::Span => Some(&self.span),
