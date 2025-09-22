@@ -47,29 +47,25 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
 /// Normalization must happen before any filters are applied or other procedures which rely on the
 /// presence and well-formedness of attributes and fields.
 pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
-    logs.modify(|logs, records| {
-        let meta = logs.headers.meta();
-        logs.logs.retain_mut(|log| {
-            let r = normalize_log(log, meta).inspect_err(|err| {
+    logs.retain_with_context(
+        |logs| (&mut logs.logs, logs.headers.meta()),
+        |log, meta| {
+            normalize_log(log, meta).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
-            });
-
-            records.or_default(r.map(|_| true), &*log)
-        })
-    });
+            })
+        },
+    );
 }
 
 /// Applies PII scrubbing to individual log entries.
 pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
-    logs.modify(|logs, records| {
-        logs.logs.retain_mut(|log| {
-            let r = scrub_log(log, ctx).inspect_err(|err| {
-                relay_log::debug!("failed to scrub pii from log: {err}");
-            });
-
-            records.or_default(r.map(|_| true), &*log)
-        })
-    });
+    logs.retain(
+        |logs| &mut logs.logs,
+        |log| {
+            scrub_log(log, ctx)
+                .inspect_err(|err| relay_log::debug!("failed to scrub pii from log: {err}"))
+        },
+    );
 }
 
 fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerItems<OurLog>> {
