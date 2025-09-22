@@ -253,6 +253,7 @@ mod tests {
                 lcp_size: ~,
                 lcp_id: ~,
                 lcp_url: ~,
+                span_name: ~,
                 other: {
                     "custom_attribute": I64(
                         42,

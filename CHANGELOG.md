@@ -8,7 +8,7 @@
 - Add Memory Info context to event schema. ([#5154](https://github.com/getsentry/relay/pull/5154))
 - Add Thread Pool Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))
 - Add Unity Info context to event schema. ([#5155](https://github.com/getsentry/relay/pull/5155))
-- Handle empty span id and trace id in otel log transform. ([#5150](https://github.com/getsentry/relay/pull/5150))
+- Generate `sentry.name` attributes for spans without names. ([#5143](https://github.com/getsentry/relay/pull/5143))
 
 **Internal**:
 

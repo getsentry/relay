@@ -472,10 +472,10 @@ mod tests {
           "description": "middleware - fastify -> @fastify/multipart",
           "data": {
             "sentry.environment": "test",
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "fastify.type": "middleware",
             "hook.name": "onResponse",
             "plugin.name": "fastify -> @fastify/multipart",
-            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
           },
@@ -967,8 +967,8 @@ mod tests {
           "description": "CACHE HIT",
           "data": {
             "db.system": "redis",
-            "db.statement": "GET s:user:123",
-            "sentry.name": "CACHE HIT"
+            "sentry.name": "CACHE HIT",
+            "db.statement": "GET s:user:123"
           },
           "kind": "client"
         }
@@ -1217,8 +1217,8 @@ mod tests {
           "status": "unknown",
           "description": "FAAS",
           "data": {
-            "faas.trigger": "http",
-            "sentry.name": "FAAS"
+            "sentry.name": "FAAS",
+            "faas.trigger": "http"
           }
         }
         "###);
@@ -1261,8 +1261,8 @@ mod tests {
           "description": "GET /api/users",
           "data": {
             "http.request_method": "GET",
-            "http.route": "/api/users",
-            "sentry.name": "GET /api/users"
+            "sentry.name": "GET /api/users",
+            "http.route": "/api/users"
           },
           "kind": "server"
         }
@@ -1306,8 +1306,8 @@ mod tests {
           "description": "SELECT * FROM users WHERE id = $1",
           "data": {
             "db.system": "postgres",
-            "db.statement": "SELECT * FROM users WHERE id = $1",
-            "sentry.name": "SELECT users"
+            "sentry.name": "SELECT users",
+            "db.statement": "SELECT * FROM users WHERE id = $1"
           },
           "kind": "client"
         }
@@ -1355,9 +1355,9 @@ mod tests {
           "description": "POST /graphql (getUserById)",
           "data": {
             "http.request_method": "POST",
+            "sentry.name": "POST /graphql",
             "http.route": "/graphql",
-            "sentry.graphql.operation": "getUserById",
-            "sentry.name": "POST /graphql"
+            "sentry.graphql.operation": "getUserById"
           },
           "kind": "server"
         }
