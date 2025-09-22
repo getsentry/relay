@@ -1237,7 +1237,21 @@ def assert_contains(span, expected_span):
             if key in optional_flags:
                 assert span.get(key, False) == expected_span[key]
             elif key == "links":
-                continue  # FIXME
+                # Link attributes have a different format now, but they are heavily filtered,
+                # JSON-encoded anyway and currently not used by the product.
+                # See
+                # - https://github.com/getsentry/sentry/issues/95661
+                # - https://github.com/getsentry/sentry/pull/96510
+                links = [
+                    {
+                        **link,
+                        "attributes": {
+                            k: v["value"] for (k, v) in link["attributes"].items()
+                        },
+                    }
+                    for link in span[key]
+                ]
+                assert links == expected_value
             else:
                 assert span[key] == expected_span[key]
 
