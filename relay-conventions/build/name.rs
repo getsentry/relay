@@ -62,7 +62,7 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             }).collect::<Vec<&str>>().join("");
             let format_args = parts.iter().flat_map(|part| {
                 if let TemplatePart::Attribute(_, ident) = part {
-                    Some(quote! { #ident })
+                    Some(ident)
                 } else {
                     None
                 }
