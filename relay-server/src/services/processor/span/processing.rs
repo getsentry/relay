@@ -229,11 +229,8 @@ pub async fn process(
             }
         };
 
-        // Write back:
         let mut new_item = Item::new(ItemType::Span);
-        let produce_compat_spans =
-            utils::sample(global_config.options.span_kafka_v2_sample_rate).is_keep();
-        if produce_compat_spans {
+        if produce_compat_spans(&config, global_config) {
             let span_v2 = annotated_span.map_value(relay_spans::span_v1_to_span_v2);
             let compat_span = match span_v2.map_value(CompatSpan::try_from) {
                 Annotated(Some(Result::Err(err)), _) => {
@@ -282,6 +279,18 @@ pub async fn process(
     if let Some(outcome) = sampling_result.into_dropped_outcome() {
         managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
+}
+
+/// Whether or not to convert spans into backward-compatible V2 spans.
+///
+/// This only makes sense when we forward the envelope to Kafka.
+fn produce_compat_spans(config: &Config, global_config: &GlobalConfig) -> bool {
+    #[cfg(not(feature = "processing"))]
+    {
+        return false;
+    }
+    config.processing_enabled()
+        && utils::sample(global_config.options.span_kafka_v2_sample_rate).is_keep()
 }
 
 fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value: Option<f64>) {
