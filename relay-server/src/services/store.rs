@@ -1121,7 +1121,7 @@ impl StoreService {
                 downsampled_retention_days,
                 received: datetime_to_timestamp(received_at),
             },
-            compat_span: serde_json::from_slice(&payload)
+            span: serde_json::from_slice(&payload)
                 .map_err(|e| StoreError::EncodingFailed(e.into()))?,
         };
 
@@ -1578,9 +1578,15 @@ struct SpanKafkaMessage<'a> {
 struct SpanV2KafkaMessage<'a> {
     #[serde(flatten)]
     meta: SpanMeta,
+    span: MinimallyParsedSpan<'a>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct MinimallyParsedSpan<'a> {
+    trace_id: EventId,
     /// Use the lightest possible deserialization that supports `flatten`. `RawValue` does not.
-    #[serde(flatten)]
-    compat_span: BTreeMap<&'a str, &'a RawValue>,
+    #[serde(borrow, flatten)]
+    span: BTreeMap<&'a str, &'a RawValue>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1789,6 +1795,7 @@ impl Message for KafkaMessage<'_> {
             Self::Event(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
             Self::Span { message, .. } => Some(message.trace_id.0),
+            Self::SpanV2 { message, .. } => Some(message.span.trace_id.0),
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1801,7 +1808,11 @@ impl Message for KafkaMessage<'_> {
             Self::ReplayEvent(message) => Some(message.replay_id.0),
 
             // Random partitioning
-            _ => None,
+            Self::Metric { .. }
+            | Self::Item { .. }
+            | Self::Profile(_)
+            | Self::ProfileChunk(_)
+            | Self::ReplayRecordingNotChunked(_) => None,
         }
         .filter(|uuid| !uuid.is_nil())
         .map(|uuid| uuid.as_u128())
