@@ -121,19 +121,15 @@ const TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION: u16 = 3;
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum AcceptTransactionNames {
     /// Only accept transaction names with a low-cardinality source.
     Strict,
 
     /// For some SDKs, accept all transaction names, while for others, apply strict rules.
     #[serde(other)]
+    #[default]
     ClientBased,
-}
-
-impl Default for AcceptTransactionNames {
-    fn default() -> Self {
-        Self::ClientBased
-    }
 }
 
 /// Configuration for extracting metrics from transaction payloads.

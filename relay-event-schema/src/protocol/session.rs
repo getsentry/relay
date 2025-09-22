@@ -10,11 +10,12 @@ use crate::protocol::IpAddr;
 use crate::protocol::utils::null_to_default;
 
 /// The type of session event we're dealing with.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Default)]
 pub enum SessionStatus {
     /// The session is healthy.
     ///
     /// This does not necessarily indicate that the session is still active.
+    #[default]
     Ok,
     /// The session terminated normally.
     Exited,
@@ -79,12 +80,6 @@ impl std::str::FromStr for SessionStatus {
             "unhandled" => SessionStatus::Unhandled,
             other => SessionStatus::Unknown(other.to_owned()),
         })
-    }
-}
-
-impl Default for SessionStatus {
-    fn default() -> Self {
-        Self::Ok
     }
 }
 

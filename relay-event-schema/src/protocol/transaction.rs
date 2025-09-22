@@ -10,6 +10,7 @@ use crate::protocol::Timestamp;
 /// Describes how the name of the transaction was determined.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum TransactionSource {
     /// User-defined name set through `set_transaction_name`.
     Custom,
@@ -26,6 +27,7 @@ pub enum TransactionSource {
     /// Name of a background task (e.g. a Celery task).
     Task,
     /// This is the default value set by Relay for legacy SDKs.
+    #[default]
     Unknown,
     /// Any other unknown source that is not explicitly defined above.
     Other(String),
@@ -68,12 +70,6 @@ impl FromStr for TransactionSource {
 impl fmt::Display for TransactionSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
-    }
-}
-
-impl Default for TransactionSource {
-    fn default() -> Self {
-        Self::Unknown
     }
 }
 

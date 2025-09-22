@@ -11,7 +11,7 @@ use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLogRecord;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_otel::otel_value_to_attribute;
-use relay_protocol::{Annotated, Object};
+use relay_protocol::{Annotated, Meta, Object, Remark, RemarkType};
 
 /// Maps OpenTelemetry severity number to Sentry log level.
 ///
@@ -61,10 +61,25 @@ pub fn otel_to_sentry_log(
         ..
     } = otel_log;
 
-    let span_id = SpanId::try_from(span_id.as_slice())
-        .map_or_else(|err| Annotated::from_error(err, None), Annotated::new);
-    let trace_id = TraceId::try_from(trace_id.as_slice())
-        .map_or_else(|err| Annotated::from_error(err, None), Annotated::new);
+    let span_id = if span_id.is_empty() {
+        Annotated::empty()
+    } else {
+        SpanId::try_from(span_id.as_slice())
+            .map_or_else(|err| Annotated::from_error(err, None), Annotated::new)
+    };
+    let trace_id = match TraceId::try_from(trace_id.as_slice()) {
+        Ok(id) => Annotated::new(id),
+        Err(_) => {
+            let mut meta = Meta::default();
+            let rule_id = if trace_id.is_empty() {
+                "trace_id.missing"
+            } else {
+                "trace_id.invalid"
+            };
+            meta.add_remark(Remark::new(RemarkType::Substituted, rule_id));
+            Annotated(Some(TraceId::random()), meta)
+        }
+    };
     let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
     let level = map_severity_to_level(severity_number, &severity_text);
     let body = body.and_then(|v| v.value).and_then(|v| match v {
@@ -394,5 +409,184 @@ mod tests {
                 expected_level
             );
         }
+    }
+
+    #[test]
+    fn parse_otel_log_without_span_and_trace_ids() {
+        // Test with completely missing traceId and spanId fields
+        let json = r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "1544712660300000000",
+            "severityNumber": 10,
+            "severityText": "Information",
+            "body": {
+                "stringValue": "Log without trace context"
+            },
+            "attributes": [
+                {
+                    "key": "test.attribute",
+                    "value": {
+                        "stringValue": "test value"
+                    }
+                }
+            ]
+        }"#;
+
+        let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
+        let our_log: Annotated<OurLog> = Annotated::new(otel_to_sentry_log(otel_log, None, None));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&our_log), {
+            ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
+        }, @r#"
+        {
+          "timestamp": 1544712660.3,
+          "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "level": "info",
+          "body": "Log without trace context",
+          "attributes": {
+            "test.attribute": {
+              "type": "string",
+              "value": "test value"
+            }
+          },
+          "_meta": {
+            "trace_id": {
+              "": {
+                "rem": [
+                  [
+                    "trace_id.missing",
+                    "s"
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_otel_log_with_empty_trace_ids() {
+        // Test with empty traceId and spanId byte arrays
+        let json = r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "1544712660300000000",
+            "severityNumber": 17,
+            "severityText": "Error",
+            "traceId": "",
+            "spanId": "",
+            "body": {
+                "stringValue": "Error log with empty trace IDs"
+            },
+            "attributes": [
+                {
+                    "key": "error.type",
+                    "value": {
+                        "stringValue": "ValidationError"
+                    }
+                }
+            ]
+        }"#;
+
+        let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
+        let our_log: Annotated<OurLog> = Annotated::new(otel_to_sentry_log(otel_log, None, None));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&our_log), {
+            ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
+        }, @r#"
+        {
+          "timestamp": 1544712660.3,
+          "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "level": "error",
+          "body": "Error log with empty trace IDs",
+          "attributes": {
+            "error.type": {
+              "type": "string",
+              "value": "ValidationError"
+            }
+          },
+          "_meta": {
+            "trace_id": {
+              "": {
+                "rem": [
+                  [
+                    "trace_id.missing",
+                    "s"
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_otel_log_with_invalid_trace_and_span_ids() {
+        // Test with invalid traceId and spanId formats (wrong length)
+        let json = r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "1544712660300000000",
+            "severityNumber": 13,
+            "severityText": "Warning",
+            "traceId": "abc123",
+            "spanId": "def456",
+            "body": {
+                "stringValue": "Warning log with invalid trace IDs"
+            },
+            "attributes": [
+                {
+                    "key": "warning.code",
+                    "value": {
+                        "intValue": "42"
+                    }
+                }
+            ]
+        }"#;
+
+        let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
+        let our_log: Annotated<OurLog> = Annotated::new(otel_to_sentry_log(otel_log, None, None));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&our_log), {
+            ".trace_id" => "4bf92f3577b34da6a3ce929d0e0e4736"
+        }, @r#"
+        {
+          "timestamp": 1544712660.3,
+          "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "span_id": null,
+          "level": "warn",
+          "body": "Warning log with invalid trace IDs",
+          "attributes": {
+            "warning.code": {
+              "type": "integer",
+              "value": 42
+            }
+          },
+          "_meta": {
+            "span_id": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "not a valid span id"
+                    }
+                  ]
+                ]
+              }
+            },
+            "trace_id": {
+              "": {
+                "rem": [
+                  [
+                    "trace_id.invalid",
+                    "s"
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
     }
 }

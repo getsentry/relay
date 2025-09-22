@@ -13,6 +13,7 @@
 **Internal**:
 
 - No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
+- Produce spans to `ingest-spans` by default. ([#5163](https://github.com/getsentry/relay/pull/5163))
 
 ## 25.9.0
 
