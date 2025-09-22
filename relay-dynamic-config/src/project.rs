@@ -7,9 +7,9 @@ use relay_filter::ProjectFiltersConfig;
 use relay_pii::{DataScrubbingConfig, PiiConfig};
 use relay_quotas::Quota;
 use relay_sampling::SamplingConfig;
+use sentry_protos::snuba::v1::TraceItemType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
 
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
@@ -27,6 +27,20 @@ pub struct RetentionSettings {
     pub standard: u16,
     /// Downsampled rentention policy in days.
     pub downsampled: u16,
+}
+
+struct Retentions {
+	log_byte: Option<RetentionSettings>,
+	span: Option<RetentionSettings>,
+}
+
+impl Retentions {
+	fn retention_for_trace_item(ty: TraceItemType) -> Option<&RetentionSettings> {
+		match ty {
+			TraceItemType::Log => Some(&self.log_byte),
+			TraceItemType::Span => Some(&self.span),
+		}
+	}
 }
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
@@ -60,7 +74,7 @@ pub struct ProjectConfig {
     /// Standard and down sampled event retentions per DataCategory.
     /// The key is the string DataCategory.name
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub retentions: Option<BTreeMap<String, RetentionSettings>>,
+    pub retentions: Option<Retentions>,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
