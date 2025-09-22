@@ -375,421 +375,417 @@
 <a href=#375 id=375 data-nosnippet>375</a>/// stack frames, `"none"` should be used here.
 <a href=#376 id=376 data-nosnippet>376</a></span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, ProcessValue)]
 <a href=#377 id=377 data-nosnippet>377</a>#[serde(rename_all = <span class="string">"snake_case"</span>)]
-<a href=#378 id=378 data-nosnippet>378</a></span><span class="kw">pub enum </span>InstructionAddrAdjustment {
-<a href=#379 id=379 data-nosnippet>379</a>    <span class="doccomment">/// The default. Applies a heuristic based on other event / exception attributes.
-<a href=#380 id=380 data-nosnippet>380</a>    </span>Auto,
-<a href=#381 id=381 data-nosnippet>381</a>
-<a href=#382 id=382 data-nosnippet>382</a>    <span class="doccomment">/// All but the first frame needs to be adjusted. The first frame's address is not a *return address*,
-<a href=#383 id=383 data-nosnippet>383</a>    /// but points directly to the faulty instruction.
-<a href=#384 id=384 data-nosnippet>384</a>    </span>AllButFirst,
-<a href=#385 id=385 data-nosnippet>385</a>
-<a href=#386 id=386 data-nosnippet>386</a>    <span class="doccomment">/// All frames should be adjusted, for example because the stack walking implementation truncated
-<a href=#387 id=387 data-nosnippet>387</a>    /// frames from the top of the stack, and all remaining frames' addresses are *return addresses*.
-<a href=#388 id=388 data-nosnippet>388</a>    </span>All,
-<a href=#389 id=389 data-nosnippet>389</a>
-<a href=#390 id=390 data-nosnippet>390</a>    <span class="doccomment">/// The stack walking implementation already provides correct addresses and no adjustment should
-<a href=#391 id=391 data-nosnippet>391</a>    /// be performed when symbolicating.
-<a href=#392 id=392 data-nosnippet>392</a>    </span><span class="prelude-val">None</span>,
-<a href=#393 id=393 data-nosnippet>393</a>
-<a href=#394 id=394 data-nosnippet>394</a>    <span class="doccomment">/// Any other unknown adjustment strategy.
-<a href=#395 id=395 data-nosnippet>395</a>    ///
-<a href=#396 id=396 data-nosnippet>396</a>    /// This exists to ensure forward compatibility.
-<a href=#397 id=397 data-nosnippet>397</a>    </span>Unknown(String),
-<a href=#398 id=398 data-nosnippet>398</a>}
-<a href=#399 id=399 data-nosnippet>399</a>
-<a href=#400 id=400 data-nosnippet>400</a><span class="kw">impl </span>InstructionAddrAdjustment {
-<a href=#401 id=401 data-nosnippet>401</a>    <span class="doccomment">/// Returns the string representation of this adjustment.
-<a href=#402 id=402 data-nosnippet>402</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-<a href=#403 id=403 data-nosnippet>403</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#404 id=404 data-nosnippet>404</a>            InstructionAddrAdjustment::Auto =&gt; <span class="string">"auto"</span>,
-<a href=#405 id=405 data-nosnippet>405</a>            InstructionAddrAdjustment::AllButFirst =&gt; <span class="string">"all_but_first"</span>,
-<a href=#406 id=406 data-nosnippet>406</a>            InstructionAddrAdjustment::All =&gt; <span class="string">"all"</span>,
-<a href=#407 id=407 data-nosnippet>407</a>            InstructionAddrAdjustment::None =&gt; <span class="string">"none"</span>,
-<a href=#408 id=408 data-nosnippet>408</a>            InstructionAddrAdjustment::Unknown(s) =&gt; s,
-<a href=#409 id=409 data-nosnippet>409</a>        }
-<a href=#410 id=410 data-nosnippet>410</a>    }
-<a href=#411 id=411 data-nosnippet>411</a>}
-<a href=#412 id=412 data-nosnippet>412</a>
-<a href=#413 id=413 data-nosnippet>413</a><span class="kw">impl </span>FromStr <span class="kw">for </span>InstructionAddrAdjustment {
-<a href=#414 id=414 data-nosnippet>414</a>    <span class="kw">type </span><span class="prelude-val">Err </span>= Infallible;
-<a href=#415 id=415 data-nosnippet>415</a>
-<a href=#416 id=416 data-nosnippet>416</a>    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
-<a href=#417 id=417 data-nosnippet>417</a>        <span class="kw">match </span>s {
-<a href=#418 id=418 data-nosnippet>418</a>            <span class="string">"auto" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Auto),
-<a href=#419 id=419 data-nosnippet>419</a>            <span class="string">"all_but_first" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::AllButFirst),
-<a href=#420 id=420 data-nosnippet>420</a>            <span class="string">"all" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::All),
-<a href=#421 id=421 data-nosnippet>421</a>            <span class="string">"none" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::None),
-<a href=#422 id=422 data-nosnippet>422</a>            s =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Unknown(s.to_owned())),
-<a href=#423 id=423 data-nosnippet>423</a>        }
-<a href=#424 id=424 data-nosnippet>424</a>    }
-<a href=#425 id=425 data-nosnippet>425</a>}
-<a href=#426 id=426 data-nosnippet>426</a>
-<a href=#427 id=427 data-nosnippet>427</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>InstructionAddrAdjustment {
-<a href=#428 id=428 data-nosnippet>428</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#429 id=429 data-nosnippet>429</a>        f.write_str(<span class="self">self</span>.as_str())
-<a href=#430 id=430 data-nosnippet>430</a>    }
-<a href=#431 id=431 data-nosnippet>431</a>}
-<a href=#432 id=432 data-nosnippet>432</a>
-<a href=#433 id=433 data-nosnippet>433</a><span class="kw">impl </span>Default <span class="kw">for </span>InstructionAddrAdjustment {
-<a href=#434 id=434 data-nosnippet>434</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-<a href=#435 id=435 data-nosnippet>435</a>        <span class="self">Self</span>::Auto
-<a href=#436 id=436 data-nosnippet>436</a>    }
-<a href=#437 id=437 data-nosnippet>437</a>}
-<a href=#438 id=438 data-nosnippet>438</a>
-<a href=#439 id=439 data-nosnippet>439</a><span class="kw">impl </span>Empty <span class="kw">for </span>InstructionAddrAdjustment {
-<a href=#440 id=440 data-nosnippet>440</a>    <span class="attr">#[inline]
-<a href=#441 id=441 data-nosnippet>441</a>    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#442 id=442 data-nosnippet>442</a>        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Auto)
-<a href=#443 id=443 data-nosnippet>443</a>    }
-<a href=#444 id=444 data-nosnippet>444</a>}
-<a href=#445 id=445 data-nosnippet>445</a>
-<a href=#446 id=446 data-nosnippet>446</a><span class="kw">impl </span>FromValue <span class="kw">for </span>InstructionAddrAdjustment {
-<a href=#447 id=447 data-nosnippet>447</a>    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
-<a href=#448 id=448 data-nosnippet>448</a>        <span class="kw">match </span>String::from_value(value) {
-<a href=#449 id=449 data-nosnippet>449</a>            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; <span class="kw">match </span>value.parse() {
-<a href=#450 id=450 data-nosnippet>450</a>                <span class="prelude-val">Ok</span>(adjustment) =&gt; Annotated(<span class="prelude-val">Some</span>(adjustment), meta),
-<a href=#451 id=451 data-nosnippet>451</a>                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-<a href=#452 id=452 data-nosnippet>452</a>                    meta.add_error(ErrorKind::InvalidData);
-<a href=#453 id=453 data-nosnippet>453</a>                    meta.set_original_value(<span class="prelude-val">Some</span>(value));
-<a href=#454 id=454 data-nosnippet>454</a>                    Annotated(<span class="prelude-val">None</span>, meta)
-<a href=#455 id=455 data-nosnippet>455</a>                }
-<a href=#456 id=456 data-nosnippet>456</a>            },
-<a href=#457 id=457 data-nosnippet>457</a>            Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
-<a href=#458 id=458 data-nosnippet>458</a>        }
-<a href=#459 id=459 data-nosnippet>459</a>    }
-<a href=#460 id=460 data-nosnippet>460</a>}
-<a href=#461 id=461 data-nosnippet>461</a>
-<a href=#462 id=462 data-nosnippet>462</a><span class="kw">impl </span>IntoValue <span class="kw">for </span>InstructionAddrAdjustment {
-<a href=#463 id=463 data-nosnippet>463</a>    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; Value
-<a href=#464 id=464 data-nosnippet>464</a>    <span class="kw">where
-<a href=#465 id=465 data-nosnippet>465</a>        </span><span class="self">Self</span>: Sized,
-<a href=#466 id=466 data-nosnippet>466</a>    {
-<a href=#467 id=467 data-nosnippet>467</a>        Value::String(<span class="kw">match </span><span class="self">self </span>{
-<a href=#468 id=468 data-nosnippet>468</a>            <span class="self">Self</span>::Unknown(s) =&gt; s,
-<a href=#469 id=469 data-nosnippet>469</a>            <span class="kw">_ </span>=&gt; <span class="self">self</span>.as_str().to_owned(),
-<a href=#470 id=470 data-nosnippet>470</a>        })
-<a href=#471 id=471 data-nosnippet>471</a>    }
-<a href=#472 id=472 data-nosnippet>472</a>
-<a href=#473 id=473 data-nosnippet>473</a>    <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, _behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-<a href=#474 id=474 data-nosnippet>474</a>    <span class="kw">where
-<a href=#475 id=475 data-nosnippet>475</a>        </span><span class="self">Self</span>: Sized,
-<a href=#476 id=476 data-nosnippet>476</a>        S: serde::Serializer,
-<a href=#477 id=477 data-nosnippet>477</a>    {
-<a href=#478 id=478 data-nosnippet>478</a>        serde::Serialize::serialize(<span class="self">self</span>.as_str(), s)
-<a href=#479 id=479 data-nosnippet>479</a>    }
-<a href=#480 id=480 data-nosnippet>480</a>}
-<a href=#481 id=481 data-nosnippet>481</a>
-<a href=#482 id=482 data-nosnippet>482</a><span class="comment">// NOTE: This is not a doc comment because otherwise it will show up in public docs.
-<a href=#483 id=483 data-nosnippet>483</a>// Newtype to distinguish `raw_stacktrace` attributes from the rest.
-<a href=#484 id=484 data-nosnippet>484</a></span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-<a href=#485 id=485 data-nosnippet>485</a>#[metastructure(process_func = <span class="string">"process_stacktrace"</span>)]
-<a href=#486 id=486 data-nosnippet>486</a></span><span class="kw">pub struct </span>Stacktrace(<span class="kw">pub </span>RawStacktrace);
-<a href=#487 id=487 data-nosnippet>487</a>
-<a href=#488 id=488 data-nosnippet>488</a><span class="kw">impl </span>Deref <span class="kw">for </span>Stacktrace {
-<a href=#489 id=489 data-nosnippet>489</a>    <span class="kw">type </span>Target = RawStacktrace;
-<a href=#490 id=490 data-nosnippet>490</a>
-<a href=#491 id=491 data-nosnippet>491</a>    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RawStacktrace {
-<a href=#492 id=492 data-nosnippet>492</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
-<a href=#493 id=493 data-nosnippet>493</a>    </span>}
-<a href=#494 id=494 data-nosnippet>494</a>}
-<a href=#495 id=495 data-nosnippet>495</a>
-<a href=#496 id=496 data-nosnippet>496</a><span class="kw">impl </span>DerefMut <span class="kw">for </span>Stacktrace {
-<a href=#497 id=497 data-nosnippet>497</a>    <span class="kw">fn </span>deref_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>RawStacktrace {
-<a href=#498 id=498 data-nosnippet>498</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0
-<a href=#499 id=499 data-nosnippet>499</a>    </span>}
-<a href=#500 id=500 data-nosnippet>500</a>}
-<a href=#501 id=501 data-nosnippet>501</a>
-<a href=#502 id=502 data-nosnippet>502</a><span class="kw">impl </span>From&lt;RawStacktrace&gt; <span class="kw">for </span>Stacktrace {
-<a href=#503 id=503 data-nosnippet>503</a>    <span class="kw">fn </span>from(stacktrace: RawStacktrace) -&gt; Stacktrace {
-<a href=#504 id=504 data-nosnippet>504</a>        Stacktrace(stacktrace)
-<a href=#505 id=505 data-nosnippet>505</a>    }
-<a href=#506 id=506 data-nosnippet>506</a>}
-<a href=#507 id=507 data-nosnippet>507</a>
-<a href=#508 id=508 data-nosnippet>508</a><span class="kw">impl </span>From&lt;Stacktrace&gt; <span class="kw">for </span>RawStacktrace {
-<a href=#509 id=509 data-nosnippet>509</a>    <span class="kw">fn </span>from(stacktrace: Stacktrace) -&gt; RawStacktrace {
-<a href=#510 id=510 data-nosnippet>510</a>        stacktrace.<span class="number">0
-<a href=#511 id=511 data-nosnippet>511</a>    </span>}
-<a href=#512 id=512 data-nosnippet>512</a>}
-<a href=#513 id=513 data-nosnippet>513</a>
-<a href=#514 id=514 data-nosnippet>514</a><span class="attr">#[cfg(test)]
-<a href=#515 id=515 data-nosnippet>515</a></span><span class="kw">mod </span>tests {
-<a href=#516 id=516 data-nosnippet>516</a>    <span class="kw">use </span><span class="kw">crate</span>::protocol::{LockReasonType, ThreadId};
-<a href=#517 id=517 data-nosnippet>517</a>    <span class="kw">use </span>similar_asserts::assert_eq;
-<a href=#518 id=518 data-nosnippet>518</a>
-<a href=#519 id=519 data-nosnippet>519</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#520 id=520 data-nosnippet>520</a>
-<a href=#521 id=521 data-nosnippet>521</a>    <span class="attr">#[test]
-<a href=#522 id=522 data-nosnippet>522</a>    </span><span class="kw">fn </span>test_frame_roundtrip() {
-<a href=#523 id=523 data-nosnippet>523</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#524 id=524 data-nosnippet>524</a>  "function": "main@8",
-<a href=#525 id=525 data-nosnippet>525</a>  "raw_function": "main",
-<a href=#526 id=526 data-nosnippet>526</a>  "symbol": "_main@8",
-<a href=#527 id=527 data-nosnippet>527</a>  "module": "app",
-<a href=#528 id=528 data-nosnippet>528</a>  "package": "/my/app",
-<a href=#529 id=529 data-nosnippet>529</a>  "filename": "myfile.rs",
-<a href=#530 id=530 data-nosnippet>530</a>  "abs_path": "/path/to",
-<a href=#531 id=531 data-nosnippet>531</a>  "lineno": 2,
-<a href=#532 id=532 data-nosnippet>532</a>  "colno": 42,
-<a href=#533 id=533 data-nosnippet>533</a>  "platform": "rust",
-<a href=#534 id=534 data-nosnippet>534</a>  "pre_context": [
-<a href=#535 id=535 data-nosnippet>535</a>    "fn main() {"
+<a href=#378 id=378 data-nosnippet>378</a>#[derive(Default)]
+<a href=#379 id=379 data-nosnippet>379</a></span><span class="kw">pub enum </span>InstructionAddrAdjustment {
+<a href=#380 id=380 data-nosnippet>380</a>    <span class="doccomment">/// The default. Applies a heuristic based on other event / exception attributes.
+<a href=#381 id=381 data-nosnippet>381</a>    </span><span class="attr">#[default]
+<a href=#382 id=382 data-nosnippet>382</a>    </span>Auto,
+<a href=#383 id=383 data-nosnippet>383</a>
+<a href=#384 id=384 data-nosnippet>384</a>    <span class="doccomment">/// All but the first frame needs to be adjusted. The first frame's address is not a *return address*,
+<a href=#385 id=385 data-nosnippet>385</a>    /// but points directly to the faulty instruction.
+<a href=#386 id=386 data-nosnippet>386</a>    </span>AllButFirst,
+<a href=#387 id=387 data-nosnippet>387</a>
+<a href=#388 id=388 data-nosnippet>388</a>    <span class="doccomment">/// All frames should be adjusted, for example because the stack walking implementation truncated
+<a href=#389 id=389 data-nosnippet>389</a>    /// frames from the top of the stack, and all remaining frames' addresses are *return addresses*.
+<a href=#390 id=390 data-nosnippet>390</a>    </span>All,
+<a href=#391 id=391 data-nosnippet>391</a>
+<a href=#392 id=392 data-nosnippet>392</a>    <span class="doccomment">/// The stack walking implementation already provides correct addresses and no adjustment should
+<a href=#393 id=393 data-nosnippet>393</a>    /// be performed when symbolicating.
+<a href=#394 id=394 data-nosnippet>394</a>    </span><span class="prelude-val">None</span>,
+<a href=#395 id=395 data-nosnippet>395</a>
+<a href=#396 id=396 data-nosnippet>396</a>    <span class="doccomment">/// Any other unknown adjustment strategy.
+<a href=#397 id=397 data-nosnippet>397</a>    ///
+<a href=#398 id=398 data-nosnippet>398</a>    /// This exists to ensure forward compatibility.
+<a href=#399 id=399 data-nosnippet>399</a>    </span>Unknown(String),
+<a href=#400 id=400 data-nosnippet>400</a>}
+<a href=#401 id=401 data-nosnippet>401</a>
+<a href=#402 id=402 data-nosnippet>402</a><span class="kw">impl </span>InstructionAddrAdjustment {
+<a href=#403 id=403 data-nosnippet>403</a>    <span class="doccomment">/// Returns the string representation of this adjustment.
+<a href=#404 id=404 data-nosnippet>404</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+<a href=#405 id=405 data-nosnippet>405</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#406 id=406 data-nosnippet>406</a>            InstructionAddrAdjustment::Auto =&gt; <span class="string">"auto"</span>,
+<a href=#407 id=407 data-nosnippet>407</a>            InstructionAddrAdjustment::AllButFirst =&gt; <span class="string">"all_but_first"</span>,
+<a href=#408 id=408 data-nosnippet>408</a>            InstructionAddrAdjustment::All =&gt; <span class="string">"all"</span>,
+<a href=#409 id=409 data-nosnippet>409</a>            InstructionAddrAdjustment::None =&gt; <span class="string">"none"</span>,
+<a href=#410 id=410 data-nosnippet>410</a>            InstructionAddrAdjustment::Unknown(s) =&gt; s,
+<a href=#411 id=411 data-nosnippet>411</a>        }
+<a href=#412 id=412 data-nosnippet>412</a>    }
+<a href=#413 id=413 data-nosnippet>413</a>}
+<a href=#414 id=414 data-nosnippet>414</a>
+<a href=#415 id=415 data-nosnippet>415</a><span class="kw">impl </span>FromStr <span class="kw">for </span>InstructionAddrAdjustment {
+<a href=#416 id=416 data-nosnippet>416</a>    <span class="kw">type </span><span class="prelude-val">Err </span>= Infallible;
+<a href=#417 id=417 data-nosnippet>417</a>
+<a href=#418 id=418 data-nosnippet>418</a>    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+<a href=#419 id=419 data-nosnippet>419</a>        <span class="kw">match </span>s {
+<a href=#420 id=420 data-nosnippet>420</a>            <span class="string">"auto" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Auto),
+<a href=#421 id=421 data-nosnippet>421</a>            <span class="string">"all_but_first" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::AllButFirst),
+<a href=#422 id=422 data-nosnippet>422</a>            <span class="string">"all" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::All),
+<a href=#423 id=423 data-nosnippet>423</a>            <span class="string">"none" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::None),
+<a href=#424 id=424 data-nosnippet>424</a>            s =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Unknown(s.to_owned())),
+<a href=#425 id=425 data-nosnippet>425</a>        }
+<a href=#426 id=426 data-nosnippet>426</a>    }
+<a href=#427 id=427 data-nosnippet>427</a>}
+<a href=#428 id=428 data-nosnippet>428</a>
+<a href=#429 id=429 data-nosnippet>429</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>InstructionAddrAdjustment {
+<a href=#430 id=430 data-nosnippet>430</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#431 id=431 data-nosnippet>431</a>        f.write_str(<span class="self">self</span>.as_str())
+<a href=#432 id=432 data-nosnippet>432</a>    }
+<a href=#433 id=433 data-nosnippet>433</a>}
+<a href=#434 id=434 data-nosnippet>434</a>
+<a href=#435 id=435 data-nosnippet>435</a><span class="kw">impl </span>Empty <span class="kw">for </span>InstructionAddrAdjustment {
+<a href=#436 id=436 data-nosnippet>436</a>    <span class="attr">#[inline]
+<a href=#437 id=437 data-nosnippet>437</a>    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#438 id=438 data-nosnippet>438</a>        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Auto)
+<a href=#439 id=439 data-nosnippet>439</a>    }
+<a href=#440 id=440 data-nosnippet>440</a>}
+<a href=#441 id=441 data-nosnippet>441</a>
+<a href=#442 id=442 data-nosnippet>442</a><span class="kw">impl </span>FromValue <span class="kw">for </span>InstructionAddrAdjustment {
+<a href=#443 id=443 data-nosnippet>443</a>    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+<a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">match </span>String::from_value(value) {
+<a href=#445 id=445 data-nosnippet>445</a>            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; <span class="kw">match </span>value.parse() {
+<a href=#446 id=446 data-nosnippet>446</a>                <span class="prelude-val">Ok</span>(adjustment) =&gt; Annotated(<span class="prelude-val">Some</span>(adjustment), meta),
+<a href=#447 id=447 data-nosnippet>447</a>                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+<a href=#448 id=448 data-nosnippet>448</a>                    meta.add_error(ErrorKind::InvalidData);
+<a href=#449 id=449 data-nosnippet>449</a>                    meta.set_original_value(<span class="prelude-val">Some</span>(value));
+<a href=#450 id=450 data-nosnippet>450</a>                    Annotated(<span class="prelude-val">None</span>, meta)
+<a href=#451 id=451 data-nosnippet>451</a>                }
+<a href=#452 id=452 data-nosnippet>452</a>            },
+<a href=#453 id=453 data-nosnippet>453</a>            Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
+<a href=#454 id=454 data-nosnippet>454</a>        }
+<a href=#455 id=455 data-nosnippet>455</a>    }
+<a href=#456 id=456 data-nosnippet>456</a>}
+<a href=#457 id=457 data-nosnippet>457</a>
+<a href=#458 id=458 data-nosnippet>458</a><span class="kw">impl </span>IntoValue <span class="kw">for </span>InstructionAddrAdjustment {
+<a href=#459 id=459 data-nosnippet>459</a>    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; Value
+<a href=#460 id=460 data-nosnippet>460</a>    <span class="kw">where
+<a href=#461 id=461 data-nosnippet>461</a>        </span><span class="self">Self</span>: Sized,
+<a href=#462 id=462 data-nosnippet>462</a>    {
+<a href=#463 id=463 data-nosnippet>463</a>        Value::String(<span class="kw">match </span><span class="self">self </span>{
+<a href=#464 id=464 data-nosnippet>464</a>            <span class="self">Self</span>::Unknown(s) =&gt; s,
+<a href=#465 id=465 data-nosnippet>465</a>            <span class="kw">_ </span>=&gt; <span class="self">self</span>.as_str().to_owned(),
+<a href=#466 id=466 data-nosnippet>466</a>        })
+<a href=#467 id=467 data-nosnippet>467</a>    }
+<a href=#468 id=468 data-nosnippet>468</a>
+<a href=#469 id=469 data-nosnippet>469</a>    <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, _behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+<a href=#470 id=470 data-nosnippet>470</a>    <span class="kw">where
+<a href=#471 id=471 data-nosnippet>471</a>        </span><span class="self">Self</span>: Sized,
+<a href=#472 id=472 data-nosnippet>472</a>        S: serde::Serializer,
+<a href=#473 id=473 data-nosnippet>473</a>    {
+<a href=#474 id=474 data-nosnippet>474</a>        serde::Serialize::serialize(<span class="self">self</span>.as_str(), s)
+<a href=#475 id=475 data-nosnippet>475</a>    }
+<a href=#476 id=476 data-nosnippet>476</a>}
+<a href=#477 id=477 data-nosnippet>477</a>
+<a href=#478 id=478 data-nosnippet>478</a><span class="comment">// NOTE: This is not a doc comment because otherwise it will show up in public docs.
+<a href=#479 id=479 data-nosnippet>479</a>// Newtype to distinguish `raw_stacktrace` attributes from the rest.
+<a href=#480 id=480 data-nosnippet>480</a></span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+<a href=#481 id=481 data-nosnippet>481</a>#[metastructure(process_func = <span class="string">"process_stacktrace"</span>)]
+<a href=#482 id=482 data-nosnippet>482</a></span><span class="kw">pub struct </span>Stacktrace(<span class="kw">pub </span>RawStacktrace);
+<a href=#483 id=483 data-nosnippet>483</a>
+<a href=#484 id=484 data-nosnippet>484</a><span class="kw">impl </span>Deref <span class="kw">for </span>Stacktrace {
+<a href=#485 id=485 data-nosnippet>485</a>    <span class="kw">type </span>Target = RawStacktrace;
+<a href=#486 id=486 data-nosnippet>486</a>
+<a href=#487 id=487 data-nosnippet>487</a>    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RawStacktrace {
+<a href=#488 id=488 data-nosnippet>488</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+<a href=#489 id=489 data-nosnippet>489</a>    </span>}
+<a href=#490 id=490 data-nosnippet>490</a>}
+<a href=#491 id=491 data-nosnippet>491</a>
+<a href=#492 id=492 data-nosnippet>492</a><span class="kw">impl </span>DerefMut <span class="kw">for </span>Stacktrace {
+<a href=#493 id=493 data-nosnippet>493</a>    <span class="kw">fn </span>deref_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>RawStacktrace {
+<a href=#494 id=494 data-nosnippet>494</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0
+<a href=#495 id=495 data-nosnippet>495</a>    </span>}
+<a href=#496 id=496 data-nosnippet>496</a>}
+<a href=#497 id=497 data-nosnippet>497</a>
+<a href=#498 id=498 data-nosnippet>498</a><span class="kw">impl </span>From&lt;RawStacktrace&gt; <span class="kw">for </span>Stacktrace {
+<a href=#499 id=499 data-nosnippet>499</a>    <span class="kw">fn </span>from(stacktrace: RawStacktrace) -&gt; Stacktrace {
+<a href=#500 id=500 data-nosnippet>500</a>        Stacktrace(stacktrace)
+<a href=#501 id=501 data-nosnippet>501</a>    }
+<a href=#502 id=502 data-nosnippet>502</a>}
+<a href=#503 id=503 data-nosnippet>503</a>
+<a href=#504 id=504 data-nosnippet>504</a><span class="kw">impl </span>From&lt;Stacktrace&gt; <span class="kw">for </span>RawStacktrace {
+<a href=#505 id=505 data-nosnippet>505</a>    <span class="kw">fn </span>from(stacktrace: Stacktrace) -&gt; RawStacktrace {
+<a href=#506 id=506 data-nosnippet>506</a>        stacktrace.<span class="number">0
+<a href=#507 id=507 data-nosnippet>507</a>    </span>}
+<a href=#508 id=508 data-nosnippet>508</a>}
+<a href=#509 id=509 data-nosnippet>509</a>
+<a href=#510 id=510 data-nosnippet>510</a><span class="attr">#[cfg(test)]
+<a href=#511 id=511 data-nosnippet>511</a></span><span class="kw">mod </span>tests {
+<a href=#512 id=512 data-nosnippet>512</a>    <span class="kw">use </span><span class="kw">crate</span>::protocol::{LockReasonType, ThreadId};
+<a href=#513 id=513 data-nosnippet>513</a>    <span class="kw">use </span>similar_asserts::assert_eq;
+<a href=#514 id=514 data-nosnippet>514</a>
+<a href=#515 id=515 data-nosnippet>515</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#516 id=516 data-nosnippet>516</a>
+<a href=#517 id=517 data-nosnippet>517</a>    <span class="attr">#[test]
+<a href=#518 id=518 data-nosnippet>518</a>    </span><span class="kw">fn </span>test_frame_roundtrip() {
+<a href=#519 id=519 data-nosnippet>519</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#520 id=520 data-nosnippet>520</a>  "function": "main@8",
+<a href=#521 id=521 data-nosnippet>521</a>  "raw_function": "main",
+<a href=#522 id=522 data-nosnippet>522</a>  "symbol": "_main@8",
+<a href=#523 id=523 data-nosnippet>523</a>  "module": "app",
+<a href=#524 id=524 data-nosnippet>524</a>  "package": "/my/app",
+<a href=#525 id=525 data-nosnippet>525</a>  "filename": "myfile.rs",
+<a href=#526 id=526 data-nosnippet>526</a>  "abs_path": "/path/to",
+<a href=#527 id=527 data-nosnippet>527</a>  "lineno": 2,
+<a href=#528 id=528 data-nosnippet>528</a>  "colno": 42,
+<a href=#529 id=529 data-nosnippet>529</a>  "platform": "rust",
+<a href=#530 id=530 data-nosnippet>530</a>  "pre_context": [
+<a href=#531 id=531 data-nosnippet>531</a>    "fn main() {"
+<a href=#532 id=532 data-nosnippet>532</a>  ],
+<a href=#533 id=533 data-nosnippet>533</a>  "context_line": "unimplemented!()",
+<a href=#534 id=534 data-nosnippet>534</a>  "post_context": [
+<a href=#535 id=535 data-nosnippet>535</a>    "}"
 <a href=#536 id=536 data-nosnippet>536</a>  ],
-<a href=#537 id=537 data-nosnippet>537</a>  "context_line": "unimplemented!()",
-<a href=#538 id=538 data-nosnippet>538</a>  "post_context": [
-<a href=#539 id=539 data-nosnippet>539</a>    "}"
-<a href=#540 id=540 data-nosnippet>540</a>  ],
-<a href=#541 id=541 data-nosnippet>541</a>  "in_app": true,
-<a href=#542 id=542 data-nosnippet>542</a>  "vars": {
-<a href=#543 id=543 data-nosnippet>543</a>    "variable": "value"
-<a href=#544 id=544 data-nosnippet>544</a>  },
-<a href=#545 id=545 data-nosnippet>545</a>  "data": {
-<a href=#546 id=546 data-nosnippet>546</a>    "sourcemap": "http://example.com/invalid.map"
-<a href=#547 id=547 data-nosnippet>547</a>  },
-<a href=#548 id=548 data-nosnippet>548</a>  "image_addr": "0x400",
-<a href=#549 id=549 data-nosnippet>549</a>  "instruction_addr": "0x404",
-<a href=#550 id=550 data-nosnippet>550</a>  "addr_mode": "abs",
-<a href=#551 id=551 data-nosnippet>551</a>  "symbol_addr": "0x404",
-<a href=#552 id=552 data-nosnippet>552</a>  "trust": "69",
-<a href=#553 id=553 data-nosnippet>553</a>  "lang": "rust",
-<a href=#554 id=554 data-nosnippet>554</a>  "stack_start": true,
-<a href=#555 id=555 data-nosnippet>555</a>  "lock": {
-<a href=#556 id=556 data-nosnippet>556</a>    "type": 2,
-<a href=#557 id=557 data-nosnippet>557</a>    "address": "0x07d7437b",
-<a href=#558 id=558 data-nosnippet>558</a>    "package_name": "io.sentry.samples",
-<a href=#559 id=559 data-nosnippet>559</a>    "class_name": "MainActivity",
-<a href=#560 id=560 data-nosnippet>560</a>    "thread_id": 7
-<a href=#561 id=561 data-nosnippet>561</a>  },
-<a href=#562 id=562 data-nosnippet>562</a>  "other": "value"
-<a href=#563 id=563 data-nosnippet>563</a>}"#</span>;
-<a href=#564 id=564 data-nosnippet>564</a>        <span class="kw">let </span>frame = Annotated::new(Frame {
-<a href=#565 id=565 data-nosnippet>565</a>            function: Annotated::new(<span class="string">"main@8"</span>.to_owned()),
-<a href=#566 id=566 data-nosnippet>566</a>            raw_function: Annotated::new(<span class="string">"main"</span>.to_owned()),
-<a href=#567 id=567 data-nosnippet>567</a>            symbol: Annotated::new(<span class="string">"_main@8"</span>.to_owned()),
-<a href=#568 id=568 data-nosnippet>568</a>            module: Annotated::new(<span class="string">"app"</span>.to_owned()),
-<a href=#569 id=569 data-nosnippet>569</a>            package: Annotated::new(<span class="string">"/my/app"</span>.to_owned()),
-<a href=#570 id=570 data-nosnippet>570</a>            filename: Annotated::new(<span class="string">"myfile.rs"</span>.into()),
-<a href=#571 id=571 data-nosnippet>571</a>            abs_path: Annotated::new(<span class="string">"/path/to"</span>.into()),
-<a href=#572 id=572 data-nosnippet>572</a>            lineno: Annotated::new(<span class="number">2</span>),
-<a href=#573 id=573 data-nosnippet>573</a>            colno: Annotated::new(<span class="number">42</span>),
-<a href=#574 id=574 data-nosnippet>574</a>            platform: Annotated::new(<span class="string">"rust"</span>.to_owned()),
-<a href=#575 id=575 data-nosnippet>575</a>            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"fn main() {"</span>.to_owned())]),
-<a href=#576 id=576 data-nosnippet>576</a>            context_line: Annotated::new(<span class="string">"unimplemented!()"</span>.to_owned()),
-<a href=#577 id=577 data-nosnippet>577</a>            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"}"</span>.to_owned())]),
-<a href=#578 id=578 data-nosnippet>578</a>            in_app: Annotated::new(<span class="bool-val">true</span>),
-<a href=#579 id=579 data-nosnippet>579</a>            vars: {
-<a href=#580 id=580 data-nosnippet>580</a>                <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
-<a href=#581 id=581 data-nosnippet>581</a>                vars.insert(
-<a href=#582 id=582 data-nosnippet>582</a>                    <span class="string">"variable"</span>.to_owned(),
-<a href=#583 id=583 data-nosnippet>583</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
-<a href=#584 id=584 data-nosnippet>584</a>                );
-<a href=#585 id=585 data-nosnippet>585</a>                Annotated::new(vars.into())
-<a href=#586 id=586 data-nosnippet>586</a>            },
-<a href=#587 id=587 data-nosnippet>587</a>            data: Annotated::new(FrameData {
-<a href=#588 id=588 data-nosnippet>588</a>                sourcemap: Annotated::new(<span class="string">"http://example.com/invalid.map"</span>.to_owned()),
-<a href=#589 id=589 data-nosnippet>589</a>                ..Default::default()
-<a href=#590 id=590 data-nosnippet>590</a>            }),
-<a href=#591 id=591 data-nosnippet>591</a>            image_addr: Annotated::new(Addr(<span class="number">0x400</span>)),
-<a href=#592 id=592 data-nosnippet>592</a>            instruction_addr: Annotated::new(Addr(<span class="number">0x404</span>)),
-<a href=#593 id=593 data-nosnippet>593</a>            addr_mode: Annotated::new(<span class="string">"abs"</span>.into()),
-<a href=#594 id=594 data-nosnippet>594</a>            function_id: Annotated::empty(),
-<a href=#595 id=595 data-nosnippet>595</a>            symbol_addr: Annotated::new(Addr(<span class="number">0x404</span>)),
-<a href=#596 id=596 data-nosnippet>596</a>            trust: Annotated::new(<span class="string">"69"</span>.into()),
-<a href=#597 id=597 data-nosnippet>597</a>            lang: Annotated::new(<span class="string">"rust"</span>.into()),
-<a href=#598 id=598 data-nosnippet>598</a>            stack_start: Annotated::new(<span class="bool-val">true</span>),
-<a href=#599 id=599 data-nosnippet>599</a>            lock: Annotated::new(LockReason {
-<a href=#600 id=600 data-nosnippet>600</a>                ty: Annotated::new(LockReasonType::Waiting),
-<a href=#601 id=601 data-nosnippet>601</a>                address: Annotated::new(<span class="string">"0x07d7437b"</span>.to_owned()),
-<a href=#602 id=602 data-nosnippet>602</a>                package_name: Annotated::new(<span class="string">"io.sentry.samples"</span>.to_owned()),
-<a href=#603 id=603 data-nosnippet>603</a>                class_name: Annotated::new(<span class="string">"MainActivity"</span>.to_owned()),
-<a href=#604 id=604 data-nosnippet>604</a>                thread_id: Annotated::new(ThreadId::Int(<span class="number">7</span>)),
-<a href=#605 id=605 data-nosnippet>605</a>                other: Default::default(),
-<a href=#606 id=606 data-nosnippet>606</a>            }),
-<a href=#607 id=607 data-nosnippet>607</a>            other: {
-<a href=#608 id=608 data-nosnippet>608</a>                <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
-<a href=#609 id=609 data-nosnippet>609</a>                vars.insert(
-<a href=#610 id=610 data-nosnippet>610</a>                    <span class="string">"other"</span>.to_owned(),
-<a href=#611 id=611 data-nosnippet>611</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
-<a href=#612 id=612 data-nosnippet>612</a>                );
-<a href=#613 id=613 data-nosnippet>613</a>                vars
-<a href=#614 id=614 data-nosnippet>614</a>            },
-<a href=#615 id=615 data-nosnippet>615</a>        });
+<a href=#537 id=537 data-nosnippet>537</a>  "in_app": true,
+<a href=#538 id=538 data-nosnippet>538</a>  "vars": {
+<a href=#539 id=539 data-nosnippet>539</a>    "variable": "value"
+<a href=#540 id=540 data-nosnippet>540</a>  },
+<a href=#541 id=541 data-nosnippet>541</a>  "data": {
+<a href=#542 id=542 data-nosnippet>542</a>    "sourcemap": "http://example.com/invalid.map"
+<a href=#543 id=543 data-nosnippet>543</a>  },
+<a href=#544 id=544 data-nosnippet>544</a>  "image_addr": "0x400",
+<a href=#545 id=545 data-nosnippet>545</a>  "instruction_addr": "0x404",
+<a href=#546 id=546 data-nosnippet>546</a>  "addr_mode": "abs",
+<a href=#547 id=547 data-nosnippet>547</a>  "symbol_addr": "0x404",
+<a href=#548 id=548 data-nosnippet>548</a>  "trust": "69",
+<a href=#549 id=549 data-nosnippet>549</a>  "lang": "rust",
+<a href=#550 id=550 data-nosnippet>550</a>  "stack_start": true,
+<a href=#551 id=551 data-nosnippet>551</a>  "lock": {
+<a href=#552 id=552 data-nosnippet>552</a>    "type": 2,
+<a href=#553 id=553 data-nosnippet>553</a>    "address": "0x07d7437b",
+<a href=#554 id=554 data-nosnippet>554</a>    "package_name": "io.sentry.samples",
+<a href=#555 id=555 data-nosnippet>555</a>    "class_name": "MainActivity",
+<a href=#556 id=556 data-nosnippet>556</a>    "thread_id": 7
+<a href=#557 id=557 data-nosnippet>557</a>  },
+<a href=#558 id=558 data-nosnippet>558</a>  "other": "value"
+<a href=#559 id=559 data-nosnippet>559</a>}"#</span>;
+<a href=#560 id=560 data-nosnippet>560</a>        <span class="kw">let </span>frame = Annotated::new(Frame {
+<a href=#561 id=561 data-nosnippet>561</a>            function: Annotated::new(<span class="string">"main@8"</span>.to_owned()),
+<a href=#562 id=562 data-nosnippet>562</a>            raw_function: Annotated::new(<span class="string">"main"</span>.to_owned()),
+<a href=#563 id=563 data-nosnippet>563</a>            symbol: Annotated::new(<span class="string">"_main@8"</span>.to_owned()),
+<a href=#564 id=564 data-nosnippet>564</a>            module: Annotated::new(<span class="string">"app"</span>.to_owned()),
+<a href=#565 id=565 data-nosnippet>565</a>            package: Annotated::new(<span class="string">"/my/app"</span>.to_owned()),
+<a href=#566 id=566 data-nosnippet>566</a>            filename: Annotated::new(<span class="string">"myfile.rs"</span>.into()),
+<a href=#567 id=567 data-nosnippet>567</a>            abs_path: Annotated::new(<span class="string">"/path/to"</span>.into()),
+<a href=#568 id=568 data-nosnippet>568</a>            lineno: Annotated::new(<span class="number">2</span>),
+<a href=#569 id=569 data-nosnippet>569</a>            colno: Annotated::new(<span class="number">42</span>),
+<a href=#570 id=570 data-nosnippet>570</a>            platform: Annotated::new(<span class="string">"rust"</span>.to_owned()),
+<a href=#571 id=571 data-nosnippet>571</a>            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"fn main() {"</span>.to_owned())]),
+<a href=#572 id=572 data-nosnippet>572</a>            context_line: Annotated::new(<span class="string">"unimplemented!()"</span>.to_owned()),
+<a href=#573 id=573 data-nosnippet>573</a>            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"}"</span>.to_owned())]),
+<a href=#574 id=574 data-nosnippet>574</a>            in_app: Annotated::new(<span class="bool-val">true</span>),
+<a href=#575 id=575 data-nosnippet>575</a>            vars: {
+<a href=#576 id=576 data-nosnippet>576</a>                <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
+<a href=#577 id=577 data-nosnippet>577</a>                vars.insert(
+<a href=#578 id=578 data-nosnippet>578</a>                    <span class="string">"variable"</span>.to_owned(),
+<a href=#579 id=579 data-nosnippet>579</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
+<a href=#580 id=580 data-nosnippet>580</a>                );
+<a href=#581 id=581 data-nosnippet>581</a>                Annotated::new(vars.into())
+<a href=#582 id=582 data-nosnippet>582</a>            },
+<a href=#583 id=583 data-nosnippet>583</a>            data: Annotated::new(FrameData {
+<a href=#584 id=584 data-nosnippet>584</a>                sourcemap: Annotated::new(<span class="string">"http://example.com/invalid.map"</span>.to_owned()),
+<a href=#585 id=585 data-nosnippet>585</a>                ..Default::default()
+<a href=#586 id=586 data-nosnippet>586</a>            }),
+<a href=#587 id=587 data-nosnippet>587</a>            image_addr: Annotated::new(Addr(<span class="number">0x400</span>)),
+<a href=#588 id=588 data-nosnippet>588</a>            instruction_addr: Annotated::new(Addr(<span class="number">0x404</span>)),
+<a href=#589 id=589 data-nosnippet>589</a>            addr_mode: Annotated::new(<span class="string">"abs"</span>.into()),
+<a href=#590 id=590 data-nosnippet>590</a>            function_id: Annotated::empty(),
+<a href=#591 id=591 data-nosnippet>591</a>            symbol_addr: Annotated::new(Addr(<span class="number">0x404</span>)),
+<a href=#592 id=592 data-nosnippet>592</a>            trust: Annotated::new(<span class="string">"69"</span>.into()),
+<a href=#593 id=593 data-nosnippet>593</a>            lang: Annotated::new(<span class="string">"rust"</span>.into()),
+<a href=#594 id=594 data-nosnippet>594</a>            stack_start: Annotated::new(<span class="bool-val">true</span>),
+<a href=#595 id=595 data-nosnippet>595</a>            lock: Annotated::new(LockReason {
+<a href=#596 id=596 data-nosnippet>596</a>                ty: Annotated::new(LockReasonType::Waiting),
+<a href=#597 id=597 data-nosnippet>597</a>                address: Annotated::new(<span class="string">"0x07d7437b"</span>.to_owned()),
+<a href=#598 id=598 data-nosnippet>598</a>                package_name: Annotated::new(<span class="string">"io.sentry.samples"</span>.to_owned()),
+<a href=#599 id=599 data-nosnippet>599</a>                class_name: Annotated::new(<span class="string">"MainActivity"</span>.to_owned()),
+<a href=#600 id=600 data-nosnippet>600</a>                thread_id: Annotated::new(ThreadId::Int(<span class="number">7</span>)),
+<a href=#601 id=601 data-nosnippet>601</a>                other: Default::default(),
+<a href=#602 id=602 data-nosnippet>602</a>            }),
+<a href=#603 id=603 data-nosnippet>603</a>            other: {
+<a href=#604 id=604 data-nosnippet>604</a>                <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
+<a href=#605 id=605 data-nosnippet>605</a>                vars.insert(
+<a href=#606 id=606 data-nosnippet>606</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#607 id=607 data-nosnippet>607</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
+<a href=#608 id=608 data-nosnippet>608</a>                );
+<a href=#609 id=609 data-nosnippet>609</a>                vars
+<a href=#610 id=610 data-nosnippet>610</a>            },
+<a href=#611 id=611 data-nosnippet>611</a>        });
+<a href=#612 id=612 data-nosnippet>612</a>
+<a href=#613 id=613 data-nosnippet>613</a>        <span class="macro">assert_eq!</span>(frame, Annotated::from_json(json).unwrap());
+<a href=#614 id=614 data-nosnippet>614</a>        <span class="macro">assert_eq!</span>(json, frame.to_json_pretty().unwrap());
+<a href=#615 id=615 data-nosnippet>615</a>    }
 <a href=#616 id=616 data-nosnippet>616</a>
-<a href=#617 id=617 data-nosnippet>617</a>        <span class="macro">assert_eq!</span>(frame, Annotated::from_json(json).unwrap());
-<a href=#618 id=618 data-nosnippet>618</a>        <span class="macro">assert_eq!</span>(json, frame.to_json_pretty().unwrap());
-<a href=#619 id=619 data-nosnippet>619</a>    }
-<a href=#620 id=620 data-nosnippet>620</a>
-<a href=#621 id=621 data-nosnippet>621</a>    <span class="attr">#[test]
-<a href=#622 id=622 data-nosnippet>622</a>    </span><span class="kw">fn </span>test_frame_default_values() {
-<a href=#623 id=623 data-nosnippet>623</a>        <span class="kw">let </span>json = <span class="string">"{}"</span>;
-<a href=#624 id=624 data-nosnippet>624</a>        <span class="kw">let </span>frame = Annotated::new(Frame::default());
+<a href=#617 id=617 data-nosnippet>617</a>    <span class="attr">#[test]
+<a href=#618 id=618 data-nosnippet>618</a>    </span><span class="kw">fn </span>test_frame_default_values() {
+<a href=#619 id=619 data-nosnippet>619</a>        <span class="kw">let </span>json = <span class="string">"{}"</span>;
+<a href=#620 id=620 data-nosnippet>620</a>        <span class="kw">let </span>frame = Annotated::new(Frame::default());
+<a href=#621 id=621 data-nosnippet>621</a>
+<a href=#622 id=622 data-nosnippet>622</a>        <span class="macro">assert_eq!</span>(frame, Annotated::from_json(json).unwrap());
+<a href=#623 id=623 data-nosnippet>623</a>        <span class="macro">assert_eq!</span>(json, frame.to_json_pretty().unwrap());
+<a href=#624 id=624 data-nosnippet>624</a>    }
 <a href=#625 id=625 data-nosnippet>625</a>
-<a href=#626 id=626 data-nosnippet>626</a>        <span class="macro">assert_eq!</span>(frame, Annotated::from_json(json).unwrap());
-<a href=#627 id=627 data-nosnippet>627</a>        <span class="macro">assert_eq!</span>(json, frame.to_json_pretty().unwrap());
-<a href=#628 id=628 data-nosnippet>628</a>    }
-<a href=#629 id=629 data-nosnippet>629</a>
-<a href=#630 id=630 data-nosnippet>630</a>    <span class="attr">#[test]
-<a href=#631 id=631 data-nosnippet>631</a>    </span><span class="kw">fn </span>test_stacktrace_roundtrip() {
-<a href=#632 id=632 data-nosnippet>632</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#633 id=633 data-nosnippet>633</a>  "frames": [
-<a href=#634 id=634 data-nosnippet>634</a>    {
-<a href=#635 id=635 data-nosnippet>635</a>      "function": "foobar"
-<a href=#636 id=636 data-nosnippet>636</a>    }
-<a href=#637 id=637 data-nosnippet>637</a>  ],
-<a href=#638 id=638 data-nosnippet>638</a>  "registers": {
-<a href=#639 id=639 data-nosnippet>639</a>    "cspr": "0x20000000",
-<a href=#640 id=640 data-nosnippet>640</a>    "lr": "0x18a31aadc",
-<a href=#641 id=641 data-nosnippet>641</a>    "pc": "0x18a310ea4",
-<a href=#642 id=642 data-nosnippet>642</a>    "sp": "0x16fd75060"
-<a href=#643 id=643 data-nosnippet>643</a>  },
-<a href=#644 id=644 data-nosnippet>644</a>  "instruction_addr_adjustment": "all_but_first",
-<a href=#645 id=645 data-nosnippet>645</a>  "lang": "rust",
-<a href=#646 id=646 data-nosnippet>646</a>  "snapshot": false,
-<a href=#647 id=647 data-nosnippet>647</a>  "other": "value"
-<a href=#648 id=648 data-nosnippet>648</a>}"#</span>;
-<a href=#649 id=649 data-nosnippet>649</a>        <span class="kw">let </span>stack = Annotated::new(RawStacktrace {
-<a href=#650 id=650 data-nosnippet>650</a>            frames: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Frame {
-<a href=#651 id=651 data-nosnippet>651</a>                function: Annotated::new(<span class="string">"foobar"</span>.to_owned()),
-<a href=#652 id=652 data-nosnippet>652</a>                ..Default::default()
-<a href=#653 id=653 data-nosnippet>653</a>            })]),
-<a href=#654 id=654 data-nosnippet>654</a>            registers: {
-<a href=#655 id=655 data-nosnippet>655</a>                <span class="kw">let </span><span class="kw-2">mut </span>registers = Object::new();
-<a href=#656 id=656 data-nosnippet>656</a>                registers.insert(<span class="string">"cspr"</span>.to_owned(), Annotated::new(RegVal(<span class="number">0x2000_0000</span>)));
-<a href=#657 id=657 data-nosnippet>657</a>                registers.insert(<span class="string">"lr"</span>.to_owned(), Annotated::new(RegVal(<span class="number">0x1_8a31_aadc</span>)));
-<a href=#658 id=658 data-nosnippet>658</a>                registers.insert(<span class="string">"pc"</span>.to_owned(), Annotated::new(RegVal(<span class="number">0x1_8a31_0ea4</span>)));
-<a href=#659 id=659 data-nosnippet>659</a>                registers.insert(<span class="string">"sp"</span>.to_owned(), Annotated::new(RegVal(<span class="number">0x1_6fd7_5060</span>)));
-<a href=#660 id=660 data-nosnippet>660</a>                Annotated::new(registers)
-<a href=#661 id=661 data-nosnippet>661</a>            },
-<a href=#662 id=662 data-nosnippet>662</a>            instruction_addr_adjustment: Annotated::new(InstructionAddrAdjustment::AllButFirst),
-<a href=#663 id=663 data-nosnippet>663</a>            lang: Annotated::new(<span class="string">"rust"</span>.into()),
-<a href=#664 id=664 data-nosnippet>664</a>            snapshot: Annotated::new(<span class="bool-val">false</span>),
-<a href=#665 id=665 data-nosnippet>665</a>            other: {
-<a href=#666 id=666 data-nosnippet>666</a>                <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
-<a href=#667 id=667 data-nosnippet>667</a>                other.insert(
-<a href=#668 id=668 data-nosnippet>668</a>                    <span class="string">"other"</span>.to_owned(),
-<a href=#669 id=669 data-nosnippet>669</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
-<a href=#670 id=670 data-nosnippet>670</a>                );
-<a href=#671 id=671 data-nosnippet>671</a>                other
-<a href=#672 id=672 data-nosnippet>672</a>            },
-<a href=#673 id=673 data-nosnippet>673</a>        });
+<a href=#626 id=626 data-nosnippet>626</a>    <span class="attr">#[test]
+<a href=#627 id=627 data-nosnippet>627</a>    </span><span class="kw">fn </span>test_stacktrace_roundtrip() {
+<a href=#628 id=628 data-nosnippet>628</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#629 id=629 data-nosnippet>629</a>  "frames": [
+<a href=#630 id=630 data-nosnippet>630</a>    {
+<a href=#631 id=631 data-nosnippet>631</a>      "function": "foobar"
+<a href=#632 id=632 data-nosnippet>632</a>    }
+<a href=#633 id=633 data-nosnippet>633</a>  ],
+<a href=#634 id=634 data-nosnippet>634</a>  "registers": {
+<a href=#635 id=635 data-nosnippet>635</a>    "cspr": "0x20000000",
+<a href=#636 id=636 data-nosnippet>636</a>    "lr": "0x18a31aadc",
+<a href=#637 id=637 data-nosnippet>637</a>    "pc": "0x18a310ea4",
+<a href=#638 id=638 data-nosnippet>638</a>    "sp": "0x16fd75060"
+<a href=#639 id=639 data-nosnippet>639</a>  },
+<a href=#640 id=640 data-nosnippet>640</a>  "instruction_addr_adjustment": "all_but_first",
+<a href=#641 id=641 data-nosnippet>641</a>  "lang": "rust",
+<a href=#642 id=642 data-nosnippet>642</a>  "snapshot": false,
+<a href=#643 id=643 data-nosnippet>643</a>  "other": "value"
+<a href=#644 id=644 data-nosnippet>644</a>}"#</span>;
+<a href=#645 id=645 data-nosnippet>645</a>        <span class="kw">let </span>stack = Annotated::new(RawStacktrace {
+<a href=#646 id=646 data-nosnippet>646</a>            frames: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Frame {
+<a href=#647 id=647 data-nosnippet>647</a>                function: Annotated::new(<span class="string">"foobar"</span>.to_owned()),
+<a href=#648 id=648 data-nosnippet>648</a>                ..Default::default()
+<a href=#649 id=649 data-nosnippet>649</a>            })]),
+<a href=#650 id=650 data-nosnippet>650</a>            registers: {
+<a href=#651 id=651 data-nosnippet>651</a>                <span class="kw">let </span><span class="kw-2">mut </span>registers = Object::new();
+<a href=#652 id=652 data-nosnippet>652</a>                registers.insert(<span class="string">"cspr"</span>.to_owned(), Annotated::new(RegVal(<span class="number">0x2000_0000</span>)));
+<a href=#653 id=653 data-nosnippet>653</a>                registers.insert(<span class="string">"lr"</span>.to_owned(), Annotated::new(RegVal(<span class="number">0x1_8a31_aadc</span>)));
+<a href=#654 id=654 data-nosnippet>654</a>                registers.insert(<span class="string">"pc"</span>.to_owned(), Annotated::new(RegVal(<span class="number">0x1_8a31_0ea4</span>)));
+<a href=#655 id=655 data-nosnippet>655</a>                registers.insert(<span class="string">"sp"</span>.to_owned(), Annotated::new(RegVal(<span class="number">0x1_6fd7_5060</span>)));
+<a href=#656 id=656 data-nosnippet>656</a>                Annotated::new(registers)
+<a href=#657 id=657 data-nosnippet>657</a>            },
+<a href=#658 id=658 data-nosnippet>658</a>            instruction_addr_adjustment: Annotated::new(InstructionAddrAdjustment::AllButFirst),
+<a href=#659 id=659 data-nosnippet>659</a>            lang: Annotated::new(<span class="string">"rust"</span>.into()),
+<a href=#660 id=660 data-nosnippet>660</a>            snapshot: Annotated::new(<span class="bool-val">false</span>),
+<a href=#661 id=661 data-nosnippet>661</a>            other: {
+<a href=#662 id=662 data-nosnippet>662</a>                <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
+<a href=#663 id=663 data-nosnippet>663</a>                other.insert(
+<a href=#664 id=664 data-nosnippet>664</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#665 id=665 data-nosnippet>665</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
+<a href=#666 id=666 data-nosnippet>666</a>                );
+<a href=#667 id=667 data-nosnippet>667</a>                other
+<a href=#668 id=668 data-nosnippet>668</a>            },
+<a href=#669 id=669 data-nosnippet>669</a>        });
+<a href=#670 id=670 data-nosnippet>670</a>
+<a href=#671 id=671 data-nosnippet>671</a>        <span class="macro">assert_eq!</span>(stack, Annotated::from_json(json).unwrap());
+<a href=#672 id=672 data-nosnippet>672</a>        <span class="macro">assert_eq!</span>(json, stack.to_json_pretty().unwrap());
+<a href=#673 id=673 data-nosnippet>673</a>    }
 <a href=#674 id=674 data-nosnippet>674</a>
-<a href=#675 id=675 data-nosnippet>675</a>        <span class="macro">assert_eq!</span>(stack, Annotated::from_json(json).unwrap());
-<a href=#676 id=676 data-nosnippet>676</a>        <span class="macro">assert_eq!</span>(json, stack.to_json_pretty().unwrap());
-<a href=#677 id=677 data-nosnippet>677</a>    }
-<a href=#678 id=678 data-nosnippet>678</a>
-<a href=#679 id=679 data-nosnippet>679</a>    <span class="attr">#[test]
-<a href=#680 id=680 data-nosnippet>680</a>    </span><span class="kw">fn </span>test_stacktrace_default_values() {
-<a href=#681 id=681 data-nosnippet>681</a>        <span class="comment">// This needs an empty frame because "frames" is required
-<a href=#682 id=682 data-nosnippet>682</a>        </span><span class="kw">let </span>json = <span class="string">r#"{
-<a href=#683 id=683 data-nosnippet>683</a>  "frames": [
-<a href=#684 id=684 data-nosnippet>684</a>    {}
-<a href=#685 id=685 data-nosnippet>685</a>  ]
-<a href=#686 id=686 data-nosnippet>686</a>}"#</span>;
-<a href=#687 id=687 data-nosnippet>687</a>
-<a href=#688 id=688 data-nosnippet>688</a>        <span class="kw">let </span>stack = Annotated::new(RawStacktrace {
-<a href=#689 id=689 data-nosnippet>689</a>            frames: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Frame::default())]),
-<a href=#690 id=690 data-nosnippet>690</a>            ..Default::default()
-<a href=#691 id=691 data-nosnippet>691</a>        });
+<a href=#675 id=675 data-nosnippet>675</a>    <span class="attr">#[test]
+<a href=#676 id=676 data-nosnippet>676</a>    </span><span class="kw">fn </span>test_stacktrace_default_values() {
+<a href=#677 id=677 data-nosnippet>677</a>        <span class="comment">// This needs an empty frame because "frames" is required
+<a href=#678 id=678 data-nosnippet>678</a>        </span><span class="kw">let </span>json = <span class="string">r#"{
+<a href=#679 id=679 data-nosnippet>679</a>  "frames": [
+<a href=#680 id=680 data-nosnippet>680</a>    {}
+<a href=#681 id=681 data-nosnippet>681</a>  ]
+<a href=#682 id=682 data-nosnippet>682</a>}"#</span>;
+<a href=#683 id=683 data-nosnippet>683</a>
+<a href=#684 id=684 data-nosnippet>684</a>        <span class="kw">let </span>stack = Annotated::new(RawStacktrace {
+<a href=#685 id=685 data-nosnippet>685</a>            frames: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Frame::default())]),
+<a href=#686 id=686 data-nosnippet>686</a>            ..Default::default()
+<a href=#687 id=687 data-nosnippet>687</a>        });
+<a href=#688 id=688 data-nosnippet>688</a>
+<a href=#689 id=689 data-nosnippet>689</a>        <span class="macro">assert_eq!</span>(stack, Annotated::from_json(json).unwrap());
+<a href=#690 id=690 data-nosnippet>690</a>        <span class="macro">assert_eq!</span>(json, stack.to_json_pretty().unwrap());
+<a href=#691 id=691 data-nosnippet>691</a>    }
 <a href=#692 id=692 data-nosnippet>692</a>
-<a href=#693 id=693 data-nosnippet>693</a>        <span class="macro">assert_eq!</span>(stack, Annotated::from_json(json).unwrap());
-<a href=#694 id=694 data-nosnippet>694</a>        <span class="macro">assert_eq!</span>(json, stack.to_json_pretty().unwrap());
-<a href=#695 id=695 data-nosnippet>695</a>    }
-<a href=#696 id=696 data-nosnippet>696</a>
-<a href=#697 id=697 data-nosnippet>697</a>    <span class="attr">#[test]
-<a href=#698 id=698 data-nosnippet>698</a>    </span><span class="kw">fn </span>test_frame_vars_null_preserved() {
-<a href=#699 id=699 data-nosnippet>699</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#700 id=700 data-nosnippet>700</a>  "vars": {
-<a href=#701 id=701 data-nosnippet>701</a>    "despacito": null
-<a href=#702 id=702 data-nosnippet>702</a>  }
-<a href=#703 id=703 data-nosnippet>703</a>}"#</span>;
-<a href=#704 id=704 data-nosnippet>704</a>        <span class="kw">let </span>frame = Annotated::new(Frame {
-<a href=#705 id=705 data-nosnippet>705</a>            vars: Annotated::new({
-<a href=#706 id=706 data-nosnippet>706</a>                <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
-<a href=#707 id=707 data-nosnippet>707</a>                vars.insert(<span class="string">"despacito"</span>.to_owned(), Annotated::empty());
-<a href=#708 id=708 data-nosnippet>708</a>                vars.into()
-<a href=#709 id=709 data-nosnippet>709</a>            }),
-<a href=#710 id=710 data-nosnippet>710</a>            ..Default::default()
-<a href=#711 id=711 data-nosnippet>711</a>        });
+<a href=#693 id=693 data-nosnippet>693</a>    <span class="attr">#[test]
+<a href=#694 id=694 data-nosnippet>694</a>    </span><span class="kw">fn </span>test_frame_vars_null_preserved() {
+<a href=#695 id=695 data-nosnippet>695</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#696 id=696 data-nosnippet>696</a>  "vars": {
+<a href=#697 id=697 data-nosnippet>697</a>    "despacito": null
+<a href=#698 id=698 data-nosnippet>698</a>  }
+<a href=#699 id=699 data-nosnippet>699</a>}"#</span>;
+<a href=#700 id=700 data-nosnippet>700</a>        <span class="kw">let </span>frame = Annotated::new(Frame {
+<a href=#701 id=701 data-nosnippet>701</a>            vars: Annotated::new({
+<a href=#702 id=702 data-nosnippet>702</a>                <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
+<a href=#703 id=703 data-nosnippet>703</a>                vars.insert(<span class="string">"despacito"</span>.to_owned(), Annotated::empty());
+<a href=#704 id=704 data-nosnippet>704</a>                vars.into()
+<a href=#705 id=705 data-nosnippet>705</a>            }),
+<a href=#706 id=706 data-nosnippet>706</a>            ..Default::default()
+<a href=#707 id=707 data-nosnippet>707</a>        });
+<a href=#708 id=708 data-nosnippet>708</a>
+<a href=#709 id=709 data-nosnippet>709</a>        <span class="macro">assert_eq!</span>(Annotated::from_json(json).unwrap(), frame);
+<a href=#710 id=710 data-nosnippet>710</a>        <span class="macro">assert_eq!</span>(json, frame.to_json_pretty().unwrap());
+<a href=#711 id=711 data-nosnippet>711</a>    }
 <a href=#712 id=712 data-nosnippet>712</a>
-<a href=#713 id=713 data-nosnippet>713</a>        <span class="macro">assert_eq!</span>(Annotated::from_json(json).unwrap(), frame);
-<a href=#714 id=714 data-nosnippet>714</a>        <span class="macro">assert_eq!</span>(json, frame.to_json_pretty().unwrap());
-<a href=#715 id=715 data-nosnippet>715</a>    }
-<a href=#716 id=716 data-nosnippet>716</a>
-<a href=#717 id=717 data-nosnippet>717</a>    <span class="attr">#[test]
-<a href=#718 id=718 data-nosnippet>718</a>    </span><span class="kw">fn </span>test_frame_vars_empty_annotated_is_serialized() {
-<a href=#719 id=719 data-nosnippet>719</a>        <span class="kw">let </span>output = <span class="string">r#"{
-<a href=#720 id=720 data-nosnippet>720</a>  "vars": {
-<a href=#721 id=721 data-nosnippet>721</a>    "despacito": null,
-<a href=#722 id=722 data-nosnippet>722</a>    "despacito2": null
-<a href=#723 id=723 data-nosnippet>723</a>  }
-<a href=#724 id=724 data-nosnippet>724</a>}"#</span>;
-<a href=#725 id=725 data-nosnippet>725</a>        <span class="kw">let </span>frame = Annotated::new(Frame {
-<a href=#726 id=726 data-nosnippet>726</a>            vars: Annotated::new({
-<a href=#727 id=727 data-nosnippet>727</a>                <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
-<a href=#728 id=728 data-nosnippet>728</a>                vars.insert(<span class="string">"despacito"</span>.to_owned(), Annotated::empty());
-<a href=#729 id=729 data-nosnippet>729</a>                vars.insert(<span class="string">"despacito2"</span>.to_owned(), Annotated::empty());
-<a href=#730 id=730 data-nosnippet>730</a>                vars.into()
-<a href=#731 id=731 data-nosnippet>731</a>            }),
-<a href=#732 id=732 data-nosnippet>732</a>            ..Default::default()
-<a href=#733 id=733 data-nosnippet>733</a>        });
-<a href=#734 id=734 data-nosnippet>734</a>
-<a href=#735 id=735 data-nosnippet>735</a>        <span class="macro">assert_eq!</span>(output, frame.to_json_pretty().unwrap());
-<a href=#736 id=736 data-nosnippet>736</a>    }
-<a href=#737 id=737 data-nosnippet>737</a>
-<a href=#738 id=738 data-nosnippet>738</a>    <span class="attr">#[test]
-<a href=#739 id=739 data-nosnippet>739</a>    </span><span class="kw">fn </span>test_frame_empty_context_lines() {
-<a href=#740 id=740 data-nosnippet>740</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#741 id=741 data-nosnippet>741</a>  "pre_context": [
+<a href=#713 id=713 data-nosnippet>713</a>    <span class="attr">#[test]
+<a href=#714 id=714 data-nosnippet>714</a>    </span><span class="kw">fn </span>test_frame_vars_empty_annotated_is_serialized() {
+<a href=#715 id=715 data-nosnippet>715</a>        <span class="kw">let </span>output = <span class="string">r#"{
+<a href=#716 id=716 data-nosnippet>716</a>  "vars": {
+<a href=#717 id=717 data-nosnippet>717</a>    "despacito": null,
+<a href=#718 id=718 data-nosnippet>718</a>    "despacito2": null
+<a href=#719 id=719 data-nosnippet>719</a>  }
+<a href=#720 id=720 data-nosnippet>720</a>}"#</span>;
+<a href=#721 id=721 data-nosnippet>721</a>        <span class="kw">let </span>frame = Annotated::new(Frame {
+<a href=#722 id=722 data-nosnippet>722</a>            vars: Annotated::new({
+<a href=#723 id=723 data-nosnippet>723</a>                <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
+<a href=#724 id=724 data-nosnippet>724</a>                vars.insert(<span class="string">"despacito"</span>.to_owned(), Annotated::empty());
+<a href=#725 id=725 data-nosnippet>725</a>                vars.insert(<span class="string">"despacito2"</span>.to_owned(), Annotated::empty());
+<a href=#726 id=726 data-nosnippet>726</a>                vars.into()
+<a href=#727 id=727 data-nosnippet>727</a>            }),
+<a href=#728 id=728 data-nosnippet>728</a>            ..Default::default()
+<a href=#729 id=729 data-nosnippet>729</a>        });
+<a href=#730 id=730 data-nosnippet>730</a>
+<a href=#731 id=731 data-nosnippet>731</a>        <span class="macro">assert_eq!</span>(output, frame.to_json_pretty().unwrap());
+<a href=#732 id=732 data-nosnippet>732</a>    }
+<a href=#733 id=733 data-nosnippet>733</a>
+<a href=#734 id=734 data-nosnippet>734</a>    <span class="attr">#[test]
+<a href=#735 id=735 data-nosnippet>735</a>    </span><span class="kw">fn </span>test_frame_empty_context_lines() {
+<a href=#736 id=736 data-nosnippet>736</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#737 id=737 data-nosnippet>737</a>  "pre_context": [
+<a href=#738 id=738 data-nosnippet>738</a>    ""
+<a href=#739 id=739 data-nosnippet>739</a>  ],
+<a href=#740 id=740 data-nosnippet>740</a>  "context_line": "",
+<a href=#741 id=741 data-nosnippet>741</a>  "post_context": [
 <a href=#742 id=742 data-nosnippet>742</a>    ""
-<a href=#743 id=743 data-nosnippet>743</a>  ],
-<a href=#744 id=744 data-nosnippet>744</a>  "context_line": "",
-<a href=#745 id=745 data-nosnippet>745</a>  "post_context": [
-<a href=#746 id=746 data-nosnippet>746</a>    ""
-<a href=#747 id=747 data-nosnippet>747</a>  ]
-<a href=#748 id=748 data-nosnippet>748</a>}"#</span>;
-<a href=#749 id=749 data-nosnippet>749</a>
-<a href=#750 id=750 data-nosnippet>750</a>        <span class="kw">let </span>frame = Annotated::new(Frame {
-<a href=#751 id=751 data-nosnippet>751</a>            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">""</span>.to_owned())]),
-<a href=#752 id=752 data-nosnippet>752</a>            context_line: Annotated::new(<span class="string">""</span>.to_owned()),
-<a href=#753 id=753 data-nosnippet>753</a>            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">""</span>.to_owned())]),
-<a href=#754 id=754 data-nosnippet>754</a>            ..Frame::default()
-<a href=#755 id=755 data-nosnippet>755</a>        });
+<a href=#743 id=743 data-nosnippet>743</a>  ]
+<a href=#744 id=744 data-nosnippet>744</a>}"#</span>;
+<a href=#745 id=745 data-nosnippet>745</a>
+<a href=#746 id=746 data-nosnippet>746</a>        <span class="kw">let </span>frame = Annotated::new(Frame {
+<a href=#747 id=747 data-nosnippet>747</a>            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">""</span>.to_owned())]),
+<a href=#748 id=748 data-nosnippet>748</a>            context_line: Annotated::new(<span class="string">""</span>.to_owned()),
+<a href=#749 id=749 data-nosnippet>749</a>            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">""</span>.to_owned())]),
+<a href=#750 id=750 data-nosnippet>750</a>            ..Frame::default()
+<a href=#751 id=751 data-nosnippet>751</a>        });
+<a href=#752 id=752 data-nosnippet>752</a>
+<a href=#753 id=753 data-nosnippet>753</a>        <span class="macro">assert_eq!</span>(frame, Annotated::from_json(json).unwrap());
+<a href=#754 id=754 data-nosnippet>754</a>        <span class="macro">assert_eq!</span>(json, frame.to_json_pretty().unwrap());
+<a href=#755 id=755 data-nosnippet>755</a>    }
 <a href=#756 id=756 data-nosnippet>756</a>
-<a href=#757 id=757 data-nosnippet>757</a>        <span class="macro">assert_eq!</span>(frame, Annotated::from_json(json).unwrap());
-<a href=#758 id=758 data-nosnippet>758</a>        <span class="macro">assert_eq!</span>(json, frame.to_json_pretty().unwrap());
-<a href=#759 id=759 data-nosnippet>759</a>    }
-<a href=#760 id=760 data-nosnippet>760</a>
-<a href=#761 id=761 data-nosnippet>761</a>    <span class="attr">#[test]
-<a href=#762 id=762 data-nosnippet>762</a>    </span><span class="kw">fn </span>test_php_frame_vars() {
-<a href=#763 id=763 data-nosnippet>763</a>        <span class="comment">// Buggy PHP SDKs send us this stuff
-<a href=#764 id=764 data-nosnippet>764</a>        //
-<a href=#765 id=765 data-nosnippet>765</a>        // Port of https://github.com/getsentry/sentry/commit/73d9a061dcac3ab8c318a09735601a12e81085dd
+<a href=#757 id=757 data-nosnippet>757</a>    <span class="attr">#[test]
+<a href=#758 id=758 data-nosnippet>758</a>    </span><span class="kw">fn </span>test_php_frame_vars() {
+<a href=#759 id=759 data-nosnippet>759</a>        <span class="comment">// Buggy PHP SDKs send us this stuff
+<a href=#760 id=760 data-nosnippet>760</a>        //
+<a href=#761 id=761 data-nosnippet>761</a>        // Port of https://github.com/getsentry/sentry/commit/73d9a061dcac3ab8c318a09735601a12e81085dd
+<a href=#762 id=762 data-nosnippet>762</a>
+<a href=#763 id=763 data-nosnippet>763</a>        </span><span class="kw">let </span>input = <span class="string">r#"{
+<a href=#764 id=764 data-nosnippet>764</a>  "vars": ["foo", "bar", "baz", null]
+<a href=#765 id=765 data-nosnippet>765</a>}"#</span>;
 <a href=#766 id=766 data-nosnippet>766</a>
-<a href=#767 id=767 data-nosnippet>767</a>        </span><span class="kw">let </span>input = <span class="string">r#"{
-<a href=#768 id=768 data-nosnippet>768</a>  "vars": ["foo", "bar", "baz", null]
-<a href=#769 id=769 data-nosnippet>769</a>}"#</span>;
-<a href=#770 id=770 data-nosnippet>770</a>
-<a href=#771 id=771 data-nosnippet>771</a>        <span class="kw">let </span>output = <span class="string">r#"{
-<a href=#772 id=772 data-nosnippet>772</a>  "vars": {
-<a href=#773 id=773 data-nosnippet>773</a>    "0": "foo",
-<a href=#774 id=774 data-nosnippet>774</a>    "1": "bar",
-<a href=#775 id=775 data-nosnippet>775</a>    "2": "baz",
-<a href=#776 id=776 data-nosnippet>776</a>    "3": null
-<a href=#777 id=777 data-nosnippet>777</a>  }
-<a href=#778 id=778 data-nosnippet>778</a>}"#</span>;
-<a href=#779 id=779 data-nosnippet>779</a>
-<a href=#780 id=780 data-nosnippet>780</a>        <span class="kw">let </span>frame = Annotated::new(Frame {
-<a href=#781 id=781 data-nosnippet>781</a>            vars: Annotated::new({
-<a href=#782 id=782 data-nosnippet>782</a>                <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
-<a href=#783 id=783 data-nosnippet>783</a>                vars.insert(<span class="string">"0"</span>.to_owned(), Annotated::new(<span class="string">"foo"</span>.to_owned().into()));
-<a href=#784 id=784 data-nosnippet>784</a>                vars.insert(<span class="string">"1"</span>.to_owned(), Annotated::new(<span class="string">"bar"</span>.to_owned().into()));
-<a href=#785 id=785 data-nosnippet>785</a>                vars.insert(<span class="string">"2"</span>.to_owned(), Annotated::new(<span class="string">"baz"</span>.to_owned().into()));
-<a href=#786 id=786 data-nosnippet>786</a>                vars.insert(<span class="string">"3"</span>.to_owned(), Annotated::empty());
-<a href=#787 id=787 data-nosnippet>787</a>                vars.into()
-<a href=#788 id=788 data-nosnippet>788</a>            }),
-<a href=#789 id=789 data-nosnippet>789</a>            ..Default::default()
-<a href=#790 id=790 data-nosnippet>790</a>        });
-<a href=#791 id=791 data-nosnippet>791</a>
-<a href=#792 id=792 data-nosnippet>792</a>        <span class="macro">assert_eq!</span>(frame, Annotated::from_json(input).unwrap());
-<a href=#793 id=793 data-nosnippet>793</a>        <span class="macro">assert_eq!</span>(output, frame.to_json_pretty().unwrap());
-<a href=#794 id=794 data-nosnippet>794</a>    }
-<a href=#795 id=795 data-nosnippet>795</a>}</code></pre></div></section></main></body></html>
+<a href=#767 id=767 data-nosnippet>767</a>        <span class="kw">let </span>output = <span class="string">r#"{
+<a href=#768 id=768 data-nosnippet>768</a>  "vars": {
+<a href=#769 id=769 data-nosnippet>769</a>    "0": "foo",
+<a href=#770 id=770 data-nosnippet>770</a>    "1": "bar",
+<a href=#771 id=771 data-nosnippet>771</a>    "2": "baz",
+<a href=#772 id=772 data-nosnippet>772</a>    "3": null
+<a href=#773 id=773 data-nosnippet>773</a>  }
+<a href=#774 id=774 data-nosnippet>774</a>}"#</span>;
+<a href=#775 id=775 data-nosnippet>775</a>
+<a href=#776 id=776 data-nosnippet>776</a>        <span class="kw">let </span>frame = Annotated::new(Frame {
+<a href=#777 id=777 data-nosnippet>777</a>            vars: Annotated::new({
+<a href=#778 id=778 data-nosnippet>778</a>                <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
+<a href=#779 id=779 data-nosnippet>779</a>                vars.insert(<span class="string">"0"</span>.to_owned(), Annotated::new(<span class="string">"foo"</span>.to_owned().into()));
+<a href=#780 id=780 data-nosnippet>780</a>                vars.insert(<span class="string">"1"</span>.to_owned(), Annotated::new(<span class="string">"bar"</span>.to_owned().into()));
+<a href=#781 id=781 data-nosnippet>781</a>                vars.insert(<span class="string">"2"</span>.to_owned(), Annotated::new(<span class="string">"baz"</span>.to_owned().into()));
+<a href=#782 id=782 data-nosnippet>782</a>                vars.insert(<span class="string">"3"</span>.to_owned(), Annotated::empty());
+<a href=#783 id=783 data-nosnippet>783</a>                vars.into()
+<a href=#784 id=784 data-nosnippet>784</a>            }),
+<a href=#785 id=785 data-nosnippet>785</a>            ..Default::default()
+<a href=#786 id=786 data-nosnippet>786</a>        });
+<a href=#787 id=787 data-nosnippet>787</a>
+<a href=#788 id=788 data-nosnippet>788</a>        <span class="macro">assert_eq!</span>(frame, Annotated::from_json(input).unwrap());
+<a href=#789 id=789 data-nosnippet>789</a>        <span class="macro">assert_eq!</span>(output, frame.to_json_pretty().unwrap());
+<a href=#790 id=790 data-nosnippet>790</a>    }
+<a href=#791 id=791 data-nosnippet>791</a>}</code></pre></div></section></main></body></html>
