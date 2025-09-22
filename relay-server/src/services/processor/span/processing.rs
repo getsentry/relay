@@ -16,6 +16,7 @@ use crate::services::projects::project::ProjectInfo;
 use crate::utils;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::{
@@ -230,7 +231,11 @@ pub async fn process(
         };
 
         let mut new_item = Item::new(ItemType::Span);
-        if produce_compat_spans(&config, global_config) {
+        if produce_compat_spans(
+            &config,
+            global_config,
+            managed_envelope.scoping().organization_id,
+        ) {
             let span_v2 = annotated_span.map_value(relay_spans::span_v1_to_span_v2);
             let compat_span = match span_v2.map_value(CompatSpan::try_from) {
                 Annotated(Some(Result::Err(err)), _) => {
@@ -284,13 +289,18 @@ pub async fn process(
 /// Whether or not to convert spans into backward-compatible V2 spans.
 ///
 /// This only makes sense when we forward the envelope to Kafka.
-fn produce_compat_spans(config: &Config, global_config: &GlobalConfig) -> bool {
-    #[cfg(not(feature = "processing"))]
-    {
-        return false;
-    }
-    config.processing_enabled()
-        && utils::sample(global_config.options.span_kafka_v2_sample_rate).is_keep()
+fn produce_compat_spans(
+    config: &Config,
+    global_config: &GlobalConfig,
+    org_id: OrganizationId,
+) -> bool {
+    cfg!(feature = "processing")
+        && config.processing_enabled()
+        && utils::is_rolled_out(
+            org_id.value(),
+            global_config.options.span_kafka_v2_sample_rate,
+        )
+        .is_keep()
 }
 
 fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value: Option<f64>) {
