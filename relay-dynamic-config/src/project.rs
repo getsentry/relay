@@ -23,23 +23,23 @@ use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 /// Per-Category settings for retention policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetentionSettings {
-    /// Standard / full fidelity rentention policy in days.
+    /// Standard / full fidelity retention policy in days.
     pub standard: u16,
-    /// Downsampled rentention policy in days.
+    /// Downsampled retention policy in days.
     pub downsampled: u16,
 }
 
 /// Settings for retention policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct Retentions {
+pub struct Retentions {
     /// Setting for DataCategory.LOG_BYTE.
-    log_byte: RetentionSettings,
+    pub log_byte: RetentionSettings,
     /// Setting for DataCategory.SPAN.
-    span: RetentionSettings,
+    pub span: RetentionSettings,
 }
 
 impl Retentions {
-    fn retention_for_trace_item(&self, ty: TraceItemType) -> Option<&RetentionSettings> {
+    pub fn retention_for_trace_item(&self, ty: TraceItemType) -> Option<&RetentionSettings> {
         match ty {
             TraceItemType::Log => Some(&self.log_byte),
             TraceItemType::Span => Some(&self.span),
