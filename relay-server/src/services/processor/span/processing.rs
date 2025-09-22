@@ -37,7 +37,7 @@ use relay_event_schema::protocol::{
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty, Getter, Value};
+use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::ReservoirEvaluator;
 use relay_spans::name_for_span;
@@ -816,17 +816,16 @@ fn generate_name(span: &mut Span) {
     if span
         .data
         .value()
-        .and_then(|v| v.get_value("sentry\\.name"))
+        .and_then(|data| data.span_name.value())
         .is_some()
     {
         return;
     }
 
-    if let Some(name) = name_for_span(span) {
-        span.data.value_mut().as_mut().and_then(|data| {
-            data.other
-                .insert("sentry.name".to_owned(), Value::String(name).into())
-        });
+    if let Some(name) = name_for_span(span)
+        && let Some(data) = span.data.value_mut().as_mut()
+    {
+        data.span_name = name.into();
     }
 }
 
@@ -1466,11 +1465,8 @@ mod tests {
         normalize(&mut span, normalize_config()).unwrap();
 
         assert_eq!(
-            span.value()
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.get_value("sentry\\.name"))
-                .and_then(|v| v.as_str()),
-            Some("SELECT users")
+            get_value!(span.data.span_name),
+            Some(&"SELECT users".to_owned())
         );
     }
 
@@ -1494,11 +1490,8 @@ mod tests {
         normalize(&mut span, normalize_config()).unwrap();
 
         assert_eq!(
-            span.value()
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.get_value("sentry\\.name"))
-                .and_then(|v| v.as_str()),
-            Some("original name")
+            get_value!(span.data.span_name),
+            Some(&"original name".to_owned())
         );
     }
 }

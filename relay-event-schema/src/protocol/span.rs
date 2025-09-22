@@ -940,6 +940,11 @@ pub struct SpanData {
     #[metastructure(field = "lcp.url")]
     pub lcp_url: Annotated<String>,
 
+    // The span's name, a brief, human-readable, low cardinality description of operation
+    // represented by the span (as per OpenTelemetry/Sentry's Span V2 schema).
+    #[metastructure(field = "sentry.name")]
+    pub span_name: Annotated<String>,
+
     /// Other fields in `span.data`.
     #[metastructure(
         additional_properties,
