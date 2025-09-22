@@ -60,7 +60,7 @@ pub struct ProjectConfig {
     /// Standard and down sampled event retentions per DataCategory.
     /// The key is the string DataCategory.name
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub retentions: Option<HashMap<String, RetentionSettings>>,
+    pub retentions: Option<BTreeMap<String, RetentionSettings>>,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
