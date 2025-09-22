@@ -9,7 +9,7 @@ use relay_quotas::Quota;
 use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
