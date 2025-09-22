@@ -138,13 +138,14 @@ impl IntoValue for MetricUnit {
 /// Time duration units used in [`MetricUnit::Duration`].
 ///
 /// Defaults to `millisecond`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
 pub enum DurationUnit {
     /// Nanosecond (`"nanosecond"`), 10^-9 seconds.
     NanoSecond,
     /// Microsecond (`"microsecond"`), 10^-6 seconds.
     MicroSecond,
     /// Millisecond (`"millisecond"`), 10^-3 seconds.
+    #[default]
     MilliSecond,
     /// Full second (`"second"`).
     Second,
@@ -174,12 +175,6 @@ impl DurationUnit {
     }
 }
 
-impl Default for DurationUnit {
-    fn default() -> Self {
-        Self::MilliSecond
-    }
-}
-
 impl fmt::Display for DurationUnit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
@@ -194,13 +189,14 @@ pub struct ParseMetricUnitError(());
 ///
 /// Defaults to `byte`. See also [Units of
 /// information](https://en.wikipedia.org/wiki/Units_of_information).
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
 pub enum InformationUnit {
     /// Bit (`"bit"`), corresponding to 1/8 of a byte.
     ///
     /// Note that there are computer systems with a different number of bits per byte.
     Bit,
     /// Byte (`"byte"`).
+    #[default]
     Byte,
     /// Kilobyte (`"kilobyte"`), 10^3 bytes.
     KiloByte,
@@ -250,12 +246,6 @@ impl InformationUnit {
     }
 }
 
-impl Default for InformationUnit {
-    fn default() -> Self {
-        Self::Byte
-    }
-}
-
 impl fmt::Display for InformationUnit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
@@ -265,9 +255,10 @@ impl fmt::Display for InformationUnit {
 /// Units of fraction used in [`MetricUnit::Fraction`].
 ///
 /// Defaults to `ratio`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
 pub enum FractionUnit {
     /// Floating point fraction of `1`.
+    #[default]
     Ratio,
     /// Ratio expressed as a fraction of `100`. `100%` equals a ratio of `1.0`.
     Percent,
@@ -280,12 +271,6 @@ impl FractionUnit {
             Self::Ratio => "ratio",
             Self::Percent => "percent",
         }
-    }
-}
-
-impl Default for FractionUnit {
-    fn default() -> Self {
-        Self::Ratio
     }
 }
 

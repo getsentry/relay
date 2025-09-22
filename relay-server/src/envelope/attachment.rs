@@ -3,9 +3,10 @@ use std::fmt;
 /// The type of an event attachment.
 ///
 /// These item types must align with the Sentry processing pipeline.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub enum AttachmentType {
     /// A regular attachment without special meaning.
+    #[default]
     Attachment,
 
     /// A minidump crash report (binary data).
@@ -52,12 +53,6 @@ pub enum AttachmentType {
     /// Unknown attachment type, forwarded for compatibility.
     /// Attachments with this type will be dropped if `accept_unknown_items` is set to false.
     Unknown(String),
-}
-
-impl Default for AttachmentType {
-    fn default() -> Self {
-        Self::Attachment
-    }
 }
 
 impl fmt::Display for AttachmentType {

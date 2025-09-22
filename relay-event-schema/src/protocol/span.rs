@@ -1110,9 +1110,10 @@ impl FromValue for Route {
 ///
 /// This corresponds to OTEL's kind enum, plus a
 /// catchall variant for forward compatibility.
-#[derive(Clone, Debug, PartialEq, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, ProcessValue, Default)]
 pub enum SpanKind {
     /// An operation internal to an application.
+    #[default]
     Internal,
     /// Server-side processing requested by a client.
     Server,
@@ -1160,12 +1161,6 @@ impl std::str::FromStr for SpanKind {
             "consumer" => SpanKind::Consumer,
             other => SpanKind::Unknown(other.to_owned()),
         })
-    }
-}
-
-impl Default for SpanKind {
-    fn default() -> Self {
-        Self::Internal
     }
 }
 

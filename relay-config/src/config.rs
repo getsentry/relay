@@ -68,20 +68,15 @@ impl fmt::Display for ConfigErrorKind {
 }
 
 /// Defines the source of a config error
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum ConfigErrorSource {
     /// An error occurring independently.
+    #[default]
     None,
     /// An error originating from a configuration file.
     File(PathBuf),
     /// An error originating in a field override (an env var, or a CLI parameter).
     FieldOverride(String),
-}
-
-impl Default for ConfigErrorSource {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 impl fmt::Display for ConfigErrorSource {
@@ -462,6 +457,7 @@ fn default_host() -> IpAddr {
 /// Independent of the the readiness condition, shutdown always switches Relay into unready state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum ReadinessCondition {
     /// (default) Relay is ready when authenticated and connected to the upstream.
     ///
@@ -471,15 +467,10 @@ pub enum ReadinessCondition {
     ///
     /// Authentication is only required for Relays in managed mode. Other Relays will only check for
     /// network outages.
+    #[default]
     Authenticated,
     /// Relay reports readiness regardless of the authentication and networking state.
     Always,
-}
-
-impl Default for ReadinessCondition {
-    fn default() -> Self {
-        Self::Authenticated
-    }
 }
 
 /// Relay specific configuration values.
