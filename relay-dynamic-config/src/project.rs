@@ -20,7 +20,7 @@ use crate::metrics::{
 use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
-/// Settings for retention policy.
+/// Per-Category settings for retention policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetentionSettings {
     /// Standard / full fidelity rentention policy in days.
@@ -29,8 +29,12 @@ pub struct RetentionSettings {
     pub downsampled: u16,
 }
 
+/// Settings for retention policy.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Retentions {
-	log_byte: Option<RetentionSettings>,
+	/// Setting for DataCategory.LOG_BYTE.
+    log_byte: Option<RetentionSettings>,
+    /// Setting for DataCategory.SPAN.
 	span: Option<RetentionSettings>,
 }
 
