@@ -1426,7 +1426,7 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r#"
+        insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
             gen_ai_request_max_tokens: ~,
@@ -1551,6 +1551,7 @@ mod tests {
             lcp_size: ~,
             lcp_id: ~,
             lcp_url: ~,
+            span_name: ~,
             other: {
                 "bar": String(
                     "3",
@@ -1560,7 +1561,7 @@ mod tests {
                 ),
             },
         }
-        "#);
+        "###);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));
