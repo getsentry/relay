@@ -32,19 +32,19 @@ pub struct RetentionSettings {
 /// Settings for retention policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Retentions {
-	/// Setting for DataCategory.LOG_BYTE.
+    /// Setting for DataCategory.LOG_BYTE.
     log_byte: Option<RetentionSettings>,
     /// Setting for DataCategory.SPAN.
-	span: Option<RetentionSettings>,
+    span: Option<RetentionSettings>,
 }
 
 impl Retentions {
-	fn retention_for_trace_item(ty: TraceItemType) -> Option<&RetentionSettings> {
-		match ty {
-			TraceItemType::Log => Some(&self.log_byte),
-			TraceItemType::Span => Some(&self.span),
-		}
-	}
+    fn retention_for_trace_item(ty: TraceItemType) -> Option<&RetentionSettings> {
+        match ty {
+            TraceItemType::Log => Some(&self.log_byte),
+            TraceItemType::Span => Some(&self.span),
+        }
+    }
 }
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
