@@ -472,10 +472,10 @@
 <a href=#472 id=472 data-nosnippet>472</a>          "description": "middleware - fastify -&gt; @fastify/multipart",
 <a href=#473 id=473 data-nosnippet>473</a>          "data": {
 <a href=#474 id=474 data-nosnippet>474</a>            "sentry.environment": "test",
-<a href=#475 id=475 data-nosnippet>475</a>            "fastify.type": "middleware",
-<a href=#476 id=476 data-nosnippet>476</a>            "hook.name": "onResponse",
-<a href=#477 id=477 data-nosnippet>477</a>            "plugin.name": "fastify -&gt; @fastify/multipart",
-<a href=#478 id=478 data-nosnippet>478</a>            "sentry.name": "middleware - fastify -&gt; @fastify/multipart",
+<a href=#475 id=475 data-nosnippet>475</a>            "sentry.name": "middleware - fastify -&gt; @fastify/multipart",
+<a href=#476 id=476 data-nosnippet>476</a>            "fastify.type": "middleware",
+<a href=#477 id=477 data-nosnippet>477</a>            "hook.name": "onResponse",
+<a href=#478 id=478 data-nosnippet>478</a>            "plugin.name": "fastify -&gt; @fastify/multipart",
 <a href=#479 id=479 data-nosnippet>479</a>            "sentry.parentSampled": true,
 <a href=#480 id=480 data-nosnippet>480</a>            "sentry.sample_rate": 1
 <a href=#481 id=481 data-nosnippet>481</a>          },
@@ -967,8 +967,8 @@
 <a href=#967 id=967 data-nosnippet>967</a>          "description": "CACHE HIT",
 <a href=#968 id=968 data-nosnippet>968</a>          "data": {
 <a href=#969 id=969 data-nosnippet>969</a>            "db.system": "redis",
-<a href=#970 id=970 data-nosnippet>970</a>            "db.statement": "GET s:user:123",
-<a href=#971 id=971 data-nosnippet>971</a>            "sentry.name": "CACHE HIT"
+<a href=#970 id=970 data-nosnippet>970</a>            "sentry.name": "CACHE HIT",
+<a href=#971 id=971 data-nosnippet>971</a>            "db.statement": "GET s:user:123"
 <a href=#972 id=972 data-nosnippet>972</a>          },
 <a href=#973 id=973 data-nosnippet>973</a>          "kind": "client"
 <a href=#974 id=974 data-nosnippet>974</a>        }
@@ -1217,8 +1217,8 @@
 <a href=#1217 id=1217 data-nosnippet>1217</a>          "status": "unknown",
 <a href=#1218 id=1218 data-nosnippet>1218</a>          "description": "FAAS",
 <a href=#1219 id=1219 data-nosnippet>1219</a>          "data": {
-<a href=#1220 id=1220 data-nosnippet>1220</a>            "faas.trigger": "http",
-<a href=#1221 id=1221 data-nosnippet>1221</a>            "sentry.name": "FAAS"
+<a href=#1220 id=1220 data-nosnippet>1220</a>            "sentry.name": "FAAS",
+<a href=#1221 id=1221 data-nosnippet>1221</a>            "faas.trigger": "http"
 <a href=#1222 id=1222 data-nosnippet>1222</a>          }
 <a href=#1223 id=1223 data-nosnippet>1223</a>        }
 <a href=#1224 id=1224 data-nosnippet>1224</a>        "###</span>);
@@ -1261,8 +1261,8 @@
 <a href=#1261 id=1261 data-nosnippet>1261</a>          "description": "GET /api/users",
 <a href=#1262 id=1262 data-nosnippet>1262</a>          "data": {
 <a href=#1263 id=1263 data-nosnippet>1263</a>            "http.request_method": "GET",
-<a href=#1264 id=1264 data-nosnippet>1264</a>            "http.route": "/api/users",
-<a href=#1265 id=1265 data-nosnippet>1265</a>            "sentry.name": "GET /api/users"
+<a href=#1264 id=1264 data-nosnippet>1264</a>            "sentry.name": "GET /api/users",
+<a href=#1265 id=1265 data-nosnippet>1265</a>            "http.route": "/api/users"
 <a href=#1266 id=1266 data-nosnippet>1266</a>          },
 <a href=#1267 id=1267 data-nosnippet>1267</a>          "kind": "server"
 <a href=#1268 id=1268 data-nosnippet>1268</a>        }
@@ -1306,8 +1306,8 @@
 <a href=#1306 id=1306 data-nosnippet>1306</a>          "description": "SELECT * FROM users WHERE id = $1",
 <a href=#1307 id=1307 data-nosnippet>1307</a>          "data": {
 <a href=#1308 id=1308 data-nosnippet>1308</a>            "db.system": "postgres",
-<a href=#1309 id=1309 data-nosnippet>1309</a>            "db.statement": "SELECT * FROM users WHERE id = $1",
-<a href=#1310 id=1310 data-nosnippet>1310</a>            "sentry.name": "SELECT users"
+<a href=#1309 id=1309 data-nosnippet>1309</a>            "sentry.name": "SELECT users",
+<a href=#1310 id=1310 data-nosnippet>1310</a>            "db.statement": "SELECT * FROM users WHERE id = $1"
 <a href=#1311 id=1311 data-nosnippet>1311</a>          },
 <a href=#1312 id=1312 data-nosnippet>1312</a>          "kind": "client"
 <a href=#1313 id=1313 data-nosnippet>1313</a>        }
@@ -1355,9 +1355,9 @@
 <a href=#1355 id=1355 data-nosnippet>1355</a>          "description": "POST /graphql (getUserById)",
 <a href=#1356 id=1356 data-nosnippet>1356</a>          "data": {
 <a href=#1357 id=1357 data-nosnippet>1357</a>            "http.request_method": "POST",
-<a href=#1358 id=1358 data-nosnippet>1358</a>            "http.route": "/graphql",
-<a href=#1359 id=1359 data-nosnippet>1359</a>            "sentry.graphql.operation": "getUserById",
-<a href=#1360 id=1360 data-nosnippet>1360</a>            "sentry.name": "POST /graphql"
+<a href=#1358 id=1358 data-nosnippet>1358</a>            "sentry.name": "POST /graphql",
+<a href=#1359 id=1359 data-nosnippet>1359</a>            "http.route": "/graphql",
+<a href=#1360 id=1360 data-nosnippet>1360</a>            "sentry.graphql.operation": "getUserById"
 <a href=#1361 id=1361 data-nosnippet>1361</a>          },
 <a href=#1362 id=1362 data-nosnippet>1362</a>          "kind": "server"
 <a href=#1363 id=1363 data-nosnippet>1363</a>        }
