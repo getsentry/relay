@@ -1578,14 +1578,7 @@ struct SpanKafkaMessage<'a> {
 struct SpanV2KafkaMessage<'a> {
     #[serde(flatten)]
     meta: SpanMeta,
-    span: MinimallyParsedSpan<'a>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct MinimallyParsedSpan<'a> {
-    trace_id: EventId,
-    /// Use the lightest possible deserialization that supports `flatten`. `RawValue` does not.
-    #[serde(borrow, flatten)]
+    #[serde(flatten)]
     span: BTreeMap<&'a str, &'a RawValue>,
 }
 
@@ -1795,7 +1788,7 @@ impl Message for KafkaMessage<'_> {
             Self::Event(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
             Self::Span { message, .. } => Some(message.trace_id.0),
-            Self::SpanV2 { message, .. } => Some(message.span.trace_id.0),
+            Self::SpanV2 { message, .. } => message.span.get("trace_id")?.get().parse().ok(),
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
