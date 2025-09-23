@@ -1589,6 +1589,7 @@ struct SpanMeta {
     // Required for the buffer to emit outcomes scoped to the DSN.
     #[serde(skip_serializing_if = "Option::is_none")]
     key_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
     /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
     received: f64,
