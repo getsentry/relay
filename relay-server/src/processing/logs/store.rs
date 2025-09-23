@@ -339,18 +339,6 @@ fn attributes(
     result
 }
 
-/// Returns the retentions setting for the trace item type `ty` in the `retentions` object
-pub fn retention_for_trace_item(
-    retentions: &Retentions,
-    ty: TraceItemType
-) -> Option<&Retention> {
-    match ty {
-        TraceItemType::Span => None,
-        TraceItemType::Logs => Some(&retentions.logs),
-        TraceItemType::Errors => Some(&retentions.errors),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;

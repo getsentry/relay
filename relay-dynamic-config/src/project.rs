@@ -10,6 +10,8 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use sentry_protos::snuba::v1::TraceItemType;
+
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
 use crate::metrics::{
@@ -32,9 +34,21 @@ pub struct RetentionSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Retentions {
     /// Setting for DataCategory.LOG_BYTE.
-    pub log_byte: RetentionSettings,
+    pub log: RetentionSettings,
     /// Setting for DataCategory.SPAN.
     pub span: RetentionSettings,
+}
+
+/// Implementation for Retentions
+impl Retentions {
+    /// Returns the retentions setting for the trace item type `ty` in the `retentions` object
+	fn retention_for_trace_item(ty: TraceItemType) -> Option<&Retention> {
+		match ty {
+			TraceItemType::Span => Some(&self.span),
+			TraceItemType::Log => Some(&self.log),
+            _ => None,
+		}
+	}
 }
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
