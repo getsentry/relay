@@ -84,7 +84,8 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         .route("/api/{project_id}/otlp/v1/traces", otlp_traces::route(config))
         .route("/api/{project_id}/otlp/v1/traces/", otlp_traces::route(config))
         // Integration Endpoints
-        // Trailing slash is optional to match otlp specification https://opentelemetry.io/docs/specs/otlp/#otlphttp-request
+        // Trailing slash is optional to match otlp specification:
+        // https://opentelemetry.io/docs/specs/otlp/#otlphttp-request
         .route("/api/{project_id}/integration/otlp/v1/traces", otlp_log::route(config))
         .route("/api/{project_id}/integration/otlp/v1/traces/", otlp_log::route(config))
         .route("/api/{project_id}/integration/otlp/v1/logs", otlp_log::route(config))

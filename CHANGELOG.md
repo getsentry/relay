@@ -9,6 +9,7 @@
 - Add Thread Pool Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))
 - Add Unity Info context to event schema. ([#5155](https://github.com/getsentry/relay/pull/5155))
 - Generate `sentry.name` attributes for spans without names. ([#5143](https://github.com/getsentry/relay/pull/5143))
+- Add integration endpoints for OTLP. ([#5176](https://github.com/getsentry/relay/pull/5176))
 
 **Internal**:
 
