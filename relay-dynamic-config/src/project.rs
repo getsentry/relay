@@ -7,7 +7,6 @@ use relay_filter::ProjectFiltersConfig;
 use relay_pii::{DataScrubbingConfig, PiiConfig};
 use relay_quotas::Quota;
 use relay_sampling::SamplingConfig;
-use sentry_protos::snuba::v1::TraceItemType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -36,15 +35,6 @@ pub struct Retentions {
     pub log_byte: RetentionSettings,
     /// Setting for DataCategory.SPAN.
     pub span: RetentionSettings,
-}
-
-impl Retentions {
-    pub fn retention_for_trace_item(&self, ty: TraceItemType) -> Option<&RetentionSettings> {
-        match ty {
-            TraceItemType::Log => Some(&self.log_byte),
-            TraceItemType::Span => Some(&self.span),
-        }
-    }
 }
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
