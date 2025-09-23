@@ -23,7 +23,7 @@ use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
-use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
+use relay_event_schema::protocol::{EventId, VALID_PLATFORMS, datetime_to_timestamp};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
@@ -35,7 +35,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::managed::{Counted, Managed, OutcomeError, Quantities, TypedEnvelope};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
@@ -286,6 +286,7 @@ impl StoreService {
         .is_keep();
 
         for item in envelope.items() {
+            let content_type = item.content_type();
             match item.ty() {
                 ItemType::Attachment => {
                     if let Some(attachment) = self.produce_attachment(
@@ -352,7 +353,7 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span => self.produce_span(
+                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
                     scoping,
                     received_at,
                     event_id,
@@ -360,6 +361,15 @@ impl StoreService {
                     downsampled_retention,
                     item,
                 )?,
+                ItemType::Span if content_type == Some(&ContentType::CompatSpan) => self
+                    .produce_span_v2(
+                        scoping,
+                        received_at,
+                        event_id,
+                        retention,
+                        downsampled_retention,
+                        item,
+                    )?,
                 ty @ ItemType::Log => {
                     debug_assert!(
                         false,
@@ -1081,6 +1091,66 @@ impl StoreService {
         Ok(())
     }
 
+    fn produce_span_v2(
+        &self,
+        scoping: Scoping,
+        received_at: DateTime<Utc>,
+        event_id: Option<EventId>,
+        retention_days: u16,
+        downsampled_retention_days: u16,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        debug_assert_eq!(item.ty(), &ItemType::Span);
+        debug_assert_eq!(item.content_type(), Some(&ContentType::CompatSpan));
+
+        let Scoping {
+            organization_id,
+            project_id,
+            project_key: _,
+            key_id,
+        } = scoping;
+
+        let payload = item.payload();
+        let message = SpanV2KafkaMessage {
+            meta: SpanMeta {
+                organization_id,
+                project_id,
+                key_id,
+                event_id,
+                retention_days,
+                downsampled_retention_days,
+                received: datetime_to_timestamp(received_at),
+            },
+            span: serde_json::from_slice(&payload)
+                .map_err(|e| StoreError::EncodingFailed(e.into()))?,
+        };
+
+        self.produce(
+            KafkaTopic::Spans,
+            KafkaMessage::SpanV2 {
+                headers: BTreeMap::from([(
+                    "project_id".to_owned(),
+                    scoping.project_id.to_string(),
+                )]),
+                message,
+            },
+        )?;
+
+        // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
+        // or the segments consumer, depending on which will produce outcomes later.
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::SpanIndexed,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: 1,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
+
+        Ok(())
+    }
+
     fn produce_profile_chunk(
         &self,
         organization_id: OrganizationId,
@@ -1504,6 +1574,31 @@ struct SpanKafkaMessage<'a> {
     key_id: Option<u64>,
 }
 
+#[derive(Debug, Serialize)]
+struct SpanV2KafkaMessage<'a> {
+    #[serde(flatten)]
+    meta: SpanMeta,
+    #[serde(flatten)]
+    span: BTreeMap<&'a str, &'a RawValue>,
+}
+
+#[derive(Debug, Serialize)]
+struct SpanMeta {
+    organization_id: OrganizationId,
+    project_id: ProjectId,
+    // Required for the buffer to emit outcomes scoped to the DSN.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    event_id: Option<EventId>,
+    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
+    received: f64,
+    /// Number of days until these data should be deleted.
+    retention_days: u16,
+    /// Number of days until the downsampled version of this data should be deleted.
+    downsampled_retention_days: u16,
+}
+
 impl SpanKafkaMessage<'_> {
     /// Backfills `data` based on `sentry_tags`, `tags`, and `measurements`.
     ///
@@ -1644,6 +1739,12 @@ enum KafkaMessage<'a> {
         #[serde(flatten)]
         message: SpanKafkaMessage<'a>,
     },
+    SpanV2 {
+        #[serde(skip)]
+        headers: BTreeMap<String, String>,
+        #[serde(flatten)]
+        message: SpanV2KafkaMessage<'a>,
+    },
 
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
@@ -1668,7 +1769,7 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
             KafkaMessage::CheckIn(_) => "check_in",
-            KafkaMessage::Span { .. } => "span",
+            KafkaMessage::Span { .. } | KafkaMessage::SpanV2 { .. } => "span",
             KafkaMessage::Item { item_type, .. } => item_type.as_str_name(),
 
             KafkaMessage::Attachment(_) => "attachment",
@@ -1688,6 +1789,7 @@ impl Message for KafkaMessage<'_> {
             Self::Event(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
             Self::Span { message, .. } => Some(message.trace_id.0),
+            Self::SpanV2 { message, .. } => message.span.get("trace_id")?.get().parse().ok(),
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1700,7 +1802,11 @@ impl Message for KafkaMessage<'_> {
             Self::ReplayEvent(message) => Some(message.replay_id.0),
 
             // Random partitioning
-            _ => None,
+            Self::Metric { .. }
+            | Self::Item { .. }
+            | Self::Profile(_)
+            | Self::ProfileChunk(_)
+            | Self::ReplayRecordingNotChunked(_) => None,
         }
         .filter(|uuid| !uuid.is_nil())
         .map(|uuid| uuid.as_u128())
@@ -1710,9 +1816,18 @@ impl Message for KafkaMessage<'_> {
         match &self {
             KafkaMessage::Metric { headers, .. }
             | KafkaMessage::Span { headers, .. }
+            | KafkaMessage::SpanV2 { headers, .. }
             | KafkaMessage::Item { headers, .. }
             | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) => Some(headers),
-            _ => None,
+
+            KafkaMessage::Event(_)
+            | KafkaMessage::UserReport(_)
+            | KafkaMessage::CheckIn(_)
+            | KafkaMessage::Attachment(_)
+            | KafkaMessage::AttachmentChunk(_)
+            | KafkaMessage::ProfileChunk(_)
+            | KafkaMessage::ReplayEvent(_)
+            | KafkaMessage::ReplayRecordingNotChunked(_) => None,
         }
     }
 
@@ -1721,6 +1836,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Metric { message, .. } => serialize_as_json(message),
             KafkaMessage::ReplayEvent(message) => serialize_as_json(message),
             KafkaMessage::Span { message, .. } => serialize_as_json(message),
+            KafkaMessage::SpanV2 { message, .. } => serialize_as_json(message),
             KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();
                 match message.encode(&mut payload) {
@@ -1728,7 +1844,14 @@ impl Message for KafkaMessage<'_> {
                     Err(_) => Err(ClientError::ProtobufEncodingFailed),
                 }
             }
-            _ => match rmp_serde::to_vec_named(&self) {
+            KafkaMessage::Event(_)
+            | KafkaMessage::UserReport(_)
+            | KafkaMessage::CheckIn(_)
+            | KafkaMessage::Attachment(_)
+            | KafkaMessage::AttachmentChunk(_)
+            | KafkaMessage::Profile(_)
+            | KafkaMessage::ProfileChunk(_)
+            | KafkaMessage::ReplayRecordingNotChunked(_) => match rmp_serde::to_vec_named(&self) {
                 Ok(x) => Ok(SerializationOutput::MsgPack(Cow::Owned(x))),
                 Err(err) => Err(ClientError::InvalidMsgPack(err)),
             },

@@ -671,12 +671,18 @@ def make_otel_span(start, end):
     }
 
 
+@pytest.mark.parametrize("produce_compat_spans", [False, True])
 def test_span_ingestion(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
+    produce_compat_spans,
 ):
+    mini_sentry.global_config["options"] = {
+        "relay.kafka.span-v2.sample-rate": float(produce_compat_spans)
+    }
+
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
 
@@ -773,7 +779,7 @@ def test_span_ingestion(
     # endpoint might overtake envelope
     spans.sort(key=lambda msg: msg["span_id"])
 
-    assert spans == [
+    expected_spans = [
         {
             "data": {
                 "browser.name": "Chrome",
@@ -1130,6 +1136,12 @@ def test_span_ingestion(
         },
     ]
 
+    if produce_compat_spans:
+        for span, expected_span in zip(spans, expected_spans):
+            assert_contains(span, expected_span)
+    else:
+        assert spans == expected_spans
+
     spans_consumer.assert_empty()
 
     metrics = metrics_consumer.get_metrics(with_headers=False)
@@ -1196,6 +1208,55 @@ def test_span_ingestion(
         assert actual == expected
 
     metrics_consumer.assert_empty()
+
+
+def assert_contains(span, expected_span):
+    """Assert that an old-style kafka span is contained within the new backward compatible span.
+
+    This function can be removed once the consumer uses the new fields."""
+
+    # These keys are produced by the old producer, but we chose not to replicate them because
+    # the consumer does not need them anymore:
+    unused_keys = {
+        "exclusive_time_ms",
+        "is_segment",
+        "measurements",
+        "tags",
+        "sentry_tags",
+    }
+
+    # These keys were set unconditionally by the store serializer, but
+    # can be omitted if False:
+    optional_flags = {"is_remote"}
+
+    for key, expected_value in expected_span.items():
+        if key in unused_keys:
+            continue
+        if key == "data":
+            # Data may have more fields
+            for key in expected_value:
+                assert span["data"][key] == expected_value[key]
+        else:
+            if key in optional_flags:
+                assert span.get(key, False) == expected_span[key]
+            elif key == "links":
+                # Link attributes have a different format now, but they are heavily filtered,
+                # JSON-encoded anyway and currently not used by the product.
+                # See
+                # - https://github.com/getsentry/sentry/issues/95661
+                # - https://github.com/getsentry/sentry/pull/96510
+                links = [
+                    {
+                        **link,
+                        "attributes": {
+                            k: v["value"] for (k, v) in link["attributes"].items()
+                        },
+                    }
+                    for link in span[key]
+                ]
+                assert links == expected_value
+            else:
+                assert span[key] == expected_span[key]
 
 
 def test_standalone_span_ingestion_metric_extraction(
