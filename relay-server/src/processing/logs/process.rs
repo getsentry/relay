@@ -29,12 +29,12 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
         .and_then(|r| r.retention_for_trace_item(TraceItemType::Log));
     #[cfg(feature = "processing")]
     let retention = retentions.map_or(_ctx.project_info.config.event_retention, |r| {
-        Some(r.downsampled)
+        Some(r.standard)
     });
     #[cfg(feature = "processing")]
     let downsampled_retention = retentions
         .map_or(_ctx.project_info.config.downsampled_event_retention, |r| {
-            Some(r.standard)
+            Some(r.downsampled)
         });
 
     logs.map(|logs, records| {
