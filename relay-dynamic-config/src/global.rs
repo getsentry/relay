@@ -186,6 +186,14 @@ pub struct Options {
     )]
     pub replay_relay_snuba_publish_disabled_sample_rate: f32,
 
+    /// Fraction of spans that are produced as backward-compatible Span V2 kafka messages.
+    #[serde(
+        rename = "relay.kafka.span-v2.sample-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub span_kafka_v2_sample_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
