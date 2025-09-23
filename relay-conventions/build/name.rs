@@ -47,8 +47,7 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             let if_clauses = parts.iter().flat_map(|part| {
                 if let TemplatePart::Attribute(name, ident) = part {
                     Some(quote! {
-                        let Some(#ident) = attributes.get_value(#name)
-                            && matches!(#ident, Val::String(_) | Val::Bool(_) | Val::U64(_) | Val::I64(_) | Val::F64(_))
+                        let Some(#ident @ (Val::String(_) | Val::Bool(_) | Val::U64(_) | Val::I64(_) | Val::F64(_))) = attributes.get_value(#name)
                     })
                 } else {
                     None
