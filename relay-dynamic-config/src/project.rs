@@ -39,16 +39,15 @@ pub struct Retentions {
     pub span: RetentionSettings,
 }
 
-/// Implementation for Retentions
 impl Retentions {
     /// Returns the retentions setting for the trace item type `ty` in the `retentions` object
-	fn retention_for_trace_item(ty: TraceItemType) -> Option<&Retention> {
-		match ty {
-			TraceItemType::Span => Some(&self.span),
-			TraceItemType::Log => Some(&self.log),
+    pub fn retention_for_trace_item(&self, ty: TraceItemType) -> Option<&RetentionSettings> {
+        match ty {
+            TraceItemType::Span => Some(&self.span),
+            TraceItemType::Log => Some(&self.log),
             _ => None,
-		}
-	}
+        }
+    }
 }
 
 /// Dynamic, per-DSN configuration passed down from Sentry.

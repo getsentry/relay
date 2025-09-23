@@ -4,6 +4,7 @@ use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
+use sentry_protos::snuba::v1::TraceItemType;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::{RequestMeta, RequestTrust};
@@ -14,8 +15,21 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized logs into their [`ExpandedLogs`] representation.
 ///
 /// Individual, invalid logs will be discarded.
-pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
+pub fn expand(logs: Managed<SerializedLogs>, ctx: Context<'_>) -> Managed<ExpandedLogs> {
     let trust = logs.headers.meta().request_trust();
+    let retentions = &ctx
+        .project_info
+        .config
+        .retentions
+        .as_ref()
+        .and_then(|r| r.retention_for_trace_item(TraceItemType::Log));
+    let retention = retentions.map_or(ctx.project_info.config.event_retention, |r| {
+        Some(r.downsampled)
+    });
+    let downsampled_retention = retentions
+        .map_or(ctx.project_info.config.downsampled_event_retention, |r| {
+            Some(r.standard)
+        });
 
     logs.map(|logs, records| {
         records.lenient(DataCategory::LogByte);
@@ -35,9 +49,9 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
             // Hard code both retentions for logs launch until we have separate retentions for
             // different data categories.
             #[cfg(feature = "processing")]
-            retention: Some(30),
+            retention,
             #[cfg(feature = "processing")]
-            downsampled_retention: Some(30),
+            downsampled_retention,
         }
     })
 }
