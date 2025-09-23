@@ -103,7 +103,7 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_protocol::{Error, SerializableAnnotated};
 
-    use crate::protocol::Attributes;
+    use crate::protocol::{Attributes, Event, Span};
 
     use super::*;
 
