@@ -61,7 +61,7 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             }).collect::<String>();
             let format_args = parts.iter().flat_map(|part| {
                 if let TemplatePart::Attribute(_, ident) = part {
-                    Some(ident)
+                    Some(quote! { DisplayVal(#ident) })
                 } else {
                     None
                 }
@@ -90,11 +90,28 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
 
     quote! {
         use relay_protocol::{Getter, Val};
+        use std::fmt;
+        use std::fmt::Display;
 
         pub fn name_for_op_and_attributes(op: &str, attributes: &impl Getter) -> String {
             match op {
                 #(#match_arms)*
                 _ => op.to_owned()
+            }
+        }
+
+        struct DisplayVal<'a>(Val<'a>);
+
+        impl Display for DisplayVal<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self.0 {
+                    Val::Bool(b) => write!(f, "{}", b),
+                    Val::I64(i) => write!(f, "{}", i),
+                    Val::U64(u) => write!(f, "{}", u),
+                    Val::F64(fl) => write!(f, "{}", fl),
+                    Val::String(s) => f.write_str(s),
+                    Val::HexId(_) | Val::Array(_) | Val::Object(_) => Ok(()),
+                }
             }
         }
     }

@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::{fmt, str};
 
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
@@ -539,19 +539,6 @@ impl PartialEq for Val<'_> {
             (Self::Array(_), Self::Array(_)) => false,
             (Self::Object(_), Self::Object(_)) => false,
             _ => false,
-        }
-    }
-}
-
-impl Display for Val<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Val::Bool(b) => write!(f, "{}", b),
-            Val::I64(i) => write!(f, "{}", i),
-            Val::U64(u) => write!(f, "{}", u),
-            Val::F64(fl) => write!(f, "{}", fl),
-            Val::String(s) => f.write_str(s),
-            Val::HexId(_) | Val::Array(_) | Val::Object(_) => Ok(()),
         }
     }
 }
