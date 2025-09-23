@@ -231,38 +231,10 @@ pub async fn process(
             }
         };
 
-        let mut new_item = Item::new(ItemType::Span);
-        if produce_compat_spans(&config, global_config, org_id) {
-            let span_v2 = annotated_span.map_value(relay_spans::span_v1_to_span_v2);
-            let compat_span = match span_v2.map_value(CompatSpan::try_from) {
-                Annotated(Some(Result::Err(err)), _) => {
-                    relay_log::debug!("failed to create compat span: {}", err);
-                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-                }
-                Annotated(Some(Result::Ok(compat_span)), meta) => {
-                    Annotated(Some(compat_span), meta)
-                }
-                Annotated(None, meta) => Annotated(None, meta),
-            };
-            let payload = match compat_span.to_json() {
-                Ok(payload) => payload,
-                Err(err) => {
-                    relay_log::debug!("failed to serialize compat span: {}", err);
-                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-                }
-            };
-
-            new_item.set_payload(ContentType::CompatSpan, payload);
-        } else {
-            let payload = match annotated_span.to_json() {
-                Ok(payload) => payload,
-                Err(err) => {
-                    relay_log::debug!("failed to serialize span: {}", err);
-                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-                }
-            };
-            new_item.set_payload(ContentType::Json, payload);
-        }
+        let Ok(mut new_item) = create_span_item(annotated_span, &config, global_config, org_id)
+        else {
+            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+        };
 
         new_item.set_metrics_extracted(item.metrics_extracted());
         *item = new_item;
@@ -281,6 +253,46 @@ pub async fn process(
     if let Some(outcome) = sampling_result.into_dropped_outcome() {
         managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
+}
+
+fn create_span_item(
+    span: Annotated<Span>,
+    config: &Config,
+    global_config: &GlobalConfig,
+    org_id: u64,
+) -> Result<Item, ()> {
+    let mut new_item = Item::new(ItemType::Span);
+    if produce_compat_spans(&config, global_config, org_id) {
+        let span_v2 = span.map_value(relay_spans::span_v1_to_span_v2);
+        let compat_span = match span_v2.map_value(CompatSpan::try_from) {
+            Annotated(Some(Result::Err(err)), _) => {
+                relay_log::error!("failed to create compat span: {}", err);
+                return Err(());
+            }
+            Annotated(Some(Result::Ok(compat_span)), meta) => Annotated(Some(compat_span), meta),
+            Annotated(None, meta) => Annotated(None, meta),
+        };
+        let payload = match compat_span.to_json() {
+            Ok(payload) => payload,
+            Err(err) => {
+                relay_log::error!("failed to serialize compat span: {}", err);
+                return Err(());
+            }
+        };
+
+        new_item.set_payload(ContentType::CompatSpan, payload);
+    } else {
+        let payload = match span.to_json() {
+            Ok(payload) => payload,
+            Err(err) => {
+                relay_log::error!("failed to serialize span: {}", err);
+                return Err(());
+            }
+        };
+        new_item.set_payload(ContentType::Json, payload);
+    }
+
+    Ok(new_item)
 }
 
 /// Whether or not to convert spans into backward-compatible V2 spans.
@@ -338,6 +350,8 @@ pub fn extract_from_event(
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
 
+    let org_id = managed_envelope.scoping().organization_id.value();
+
     let mut add_span = |mut span: Span| {
         add_sample_rate(
             &mut span.measurements,
@@ -371,21 +385,14 @@ pub fn extract_from_event(
             }
         };
 
-        let span = match span.to_json() {
-            Ok(span) => span,
-            Err(e) => {
-                relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
-                managed_envelope.track_outcome(
-                    Outcome::Invalid(DiscardReason::InvalidSpan),
-                    relay_quotas::DataCategory::SpanIndexed,
-                    1,
-                );
-                return;
-            }
+        let Ok(mut item) = create_span_item(span, &config, global_config, org_id) else {
+            managed_envelope.track_outcome(
+                Outcome::Invalid(DiscardReason::InvalidSpan),
+                relay_quotas::DataCategory::SpanIndexed,
+                1,
+            );
+            return;
         };
-
-        let mut item = Item::new(ItemType::Span);
-        item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(event_metrics_extracted.0);
 

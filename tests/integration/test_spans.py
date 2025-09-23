@@ -33,6 +33,7 @@ TEST_CONFIG = {
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
 @pytest.mark.parametrize("discard_transaction", [False, True])
+@pytest.mark.parametrize("produce_compat_spans", [False, True])
 def test_span_extraction(
     mini_sentry,
     relay_with_processing,
@@ -40,9 +41,14 @@ def test_span_extraction(
     transactions_consumer,
     events_consumer,
     metrics_consumer,
+    produce_compat_spans,
     discard_transaction,
     performance_issues_spans,
 ):
+    mini_sentry.global_config["options"] = {
+        "relay.kafka.span-v2.sample-rate": float(produce_compat_spans)
+    }
+
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
     events_consumer = events_consumer()
@@ -128,61 +134,64 @@ def test_span_extraction(
 
     del child_span["received"]
 
-    assert child_span == {
-        "data": {  # Backfilled from `sentry_tags`
-            "sentry.category": "http",
-            "sentry.normalized_description": "GET *",
-            "sentry.group": "37e3d9fab1ae9162",
-            "sentry.op": "http",
-            "sentry.platform": "other",
-            "sentry.sdk.name": "raven-node",
-            "sentry.sdk.version": "2.6.3",
-            "sentry.status": "ok",
-            "sentry.trace.status": "ok",
-            "sentry.transaction": "hi",
-            "sentry.transaction.op": "hi",
-        },
-        "description": "GET /api/0/organizations/?member=1",
-        "downsampled_retention_days": 90,
-        "duration_ms": int(duration.total_seconds() * 1e3),
-        "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 500.0,
-        "is_segment": False,
-        "is_remote": False,
-        "links": [
-            {
-                "trace_id": "0f62a8b040f340bda5d830223def1d82",
-                "span_id": "cbbbbbbbbbbbbbbc",
-                "sampled": True,
-                "attributes": {"span_key": "span_value"},
+    assert_contains(
+        child_span,
+        {
+            "data": {  # Backfilled from `sentry_tags`
+                "sentry.category": "http",
+                "sentry.normalized_description": "GET *",
+                "sentry.group": "37e3d9fab1ae9162",
+                "sentry.op": "http",
+                "sentry.platform": "other",
+                "sentry.sdk.name": "raven-node",
+                "sentry.sdk.version": "2.6.3",
+                "sentry.status": "ok",
+                "sentry.trace.status": "ok",
+                "sentry.transaction": "hi",
+                "sentry.transaction.op": "hi",
             },
-        ],
-        "organization_id": 1,
-        "origin": "manual",
-        "parent_span_id": "968cff94913ebb07",
-        "project_id": 42,
-        "key_id": 123,
-        "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "category": "http",
-            "description": "GET *",
-            "group": "37e3d9fab1ae9162",
-            "op": "http",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "status": "ok",
-            "trace.status": "ok",
-            "transaction": "hi",
-            "transaction.op": "hi",
+            "description": "GET /api/0/organizations/?member=1",
+            "downsampled_retention_days": 90,
+            "duration_ms": int(duration.total_seconds() * 1e3),
+            "event_id": "cbf6960622e14a45abc1f03b2055b186",
+            "exclusive_time_ms": 500.0,
+            "is_segment": False,
+            "is_remote": False,
+            "links": [
+                {
+                    "trace_id": "0f62a8b040f340bda5d830223def1d82",
+                    "span_id": "cbbbbbbbbbbbbbbc",
+                    "sampled": True,
+                    "attributes": {"span_key": "span_value"},
+                },
+            ],
+            "organization_id": 1,
+            "origin": "manual",
+            "parent_span_id": "968cff94913ebb07",
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
+            "segment_id": "968cff94913ebb07",
+            "sentry_tags": {
+                "category": "http",
+                "description": "GET *",
+                "group": "37e3d9fab1ae9162",
+                "op": "http",
+                "platform": "other",
+                "sdk.name": "raven-node",
+                "sdk.version": "2.6.3",
+                "status": "ok",
+                "trace.status": "ok",
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
-        "span_id": "bbbbbbbbbbbbbbbb",
-        "start_timestamp_ms": int(start.timestamp() * 1e3),
-        "start_timestamp_precise": start.timestamp(),
-        "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
-        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-    }
+    )
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
         tzinfo=timezone.utc
@@ -200,56 +209,59 @@ def test_span_extraction(
     if performance_issues_spans:
         assert transaction_span.pop("_performance_issues_spans") is True
 
-    assert transaction_span == {
-        "data": {
-            "sentry.sdk.name": "raven-node",
-            "sentry.sdk.version": "2.6.3",
-            "sentry.segment.name": "hi",
-            # Backfilled from `sentry_tags`:
-            "sentry.op": "hi",
-            "sentry.platform": "other",
-            "sentry.status": "ok",
-            "sentry.trace.status": "ok",
-            "sentry.transaction": "hi",
-            "sentry.transaction.op": "hi",
-        },
-        "description": "hi",
-        "downsampled_retention_days": 90,
-        "duration_ms": duration_ms,
-        "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 1500.0,
-        "is_segment": True,
-        "is_remote": True,
-        "links": [
-            {
-                "trace_id": "1f62a8b040f340bda5d830223def1d83",
-                "span_id": "dbbbbbbbbbbbbbbd",
-                "sampled": True,
-                "attributes": {"txn_key": 123},
+    assert_contains(
+        transaction_span,
+        {
+            "data": {
+                "sentry.sdk.name": "raven-node",
+                "sentry.sdk.version": "2.6.3",
+                "sentry.segment.name": "hi",
+                # Backfilled from `sentry_tags`:
+                "sentry.op": "hi",
+                "sentry.platform": "other",
+                "sentry.status": "ok",
+                "sentry.trace.status": "ok",
+                "sentry.transaction": "hi",
+                "sentry.transaction.op": "hi",
             },
-        ],
-        "organization_id": 1,
-        "origin": "manual",
-        "project_id": 42,
-        "key_id": 123,
-        "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "op": "hi",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "status": "ok",
-            "trace.status": "ok",
-            "transaction": "hi",
-            "transaction.op": "hi",
+            "description": "hi",
+            "downsampled_retention_days": 90,
+            "duration_ms": duration_ms,
+            "event_id": "cbf6960622e14a45abc1f03b2055b186",
+            "exclusive_time_ms": 1500.0,
+            "is_segment": True,
+            "is_remote": True,
+            "links": [
+                {
+                    "trace_id": "1f62a8b040f340bda5d830223def1d83",
+                    "span_id": "dbbbbbbbbbbbbbbd",
+                    "sampled": True,
+                    "attributes": {"txn_key": 123},
+                },
+            ],
+            "organization_id": 1,
+            "origin": "manual",
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
+            "segment_id": "968cff94913ebb07",
+            "sentry_tags": {
+                "op": "hi",
+                "platform": "other",
+                "sdk.name": "raven-node",
+                "sdk.version": "2.6.3",
+                "status": "ok",
+                "trace.status": "ok",
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "span_id": "968cff94913ebb07",
+            "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
+            "start_timestamp_precise": start_timestamp.timestamp(),
+            "end_timestamp_precise": start_timestamp.timestamp() + duration,
+            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
         },
-        "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
-        "start_timestamp_precise": start_timestamp.timestamp(),
-        "end_timestamp_precise": start_timestamp.timestamp() + duration,
-        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-    }
+    )
 
     spans_consumer.assert_empty()
 
@@ -1225,6 +1237,12 @@ def assert_contains(span, expected_span):
         "sentry_tags",
     }
 
+    # These keys are mapped by the segment consumer, so we have to verify
+    # that we write them directly now:
+    mapped_keys = {
+        "origin",
+    }
+
     # These keys were set unconditionally by the store serializer, but
     # can be omitted if False:
     optional_flags = {"is_remote"}
@@ -1236,6 +1254,10 @@ def assert_contains(span, expected_span):
             # Data may have more fields
             for key in expected_value:
                 assert span["data"][key] == expected_value[key]
+        elif key in mapped_keys:
+            assert key not in span
+            assert span["data"][f"sentry.{key}"] == expected_value
+            assert span["attributes"][f"sentry.{key}"]["value"] == expected_value
         else:
             if key in optional_flags:
                 assert span.get(key, False) == expected_span[key]
