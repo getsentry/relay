@@ -254,13 +254,11 @@ impl Item {
     }
 
     /// Returns the routing_hint of this item.
-    #[cfg(feature = "processing")]
     pub fn routing_hint(&self) -> Option<Uuid> {
         self.headers.routing_hint
     }
 
     /// Set the routing_hint of this item.
-    #[cfg(feature = "processing")]
     pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
         self.headers.routing_hint = Some(routing_hint);
     }
