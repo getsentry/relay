@@ -262,7 +262,7 @@ fn create_span_item(
     org_id: u64,
 ) -> Result<Item, ()> {
     let mut new_item = Item::new(ItemType::Span);
-    if produce_compat_spans(&config, global_config, org_id) {
+    if produce_compat_spans(config, global_config, org_id) {
         let span_v2 = span.map_value(relay_spans::span_v1_to_span_v2);
         let compat_span = match span_v2.map_value(CompatSpan::try_from) {
             Annotated(Some(Result::Err(err)), _) => {
