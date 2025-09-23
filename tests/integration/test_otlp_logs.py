@@ -23,15 +23,18 @@ TEST_CONFIG = {
 }
 
 
-def test_otlp_logs_conversion(mini_sentry, relay):
+def test_otlp_logs_conversion(
+    mini_sentry, relay, relay_with_processing, outcomes_consumer
+):
     """Test OTLP logs conversion including basic and complex attributes."""
+    outcomes_consumer = outcomes_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
         "organizations:relay-otel-logs-endpoint",
     ]
-    relay = relay(mini_sentry)
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
@@ -151,16 +154,39 @@ def test_otlp_logs_conversion(mini_sentry, relay):
 
     assert mini_sentry.captured_events.empty()
 
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+    assert outcomes == [
+        {
+            "category": DataCategory.LOG_ITEM.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.LOG_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 248,
+        },
+    ]
 
-def test_otlp_logs_multiple_records(mini_sentry, relay):
+
+def test_otlp_logs_multiple_records(
+    mini_sentry, relay, relay_with_processing, outcomes_consumer
+):
     """Test multiple log records in a single payload."""
+    outcomes_consumer = outcomes_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
         "organizations:relay-otel-logs-endpoint",
     ]
-    relay = relay(mini_sentry)
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
@@ -238,50 +264,6 @@ def test_otlp_logs_multiple_records(mini_sentry, relay):
 
     assert mini_sentry.captured_events.empty()
 
-
-def test_otlp_logs_outcomes(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    outcomes_consumer,
-):
-    """Test that OTLP logs produce proper outcomes."""
-    outcomes_consumer = outcomes_consumer()
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:ourlogs-ingestion",
-        "organizations:relay-otel-logs-endpoint",
-    ]
-
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
-
-    ts = datetime.now(timezone.utc)
-    ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
-
-    otel_logs_payload = {
-        "resourceLogs": [
-            {
-                "scopeLogs": [
-                    {
-                        "logRecords": [
-                            {
-                                "timeUnixNano": ts_nanos,
-                                "severityNumber": 18,
-                                "severityText": "Error",
-                                "traceId": "5B8EFFF798038103D269B633813FC60C",
-                                "spanId": "EEE19B7EC3C1B174",
-                                "body": {"stringValue": "Test log entry"},
-                            },
-                        ]
-                    }
-                ]
-            }
-        ]
-    }
-
-    relay.send_otel_logs(project_id, json=otel_logs_payload)
-
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
@@ -290,7 +272,7 @@ def test_otlp_logs_outcomes(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 1,
+            "quantity": 2,
         },
         {
             "category": DataCategory.LOG_BYTE.value,
@@ -298,6 +280,6 @@ def test_otlp_logs_outcomes(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 124,
+            "quantity": 31,
         },
     ]
