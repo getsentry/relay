@@ -58,7 +58,7 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             let format_string = parts.iter().map(|part| match part {
                 TemplatePart::Literal(l) => *l,
                 TemplatePart::Attribute(_, _) => "{}",
-            }).collect::<Vec<&str>>().join("");
+            }).collect::<String>();
             let format_args = parts.iter().flat_map(|part| {
                 if let TemplatePart::Attribute(_, ident) = part {
                     Some(ident)
