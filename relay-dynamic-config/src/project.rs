@@ -33,9 +33,7 @@ pub struct RetentionSettings {
 /// Settings for retention policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Retentions {
-    /// Setting for DataCategory.LOG_BYTE.
     pub log: RetentionSettings,
-    /// Setting for DataCategory.SPAN.
     pub span: RetentionSettings,
 }
 
@@ -78,8 +76,7 @@ pub struct ProjectConfig {
     /// Maximum sampled event retention for the organization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub downsampled_event_retention: Option<u16>,
-    /// Standard and down sampled event retentions per DataCategory.
-    /// The key is the string DataCategory.name
+    /// Retention settings for different products.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retentions: Option<Retentions>,
     /// Usage quotas for this project.
