@@ -966,7 +966,7 @@ pub struct ProcessMetrics {
 pub enum MetricData {
     /// Raw data, unparsed envelope items.
     Raw(Vec<Item>),
-    // TODO: This might needs to be serialized.
+    // FIXME: This might needs to be serialized.
     /// Already parsed buckets but unprocessed.
     Parsed(Vec<Bucket>),
 }
@@ -1136,7 +1136,6 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
     }
 }
 
-// TODO: Not sure if we need a proxy version of this :thinking:
 /// The asynchronous thread pool used for scheduling processing tasks in the processor.
 pub type EnvelopeProcessorServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
@@ -1151,8 +1150,7 @@ pub struct EnvelopeProcessorService {
 // TODO: Add documentation
 #[derive(Clone)]
 pub struct ProxyProcessorService {
-    // TODO: Check if it makes more sense for this to have its own more streamlined version of this.
-    inner: Arc<InnerProcessor>,
+    inner: Arc<InnerProxyProcessor>,
 }
 
 /// Contains the addresses of services that the processor publishes to.
@@ -1201,6 +1199,14 @@ struct InnerProcessor {
 struct Processing {
     logs: LogsProcessor,
     spans: SpansProcessor,
+}
+
+struct InnerProxyProcessor {
+    pool: EnvelopeProcessorServicePool,
+    config: Arc<Config>,
+    project_cache: ProjectCacheHandle,
+    addrs: Addrs,
+    metric_outcomes: MetricOutcomes,
 }
 
 impl EnvelopeProcessorService {
@@ -3398,171 +3404,46 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
+// TODO: Add documentation
 impl ProxyProcessorService {
-    // TODO: Think about if this needs the processing to preserve the interface with the EnvelopProcessor
-
-    // TODO: I think we want to take this and shim it down to its essentials.
-
     /// Creates a multi-threaded proxy processor.
-    #[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
     pub fn new(
         pool: EnvelopeProcessorServicePool,
         config: Arc<Config>,
-        global_config: GlobalConfigHandle,
         project_cache: ProjectCacheHandle,
-        cogs: Cogs,
-        #[cfg(feature = "processing")] redis: Option<RedisClients>,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -> Self {
-        let geoip_lookup = config
-            .geoip_path()
-            .and_then(
-                |p| match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
-                    Ok(geoip) => Some(geoip),
-                    Err(err) => {
-                        relay_log::error!("failed to open GeoIP db {p:?}: {err:?}");
-                        None
-                    }
-                },
-            )
-            .unwrap_or_else(GeoIpLookup::empty);
-
-        #[cfg(feature = "processing")]
-        let (cardinality, quotas) = match redis {
-            Some(RedisClients {
-                cardinality,
-                quotas,
-                ..
-            }) => (Some(cardinality), Some(quotas)),
-            None => (None, None),
-        };
-
-        #[cfg(feature = "processing")]
-        let global_rate_limits = addrs.global_rate_limits.clone().map(Into::into);
-
-        #[cfg(feature = "processing")]
-        let rate_limiter = match (quotas.clone(), global_rate_limits) {
-            (Some(redis), Some(global)) => {
-                Some(RedisRateLimiter::new(redis, global).max_limit(config.max_rate_limit()))
-            }
-            _ => None,
-        };
-
-        let quota_limiter = Arc::new(QuotaRateLimiter::new(
-            #[cfg(feature = "processing")]
-            project_cache.clone(),
-            #[cfg(feature = "processing")]
-            rate_limiter.clone(),
-        ));
-        #[cfg(feature = "processing")]
-        let rate_limiter = rate_limiter.map(Arc::new);
-
-        let inner = InnerProcessor {
-            pool,
-            global_config,
-            project_cache,
-            cogs,
-            #[cfg(feature = "processing")]
-            quotas_client: quotas.clone(),
-            #[cfg(feature = "processing")]
-            rate_limiter,
-            addrs,
-            #[cfg(feature = "processing")]
-            cardinality_limiter: cardinality
-                .map(|cardinality| {
-                    RedisSetLimiter::new(
-                        RedisSetLimiterOptions {
-                            cache_vacuum_interval: config
-                                .cardinality_limiter_cache_vacuum_interval(),
-                        },
-                        cardinality,
-                    )
-                })
-                .map(CardinalityLimiter::new),
-            metric_outcomes,
-            processing: Processing {
-                logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
-                spans: SpansProcessor::new(quota_limiter, geoip_lookup.clone()),
-            },
-            geoip_lookup,
-            config,
-        };
-
         Self {
-            inner: Arc::new(inner),
+            inner: Arc::new(InnerProxyProcessor {
+                pool,
+                project_cache,
+                addrs,
+                metric_outcomes,
+                config,
+            }),
         }
     }
 
     async fn handle_process_envelope(&self, message: ProcessEnvelope) {
-        let project_key = message.envelope.envelope().meta().public_key();
         let wait_time = message.envelope.age();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         let scoping = message.envelope.scoping();
-        for (group, envelope) in ProcessingGroup::split_envelope(
+        for (_, envelope) in ProcessingGroup::split_envelope(
             *message.envelope.into_envelope(),
             &message.project_info,
         ) {
-            let mut cogs = self
-                .inner
-                .cogs
-                .timed(ResourceId::Relay, AppFeature::from(group));
-
             let mut envelope =
                 ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
             envelope.scope(scoping);
 
-            // let message = ProcessEnvelopeGrouped {
-            //     group,
-            //     envelope,
-            //     project_info: Arc::clone(&message.project_info),
-            //     rate_limits: Arc::clone(&message.rate_limits),
-            //     sampling_project_info: message.sampling_project_info.as_ref().map(Arc::clone),
-            //     reservoir_counters: Arc::clone(&message.reservoir_counters),
-            // };
-
-            // FIXME: Understand if just doing this is enough
-
-            // FIXME: Plan
-            // - Write some integration tests to see if this works
-            // - Clean up some comments
-            // - Try to further simplify the logic
-
+            // FIXME: This might be too naive
             self.submit_upstream(envelope);
-
-            // TODO: Naive assumption we can skip over the processing, just need to massage the types to work
-            // let result = metric!(
-            //     timer(RelayTimers::EnvelopeProcessingTime),
-            //     group = group.variant(),
-            //     { self.process(&mut cogs, message).await }
-            // );
-            // let result = Ok(Some(message));
-
-            // match result {
-            //     Ok(Some(envelope)) => {
-            //         todo!();
-            //         // self.submit_upstream(&mut cogs, envelope)
-            //     }
-            //     Ok(None) => {}
-            //     Err(error) if error.is_unexpected() => {
-            //         relay_log::error!(
-            //             tags.project_key = %project_key,
-            //             error = &error as &dyn Error,
-            //             "error processing envelope"
-            //         )
-            //     }
-            //     Err(error) => {
-            //         relay_log::debug!(
-            //             tags.project_key = %project_key,
-            //             error = &error as &dyn Error,
-            //             "error processing envelope"
-            //         )
-            //     }
-            // }
         }
     }
 
+    // FIXME: Crazy amount of logic so maybe better to just get rid of all of this after all?
     fn handle_process_metrics(&self, message: ProcessMetrics) {
         let ProcessMetrics {
             data,
@@ -3647,7 +3528,7 @@ impl ProxyProcessorService {
             }
         };
 
-        // TODO:
+        // FIXME:
         // - Just forward (no splitting into the smaller metrics needed)
 
         for (project_key, buckets) in buckets {
@@ -3900,7 +3781,6 @@ impl ProxyProcessorService {
         self.submit_upstream(envelope);
     }
 
-    // FIXME: Check that this is correct.
     fn submit_upstream(&self, envelope: ManagedEnvelope) {
         let mut envelope = envelope;
 
@@ -3940,9 +3820,6 @@ impl ProxyProcessorService {
             }
         }
     }
-
-    // FIXME: Write an integration test (check the basic forwarding works) [back to python]
-    // - ratelimit
 
     async fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();

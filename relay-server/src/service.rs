@@ -259,11 +259,7 @@ impl ServiceState {
                 ProxyProcessorService::new(
                     processor_pool.clone(),
                     config.clone(),
-                    global_config_handle,
                     project_cache_handle.clone(),
-                    cogs,
-                    #[cfg(feature = "processing")]
-                    redis_clients.clone(),
                     processor::Addrs {
                         outcome_aggregator: outcome_aggregator.clone(),
                         upstream_relay: upstream_relay.clone(),
