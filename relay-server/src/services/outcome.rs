@@ -496,6 +496,9 @@ pub enum DiscardReason {
 
     /// (Relay) The signature from a trusted Relay was missing but required.
     MissingSignature,
+
+    /// (Relay) The signature from a trusted Relay was missing but required.
+    InvalidCheckIn,
 }
 
 impl DiscardReason {
@@ -546,6 +549,7 @@ impl DiscardReason {
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
             DiscardReason::TransactionAttachment => "transaction_attachment",
+            DiscardReason::InvalidCheckIn => "invalid_check_in",
         }
     }
 }
