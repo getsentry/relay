@@ -47,52 +47,29 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             let if_clauses = parts.iter().flat_map(|part| {
                 if let TemplatePart::Attribute(name, ident) = part {
                     Some(quote! {
-                        let Some(#ident) = attributes.get_value(#name).and_then(val_to_string)
+                        let Some(#ident @ (Val::String(_) | Val::Bool(_) | Val::U64(_) | Val::I64(_) | Val::F64(_))) = attributes.get_value(#name)
                     })
                 } else {
                     None
                 }
             });
 
-            // Then, we allocate a string with the appropriate size to hold the name.
-            let declare_name_string = {
-                let literal_length = parts.iter().fold(0, |acc, part|{
-                    if let TemplatePart::Literal(s) = part {
-                        acc + s.len()
-                    } else {
-                        acc
-                    }
-                });
-                let attribute_lengths = parts.iter().flat_map(|part|
-                    if let TemplatePart::Attribute(_, ident) = part {
-                        Some(quote! { #ident.len() })
-                    } else {
-                        None
-                    });
-                quote! {
-                    #[allow(clippy::identity_op)]
-                    let mut name = String::with_capacity(#literal_length + #(#attribute_lengths)+*);
+            // Then, construct the format string and argument list for a `format!` call to produce the name.
+            let format_string = parts.iter().map(|part| match part {
+                TemplatePart::Literal(l) => *l,
+                TemplatePart::Attribute(_, _) => "{}",
+            }).collect::<String>();
+            let format_args = parts.iter().flat_map(|part| {
+                if let TemplatePart::Attribute(_, ident) = part {
+                    Some(quote! { DisplayVal(#ident) })
+                } else {
+                    None
                 }
-            };
-
-            // Finally, append each template part (literal or dynamic) to the string.
-            let append_parts_to_name = parts.iter().map(|part| match part {
-                TemplatePart::Literal(s) => {
-                    quote! {
-                        #[allow(clippy::single_char_add_str)]
-                        name.push_str(#s);
-                    }
-                }
-                TemplatePart::Attribute(_, ident) => quote! {
-                    name.push_str(&#ident);
-                },
             });
 
             Some(quote! {
                 if #(#if_clauses)&&* {
-                    #declare_name_string
-                    #(#append_parts_to_name)*
-                    return name;
+                    return format!(#format_string, #(#format_args),*);
                 };
             })
         });
@@ -112,8 +89,9 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
     });
 
     quote! {
-        use std::borrow::Cow;
         use relay_protocol::{Getter, Val};
+        use std::fmt;
+        use std::fmt::Display;
 
         pub fn name_for_op_and_attributes(op: &str, attributes: &impl Getter) -> String {
             match op {
@@ -122,15 +100,19 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             }
         }
 
-        fn val_to_string(val: Val<'_>) -> Option<Cow<'_, str>> {
-            Some(match val {
-                Val::String(s) => Cow::Borrowed(s),
-                Val::I64(i) => Cow::Owned(i.to_string()),
-                Val::U64(u) => Cow::Owned(u.to_string()),
-                Val::F64(f) => Cow::Owned(f.to_string()),
-                Val::Bool(b) => Cow::Borrowed(if b { "true" } else { "false" }),
-                Val::HexId(_) | Val::Array(_) | Val::Object(_) => return None,
-            })
+        struct DisplayVal<'a>(Val<'a>);
+
+        impl Display for DisplayVal<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self.0 {
+                    Val::Bool(b) => write!(f, "{b}"),
+                    Val::I64(i) => write!(f, "{i}"),
+                    Val::U64(u) => write!(f, "{u}"),
+                    Val::F64(fl) => write!(f, "{fl}"),
+                    Val::String(s) => f.write_str(s),
+                    Val::HexId(_) | Val::Array(_) | Val::Object(_) => Ok(()),
+                }
+            }
         }
     }
 }
