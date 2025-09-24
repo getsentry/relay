@@ -105,10 +105,10 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
         impl Display for DisplayVal<'_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 match self.0 {
-                    Val::Bool(b) => write!(f, "{}", b),
-                    Val::I64(i) => write!(f, "{}", i),
-                    Val::U64(u) => write!(f, "{}", u),
-                    Val::F64(fl) => write!(f, "{}", fl),
+                    Val::Bool(b) => write!(f, "{b}"),
+                    Val::I64(i) => write!(f, "{i}"),
+                    Val::U64(u) => write!(f, "{u}"),
+                    Val::F64(fl) => write!(f, "{fl}"),
                     Val::String(s) => f.write_str(s),
                     Val::HexId(_) | Val::Array(_) | Val::Object(_) => Ok(()),
                 }
