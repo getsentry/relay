@@ -21,21 +21,22 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
     let trust = logs.headers.meta().request_trust();
 
     #[cfg(feature = "processing")]
-    let retentions = &ctx
-        .project_info
-        .config
-        .retentions
-        .as_ref()
-        .and_then(|r| r.retention_for_trace_item(TraceItemType::Log));
-    #[cfg(feature = "processing")]
-    let retention = retentions.map_or(_ctx.project_info.config.event_retention, |r| {
-        Some(r.standard)
-    });
-    #[cfg(feature = "processing")]
-    let downsampled_retention = retentions
-        .map_or(_ctx.project_info.config.downsampled_event_retention, |r| {
-            Some(r.downsampled)
-        });
+    let (retention, downsampled_retention) = {
+        let retentions = &_ctx
+            .project_info
+            .config
+            .retentions
+            .as_ref()
+            .and_then(|r| r.retention_for_trace_item(TraceItemType::Log));
+        (
+            retentions.map_or(_ctx.project_info.config.event_retention, |r| {
+                Some(r.standard)
+            }),
+            retentions.map_or(_ctx.project_info.config.downsampled_event_retention, |r| {
+                Some(r.downsampled)
+            }),
+        )
+    };
 
     logs.map(|logs, records| {
         records.lenient(DataCategory::LogByte);
