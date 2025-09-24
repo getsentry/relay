@@ -53,8 +53,6 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
         ExpandedLogs {
             headers: logs.headers,
             logs: all_logs,
-            // Hard code both retentions for logs launch until we have separate retentions for
-            // different data categories.
             #[cfg(feature = "processing")]
             retention,
             #[cfg(feature = "processing")]
