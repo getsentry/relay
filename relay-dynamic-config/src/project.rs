@@ -33,7 +33,11 @@ pub struct RetentionSettings {
 /// Settings for retention policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Retentions {
+    /// Retention settings for logs.
+    /// This will determine when they are removed from storage.
     pub log: RetentionSettings,
+    /// Retention settings for spans.
+    /// This will determine when they are removed from storage.
     pub span: RetentionSettings,
 }
 
