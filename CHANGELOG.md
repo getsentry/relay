@@ -10,6 +10,10 @@
 - Add Unity Info context to event schema. ([#5155](https://github.com/getsentry/relay/pull/5155))
 - Generate `sentry.name` attributes for spans without names. ([#5143](https://github.com/getsentry/relay/pull/5143))
 
+**Bug Fixes**:
+
+- Emit monitor outcomes when dropping/rejecting an envelope. ([#5177](https://github.com/getsentry/relay/pull/5177))
+
 **Internal**:
 
 - No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
