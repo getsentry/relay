@@ -262,9 +262,9 @@ def test_span_extraction(
     }
 
     if produce_compat_spans:
-        assert_contains(child_span, expected_transaction_span)
+        assert_contains(transaction_span, expected_transaction_span)
     else:
-        assert child_span == expected_transaction_span
+        assert transaction_span == expected_transaction_span
 
     spans_consumer.assert_empty()
 
