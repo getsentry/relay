@@ -99,3 +99,6 @@ def test_replay_allowed(mini_sentry, relay):
 
     # Does not raise queue.Empty
     envelope = mini_sentry.captured_events.get(timeout=10)
+
+
+# TODO: Extend the logic here.

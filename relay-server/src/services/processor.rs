@@ -966,6 +966,7 @@ pub struct ProcessMetrics {
 pub enum MetricData {
     /// Raw data, unparsed envelope items.
     Raw(Vec<Item>),
+    // TODO: This might needs to be serialized.
     /// Already parsed buckets but unprocessed.
     Parsed(Vec<Bucket>),
 }
@@ -2452,6 +2453,8 @@ impl EnvelopeProcessorService {
         }
     }
 
+    // TODO: Better understand what is going on here.
+
     /// Processes the envelope and returns the processed envelope back.
     ///
     /// Returns `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
@@ -2468,6 +2471,8 @@ impl EnvelopeProcessorService {
             ref sampling_project_info,
             ..
         } = message;
+
+        // TODO: Not entirely sure why the envelope can't have the project_id for example, but I guess we defo want to avoid this though
 
         // Prefer the project's project ID, and fall back to the stated project id from the
         // envelope. The project ID is available in all modes, other than in proxy mode, where
@@ -2506,6 +2511,7 @@ impl EnvelopeProcessorService {
             }
         });
 
+        // TODO: This we want to skip for sure
         let result = match self.process_envelope(cogs, project_id, message).await {
             Ok(ProcessingResult::Envelope {
                 mut managed_envelope,
@@ -2596,6 +2602,7 @@ impl EnvelopeProcessorService {
                 reservoir_counters: Arc::clone(&message.reservoir_counters),
             };
 
+            // TODO: Wonder if we can just skip this in its entirety :thinking:
             let result = metric!(
                 timer(RelayTimers::EnvelopeProcessingTime),
                 group = group.variant(),
@@ -3487,165 +3494,171 @@ impl ProxyProcessorService {
         }
     }
 
-    async fn handle_process_envelope(&self, cogs: &mut Token, message: ProcessEnvelope) {
-        todo!("Adapt the logic");
+    async fn handle_process_envelope(&self, message: ProcessEnvelope) {
+        let project_key = message.envelope.envelope().meta().public_key();
+        let wait_time = message.envelope.age();
+        metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
-        // let project_key = message.envelope.envelope().meta().public_key();
-        // let wait_time = message.envelope.age();
-        // metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
+        let scoping = message.envelope.scoping();
+        for (group, envelope) in ProcessingGroup::split_envelope(
+            *message.envelope.into_envelope(),
+            &message.project_info,
+        ) {
+            let mut cogs = self
+                .inner
+                .cogs
+                .timed(ResourceId::Relay, AppFeature::from(group));
 
-        // // This COGS handling may need an overhaul in the future:
-        // // Cancel the passed in token, to start individual measurements per envelope instead.
-        // cogs.cancel();
+            let mut envelope =
+                ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
+            envelope.scope(scoping);
 
-        // let scoping = message.envelope.scoping();
-        // for (group, envelope) in ProcessingGroup::split_envelope(
-        //     *message.envelope.into_envelope(),
-        //     &message.project_info,
-        // ) {
-        //     let mut cogs = self
-        //         .inner
-        //         .cogs
-        //         .timed(ResourceId::Relay, AppFeature::from(group));
+            // let message = ProcessEnvelopeGrouped {
+            //     group,
+            //     envelope,
+            //     project_info: Arc::clone(&message.project_info),
+            //     rate_limits: Arc::clone(&message.rate_limits),
+            //     sampling_project_info: message.sampling_project_info.as_ref().map(Arc::clone),
+            //     reservoir_counters: Arc::clone(&message.reservoir_counters),
+            // };
 
-        //     let mut envelope =
-        //         ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
-        //     envelope.scope(scoping);
+            // FIXME: Understand if just doing this is enough
 
-        //     let message = ProcessEnvelopeGrouped {
-        //         group,
-        //         envelope,
-        //         project_info: Arc::clone(&message.project_info),
-        //         rate_limits: Arc::clone(&message.rate_limits),
-        //         sampling_project_info: message.sampling_project_info.as_ref().map(Arc::clone),
-        //         reservoir_counters: Arc::clone(&message.reservoir_counters),
-        //     };
+            // FIXME: Plan
+            // - Write some integration tests to see if this works
+            // - Clean up some comments
+            // - Try to further simplify the logic
 
-        //     let result = metric!(
-        //         timer(RelayTimers::EnvelopeProcessingTime),
-        //         group = group.variant(),
-        //         { self.process(&mut cogs, message).await }
-        //     );
+            self.submit_upstream(envelope);
 
-        //     match result {
-        //         Ok(Some(envelope)) => self.submit_upstream(&mut cogs, envelope),
-        //         Ok(None) => {}
-        //         Err(error) if error.is_unexpected() => {
-        //             relay_log::error!(
-        //                 tags.project_key = %project_key,
-        //                 error = &error as &dyn Error,
-        //                 "error processing envelope"
-        //             )
-        //         }
-        //         Err(error) => {
-        //             relay_log::debug!(
-        //                 tags.project_key = %project_key,
-        //                 error = &error as &dyn Error,
-        //                 "error processing envelope"
-        //             )
-        //         }
-        //     }
-        // }
+            // TODO: Naive assumption we can skip over the processing, just need to massage the types to work
+            // let result = metric!(
+            //     timer(RelayTimers::EnvelopeProcessingTime),
+            //     group = group.variant(),
+            //     { self.process(&mut cogs, message).await }
+            // );
+            // let result = Ok(Some(message));
+
+            // match result {
+            //     Ok(Some(envelope)) => {
+            //         todo!();
+            //         // self.submit_upstream(&mut cogs, envelope)
+            //     }
+            //     Ok(None) => {}
+            //     Err(error) if error.is_unexpected() => {
+            //         relay_log::error!(
+            //             tags.project_key = %project_key,
+            //             error = &error as &dyn Error,
+            //             "error processing envelope"
+            //         )
+            //     }
+            //     Err(error) => {
+            //         relay_log::debug!(
+            //             tags.project_key = %project_key,
+            //             error = &error as &dyn Error,
+            //             "error processing envelope"
+            //         )
+            //     }
+            // }
+        }
     }
 
-    fn handle_process_metrics(&self, cogs: &mut Token, message: ProcessMetrics) {
-        todo!("Adapt the logic");
-        // let ProcessMetrics {
-        //     data,
-        //     project_key,
-        //     received_at,
-        //     sent_at,
-        //     source,
-        // } = message;
+    fn handle_process_metrics(&self, message: ProcessMetrics) {
+        let ProcessMetrics {
+            data,
+            project_key,
+            received_at,
+            sent_at,
+            source,
+        } = message;
 
-        // let received_timestamp =
-        //     UnixTimestamp::from_datetime(received_at).unwrap_or(UnixTimestamp::now());
+        let received_timestamp =
+            UnixTimestamp::from_datetime(received_at).unwrap_or(UnixTimestamp::now());
 
-        // let mut buckets = data.into_buckets(received_timestamp);
-        // if buckets.is_empty() {
-        //     return;
-        // };
-        // cogs.update(relay_metrics::cogs::BySize(&buckets));
+        let mut buckets = data.into_buckets(received_timestamp);
+        if buckets.is_empty() {
+            return;
+        };
 
-        // let clock_drift_processor =
-        //     ClockDriftProcessor::new(sent_at, received_at).at_least(MINIMUM_CLOCK_DRIFT);
+        // TODO: Guess we want to skip this?
+        let clock_drift_processor =
+            ClockDriftProcessor::new(sent_at, received_at).at_least(MINIMUM_CLOCK_DRIFT);
 
-        // buckets.retain_mut(|bucket| {
-        //     if let Err(error) = relay_metrics::normalize_bucket(bucket) {
-        //         relay_log::debug!(error = &error as &dyn Error, "dropping bucket {bucket:?}");
-        //         return false;
-        //     }
+        buckets.retain_mut(|bucket| {
+            if let Err(error) = relay_metrics::normalize_bucket(bucket) {
+                relay_log::debug!(error = &error as &dyn Error, "dropping bucket {bucket:?}");
+                return false;
+            }
 
-        //     if !self::metrics::is_valid_namespace(bucket) {
-        //         return false;
-        //     }
+            if !self::metrics::is_valid_namespace(bucket) {
+                return false;
+            }
 
-        //     clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
 
-        //     if !matches!(source, BucketSource::Internal) {
-        //         bucket.metadata = BucketMetadata::new(received_timestamp);
-        //     }
+            if !matches!(source, BucketSource::Internal) {
+                bucket.metadata = BucketMetadata::new(received_timestamp);
+            }
 
-        //     true
-        // });
+            true
+        });
 
-        // let project = self.inner.project_cache.get(project_key);
+        let project = self.inner.project_cache.get(project_key);
 
-        // // Best effort check to filter and rate limit buckets, if there is no project state
-        // // available at the current time, we will check again after flushing.
-        // let buckets = match project.state() {
-        //     ProjectState::Enabled(project_info) => {
-        //         let rate_limits = project.rate_limits().current_limits();
-        //         self.check_buckets(project_key, project_info, &rate_limits, buckets)
-        //     }
-        //     _ => buckets,
-        // };
+        // Best effort check to filter and rate limit buckets, if there is no project state
+        // available at the current time, we will check again after flushing.
+        let buckets = match project.state() {
+            ProjectState::Enabled(project_info) => {
+                let rate_limits = project.rate_limits().current_limits();
+                self.check_buckets(project_key, project_info, &rate_limits, buckets)
+            }
+            _ => buckets,
+        };
 
-        // relay_log::trace!("merging metric buckets into the aggregator");
-        // self.inner
-        //     .addrs
-        //     .aggregator
-        //     .send(MergeBuckets::new(project_key, buckets));
+        relay_log::trace!("merging metric buckets into the aggregator");
+        self.inner
+            .addrs
+            .aggregator
+            .send(MergeBuckets::new(project_key, buckets));
     }
 
-    fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
-        todo!("Adapt the logic");
-        // let ProcessBatchedMetrics {
-        //     payload,
-        //     source,
-        //     received_at,
-        //     sent_at,
-        // } = message;
+    fn handle_process_batched_metrics(&self, message: ProcessBatchedMetrics) {
+        let ProcessBatchedMetrics {
+            payload,
+            source,
+            received_at,
+            sent_at,
+        } = message;
 
-        // #[derive(serde::Deserialize)]
-        // struct Wrapper {
-        //     buckets: HashMap<ProjectKey, Vec<Bucket>>,
-        // }
+        #[derive(serde::Deserialize)]
+        struct Wrapper {
+            buckets: HashMap<ProjectKey, Vec<Bucket>>,
+        }
 
-        // let buckets = match serde_json::from_slice(&payload) {
-        //     Ok(Wrapper { buckets }) => buckets,
-        //     Err(error) => {
-        //         relay_log::debug!(
-        //             error = &error as &dyn Error,
-        //             "failed to parse batched metrics",
-        //         );
-        //         metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
-        //         return;
-        //     }
-        // };
+        let buckets = match serde_json::from_slice(&payload) {
+            Ok(Wrapper { buckets }) => buckets,
+            Err(error) => {
+                relay_log::debug!(
+                    error = &error as &dyn Error,
+                    "failed to parse batched metrics",
+                );
+                metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                return;
+            }
+        };
 
-        // for (project_key, buckets) in buckets {
-        //     self.handle_process_metrics(
-        //         cogs,
-        //         ProcessMetrics {
-        //             data: MetricData::Parsed(buckets),
-        //             project_key,
-        //             source,
-        //             received_at,
-        //             sent_at,
-        //         },
-        //     )
-        // }
+        // TODO:
+        // - Just forward (no splitting into the smaller metrics needed)
+
+        for (project_key, buckets) in buckets {
+            self.handle_process_metrics(ProcessMetrics {
+                data: MetricData::Parsed(buckets),
+                project_key,
+                source,
+                received_at,
+                sent_at,
+            })
+        }
     }
 
     // FIXME: 1 for 1 copy
@@ -3656,6 +3669,7 @@ impl ProxyProcessorService {
         rate_limits: &RateLimits,
         buckets: Vec<Bucket>,
     ) -> Vec<Bucket> {
+        // So this will be none :thinking:
         let Some(scoping) = project_info.scoping(project_key) else {
             relay_log::error!(
                 tags.project_key = project_key.as_str(),
@@ -3720,7 +3734,7 @@ impl ProxyProcessorService {
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
-    fn encode_metrics_envelope(&self, cogs: &mut Token, message: FlushBuckets) {
+    fn encode_metrics_envelope(&self, message: FlushBuckets) {
         let FlushBuckets {
             partition_key,
             buckets,
@@ -3758,7 +3772,7 @@ impl ProxyProcessorService {
                     histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
                 );
 
-                self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
+                self.submit_upstream(envelope);
                 num_batches += 1;
             }
 
@@ -3848,32 +3862,25 @@ impl ProxyProcessorService {
         self.send_global_partition(partition_key, &mut partition);
     }
 
-    // FIXME: 1 for 1 copy
-    async fn handle_flush_buckets(&self, cogs: &mut Token, mut message: FlushBuckets) {
+    // FIXME: Check if this can not be simplified even more.
+    async fn handle_flush_buckets(&self, mut message: FlushBuckets) {
+        // Currently this logic would make the buckets an empty list but I assume we want to change
+        // that and instead forward them as is to the next Relay
         for (project_key, pb) in message.buckets.iter_mut() {
             let buckets = std::mem::take(&mut pb.buckets);
             pb.buckets =
                 self.check_buckets(*project_key, &pb.project_info, &pb.rate_limits, buckets);
         }
 
-        #[cfg(feature = "processing")]
-        if self.inner.config.processing_enabled()
-            && let Some(ref store_forwarder) = self.inner.addrs.store_forwarder
-        {
-            return self
-                .encode_metrics_processing(message, store_forwarder)
-                .await;
-        }
-
+        // TODO: Just forward the envelope (don't worry about this stuff).
         if self.inner.config.http_global_metrics() {
             self.encode_metrics_global(message)
         } else {
-            self.encode_metrics_envelope(cogs, message)
+            self.encode_metrics_envelope(message)
         }
     }
 
-    // FIXME: 1 for 1 copy
-    fn handle_submit_client_reports(&self, cogs: &mut Token, message: SubmitClientReports) {
+    fn handle_submit_client_reports(&self, message: SubmitClientReports) {
         let SubmitClientReports {
             client_reports,
             scoping,
@@ -3890,35 +3897,17 @@ impl ProxyProcessorService {
         }
 
         let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
-        self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
+        self.submit_upstream(envelope);
     }
 
-    // FIXME: 1 for 1 copy (minus processing block)
-    fn submit_upstream(&self, cogs: &mut Token, submit: Submit) {
-        let _submit = cogs.start_category("submit");
-
-        let mut envelope = match submit {
-            Submit::Envelope(envelope) => envelope,
-            Submit::Output(output) => match output.serialize_envelope() {
-                Ok(envelope) => ManagedEnvelope::from(envelope).into_processed(),
-                Err(_) => {
-                    relay_log::error!("failed to serialize output to an envelope");
-                    return;
-                }
-            },
-        };
+    // FIXME: Check that this is correct.
+    fn submit_upstream(&self, envelope: ManagedEnvelope) {
+        let mut envelope = envelope;
 
         if envelope.envelope_mut().is_empty() {
             envelope.accept();
             return;
         }
-
-        // Override the `sent_at` timestamp. Since the envelope went through basic
-        // normalization, all timestamps have been corrected. We propagate the new
-        // `sent_at` to allow the next Relay to double-check this timestamp and
-        // potentially apply correction again. This is done as close to sending as
-        // possible so that we avoid internal delays.
-        envelope.envelope_mut().set_sent_at(Utc::now());
 
         relay_log::trace!("sending envelope to sentry endpoint");
         let http_encoding = self.inner.config.http_encoding();
@@ -3932,7 +3921,7 @@ impl ProxyProcessorService {
                     .addrs
                     .upstream_relay
                     .send(SendRequest(SendEnvelope {
-                        envelope,
+                        envelope: envelope.into_processed(),
                         body,
                         http_encoding,
                         project_cache: self.inner.project_cache.clone(),
@@ -3952,55 +3941,21 @@ impl ProxyProcessorService {
         }
     }
 
-    // FIXME: 1 for 1 copy
-    fn feature_weights(&self, message: &EnvelopeProcessor) -> FeatureWeights {
-        match message {
-            // Envelope is split later and tokens are attributed then.
-            EnvelopeProcessor::ProcessEnvelope(_) => AppFeature::Unattributed.into(),
-            EnvelopeProcessor::ProcessProjectMetrics(_) => AppFeature::Unattributed.into(),
-            EnvelopeProcessor::ProcessBatchedMetrics(_) => AppFeature::Unattributed.into(),
-            EnvelopeProcessor::FlushBuckets(v) => v
-                .buckets
-                .values()
-                .map(|s| {
-                    if self.inner.config.processing_enabled() {
-                        // Processing does not encode the metrics but instead rate and cardinality
-                        // limits the metrics, which scales by count and not size.
-                        relay_metrics::cogs::ByCount(&s.buckets).into()
-                    } else {
-                        relay_metrics::cogs::BySize(&s.buckets).into()
-                    }
-                })
-                .fold(FeatureWeights::none(), FeatureWeights::merge),
-            EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
-        }
-    }
+    // FIXME: Write an integration test (check the basic forwarding works) [back to python]
+    // - ratelimit
 
-    // FIXME: 1 for 1 copy (but can be simplified once we get rid of cogs)
     async fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();
 
-        // TODO: Not sure we need this in Proxy mode
-        let feature_weights = self.feature_weights(&message);
         metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
-            let mut cogs = self.inner.cogs.timed(ResourceId::Relay, feature_weights);
-
             match message {
-                EnvelopeProcessor::ProcessEnvelope(m) => {
-                    self.handle_process_envelope(&mut cogs, *m).await
-                }
-                EnvelopeProcessor::ProcessProjectMetrics(m) => {
-                    self.handle_process_metrics(&mut cogs, *m)
-                }
+                EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m).await,
+                EnvelopeProcessor::ProcessProjectMetrics(m) => self.handle_process_metrics(*m),
                 EnvelopeProcessor::ProcessBatchedMetrics(m) => {
-                    self.handle_process_batched_metrics(&mut cogs, *m)
+                    self.handle_process_batched_metrics(*m)
                 }
-                EnvelopeProcessor::FlushBuckets(m) => {
-                    self.handle_flush_buckets(&mut cogs, *m).await
-                }
-                EnvelopeProcessor::SubmitClientReports(m) => {
-                    self.handle_submit_client_reports(&mut cogs, *m)
-                }
+                EnvelopeProcessor::FlushBuckets(m) => self.handle_flush_buckets(*m).await,
+                EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
             }
         });
     }
