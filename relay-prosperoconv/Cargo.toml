@@ -15,7 +15,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(sentry)'] }
 anyhow = "1.0.69"
 lz4_flex = "0.11.3"
 mime_guess = "2.0.4"
-minidump-writer = "0.9.0"
+minidump-writer = "0.11.0"
 object = "0.36.0"
 rmpv = "1.3.0"
 sentry = { version = "0.41.0", default-features = false, features = [
