@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
+use crate::integrations::{Integration, LogsIntegration};
 
 #[derive(Clone, Debug)]
 pub struct Item {
@@ -66,6 +67,10 @@ impl Item {
             Some(Err(error)) => return Err(EnvelopeError::InvalidItemHeader(error)),
             Some(Ok(headers)) => headers,
         };
+
+        if headers.ty.is_internal() {
+            return Err(EnvelopeError::InternalItemType);
+        }
 
         // Each header is terminated by a UNIX newline.
         let headers_end = stream.byte_offset();
@@ -136,13 +141,16 @@ impl Item {
             ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, item_count)],
             // NOTE: semantically wrong, but too expensive to parse.
             ItemType::OtelTracesData => smallvec![(DataCategory::Span, item_count)],
-            ItemType::OtelLogsData => smallvec![
-                (DataCategory::LogByte, self.len().max(1)),
-                (DataCategory::LogItem, item_count) // NOTE: semantically wrong, but too expensive to parse.
-            ],
             ItemType::ProfileChunk => match self.profile_type() {
                 Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
                 Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
+                None => smallvec![],
+            },
+            ItemType::Integration => match self.integration() {
+                Some(Integration::Logs(LogsIntegration::OtelV1 { .. })) => smallvec![
+                    (DataCategory::LogByte, self.len().max(1)),
+                    (DataCategory::LogItem, item_count), // NOTE: semantically wrong, but too expensive to parse.
+                ],
                 None => smallvec![],
             },
             ItemType::Unknown(_) => smallvec![],
@@ -179,6 +187,22 @@ impl Item {
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn content_type(&self) -> Option<&ContentType> {
         self.headers.content_type.as_ref()
+    }
+
+    /// Returns the [`Integration`] the item belongs.
+    pub fn integration(&self) -> Option<Integration> {
+        if !matches!(self.ty(), ItemType::Integration) {
+            return None;
+        }
+
+        match self.content_type() {
+            Some(ContentType::Integration(integration)) => Some(*integration),
+            _ => {
+                // This is a bug which should never happen.
+                debug_assert!(false, "integration item, but no integration content type");
+                None
+            }
+        }
     }
 
     /// Returns the attachment type if this item is an attachment.
@@ -422,8 +446,11 @@ impl Item {
             | ItemType::Log
             | ItemType::OtelSpan
             | ItemType::OtelTracesData
-            | ItemType::OtelLogsData
             | ItemType::ProfileChunk => false,
+
+            // For now integrations can not create events, we may need to revisit this in the
+            // future and break down different types of integrations here, similar to attachments.
+            ItemType::Integration => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -458,8 +485,8 @@ impl Item {
             ItemType::Log => false,
             ItemType::OtelSpan => false,
             ItemType::OtelTracesData => false,
-            ItemType::OtelLogsData => false,
             ItemType::ProfileChunk => false,
+            ItemType::Integration => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
@@ -535,13 +562,19 @@ pub enum ItemType {
     /// A standalone OpenTelemetry span serialized as JSON.
     OtelSpan,
     /// An OTLP TracesData container.
-    OtelTracesData,
-    /// An OTLP LogsData container.
-    OtelLogsData,
+    OtelTracesData, // TODO: remove me
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
     ProfileChunk,
+    /// Integrations are a vendor specific set of endpoints providing integrations with external
+    /// systems, standards and vendors.
+    ///
+    /// Relay stores payloads received from integration endpoints in envelope items of this type.
+    ///
+    /// This is an [internal item type](`Self::is_internal`) and must be converted within the same
+    /// instance of Relay.
+    Integration,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -593,8 +626,8 @@ impl ItemType {
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
             Self::OtelTracesData => "otel_traces_data",
-            Self::OtelLogsData => "otel_logs_data",
             Self::ProfileChunk => "profile_chunk",
+            Self::Integration => "integration",
             Self::Unknown(_) => "unknown",
         }
     }
@@ -610,6 +643,14 @@ impl ItemType {
     /// Returns `true` if the item is a metric type.
     pub fn is_metrics(&self) -> bool {
         matches!(self, ItemType::Statsd | ItemType::MetricBuckets)
+    }
+
+    /// Returns `true` if the item is a Relay internal item type.
+    ///
+    /// Internal items are not allowed to be forwarded or sent upstream and will be rejected by
+    /// other Relays. Internal items must be converted to Sentry native items before forwarded.
+    pub fn is_internal(&self) -> bool {
+        matches!(self, ItemType::Integration)
     }
 
     /// Returns `true` if the specified [`ItemType`] can occur in an [`super::ItemContainer`].
@@ -645,9 +686,9 @@ impl ItemType {
             ItemType::Span => true,
             ItemType::OtelSpan => true,
             ItemType::OtelTracesData => false,
-            ItemType::OtelLogsData => false,
             ItemType::UserReportV2 => false,
             ItemType::ProfileChunk => true,
+            ItemType::Integration => false,
             ItemType::Unknown(_) => true,
         }
     }
@@ -688,11 +729,11 @@ impl std::str::FromStr for ItemType {
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
             "otel_traces_data" => Self::OtelTracesData,
-            "otel_logs_data" => Self::OtelLogsData,
             "profile_chunk" => Self::ProfileChunk,
             // "profile_chunk_ui" is to be treated as an alias for `ProfileChunk`
             // because Android 8.10.0 and 8.11.0 is sending it as the item type.
             "profile_chunk_ui" => Self::ProfileChunk,
+            "integration" => Self::Integration,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -867,6 +908,8 @@ fn is_true(value: &bool) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::integrations::OtelFormat;
+
     use super::*;
 
     #[test]
@@ -928,6 +971,36 @@ mod tests {
         item.set_source_quantities(source_quantities);
 
         assert_eq!(item.source_quantities(), Some(source_quantities));
+    }
+
+    #[test]
+    fn test_internal_item_type_does_not_parse() {
+        let err = Item::parse(Bytes::from_static(
+            br#"{"type":"integration","content_type":"application/vnd.sentry.integration.otel.logs+json"}"#,
+        ))
+        .unwrap_err();
+
+        assert!(matches!(err, EnvelopeError::InternalItemType));
+    }
+
+    #[test]
+    fn test_internal_content_type_does_parse() {
+        let (item, _) = Item::parse(Bytes::from_static(concat!(
+            r#"{"type":"attachment","content_type":"application/vnd.sentry.integration.otel.logs+json","length":5}"#,
+            "\n",
+            "12345"
+        ).as_bytes()))
+        .unwrap();
+
+        assert_eq!(
+            item.content_type(),
+            Some(&ContentType::Integration(Integration::Logs(
+                LogsIntegration::OtelV1 {
+                    format: OtelFormat::Json
+                }
+            )))
+        );
+        assert_eq!(item.integration(), None);
     }
 
     #[test]

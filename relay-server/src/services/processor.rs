@@ -45,6 +45,7 @@ use zstd::stream::Encoder as ZstdEncoder;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
+use crate::integrations::Integration;
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -335,8 +336,10 @@ impl ProcessingGroup {
         }
 
         // Extract logs.
-        let logs_items = envelope
-            .take_items_by(|item| matches!(item.ty(), &ItemType::Log | &ItemType::OtelLogsData));
+        let logs_items = envelope.take_items_by(|item| {
+            matches!(item.ty(), &ItemType::Log)
+                || matches!(item.integration(), Some(Integration::Logs(_)))
+        });
         if !logs_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Log,

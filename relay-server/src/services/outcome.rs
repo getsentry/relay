@@ -608,12 +608,12 @@ pub enum DiscardItemType {
     OtelSpan,
     /// An OTLP TracesData container.
     OtelTracesData,
-    /// An OTLP LogsData container.
-    OtelLogsData,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
     ProfileChunk,
+    /// An integration item.
+    Integration,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -664,9 +664,9 @@ impl DiscardItemType {
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
             Self::OtelTracesData => "otel_traces_data",
-            Self::OtelLogsData => "otel_logs_data",
             Self::UserReportV2 => "user_report_v2",
             Self::ProfileChunk => "profile_chunk",
+            Self::Integration => "integration",
         }
     }
 }
@@ -697,9 +697,9 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::Span => Self::Span,
             ItemType::OtelSpan => Self::OtelSpan,
             ItemType::OtelTracesData => Self::OtelTracesData,
-            ItemType::OtelLogsData => Self::OtelLogsData,
             ItemType::UserReportV2 => Self::UserReportV2,
             ItemType::ProfileChunk => Self::ProfileChunk,
+            ItemType::Integration => Self::Integration,
             ItemType::Unknown(_) => Self::Unknown,
         }
     }
