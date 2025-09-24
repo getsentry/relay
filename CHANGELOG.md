@@ -9,13 +9,13 @@
 - Add Thread Pool Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))
 - Add Unity Info context to event schema. ([#5155](https://github.com/getsentry/relay/pull/5155))
 - Generate `sentry.name` attributes for spans without names. ([#5143](https://github.com/getsentry/relay/pull/5143))
-- Add `retentions` to the project configuration. ([#5135](https://github.com/getsentry/relay/pull/5135))
 
 **Internal**:
 
 - No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
 - Produce spans to `ingest-spans` by default. ([#5163](https://github.com/getsentry/relay/pull/5163))
 - Add ability to produce Span V2 Kafka messages. ([#5151](https://github.com/getsentry/relay/pull/5151))
+- Add `retentions` to the project configuration and use them for logs. ([#5135](https://github.com/getsentry/relay/pull/5135))
 
 ## 25.9.0
 
