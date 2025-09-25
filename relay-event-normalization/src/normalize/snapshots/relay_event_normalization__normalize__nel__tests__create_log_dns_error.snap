@@ -12,13 +12,13 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
       "type": "string",
       "value": "network-error"
     },
-    "http.request.duration": {
-      "type": "integer",
-      "value": 2000
-    },
     "http.request.method": {
       "type": "string",
       "value": "POST"
+    },
+    "nel.elapsed_time": {
+      "type": "integer",
+      "value": 2000
     },
     "nel.phase": {
       "type": "string",
