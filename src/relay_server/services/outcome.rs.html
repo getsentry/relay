@@ -612,12 +612,12 @@
 <a href=#612 id=612 data-nosnippet>612</a>    </span>OtelSpan,
 <a href=#613 id=613 data-nosnippet>613</a>    <span class="doccomment">/// An OTLP TracesData container.
 <a href=#614 id=614 data-nosnippet>614</a>    </span>OtelTracesData,
-<a href=#615 id=615 data-nosnippet>615</a>    <span class="doccomment">/// An OTLP LogsData container.
-<a href=#616 id=616 data-nosnippet>616</a>    </span>OtelLogsData,
-<a href=#617 id=617 data-nosnippet>617</a>    <span class="doccomment">/// UserReport as an Event
-<a href=#618 id=618 data-nosnippet>618</a>    </span>UserReportV2,
-<a href=#619 id=619 data-nosnippet>619</a>    <span class="doccomment">/// ProfileChunk is a chunk of a profiling session.
-<a href=#620 id=620 data-nosnippet>620</a>    </span>ProfileChunk,
+<a href=#615 id=615 data-nosnippet>615</a>    <span class="doccomment">/// UserReport as an Event
+<a href=#616 id=616 data-nosnippet>616</a>    </span>UserReportV2,
+<a href=#617 id=617 data-nosnippet>617</a>    <span class="doccomment">/// ProfileChunk is a chunk of a profiling session.
+<a href=#618 id=618 data-nosnippet>618</a>    </span>ProfileChunk,
+<a href=#619 id=619 data-nosnippet>619</a>    <span class="doccomment">/// An integration item.
+<a href=#620 id=620 data-nosnippet>620</a>    </span>Integration,
 <a href=#621 id=621 data-nosnippet>621</a>    <span class="doccomment">/// A new item type that is yet unknown by this version of Relay.
 <a href=#622 id=622 data-nosnippet>622</a>    ///
 <a href=#623 id=623 data-nosnippet>623</a>    /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -668,9 +668,9 @@
 <a href=#668 id=668 data-nosnippet>668</a>            <span class="self">Self</span>::Span =&gt; <span class="string">"span"</span>,
 <a href=#669 id=669 data-nosnippet>669</a>            <span class="self">Self</span>::OtelSpan =&gt; <span class="string">"otel_span"</span>,
 <a href=#670 id=670 data-nosnippet>670</a>            <span class="self">Self</span>::OtelTracesData =&gt; <span class="string">"otel_traces_data"</span>,
-<a href=#671 id=671 data-nosnippet>671</a>            <span class="self">Self</span>::OtelLogsData =&gt; <span class="string">"otel_logs_data"</span>,
-<a href=#672 id=672 data-nosnippet>672</a>            <span class="self">Self</span>::UserReportV2 =&gt; <span class="string">"user_report_v2"</span>,
-<a href=#673 id=673 data-nosnippet>673</a>            <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
+<a href=#671 id=671 data-nosnippet>671</a>            <span class="self">Self</span>::UserReportV2 =&gt; <span class="string">"user_report_v2"</span>,
+<a href=#672 id=672 data-nosnippet>672</a>            <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
+<a href=#673 id=673 data-nosnippet>673</a>            <span class="self">Self</span>::Integration =&gt; <span class="string">"integration"</span>,
 <a href=#674 id=674 data-nosnippet>674</a>        }
 <a href=#675 id=675 data-nosnippet>675</a>    }
 <a href=#676 id=676 data-nosnippet>676</a>}
@@ -701,9 +701,9 @@
 <a href=#701 id=701 data-nosnippet>701</a>            ItemType::Span =&gt; <span class="self">Self</span>::Span,
 <a href=#702 id=702 data-nosnippet>702</a>            ItemType::OtelSpan =&gt; <span class="self">Self</span>::OtelSpan,
 <a href=#703 id=703 data-nosnippet>703</a>            ItemType::OtelTracesData =&gt; <span class="self">Self</span>::OtelTracesData,
-<a href=#704 id=704 data-nosnippet>704</a>            ItemType::OtelLogsData =&gt; <span class="self">Self</span>::OtelLogsData,
-<a href=#705 id=705 data-nosnippet>705</a>            ItemType::UserReportV2 =&gt; <span class="self">Self</span>::UserReportV2,
-<a href=#706 id=706 data-nosnippet>706</a>            ItemType::ProfileChunk =&gt; <span class="self">Self</span>::ProfileChunk,
+<a href=#704 id=704 data-nosnippet>704</a>            ItemType::UserReportV2 =&gt; <span class="self">Self</span>::UserReportV2,
+<a href=#705 id=705 data-nosnippet>705</a>            ItemType::ProfileChunk =&gt; <span class="self">Self</span>::ProfileChunk,
+<a href=#706 id=706 data-nosnippet>706</a>            ItemType::Integration =&gt; <span class="self">Self</span>::Integration,
 <a href=#707 id=707 data-nosnippet>707</a>            ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="self">Self</span>::Unknown,
 <a href=#708 id=708 data-nosnippet>708</a>        }
 <a href=#709 id=709 data-nosnippet>709</a>    }
