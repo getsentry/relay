@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/spans/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@usssn|078-05-1120": {
+    "type": "string",
+    "value": "***********"
+  },
+  "_meta": {
+    "@usssn|078-05-1120": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@usssn",
+              "m",
+              0,
+              11
+            ]
+          ],
+          "len": 11
+        }
+      }
+    }
+  }
+}

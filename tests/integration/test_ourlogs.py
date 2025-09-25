@@ -330,7 +330,6 @@ def test_ourlog_extraction_with_sentry_logs(
 def test_ourlog_extraction_with_string_pii_scrubbing(
     mini_sentry,
     relay,
-    items_consumer,
     rule_type,
     test_value,
     expected_scrubbed,

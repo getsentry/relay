@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/spans/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@iban:replace|DE89370400440532013000": {
+    "type": "string",
+    "value": "[iban]"
+  },
+  "_meta": {
+    "@iban:replace|DE89370400440532013000": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@iban:replace",
+              "s",
+              0,
+              6
+            ]
+          ],
+          "len": 22
+        }
+      }
+    }
+  }
+}
