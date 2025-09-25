@@ -571,7 +571,13 @@ class MonitorsConsumer(ConsumerBase):
 
 class SpansConsumer(ConsumerBase):
     def get_span(self):
-        return self.get_spans(timeout=None, n=1)[0]
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        span = json.loads(message.value())
+        assert message.key() == bytes.fromhex(span["trace_id"])
+        return span
 
     def get_spans(self, *, timeout=None, n=None):
         spans = []
@@ -579,7 +585,7 @@ class SpansConsumer(ConsumerBase):
         for message in self.poll_many(timeout=timeout, n=n):
             assert message.error() is None
             span = json.loads(message.value())
-            assert message.key() == span["trace_id"]
+            assert message.key() == bytes.fromhex(span["trace_id"])
             spans.append(span)
 
         return spans

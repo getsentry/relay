@@ -353,14 +353,15 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
-                    scoping,
-                    received_at,
-                    event_id,
-                    retention,
-                    downsampled_retention,
-                    item,
-                )?,
+                ItemType::Span if content_type == Some(&ContentType::Json) => self
+                    .produce_span_v1(
+                        scoping,
+                        received_at,
+                        event_id,
+                        retention,
+                        downsampled_retention,
+                        item,
+                    )?,
                 ItemType::Span if content_type == Some(&ContentType::CompatSpan) => self
                     .produce_span_v2(
                         scoping,
@@ -1016,7 +1017,7 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_span(
+    fn produce_span_v1(
         &self,
         scoping: Scoping,
         received_at: DateTime<Utc>,
@@ -1580,7 +1581,14 @@ struct SpanV2KafkaMessage<'a> {
     #[serde(flatten)]
     meta: SpanMeta,
     #[serde(flatten)]
-    span: BTreeMap<&'a str, &'a RawValue>,
+    span: ObjectWithTraceId<'a>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ObjectWithTraceId<'a> {
+    trace_id: Option<EventId>,
+    #[serde(borrow, flatten)]
+    other: BTreeMap<&'a str, serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1790,8 +1798,7 @@ impl Message for KafkaMessage<'_> {
             Self::Event(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
             Self::Span { message, .. } => Some(message.trace_id.0),
-            Self::SpanV2 { message, .. } => message.span.get("trace_id")?.get().parse().ok(),
-
+            Self::SpanV2 { message, .. } => Some(message.span.trace_id?.0),
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
             // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
