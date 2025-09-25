@@ -1129,6 +1129,7 @@ impl StoreService {
         self.produce(
             KafkaTopic::Spans,
             KafkaMessage::SpanV2 {
+                routing_key: item.routing_hint(),
                 headers: BTreeMap::from([(
                     "project_id".to_owned(),
                     scoping.project_id.to_string(),
@@ -1742,6 +1743,8 @@ enum KafkaMessage<'a> {
     },
     SpanV2 {
         #[serde(skip)]
+        routing_key: Option<Uuid>,
+        #[serde(skip)]
         headers: BTreeMap<String, String>,
         #[serde(flatten)]
         message: SpanV2KafkaMessage<'a>,
@@ -1790,7 +1793,7 @@ impl Message for KafkaMessage<'_> {
             Self::Event(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
             Self::Span { message, .. } => Some(message.trace_id.0),
-            Self::SpanV2 { message, .. } => message.span.get("trace_id")?.get().parse().ok(),
+            Self::SpanV2 { routing_key, .. } => *routing_key,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
