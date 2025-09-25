@@ -260,16 +260,10 @@ impl ServiceState {
                     processor_pool.clone(),
                     config.clone(),
                     project_cache_handle.clone(),
-                    processor::Addrs {
+                    processor::ProxyAddrs {
                         outcome_aggregator: outcome_aggregator.clone(),
                         upstream_relay: upstream_relay.clone(),
-                        #[cfg(feature = "processing")]
-                        store_forwarder: store.clone(),
-                        aggregator: aggregator.clone(),
-                        #[cfg(feature = "processing")]
-                        global_rate_limits,
                     },
-                    metric_outcomes.clone(),
                 ),
                 processor_rx,
             ),

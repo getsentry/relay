@@ -1178,6 +1178,21 @@ impl Default for Addrs {
     }
 }
 
+/// Contains the addresses of services that the proxy-processor publishes to.
+pub struct ProxyAddrs {
+    pub outcome_aggregator: Addr<TrackOutcome>,
+    pub upstream_relay: Addr<UpstreamRelay>,
+}
+
+impl Default for ProxyAddrs {
+    fn default() -> Self {
+        ProxyAddrs {
+            outcome_aggregator: Addr::dummy(),
+            upstream_relay: Addr::dummy(),
+        }
+    }
+}
+
 struct InnerProcessor {
     pool: EnvelopeProcessorServicePool,
     config: Arc<Config>,
@@ -1205,8 +1220,7 @@ struct InnerProxyProcessor {
     pool: EnvelopeProcessorServicePool,
     config: Arc<Config>,
     project_cache: ProjectCacheHandle,
-    addrs: Addrs,
-    metric_outcomes: MetricOutcomes,
+    addrs: ProxyAddrs,
 }
 
 impl EnvelopeProcessorService {
@@ -3411,15 +3425,13 @@ impl ProxyProcessorService {
         pool: EnvelopeProcessorServicePool,
         config: Arc<Config>,
         project_cache: ProjectCacheHandle,
-        addrs: Addrs,
-        metric_outcomes: MetricOutcomes,
+        addrs: ProxyAddrs,
     ) -> Self {
         Self {
             inner: Arc::new(InnerProxyProcessor {
                 pool,
                 project_cache,
                 addrs,
-                metric_outcomes,
                 config,
             }),
         }
@@ -3443,322 +3455,22 @@ impl ProxyProcessorService {
         }
     }
 
-    // FIXME: Crazy amount of logic so maybe better to just get rid of all of this after all?
-    fn handle_process_metrics(&self, message: ProcessMetrics) {
-        let ProcessMetrics {
-            data,
-            project_key,
-            received_at,
-            sent_at,
-            source,
-        } = message;
-
-        let received_timestamp =
-            UnixTimestamp::from_datetime(received_at).unwrap_or(UnixTimestamp::now());
-
-        let mut buckets = data.into_buckets(received_timestamp);
-        if buckets.is_empty() {
-            return;
-        };
-
-        // TODO: Guess we want to skip this?
-        let clock_drift_processor =
-            ClockDriftProcessor::new(sent_at, received_at).at_least(MINIMUM_CLOCK_DRIFT);
-
-        buckets.retain_mut(|bucket| {
-            if let Err(error) = relay_metrics::normalize_bucket(bucket) {
-                relay_log::debug!(error = &error as &dyn Error, "dropping bucket {bucket:?}");
-                return false;
-            }
-
-            if !self::metrics::is_valid_namespace(bucket) {
-                return false;
-            }
-
-            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-
-            if !matches!(source, BucketSource::Internal) {
-                bucket.metadata = BucketMetadata::new(received_timestamp);
-            }
-
-            true
-        });
-
-        let project = self.inner.project_cache.get(project_key);
-
-        // Best effort check to filter and rate limit buckets, if there is no project state
-        // available at the current time, we will check again after flushing.
-        let buckets = match project.state() {
-            ProjectState::Enabled(project_info) => {
-                let rate_limits = project.rate_limits().current_limits();
-                self.check_buckets(project_key, project_info, &rate_limits, buckets)
-            }
-            _ => buckets,
-        };
-
-        relay_log::trace!("merging metric buckets into the aggregator");
-        self.inner
-            .addrs
-            .aggregator
-            .send(MergeBuckets::new(project_key, buckets));
+    fn handle_process_metrics(&self, _message: ProcessMetrics) {
+        // TODO: Add logic to forward the ProcessMetrics
+        // TODO: Think about if outcomes should be emitted for this
+        relay_log::error!("internal error: Metrics not supported in Proxy mode");
     }
 
-    fn handle_process_batched_metrics(&self, message: ProcessBatchedMetrics) {
-        let ProcessBatchedMetrics {
-            payload,
-            source,
-            received_at,
-            sent_at,
-        } = message;
-
-        #[derive(serde::Deserialize)]
-        struct Wrapper {
-            buckets: HashMap<ProjectKey, Vec<Bucket>>,
-        }
-
-        let buckets = match serde_json::from_slice(&payload) {
-            Ok(Wrapper { buckets }) => buckets,
-            Err(error) => {
-                relay_log::debug!(
-                    error = &error as &dyn Error,
-                    "failed to parse batched metrics",
-                );
-                metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
-                return;
-            }
-        };
-
-        // FIXME:
-        // - Just forward (no splitting into the smaller metrics needed)
-
-        for (project_key, buckets) in buckets {
-            self.handle_process_metrics(ProcessMetrics {
-                data: MetricData::Parsed(buckets),
-                project_key,
-                source,
-                received_at,
-                sent_at,
-            })
-        }
+    fn handle_process_batched_metrics(&self, _message: ProcessBatchedMetrics) {
+        // TODO: Add logic to forward the ProcessBatchedMetrics
+        // TODO: Think about if outcomes should be emitted for this
+        relay_log::error!("internal error: Metrics not supported in Proxy mode");
     }
 
-    // FIXME: 1 for 1 copy
-    fn check_buckets(
-        &self,
-        project_key: ProjectKey,
-        project_info: &ProjectInfo,
-        rate_limits: &RateLimits,
-        buckets: Vec<Bucket>,
-    ) -> Vec<Bucket> {
-        // So this will be none :thinking:
-        let Some(scoping) = project_info.scoping(project_key) else {
-            relay_log::error!(
-                tags.project_key = project_key.as_str(),
-                "there is no scoping: dropping {} buckets",
-                buckets.len(),
-            );
-            return Vec::new();
-        };
-
-        let mut buckets = self::metrics::apply_project_info(
-            buckets,
-            &self.inner.metric_outcomes,
-            project_info,
-            scoping,
-        );
-
-        let namespaces: BTreeSet<MetricNamespace> = buckets
-            .iter()
-            .filter_map(|bucket| bucket.name.try_namespace())
-            .collect();
-
-        for namespace in namespaces {
-            let limits = rate_limits.check_with_quotas(
-                project_info.get_quotas(),
-                scoping.item(DataCategory::MetricBucket),
-            );
-
-            if limits.is_limited() {
-                let rejected;
-                (buckets, rejected) = utils::split_off(buckets, |bucket| {
-                    bucket.name.try_namespace() == Some(namespace)
-                });
-
-                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                self.inner.metric_outcomes.track(
-                    scoping,
-                    &rejected,
-                    Outcome::RateLimited(reason_code),
-                );
-            }
-        }
-
-        let quotas = project_info.config.quotas.clone();
-        match MetricsLimiter::create(buckets, quotas, scoping) {
-            Ok(mut bucket_limiter) => {
-                bucket_limiter.enforce_limits(rate_limits, &self.inner.metric_outcomes);
-                bucket_limiter.into_buckets()
-            }
-            Err(buckets) => buckets,
-        }
-    }
-
-    // FIXME: 1 for 1 copy
-    /// Serializes metric buckets to JSON and sends them to the upstream.
-    ///
-    /// This function runs the following steps:
-    ///  - partitioning
-    ///  - batching by configured size limit
-    ///  - serialize to JSON and pack in an envelope
-    ///  - submit the envelope to upstream or kafka depending on configuration
-    ///
-    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
-    /// access to the central Redis instance. Cached rate limits are applied in the project cache
-    /// already.
-    fn encode_metrics_envelope(&self, message: FlushBuckets) {
-        let FlushBuckets {
-            partition_key,
-            buckets,
-        } = message;
-
-        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let upstream = self.inner.config.upstream_descriptor();
-
-        for ProjectBuckets {
-            buckets, scoping, ..
-        } in buckets.values()
-        {
-            let dsn = PartialDsn::outbound(scoping, upstream);
-
-            relay_statsd::metric!(
-                histogram(RelayHistograms::PartitionKeys) = u64::from(partition_key)
-            );
-
-            let mut num_batches = 0;
-            for batch in BucketsView::from(buckets).by_size(batch_size) {
-                let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
-
-                let mut item = Item::new(ItemType::MetricBuckets);
-                item.set_source_quantities(crate::metrics::extract_quantities(batch));
-                item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
-                envelope.add_item(item);
-
-                let mut envelope =
-                    ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
-                envelope
-                    .set_partition_key(Some(partition_key))
-                    .scope(*scoping);
-
-                relay_statsd::metric!(
-                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
-                );
-
-                self.submit_upstream(envelope);
-                num_batches += 1;
-            }
-
-            relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
-        }
-    }
-
-    // FIXME: 1 for 1 copy
-    /// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
-    fn send_global_partition(&self, partition_key: u32, partition: &mut Partition<'_>) {
-        if partition.is_empty() {
-            return;
-        }
-
-        let (unencoded, project_info) = partition.take();
-        let http_encoding = self.inner.config.http_encoding();
-        let encoded = match encode_payload(&unencoded, http_encoding) {
-            Ok(payload) => payload,
-            Err(error) => {
-                let error = &error as &dyn std::error::Error;
-                relay_log::error!(error, "failed to encode metrics payload");
-                return;
-            }
-        };
-
-        let request = SendMetricsRequest {
-            partition_key: partition_key.to_string(),
-            unencoded,
-            encoded,
-            project_info,
-            http_encoding,
-            metric_outcomes: self.inner.metric_outcomes.clone(),
-        };
-
-        self.inner.addrs.upstream_relay.send(SendRequest(request));
-    }
-
-    // FIXME: 1 for 1 copy
-    /// Serializes metric buckets to JSON and sends them to the upstream via the global endpoint.
-    ///
-    /// This function is similar to [`Self::encode_metrics_envelope`], but sends a global batched
-    /// payload directly instead of per-project Envelopes.
-    ///
-    /// This function runs the following steps:
-    ///  - partitioning
-    ///  - batching by configured size limit
-    ///  - serialize to JSON
-    ///  - submit directly to the upstream
-    ///
-    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
-    /// access to the central Redis instance. Cached rate limits are applied in the project cache
-    /// already.
-    fn encode_metrics_global(&self, message: FlushBuckets) {
-        let FlushBuckets {
-            partition_key,
-            buckets,
-        } = message;
-
-        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let mut partition = Partition::new(batch_size);
-        let mut partition_splits = 0;
-
-        for ProjectBuckets {
-            buckets, scoping, ..
-        } in buckets.values()
-        {
-            for bucket in buckets {
-                let mut remaining = Some(BucketView::new(bucket));
-
-                while let Some(bucket) = remaining.take() {
-                    if let Some(next) = partition.insert(bucket, *scoping) {
-                        // A part of the bucket could not be inserted. Take the partition and submit
-                        // it immediately. Repeat until the final part was inserted. This should
-                        // always result in a request, otherwise we would enter an endless loop.
-                        self.send_global_partition(partition_key, &mut partition);
-                        remaining = Some(next);
-                        partition_splits += 1;
-                    }
-                }
-            }
-        }
-
-        if partition_splits > 0 {
-            metric!(histogram(RelayHistograms::PartitionSplits) = partition_splits);
-        }
-
-        self.send_global_partition(partition_key, &mut partition);
-    }
-
-    // FIXME: Check if this can not be simplified even more.
-    async fn handle_flush_buckets(&self, mut message: FlushBuckets) {
-        // Currently this logic would make the buckets an empty list but I assume we want to change
-        // that and instead forward them as is to the next Relay
-        for (project_key, pb) in message.buckets.iter_mut() {
-            let buckets = std::mem::take(&mut pb.buckets);
-            pb.buckets =
-                self.check_buckets(*project_key, &pb.project_info, &pb.rate_limits, buckets);
-        }
-
-        // TODO: Just forward the envelope (don't worry about this stuff).
-        if self.inner.config.http_global_metrics() {
-            self.encode_metrics_global(message)
-        } else {
-            self.encode_metrics_envelope(message)
-        }
+    async fn handle_flush_buckets(&self, mut _message: FlushBuckets) {
+        // TODO: Add logic to forward the FlushBuckets
+        // TODO: Think about if outcomes should be emitted for this
+        relay_log::error!("internal error: Metrics not supported in Proxy mode");
     }
 
     fn handle_submit_client_reports(&self, message: SubmitClientReports) {
