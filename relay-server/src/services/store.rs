@@ -1125,6 +1125,7 @@ impl StoreService {
                 .map_err(|e| StoreError::EncodingFailed(e.into()))?,
         };
 
+        relay_statsd::metric!(counter(RelayCounters::SpanV2Produced) += 1);
         self.produce(
             KafkaTopic::Spans,
             KafkaMessage::SpanV2 {
