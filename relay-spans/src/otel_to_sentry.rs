@@ -16,7 +16,6 @@ use relay_protocol::Error;
 ///   provided.
 /// * The Sentry span's `status` field is set based on the OTEL span's `status` field and
 ///   `http.status_code` and `rpc.grpc.status_code` attributes.
-/// * The Sentry span's `exclusive_time` field is set based on the OTEL span's `exclusive_time_nano`
 ///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 /// * The Sentry span's `platform` field is set based on the OTEL span's `sentry.platform` attribute.
 /// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile_id` attribute.
@@ -92,9 +91,9 @@ mod tests {
                     }
                 },
                 {
-                    "key": "sentry.exclusive_time_nano",
+                    "key": "sentry.exclusive_time",
                     "value": {
-                        "intValue": "1000000000"
+                        "floatValue": "1000.000000"
                     }
                 }
             ],
@@ -141,7 +140,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_with_exclusive_time_nano_attribute() {
+    fn parse_span_with_exclusive_time_attribute() {
         let json = r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",
@@ -152,9 +151,9 @@ mod tests {
             "endTimeUnixNano": "1697620454980078800",
             "attributes": [
                 {
-                    "key": "sentry.exclusive_time_nano",
+                    "key": "sentry.exclusive_time",
                     "value": {
-                        "intValue": "3200000000"
+                        "floatValue": "3200.0"
                     }
                 }
             ]
@@ -183,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_no_exclusive_time_nano_attribute() {
+    fn parse_span_no_exclusive_time_attribute() {
         let json = r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",

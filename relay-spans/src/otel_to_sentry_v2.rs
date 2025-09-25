@@ -214,9 +214,9 @@ mod tests {
                     }
                 },
                 {
-                    "key": "sentry.exclusive_time_nano",
+                    "key": "sentry.exclusive_time",
                     "value": {
-                        "intValue": "1000000000"
+                        "floatValue": "1000.0"
                     }
                 }
             ],
@@ -261,7 +261,7 @@ mod tests {
               "type": "string",
               "value": "test"
             },
-            "sentry.exclusive_time_nano": {
+            "sentry.exclusive_time": {
               "type": "integer",
               "value": 1000000000
             },
@@ -283,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_with_exclusive_time_nano_attribute() {
+    fn parse_span_with_exclusive_time_attribute() {
         let json = r#"{
           "traceId": "89143b0763095bd9c9955e8175d1fb23",
           "spanId": "e342abb1214ca181",
@@ -294,9 +294,9 @@ mod tests {
           "endTimeUnixNano": "1697620454980078800",
           "attributes": [
             {
-              "key": "sentry.exclusive_time_nano",
+              "key": "sentry.exclusive_time",
               "value": {
-                "intValue": "3200000000"
+                "floatValue": "3200.000000"
               }
             }
           ]
@@ -315,9 +315,9 @@ mod tests {
           "end_timestamp": 1697620454.980079,
           "links": [],
           "attributes": {
-            "sentry.exclusive_time_nano": {
+            "sentry.exclusive_time": {
               "type": "integer",
-              "value": 3200000000
+              "value": 3200.000000
             }
           }
         }
