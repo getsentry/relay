@@ -151,6 +151,10 @@ impl Item {
                     (DataCategory::LogByte, self.len().max(1)),
                     (DataCategory::LogItem, item_count), // NOTE: semantically wrong, but too expensive to parse.
                 ],
+                Some(Integration::Logs(LogsIntegration::VercelV1 { .. })) => smallvec![
+                    (DataCategory::LogByte, self.len().max(1)),
+                    (DataCategory::LogItem, item_count),
+                ],
                 None => smallvec![],
             },
             ItemType::Unknown(_) => smallvec![],

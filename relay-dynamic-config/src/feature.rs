@@ -60,6 +60,11 @@ pub enum Feature {
     /// Serialized as `organizations:relay-otel-logs-endpoint`.
     #[serde(rename = "organizations:relay-otel-logs-endpoint")]
     OtelLogsEndpoint,
+    /// Enable logs ingestion via the `/integration/vercel/logs/` endpoint.
+    ///
+    /// Serialized as `organizations:relay-vercel-logs-endpoint`.
+    #[serde(rename = "organizations:relay-vercel-logs-endpoint")]
+    VercelLogsEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.

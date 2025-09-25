@@ -40,6 +40,7 @@ macro_rules! define_integrations {
 define_integrations!(
     "application/vnd.sentry.integration.otel.logs+json" => Integration::Logs(LogsIntegration::OtelV1 { format: OtelFormat::Json }),
     "application/vnd.sentry.integration.otel.logs+protobuf" => Integration::Logs(LogsIntegration::OtelV1 { format: OtelFormat::Protobuf }),
+    "application/vnd.sentry.integration.vercel.logs+json" => Integration::Logs(LogsIntegration::VercelV1 { format: VercelFormat::Json }),
 );
 
 /// An exhaustive list of all integrations supported by Relay.
@@ -58,6 +59,10 @@ pub enum LogsIntegration {
     ///
     /// Supports OTeL's [`LogsData`](opentelemetry_proto::tonic::logs::v1::LogsData).
     OtelV1 { format: OtelFormat },
+    /// The Vercel logging integration.
+    ///
+    /// Supports Vercel's log format as JSON arrays or NDJSON.
+    VercelV1 { format: VercelFormat },
 }
 
 /// An OTeL wire format.
@@ -66,5 +71,12 @@ pub enum OtelFormat {
     /// OTeL data in a Protocol Buffers container.
     Protobuf,
     /// OTeL data in a JSON container.
+    Json,
+}
+
+/// A Vercel wire format.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum VercelFormat {
+    /// Vercel data in a JSON container.
     Json,
 }

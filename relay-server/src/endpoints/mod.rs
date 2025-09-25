@@ -24,6 +24,7 @@ mod security_report;
 mod statics;
 mod store;
 mod unreal;
+mod vercel_log;
 
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{Router, any, get, post};
@@ -89,7 +90,9 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         .route("/api/{project_id}/integration/otlp/v1/traces", otlp_traces::route(config))
         .route("/api/{project_id}/integration/otlp/v1/traces/", otlp_traces::route(config))
         .route("/api/{project_id}/integration/otlp/v1/logs", otlp_log::route(config))
-        .route("/api/{project_id}/integration/otlp/v1/logs/", otlp_log::route(config));
+        .route("/api/{project_id}/integration/otlp/v1/logs/", otlp_log::route(config))
+        .route("/api/{project_id}/integration/vercel/logs", vercel_log::route(config))
+        .route("/api/{project_id}/integration/vercel/logs/", vercel_log::route(config));
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
 
