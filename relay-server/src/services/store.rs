@@ -353,15 +353,14 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span if content_type == Some(&ContentType::Json) => self
-                    .produce_span_v1(
-                        scoping,
-                        received_at,
-                        event_id,
-                        retention,
-                        downsampled_retention,
-                        item,
-                    )?,
+                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
+                    scoping,
+                    received_at,
+                    event_id,
+                    retention,
+                    downsampled_retention,
+                    item,
+                )?,
                 ItemType::Span if content_type == Some(&ContentType::CompatSpan) => self
                     .produce_span_v2(
                         scoping,
@@ -1017,7 +1016,7 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_span_v1(
+    fn produce_span(
         &self,
         scoping: Scoping,
         received_at: DateTime<Utc>,
