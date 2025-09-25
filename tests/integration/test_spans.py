@@ -33,6 +33,7 @@ TEST_CONFIG = {
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
 @pytest.mark.parametrize("discard_transaction", [False, True])
+@pytest.mark.parametrize("produce_compat_spans", [False, True])
 def test_span_extraction(
     mini_sentry,
     relay_with_processing,
@@ -40,9 +41,14 @@ def test_span_extraction(
     transactions_consumer,
     events_consumer,
     metrics_consumer,
+    produce_compat_spans,
     discard_transaction,
     performance_issues_spans,
 ):
+    mini_sentry.global_config["options"] = {
+        "relay.kafka.span-v2.sample-rate": float(produce_compat_spans)
+    }
+
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
     events_consumer = events_consumer()
@@ -128,7 +134,7 @@ def test_span_extraction(
 
     del child_span["received"]
 
-    assert child_span == {
+    expected_child_span = {
         "data": {  # Backfilled from `sentry_tags`
             "sentry.category": "http",
             "sentry.normalized_description": "GET *",
@@ -183,6 +189,10 @@ def test_span_extraction(
         "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
         "trace_id": "ff62a8b040f340bda5d830223def1d81",
     }
+    if produce_compat_spans:
+        assert_contains(child_span, expected_child_span)
+    else:
+        assert child_span == expected_child_span
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
         tzinfo=timezone.utc
@@ -200,7 +210,7 @@ def test_span_extraction(
     if performance_issues_spans:
         assert transaction_span.pop("_performance_issues_spans") is True
 
-    assert transaction_span == {
+    expected_transaction_span = {
         "data": {
             "sentry.sdk.name": "raven-node",
             "sentry.sdk.version": "2.6.3",
@@ -250,6 +260,11 @@ def test_span_extraction(
         "end_timestamp_precise": start_timestamp.timestamp() + duration,
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
+
+    if produce_compat_spans:
+        assert_contains(transaction_span, expected_transaction_span)
+    else:
+        assert transaction_span == expected_transaction_span
 
     spans_consumer.assert_empty()
 
@@ -1225,6 +1240,12 @@ def assert_contains(span, expected_span):
         "sentry_tags",
     }
 
+    # These keys are mapped by the segment consumer, so we have to verify
+    # that we write them directly now:
+    mapped_keys = {
+        "origin",
+    }
+
     # These keys were set unconditionally by the store serializer, but
     # can be omitted if False:
     optional_flags = {"is_remote"}
@@ -1233,9 +1254,13 @@ def assert_contains(span, expected_span):
         if key in unused_keys:
             continue
         if key == "data":
-            # Data may have more fields
+            # Data may have more fields than what the test expects
             for key in expected_value:
                 assert span["data"][key] == expected_value[key]
+        elif key in mapped_keys:
+            assert key not in span
+            assert span["data"][f"sentry.{key}"] == expected_value
+            assert span["attributes"][f"sentry.{key}"]["value"] == expected_value
         else:
             if key in optional_flags:
                 assert span.get(key, False) == expected_span[key]

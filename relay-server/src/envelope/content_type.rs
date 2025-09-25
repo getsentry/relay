@@ -2,6 +2,8 @@ use std::fmt;
 
 use serde::Serialize;
 
+use crate::integrations::Integration;
+
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
 /// Payload content types.
@@ -31,6 +33,8 @@ pub enum ContentType {
     SpanV2Container,
     /// Internal, not serialized.
     CompatSpan,
+    /// All integration content types.
+    Integration(Integration),
     /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
@@ -38,7 +42,7 @@ pub enum ContentType {
 impl ContentType {
     #[inline]
     pub fn as_str(&self) -> &str {
-        match *self {
+        match self {
             Self::Text => "text/plain",
             Self::Json => "application/json",
             Self::MsgPack => "application/x-msgpack",
@@ -50,7 +54,8 @@ impl ContentType {
             Self::LogContainer => "application/vnd.sentry.items.log+json",
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
             Self::CompatSpan => panic!("must not be serialized"),
-            Self::Other(ref other) => other,
+            Self::Integration(integration) => integration.as_content_type(),
+            Self::Other(other) => other,
         }
     }
 
@@ -86,7 +91,7 @@ impl ContentType {
         } else if ct.eq_ignore_ascii_case(Self::SpanV2Container.as_str()) {
             Some(Self::SpanV2Container)
         } else {
-            None
+            Integration::from_content_type(ct).map(Self::Integration)
         }
     }
 }
@@ -110,6 +115,12 @@ impl From<&'_ str> for ContentType {
     fn from(content_type: &str) -> Self {
         Self::from_str(content_type)
             .unwrap_or_else(|| ContentType::Other(content_type.to_ascii_lowercase()))
+    }
+}
+
+impl From<Integration> for ContentType {
+    fn from(value: Integration) -> Self {
+        Self::Integration(value)
     }
 }
 

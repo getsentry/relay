@@ -217,6 +217,7 @@ fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use relay_event_schema::protocol::{CompatSpan, Event};
     use relay_protocol::{FromValue, SerializableAnnotated};
 
     #[test]
@@ -414,5 +415,39 @@ mod tests {
           }
         }
         "###);
+    }
+
+    #[test]
+    fn transaction_conversion() {
+        let txn = Annotated::<Event>::from_json(r#"{"transaction": "hi"}"#)
+            .unwrap()
+            .0
+            .unwrap();
+        assert_eq!(txn.transaction.as_str(), Some("hi"));
+        let span_v1 = SpanV1::from(&txn);
+        assert_eq!(
+            span_v1.data.value().unwrap().segment_name.as_str(),
+            Some("hi")
+        );
+        let span_v2 = span_v1_to_span_v2(span_v1);
+        assert_eq!(
+            span_v2
+                .attributes
+                .value()
+                .unwrap()
+                .get_value("sentry.segment.name")
+                .and_then(Value::as_str),
+            Some("hi")
+        );
+        let compat_span = CompatSpan::try_from(span_v2).unwrap();
+        assert_eq!(
+            compat_span
+                .data
+                .value()
+                .unwrap()
+                .get("sentry.segment.name")
+                .and_then(|v| v.as_str()),
+            Some("hi")
+        );
     }
 }

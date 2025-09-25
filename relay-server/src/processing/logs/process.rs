@@ -41,14 +41,14 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
     logs.map(|logs, records| {
         records.lenient(DataCategory::LogByte);
 
-        let mut all_logs = Vec::with_capacity(logs.count());
+        let mut all_logs = Vec::new();
         for logs in logs.logs {
             let expanded = expand_log_container(&logs, trust);
             let expanded = records.or_default(expanded, logs);
             all_logs.extend(expanded);
         }
 
-        logs::otel::expand_into(&mut all_logs, records, logs.otel_logs);
+        logs::integrations::expand_into(&mut all_logs, records, logs.integrations);
 
         ExpandedLogs {
             headers: logs.headers,
