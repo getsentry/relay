@@ -765,6 +765,7 @@ jobs:
     needs: build-docker
     env:
       USE_NEW_DEVSERVICES: 1
+      RELAY_TEST_KEEP_CONTAINER: true
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
