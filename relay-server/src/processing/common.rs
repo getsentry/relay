@@ -1,5 +1,6 @@
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
+use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::{Forward, Processor};
@@ -47,6 +48,7 @@ macro_rules! outputs {
 }
 
 outputs!(
+    CheckIns => CheckInsProcessor,
     Logs => LogsProcessor,
     Spans => SpansProcessor,
 );

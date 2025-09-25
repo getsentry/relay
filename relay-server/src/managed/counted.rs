@@ -65,6 +65,7 @@ impl Counted for Box<Envelope> {
             ),
             (DataCategory::LogItem, summary.log_item_quantity),
             (DataCategory::LogByte, summary.log_byte_quantity),
+            (DataCategory::Monitor, summary.monitor_quantity),
         ];
 
         for (category, quantity) in data {
