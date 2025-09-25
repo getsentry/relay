@@ -34,6 +34,11 @@ impl TraceId {
     pub fn random() -> Self {
         Self(Uuid::new_v4())
     }
+
+    /// Returns the underlying UUID.
+    pub fn as_uuid(&self) -> Uuid {
+        self.0
+    }
 }
 
 relay_common::impl_str_serde!(TraceId, "a trace identifier");

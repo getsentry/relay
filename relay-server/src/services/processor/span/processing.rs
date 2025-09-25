@@ -279,6 +279,9 @@ fn create_span_item(
                 return Err(());
             }
         };
+        if let Some(trace_id) = compat_span.value().and_then(|s| s.span_v2.trace_id.value()) {
+            new_item.set_routing_hint(trace_id.as_uuid());
+        }
 
         new_item.set_payload(ContentType::CompatSpan, payload);
     } else {
