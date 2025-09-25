@@ -33,7 +33,7 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
                 Some(r.standard)
             }),
             retentions.map_or(_ctx.project_info.config.downsampled_event_retention, |r| {
-                Some(r.downsampled)
+                Some(r.downsampled.unwrap_or_default())
             }),
         )
     };

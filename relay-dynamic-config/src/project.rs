@@ -27,7 +27,8 @@ pub struct RetentionSettings {
     /// Standard / full fidelity retention policy in days.
     pub standard: u16,
     /// Downsampled retention policy in days.
-    pub downsampled: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub downsampled: Option<u16>,
 }
 
 /// Settings for retention policy.
@@ -35,18 +36,32 @@ pub struct RetentionSettings {
 pub struct Retentions {
     /// Retention settings for logs.
     /// This will determine when they are removed from storage.
-    pub log: RetentionSettings,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log: Option<RetentionSettings>,
     /// Retention settings for spans.
     /// This will determine when they are removed from storage.
-    pub span: RetentionSettings,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<RetentionSettings>,
 }
 
 impl Retentions {
     /// Returns the retentions setting for the trace item type `ty` in the `retentions` object
     pub fn retention_for_trace_item(&self, ty: TraceItemType) -> Option<&RetentionSettings> {
         match ty {
-            TraceItemType::Span => Some(&self.span),
-            TraceItemType::Log => Some(&self.log),
+            TraceItemType::Span => {
+                if let Some(span) = &self.span {
+                    Some(span)
+                } else {
+                    None
+                }
+            }
+            TraceItemType::Log => {
+                if let Some(log) = &self.log {
+                    Some(log)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
