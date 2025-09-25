@@ -74,6 +74,8 @@ pub enum EnvelopeError {
     HeaderMismatch(&'static str),
     #[error("invalid item header")]
     InvalidItemHeader(#[source] serde_json::Error),
+    #[error("internal/reserved item type used")]
+    InternalItemType,
     #[error("failed to write header")]
     HeaderIoFailed(#[source] serde_json::Error),
     #[error("failed to write payload")]

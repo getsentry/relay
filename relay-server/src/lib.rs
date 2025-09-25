@@ -258,6 +258,7 @@ mod endpoints;
 mod envelope;
 mod extractors;
 mod http;
+mod integrations;
 pub mod managed;
 mod metrics;
 mod metrics_extraction;

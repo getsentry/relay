@@ -27,7 +27,7 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
             all_logs.extend(expanded);
         }
 
-        logs::otel::expand_into(&mut all_logs, records, logs.otel_logs);
+        logs::integrations::expand_into(&mut all_logs, records, logs.integrations);
 
         ExpandedLogs {
             headers: logs.headers,

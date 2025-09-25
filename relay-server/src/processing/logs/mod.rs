@@ -10,6 +10,7 @@ use crate::Envelope;
 use crate::envelope::{
     ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
 };
+use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
 };
@@ -19,7 +20,7 @@ use crate::processing::{
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod filter;
-mod otel;
+mod integrations;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
@@ -113,15 +114,20 @@ impl processing::Processor for LogsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::Log))
             .into_vec();
 
-        let otel_logs = envelope
+        // TODO: there might be a better way to extract an item and its integration type type safe.
+        // So later we don't have a fallible conversion for the integration.
+        //
+        // Maybe a 2 phase thing where we take items, then grab the integration again and debug
+        // assert + return if the impossible happens.
+        let integrations = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::OtelLogsData))
+            .take_items_by(|item| matches!(item.integration(), Some(Integration::Logs(_))))
             .into_vec();
 
         let work = SerializedLogs {
             headers,
             logs,
-            otel_logs,
+            integrations,
         };
         Some(Managed::from_envelope(envelope, work))
     }
@@ -230,8 +236,8 @@ pub struct SerializedLogs {
     /// But at this point this has not yet been validated.
     logs: Vec<Item>,
 
-    /// Logs which Relay received from the OTLP logs endpoint.
-    otel_logs: Vec<Item>,
+    /// Logs which Relay received from arbitrary integrations.
+    integrations: Vec<Item>,
 }
 
 impl SerializedLogs {
@@ -242,16 +248,16 @@ impl SerializedLogs {
         // Both vectors can contain items, but very likely only one does.
         // We can use the bigger one as a base to copy/allocate less data.
         // This implicitly also assumes the capacity of the vectors follows the length.
-        let (mut long, short) = match self.logs.len() > self.otel_logs.len() {
-            true => (self.logs, self.otel_logs),
-            false => (self.otel_logs, self.logs),
+        let (mut long, short) = match self.logs.len() > self.integrations.len() {
+            true => (self.logs, self.integrations),
+            false => (self.integrations, self.logs),
         };
         long.extend(short);
         Envelope::from_parts(self.headers, Items::from_vec(long))
     }
 
     fn items(&self) -> impl Iterator<Item = &Item> {
-        self.logs.iter().chain(self.otel_logs.iter())
+        self.logs.iter().chain(self.integrations.iter())
     }
 
     /// Returns the total count of all logs contained.
@@ -329,7 +335,7 @@ impl ExpandedLogs {
         Ok(SerializedLogs {
             headers: self.headers,
             logs,
-            otel_logs: Vec::new(),
+            integrations: Vec::new(),
         })
     }
 }

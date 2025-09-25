@@ -10,6 +10,7 @@ use relay_dynamic_config::Feature;
 use crate::endpoints::common;
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
+use crate::integrations::{Integration, LogsIntegration, OtelFormat};
 use crate::service::ServiceState;
 
 async fn handle(
@@ -18,18 +19,20 @@ async fn handle(
     meta: RequestMeta,
     request: Request,
 ) -> axum::response::Result<impl IntoResponse> {
-    let content_type @ (ContentType::Json | ContentType::Protobuf) =
-        ContentType::from(content_type.as_ref())
-    else {
-        return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    let format = match ContentType::from(content_type.as_ref()) {
+        ContentType::Json => OtelFormat::Json,
+        ContentType::Protobuf => OtelFormat::Protobuf,
+        _ => return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE),
     };
+    let integration = Integration::Logs(LogsIntegration::OtelV1 { format });
+
     let payload: Bytes = request.extract().await?;
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(Feature::OtelLogsEndpoint);
 
     envelope.add_item({
-        let mut item = Item::new(ItemType::OtelLogsData);
-        item.set_payload(content_type, payload);
+        let mut item = Item::new(ItemType::Integration);
+        item.set_payload(integration.into(), payload);
         item
     });
 
