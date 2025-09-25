@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: getsentry/sentry
-          ref: f667b72e5e8b62b819fad17775e3497fbf8aec38
+          ref: 68a4e45a45b2c4093a90f93f4c60aa762afc105f
           path: sentry
 
       - name: Setup steps
