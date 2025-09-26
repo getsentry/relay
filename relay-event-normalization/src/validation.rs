@@ -310,10 +310,47 @@ fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
     }
 }
 
+/// The maximum value for PostgreSQL integer fields (2^31 - 1).
+const MAX_POSTGRES_INTEGER: i64 = 2_147_483_647;
+
+/// Validates sample rates to prevent integer overflow in times_seen calculations.
+///
+/// When client-side sampling is used, the backend calculates `times_seen` as `1 / sample_rate`.
+/// If the sample rate is extremely small, this calculation can overflow the PostgreSQL integer
+/// field limit of 2,147,483,647, causing database errors.
+///
+/// This function validates that `1 / sample_rate` would not exceed the maximum integer value.
+/// If the sample rate would cause overflow, it returns a capped sample rate that prevents overflow.
+pub fn validate_sample_rate_for_times_seen(sample_rate: f64) -> Option<f64> {
+    if sample_rate <= 0.0 {
+        return None; // Invalid sample rate
+    }
+
+    // Calculate what the times_seen value would be
+    let times_seen = 1.0 / sample_rate;
+
+    // If the calculated times_seen would exceed the PostgreSQL integer limit,
+    // cap the sample rate to prevent overflow
+    if times_seen > MAX_POSTGRES_INTEGER as f64 {
+        let capped_sample_rate = 1.0 / MAX_POSTGRES_INTEGER as f64;
+        relay_log::warn!(
+            "Sample rate {} would cause times_seen overflow ({}), capping to {}",
+            sample_rate,
+            times_seen as i64,
+            capped_sample_rate
+        );
+        Some(capped_sample_rate)
+    } else {
+        Some(sample_rate)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
     use relay_base_schema::spans::SpanStatus;
+
+    use super::*;
     use relay_event_schema::protocol::Contexts;
     use relay_protocol::{Object, get_value};
 
@@ -858,5 +895,59 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn test_validate_sample_rate_for_times_seen() {
+        // Test normal sample rates that should pass through unchanged
+        assert_eq!(validate_sample_rate_for_times_seen(0.1), Some(0.1));
+        assert_eq!(validate_sample_rate_for_times_seen(0.5), Some(0.5));
+        assert_eq!(validate_sample_rate_for_times_seen(1.0), Some(1.0));
+
+        // Test invalid sample rates
+        assert_eq!(validate_sample_rate_for_times_seen(0.0), None);
+        assert_eq!(validate_sample_rate_for_times_seen(-0.1), None);
+
+        // Test sample rates that would cause overflow
+        // If sample_rate = 0.00000045, then 1/sample_rate = 2,222,222 (safe)
+        let safe_rate = 0.00000045;
+        assert_eq!(validate_sample_rate_for_times_seen(safe_rate), Some(safe_rate));
+
+        // If sample_rate = 0.0000000001, then 1/sample_rate = 10,000,000,000 (overflow)
+        let overflow_rate = 0.0000000001;
+        let result = validate_sample_rate_for_times_seen(overflow_rate);
+        assert!(result.is_some());
+        assert!(result.unwrap() > overflow_rate); // Should be capped to a larger value
+
+        // The capped rate should produce exactly MAX_POSTGRES_INTEGER when inverted
+        let capped_rate = result.unwrap();
+        let calculated_times_seen = (1.0 / capped_rate) as i64;
+        assert_eq!(calculated_times_seen, MAX_POSTGRES_INTEGER);
+
+        // Test the exact edge case from the issue
+        // sample_rate = 0.00000145 -> 1/sample_rate = 689,655 (safe)
+        let edge_case_rate = 0.00000145;
+        assert_eq!(validate_sample_rate_for_times_seen(edge_case_rate), Some(edge_case_rate));
+
+        // Test a rate that would produce exactly the max value
+        let max_safe_rate = 1.0 / MAX_POSTGRES_INTEGER as f64;
+        let result = validate_sample_rate_for_times_seen(max_safe_rate);
+        assert!(result.is_some());
+        let times_seen = (1.0 / result.unwrap()) as i64;
+        assert!(times_seen <= MAX_POSTGRES_INTEGER);
+    }
+
+    #[test]
+    fn test_sample_rate_edge_cases() {
+        // Test very small rates that would cause massive overflow
+        let tiny_rate = f64::MIN_POSITIVE;
+        let result = validate_sample_rate_for_times_seen(tiny_rate);
+        assert!(result.is_some());
+        let capped_rate = result.unwrap();
+        assert!(capped_rate > tiny_rate);
+
+        // Verify the capped rate doesn't cause overflow
+        let times_seen = (1.0 / capped_rate) as i64;
+        assert!(times_seen <= MAX_POSTGRES_INTEGER);
     }
 }
