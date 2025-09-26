@@ -413,6 +413,7 @@ impl Getter for SentryTags {
             "messaging.operation.name" => &self.messaging_operation_name,
             "messaging.operation.type" => &self.messaging_operation_type,
             "mobile" => &self.mobile,
+            "name" => &self.name,
             "op" => &self.op,
             "os.name" => &self.os_name,
             "platform" => &self.platform,
