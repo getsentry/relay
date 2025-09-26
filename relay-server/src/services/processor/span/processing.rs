@@ -40,7 +40,6 @@ use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::ReservoirEvaluator;
-use relay_spans::name_for_span;
 use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
 
@@ -700,8 +699,6 @@ fn normalize(
 
     tag_extraction::extract_measurements(span, is_mobile);
 
-    generate_name(span);
-
     process_value(
         annotated_span,
         &mut TrimmingProcessor::new(),
@@ -852,23 +849,6 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     }
 
     Ok(())
-}
-
-fn generate_name(span: &mut Span) {
-    if span
-        .data
-        .value()
-        .and_then(|data| data.span_name.value())
-        .is_some()
-    {
-        return;
-    }
-
-    if let Some(name) = name_for_span(span)
-        && let Some(data) = span.data.value_mut().as_mut()
-    {
-        data.span_name = name.into();
-    }
 }
 
 #[cfg(test)]
@@ -1485,55 +1465,6 @@ mod tests {
         assert_eq!(
             get_value!(span.profile_id!),
             &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap())
-        );
-    }
-
-    #[test]
-    fn generate_span_name() {
-        let mut span: Annotated<Span> = Annotated::from_json(
-            r#"{
-                "start_timestamp": 0,
-                "timestamp": 1,
-                "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                "span_id": "922dda2462ea4ac2",
-                "op": "db",
-                "data": {
-                    "db.query.summary": "SELECT users"
-                }
-            }"#,
-        )
-        .unwrap();
-
-        normalize(&mut span, normalize_config()).unwrap();
-
-        assert_eq!(
-            get_value!(span.data.span_name),
-            Some(&"SELECT users".to_owned())
-        );
-    }
-
-    #[test]
-    fn do_not_override_existing_span_name() {
-        let mut span: Annotated<Span> = Annotated::from_json(
-            r#"{
-                "start_timestamp": 0,
-                "timestamp": 1,
-                "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                "span_id": "922dda2462ea4ac2",
-                "op": "db",
-                "data": {
-                    "db.query.summary": "SELECT users",
-                    "sentry.name": "original name"
-                }
-            }"#,
-        )
-        .unwrap();
-
-        normalize(&mut span, normalize_config()).unwrap();
-
-        assert_eq!(
-            get_value!(span.data.span_name),
-            Some(&"original name".to_owned())
         );
     }
 }

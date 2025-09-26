@@ -29,6 +29,7 @@ relay-event-schema = { workspace = true }
 relay-log = { workspace = true }
 relay-pattern = { workspace = true, features = ["serde"] }
 relay-protocol = { workspace = true }
+relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-ua = { workspace = true }
 relay-filter = { workspace = true }

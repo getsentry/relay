@@ -3827,6 +3827,7 @@ dependencies = [
  "relay-log",
  "relay-pattern",
  "relay-protocol",
+ "relay-spans",
  "relay-statsd",
  "relay-ua",
  "sentry-release-parser",

@@ -355,6 +355,7 @@ pub struct SentryTags {
     pub user_country_code: Annotated<String>,
     #[metastructure(field = "user.geo.subregion")]
     pub user_subregion: Annotated<String>,
+    pub name: Annotated<String>,
     // no need for an `other` entry here because these fields are added server-side.
     // If an upstream relay does not recognize a field it will be dropped.
 }
@@ -412,6 +413,7 @@ impl Getter for SentryTags {
             "messaging.operation.name" => &self.messaging_operation_name,
             "messaging.operation.type" => &self.messaging_operation_type,
             "mobile" => &self.mobile,
+            "name" => &self.name,
             "op" => &self.op,
             "os.name" => &self.os_name,
             "platform" => &self.platform,
