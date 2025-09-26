@@ -23,6 +23,7 @@ pub use self::limits::*;
 
 pub mod check_ins;
 pub mod logs;
+pub mod sessions;
 pub mod spans;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.

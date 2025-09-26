@@ -131,7 +131,7 @@ macro_rules! if_processing {
 }
 
 /// The minimum clock drift for correction to apply.
-const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
+pub const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
 #[derive(Debug)]
 pub struct GroupTypeError;
