@@ -79,6 +79,11 @@ pub fn check_envelope_size_limits(
                 log_count += item.item_count().unwrap_or(1) as usize;
                 config.max_log_size()
             }
+            ItemType::TraceMetric => {
+                // For now, use same limits as spans
+                span_count += item.item_count().unwrap_or(1) as usize;
+                config.max_span_size()
+            }
             ItemType::Span | ItemType::OtelSpan => {
                 span_count += item.item_count().unwrap_or(1) as usize;
                 config.max_span_size()

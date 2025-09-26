@@ -1,34 +1,34 @@
 use relay_event_normalization::SchemaProcessor;
-use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{Attributes, TraceMetric};
+use relay_event_schema::processor::{ProcessingState, process_value};
+use relay_event_schema::protocol::TraceMetric;
 use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::{RequestMeta, RequestTrust};
-use crate::managed::ManagedEnvelope;
 use crate::processing::Managed;
-use crate::processing::trace_metrics::{
-    Error, ExpandedTraceMetrics, Result, SerializedTraceMetrics,
-};
+use crate::processing::trace_metrics::{Error, ExpandedTraceMetrics, Result};
 use crate::services::outcome::DiscardReason;
+use crate::services::projects::project::ProjectInfo;
 
 pub struct SerializedTraceMetricsContainer {
-    pub metrics: SerializedTraceMetrics,
-    pub headers: RequestMeta,
+    pub metrics: Vec<Item>,
 }
 
-pub fn expand(metrics: Managed<SerializedTraceMetricsContainer>) -> Managed<ExpandedTraceMetrics> {
-    let trust = metrics.headers.meta().request_trust();
+pub fn expand(
+    metrics: Managed<SerializedTraceMetricsContainer>,
+    meta: &RequestMeta,
+) -> Managed<ExpandedTraceMetrics> {
+    let trust = meta.request_trust();
 
     metrics.map(|metrics, records| {
         records.lenient(DataCategory::TraceMetric);
 
         let mut all_metrics = Vec::new();
-        for metric_bytes in metrics.metrics {
-            let expanded = expand_trace_metric_container(&metric_bytes, trust);
-            let expanded = records.or_default(expanded, metric_bytes);
+        for item in metrics.metrics {
+            let expanded = expand_trace_metric_container(&item, trust);
+            let expanded = records.or_default(expanded, item);
             all_metrics.extend(expanded);
         }
 
@@ -37,9 +37,9 @@ pub fn expand(metrics: Managed<SerializedTraceMetricsContainer>) -> Managed<Expa
 }
 
 pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, meta: &RequestMeta) {
-    metrics.retain_with_context(
-        |metrics| (metrics, meta),
-        |metric, meta| {
+    metrics.retain(
+        |metrics| metrics,
+        |metric| {
             normalize_trace_metric(metric, meta).inspect_err(|err| {
                 relay_log::debug!("failed to normalize trace metric: {err}");
             })
@@ -47,15 +47,11 @@ pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, meta: &RequestMeta
     );
 }
 
-pub fn scrub(
-    metrics: &mut Managed<ExpandedTraceMetrics>,
-    project_state: &relay_dynamic_config::ProjectInfo,
-    managed_envelope: &ManagedEnvelope,
-) {
+pub fn scrub(metrics: &mut Managed<ExpandedTraceMetrics>, project_state: &ProjectInfo) {
     metrics.retain(
         |metrics| metrics,
         |metric| {
-            scrub_trace_metric(metric, project_state, managed_envelope).inspect_err(|err| {
+            scrub_trace_metric(metric, project_state).inspect_err(|err| {
                 relay_log::debug!("failed to scrub pii from trace metric: {err}")
             })
         },
@@ -63,15 +59,10 @@ pub fn scrub(
 }
 
 fn expand_trace_metric_container(
-    item_bytes: &[u8],
+    item: &Item,
     _trust: RequestTrust,
 ) -> Result<ContainerItems<TraceMetric>> {
-    let item = Item::parse(item_bytes).map_err(|err| {
-        relay_log::debug!("failed to parse trace metrics item: {err}");
-        Error::Invalid(DiscardReason::InvalidJson)
-    })?;
-
-    let metrics = ItemContainer::parse(&item)
+    let metrics = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse trace metrics container: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
@@ -83,27 +74,16 @@ fn expand_trace_metric_container(
 
 fn scrub_trace_metric(
     metric: &mut Annotated<TraceMetric>,
-    project_state: &relay_dynamic_config::ProjectInfo,
-    managed_envelope: &ManagedEnvelope,
+    project_state: &ProjectInfo,
 ) -> Result<()> {
-    let pii_config_from_scrubbing =
-        project_state.has_feature(relay_dynamic_config::Feature::DatascrubberPiiScrubbing);
-
-    let pii_config = if pii_config_from_scrubbing {
-        managed_envelope
-            .config()
-            .datascrubbing_settings
-            .pii_config()
-    } else {
-        None
-    };
+    let pii_config = project_state.config.datascrubbing_settings.pii_config();
 
     if let Some(pii_config) = pii_config {
         let mut processor = PiiProcessor::new(pii_config);
 
         if let Some(metric) = metric.value_mut() {
             if let Some(attrs) = metric.attributes.value_mut() {
-                processor.process_value(attrs, &mut ProcessingState::root(), ValueType::Object)?;
+                process_value(attrs, &mut processor, ProcessingState::root()).ok();
             }
         }
     }
@@ -124,8 +104,8 @@ fn normalize_trace_metric(metric: &mut Annotated<TraceMetric>, _meta: &RequestMe
         return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
     }
 
-    let mut processor = SchemaProcessor::default();
-    process_value(metric, &mut processor, ProcessingState::root())?;
+    let mut processor = SchemaProcessor;
+    process_value(metric, &mut processor, ProcessingState::root()).ok();
 
     Ok(())
 }
