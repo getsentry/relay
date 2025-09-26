@@ -413,9 +413,7 @@ def envelope_with_spans(
                             {
                                 "key": "sentry.exclusive_time",
                                 "value": {
-                                    "floatValue": str(
-                                        int((end - start).total_seconds() * 1e3)
-                                    ),
+                                    "doubleValue": (end - start).total_seconds() * 1e3
                                 },
                             },
                         ],
