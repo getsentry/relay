@@ -190,6 +190,11 @@ impl<M> EnvelopeHeaders<M> {
             Some(ErrorBoundary::Ok(t)) => Some(t),
         }
     }
+
+    /// Returns the timestamp when the event has been sent, according to the SDK.
+    pub fn sent_at(&self) -> Option<DateTime<Utc>> {
+        self.sent_at
+    }
 }
 
 #[doc(hidden)]

@@ -47,7 +47,7 @@ fn expand_span(item: &Item) -> Result<ContainerItems<SpanV2>> {
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup) {
     spans.retain_with_context(
         |spans| (&mut spans.spans, spans.headers.meta()),
-        |span, meta| {
+        |span, meta, _| {
             normalize_span(span, meta, geo_lookup).inspect_err(|err| {
                 relay_log::debug!("failed to normalize span: {err}");
             })

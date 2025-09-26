@@ -1,4 +1,6 @@
-use relay_event_schema::protocol::{OurLog, Span, SpanV2};
+use relay_event_schema::protocol::{
+    OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2,
+};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use smallvec::SmallVec;
@@ -131,5 +133,22 @@ where
 {
     fn quantities(&self) -> Quantities {
         (*self).quantities()
+    }
+}
+
+impl Counted for SessionUpdate {
+    fn quantities(&self) -> Quantities {
+        todo!()
+    }
+}
+
+impl Counted for SessionAggregates {
+    fn quantities(&self) -> Quantities {
+        todo!()
+    }
+}
+impl Counted for SessionAggregateItem {
+    fn quantities(&self) -> Quantities {
+        todo!()
     }
 }
