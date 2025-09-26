@@ -6,8 +6,6 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 
-const MILLIS_TO_NANOS: f64 = 1000. * 1000.;
-
 /// Converts a legacy span to the new Span V2 schema.
 ///
 /// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
@@ -45,10 +43,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let attributes = annotated_attributes.get_or_insert_with(Default::default);
 
     // Top-level fields have higher precedence than `data`:
-    attributes.insert(
-        "sentry.exclusive_time_nano", // TODO: update conventions, they list `sentry.exclusive_time`
-        exclusive_time.map_value(|v| (v * MILLIS_TO_NANOS) as i64),
-    );
+    attributes.insert("sentry.exclusive_time", exclusive_time);
     attributes.insert("sentry.op", op);
 
     attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string()));
@@ -351,9 +346,9 @@ mod tests {
               "type": "string",
               "value": "raw description"
             },
-            "sentry.exclusive_time_nano": {
-              "type": "integer",
-              "value": 1230000
+            "sentry.exclusive_time": {
+              "type": "double",
+              "value": 1.23
             },
             "sentry.is_segment": {
               "type": "boolean",
