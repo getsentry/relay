@@ -14,6 +14,7 @@
 **Bug Fixes**:
 
 - Emit monitor outcomes when dropping/rejecting an envelope. ([#5177](https://github.com/getsentry/relay/pull/5177))
+- Apply span name generation to spans extracted from transaction events. ([#5191](https://github.com/getsentry/relay/pull/5191))
 
 **Internal**:
 
