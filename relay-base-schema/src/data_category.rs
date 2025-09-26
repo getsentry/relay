@@ -23,11 +23,11 @@ pub enum DataCategory {
     Default = 0,
     /// Error events and Events with an `event_type` not explicitly listed below.
     ///
-    /// SDK rate limiting behavior: Apply to envelope items of type `event`.
+    /// SDK rate limiting behavior: apply to envelope items of type `event`.
     Error = 1,
     /// Transaction events.
     ///
-    /// SDK rate limiting behavior: Apply to envelope items of type `transaction`.
+    /// SDK rate limiting behavior: apply to envelope items of type `transaction`.
     Transaction = 2,
     /// Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.
     ///
@@ -35,88 +35,126 @@ pub enum DataCategory {
     Security = 3,
     /// An attachment. Quantity is the size of the attachment in bytes.
     ///
-    /// SDK rate limiting behavior: Apply to all attachments.
+    /// SDK rate limiting behavior: apply to all attachments.
     Attachment = 4,
     /// Session updates. Quantity is the number of updates in the batch.
     ///
-    /// SDK rate limiting behavior: Apply to all sessions and session aggregates.
+    /// SDK rate limiting behavior: apply to all sessions and session aggregates.
     Session = 5,
     /// Profile
     ///
     /// This is the category for processed profiles (all profiles, whether or not we store them).
+    ///
+    /// SDK rate limiting behavior: apply to all profiles.
     Profile = 6,
     /// Session Replays
+    ///
+    /// SDK rate limiting behavior: apply to all Session Replay data.
     Replay = 7,
     /// DEPRECATED: A transaction for which metrics were extracted.
     ///
     /// This category is now obsolete because the `Transaction` variant will represent
     /// processed transactions from now on.
+    ///
+    /// SDK rate limiting behavior: ignore.
     TransactionProcessed = 8,
     /// Indexed transaction events.
     ///
     /// This is the category for transaction payloads that were accepted and stored in full. In
     /// contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
+    ///
+    /// SDK rate limiting behavior: ignore.
     TransactionIndexed = 9,
     /// Monitor check-ins.
+    ///
+    /// SDK rate limiting behavior: apply to items of type `check_in`.
     Monitor = 10,
     /// Indexed Profile
     ///
     /// This is the category for indexed profiles that will be stored later.
+    ///
+    /// SDK rate limiting behavior: ignore.
     ProfileIndexed = 11,
     /// Span
     ///
     /// This is the category for spans from which we extracted metrics from.
+    ///
+    /// SDK rate limiting behavior: apply to spans that are not sent in a transaction.
     Span = 12,
     /// Monitor Seat
     ///
     /// Represents a monitor job that has scheduled monitor checkins. The seats are not ingested
     /// but we define it here to prevent clashing values since this data category enumeration
     /// is also used outside of Relay via the Python package.
+    ///
+    /// SDK rate limiting behavior: ignore.
     MonitorSeat = 13,
     /// User Feedback
     ///
     /// Represents a User Feedback processed.
     /// Currently standardized on name UserReportV2 to avoid clashing with the old UserReport.
     /// TODO(jferg): Rename this to UserFeedback once old UserReport is deprecated.
+    ///
+    /// SDK rate limiting behavior: apply to items of type 'feedback'.
     UserReportV2 = 14,
     /// Metric buckets.
+    ///
+    /// SDK rate limiting behavior: apply to `statsd` and `metrics` items.
     MetricBucket = 15,
     /// SpanIndexed
     ///
     /// This is the category for spans we store in full.
+    ///
+    /// SDK rate limiting behavior: ignore.
     SpanIndexed = 16,
     /// ProfileDuration
     ///
     /// This data category is used to count the number of milliseconds per indexed profile chunk,
     /// excluding UI profile chunks.
+    ///
+    /// SDK rate limiting behavior: apply to profile chunks.
     ProfileDuration = 17,
     /// ProfileChunk
     ///
     /// This is a count of profile chunks received. It will not be used for billing but will be
     /// useful for customers to track what's being dropped.
+    ///
+    /// SDK rate limiting behavior: apply to profile chunks.
     ProfileChunk = 18,
     /// MetricSecond
     ///
     /// Reserved by billing to summarize the bucketed product of metric volume
     /// and metric cardinality. Defined here so as not to clash with future
     /// categories.
+    ///
+    /// SDK rate limiting behavior: ignore.
     MetricSecond = 19,
     /// Replay Video
     ///
     /// This is the data category for Session Replays produced via a video recording.
+    ///
+    /// SDK rate limiting behavior: ignore.
     DoNotUseReplayVideo = 20,
     /// This is the data category for Uptime monitors.
+    ///
+    /// SDK rate limiting behavior: ignore.
     Uptime = 21,
     /// Counts the number of individual attachments, as opposed to the number of bytes in an attachment.
+    ///
+    /// SDK rate limiting behavior: apply to attachments.
     AttachmentItem = 22,
     /// LogItem
     ///
     /// This is the category for logs for which we store the count log events for users for measuring
     /// missing breadcrumbs, and count of logs for rate limiting purposes.
+    ///
+    /// SDK rate limiting behavior: apply to logs.
     LogItem = 23,
     /// LogByte
     ///
     /// This is the category for logs for which we store log event total bytes for users.
+    ///
+    /// SDK rate limiting behavior: apply to logs.
     LogByte = 24,
     /// Profile duration of a UI profile.
     ///
@@ -124,6 +162,8 @@ pub enum DataCategory {
     /// chunk.
     ///
     /// See also: [`Self::ProfileDuration`]
+    ///
+    /// SDK rate limiting behavior: ignore.
     ProfileDurationUi = 25,
     /// UI Profile Chunk.
     ///
@@ -131,18 +171,28 @@ pub enum DataCategory {
     /// chunk.
     ///
     /// See also: [`Self::ProfileChunk`]
+    ///
+    /// SDK rate limiting behavior: ignore.
     ProfileChunkUi = 26,
     /// This is the data category to count Seer Autofix run events.
+    ///
+    /// SDK rate limiting behavior: ignore.
     SeerAutofix = 27,
     /// This is the data category to count Seer Scanner run events.
+    ///
+    /// SDK rate limiting behavior: ignore.
     SeerScanner = 28,
     /// PreventUser
     ///
     /// This is the data category to count the number of assigned Prevent Users.
+    ///
+    /// SDK rate limiting behavior: ignore.
     PreventUser = 29,
     /// PreventReview
     ///
     /// This is the data category to count the number of Prevent review events.
+    ///
+    /// SDK rate limiting behavior: ignore.
     PreventReview = 30,
     /// Size analysis
     ///
@@ -150,6 +200,8 @@ pub enum DataCategory {
     /// 'Size analysis' a static binary analysis of a preprod build artifact
     /// (e.g. the .apk of an Android app or MacOS .app).
     /// When enabled there will typically be one such analysis per uploaded artifact.
+    ///
+    /// SDK rate limiting behavior: ignore.
     SizeAnalysis = 31,
     /// InstallableBuild
     ///
@@ -157,6 +209,8 @@ pub enum DataCategory {
     /// It counts the number of artifacts uploaded *not* the number of times the
     /// artifacts are downloaded for installation.
     /// When enabled there will typically be one 'InstallableBuild' per uploaded artifact.
+    ///
+    /// SDK rate limiting behavior: ignore.
     InstallableBuild = 32,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
