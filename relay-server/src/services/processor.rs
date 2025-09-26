@@ -52,6 +52,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
+use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
@@ -65,7 +66,7 @@ use crate::services::upstream::{
     SendRequest, Sign, SignatureType, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, CheckLimits, EnvelopeLimiter, SamplingResult};
+use crate::utils::{self, CheckLimits, EnvelopeLimiter, SamplingResult, is_rolled_out};
 use crate::{http, processing};
 use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
@@ -131,7 +132,7 @@ macro_rules! if_processing {
 }
 
 /// The minimum clock drift for correction to apply.
-const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
+pub const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
 #[derive(Debug)]
 pub struct GroupTypeError;
@@ -1196,6 +1197,7 @@ struct Processing {
     logs: LogsProcessor,
     spans: SpansProcessor,
     check_ins: CheckInsProcessor,
+    sessions: SessionsProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1280,7 +1282,8 @@ impl EnvelopeProcessorService {
             processing: Processing {
                 logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
                 spans: SpansProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
-                check_ins: CheckInsProcessor::new(quota_limiter),
+                check_ins: CheckInsProcessor::new(Arc::clone(&quota_limiter)),
+                sessions: SessionsProcessor::new(quota_limiter),
             },
             geoip_lookup,
             config,
@@ -2307,12 +2310,30 @@ impl EnvelopeProcessorService {
                     reservoir_counters
                 )
             }
-            ProcessingGroup::Session => run!(
-                process_sessions,
-                &self.inner.config.clone(),
-                &project_info,
-                &rate_limits
-            ),
+            ProcessingGroup::Session => {
+                let organization_id = managed_envelope.scoping().organization_id;
+                match is_rolled_out(
+                    organization_id.value(),
+                    global_config.options.session_processing_rollout,
+                )
+                .is_keep()
+                {
+                    true => {
+                        self.process_with_processor(
+                            &self.inner.processing.sessions,
+                            managed_envelope,
+                            ctx,
+                        )
+                        .await
+                    }
+                    false => run!(
+                        process_sessions,
+                        &self.inner.config.clone(),
+                        &project_info,
+                        &rate_limits
+                    ),
+                }
+            }
             ProcessingGroup::Standalone => run!(
                 process_standalone,
                 self.inner.config.clone(),

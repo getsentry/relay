@@ -28,6 +28,8 @@ pub enum SessionStatus {
     /// The session had an unhandled error, but did not crash.
     Unhandled,
     /// Unknown status, for forward compatibility.
+    ///
+    /// Adding a new variant still requires bumping the metrics extraction version.
     Unknown(String),
 }
 
@@ -312,6 +314,8 @@ pub struct SessionAggregateItem {
     /// The number of crashed sessions that ocurred.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub crashed: u32,
+    // Adding a new field here, requires bumping the session metrics extraction
+    // version for external/customer managed Relays.
 }
 
 impl SessionLike for SessionAggregateItem {
@@ -392,6 +396,36 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_did_you_bump_session_metrics_extraction_version() {
+        fn _assert_status(status: SessionStatus) {
+            match status {
+                SessionStatus::Ok => todo!(),
+                SessionStatus::Exited => todo!(),
+                SessionStatus::Crashed => todo!(),
+                SessionStatus::Abnormal => todo!(),
+                SessionStatus::Errored => todo!(),
+                SessionStatus::Unhandled => todo!(),
+                SessionStatus::Unknown(_) => todo!(),
+                // If you have to make changes here, you also need to bump the session extraction
+                // metrics version in Sentry and Relay.
+            }
+        }
+        fn _assert_aggregate_item(item: SessionAggregateItem) {
+            let SessionAggregateItem {
+                started: _,
+                distinct_id: _,
+                exited: _,
+                errored: _,
+                abnormal: _,
+                unhandled: _,
+                crashed: _,
+                // If you have to make changes here, you also need to bump the session extraction
+                // metrics version in Sentry and Relay.
+            } = item;
+        }
+    }
 
     #[test]
     fn test_sessionstatus_unknown() {
