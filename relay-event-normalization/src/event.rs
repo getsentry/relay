@@ -360,7 +360,10 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     }
 
     if let Some(context) = event.context_mut::<TraceContext>() {
-        context.client_sample_rate = Annotated::from(config.client_sample_rate);
+        // Validate and potentially cap the sample rate to prevent times_seen overflow
+        let validated_sample_rate = config.client_sample_rate
+            .and_then(crate::validation::validate_sample_rate_for_times_seen);
+        context.client_sample_rate = Annotated::from(validated_sample_rate);
     }
     normalize_replay_context(event, config.replay_id);
 }
