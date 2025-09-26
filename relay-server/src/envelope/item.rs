@@ -451,6 +451,8 @@ impl Item {
             // future and break down different types of integrations here, similar to attachments.
             ItemType::Integration => false,
 
+            ItemType::TraceMetric => false,
+
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
             ItemType::Unknown(_) => false,

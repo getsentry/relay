@@ -76,15 +76,17 @@ fn scrub_trace_metric(
     metric: &mut Annotated<TraceMetric>,
     project_state: &ProjectInfo,
 ) -> Result<()> {
-    let pii_config = project_state.config.datascrubbing_settings.pii_config();
-
-    if let Some(pii_config) = pii_config {
-        let mut processor = PiiProcessor::new(pii_config);
+    if let Ok(Some(pii_config)) = project_state.config.datascrubbing_settings.pii_config() {
+        let compiled_config = pii_config.compiled();
+        let mut processor = PiiProcessor::new(compiled_config);
 
         if let Some(metric) = metric.value_mut() {
-            if let Some(attrs) = metric.attributes.value_mut() {
-                process_value(attrs, &mut processor, ProcessingState::root()).ok();
-            }
+            process_value(
+                &mut metric.attributes,
+                &mut processor,
+                ProcessingState::root(),
+            )
+            .ok();
         }
     }
 

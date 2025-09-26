@@ -2,7 +2,7 @@ use relay_event_schema::protocol::TraceMetric;
 
 use crate::envelope::WithHeader;
 use crate::processing::Counted;
-use crate::services::outcome::DiscardReason;
+use crate::services::outcome::{DiscardReason, Outcome};
 use smallvec::smallvec;
 
 pub mod process;
@@ -26,29 +26,29 @@ pub enum Error {
 impl crate::managed::OutcomeError for Error {
     type Error = Self;
 
-    fn consume(self) -> (Option<relay_quotas::Outcome>, Self::Error) {
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
-            Self::Invalid(reason) => Some(relay_quotas::Outcome::Invalid(*reason)),
+            Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
         (outcome, self)
     }
 }
 
 impl Counted for WithHeader<TraceMetric> {
-    fn quantities(&self) -> smallvec::SmallVec<[(relay_quotas::DataCategory, usize); 2]> {
+    fn quantities(&self) -> smallvec::SmallVec<[(relay_quotas::DataCategory, usize); 1]> {
         smallvec![(relay_quotas::DataCategory::TraceMetric, 1)]
     }
 }
 
 impl Counted for SerializedTraceMetricsContainer {
-    fn quantities(&self) -> smallvec::SmallVec<[(relay_quotas::DataCategory, usize); 2]> {
+    fn quantities(&self) -> smallvec::SmallVec<[(relay_quotas::DataCategory, usize); 1]> {
         let count = self.metrics.len();
         smallvec![(relay_quotas::DataCategory::TraceMetric, count)]
     }
 }
 
 impl Counted for Vec<WithHeader<TraceMetric>> {
-    fn quantities(&self) -> smallvec::SmallVec<[(relay_quotas::DataCategory, usize); 2]> {
+    fn quantities(&self) -> smallvec::SmallVec<[(relay_quotas::DataCategory, usize); 1]> {
         smallvec![(relay_quotas::DataCategory::TraceMetric, self.len())]
     }
 }

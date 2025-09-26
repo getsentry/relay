@@ -133,6 +133,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::CheckIn => None,
         ItemType::Nel => None,
         ItemType::Log => None,
+        ItemType::TraceMetric => None,
         ItemType::Span => None,
         ItemType::OtelSpan => None,
         ItemType::OtelTracesData => None,
@@ -555,6 +556,7 @@ impl Enforcement {
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::UserReportV2  // This is an event type.
+            | ItemType::TraceMetric
             | ItemType::Unknown(_) => true,
         }
     }
