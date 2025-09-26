@@ -51,6 +51,12 @@ pub enum Integration {
     Logs(LogsIntegration),
 }
 
+impl From<LogsIntegration> for Integration {
+    fn from(value: LogsIntegration) -> Self {
+        Self::Logs(value)
+    }
+}
+
 /// All logging integrations supported by Relay.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum LogsIntegration {
