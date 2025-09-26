@@ -482,6 +482,9 @@ pub enum DiscardReason {
     /// (Relay) A log that is not valid after normalization.
     InvalidLog,
 
+    /// (Relay) A trace metric that is not valid after normalization.
+    InvalidTraceMetric,
+
     /// (Relay) A span is not valid after normalization.
     InvalidSpan,
 
@@ -546,6 +549,7 @@ impl DiscardReason {
             DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
             DiscardReason::Profiling(reason) => reason,
             DiscardReason::InvalidLog => "invalid_log",
+            DiscardReason::InvalidTraceMetric => "invalid_trace_metric",
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
             DiscardReason::TransactionAttachment => "transaction_attachment",

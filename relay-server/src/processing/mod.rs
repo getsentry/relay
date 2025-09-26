@@ -24,6 +24,7 @@ pub use self::limits::*;
 pub mod check_ins;
 pub mod logs;
 pub mod spans;
+pub mod trace_metrics;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
 ///

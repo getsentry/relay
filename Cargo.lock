@@ -4273,7 +4273,7 @@ dependencies = [
  "rmp-serde",
  "semver",
  "sentry",
- "sentry_protos",
+ "sentry_protos 0.4.1",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -4791,7 +4791,7 @@ checksum = "e9f3a669a7e34855a4ab0bf3698383adf78de4a723e7a845af374be2ae935519"
 dependencies = [
  "jsonschema",
  "prost",
- "sentry_protos",
+ "sentry_protos 0.3.3",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -4879,6 +4879,17 @@ name = "sentry_protos"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2736920441e5f518ac0e79c27b91e2203b7c240afbd6e76771dbf78e208dbc12"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tonic",
+]
+
+[[package]]
+name = "sentry_protos"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e66eb1ca0b78dc5e93af65a213e9fa6c945ebb7278d418e801e64fcc5532a648"
 dependencies = [
  "prost",
  "prost-types",
