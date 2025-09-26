@@ -179,6 +179,24 @@ impl ProjectConfig {
             }
         }
     }
+
+    /// Returns the standard & downsampled retention period for a trace item type.
+    ///
+    /// Falls back to [`Self::event_retention`] and [`Self::downsampled_event_retention`]
+    /// if no per-item retention is specified.
+    pub fn retentions_for_trace_item(&self, ty: TraceItemType) -> (Option<u16>, Option<u16>) {
+        let specific = self.specific_retentions_for_trace_item(ty);
+        let standard = specific.map(|r| r.standard).or(self.event_retention);
+        let downsampled = specific
+            .and_then(|r| r.downsampled)
+            .or(self.downsampled_event_retention);
+
+        (standard, downsampled)
+    }
+
+    fn specific_retentions_for_trace_item(&self, ty: TraceItemType) -> Option<&RetentionSettings> {
+        self.retentions.as_ref()?.retention_for_trace_item(ty)
+    }
 }
 
 impl Default for ProjectConfig {
