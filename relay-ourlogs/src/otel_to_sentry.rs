@@ -88,6 +88,7 @@ pub fn otel_to_sentry_log(
     });
 
     let mut attribute_data = Attributes::default();
+    attribute_data.insert("sentry.origin", "auto.otlp.logs".to_owned());
 
     for attribute in resource.into_iter().flat_map(|s| &s.attributes) {
         if let Some(attr) = attribute
