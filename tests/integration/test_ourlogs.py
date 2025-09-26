@@ -73,6 +73,9 @@ def test_ourlog_multiple_containers_not_allowed(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
     start = datetime.now(timezone.utc)
@@ -156,6 +159,9 @@ def test_ourlog_extraction_with_sentry_logs(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
@@ -337,6 +343,9 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
 ):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
@@ -399,6 +408,10 @@ def test_ourlog_extraction_default_pii_scrubbing_attributes(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
     project_config["config"].setdefault(
         "datascrubbingSettings",
         {
@@ -449,6 +462,10 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
     items_consumer = items_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
@@ -554,6 +571,10 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     items_consumer = items_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
@@ -612,6 +633,10 @@ def test_ourlog_extraction_is_disabled_without_feature(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
     project_config["config"]["features"] = []
 
     envelope = envelope_with_sentry_logs(
@@ -698,6 +723,9 @@ def test_browser_name_version_extraction(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
     relay = relay(relay_with_processing(options=TEST_CONFIG))
     ts = datetime.now(timezone.utc)
 
@@ -794,6 +822,9 @@ def test_filters_are_applied_to_logs(
 ):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]

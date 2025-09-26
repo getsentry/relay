@@ -10,6 +10,8 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use sentry_protos::snuba::v1::TraceItemType;
+
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
 use crate::metrics::{
@@ -18,6 +20,52 @@ use crate::metrics::{
 };
 use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
+
+/// Per-Category settings for retention policy.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetentionSettings {
+    /// Standard / full fidelity retention policy in days.
+    pub standard: u16,
+    /// Downsampled retention policy in days.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub downsampled: Option<u16>,
+}
+
+/// Settings for retention policy.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Retentions {
+    /// Retention settings for logs.
+    /// This will determine when they are removed from storage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log: Option<RetentionSettings>,
+    /// Retention settings for spans.
+    /// This will determine when they are removed from storage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<RetentionSettings>,
+}
+
+impl Retentions {
+    /// Returns the retentions setting for the trace item type `ty` in the `retentions` object
+    pub fn retention_for_trace_item(&self, ty: TraceItemType) -> Option<&RetentionSettings> {
+        match ty {
+            TraceItemType::Span => {
+                if let Some(span) = &self.span {
+                    Some(span)
+                } else {
+                    None
+                }
+            }
+            TraceItemType::Log => {
+                if let Some(log) = &self.log {
+                    Some(log)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+}
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +95,9 @@ pub struct ProjectConfig {
     /// Maximum sampled event retention for the organization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub downsampled_event_retention: Option<u16>,
+    /// Retention settings for different products.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retentions: Option<Retentions>,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
@@ -128,6 +179,24 @@ impl ProjectConfig {
             }
         }
     }
+
+    /// Returns the standard & downsampled retention period for a trace item type.
+    ///
+    /// Falls back to [`Self::event_retention`] and [`Self::downsampled_event_retention`]
+    /// if no per-item retention is specified.
+    pub fn retentions_for_trace_item(&self, ty: TraceItemType) -> (Option<u16>, Option<u16>) {
+        let specific = self.specific_retentions_for_trace_item(ty);
+        let standard = specific.map(|r| r.standard).or(self.event_retention);
+        let downsampled = specific
+            .and_then(|r| r.downsampled)
+            .or(self.downsampled_event_retention);
+
+        (standard, downsampled)
+    }
+
+    fn specific_retentions_for_trace_item(&self, ty: TraceItemType) -> Option<&RetentionSettings> {
+        self.retentions.as_ref()?.retention_for_trace_item(ty)
+    }
 }
 
 impl Default for ProjectConfig {
@@ -142,6 +211,7 @@ impl Default for ProjectConfig {
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
             downsampled_event_retention: None,
+            retentions: None,
             quotas: Vec::new(),
             sampling: None,
             measurements: None,

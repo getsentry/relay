@@ -35,6 +35,10 @@ def test_otlp_logs_conversion(
         "organizations:ourlogs-ingestion",
         "organizations:relay-otel-logs-endpoint",
     ]
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
@@ -202,6 +206,10 @@ def test_otlp_logs_multiple_records(
         "organizations:ourlogs-ingestion",
         "organizations:relay-otel-logs-endpoint",
     ]
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
