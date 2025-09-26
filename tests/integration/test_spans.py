@@ -753,7 +753,7 @@ def test_span_ingestion(
         attributes=[
             KeyValue(
                 key="sentry.exclusive_time",
-                value=AnyValue(float_value=duration.total_seconds() * 1e6),
+                value=AnyValue(double_value=duration.total_seconds() * 1e6),
             ),
             # In order to test `category` sentry tag inference.
             KeyValue(

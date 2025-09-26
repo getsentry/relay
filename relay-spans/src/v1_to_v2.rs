@@ -347,7 +347,7 @@ mod tests {
               "value": "raw description"
             },
             "sentry.exclusive_time": {
-              "type": "integer",
+              "type": "double",
               "value": 1.23
             },
             "sentry.is_segment": {

@@ -93,7 +93,7 @@ mod tests {
                 {
                     "key": "sentry.exclusive_time",
                     "value": {
-                        "floatValue": "1000.000000"
+                        "doubleValue": 1000.000000
                     }
                 }
             ],
