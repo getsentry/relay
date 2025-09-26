@@ -88,6 +88,7 @@ pub fn otel_to_sentry_log(
     });
 
     let mut attribute_data = Attributes::default();
+    attribute_data.insert("sentry.origin", "auto.otlp.logs".to_owned());
 
     for attribute in resource.into_iter().flat_map(|s| &s.attributes) {
         if let Some(attr) = attribute
@@ -280,6 +281,10 @@ mod tests {
               "type": "string",
               "value": "test-service"
             },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.logs"
+            },
             "string.attribute": {
               "type": "string",
               "value": "some string"
@@ -363,6 +368,10 @@ mod tests {
             "db.type": {
               "type": "string",
               "value": "sql"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.logs"
             }
           }
         }
@@ -444,6 +453,10 @@ mod tests {
           "level": "info",
           "body": "Log without trace context",
           "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.logs"
+            },
             "test.attribute": {
               "type": "string",
               "value": "test value"
@@ -503,6 +516,10 @@ mod tests {
             "error.type": {
               "type": "string",
               "value": "ValidationError"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.logs"
             }
           },
           "_meta": {
@@ -557,6 +574,10 @@ mod tests {
           "level": "warn",
           "body": "Warning log with invalid trace IDs",
           "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.logs"
+            },
             "warning.code": {
               "type": "integer",
               "value": 42
