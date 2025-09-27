@@ -25,6 +25,7 @@ relay-event-schema = { workspace = true }
 relay-otel = { workspace = true }
 relay-protocol = { workspace = true }
 relay-common = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
