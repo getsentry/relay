@@ -306,6 +306,17 @@ wheels = [
 ]
 
 [[package]]
+name = "milksnake"
+version = "0.1.6"
+source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+dependencies = [
+    { name = "cffi", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/milksnake-0.1.6-py2.py3-none-any.whl", hash = "sha256:31e3eafaf2a48e177bb4b2dacef2c7ae8c5b2147a19c6d626209b819490e6f1d" },
+]
+
+[[package]]
 name = "msgpack"
 version = "1.1.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
@@ -544,6 +555,7 @@ dev = [
     { name = "devservices", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "flake8", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "flask", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "milksnake", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "msgpack", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "mypy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "opentelemetry-proto", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -557,6 +569,7 @@ dev = [
     { name = "requests", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "sentry-protos", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "sentry-sdk", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "setuptools", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "types-protobuf", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "types-pyyaml", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "types-redis", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -579,6 +592,7 @@ dev = [
     { name = "devservices", specifier = ">=1.2.1" },
     { name = "flake8", specifier = ">=7.0.0" },
     { name = "flask", specifier = ">=3.0.3" },
+    { name = "milksnake", specifier = ">=0.1.6" },
     { name = "msgpack", specifier = ">=1.1.0" },
     { name = "mypy", specifier = ">=1.10.0" },
     { name = "opentelemetry-proto", specifier = ">=1.32.1" },
@@ -592,6 +606,7 @@ dev = [
     { name = "requests", specifier = ">=2.32.4" },
     { name = "sentry-protos", specifier = ">=0.2.0" },
     { name = "sentry-sdk", specifier = ">=2.30.0" },
+    { name = "setuptools", specifier = ">=78.1.1" },
     { name = "types-protobuf", specifier = ">=5.27.0.20240626" },
     { name = "types-pyyaml", specifier = ">=6.0.12.10" },
     { name = "types-redis", specifier = ">=4.5.1.3" },

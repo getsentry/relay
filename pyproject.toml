@@ -46,10 +46,12 @@ dev = [
     "types-requests>=2.30.0.0",
     "types-setuptools>=69.0.0.0",
     "werkzeug>=3.0.6",
-    # "setuptools==78.1.1",
-    # milksnake==0.1.6
-    "wheel>=0.42.0",  # used for ci build_library
     "zstandard>=0.18.0",
+
+    # used for ci build_library
+    "setuptools>=78.1.1",
+    "wheel>=0.42.0",
+    "milksnake>=0.1.6",
 ]
 
 [tool.black]
