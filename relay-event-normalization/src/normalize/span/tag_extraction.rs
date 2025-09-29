@@ -3074,7 +3074,10 @@ LIMIT 1
                     "email": "admin@sentry.io",
                     "username": "admin",
                     "geo": {
-                        "country_code": "US"
+                        "country_code": "AT",
+                        "city": "Vienna",
+                        "subdivision": "Vienna",
+                        "region": "Austria"
                     }
                 },
                 "spans": [
@@ -3107,65 +3110,11 @@ LIMIT 1
         assert_eq!(get_value!(span.sentry_tags.user_ip!), "127.0.0.1");
         assert_eq!(get_value!(span.sentry_tags.user_username!), "admin");
         assert_eq!(get_value!(span.sentry_tags.user_email!), "admin@sentry.io");
-        assert_eq!(get_value!(span.sentry_tags.user_country_code!), "US");
-        assert_eq!(get_value!(span.sentry_tags.user_subregion!), "21");
-    }
-
-    #[test]
-    fn not_extract_geo_location_if_not_browser() {
-        let json = r#"
-            {
-                "type": "transaction",
-                "platform": "python",
-                "start_timestamp": "2021-04-26T07:59:01+0100",
-                "timestamp": "2021-04-26T08:00:00+0100",
-                "transaction": "foo",
-                "contexts": {
-                    "trace": {
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                        "span_id": "bd429c44b67a3eb4"
-                    },
-                    "browser": {
-                        "name": "Chrome"
-                    }
-                },
-                "user": {
-                    "id": "1",
-                    "email": "admin@sentry.io",
-                    "username": "admin",
-                    "geo": {
-                        "country_code": "US"
-                    }
-                },
-                "spans": [
-                    {
-                        "op": "http.client",
-                        "span_id": "bd429c44b67a3eb1",
-                        "start_timestamp": 1597976300.0000000,
-                        "timestamp": 1597976302.0000000,
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-
-        normalize_event(
-            &mut event,
-            &NormalizationConfig {
-                enrich_spans: true,
-                ..Default::default()
-            },
-        );
-
-        let spans = get_value!(event.spans!);
-        let span = &spans[0];
-
-        let tags = span.value().unwrap().sentry_tags.value().unwrap();
-
-        assert_eq!(tags.get_value("user.geo.subregion"), None);
-        assert_eq!(tags.get_value("user.geo.country_code"), None);
+        assert_eq!(get_value!(span.sentry_tags.user_country_code!), "AT");
+        assert_eq!(get_value!(span.sentry_tags.user_city!), "Vienna");
+        assert_eq!(get_value!(span.sentry_tags.user_region!), "Austria");
+        assert_eq!(get_value!(span.sentry_tags.user_subdivision!), "Vienna");
+        assert_eq!(get_value!(span.sentry_tags.user_subregion!), "155");
     }
 
     #[test]
