@@ -6,7 +6,4 @@ version = "0.0.0"
 # we're using setup.py to populate these fields
 dynamic = ["authors", "description", "license", "requires-python"]
 
-[build-system]
-# setup.cfg tells setuptools about py/sentry_relay
-requires = ["setuptools==78.1.1", "wheel==0.42.0", "milksnake==0.1.6", "cffi==1.17.1", "pycparser==2.22"]
-build-backend = "setuptools.build_meta"
+# note: still using legacy setup.py for building, so no build-system yet
