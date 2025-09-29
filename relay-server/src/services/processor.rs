@@ -53,6 +53,7 @@ use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtra
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::spans::SpansProcessor;
+use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -210,6 +211,7 @@ processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
 processing_group!(LogGroup, Log, Nel);
+processing_group!(TraceMetricGroup, TraceMetric);
 processing_group!(SpanGroup, Span);
 
 impl Sampling for SpanGroup {
@@ -261,6 +263,8 @@ pub enum ProcessingGroup {
     Nel,
     /// Logs.
     Log,
+    /// Trace metrics.
+    TraceMetric,
     /// Spans.
     Span,
     /// Span V2 spans.
@@ -344,6 +348,16 @@ impl ProcessingGroup {
             grouped_envelopes.push((
                 ProcessingGroup::Log,
                 Envelope::from_parts(headers.clone(), logs_items),
+            ))
+        }
+
+        // Extract trace metrics.
+        let trace_metric_items =
+            envelope.take_items_by(|item| matches!(item.ty(), &ItemType::TraceMetric));
+        if !trace_metric_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::TraceMetric,
+                Envelope::from_parts(headers.clone(), trace_metric_items),
             ))
         }
 
@@ -458,6 +472,7 @@ impl ProcessingGroup {
             ProcessingGroup::Replay => "replay",
             ProcessingGroup::CheckIn => "check_in",
             ProcessingGroup::Log => "log",
+            ProcessingGroup::TraceMetric => "trace_metric",
             ProcessingGroup::Nel => "nel",
             ProcessingGroup::Span => "span",
             ProcessingGroup::SpanV2 => "span_v2",
@@ -480,6 +495,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Replay => AppFeature::Replays,
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
             ProcessingGroup::Log => AppFeature::Logs,
+            ProcessingGroup::TraceMetric => AppFeature::Logs, // Trace metrics are similar to logs
             ProcessingGroup::Nel => AppFeature::Logs,
             ProcessingGroup::Span => AppFeature::Spans,
             ProcessingGroup::SpanV2 => AppFeature::Spans,
@@ -1194,6 +1210,7 @@ struct InnerProcessor {
 
 struct Processing {
     logs: LogsProcessor,
+    trace_metrics: TraceMetricsProcessor,
     spans: SpansProcessor,
     check_ins: CheckInsProcessor,
 }
@@ -1279,6 +1296,7 @@ impl EnvelopeProcessorService {
             metric_outcomes,
             processing: Processing {
                 logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
+                trace_metrics: TraceMetricsProcessor::new(Arc::clone(&quota_limiter)),
                 spans: SpansProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 check_ins: CheckInsProcessor::new(quota_limiter),
             },
@@ -2342,6 +2360,14 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Log => {
                 self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
                     .await
+            }
+            ProcessingGroup::TraceMetric => {
+                self.process_with_processor(
+                    &self.inner.processing.trace_metrics,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
             }
             ProcessingGroup::SpanV2 => {
                 self.process_with_processor(&self.inner.processing.spans, managed_envelope, ctx)

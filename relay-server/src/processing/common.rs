@@ -3,6 +3,7 @@ use crate::managed::{Managed, Rejected};
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::spans::SpansProcessor;
+use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::{Forward, Processor};
 
 macro_rules! outputs {
@@ -50,5 +51,6 @@ macro_rules! outputs {
 outputs!(
     CheckIns => CheckInsProcessor,
     Logs => LogsProcessor,
+    TraceMetrics => TraceMetricsProcessor,
     Spans => SpansProcessor,
 );
