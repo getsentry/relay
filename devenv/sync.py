@@ -10,10 +10,11 @@ def main(context: dict[str, str]) -> int:
 
     brew.install()
 
-    proc.run(
-        (f"{constants.homebrew_bin}/brew", "bundle"),
-        cwd=reporoot,
-    )
+    if constants.DARWIN:
+        proc.run(
+            (f"{constants.homebrew_bin}/brew", "bundle"),
+            cwd=reporoot,
+        )
 
     if not shutil.which("rustup"):
         raise SystemExit("rustup not on PATH. Did you run `direnv allow`?")

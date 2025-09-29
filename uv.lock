@@ -660,6 +660,12 @@ wheels = [
 name = "sentry-relay"
 version = "0.0.0"
 source = { editable = "py" }
+dependencies = [
+    { name = "milksnake", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "milksnake", specifier = ">=0.1.6" }]
 
 [[package]]
 name = "sentry-sdk"
