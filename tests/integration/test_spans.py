@@ -137,6 +137,7 @@ def test_span_extraction(
     expected_child_span = {
         "data": {  # Backfilled from `sentry_tags`
             "sentry.category": "http",
+            "sentry.name": "http",
             "sentry.normalized_description": "GET *",
             "sentry.group": "37e3d9fab1ae9162",
             "sentry.op": "http",
@@ -174,6 +175,7 @@ def test_span_extraction(
             "category": "http",
             "description": "GET *",
             "group": "37e3d9fab1ae9162",
+            "name": "http",
             "op": "http",
             "platform": "other",
             "sdk.name": "raven-node",
@@ -216,6 +218,7 @@ def test_span_extraction(
             "sentry.sdk.version": "2.6.3",
             "sentry.segment.name": "hi",
             # Backfilled from `sentry_tags`:
+            "sentry.name": "hi",
             "sentry.op": "hi",
             "sentry.platform": "other",
             "sentry.status": "ok",
@@ -245,6 +248,7 @@ def test_span_extraction(
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
+            "name": "hi",
             "op": "hi",
             "platform": "other",
             "sdk.name": "raven-node",
@@ -831,6 +835,7 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Chrome",
                 "category": "db",
+                "name": "my 1st OTel span",
                 "op": "default",
                 "status": "unknown",
             },
@@ -876,6 +881,7 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Chrome",
                 "category": "db",
+                "name": "my 1st V2 span",
                 "op": "default",
                 "status": "unknown",
             },
@@ -933,6 +939,7 @@ def test_span_ingestion(
                 "domain": "example.com",
                 "file_extension": "js",
                 "group": "8a97a9e43588e2bd",
+                "name": "resource.script",
                 "op": "resource.script",
             },
             "span_id": "b0429c44b67a3eb1",
@@ -987,6 +994,7 @@ def test_span_ingestion(
                 "domain": "example.com",
                 "file_extension": "js",
                 "group": "8a97a9e43588e2bd",
+                "name": "resource.script",
                 "op": "resource.script",
                 "status": "ok",
             },
@@ -1019,7 +1027,11 @@ def test_span_ingestion(
             "key_id": 123,
             "retention_days": 90,
             "segment_id": "968cff94913ebb07",
-            "sentry_tags": {"browser.name": "Chrome", "op": "default"},
+            "sentry_tags": {
+                "browser.name": "Chrome",
+                "name": "default",
+                "op": "default",
+            },
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "start_timestamp_precise": start.timestamp(),
@@ -1061,6 +1073,7 @@ def test_span_ingestion(
             "segment_id": "d342abb1214ca182",
             "sentry_tags": {
                 "browser.name": "Python Requests",
+                "name": "my 2nd OTel span",
                 "op": "default",
                 "status": "unknown",
             },
@@ -1094,6 +1107,7 @@ def test_span_ingestion(
             "segment_id": "968cff94913ebb07",
             "sentry_tags": {
                 "browser.name": "Chrome",
+                "name": "default",
                 "op": "default",
             },
             "span_id": "ed429c44b67a3eb1",
@@ -1139,6 +1153,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
+                "name": "my 3rd protobuf OTel span",
                 "op": "default",
                 "category": "ui",
                 "status": "unknown",
@@ -1731,6 +1746,7 @@ def test_span_ingestion_with_performance_scores(
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
+                "name": "ui.interaction.click",
                 "op": "ui.interaction.click",
             },
             "span_id": "bd429c44b67a3eb1",
@@ -1814,6 +1830,7 @@ def test_span_ingestion_with_performance_scores(
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
+                "name": "ui.interaction.click",
                 "op": "ui.interaction.click",
                 "transaction": "/page/with/click/interaction/*/*",
                 "replay_id": "8477286c8e5148b386b71ade38374d58",
@@ -2447,6 +2464,7 @@ def test_scrubs_ip_addresses(
             "sentry.category": "http",
             "sentry.normalized_description": "GET *",
             "sentry.group": "37e3d9fab1ae9162",
+            "sentry.name": "http",
             "sentry.op": "http",
             "sentry.platform": "other",
             "sentry.sdk.name": "raven-node",
@@ -2481,6 +2499,7 @@ def test_scrubs_ip_addresses(
             "category": "http",
             "description": "GET *",
             "group": "37e3d9fab1ae9162",
+            "name": "http",
             "op": "http",
             "platform": "other",
             "sdk.name": "raven-node",
@@ -2530,6 +2549,7 @@ def test_scrubs_ip_addresses(
             "sentry.sdk.version": "2.6.3",
             "sentry.segment.name": "hi",
             # Backfilled from `sentry_tags`:
+            "sentry.name": "hi",
             "sentry.op": "hi",
             "sentry.platform": "other",
             "sentry.status": "unknown",
@@ -2555,6 +2575,7 @@ def test_scrubs_ip_addresses(
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
+            "name": "hi",
             "op": "hi",
             "platform": "other",
             "sdk.name": "raven-node",
