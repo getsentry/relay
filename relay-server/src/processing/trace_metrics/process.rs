@@ -7,8 +7,10 @@ use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::{RequestMeta, RequestTrust};
+use crate::processing::Context;
 use crate::processing::Managed;
-use crate::processing::trace_metrics::{Error, ExpandedTraceMetrics, Result};
+use crate::processing::trace_metrics::{Error, Result};
+use crate::processing::trace_metrics::{ExpandedTraceMetrics, SerializedTraceMetrics};
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectInfo;
 
@@ -17,10 +19,10 @@ pub struct SerializedTraceMetricsContainer {
 }
 
 pub fn expand(
-    metrics: Managed<SerializedTraceMetricsContainer>,
-    meta: &RequestMeta,
+    metrics: Managed<SerializedTraceMetrics>,
+    _ctx: Context<'_>,
 ) -> Managed<ExpandedTraceMetrics> {
-    let trust = meta.request_trust();
+    let trust = metrics.headers.meta().request_trust();
 
     metrics.map(|metrics, records| {
         records.lenient(DataCategory::TraceMetric);
@@ -32,14 +34,24 @@ pub fn expand(
             all_metrics.extend(expanded);
         }
 
-        all_metrics
+        crate::processing::trace_metrics::ExpandedTraceMetrics {
+            headers: metrics.headers,
+            metrics: all_metrics,
+            #[cfg(feature = "processing")]
+            retention: Some(30), // Hard-coded for now
+            #[cfg(feature = "processing")]
+            downsampled_retention: Some(30), // Hard-coded for now
+        }
     })
 }
 
-pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, meta: &RequestMeta) {
-    metrics.retain(
-        |metrics| metrics,
-        |metric| {
+pub fn normalize(
+    metrics: &mut Managed<crate::processing::trace_metrics::ExpandedTraceMetrics>,
+    ctx: crate::processing::Context<'_>,
+) {
+    metrics.retain_with_context(
+        |metrics| (&mut metrics.metrics, metrics.headers.meta()),
+        |metric, meta| {
             normalize_trace_metric(metric, meta).inspect_err(|err| {
                 relay_log::debug!("failed to normalize trace metric: {err}");
             })
@@ -47,11 +59,14 @@ pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, meta: &RequestMeta
     );
 }
 
-pub fn scrub(metrics: &mut Managed<ExpandedTraceMetrics>, project_state: &ProjectInfo) {
+pub fn scrub(
+    metrics: &mut Managed<crate::processing::trace_metrics::ExpandedTraceMetrics>,
+    ctx: crate::processing::Context<'_>,
+) {
     metrics.retain(
-        |metrics| metrics,
+        |metrics| &mut metrics.metrics,
         |metric| {
-            scrub_trace_metric(metric, project_state).inspect_err(|err| {
+            scrub_trace_metric(metric, ctx.project_info).inspect_err(|err| {
                 relay_log::debug!("failed to scrub pii from trace metric: {err}")
             })
         },
