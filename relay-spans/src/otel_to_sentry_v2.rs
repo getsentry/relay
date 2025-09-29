@@ -262,8 +262,8 @@ mod tests {
               "value": "test"
             },
             "sentry.exclusive_time": {
-              "type": "integer",
-              "value": 1000000000
+              "type": "double",
+              "value": 1000.0
             },
             "sentry.parentSampled": {
               "type": "boolean",

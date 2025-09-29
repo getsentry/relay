@@ -531,7 +531,7 @@ def envelope_with_spans(
                                 },
                                 "sentry.exclusive_time": {
                                     "type": "integer",
-                                    "value": int((end - start).total_seconds() * 1e6),
+                                    "value": int((end - start).total_seconds() * 1e3),
                                 },
                             },
                             "links": [
@@ -656,7 +656,7 @@ def make_otel_span(start, end):
                                         "key": "sentry.exclusive_time",
                                         "value": {
                                             "intValue": str(
-                                                (end - start).total_seconds() * 1e6
+                                                (end - start).total_seconds() * 1e3
                                             ),
                                         },
                                     },
@@ -751,7 +751,7 @@ def test_span_ingestion(
         attributes=[
             KeyValue(
                 key="sentry.exclusive_time",
-                value=AnyValue(double_value=duration.total_seconds() * 1e6),
+                value=AnyValue(double_value=duration.total_seconds() * 1e3),
             ),
             # In order to test `category` sentry tag inference.
             KeyValue(
