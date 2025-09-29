@@ -2,14 +2,39 @@
 
 ## Unreleased
 
+**Features**:
+
+- Enables more PII rules for AI attributes. ([#5166](https://github.com/getsentry/relay/pull/5166)
+- Add Memory Info context to event schema. ([#5154](https://github.com/getsentry/relay/pull/5154))
+- Add Thread Pool Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))
+- Add Unity Info context to event schema. ([#5155](https://github.com/getsentry/relay/pull/5155))
+- Generate `sentry.name` attributes for spans without names. ([#5143](https://github.com/getsentry/relay/pull/5143))
+- Add integration endpoints for OTLP. ([#5176](https://github.com/getsentry/relay/pull/5176))
+
+**Bug Fixes**:
+
+- Emit monitor outcomes when dropping/rejecting an envelope. ([#5177](https://github.com/getsentry/relay/pull/5177))
+- Apply span name generation to spans extracted from transaction events. ([#5191](https://github.com/getsentry/relay/pull/5191))
+
+**Internal**:
+
+- No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
+- Produce spans to `ingest-spans` by default. ([#5163](https://github.com/getsentry/relay/pull/5163))
+- Add ability to produce Span V2 Kafka messages. ([#5151](https://github.com/getsentry/relay/pull/5151), [#5173](https://github.com/getsentry/relay/pull/5173))
+
+## 25.9.0
+
 **Breaking Changes**:
 
 - Removes support for the deprecated and early alpha only otel log item type. ([#5082](https://github.com/getsentry/relay/pull/5082))
-- Only check for local project configs in static mode. ([#5057](https://github.com/getsentry/relay/pull/5057))
+- Remove static mode. ([#5108](https://github.com/getsentry/relay/pull/5108))
 
 **Features**:
 
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
+- Add dynamic PII derivation to `metastructure`. ([#5107](https://github.com/getsentry/relay/pull/5107))
+- Detect PII status of attributes based on `sentry-conventions`. ([#5113](https://github.com/getsentry/relay/pull/5113))
+- Add support for an OTLP `/v1/logs` endpoint. This endpoint is gated behind the `organizations:relay-otel-logs-endpoint` feature flag. ([#5130](https://github.com/getsentry/relay/pull/5130))
 
 **Internal**:
 
@@ -19,7 +44,12 @@
 - Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077)))
 - Produce transactions on `transactions` Kafka topic, even if they have attachments. ([#5081](https://github.com/getsentry/relay/pull/5081))
 - Removes metric stats from the codebase. ([#5097](https://github.com/getsentry/relay/pull/5097))
-- Add option gating Snuba publishing to ingest-replay-events for Replays. ([#5088](https://github.com/getsentry/relay/pull/5088))
+- Add option gating Snuba publishing to ingest-replay-events for Replays. ([#5088](https://github.com/getsentry/relay/pull/5088), [#5115](https://github.com/getsentry/relay/pull/5115))
+- Add gen_ai_cost_total_tokens attribute and double write total tokens cost. ([#5121](https://github.com/getsentry/relay/pull/5121))
+- Change mapping of incoming OTLP spans with `ERROR` status to Sentry's `internal_error` status. ([#5127](https://github.com/getsentry/relay/pull/5127))
+- Change the feature flag for the alpha OTLP trace endpoint from `projects:relay-otel-endpoint` to `organizations:relay-otlp-trace-endpoint`. ([#5133](https://github.com/getsentry/relay/pull/5133))
+- Add `ai_operation_type_map` to global config. ([#5125](https://github.com/getsentry/relay/pull/5125))
+- Infer `gen_ai.operation.type` from `span.op`. ([#5129](https://github.com/getsentry/relay/pull/5129))
 
 ## 25.8.0
 

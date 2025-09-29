@@ -468,6 +468,7 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::OtelSpan => false,
         ItemType::OtelTracesData => false,
         ItemType::ProfileChunk => false,
+        ItemType::Integration => false,
 
         // Without knowing more, `Unknown` items are allowed to be repeated
         ItemType::Unknown(_) => false,

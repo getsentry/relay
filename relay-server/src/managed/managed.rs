@@ -1,3 +1,5 @@
+#[cfg(debug_assertions)]
+use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::fmt;
 use std::iter::FusedIterator;
@@ -23,10 +25,6 @@ mod debug;
 mod test;
 
 #[cfg(test)]
-#[expect(
-    unused,
-    reason = "currently unused, but these are testing utilities for all of Relay"
-)]
 pub use self::test::*;
 
 /// An error which can be extracted into an outcome.
@@ -103,6 +101,7 @@ impl<T> Rejected<T> {
     }
 }
 
+/// The [`Managed`] wrapper ensures outcomes are correctly emitted for the contained item.
 pub struct Managed<T: Counted> {
     value: T,
     meta: Arc<Meta>,
@@ -219,6 +218,110 @@ impl<T: Counted> Managed<T> {
             },
             context,
         )
+    }
+
+    /// Filters individual items and emits outcomes for them if they are removed.
+    ///
+    /// This is particularly useful when the managed instance is a container of individual items,
+    /// which need to be processed or filtered on a case by case basis.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use relay_server::managed::{Counted, Managed, Quantities};
+    /// # #[derive(Copy, Clone)]
+    /// # struct Context<'a>(&'a u32);
+    /// # struct Item;
+    /// struct Items {
+    ///     items: Vec<Item>,
+    /// }
+    /// # impl Counted for Items {
+    /// #   fn quantities(&self) -> Quantities {
+    /// #       todo!()
+    /// #   }
+    /// # }
+    /// # impl Counted for Item {
+    /// #   fn quantities(&self) -> Quantities {
+    /// #       todo!()
+    /// #   }
+    /// # }
+    /// # type Error = std::convert::Infallible;
+    ///
+    /// fn process_items(items: &mut Managed<Items>, ctx: Context<'_>) {
+    ///     items.retain(|items| &mut items.items, |item| process(item, ctx));
+    /// }
+    ///
+    /// fn process(item: &mut Item, ctx: Context<'_>) -> Result<(), Error> {
+    ///     todo!()
+    /// }
+    /// ```
+    pub fn retain<S, I, U, E>(&mut self, select: S, mut retain: U)
+    where
+        S: FnOnce(&mut T) -> &mut Vec<I>,
+        I: Counted,
+        U: FnMut(&mut I) -> Result<(), E>,
+        E: OutcomeError,
+    {
+        self.retain_with_context(|inner| (select(inner), &()), |item, _| retain(item));
+    }
+
+    /// Filters individual items and emits outcomes for them if they are removed.
+    ///
+    /// Like [`Self::retain`], but it allows for an additional context extracted from the managed
+    /// object passed to the retain function.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use relay_server::managed::{Counted, Managed, Quantities};
+    /// # #[derive(Copy, Clone)]
+    /// # struct Context<'a>(&'a u32);
+    /// # struct Item;
+    /// struct Items {
+    ///     ty: String,
+    ///     items: Vec<Item>,
+    /// }
+    /// # impl Counted for Items {
+    /// #   fn quantities(&self) -> Quantities {
+    /// #       todo!()
+    /// #   }
+    /// # }
+    /// # impl Counted for Item {
+    /// #   fn quantities(&self) -> Quantities {
+    /// #       todo!()
+    /// #   }
+    /// # }
+    /// # type Error = std::convert::Infallible;
+    ///
+    /// fn process_items(items: &mut Managed<Items>, ctx: Context<'_>) {
+    ///     items.retain_with_context(|items| (&mut items.items, &items.ty), |item, ty| process(item, ty, ctx));
+    /// }
+    ///
+    /// fn process(item: &mut Item, ty: &str, ctx: Context<'_>) -> Result<(), Error> {
+    ///     todo!()
+    /// }
+    /// ```
+    pub fn retain_with_context<S, C, I, U, E>(&mut self, select: S, mut retain: U)
+    where
+        // Returning `&'a C` here is not optimal, ideally we return C here and express the correct
+        // bound of `C: 'a` but this is, to my knowledge, currently not possible to express in stable Rust.
+        //
+        // This is unfortunately a bit limiting but for most of our purposes it is enough.
+        for<'a> S: FnOnce(&'a mut T) -> (&'a mut Vec<I>, &'a C),
+        I: Counted,
+        U: FnMut(&mut I, &C) -> Result<(), E>,
+        E: OutcomeError,
+    {
+        self.modify(|inner, records| {
+            let (items, ctx) = select(inner);
+            items.retain_mut(|item| match retain(item, ctx) {
+                Ok(()) => true,
+                Err(err) => {
+                    records.reject_err(err, &*item);
+                    false
+                }
+            })
+        });
     }
 
     /// Maps a [`Managed<T>`] to [`Managed<S>`] by applying the mapping function `f`.
@@ -496,6 +599,8 @@ pub struct RecordKeeper<'a> {
     on_drop: Quantities,
     #[cfg(debug_assertions)]
     lenient: SmallVec<[DataCategory; 1]>,
+    #[cfg(debug_assertions)]
+    modifications: BTreeMap<DataCategory, isize>,
     in_flight: SmallVec<[(DataCategory, usize, Option<Outcome>); 2]>,
 }
 
@@ -506,11 +611,15 @@ impl<'a> RecordKeeper<'a> {
             on_drop: quantities,
             #[cfg(debug_assertions)]
             lenient: Default::default(),
+            #[cfg(debug_assertions)]
+            modifications: Default::default(),
             in_flight: Default::default(),
         }
     }
 
     /// Marking a data category as lenient exempts this category from outcome quantity validations.
+    ///
+    /// Consider using [`Self::modify_by`] instead.
     ///
     /// This can be used in cases where the quantity is knowingly modified, which is quite common
     /// for data categories which count bytes.
@@ -518,6 +627,22 @@ impl<'a> RecordKeeper<'a> {
         let _category = category;
         #[cfg(debug_assertions)]
         self.lenient.push(_category);
+    }
+
+    /// Modifies the expected count for a category.
+    ///
+    /// When extracting payloads category counts may expectedly change, these changes can be
+    /// tracked using this function.
+    ///
+    /// Prefer using [`Self::modify_by`] over [`Self::lenient`] as lenient completely disables
+    /// validation for the entire category.
+    pub fn modify_by(&mut self, category: DataCategory, offset: isize) {
+        let _category = category;
+        let _offset = offset;
+        #[cfg(debug_assertions)]
+        {
+            *self.modifications.entry(_category).or_default() += offset;
+        }
     }
 
     /// Finalizes all records and emits the necessary outcomes.
@@ -576,8 +701,6 @@ impl<'a> RecordKeeper<'a> {
     /// outcomes.
     #[cfg(debug_assertions)]
     fn assert_quantities(&self, original: Quantities, new: Quantities) {
-        let mut original_sums = debug::Quantities::from(&original).0;
-
         macro_rules! emit {
             ($category:expr, $($tt:tt)*) => {{
                 match self.lenient.contains(&$category) {
@@ -587,6 +710,7 @@ impl<'a> RecordKeeper<'a> {
                     false  => {
                         relay_log::error!("Original: {original:?}");
                         relay_log::error!("New: {new:?}");
+                        relay_log::error!("Modifications: {:?}", self.modifications);
                         relay_log::error!("In Flight: {:?}", self.in_flight);
                         panic!($($tt)*)
                     }
@@ -594,8 +718,20 @@ impl<'a> RecordKeeper<'a> {
             }};
         }
 
+        let mut sums = debug::Quantities::from(&original).0;
+        for (category, offset) in &self.modifications {
+            let v = sums.entry(*category).or_default();
+            match v.checked_add_signed(*offset) {
+                Some(result) => *v = result,
+                None => emit!(
+                    category,
+                    "Attempted to modify original quantity {v} into the negative ({offset})"
+                ),
+            }
+        }
+
         for (category, quantity, outcome) in &self.in_flight {
-            match original_sums.get_mut(category) {
+            match sums.get_mut(category) {
                 Some(c) if *c >= *quantity => *c -= *quantity,
                 Some(c) => emit!(
                     category,
@@ -609,7 +745,7 @@ impl<'a> RecordKeeper<'a> {
         }
 
         for (category, quantity) in &new {
-            match original_sums.get_mut(category) {
+            match sums.get_mut(category) {
                 Some(c) if *c >= *quantity => *c -= *quantity,
                 Some(c) => emit!(
                     category,
@@ -622,7 +758,7 @@ impl<'a> RecordKeeper<'a> {
             }
         }
 
-        for (category, quantity) in original_sums {
+        for (category, quantity) in sums {
             if quantity > 0 {
                 emit!(
                     category,

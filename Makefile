@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 export RELAY_FEATURES :=
-RELAY_ARGO_AGS ?= ${CARGO_ARGS}
+RELAY_CARGO_ARGS ?= ${CARGO_ARGS}
 
 all: check test ## run all checks and tests
 .PHONY: all

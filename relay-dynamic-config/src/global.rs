@@ -5,7 +5,9 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::{MeasurementsConfig, ModelCosts, SpanOpDefaults};
+use relay_event_normalization::{
+    AiOperationTypeMap, MeasurementsConfig, ModelCosts, SpanOpDefaults,
+};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
@@ -49,6 +51,10 @@ pub struct GlobalConfig {
     /// Configuration for AI span measurements.
     #[serde(skip_serializing_if = "is_model_costs_empty")]
     pub ai_model_costs: ErrorBoundary<ModelCosts>,
+
+    /// Configuration to derive the `gen_ai.operation.type` field from other fields
+    #[serde(skip_serializing_if = "is_ai_operation_type_map_empty")]
+    pub ai_operation_type_map: ErrorBoundary<AiOperationTypeMap>,
 
     /// Configuration to derive the `span.op` from other span fields.
     #[serde(
@@ -174,11 +180,19 @@ pub struct Options {
 
     /// Disables Relay from sending replay-events to Snuba.
     #[serde(
-        rename = "replay.relay-snuba-publishing-disabled",
+        rename = "replay.relay-snuba-publishing-disabled.sample-rate",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub replay_relay_snuba_publish_disabled: bool,
+    pub replay_relay_snuba_publish_disabled_sample_rate: f32,
+
+    /// Fraction of spans that are produced as backward-compatible Span V2 kafka messages.
+    #[serde(
+        rename = "relay.kafka.span-v2.sample-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub span_kafka_v2_sample_rate: f32,
 
     /// All other unknown options.
     #[serde(flatten)]
@@ -332,6 +346,10 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
 
 fn is_model_costs_empty(value: &ErrorBoundary<ModelCosts>) -> bool {
     matches!(value, ErrorBoundary::Ok(model_costs) if model_costs.is_empty())
+}
+
+fn is_ai_operation_type_map_empty(value: &ErrorBoundary<AiOperationTypeMap>) -> bool {
+    matches!(value, ErrorBoundary::Ok(ai_operation_type_map) if ai_operation_type_map.is_empty())
 }
 
 #[cfg(test)]

@@ -17,13 +17,10 @@ pub fn feature_flag(ctx: Context<'_>) -> Result<()> {
 
 /// Applies inbound filters to individual logs.
 pub fn filter(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
-    logs.modify(|logs, records| {
-        let meta = logs.headers.meta();
-        logs.logs.retain_mut(|log| {
-            let r = filter_log(log, meta, ctx);
-            records.or_default(r.map(|_| true), &*log)
-        })
-    });
+    logs.retain_with_context(
+        |logs| (&mut logs.logs, logs.headers.meta()),
+        |log, meta| filter_log(log, meta, ctx),
+    );
 }
 
 fn filter_log(log: &Annotated<OurLog>, meta: &RequestMeta, ctx: Context<'_>) -> Result<()> {

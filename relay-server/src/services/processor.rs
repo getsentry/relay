@@ -45,10 +45,12 @@ use zstd::stream::Encoder as ZstdEncoder;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
+use crate::integrations::Integration;
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
+use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
@@ -69,7 +71,6 @@ use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
-    crate::managed::ItemAction,
     crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
@@ -335,7 +336,10 @@ impl ProcessingGroup {
         }
 
         // Extract logs.
-        let logs_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Log));
+        let logs_items = envelope.take_items_by(|item| {
+            matches!(item.ty(), &ItemType::Log)
+                || matches!(item.integration(), Some(Integration::Logs(_)))
+        });
         if !logs_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Log,
@@ -827,7 +831,7 @@ fn event_type(event: &Annotated<Event>) -> Option<EventType> {
 /// If the project config did not come from the upstream, we keep the items.
 fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
     match config.relay_mode() {
-        RelayMode::Proxy | RelayMode::Static => false,
+        RelayMode::Proxy => false,
         RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
@@ -1191,6 +1195,7 @@ struct InnerProcessor {
 struct Processing {
     logs: LogsProcessor,
     spans: SpansProcessor,
+    check_ins: CheckInsProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1274,7 +1279,8 @@ impl EnvelopeProcessorService {
             metric_outcomes,
             processing: Processing {
                 logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
-                spans: SpansProcessor::new(quota_limiter, geoip_lookup.clone()),
+                spans: SpansProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
+                check_ins: CheckInsProcessor::new(quota_limiter),
             },
             geoip_lookup,
             config,
@@ -1283,36 +1289,6 @@ impl EnvelopeProcessorService {
         Self {
             inner: Arc::new(inner),
         }
-    }
-
-    /// Normalize monitor check-ins and remove invalid ones.
-    #[cfg(feature = "processing")]
-    fn normalize_checkins(
-        &self,
-        managed_envelope: &mut TypedEnvelope<CheckInGroup>,
-        project_id: ProjectId,
-    ) {
-        managed_envelope.retain_items(|item| {
-            if item.ty() != &ItemType::CheckIn {
-                return ItemAction::Keep;
-            }
-
-            match relay_monitors::process_check_in(&item.payload(), project_id) {
-                Ok(result) => {
-                    item.set_routing_hint(result.routing_hint);
-                    item.set_payload(ContentType::Json, result.payload);
-                    ItemAction::Keep
-                }
-                Err(error) => {
-                    // TODO: Track an outcome.
-                    relay_log::debug!(
-                        error = &error as &dyn Error,
-                        "dropped invalid monitor check-in"
-                    );
-                    ItemAction::DropSilently
-                }
-            }
-        })
     }
 
     async fn enforce_quotas<Group>(
@@ -1518,7 +1494,8 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         let global_config = self.inner.global_config.current();
-        let ai_model_costs = global_config.ai_model_costs.clone().ok();
+        let ai_model_costs = global_config.ai_model_costs.as_ref().ok();
+        let ai_operation_type_map = global_config.ai_operation_type_map.as_ref().ok();
         let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
         let retention_days: i64 = project_info
@@ -1590,7 +1567,8 @@ impl EnvelopeProcessorService {
                 emit_event_errors: full_normalization,
                 span_description_rules: project_info.config.span_description_rules.as_ref(),
                 geoip_lookup: Some(&self.inner.geoip_lookup),
-                ai_model_costs: ai_model_costs.as_ref(),
+                ai_model_costs,
+                ai_operation_type_map,
                 enable_trimming: true,
                 measurements: Some(CombinedMeasurementsConfig::new(
                     project_info.config().measurements.as_ref(),
@@ -2133,28 +2111,14 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
-    /// Processes cron check-ins.
-    async fn process_checkins(
+    async fn process_nel(
         &self,
-        managed_envelope: &mut TypedEnvelope<CheckInGroup>,
-        _project_id: ProjectId,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut ProcessingExtractedMetrics::new(),
-            &project_info,
-            &rate_limits,
-        )
-        .await?;
-
-        if_processing!(self.inner.config, {
-            self.normalize_checkins(managed_envelope, _project_id);
-        });
-
-        Ok(None)
+        mut managed_envelope: ManagedEnvelope,
+        ctx: processing::Context<'_>,
+    ) -> Result<ProcessingResult, ProcessingError> {
+        nel::convert_to_logs(&mut managed_envelope);
+        self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
+            .await
     }
 
     async fn process_with_processor<P: processing::Processor>(
@@ -2371,12 +2335,11 @@ impl EnvelopeProcessorService {
                 )
             }
             ProcessingGroup::CheckIn => {
-                run!(process_checkins, project_id, project_info, rate_limits)
+                self.process_with_processor(&self.inner.processing.check_ins, managed_envelope, ctx)
+                    .await
             }
-            ProcessingGroup::Log | ProcessingGroup::Nel => {
-                if matches!(group, ProcessingGroup::Nel) {
-                    nel::convert_to_logs(&mut managed_envelope);
-                }
+            ProcessingGroup::Nel => self.process_nel(managed_envelope, ctx).await,
+            ProcessingGroup::Log => {
                 self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
                     .await
             }

@@ -1,4 +1,7 @@
+mod compat;
 mod convert;
+
+pub use compat::CompatSpan;
 
 use std::fmt;
 use std::ops::Deref;
@@ -127,8 +130,12 @@ pub struct Span {
     /// is a root (segment) instead of the transaction event.
     ///
     /// Only set on root spans extracted from transactions.
-    #[metastructure(skip_serialization = "empty", trim = false)]
-    pub _performance_issues_spans: Annotated<bool>,
+    #[metastructure(
+        field = "_performance_issues_spans",
+        skip_serialization = "empty",
+        trim = false
+    )]
+    pub performance_issues_spans: Annotated<bool>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
@@ -348,6 +355,7 @@ pub struct SentryTags {
     pub user_country_code: Annotated<String>,
     #[metastructure(field = "user.geo.subregion")]
     pub user_subregion: Annotated<String>,
+    pub name: Annotated<String>,
     // no need for an `other` entry here because these fields are added server-side.
     // If an upstream relay does not recognize a field it will be dropped.
 }
@@ -405,6 +413,7 @@ impl Getter for SentryTags {
             "messaging.operation.name" => &self.messaging_operation_name,
             "messaging.operation.type" => &self.messaging_operation_type,
             "mobile" => &self.mobile,
+            "name" => &self.name,
             "op" => &self.op,
             "os.name" => &self.os_name,
             "platform" => &self.platform,
@@ -504,6 +513,18 @@ pub struct SpanData {
     /// The total cost for the tokens used
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
+
+    /// The total cost for the tokens used (duplicate field for migration)
+    #[metastructure(field = "gen_ai.cost.total_tokens")]
+    pub gen_ai_cost_total_tokens: Annotated<Value>,
+
+    /// The cost for input tokens used
+    #[metastructure(field = "gen_ai.cost.input_tokens")]
+    pub gen_ai_cost_input_tokens: Annotated<Value>,
+
+    /// The cost for output tokens used
+    #[metastructure(field = "gen_ai.cost.output_tokens")]
+    pub gen_ai_cost_output_tokens: Annotated<Value>,
 
     /// Prompt passed to LLM (Vercel AI SDK)
     #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
@@ -627,6 +648,10 @@ pub struct SpanData {
     /// The name of the operation being performed.
     #[metastructure(field = "gen_ai.operation.name", pii = "maybe")]
     pub gen_ai_operation_name: Annotated<String>,
+
+    /// The type of the operation being performed.
+    #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
+    pub gen_ai_operation_type: Annotated<String>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -919,6 +944,11 @@ pub struct SpanData {
     #[metastructure(field = "lcp.url")]
     pub lcp_url: Annotated<String>,
 
+    // The span's name, a brief, human-readable, low cardinality description of operation
+    // represented by the span (as per OpenTelemetry/Sentry's Span V2 schema).
+    #[metastructure(field = "sentry.name")]
+    pub span_name: Annotated<String>,
+
     /// Other fields in `span.data`.
     #[metastructure(
         additional_properties,
@@ -944,6 +974,9 @@ impl Getter for SpanData {
             "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
+            "gen_ai\\.cost\\.total_tokens" => self.gen_ai_cost_total_tokens.value()?.into(),
+            "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
+            "gen_ai\\.cost\\.output_tokens" => self.gen_ai_cost_output_tokens.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
@@ -1082,23 +1115,36 @@ impl FromValue for Route {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, ProcessValue)]
+/// The kind of a span.
+///
+/// This corresponds to OTEL's kind enum, plus a
+/// catchall variant for forward compatibility.
+#[derive(Clone, Debug, PartialEq, ProcessValue, Default)]
 pub enum SpanKind {
+    /// An operation internal to an application.
+    #[default]
     Internal,
+    /// Server-side processing requested by a client.
     Server,
+    /// A request from a client to a server.
     Client,
+    /// Scheduling of an operation.
     Producer,
+    /// Processing of a scheduled operation.
     Consumer,
+    /// Unknown kind, for forward compatibility.
+    Unknown(String),
 }
 
 impl SpanKind {
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Internal => "internal",
             Self::Server => "server",
             Self::Client => "client",
             Self::Producer => "producer",
             Self::Consumer => "consumer",
+            Self::Unknown(s) => s.as_str(),
         }
     }
 }
@@ -1122,14 +1168,8 @@ impl std::str::FromStr for SpanKind {
             "client" => SpanKind::Client,
             "producer" => SpanKind::Producer,
             "consumer" => SpanKind::Consumer,
-            _ => return Err(ParseSpanKindError),
+            other => SpanKind::Unknown(other.to_owned()),
         })
-    }
-}
-
-impl Default for SpanKind {
-    fn default() -> Self {
-        Self::Internal
     }
 }
 
@@ -1390,7 +1430,7 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r#"
+        insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
             gen_ai_request_max_tokens: ~,
@@ -1403,6 +1443,9 @@ mod tests {
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
+            gen_ai_cost_total_tokens: ~,
+            gen_ai_cost_input_tokens: ~,
+            gen_ai_cost_output_tokens: ~,
             gen_ai_prompt: ~,
             gen_ai_request_messages: ~,
             gen_ai_tool_input: ~,
@@ -1424,6 +1467,7 @@ mod tests {
             gen_ai_system: ~,
             gen_ai_tool_name: ~,
             gen_ai_operation_name: ~,
+            gen_ai_operation_type: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
@@ -1511,6 +1555,7 @@ mod tests {
             lcp_size: ~,
             lcp_id: ~,
             lcp_url: ~,
+            span_name: ~,
             other: {
                 "bar": String(
                     "3",
@@ -1520,7 +1565,7 @@ mod tests {
                 ),
             },
         }
-        "#);
+        "###);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));
@@ -1592,6 +1637,22 @@ mod tests {
         assert_eq!(
             span.to_json().unwrap(),
             r#"{"links":[{"trace_id":"5c79f60c11214eb38604f4ae0781bfb2","span_id":"ab90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"previous_trace"}},{"trace_id":"4c79f60c11214eb38604f4ae0781bfb2","span_id":"fa90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"next_trace"}}]}"#
+        );
+    }
+
+    #[test]
+    fn test_span_kind() {
+        let span = Annotated::<Span>::from_json(
+            r#"{
+                "kind": "???"
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        assert_eq!(
+            span.kind.value().unwrap(),
+            &SpanKind::Unknown("???".to_owned())
         );
     }
 }

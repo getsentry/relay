@@ -78,12 +78,6 @@ def processing_config(get_topic_name):
                 f"relay-test-relayconfig-{uuid.uuid4()}"
             )
 
-        if processing.get("span_producers") is None:
-            processing["span_producers"] = {
-                "produce_json": True,
-                "produce_protobuf": False,
-            }
-
         return options
 
     return inner
@@ -581,14 +575,18 @@ class SpansConsumer(ConsumerBase):
         assert message is not None
         assert message.error() is None
 
-        return json.loads(message.value())
+        span = json.loads(message.value())
+        assert message.key() == bytes.fromhex(span["trace_id"])
+        return span
 
-    def get_spans(self, timeout=None, n=None):
+    def get_spans(self, *, timeout=None, n=None):
         spans = []
 
         for message in self.poll_many(timeout=timeout, n=n):
             assert message.error() is None
-            spans.append(json.loads(message.value()))
+            span = json.loads(message.value())
+            assert message.key() == bytes.fromhex(span["trace_id"])
+            spans.append(span)
 
         return spans
 

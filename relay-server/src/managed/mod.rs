@@ -1,3 +1,5 @@
+//! Managed containers and utilities to ensure outcomes are correctly emitted.
+
 mod counted;
 mod envelope;
 #[expect(

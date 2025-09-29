@@ -35,7 +35,7 @@ impl Processor for GenerateSelectorsProcessor {
         // The following skip-conditions are in sync with what the PiiProcessor does.
         if state.value_type().contains(ValueType::Boolean)
             || value.is_none()
-            || state.attrs().pii == Pii::False
+            || state.pii() == Pii::False
         {
             return Ok(());
         }

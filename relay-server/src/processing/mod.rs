@@ -17,11 +17,13 @@ use crate::services::projects::project::ProjectInfo;
 
 mod common;
 mod limits;
-pub mod logs;
-pub mod spans;
 
 pub use self::common::*;
 pub use self::limits::*;
+
+pub mod check_ins;
+pub mod logs;
+pub mod spans;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
 ///
@@ -80,7 +82,7 @@ impl Context<'_> {
     ///
     /// Processing indicates, this Relay is the final Relay processing this item.
     pub fn is_processing(&self) -> bool {
-        self.config.processing_enabled()
+        cfg!(feature = "processing") && self.config.processing_enabled()
     }
 
     /// Checks on-off feature flags for envelope items, like profiles and spans.
@@ -92,7 +94,7 @@ impl Context<'_> {
         use relay_config::RelayMode::*;
 
         match self.config.relay_mode() {
-            Proxy | Static => false,
+            Proxy => false,
             Managed => !self.project_info.has_feature(feature),
         }
     }

@@ -496,6 +496,9 @@ pub enum DiscardReason {
 
     /// (Relay) The signature from a trusted Relay was missing but required.
     MissingSignature,
+
+    /// (Relay) The signature from a trusted Relay was missing but required.
+    InvalidCheckIn,
 }
 
 impl DiscardReason {
@@ -546,6 +549,7 @@ impl DiscardReason {
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
             DiscardReason::TransactionAttachment => "transaction_attachment",
+            DiscardReason::InvalidCheckIn => "invalid_check_in",
         }
     }
 }
@@ -612,6 +616,8 @@ pub enum DiscardItemType {
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
     ProfileChunk,
+    /// An integration item.
+    Integration,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -664,6 +670,7 @@ impl DiscardItemType {
             Self::OtelTracesData => "otel_traces_data",
             Self::UserReportV2 => "user_report_v2",
             Self::ProfileChunk => "profile_chunk",
+            Self::Integration => "integration",
         }
     }
 }
@@ -696,6 +703,7 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::OtelTracesData => Self::OtelTracesData,
             ItemType::UserReportV2 => Self::UserReportV2,
             ItemType::ProfileChunk => Self::ProfileChunk,
+            ItemType::Integration => Self::Integration,
             ItemType::Unknown(_) => Self::Unknown,
         }
     }

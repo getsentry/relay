@@ -68,20 +68,15 @@ impl fmt::Display for ConfigErrorKind {
 }
 
 /// Defines the source of a config error
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum ConfigErrorSource {
     /// An error occurring independently.
+    #[default]
     None,
     /// An error originating from a configuration file.
     File(PathBuf),
     /// An error originating in a field override (an env var, or a CLI parameter).
     FieldOverride(String),
-}
-
-impl Default for ConfigErrorSource {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 impl fmt::Display for ConfigErrorSource {
@@ -324,7 +319,7 @@ impl RelayInfo {
 }
 
 /// The operation mode of a relay.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RelayMode {
     /// This relay acts as a proxy for all requests and events.
@@ -334,12 +329,6 @@ pub enum RelayMode {
     /// accepted unless overridden on the file system.
     Proxy,
 
-    /// This relay is configured statically in the file system.
-    ///
-    /// Events are only accepted for projects configured statically in the file system. All other
-    /// events are rejected. If configured, PII stripping is also performed on those events.
-    Static,
-
     /// Project configurations are managed by the upstream.
     ///
     /// Project configurations are always fetched from the upstream, unless they are statically
@@ -348,11 +337,30 @@ pub enum RelayMode {
     Managed,
 }
 
+impl<'de> Deserialize<'de> for RelayMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "proxy" => Ok(RelayMode::Proxy),
+            "managed" => Ok(RelayMode::Managed),
+            "static" => Err(serde::de::Error::custom(
+                "Relay mode 'static' has been removed. Please use 'managed' or 'proxy' instead.",
+            )),
+            other => Err(serde::de::Error::unknown_variant(
+                other,
+                &["proxy", "managed"],
+            )),
+        }
+    }
+}
+
 impl fmt::Display for RelayMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             RelayMode::Proxy => write!(f, "proxy"),
-            RelayMode::Static => write!(f, "static"),
             RelayMode::Managed => write!(f, "managed"),
         }
     }
@@ -402,10 +410,7 @@ pub struct ParseRelayModeError;
 
 impl fmt::Display for ParseRelayModeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Relay mode must be one of: managed, static, proxy, capture"
-        )
+        write!(f, "Relay mode must be one of: managed or proxy")
     }
 }
 
@@ -417,7 +422,6 @@ impl FromStr for RelayMode {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "proxy" => Ok(RelayMode::Proxy),
-            "static" => Ok(RelayMode::Static),
             "managed" => Ok(RelayMode::Managed),
             _ => Err(ParseRelayModeError),
         }
@@ -453,6 +457,7 @@ fn default_host() -> IpAddr {
 /// Independent of the the readiness condition, shutdown always switches Relay into unready state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum ReadinessCondition {
     /// (default) Relay is ready when authenticated and connected to the upstream.
     ///
@@ -462,15 +467,10 @@ pub enum ReadinessCondition {
     ///
     /// Authentication is only required for Relays in managed mode. Other Relays will only check for
     /// network outages.
+    #[default]
     Authenticated,
     /// Relay reports readiness regardless of the authentication and networking state.
     Always,
-}
-
-impl Default for ReadinessCondition {
-    fn default() -> Self {
-        Self::Authenticated
-    }
 }
 
 /// Relay specific configuration values.
@@ -1128,9 +1128,6 @@ pub struct Processing {
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
-    /// Configure what span format to produce.
-    #[serde(default)]
-    pub span_producers: SpanProducers,
     /// Additional kafka producer configurations.
     ///
     /// The `kafka_config` is the default producer configuration used for all topics. A secondary
@@ -1188,36 +1185,6 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
-            span_producers: Default::default(),
-        }
-    }
-}
-
-/// Configuration for span producers.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct SpanProducers {
-    /// Random sample of organizations to produce json and no protobuf.
-    ///
-    /// Overrides both `produce_json` and `produce_protobuf` for matching orgs.
-    pub produce_json_sample_rate: Option<f32>,
-    /// List of organization IDs to produce JSON spans for.
-    ///
-    /// Overrides both `produce_json` and `produce_protobuf` for matching orgs.
-    pub produce_json_orgs: Vec<u64>,
-    /// Send JSON spans to `ingest-spans`.
-    pub produce_json: bool,
-    /// Send Protobuf (TraceItem) to `snuba-items`.
-    pub produce_protobuf: bool,
-}
-
-impl Default for SpanProducers {
-    fn default() -> Self {
-        Self {
-            produce_json_sample_rate: None,
-            produce_json_orgs: vec![],
-            produce_json: false,
-            produce_protobuf: true,
         }
     }
 }
@@ -2622,11 +2589,6 @@ impl Config {
     pub fn accept_unknown_items(&self) -> bool {
         let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
-    }
-
-    /// Returns the configuration for span producers.
-    pub fn span_producers(&self) -> &SpanProducers {
-        &self.values.processing.span_producers
     }
 }
 

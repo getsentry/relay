@@ -1,5 +1,6 @@
 //! This module contains the trait for items that can be filtered by Inbound Filters, plus
 //! the implementation for [`Event`].
+use relay_conventions::{BROWSER_NAME, BROWSER_VERSION, RELEASE, SEGMENT_NAME};
 use url::Url;
 
 use relay_event_schema::protocol::{
@@ -195,17 +196,11 @@ impl Filterable for Span {
 
 impl Filterable for SpanV2 {
     fn release(&self) -> Option<&str> {
-        self.attributes
-            .value()?
-            .get_value("sentry.release")?
-            .as_str()
+        self.attributes.value()?.get_value(RELEASE)?.as_str()
     }
 
     fn transaction(&self) -> Option<&str> {
-        self.attributes
-            .value()?
-            .get_value("sentry.segment.name")?
-            .as_str()
+        self.attributes.value()?.get_value(SEGMENT_NAME)?.as_str()
     }
 
     fn user_agent(&self) -> UserAgent<'_> {
@@ -255,10 +250,7 @@ impl Filterable for SessionAggregates {
 
 impl Filterable for OurLog {
     fn release(&self) -> Option<&str> {
-        self.attributes
-            .value()?
-            .get_value("sentry.release")?
-            .as_str()
+        self.attributes.value()?.get_value(RELEASE)?.as_str()
     }
 
     fn user_agent(&self) -> UserAgent<'_> {
@@ -270,8 +262,8 @@ fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>
     let parsed = (|| {
         let attributes = attributes.value()?;
 
-        let family = attributes.get_value("sentry.browser.name")?.as_str()?;
-        let version = attributes.get_value("sentry.browser.version")?.as_str()?;
+        let family = attributes.get_value(BROWSER_NAME)?.as_str()?;
+        let version = attributes.get_value(BROWSER_VERSION)?.as_str()?;
         let mut parts = version.splitn(3, '.');
 
         Some(relay_ua::UserAgent {

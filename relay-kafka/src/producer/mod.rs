@@ -57,7 +57,7 @@ pub enum ClientError {
 
     /// Failed to run schema validation on message.
     #[cfg(debug_assertions)]
-    #[error("failed to run schema validation on message")]
+    #[error("schema validation failed")]
     SchemaValidationFailed(#[source] schemas::SchemaError),
 
     /// Configuration is wrong and it cannot be used to identify the number of a shard.
@@ -350,7 +350,6 @@ impl KafkaClient {
                 .validate_message_schema(topic, bytes)
                 .map_err(ClientError::SchemaValidationFailed)?;
         }
-
         self.send(
             topic,
             message.key(),

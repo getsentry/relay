@@ -1,6 +1,7 @@
 use relay_config::Config;
 
 use crate::envelope::{AttachmentType, Envelope, ItemType};
+use crate::integrations::Integration;
 use crate::managed::{ItemAction, ManagedEnvelope};
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
 
@@ -82,6 +83,13 @@ pub fn check_envelope_size_limits(
                 span_count += item.item_count().unwrap_or(1) as usize;
                 config.max_span_size()
             }
+            ItemType::Integration => match item.integration() {
+                Some(Integration::Logs(_)) => {
+                    log_count += item.item_count().unwrap_or(1) as usize;
+                    config.max_log_size()
+                }
+                None => NO_LIMIT,
+            },
             ItemType::OtelTracesData => config.max_event_size(), // a spans container similar to `Transaction`
             ItemType::ProfileChunk => config.max_profile_size(),
             ItemType::Unknown(_) => NO_LIMIT,

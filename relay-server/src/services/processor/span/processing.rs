@@ -13,7 +13,7 @@ use crate::services::processor::{
     TransactionGroup, dynamic_sampling, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::sample;
+use crate::utils;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -21,7 +21,8 @@ use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
-use relay_event_normalization::span::ai::{extract_ai_data, map_ai_measurements_to_data};
+use relay_event_normalization::AiOperationTypeMap;
+use relay_event_normalization::span::ai::enrich_ai_span_data;
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
     GeoIpLookup, MeasurementsConfig, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo,
@@ -31,7 +32,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::{
-    BrowserContext, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
+    BrowserContext, CompatSpan, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
@@ -90,6 +91,7 @@ pub async fn process(
         geo_lookup,
     );
 
+    let org_id = managed_envelope.scoping().organization_id.value();
     let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
     let sampling_decision = sampling_result.decision();
@@ -228,18 +230,12 @@ pub async fn process(
             }
         };
 
-        // Write back:
-        let mut new_item = Item::new(ItemType::Span);
-        let payload = match annotated_span.to_json() {
-            Ok(payload) => payload,
-            Err(err) => {
-                relay_log::debug!("failed to serialize span: {}", err);
-                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-            }
+        let Ok(mut new_item) = create_span_item(annotated_span, &config, global_config, org_id)
+        else {
+            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
-        new_item.set_payload(ContentType::Json, payload);
-        new_item.set_metrics_extracted(item.metrics_extracted());
 
+        new_item.set_metrics_extracted(item.metrics_extracted());
         *item = new_item;
 
         ItemAction::Keep
@@ -256,6 +252,58 @@ pub async fn process(
     if let Some(outcome) = sampling_result.into_dropped_outcome() {
         managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
+}
+
+fn create_span_item(
+    span: Annotated<Span>,
+    config: &Config,
+    global_config: &GlobalConfig,
+    org_id: u64,
+) -> Result<Item, ()> {
+    let mut new_item = Item::new(ItemType::Span);
+    if produce_compat_spans(config, global_config, org_id) {
+        let span_v2 = span.map_value(relay_spans::span_v1_to_span_v2);
+        let compat_span = match span_v2.map_value(CompatSpan::try_from) {
+            Annotated(Some(Result::Err(err)), _) => {
+                relay_log::error!("failed to create compat span: {}", err);
+                return Err(());
+            }
+            Annotated(Some(Result::Ok(compat_span)), meta) => Annotated(Some(compat_span), meta),
+            Annotated(None, meta) => Annotated(None, meta),
+        };
+        let payload = match compat_span.to_json() {
+            Ok(payload) => payload,
+            Err(err) => {
+                relay_log::error!("failed to serialize compat span: {}", err);
+                return Err(());
+            }
+        };
+        if let Some(trace_id) = compat_span.value().and_then(|s| s.span_v2.trace_id.value()) {
+            new_item.set_routing_hint(*trace_id.as_ref());
+        }
+
+        new_item.set_payload(ContentType::CompatSpan, payload);
+    } else {
+        let payload = match span.to_json() {
+            Ok(payload) => payload,
+            Err(err) => {
+                relay_log::error!("failed to serialize span: {}", err);
+                return Err(());
+            }
+        };
+        new_item.set_payload(ContentType::Json, payload);
+    }
+
+    Ok(new_item)
+}
+
+/// Whether or not to convert spans into backward-compatible V2 spans.
+///
+/// This only makes sense when we forward the envelope to Kafka.
+fn produce_compat_spans(config: &Config, global_config: &GlobalConfig, org_id: u64) -> bool {
+    cfg!(feature = "processing")
+        && config.processing_enabled()
+        && utils::is_rolled_out(org_id, global_config.options.span_kafka_v2_sample_rate).is_keep()
 }
 
 fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value: Option<f64>) {
@@ -294,7 +342,7 @@ pub fn extract_from_event(
     }
 
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate
-        && sample(sample_rate).is_discard()
+        && utils::sample(sample_rate).is_discard()
     {
         return spans_extracted;
     }
@@ -303,6 +351,8 @@ pub fn extract_from_event(
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
+
+    let org_id = managed_envelope.scoping().organization_id.value();
 
     let mut add_span = |mut span: Span| {
         add_sample_rate(
@@ -337,21 +387,14 @@ pub fn extract_from_event(
             }
         };
 
-        let span = match span.to_json() {
-            Ok(span) => span,
-            Err(e) => {
-                relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
-                managed_envelope.track_outcome(
-                    Outcome::Invalid(DiscardReason::InvalidSpan),
-                    relay_quotas::DataCategory::SpanIndexed,
-                    1,
-                );
-                return;
-            }
+        let Ok(mut item) = create_span_item(span, &config, global_config, org_id) else {
+            managed_envelope.track_outcome(
+                Outcome::Invalid(DiscardReason::InvalidSpan),
+                relay_quotas::DataCategory::SpanIndexed,
+                1,
+            );
+            return;
         };
-
-        let mut item = Item::new(ItemType::Span);
-        item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(event_metrics_extracted.0);
 
@@ -435,6 +478,8 @@ struct NormalizeSpanConfig<'a> {
     measurements: Option<CombinedMeasurementsConfig<'a>>,
     /// Configuration for AI model cost calculation
     ai_model_costs: Option<&'a ModelCosts>,
+    /// Configuration to derive the `gen_ai.operation.type` field from other fields
+    ai_operation_type_map: Option<&'a AiOperationTypeMap>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
@@ -478,10 +523,8 @@ impl<'a> NormalizeSpanConfig<'a> {
                 project_config.measurements.as_ref(),
                 global_config.measurements.as_ref(),
             )),
-            ai_model_costs: match &global_config.ai_model_costs {
-                ErrorBoundary::Err(_) => None,
-                ErrorBoundary::Ok(costs) => Some(costs),
-            },
+            ai_model_costs: global_config.ai_model_costs.as_ref().ok(),
+            ai_operation_type_map: global_config.ai_operation_type_map.as_ref().ok(),
             max_name_and_unit_len: aggregator_config
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
@@ -544,6 +587,7 @@ fn normalize(
         performance_score,
         measurements,
         ai_model_costs,
+        ai_operation_type_map,
         max_name_and_unit_len,
         tx_name_rules,
         user_agent,
@@ -651,10 +695,7 @@ fn normalize(
 
     normalize_performance_score(span, performance_score);
 
-    map_ai_measurements_to_data(span);
-    if let Some(model_costs_config) = ai_model_costs {
-        extract_ai_data(span, model_costs_config);
-    }
+    enrich_ai_span_data(span, ai_model_costs, ai_operation_type_map);
 
     tag_extraction::extract_measurements(span, is_mobile);
 
@@ -1253,6 +1294,7 @@ mod tests {
             performance_score: None,
             measurements: None,
             ai_model_costs: None,
+            ai_operation_type_map: None,
             max_name_and_unit_len: 200,
             tx_name_rules: &[],
             user_agent: None,

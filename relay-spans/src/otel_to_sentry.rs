@@ -19,7 +19,7 @@ use relay_protocol::Error;
 /// * The Sentry span's `exclusive_time` field is set based on the OTEL span's `exclusive_time_nano`
 ///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 /// * The Sentry span's `platform` field is set based on the OTEL span's `sentry.platform` attribute.
-/// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile.id` attribute.
+/// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile_id` attribute.
 /// * The Sentry span's `segment_id` field is set based on the OTEL span's `sentry.segment.id` attribute.
 ///
 /// All other attributes are carried over from the OTEL span to the Sentry span's `data`.
@@ -124,12 +124,12 @@ mod tests {
           "description": "GET /home",
           "data": {
             "sentry.environment": "test",
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "fastify.type": "middleware",
             "hook.name": "onResponse",
             "http.request.method": "GET",
             "http.route": "/home",
             "plugin.name": "fastify -> @fastify/multipart",
-            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1,
             "sentry.status.message": "test"
@@ -269,10 +269,10 @@ mod tests {
           "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
           "data": {
             "db.system": "mysql",
+            "sentry.name": "database query",
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-            "db.type": "sql",
-            "sentry.name": "database query"
+            "db.type": "sql"
           },
           "links": [],
           "kind": "client"
@@ -332,10 +332,10 @@ mod tests {
           "status": "unknown",
           "description": "index view query",
           "data": {
+            "sentry.name": "database query",
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-            "db.type": "sql",
-            "sentry.name": "database query"
+            "db.type": "sql"
           },
           "links": [],
           "kind": "client"
@@ -383,8 +383,8 @@ mod tests {
           "status": "unknown",
           "description": "GET /api/search?q=foobar",
           "data": {
-            "http.request.method": "GET",
             "sentry.name": "http client request",
+            "http.request.method": "GET",
             "url.path": "/api/search?q=foobar"
           },
           "links": [],
@@ -439,7 +439,7 @@ mod tests {
         let event_span = otel_to_sentry_span(otel_span).unwrap();
 
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -451,13 +451,13 @@ mod tests {
           "status": "ok",
           "description": "cmd.run",
           "data": {
+            "sentry.name": "cmd.run",
             "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]",
-            "process.info": "[41]",
-            "sentry.name": "cmd.run"
+            "process.info": "[41]"
           },
           "links": []
         }
-        "#);
+        "###);
     }
 
     /// Intended to be synced with `relay-event-schema::protocol::span::convert::tests::roundtrip`.
@@ -503,7 +503,7 @@ mod tests {
                     }
                 },
                 {
-                    "key" : "sentry.profile.id",
+                    "key" : "sentry.profile_id",
                     "value": {
                         "stringValue": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
                     }
@@ -612,8 +612,8 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
-            "sentry.metrics_summary.some_metric": "[]",
             "sentry.name": "myname",
+            "sentry.metrics_summary.some_metric": "[]",
             "sentry.status.message": "foo"
           },
           "links": [],
@@ -778,6 +778,36 @@ mod tests {
               }
             }
           ]
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_span_error_status() {
+        let json = r#"{
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "status": {
+            "code": 2,
+            "message": "2 is the error status code"
+          }
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 0.0,
+          "start_timestamp": 0.0,
+          "exclusive_time": 0.0,
+          "op": "default",
+          "span_id": "e342abb1214ca181",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "internal_error",
+          "data": {
+            "sentry.status.message": "2 is the error status code"
+          },
+          "links": []
         }
         "###);
     }

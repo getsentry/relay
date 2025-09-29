@@ -1,6 +1,5 @@
 import json
 import math
-import queue
 import socket
 import time
 import threading
@@ -10,57 +9,6 @@ import pytest
 from flask import request as flask_request
 from requests.exceptions import HTTPError
 import zstandard
-
-
-def test_local_project_config(mini_sentry, relay):
-    project_id = 42
-    config = mini_sentry.basic_project_config(project_id)
-    relay_config = {
-        "relay": {
-            "mode": "static",
-        },
-        "cache": {
-            "file_interval": 1,
-            "project_expiry": 1,
-            "project_grace_period": 0,
-        },
-    }
-    relay = relay(mini_sentry, relay_config, wait_health_check=False)
-    relay.config_dir.mkdir("projects").join("42.json").write(
-        json.dumps(
-            {
-                # remove defaults to assert they work
-                "publicKeys": config["publicKeys"],
-                "config": {
-                    "allowedDomains": ["*"],
-                    "trustedRelays": [],
-                    "piiConfig": {},
-                },
-            }
-        )
-    )
-    # get the dsn key from the config
-    # we need to provide it manually to Relay since it is not in the config (of MiniSentry) and
-    # we don't look on the file system
-    dsn_key = config["publicKeys"][0]["publicKey"]
-
-    relay.wait_relay_health_check()
-    mini_sentry.clear_test_failures()
-
-    relay.send_event(project_id, dsn_key=dsn_key)
-    event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
-
-    relay.config_dir.join("projects").join("42.json").write(
-        json.dumps({"disabled": True, "publicKeys": config["publicKeys"]})
-    )
-
-    time.sleep(2)
-
-    relay.send_event(project_id, dsn_key=dsn_key)
-    time.sleep(0.3)
-    pytest.raises(HTTPError, lambda: relay.send_event(project_id, dsn_key=dsn_key))
-    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
 
 @pytest.mark.parametrize("grace_period", [0, 5])

@@ -1,13 +1,13 @@
 use relay_event_normalization::{SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
-use relay_pii::PiiProcessor;
+use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::{RequestMeta, RequestTrust};
-use crate::processing::logs::{Error, ExpandedLogs, Result, SerializedLogs};
+use crate::processing::logs::{self, Error, ExpandedLogs, Result, SerializedLogs};
 use crate::processing::{Context, Managed};
 use crate::services::outcome::DiscardReason;
 
@@ -20,12 +20,14 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
     logs.map(|logs, records| {
         records.lenient(DataCategory::LogByte);
 
-        let mut all_logs = Vec::with_capacity(logs.count());
+        let mut all_logs = Vec::new();
         for logs in logs.logs {
             let expanded = expand_log_container(&logs, trust);
             let expanded = records.or_default(expanded, logs);
             all_logs.extend(expanded);
         }
+
+        logs::integrations::expand_into(&mut all_logs, records, logs.integrations);
 
         ExpandedLogs {
             headers: logs.headers,
@@ -45,29 +47,25 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
 /// Normalization must happen before any filters are applied or other procedures which rely on the
 /// presence and well-formedness of attributes and fields.
 pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
-    logs.modify(|logs, records| {
-        let meta = logs.headers.meta();
-        logs.logs.retain_mut(|log| {
-            let r = normalize_log(log, meta).inspect_err(|err| {
+    logs.retain_with_context(
+        |logs| (&mut logs.logs, logs.headers.meta()),
+        |log, meta| {
+            normalize_log(log, meta).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
-            });
-
-            records.or_default(r.map(|_| true), &*log)
-        })
-    });
+            })
+        },
+    );
 }
 
 /// Applies PII scrubbing to individual log entries.
 pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
-    logs.modify(|logs, records| {
-        logs.logs.retain_mut(|log| {
-            let r = scrub_log(log, ctx).inspect_err(|err| {
-                relay_log::debug!("failed to scrub pii from log: {err}");
-            });
-
-            records.or_default(r.map(|_| true), &*log)
-        })
-    });
+    logs.retain(
+        |logs| &mut logs.logs,
+        |log| {
+            scrub_log(log, ctx)
+                .inspect_err(|err| relay_log::debug!("failed to scrub pii from log: {err}"))
+        },
+    );
 }
 
 fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerItems<OurLog>> {
@@ -106,18 +104,20 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
         .pii_config()
         .map_err(|e| Error::PiiConfig(e.clone()))?;
 
+    let state = ProcessingState::root().enter_borrowed("", None, [ValueType::OurLog]);
+
     if let Some(ref config) = ctx.project_info.config.pii_config {
-        let mut processor = PiiProcessor::new(config.compiled());
-        let root_state = ProcessingState::root().enter_static("", None, Some(ValueType::OurLog));
-        process_value(log, &mut processor, &root_state)?;
+        let mut processor = PiiProcessor::new(config.compiled())
+            // For advanced rules we want to treat attributes as objects.
+            .attribute_mode(AttributeMode::Object);
+        process_value(log, &mut processor, &state)?;
     }
 
     if let Some(config) = pii_config_from_scrubbing {
-        let mut processor = PiiProcessor::new(config.compiled());
-        // Use empty root (assumed to be Event) for legacy/default scrubbing rules.
-        // process_attributes will collapse Attribute into it's value for the default rules.
-        let root_state = ProcessingState::root();
-        process_value(log, &mut processor, root_state)?;
+        let mut processor = PiiProcessor::new(config.compiled())
+            // For "legacy" rules we want to identify attributes with their values.
+            .attribute_mode(AttributeMode::ValueOnly);
+        process_value(log, &mut processor, &state)?;
     }
 
     Ok(())
@@ -172,7 +172,12 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_log_pii() {
+    fn test_scrub_log_pii_default_rules() {
+        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `user.name`: `true`
+        // * `sentry.release`: `false`
+        // * `url.path`: `maybe`
+        // Therefore, `user.name` is the only one that should be scrubbed by default rules.
         let json = r#"{
             "timestamp": 1544719860.0,
             "trace_id": "5b8efff798038103d269b633813fc60c",
@@ -180,6 +185,18 @@ mod tests {
             "level": "info",
             "body": "Test log message with sensitive data: user@example.com and 4571234567890111",
             "attributes": {
+                "user.name": {
+                    "type": "string",
+                    "value": "secret123"
+                },
+                "sentry.release": {
+                    "type": "string",
+                    "value": "secret123"
+                },
+                "url.path": {
+                    "type": "string",
+                    "value": "secret123"
+                },
                 "password": {
                     "type": "string",
                     "value": "secret123"
@@ -352,6 +369,10 @@ mod tests {
             "type": "string",
             "value": "[Filtered]"
           },
+          "sentry.release": {
+            "type": "string",
+            "value": "secret123"
+          },
           "session_id": {
             "type": "string",
             "value": "ceee0822-ed8f-4622-b2a3-789e73e75cd1"
@@ -363,6 +384,14 @@ mod tests {
           "unix_path": {
             "type": "string",
             "value": "/home/alice/private/data.json"
+          },
+          "url.path": {
+            "type": "string",
+            "value": "secret123"
+          },
+          "user.name": {
+            "type": "string",
+            "value": "[Filtered]"
           },
           "user_email": {
             "type": "string",
@@ -587,6 +616,21 @@ mod tests {
                 }
               }
             },
+            "user.name": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
             "very_sensitive_data": {
               "value": {
                 "": {
@@ -624,6 +668,11 @@ mod tests {
 
     #[test]
     fn test_scrub_log_pii_custom_object_rules() {
+        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `user.name`: `true`
+        // * `sentry.release`: `false`
+        // * `url.path`: `maybe`
+        // Therefore, `sentry.release` is the only one that should not be scrubbed by custom rules.
         let json = r#"
         {
             "timestamp": 1544719860.0,
@@ -632,6 +681,18 @@ mod tests {
             "level": "info",
             "body": "Test log message with sensitive data: user@example.com and 4571234567890111",
             "attributes": {
+                "user.name": {
+                    "type": "string",
+                    "value": "secret123"
+                },
+                "sentry.release": {
+                    "type": "string",
+                    "value": "secret123"
+                },
+                "url.path": {
+                    "type": "string",
+                    "value": "secret123"
+                },
                 "password": {
                     "type": "string",
                     "value": "default_scrubbing_rules_are_off"
@@ -697,6 +758,27 @@ mod tests {
                         "method": "replace",
                         "text": "REGEXED"
                     }
+                },
+                "project:4": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[USER NAME]"
+                    }
+                },
+                "project:5": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[RELEASE]"
+                    }
+                },
+                "project:6": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[URL PATH]"
+                    }
                 }
             },
             "applications": {
@@ -711,6 +793,15 @@ mod tests {
                 ],
                 "test_field_regex_passes.value || test_field_regex_fails.value": [
                     "project:3"
+                ],
+                "'user.name'.value": [
+                    "project:4"
+                ],
+                "'sentry.release'.value": [
+                    "project:5"
+                ],
+                "'url.path'.value": [
+                    "project:6"
                 ]
             }
         }
@@ -725,6 +816,10 @@ mod tests {
           "password": {
             "type": "string",
             "value": "default_scrubbing_rules_are_off"
+          },
+          "sentry.release": {
+            "type": "string",
+            "value": "secret123"
           },
           "test_field_imei": {
             "type": "string",
@@ -745,6 +840,14 @@ mod tests {
           "test_field_uuid": {
             "type": "string",
             "value": "BYE"
+          },
+          "url.path": {
+            "type": "string",
+            "value": "[URL PATH]"
+          },
+          "user.name": {
+            "type": "string",
+            "value": "[USER NAME]"
           },
           "_meta": {
             "test_field_imei": {
@@ -804,6 +907,36 @@ mod tests {
                     ]
                   ],
                   "len": 36
+                }
+              }
+            },
+            "url.path": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:6",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
+            "user.name": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:4",
+                      "s",
+                      0,
+                      11
+                    ]
+                  ],
+                  "len": 9
                 }
               }
             }
