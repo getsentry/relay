@@ -387,24 +387,50 @@ impl UpstreamProjectSourceService {
                 no_cache: channels_batch.values().any(|c| c.no_cache),
             };
 
+            relay_log::debug!(
+                "sending project config request: public_keys={:?}, revisions={:?}, full_config={}, no_cache={}",
+                query.public_keys,
+                query.revisions,
+                query.full_config,
+                query.no_cache
+            );
+
             // count number of http requests for project states
             metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
             let upstream_relay = upstream_relay.clone();
             requests.push(async move {
                 match upstream_relay.send(SendQuery(query)).await {
-                    Ok(response) => Some(UpstreamResponse {
-                        channels_batch,
-                        response,
-                    }),
+                    Ok(response) => {
+                        if let Ok(ref resp) = response {
+                            relay_log::debug!(
+                                "received project config response: configs={}, pending={:?}, unchanged={:?}",
+                                resp.configs.len(),
+                                resp.pending,
+                                resp.unchanged
+                            );
+                        } else if let Err(ref err) = response {
+                            relay_log::error!(
+                                error = err as &dyn std::error::Error,
+                                "upstream returned error for project config request"
+                            );
+                        }
+                        Some(UpstreamResponse {
+                            channels_batch,
+                            response,
+                        })
+                    },
                     // If sending of the request to upstream fails:
                     // - drop the current batch of the channels
                     // - report the error, since this is the case we should not have in proper
                     //   workflow
                     // - return `None` to signal that we do not have any response from the Upstream
                     //   and we should ignore this.
-                    Err(_err) => {
-                        relay_log::error!("failed to send the request to upstream: channel full");
+                    Err(err) => {
+                        relay_log::error!(
+                            error = &err as &dyn std::error::Error,
+                            "failed to send project config request to upstream"
+                        );
                         None
                     }
                 }

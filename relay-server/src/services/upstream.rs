@@ -851,6 +851,13 @@ impl SharedClient {
                 .upstream_descriptor()
                 .get_url(request.path().as_ref());
 
+            relay_log::debug!(
+                "building upstream request: method={}, url={}, route={}",
+                request.method(),
+                url,
+                request.route()
+            );
+
             let host_header = self
                 .config
                 .http_host_header()
@@ -944,7 +951,21 @@ impl SharedClient {
     ) -> Result<Response, UpstreamRequestError> {
         request.configure(&self.config);
         let client_request = self.build_request(request)?;
+
+        relay_log::debug!(
+            "executing HTTP request: method={}, url={}",
+            client_request.method(),
+            client_request.url()
+        );
+
         let response = self.reqwest.execute(client_request).await?;
+
+        relay_log::debug!(
+            "received HTTP response: status={}, route={}",
+            response.status(),
+            request.route()
+        );
+
         self.transform_response(request, Response(response)).await
     }
 
