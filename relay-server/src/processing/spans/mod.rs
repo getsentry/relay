@@ -121,7 +121,10 @@ impl processing::Processor for SpansProcessor {
         let ds_result = dynamic_sampling::run(spans, ctx).await;
         relay_statsd::metric!(
             counter(RelayCounters::SamplingDecision) += 1,
-            decision = match ds_result.is_ok() { true => "keep", false => "drop"},
+            decision = match ds_result.is_ok() {
+                true => "keep",
+                false => "drop",
+            },
             item = "span"
         );
         let spans = match ds_result {
