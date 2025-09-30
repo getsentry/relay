@@ -216,7 +216,7 @@ mod tests {
                 {
                     "key": "sentry.exclusive_time",
                     "value": {
-                        "doubleValue": "1000.0"
+                        "doubleValue": 1000.0
                     }
                 }
             ],
@@ -316,8 +316,8 @@ mod tests {
           "links": [],
           "attributes": {
             "sentry.exclusive_time": {
-              "type": "integer",
-              "value": 3200.000000
+              "type": "double",
+              "value": 3200.0
             }
           }
         }
