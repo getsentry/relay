@@ -119,23 +119,14 @@ impl processing::Processor for SpansProcessor {
 
         dynamic_sampling::validate_configs(ctx);
         let ds_result = dynamic_sampling::run(spans, ctx).await;
+        relay_statsd::metric!(
+            counter(RelayCounters::SamplingDecision) += 1,
+            decision = match ds_result.is_ok() { true => "keep", false => "drop"},
+            item = "span"
+        );
         let spans = match ds_result {
-            Ok(spans) => {
-                relay_statsd::metric!(
-                    counter(RelayCounters::SamplingDecision) += 1,
-                    decision = "keep",
-                    item = "span"
-                );
-                spans
-            }
-            Err(metrics) => {
-                relay_statsd::metric!(
-                    counter(RelayCounters::SamplingDecision) += 1,
-                    decision = "drop",
-                    item = "span"
-                );
-                return Ok(Output::metrics(metrics));
-            }
+            Ok(spans) => spans,
+            Err(metrics) => return Ok(Output::metrics(metrics)),
         };
 
         let mut spans = process::expand(spans);
