@@ -6,6 +6,12 @@
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
 - Add `retentions` to the project configuration. ([#5135](https://github.com/getsentry/relay/pull/5135))
 
+## 0.9.16
+
+### Various fixes & improvements
+
+- feat(billing): Add retentions to project configs (#5135) by @vbro
+
 ## 0.9.15
 
 ### Various fixes & improvements
