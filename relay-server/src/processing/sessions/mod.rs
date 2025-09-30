@@ -17,7 +17,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The check-ins are rate limited.
+    /// The sessions are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
     /// Sessions filtered due to a filtering rule.

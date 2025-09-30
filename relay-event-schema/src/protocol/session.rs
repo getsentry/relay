@@ -29,7 +29,8 @@ pub enum SessionStatus {
     Unhandled,
     /// Unknown status, for forward compatibility.
     ///
-    /// Adding a new variant still requires bumping the metrics extraction version.
+    /// If you add a new variant here, bump the session metrics extraction version
+    /// to prevent outdated extraction in external Relays.
     Unknown(String),
 }
 
@@ -314,8 +315,8 @@ pub struct SessionAggregateItem {
     /// The number of crashed sessions that ocurred.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub crashed: u32,
-    // Adding a new field here, requires bumping the session metrics extraction
-    // version for external/customer managed Relays.
+    // If you add a new variant here, bump the session metrics extraction version
+    // to prevent outdated extraction in external Relays.
 }
 
 impl SessionLike for SessionAggregateItem {
