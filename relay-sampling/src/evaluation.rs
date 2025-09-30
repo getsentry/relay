@@ -21,8 +21,6 @@ use uuid::Uuid;
 use crate::config::{RuleId, SamplingRule, SamplingValue};
 #[cfg(feature = "redis")]
 use crate::redis_sampling::{self, ReservoirRuleKey};
-#[cfg(feature = "redis")]
-use crate::statsd::SamplingTimers;
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
