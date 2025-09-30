@@ -10,6 +10,7 @@
 - Add Unity Info context to event schema. ([#5155](https://github.com/getsentry/relay/pull/5155))
 - Generate `sentry.name` attributes for spans without names. ([#5143](https://github.com/getsentry/relay/pull/5143))
 - Add integration endpoints for OTLP. ([#5176](https://github.com/getsentry/relay/pull/5176))
+- Emit a metric to record keep/drop decisions in Dynamic Sampling. ([#5164](https://github.com/getsentry/relay/pull/5164))
 
 **Bug Fixes**:
 
