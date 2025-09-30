@@ -22,7 +22,7 @@ use crate::config::{RuleId, SamplingRule, SamplingValue};
 #[cfg(feature = "redis")]
 use crate::redis_sampling::{self, ReservoirRuleKey};
 #[cfg(feature = "redis")]
-use crate::statsd::SamplingCounters;
+use crate::statsd::SamplingTimers;
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
@@ -351,11 +351,6 @@ impl SamplingMatch {
     fn new(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
         let matched_rules = MatchedRuleIds(matched_rules);
         let decision = sampling_match(sample_rate, seed);
-
-        relay_statsd::metric!(
-            counter(SamplingCounters::Decision) += 1,
-            decision = decision.as_str()
-        );
 
         Self {
             sample_rate,
