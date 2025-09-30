@@ -62,6 +62,7 @@ impl Counted for EnvelopeSummary {
             ),
             (DataCategory::Span, self.secondary_span_quantity),
             (DataCategory::Replay, self.replay_quantity),
+            (DataCategory::UserReportV2, self.user_report_quantity),
             (DataCategory::ProfileChunk, self.profile_chunk_quantity),
             (DataCategory::ProfileChunkUi, self.profile_chunk_ui_quantity),
             (DataCategory::LogItem, self.log_item_quantity),
