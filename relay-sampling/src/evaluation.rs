@@ -352,7 +352,6 @@ impl SamplingMatch {
         let matched_rules = MatchedRuleIds(matched_rules);
         let decision = sampling_match(sample_rate, seed);
 
-        #[cfg(feature = "redis")]
         relay_statsd::metric!(
             counter(SamplingCounters::Decision) += 1,
             decision = decision.as_str()

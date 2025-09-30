@@ -13,12 +13,10 @@ impl TimerMetric for SamplingTimers {
     }
 }
 
-#[cfg(feature = "redis")]
 pub enum SamplingCounters {
     Decision,
 }
 
-#[cfg(feature = "redis")]
 impl CounterMetric for SamplingCounters {
     fn name(&self) -> &'static str {
         match self {
