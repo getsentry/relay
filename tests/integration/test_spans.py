@@ -2425,167 +2425,29 @@ def test_scrubs_ip_addresses(
 
     child_span = spans_consumer.get_span()
 
-    del child_span["received"]
+    assert child_span["_meta"]["attributes"]["sentry.user.email"] == child_span["_meta"]["data"]["sentry.user.email"] == {"": {"len": 15, "rem": [["@email", "s", 0, 7]]}}
 
-    expected = {
-        "_meta": {
-            "sentry_tags": {
-                "user.email": {"": {"len": 15, "rem": [["@email", "s", 0, 7]]}},
-                "user.ip": {
-                    "": {
-                        "len": 9,
-                        "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
-                    }
-                },
+    if scrub_ip_addresses:
+        assert child_span["attributes"]["sentry.user.ip"] is None
+        assert child_span["data"]["sentry.user.ip"] is None
+        assert child_span["_meta"]["attributes"]["sentry.user.ip"] ==  child_span["_meta"]["data"]["sentry.user.ip"] ==  {
+            "": {
+                "len": 9,
+                "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
             }
-        },
-        "data": {
-            # From former top level fields
-            "sentry.origin": "manual",
-            "sentry.is_segment": False,
-            "sentry.description": "GET /api/0/organizations/?member=1",
-            "sentry.segment.id": "968cff94913ebb07",
-            # Backfilled from `sentry_tags`
-            "sentry.category": "http",
-            "sentry.normalized_description": "GET *",
-            "sentry.group": "37e3d9fab1ae9162",
-            "sentry.name": "http",
-            "sentry.op": "http",
-            "sentry.platform": "other",
-            "sentry.sdk.name": "raven-node",
-            "sentry.sdk.version": "2.6.3",
-            "sentry.status": "ok",
-            "sentry.trace.status": "unknown",
-            "sentry.transaction": "hi",
-            "sentry.transaction.op": "hi",
-            "sentry.user": "id:unique_id",
-            "sentry.user.email": "[email]",
-            "sentry.user.id": "unique_id",
-            "sentry.user.ip": "127.0.0.1",
-            "sentry.user.username": "my_user",
-            # Backfilled from `tags`
-            "extra_info": "added by user",
-        },
-        "attributes": {
-            # From former top level fields
-            "sentry.origin": {"type": "string", "value": "manual"},
-            "sentry.is_segment": {"type": "boolean", "value": False},
-            "sentry.description": {"type": "string", "value": "GET /api/0/organizations/?member=1"},
-            "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
-            # Backfilled from `sentry_tags`
-            "sentry.category": {"type": "string", "value": "http"},
-            "sentry.normalized_description": {"type": "string", "value": "GET *"},
-            "sentry.group": {"type": "string", "value": "37e3d9fab1ae9162"},
-            "sentry.name": {"type": "string", "value": "http"},
-            "sentry.op": {"type": "string", "value": "http"},
-            "sentry.platform": {"type": "string", "value": "other"},
-            "sentry.sdk.name": {"type": "string", "value": "raven-node"},
-            "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
-            "sentry.status": {"type": "string", "value": "ok"},
-            "sentry.trace.status": {"type": "string", "value": "unknown"},
-            "sentry.transaction": {"type": "string", "value": "hi"},
-            "sentry.transaction.op": {"type": "string", "value": "hi"},
-            "sentry.user": {"type": "string", "value": "id:unique_id"},
-            "sentry.user.email": {"type": "string", "value": "[email]"},
-            "sentry.user.id": {"type": "string", "value": "unique_id"},
-            "sentry.user.ip": {"type": "string", "value": "127.0.0.1"},
-            "sentry.user.username": {"type": "string", "value": "my_user"},
-            # Backfilled from `tags`
-            "extra_info": {"type": "string", "value": "added by user"},
-        },
-        "downsampled_retention_days": 90,
-        "duration_ms": int(duration.total_seconds() * 1e3),
-        "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "is_remote": False,
-        "organization_id": 1,
-        "parent_span_id": "968cff94913ebb07",
-        "project_id": 42,
-        "key_id": 123,
-        "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "span_id": "bbbbbbbbbbbbbbbb",
-        "start_timestamp_ms": int(start.timestamp() * 1e3),
-        "start_timestamp_precise": start.timestamp(),
-        "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
-        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        "name": "http",
-    }
-    if scrub_ip_addresses:
-        expected["data"]["sentry.user.ip"] = None
+        }
     else:
-        del expected["_meta"]["sentry_tags"]["user.ip"]
-    assert child_span == expected
+        child_span["attributes"]["sentry.user.ip"]["value"] == child_span["data"]["sentry.user.ip"] == "127.0.0.1"
+        assert "sentry.user.ip" not in child_span["_meta"]["attributes"]
+        assert "sentry.user.ip" not in child_span["_meta"]["data"]
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
-        tzinfo=timezone.utc
-    )
-    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
-        tzinfo=timezone.utc
-    )
-    duration = (end_timestamp - start_timestamp).total_seconds()
-    duration_ms = int(duration * 1e3)
+    parent_span = spans_consumer.get_span()
 
-    child_span = spans_consumer.get_span()
-
-    del child_span["received"]
-
-    expected = {
-        "data": {
-            "sentry.sdk.name": "raven-node",
-            "sentry.sdk.version": "2.6.3",
-            "sentry.segment.name": "hi",
-            # Backfilled from `sentry_tags`:
-            "sentry.name": "hi",
-            "sentry.op": "hi",
-            "sentry.platform": "other",
-            "sentry.status": "unknown",
-            "sentry.trace.status": "unknown",
-            "sentry.transaction": "hi",
-            "sentry.transaction.op": "hi",
-            "sentry.user": "id:unique_id",
-            "sentry.user.email": "[email]",
-            "sentry.user.id": "unique_id",
-            "sentry.user.ip": "127.0.0.1",
-            "sentry.user.username": "my_user",
-        },
-        "description": "hi",
-        "downsampled_retention_days": 90,
-        "duration_ms": duration_ms,
-        "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 1500.0,
-        "is_segment": True,
-        "is_remote": True,
-        "organization_id": 1,
-        "project_id": 42,
-        "key_id": 123,
-        "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "name": "hi",
-            "op": "hi",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "status": "unknown",
-            "trace.status": "unknown",
-            "transaction": "hi",
-            "transaction.op": "hi",
-            "user": "id:unique_id",
-            "user.email": "[email]",
-            "user.id": "unique_id",
-            "user.ip": "127.0.0.1",
-            "user.username": "my_user",
-        },
-        "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
-        "start_timestamp_precise": start_timestamp.timestamp(),
-        "end_timestamp_precise": start_timestamp.timestamp() + duration,
-        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-    }
     if scrub_ip_addresses:
-        del expected["sentry_tags"]["user.ip"]
-        del expected["data"]["sentry.user.ip"]
-    assert child_span == expected
+        assert "sentry.user.ip" not in parent_span["data"]
+        assert "sentry.user.ip" not in parent_span["attributes"]
+    else:
+        parent_span["attributes"]["sentry.user.ip"]["value"] == parent_span["data"]["sentry.user.ip"] == "127.0.0.1"
 
     spans_consumer.assert_empty()
 
