@@ -709,7 +709,7 @@ def test_span_ingestion(
         options={
             "aggregator": {
                 "bucket_interval": 1,
-                "initial_delay": 0,
+                "initial_delay": 2,
                 "max_secs_in_past": 2**64 - 1,
                 "shift_key": "none",
             }
