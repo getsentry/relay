@@ -70,7 +70,7 @@ def test_spansv2_basic(
 
     relay.send_envelope(project_id, envelope)
 
-    assert spans_consumer.get_span().items() == {
+    assert spans_consumer.get_span() == {
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
         "data": {
