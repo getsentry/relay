@@ -364,7 +364,7 @@ impl StoreService {
                     });
                 }
                 ItemType::Span if content_type == Some(&ContentType::CompatSpan) => self
-                    .produce_span_v2(
+                    .produce_span(
                         scoping,
                         received_at,
                         event_id,
@@ -1003,7 +1003,7 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_span_v2(
+    fn produce_span(
         &self,
         scoping: Scoping,
         received_at: DateTime<Utc>,
@@ -1023,7 +1023,7 @@ impl StoreService {
         } = scoping;
 
         let payload = item.payload();
-        let message = SpanV2KafkaMessage {
+        let message = SpanKafkaMessage {
             meta: SpanMeta {
                 organization_id,
                 project_id,
@@ -1040,7 +1040,7 @@ impl StoreService {
         relay_statsd::metric!(counter(RelayCounters::SpanV2Produced) += 1);
         self.produce(
             KafkaTopic::Spans,
-            KafkaMessage::SpanV2 {
+            KafkaMessage::Span {
                 routing_key: item.routing_hint(),
                 headers: BTreeMap::from([(
                     "project_id".to_owned(),
@@ -1377,7 +1377,7 @@ struct SpanMeasurement<'a> {
 }
 
 #[derive(Debug, Serialize)]
-struct SpanV2KafkaMessage<'a> {
+struct SpanKafkaMessage<'a> {
     #[serde(flatten)]
     meta: SpanMeta,
     #[serde(flatten)]
@@ -1432,13 +1432,13 @@ enum KafkaMessage<'a> {
         #[serde(skip)]
         message: TraceItem,
     },
-    SpanV2 {
+    Span {
         #[serde(skip)]
         routing_key: Option<Uuid>,
         #[serde(skip)]
         headers: BTreeMap<String, String>,
         #[serde(flatten)]
-        message: SpanV2KafkaMessage<'a>,
+        message: SpanKafkaMessage<'a>,
     },
 
     Attachment(AttachmentKafkaMessage),
@@ -1464,7 +1464,7 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
             KafkaMessage::CheckIn(_) => "check_in",
-            KafkaMessage::SpanV2 { .. } => "span",
+            KafkaMessage::Span { .. } => "span",
             KafkaMessage::Item { item_type, .. } => item_type.as_str_name(),
 
             KafkaMessage::Attachment(_) => "attachment",
@@ -1483,7 +1483,7 @@ impl Message for KafkaMessage<'_> {
         match self {
             Self::Event(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
-            Self::SpanV2 { routing_key, .. } => *routing_key,
+            Self::Span { routing_key, .. } => *routing_key,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1509,7 +1509,7 @@ impl Message for KafkaMessage<'_> {
     fn headers(&self) -> Option<&BTreeMap<String, String>> {
         match &self {
             KafkaMessage::Metric { headers, .. }
-            | KafkaMessage::SpanV2 { headers, .. }
+            | KafkaMessage::Span { headers, .. }
             | KafkaMessage::Item { headers, .. }
             | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) => Some(headers),
 
@@ -1528,7 +1528,7 @@ impl Message for KafkaMessage<'_> {
         match self {
             KafkaMessage::Metric { message, .. } => serialize_as_json(message),
             KafkaMessage::ReplayEvent(message) => serialize_as_json(message),
-            KafkaMessage::SpanV2 { message, .. } => serialize_as_json(message),
+            KafkaMessage::Span { message, .. } => serialize_as_json(message),
             KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();
                 match message.encode(&mut payload) {
