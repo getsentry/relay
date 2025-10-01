@@ -921,6 +921,8 @@ pub enum RelayCounters {
     /// The amount of times PlayStation processing was attempted.
     #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
+    /// The number of times a sampling decision was made.
+    SamplingDecision,
 }
 
 impl CounterMetric for RelayCounters {
@@ -974,6 +976,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelayCount => "metrics.delay.count",
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
+            RelayCounters::SamplingDecision => "sampling.decision",
         }
     }
 }

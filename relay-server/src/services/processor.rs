@@ -1825,6 +1825,12 @@ impl EnvelopeProcessorService {
             false => SamplingResult::Pending,
         };
 
+        relay_statsd::metric!(
+            counter(RelayCounters::SamplingDecision) += 1,
+            decision = sampling_result.decision().as_str(),
+            item = "transaction"
+        );
+
         #[cfg(feature = "processing")]
         let server_sample_rate = sampling_result.sample_rate();
 
