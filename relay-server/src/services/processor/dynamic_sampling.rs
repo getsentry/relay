@@ -65,7 +65,11 @@ pub fn validate_and_set_dsc<T>(
         // All other information in the DSC must be discarded, but the sample rate was
         // actually applied by the client and is therefore correct.
         let original_sample_rate = original_dsc.and_then(|dsc| dsc.sample_rate);
-        dsc.sample_rate = dsc.sample_rate.or(original_sample_rate);
+        let raw_sample_rate = dsc.sample_rate.or(original_sample_rate);
+
+        // Validate the sample rate to prevent times_seen overflow in the backend
+        dsc.sample_rate = raw_sample_rate
+            .and_then(relay_event_normalization::validate_sample_rate_for_times_seen);
 
         managed_envelope.envelope_mut().set_dsc(dsc);
         return Some(project_info.clone());
