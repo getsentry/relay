@@ -155,3 +155,22 @@ pub trait Forward {
         s: &relay_system::Addr<crate::services::store::Store>,
     ) -> Result<(), Rejected<()>>;
 }
+
+/// The [`Nothing`] output.
+///
+/// Some processors may only produce by-products and not have any output of their own.
+pub struct Nothing(std::convert::Infallible);
+
+impl Forward for Nothing {
+    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+        match self {}
+    }
+
+    #[cfg(feature = "processing")]
+    fn forward_store(
+        self,
+        _: &relay_system::Addr<crate::services::store::Store>,
+    ) -> Result<(), Rejected<()>> {
+        match self {}
+    }
+}
