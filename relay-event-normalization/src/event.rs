@@ -668,20 +668,16 @@ fn normalize_event_tags(event: &mut Event) {
 
     for tag in tags.iter_mut() {
         let _ = processor::apply(tag, |tag, _| {
-            if let Some(key) = tag.key() {
-                if key.is_empty() {
-                    tag.0 = Annotated::from_error(Error::nonempty(), None);
-                } else if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
-                    tag.0 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
-                }
+            if let Some(key) = tag.key()
+                && key.is_empty()
+            {
+                tag.0 = Annotated::from_error(Error::nonempty(), None);
             }
 
-            if let Some(value) = tag.value() {
-                if value.is_empty() {
-                    tag.1 = Annotated::from_error(Error::nonempty(), None);
-                } else if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
-                    tag.1 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
-                }
+            if let Some(value) = tag.value()
+                && value.is_empty()
+            {
+                tag.1 = Annotated::from_error(Error::nonempty(), None);
             }
 
             Ok(())
