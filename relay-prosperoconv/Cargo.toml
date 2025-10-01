@@ -25,9 +25,13 @@ sentry = { version = "0.41.0", default-features = false, features = [
     "debug-images",
     "panic",
     "reqwest",
-]}
+] }
+serde_json = "1.0.132"
 tracing = "0.1.40"
 watto = "0.1.0"
+
+[dev-dependencies]
+insta = { version = "1.31.0", features = ["json"] }
 
 [build-dependencies]
 dircpy = "0.3.19"
