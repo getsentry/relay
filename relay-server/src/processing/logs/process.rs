@@ -56,7 +56,7 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
 pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
     logs.retain_with_context(
         |logs| (&mut logs.logs, logs.headers.meta()),
-        |log, meta| {
+        |log, meta, _| {
             normalize_log(log, meta).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
             })
@@ -68,7 +68,7 @@ pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
 pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     logs.retain(
         |logs| &mut logs.logs,
-        |log| {
+        |log, _| {
             scrub_log(log, ctx)
                 .inspect_err(|err| relay_log::debug!("failed to scrub pii from log: {err}"))
         },
