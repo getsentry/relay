@@ -91,7 +91,6 @@ pub async fn process(
         geo_lookup,
     );
 
-    let org_id = managed_envelope.scoping().organization_id.value();
     let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
     let sampling_decision = sampling_result.decision();
@@ -230,8 +229,7 @@ pub async fn process(
             }
         };
 
-        let Ok(mut new_item) = create_span_item(annotated_span, &config, global_config, org_id)
-        else {
+        let Ok(mut new_item) = create_span_item(annotated_span, &config) else {
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
 
@@ -254,14 +252,9 @@ pub async fn process(
     }
 }
 
-fn create_span_item(
-    span: Annotated<Span>,
-    config: &Config,
-    global_config: &GlobalConfig,
-    org_id: u64,
-) -> Result<Item, ()> {
+fn create_span_item(span: Annotated<Span>, config: &Config) -> Result<Item, ()> {
     let mut new_item = Item::new(ItemType::Span);
-    if produce_compat_spans(config, global_config, org_id) {
+    if cfg!(feature = "processing") && config.processing_enabled() {
         let span_v2 = span.map_value(relay_spans::span_v1_to_span_v2);
         let compat_span = match span_v2.map_value(CompatSpan::try_from) {
             Annotated(Some(Result::Err(err)), _) => {
@@ -295,15 +288,6 @@ fn create_span_item(
     }
 
     Ok(new_item)
-}
-
-/// Whether or not to convert spans into backward-compatible V2 spans.
-///
-/// This only makes sense when we forward the envelope to Kafka.
-fn produce_compat_spans(config: &Config, global_config: &GlobalConfig, org_id: u64) -> bool {
-    cfg!(feature = "processing")
-        && config.processing_enabled()
-        && utils::is_rolled_out(org_id, global_config.options.span_kafka_v2_sample_rate).is_keep()
 }
 
 fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value: Option<f64>) {
@@ -352,8 +336,6 @@ pub fn extract_from_event(
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
 
-    let org_id = managed_envelope.scoping().organization_id.value();
-
     let mut add_span = |mut span: Span| {
         add_sample_rate(
             &mut span.measurements,
@@ -387,7 +369,7 @@ pub fn extract_from_event(
             }
         };
 
-        let Ok(mut item) = create_span_item(span, &config, global_config, org_id) else {
+        let Ok(mut item) = create_span_item(span, &config) else {
             managed_envelope.track_outcome(
                 Outcome::Invalid(DiscardReason::InvalidSpan),
                 relay_quotas::DataCategory::SpanIndexed,

@@ -33,7 +33,6 @@ TEST_CONFIG = {
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
 @pytest.mark.parametrize("discard_transaction", [False, True])
-@pytest.mark.parametrize("produce_compat_spans", [False, True])
 def test_span_extraction(
     mini_sentry,
     relay_with_processing,
@@ -41,14 +40,9 @@ def test_span_extraction(
     transactions_consumer,
     events_consumer,
     metrics_consumer,
-    produce_compat_spans,
     discard_transaction,
     performance_issues_spans,
 ):
-    mini_sentry.global_config["options"] = {
-        "relay.kafka.span-v2.sample-rate": float(produce_compat_spans)
-    }
-
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
     events_consumer = events_consumer()
@@ -191,10 +185,7 @@ def test_span_extraction(
         "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
         "trace_id": "ff62a8b040f340bda5d830223def1d81",
     }
-    if produce_compat_spans:
-        assert_contains(child_span, expected_child_span)
-    else:
-        assert child_span == expected_child_span
+    assert_contains(child_span, expected_child_span)
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
         tzinfo=timezone.utc
@@ -265,10 +256,7 @@ def test_span_extraction(
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
-    if produce_compat_spans:
-        assert_contains(transaction_span, expected_transaction_span)
-    else:
-        assert transaction_span == expected_transaction_span
+    assert_contains(transaction_span, expected_transaction_span)
 
     spans_consumer.assert_empty()
 
@@ -690,17 +678,12 @@ def make_otel_span(start, end):
     }
 
 
-@pytest.mark.parametrize("produce_compat_spans", [False, True])
 def test_span_ingestion(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
-    produce_compat_spans,
 ):
-    mini_sentry.global_config["options"] = {
-        "relay.kafka.span-v2.sample-rate": float(produce_compat_spans)
-    }
 
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
@@ -1166,11 +1149,8 @@ def test_span_ingestion(
         },
     ]
 
-    if produce_compat_spans:
-        for span, expected_span in zip(spans, expected_spans):
-            assert_contains(span, expected_span)
-    else:
-        assert spans == expected_spans
+    for span, expected_span in zip(spans, expected_spans):
+        assert_contains(span, expected_span)
 
     spans_consumer.assert_empty()
 
