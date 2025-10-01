@@ -534,7 +534,7 @@ def envelope_with_spans(
                                     "value": "db",
                                 },
                                 "sentry.exclusive_time": {
-                                    "type": "integer",
+                                    "type": "double",
                                     "value": int((end - start).total_seconds() * 1e3),
                                 },
                             },
@@ -584,7 +584,7 @@ def envelope_with_spans(
                                 },
                                 "sentry.exclusive_time": {
                                     "type": "double",
-                                    "value": 0.161,
+                                    "value": 161.0,
                                 },
                                 # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
                                 "sentry.segment.id": {
@@ -659,9 +659,8 @@ def make_otel_span(start, end):
                                     {
                                         "key": "sentry.exclusive_time",
                                         "value": {
-                                            "intValue": str(
-                                                (end - start).total_seconds() * 1e3
-                                            ),
+                                            "doubleValue": (end - start).total_seconds() * 1e3
+                                            ,
                                         },
                                     },
                                 ],
