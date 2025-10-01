@@ -120,15 +120,15 @@ impl Forward for CheckInsOutput {
     }
 }
 
-/// Spans in their serialized state, as transported in an envelope.
+/// Check-Ins in their serialized state, as transported in an envelope.
 #[derive(Debug)]
 pub struct SerializedCheckIns {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
-    /// A list of spans waiting to be processed.
+    /// A list of check-ins waiting to be processed.
     ///
-    /// All items contained here must be spans.
+    /// All items contained here must be check-ins.
     check_ins: Vec<Item>,
 }
 

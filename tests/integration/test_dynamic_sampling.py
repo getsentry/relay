@@ -1,6 +1,8 @@
 from datetime import datetime
 import uuid
 import json
+
+from .asserts import only_items
 from .consts import (
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
@@ -252,6 +254,7 @@ def test_it_removes_events(mini_sentry, relay):
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
     # the event should be removed by Relay sampling
+    assert mini_sentry.captured_events.get(timeout=2) == only_items("metric_buckets")
     with pytest.raises(queue.Empty):
         mini_sentry.captured_events.get(timeout=1)
 
@@ -488,6 +491,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id2, envelope)
     # the event should be removed by Relay sampling
+    assert mini_sentry.captured_events.get(timeout=2) == only_items("metric_buckets")
     with pytest.raises(queue.Empty):
         mini_sentry.captured_events.get(timeout=1)
 
@@ -566,6 +570,9 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
         # send the event, the transaction should be removed.
         relay.send_envelope(project_id, envelope)
         # the event should be removed by Relay sampling
+        assert mini_sentry.captured_events.get(timeout=2) == only_items(
+            "metric_buckets"
+        )
         with pytest.raises(queue.Empty):
             mini_sentry.captured_events.get(timeout=1)
 
