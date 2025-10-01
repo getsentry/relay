@@ -214,9 +214,9 @@
 <a href=#214 id=214 data-nosnippet>214</a>                    }
 <a href=#215 id=215 data-nosnippet>215</a>                },
 <a href=#216 id=216 data-nosnippet>216</a>                {
-<a href=#217 id=217 data-nosnippet>217</a>                    "key": "sentry.exclusive_time_nano",
+<a href=#217 id=217 data-nosnippet>217</a>                    "key": "sentry.exclusive_time",
 <a href=#218 id=218 data-nosnippet>218</a>                    "value": {
-<a href=#219 id=219 data-nosnippet>219</a>                        "intValue": "1000000000"
+<a href=#219 id=219 data-nosnippet>219</a>                        "doubleValue": 1000.0
 <a href=#220 id=220 data-nosnippet>220</a>                    }
 <a href=#221 id=221 data-nosnippet>221</a>                }
 <a href=#222 id=222 data-nosnippet>222</a>            ],
@@ -261,9 +261,9 @@
 <a href=#261 id=261 data-nosnippet>261</a>              "type": "string",
 <a href=#262 id=262 data-nosnippet>262</a>              "value": "test"
 <a href=#263 id=263 data-nosnippet>263</a>            },
-<a href=#264 id=264 data-nosnippet>264</a>            "sentry.exclusive_time_nano": {
-<a href=#265 id=265 data-nosnippet>265</a>              "type": "integer",
-<a href=#266 id=266 data-nosnippet>266</a>              "value": 1000000000
+<a href=#264 id=264 data-nosnippet>264</a>            "sentry.exclusive_time": {
+<a href=#265 id=265 data-nosnippet>265</a>              "type": "double",
+<a href=#266 id=266 data-nosnippet>266</a>              "value": 1000.0
 <a href=#267 id=267 data-nosnippet>267</a>            },
 <a href=#268 id=268 data-nosnippet>268</a>            "sentry.parentSampled": {
 <a href=#269 id=269 data-nosnippet>269</a>              "type": "boolean",
@@ -283,7 +283,7 @@
 <a href=#283 id=283 data-nosnippet>283</a>    }
 <a href=#284 id=284 data-nosnippet>284</a>
 <a href=#285 id=285 data-nosnippet>285</a>    <span class="attr">#[test]
-<a href=#286 id=286 data-nosnippet>286</a>    </span><span class="kw">fn </span>parse_span_with_exclusive_time_nano_attribute() {
+<a href=#286 id=286 data-nosnippet>286</a>    </span><span class="kw">fn </span>parse_span_with_exclusive_time_attribute() {
 <a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">let </span>json = <span class="string">r#"{
 <a href=#288 id=288 data-nosnippet>288</a>          "traceId": "89143b0763095bd9c9955e8175d1fb23",
 <a href=#289 id=289 data-nosnippet>289</a>          "spanId": "e342abb1214ca181",
@@ -294,9 +294,9 @@
 <a href=#294 id=294 data-nosnippet>294</a>          "endTimeUnixNano": "1697620454980078800",
 <a href=#295 id=295 data-nosnippet>295</a>          "attributes": [
 <a href=#296 id=296 data-nosnippet>296</a>            {
-<a href=#297 id=297 data-nosnippet>297</a>              "key": "sentry.exclusive_time_nano",
+<a href=#297 id=297 data-nosnippet>297</a>              "key": "sentry.exclusive_time",
 <a href=#298 id=298 data-nosnippet>298</a>              "value": {
-<a href=#299 id=299 data-nosnippet>299</a>                "intValue": "3200000000"
+<a href=#299 id=299 data-nosnippet>299</a>                "doubleValue": 3200.000000
 <a href=#300 id=300 data-nosnippet>300</a>              }
 <a href=#301 id=301 data-nosnippet>301</a>            }
 <a href=#302 id=302 data-nosnippet>302</a>          ]
@@ -315,9 +315,9 @@
 <a href=#315 id=315 data-nosnippet>315</a>          "end_timestamp": 1697620454.980079,
 <a href=#316 id=316 data-nosnippet>316</a>          "links": [],
 <a href=#317 id=317 data-nosnippet>317</a>          "attributes": {
-<a href=#318 id=318 data-nosnippet>318</a>            "sentry.exclusive_time_nano": {
-<a href=#319 id=319 data-nosnippet>319</a>              "type": "integer",
-<a href=#320 id=320 data-nosnippet>320</a>              "value": 3200000000
+<a href=#318 id=318 data-nosnippet>318</a>            "sentry.exclusive_time": {
+<a href=#319 id=319 data-nosnippet>319</a>              "type": "double",
+<a href=#320 id=320 data-nosnippet>320</a>              "value": 3200.0
 <a href=#321 id=321 data-nosnippet>321</a>            }
 <a href=#322 id=322 data-nosnippet>322</a>          }
 <a href=#323 id=323 data-nosnippet>323</a>        }
