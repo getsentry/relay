@@ -4,6 +4,7 @@
 
 - Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077)))
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
+- Trim event tag keys & values to 200 chars instead of dropping them. ([#5198](https://github.com/getsentry/relay/pull/5198))
 
 ## 0.9.15
 
