@@ -1360,22 +1360,6 @@ struct CheckInKafkaMessage {
     retention_days: u16,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct SpanLink<'a> {
-    pub trace_id: &'a str,
-    pub span_id: &'a str,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sampled: Option<bool>,
-    #[serde(borrow)]
-    pub attributes: Option<&'a RawValue>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct SpanMeasurement<'a> {
-    #[serde(skip_serializing_if = "Option::is_none", borrow)]
-    value: Option<&'a RawValue>,
-}
-
 #[derive(Debug, Serialize)]
 struct SpanKafkaMessage<'a> {
     #[serde(flatten)]
