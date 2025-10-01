@@ -1,7 +1,14 @@
 from typing import Any, Callable
 from .time import time_after, time_within, time_within_delta
+from .protocol import only_items
 
-__all__ = ["time_after", "time_within", "time_within_delta", "matches"]
+__all__ = [
+    "matches",
+    "only_items",
+    "time_after",
+    "time_within",
+    "time_within_delta",
+]
 
 
 class _Matches(object):
