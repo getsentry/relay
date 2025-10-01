@@ -5221,4 +5221,85 @@ mod tests {
         }
         "###);
     }
+
+    #[test]
+    fn test_tags_are_trimmed() {
+        let json = r#"
+            {
+                "tags": {
+                    "key": "too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_",
+                    "too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_": "value"
+                }
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enable_trimming: true,
+                ..NormalizationConfig::default()
+            },
+        );
+
+        insta::assert_debug_snapshot!(get_value!(event.tags!), @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "key",
+                        Annotated(
+                            "too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__lo...",
+                            Meta {
+                                remarks: [
+                                    Remark {
+                                        ty: Substituted,
+                                        rule_id: "!limit",
+                                        range: Some(
+                                            (
+                                                197,
+                                                200,
+                                            ),
+                                        ),
+                                    },
+                                ],
+                                errors: [],
+                                original_length: Some(
+                                    210,
+                                ),
+                                original_value: None,
+                            },
+                        ),
+                    ),
+                    TagEntry(
+                        Annotated(
+                            "too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__long_too__lo...",
+                            Meta {
+                                remarks: [
+                                    Remark {
+                                        ty: Substituted,
+                                        rule_id: "!limit",
+                                        range: Some(
+                                            (
+                                                197,
+                                                200,
+                                            ),
+                                        ),
+                                    },
+                                ],
+                                errors: [],
+                                original_length: Some(
+                                    210,
+                                ),
+                                original_value: None,
+                            },
+                        ),
+                        "value",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
 }
