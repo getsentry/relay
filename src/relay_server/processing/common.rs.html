@@ -4,7 +4,7 @@
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::processing::logs::LogsProcessor;
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::processing::sessions::SessionsProcessor;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::processing::spans::SpansProcessor;
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::processing::{Forward, Processor};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::processing::{Forward, Nothing, Processor};
 <a href=#8 id=8 data-nosnippet>8</a>
 <a href=#9 id=9 data-nosnippet>9</a><span class="macro">macro_rules!</span> outputs {
 <a href=#10 id=10 data-nosnippet>10</a>    ($(<span class="macro-nonterminal">$variant</span>:ident =&gt; <span class="macro-nonterminal">$ty</span>:ty,)<span class="kw-2">*</span>) =&gt; {
@@ -53,4 +53,10 @@
 <a href=#53 id=53 data-nosnippet>53</a>    Logs =&gt; LogsProcessor,
 <a href=#54 id=54 data-nosnippet>54</a>    Spans =&gt; SpansProcessor,
 <a href=#55 id=55 data-nosnippet>55</a>    Sessions =&gt; SessionsProcessor,
-<a href=#56 id=56 data-nosnippet>56</a>);</code></pre></div></section></main></body></html>
+<a href=#56 id=56 data-nosnippet>56</a>);
+<a href=#57 id=57 data-nosnippet>57</a>
+<a href=#58 id=58 data-nosnippet>58</a><span class="kw">impl </span>From&lt;Nothing&gt; <span class="kw">for </span>Outputs {
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">fn </span>from(value: Nothing) -&gt; <span class="self">Self </span>{
+<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">match </span>value {}
+<a href=#61 id=61 data-nosnippet>61</a>    }
+<a href=#62 id=62 data-nosnippet>62</a>}</code></pre></div></section></main></body></html>
