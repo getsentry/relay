@@ -203,8 +203,11 @@ impl Forward for SpanOutput {
 
                 let mut span = match span.value.map_value(CompatSpan::try_from) {
                     Annotated(Some(Result::Err(error)), _) => {
-                        // FIXME: record an error here.
-                        // records.internal_error(error, span);
+                        // TODO: Use records.internal_error(error, span)
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "Failed to create CompatSpan"
+                        );
                         continue;
                     }
                     Annotated(Some(Result::Ok(compat_span)), meta) => {
