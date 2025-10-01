@@ -473,6 +473,14 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.session_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::Session,
+                self.context.summary.session_quantity,
+            );
+        }
+
         self.finish(RelayCounters::EnvelopeRejected, handling);
     }
 

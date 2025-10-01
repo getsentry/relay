@@ -124,7 +124,7 @@ def test_readiness_not_enough_memory_percent(mini_sentry, relay):
 def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, relay):
     relay = relay(
         mini_sentry,
-        {"aggregator": {"max_total_bucket_bytes": 1}},
+        {"aggregator": {"max_total_bucket_bytes": 1, "initial_delay": 30}},
     )
 
     metrics_payload = "transactions/foo:42|c\ntransactions/bar:17|c"
@@ -138,7 +138,7 @@ def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, r
             error = str(mini_sentry.test_failures.get(timeout=1))
             assert "Health check probe 'aggregator'" in error
             return
-        time.sleep(0.1)
+        time.sleep(0.2)
 
     assert False, "health check never failed"
 

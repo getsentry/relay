@@ -19,7 +19,7 @@ pub fn feature_flag(ctx: Context<'_>) -> Result<()> {
 pub fn filter(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
     spans.retain_with_context(
         |spans| (&mut spans.spans, spans.headers.meta()),
-        |span, meta| filter_span(span, meta, ctx),
+        |span, meta, _| filter_span(span, meta, ctx),
     );
 }
 

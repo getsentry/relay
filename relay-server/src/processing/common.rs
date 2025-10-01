@@ -2,6 +2,7 @@ use crate::Envelope;
 use crate::managed::{Managed, Rejected};
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
+use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::{Forward, Processor};
 
@@ -51,4 +52,5 @@ outputs!(
     CheckIns => CheckInsProcessor,
     Logs => LogsProcessor,
     Spans => SpansProcessor,
+    Sessions => SessionsProcessor,
 );

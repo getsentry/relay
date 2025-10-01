@@ -1,4 +1,6 @@
-use relay_event_schema::protocol::{CompatSpan, OurLog, Span, SpanV2};
+use relay_event_schema::protocol::{
+    CompatSpan, OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2,
+};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use smallvec::SmallVec;
@@ -66,6 +68,7 @@ impl Counted for Box<Envelope> {
             (DataCategory::LogItem, summary.log_item_quantity),
             (DataCategory::LogByte, summary.log_byte_quantity),
             (DataCategory::Monitor, summary.monitor_quantity),
+            (DataCategory::Session, summary.session_quantity),
         ];
 
         for (category, quantity) in data {
@@ -128,6 +131,23 @@ impl Counted for ExtractedMetrics {
         .into_iter()
         .filter(|(_, q)| *q > 0)
         .collect()
+    }
+}
+
+impl Counted for SessionUpdate {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Session, 1)]
+    }
+}
+
+impl Counted for SessionAggregates {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Session, self.aggregates.len())]
+    }
+}
+impl Counted for SessionAggregateItem {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Session, 1)]
     }
 }
 

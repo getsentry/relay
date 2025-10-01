@@ -403,11 +403,9 @@ def envelope_with_spans(
                                 },
                             },
                             {
-                                "key": "sentry.exclusive_time_nano",
+                                "key": "sentry.exclusive_time",
                                 "value": {
-                                    "intValue": str(
-                                        int((end - start).total_seconds() * 1e9)
-                                    ),
+                                    "doubleValue": (end - start).total_seconds() * 1e3
                                 },
                             },
                         ],
@@ -523,9 +521,9 @@ def envelope_with_spans(
                                     "type": "string",
                                     "value": "db",
                                 },
-                                "sentry.exclusive_time_nano": {
-                                    "type": "integer",
-                                    "value": int((end - start).total_seconds() * 1e9),
+                                "sentry.exclusive_time": {
+                                    "type": "double",
+                                    "value": int((end - start).total_seconds() * 1e3),
                                 },
                             },
                             "links": [
@@ -572,9 +570,9 @@ def envelope_with_spans(
                                     "type": "string",
                                     "value": "resource.script",
                                 },
-                                "sentry.exclusive_time_nano": {
-                                    "type": "integer",
-                                    "value": 161 * 1e6,
+                                "sentry.exclusive_time": {
+                                    "type": "double",
+                                    "value": 161.0,
                                 },
                                 # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
                                 "sentry.segment.id": {
@@ -647,11 +645,10 @@ def make_otel_span(start, end):
                                 "kind": 4,
                                 "attributes": [
                                     {
-                                        "key": "sentry.exclusive_time_nano",
+                                        "key": "sentry.exclusive_time",
                                         "value": {
-                                            "intValue": str(
-                                                int((end - start).total_seconds() * 1e9)
-                                            ),
+                                            "doubleValue": (end - start).total_seconds()
+                                            * 1e3,
                                         },
                                     },
                                 ],
@@ -692,7 +689,7 @@ def test_span_ingestion(
         options={
             "aggregator": {
                 "bucket_interval": 1,
-                "initial_delay": 0,
+                "initial_delay": 2,
                 "max_secs_in_past": 2**64 - 1,
                 "shift_key": "none",
             }
@@ -739,8 +736,8 @@ def test_span_ingestion(
         kind=5,
         attributes=[
             KeyValue(
-                key="sentry.exclusive_time_nano",
-                value=AnyValue(int_value=int(duration.total_seconds() * 1e9)),
+                key="sentry.exclusive_time",
+                value=AnyValue(double_value=duration.total_seconds() * 1e3),
             ),
             # In order to test `category` sentry tag inference.
             KeyValue(
