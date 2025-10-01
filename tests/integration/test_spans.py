@@ -659,8 +659,8 @@ def make_otel_span(start, end):
                                     {
                                         "key": "sentry.exclusive_time",
                                         "value": {
-                                            "doubleValue": (end - start).total_seconds() * 1e3
-                                            ,
+                                            "doubleValue": (end - start).total_seconds()
+                                            * 1e3,
                                         },
                                     },
                                 ],
