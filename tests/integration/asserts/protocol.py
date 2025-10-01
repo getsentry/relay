@@ -32,7 +32,6 @@ class _ItemType:
         self._expected = expected
 
     def __eq__(self, value) -> bool:
-        print(value)
         return value.type == self._expected
 
     def __str__(self) -> str:
