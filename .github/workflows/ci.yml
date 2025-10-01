@@ -753,6 +753,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Start Redis Sentinel cluster
+        uses: ./.github/actions/sentinel-cluster
+
       - run: make test-integration
         env:
           PYTEST_N: 6
