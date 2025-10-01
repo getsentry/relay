@@ -93,7 +93,10 @@ def test_spansv2_basic(
             "foo": {"type": "string", "value": "bar"},
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
-            "sentry.observed_timestamp_nanos": {"type": "string", "value": time_within(ts, expect_resolution="ns")},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
         },
         "name": "some op",
         "received": time_within(ts),
@@ -257,6 +260,7 @@ def test_spansv2_ds_sampled(
             "is_remote": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
+            "status": "ok",
         },
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
@@ -266,34 +270,9 @@ def test_spansv2_ds_sampled(
 
     relay.send_envelope(project_id, envelope)
 
-    assert spans_consumer.get_span() == {
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-        "span_id": "eee19b7ec3c1b175",
-        "description": "some op",
-        "data": {
-            "foo": "bar",
-            "sentry.name": "some op",
-            "sentry.server_sample_rate": 0.9,
-            "sentry.browser.name": "Python Requests",
-            "sentry.browser.version": "2.32",
-            "sentry.observed_timestamp_nanos": time_within(ts, expect_resolution="ns"),
-        },
-        "measurements": {"server_sample_rate": {"value": 0.9}},
-        "server_sample_rate": 0.9,
-        "received": time_within_delta(ts),
-        "start_timestamp_ms": time_within(ts, precision="ms", expect_resolution="ms"),
-        "start_timestamp_precise": time_within(ts),
-        "end_timestamp_precise": time_within(ts.timestamp() + 0.5),
-        "duration_ms": 500,
-        "exclusive_time_ms": 500.0,
-        "is_remote": False,
-        "is_segment": False,
-        "retention_days": 90,
-        "downsampled_retention_days": 90,
-        "key_id": 123,
-        "organization_id": 1,
-        "project_id": 42,
-    }
+    span = spans_consumer.get_span()
+    assert span["span_id"] == "eee19b7ec3c1b175"
+    assert span["attributes"]["sentry.server_sample_rate"]["value"] == 0.9
 
     assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
         {

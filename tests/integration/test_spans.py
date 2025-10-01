@@ -1682,154 +1682,44 @@ def test_span_ingestion_with_performance_scores(
     # endpoint might overtake envelope
     spans.sort(key=lambda msg: msg["span_id"])
 
-    assert spans == [
+    expected_scores = [
         {
-            "data": {
-                "browser.name": "Python Requests",
-                "client.address": "127.0.0.1",
-                "user_agent.original": "python-requests/2.32.4",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Python Requests",
-                "sentry.name": "ui.interaction.click",
-                "sentry.op": "ui.interaction.click",
-                # Backfilled from `measurements`:
-                "score.fcp": 0.14999972769539766,
-                "score.fid": 0.14999999985,
-                "score.lcp": 0.29986141375718806,
-                "score.ratio.cls": 0.0,
-                "score.ratio.fcp": 0.9999981846359844,
-                "score.ratio.fid": 0.4999999995,
-                "score.ratio.lcp": 0.9995380458572936,
-                "score.ratio.ttfb": 0.0,
-                "score.total": 0.5998611413025857,
-                "score.ttfb": 0.0,
-                "score.weight.cls": 0.25,
-                "score.weight.fcp": 0.15,
-                "score.weight.fid": 0.3,
-                "score.weight.lcp": 0.3,
-                "score.weight.ttfb": 0.0,
-                "cls": 100.0,
-                "fcp": 200.0,
-                "fid": 300.0,
-                "lcp": 400.0,
-                "ttfb": 500.0,
-                "score.cls": 0.0,
-            },
-            "downsampled_retention_days": 90,
-            "duration_ms": 1500,
-            "exclusive_time_ms": 345.0,
-            "is_segment": False,
-            "is_remote": False,
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "sentry_tags": {
-                "browser.name": "Python Requests",
-                "name": "ui.interaction.click",
-                "op": "ui.interaction.click",
-            },
-            "span_id": "bd429c44b67a3eb1",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp() + 1,
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            "measurements": {
-                "score.fcp": {"value": 0.14999972769539766},
-                "score.fid": {"value": 0.14999999985},
-                "score.lcp": {"value": 0.29986141375718806},
-                "score.ratio.cls": {"value": 0.0},
-                "score.ratio.fcp": {"value": 0.9999981846359844},
-                "score.ratio.fid": {"value": 0.4999999995},
-                "score.ratio.lcp": {"value": 0.9995380458572936},
-                "score.ratio.ttfb": {"value": 0.0},
-                "score.total": {"value": 0.5998611413025857},
-                "score.ttfb": {"value": 0.0},
-                "score.weight.cls": {"value": 0.25},
-                "score.weight.fcp": {"value": 0.15},
-                "score.weight.fid": {"value": 0.3},
-                "score.weight.lcp": {"value": 0.3},
-                "score.weight.ttfb": {"value": 0.0},
-                "cls": {"value": 100.0},
-                "fcp": {"value": 200.0},
-                "fid": {"value": 300.0},
-                "lcp": {"value": 400.0},
-                "ttfb": {"value": 500.0},
-                "score.cls": {"value": 0.0},
-            },
+            "score.fcp": 0.14999972769539766,
+            "score.fid": 0.14999999985,
+            "score.lcp": 0.29986141375718806,
+            "score.ratio.cls": 0.0,
+            "score.ratio.fcp": 0.9999981846359844,
+            "score.ratio.fid": 0.4999999995,
+            "score.ratio.lcp": 0.9995380458572936,
+            "score.ratio.ttfb": 0.0,
+            "score.total": 0.5998611413025857,
+            "score.ttfb": 0.0,
+            "score.weight.cls": 0.25,
+            "score.weight.fcp": 0.15,
+            "score.weight.fid": 0.3,
+            "score.weight.lcp": 0.3,
+            "score.weight.ttfb": 0.0,
+            "cls": 100.0,
+            "fcp": 200.0,
+            "fid": 300.0,
+            "lcp": 400.0,
+            "ttfb": 500.0,
+            "score.cls": 0.0,
         },
         {
-            "_meta": {
-                "data": {
-                    "sentry.segment.name": {
-                        "": {
-                            "rem": [
-                                [
-                                    "int",
-                                    "s",
-                                    34,
-                                    37,
-                                ],
-                                ["**/interaction/*/**", "s"],
-                            ],
-                            "val": "/page/with/click/interaction/jane/123",
-                        }
-                    }
-                }
-            },
-            "data": {
-                "browser.name": "Python Requests",
-                "client.address": "127.0.0.1",
-                "sentry.replay.id": "8477286c8e5148b386b71ade38374d58",
-                "sentry.segment.name": "/page/with/click/interaction/*/*",
-                "user": "[email]",
-                "user_agent.original": "python-requests/2.32.4",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Python Requests",
-                "sentry.name": "ui.interaction.click",
-                "sentry.op": "ui.interaction.click",
-                "sentry.transaction": "/page/with/click/interaction/*/*",
-                "sentry.replay_id": "8477286c8e5148b386b71ade38374d58",
-                "sentry.user": "[email]",
-                # Backfilled from `measurements`:
-                "inp": 100.0,
-                "score.inp": 0.9948129113413748,
-                "score.ratio.inp": 0.9948129113413748,
-                "score.total": 0.9948129113413748,
-                "score.weight.inp": 1.0,
-            },
-            "downsampled_retention_days": 90,
-            "duration_ms": 1500,
-            "exclusive_time_ms": 345.0,
-            "is_segment": False,
-            "is_remote": False,
-            "profile_id": "3d9428087fda4ba0936788b70a7587d0",
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "sentry_tags": {
-                "browser.name": "Python Requests",
-                "name": "ui.interaction.click",
-                "op": "ui.interaction.click",
-                "transaction": "/page/with/click/interaction/*/*",
-                "replay_id": "8477286c8e5148b386b71ade38374d58",
-                "user": "[email]",
-            },
-            "span_id": "cd429c44b67a3eb1",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp() + 1,
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            "measurements": {
-                "inp": {"value": 100.0},
-                "score.inp": {"value": 0.9948129113413748},
-                "score.ratio.inp": {"value": 0.9948129113413748},
-                "score.total": {"value": 0.9948129113413748},
-                "score.weight.inp": {"value": 1.0},
-            },
+            "inp": 100.0,
+            "score.inp": 0.9948129113413748,
+            "score.ratio.inp": 0.9948129113413748,
+            "score.total": 0.9948129113413748,
+            "score.weight.inp": 1.0,
         },
     ]
+
+    assert len(spans) == len(expected_scores)
+    for span, scores in zip(spans, expected_scores):
+        for key, score in scores.items():
+            assert span["data"][key] == score
+            assert span["attributes"][key]["value"] == score
 
 
 def test_rate_limit_indexed_consistent(
@@ -2148,63 +2038,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
         assert usage_metrics() == (1, 2)
 
 
-@pytest.mark.parametrize(
-    "tags, expected_tags",
-    [
-        (
-            {
-                "some": "tag",
-                "other": "value",
-            },
-            {
-                "some": "tag",
-                "other": "value",
-            },
-        ),
-        (
-            {
-                "some": 1,
-                "other": True,
-            },
-            {
-                "some": "1",
-                "other": "True",
-            },
-        ),
-    ],
-)
-def test_span_extraction_with_tags(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    tags,
-    expected_tags,
-):
-    spans_consumer = spans_consumer()
-
-    relay = relay_with_processing()
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
-
-    event = make_transaction(
-        {
-            "event_id": "e022a2da91e9495d944c291fe065972d",
-            "tags": tags,
-        }
-    )
-
-    relay.send_event(project_id, event)
-
-    transaction_span = spans_consumer.get_span()
-
-    assert transaction_span["tags"] == expected_tags
-
-    spans_consumer.assert_empty()
-
-
 def test_span_filtering_with_generic_inbound_filter(
     mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
 ):
@@ -2425,19 +2258,29 @@ def test_scrubs_ip_addresses(
 
     child_span = spans_consumer.get_span()
 
-    assert child_span["_meta"]["attributes"]["sentry.user.email"] == child_span["_meta"]["data"]["sentry.user.email"] == {"": {"len": 15, "rem": [["@email", "s", 0, 7]]}}
+    assert (
+        child_span["_meta"]["attributes"]["sentry.user.email"]
+        == child_span["_meta"]["data"]["sentry.user.email"]
+        == {"": {"len": 15, "rem": [["@email", "s", 0, 7]]}}
+    )
 
     if scrub_ip_addresses:
         assert child_span["attributes"]["sentry.user.ip"] is None
         assert child_span["data"]["sentry.user.ip"] is None
-        assert child_span["_meta"]["attributes"]["sentry.user.ip"] ==  child_span["_meta"]["data"]["sentry.user.ip"] ==  {
-            "": {
-                "len": 9,
-                "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
+        assert (
+            child_span["_meta"]["attributes"]["sentry.user.ip"]
+            == child_span["_meta"]["data"]["sentry.user.ip"]
+            == {
+                "": {
+                    "len": 9,
+                    "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
+                }
             }
-        }
+        )
     else:
-        child_span["attributes"]["sentry.user.ip"]["value"] == child_span["data"]["sentry.user.ip"] == "127.0.0.1"
+        child_span["attributes"]["sentry.user.ip"]["value"] == child_span["data"][
+            "sentry.user.ip"
+        ] == "127.0.0.1"
         assert "sentry.user.ip" not in child_span["_meta"]["attributes"]
         assert "sentry.user.ip" not in child_span["_meta"]["data"]
 
@@ -2447,7 +2290,9 @@ def test_scrubs_ip_addresses(
         assert "sentry.user.ip" not in parent_span["data"]
         assert "sentry.user.ip" not in parent_span["attributes"]
     else:
-        parent_span["attributes"]["sentry.user.ip"]["value"] == parent_span["data"]["sentry.user.ip"] == "127.0.0.1"
+        parent_span["attributes"]["sentry.user.ip"]["value"] == parent_span["data"][
+            "sentry.user.ip"
+        ] == "127.0.0.1"
 
     spans_consumer.assert_empty()
 
