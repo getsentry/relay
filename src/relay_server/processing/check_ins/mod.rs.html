@@ -120,15 +120,15 @@
 <a href=#120 id=120 data-nosnippet>120</a>    }
 <a href=#121 id=121 data-nosnippet>121</a>}
 <a href=#122 id=122 data-nosnippet>122</a>
-<a href=#123 id=123 data-nosnippet>123</a><span class="doccomment">/// Spans in their serialized state, as transported in an envelope.
+<a href=#123 id=123 data-nosnippet>123</a><span class="doccomment">/// Check-Ins in their serialized state, as transported in an envelope.
 <a href=#124 id=124 data-nosnippet>124</a></span><span class="attr">#[derive(Debug)]
 <a href=#125 id=125 data-nosnippet>125</a></span><span class="kw">pub struct </span>SerializedCheckIns {
 <a href=#126 id=126 data-nosnippet>126</a>    <span class="doccomment">/// Original envelope headers.
 <a href=#127 id=127 data-nosnippet>127</a>    </span>headers: EnvelopeHeaders,
 <a href=#128 id=128 data-nosnippet>128</a>
-<a href=#129 id=129 data-nosnippet>129</a>    <span class="doccomment">/// A list of spans waiting to be processed.
+<a href=#129 id=129 data-nosnippet>129</a>    <span class="doccomment">/// A list of check-ins waiting to be processed.
 <a href=#130 id=130 data-nosnippet>130</a>    ///
-<a href=#131 id=131 data-nosnippet>131</a>    /// All items contained here must be spans.
+<a href=#131 id=131 data-nosnippet>131</a>    /// All items contained here must be check-ins.
 <a href=#132 id=132 data-nosnippet>132</a>    </span>check_ins: Vec&lt;Item&gt;,
 <a href=#133 id=133 data-nosnippet>133</a>}
 <a href=#134 id=134 data-nosnippet>134</a>

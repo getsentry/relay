@@ -56,7 +56,7 @@
 <a href=#56 id=56 data-nosnippet>56</a></span><span class="kw">pub fn </span>normalize(logs: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedLogs&gt;) {
 <a href=#57 id=57 data-nosnippet>57</a>    logs.retain_with_context(
 <a href=#58 id=58 data-nosnippet>58</a>        |logs| (<span class="kw-2">&amp;mut </span>logs.logs, logs.headers.meta()),
-<a href=#59 id=59 data-nosnippet>59</a>        |log, meta| {
+<a href=#59 id=59 data-nosnippet>59</a>        |log, meta, <span class="kw">_</span>| {
 <a href=#60 id=60 data-nosnippet>60</a>            normalize_log(log, meta).inspect_err(|err| {
 <a href=#61 id=61 data-nosnippet>61</a>                <span class="macro">relay_log::debug!</span>(<span class="string">"failed to normalize log: {err}"</span>);
 <a href=#62 id=62 data-nosnippet>62</a>            })
@@ -68,7 +68,7 @@
 <a href=#68 id=68 data-nosnippet>68</a></span><span class="kw">pub fn </span>scrub(logs: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedLogs&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) {
 <a href=#69 id=69 data-nosnippet>69</a>    logs.retain(
 <a href=#70 id=70 data-nosnippet>70</a>        |logs| <span class="kw-2">&amp;mut </span>logs.logs,
-<a href=#71 id=71 data-nosnippet>71</a>        |log| {
+<a href=#71 id=71 data-nosnippet>71</a>        |log, <span class="kw">_</span>| {
 <a href=#72 id=72 data-nosnippet>72</a>            scrub_log(log, ctx)
 <a href=#73 id=73 data-nosnippet>73</a>                .inspect_err(|err| <span class="macro">relay_log::debug!</span>(<span class="string">"failed to scrub pii from log: {err}"</span>))
 <a href=#74 id=74 data-nosnippet>74</a>        },

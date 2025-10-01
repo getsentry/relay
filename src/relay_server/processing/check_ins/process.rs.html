@@ -10,7 +10,7 @@
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a>    check_ins.retain(
 <a href=#12 id=12 data-nosnippet>12</a>        |check_ins| <span class="kw-2">&amp;mut </span>check_ins.check_ins,
-<a href=#13 id=13 data-nosnippet>13</a>        |check_in| {
+<a href=#13 id=13 data-nosnippet>13</a>        |check_in, <span class="kw">_</span>| {
 <a href=#14 id=14 data-nosnippet>14</a>            <span class="kw">let </span>payload = check_in.payload();
 <a href=#15 id=15 data-nosnippet>15</a>            <span class="kw">let </span>result = relay_monitors::process_check_in(<span class="kw-2">&amp;</span>payload, scoping.project_id)
 <a href=#16 id=16 data-nosnippet>16</a>                .inspect_err(|err| {

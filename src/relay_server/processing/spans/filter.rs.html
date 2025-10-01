@@ -19,7 +19,7 @@
 <a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">pub fn </span>filter(spans: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedSpans&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) {
 <a href=#20 id=20 data-nosnippet>20</a>    spans.retain_with_context(
 <a href=#21 id=21 data-nosnippet>21</a>        |spans| (<span class="kw-2">&amp;mut </span>spans.spans, spans.headers.meta()),
-<a href=#22 id=22 data-nosnippet>22</a>        |span, meta| filter_span(span, meta, ctx),
+<a href=#22 id=22 data-nosnippet>22</a>        |span, meta, <span class="kw">_</span>| filter_span(span, meta, ctx),
 <a href=#23 id=23 data-nosnippet>23</a>    );
 <a href=#24 id=24 data-nosnippet>24</a>}
 <a href=#25 id=25 data-nosnippet>25</a>

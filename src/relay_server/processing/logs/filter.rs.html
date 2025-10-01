@@ -19,7 +19,7 @@
 <a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">pub fn </span>filter(logs: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedLogs&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) {
 <a href=#20 id=20 data-nosnippet>20</a>    logs.retain_with_context(
 <a href=#21 id=21 data-nosnippet>21</a>        |logs| (<span class="kw-2">&amp;mut </span>logs.logs, logs.headers.meta()),
-<a href=#22 id=22 data-nosnippet>22</a>        |log, meta| filter_log(log, meta, ctx),
+<a href=#22 id=22 data-nosnippet>22</a>        |log, meta, <span class="kw">_</span>| filter_log(log, meta, ctx),
 <a href=#23 id=23 data-nosnippet>23</a>    );
 <a href=#24 id=24 data-nosnippet>24</a>}
 <a href=#25 id=25 data-nosnippet>25</a>
