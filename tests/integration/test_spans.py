@@ -2440,6 +2440,11 @@ def test_scrubs_ip_addresses(
             }
         },
         "data": {
+            # From former top level fields
+            "sentry.origin": "manual",
+            "sentry.is_segment": False,
+            "sentry.description": "GET /api/0/organizations/?member=1",
+            "sentry.segment.id": "968cff94913ebb07",
             # Backfilled from `sentry_tags`
             "sentry.category": "http",
             "sentry.normalized_description": "GET *",
@@ -2461,51 +2466,52 @@ def test_scrubs_ip_addresses(
             # Backfilled from `tags`
             "extra_info": "added by user",
         },
-        "description": "GET /api/0/organizations/?member=1",
+        "attributes": {
+            # From former top level fields
+            "sentry.origin": {"type": "string", "value": "manual"},
+            "sentry.is_segment": {"type": "boolean", "value": False},
+            "sentry.description": {"type": "string", "value": "GET /api/0/organizations/?member=1"},
+            "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
+            # Backfilled from `sentry_tags`
+            "sentry.category": {"type": "string", "value": "http"},
+            "sentry.normalized_description": {"type": "string", "value": "GET *"},
+            "sentry.group": {"type": "string", "value": "37e3d9fab1ae9162"},
+            "sentry.name": {"type": "string", "value": "http"},
+            "sentry.op": {"type": "string", "value": "http"},
+            "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.sdk.name": {"type": "string", "value": "raven-node"},
+            "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
+            "sentry.status": {"type": "string", "value": "ok"},
+            "sentry.trace.status": {"type": "string", "value": "unknown"},
+            "sentry.transaction": {"type": "string", "value": "hi"},
+            "sentry.transaction.op": {"type": "string", "value": "hi"},
+            "sentry.user": {"type": "string", "value": "id:unique_id"},
+            "sentry.user.email": {"type": "string", "value": "[email]"},
+            "sentry.user.id": {"type": "string", "value": "unique_id"},
+            "sentry.user.ip": {"type": "string", "value": "127.0.0.1"},
+            "sentry.user.username": {"type": "string", "value": "my_user"},
+            # Backfilled from `tags`
+            "extra_info": {"type": "string", "value": "added by user"},
+        },
         "downsampled_retention_days": 90,
         "duration_ms": int(duration.total_seconds() * 1e3),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 500.0,
-        "is_segment": False,
         "is_remote": False,
         "organization_id": 1,
-        "origin": "manual",
         "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
         "key_id": 123,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "category": "http",
-            "description": "GET *",
-            "group": "37e3d9fab1ae9162",
-            "name": "http",
-            "op": "http",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "status": "ok",
-            "trace.status": "unknown",
-            "transaction": "hi",
-            "transaction.op": "hi",
-            "user": "id:unique_id",
-            "user.email": "[email]",
-            "user.id": "unique_id",
-            "user.ip": "127.0.0.1",
-            "user.username": "my_user",
-        },
-        "tags": {
-            "extra_info": "added by user",
-        },
         "span_id": "bbbbbbbbbbbbbbbb",
         "start_timestamp_ms": int(start.timestamp() * 1e3),
         "start_timestamp_precise": start.timestamp(),
         "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
         "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "name": "http",
     }
     if scrub_ip_addresses:
-        del expected["sentry_tags"]["user.ip"]
-        del expected["data"]["sentry.user.ip"]
+        expected["data"]["sentry.user.ip"] = None
     else:
         del expected["_meta"]["sentry_tags"]["user.ip"]
     assert child_span == expected
