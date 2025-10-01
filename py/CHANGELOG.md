@@ -12,7 +12,6 @@
 ### Various fixes & improvements
 
 - feat(billing): Add retentions to project configs (#5135) by @vbro
->>>>>>> origin/master
 
 ## 0.9.15
 
