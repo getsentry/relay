@@ -4006,6 +4006,7 @@ dependencies = [
  "once_cell",
  "opentelemetry-proto",
  "relay-common",
+ "relay-conventions",
  "relay-event-schema",
  "relay-otel",
  "relay-protocol",
