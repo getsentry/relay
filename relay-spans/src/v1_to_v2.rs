@@ -107,7 +107,8 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
             .get_value("sentry.name")
             .and_then(|v| Some(v.as_str()?.to_owned()))
             .into(),
-        status: Annotated::map_value(status, span_v1_status_to_span_v2_status),
+        status: Annotated::map_value(status, span_v1_status_to_span_v2_status)
+            .or_else(|| SpanV2Status::Ok.into()),
         is_remote,
         kind,
         start_timestamp,

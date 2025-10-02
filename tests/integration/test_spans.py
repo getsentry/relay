@@ -2226,7 +2226,7 @@ def test_scrubs_ip_addresses(
             }
         )
     else:
-        child_span["attributes"]["sentry.user.ip"]["value"] == child_span["data"][
+        assert child_span["attributes"]["sentry.user.ip"]["value"] == child_span["data"][
             "sentry.user.ip"
         ] == "127.0.0.1"
         assert "sentry.user.ip" not in child_span["_meta"]["attributes"]
@@ -2238,7 +2238,7 @@ def test_scrubs_ip_addresses(
         assert "sentry.user.ip" not in parent_span["data"]
         assert "sentry.user.ip" not in parent_span["attributes"]
     else:
-        parent_span["attributes"]["sentry.user.ip"]["value"] == parent_span["data"][
+        assert parent_span["attributes"]["sentry.user.ip"]["value"] == parent_span["data"][
             "sentry.user.ip"
         ] == "127.0.0.1"
 
