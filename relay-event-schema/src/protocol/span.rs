@@ -442,7 +442,7 @@ impl Getter for SentryTags {
             "ttfd" => &self.ttfd,
             "ttid" => &self.ttid,
             "user.email" => &self.user_email,
-            "user.city" => &self.user_city,
+            "user.geo.city" => &self.user_city,
             "user.geo.country_code" => &self.user_country_code,
             "user.geo.region" => &self.user_region,
             "user.geo.subdivision" => &self.user_subdivision,
