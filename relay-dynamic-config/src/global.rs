@@ -186,14 +186,6 @@ pub struct Options {
     )]
     pub replay_relay_snuba_publish_disabled_sample_rate: f32,
 
-    /// Rollout for Relay's reworked sessions processing.
-    #[serde(
-        rename = "relay.session.processing.rollout",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub session_processing_rollout: f32,
-
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
