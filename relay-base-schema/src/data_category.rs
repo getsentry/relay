@@ -146,6 +146,10 @@ pub enum DataCategory {
     /// artifacts are downloaded for installation.
     /// When enabled there will typically be one 'InstallableBuild' per uploaded artifact.
     InstallableBuild = 32,
+    /// TraceMetric
+    ///
+    /// This is the data category to count the number of trace metric items.
+    TraceMetric = 33,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -195,6 +199,7 @@ impl DataCategory {
             "prevent_review" => Self::PreventReview,
             "size_analysis" => Self::SizeAnalysis,
             "installable_build" => Self::InstallableBuild,
+            "metric" => Self::TraceMetric,
             _ => Self::Unknown,
         }
     }
@@ -236,6 +241,7 @@ impl DataCategory {
             Self::PreventReview => "prevent_review",
             Self::SizeAnalysis => "size_analysis",
             Self::InstallableBuild => "installable_build",
+            Self::TraceMetric => "metric",
             Self::Unknown => "unknown",
         }
     }
@@ -338,6 +344,7 @@ impl TryFrom<u8> for DataCategory {
             30 => Ok(Self::PreventReview),
             31 => Ok(Self::SizeAnalysis),
             32 => Ok(Self::InstallableBuild),
+            33 => Ok(Self::TraceMetric),
             other => Err(UnknownDataCategory(other)),
         }
     }
@@ -352,10 +359,7 @@ mod tests {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
-        assert_eq!(
-            DataCategory::try_from(32),
-            Ok(DataCategory::InstallableBuild)
-        );
-        assert_eq!(DataCategory::try_from(33), Err(UnknownDataCategory(33)));
+        assert_eq!(DataCategory::try_from(33), Ok(DataCategory::TraceMetric));
+        assert_eq!(DataCategory::try_from(34), Err(UnknownDataCategory(34)));
     }
 }
