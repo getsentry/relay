@@ -12,6 +12,7 @@
 - Add integration endpoints for OTLP. ([#5176](https://github.com/getsentry/relay/pull/5176))
 - Emit a metric to record keep/drop decisions in Dynamic Sampling. ([#5164](https://github.com/getsentry/relay/pull/5164))
 - Trim event tag keys & values to 200 chars instead of dropping them. ([#5198](https://github.com/getsentry/relay/pull/5198))
+- Allow pii scrubbing of the `transaction` field. ([#5205](https://github.com/getsentry/relay/pull/5205))
 
 **Bug Fixes**:
 
