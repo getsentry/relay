@@ -439,8 +439,8 @@
 <a href=#439 id=439 data-nosnippet>439</a>    <span class="kw">use </span><span class="kw">crate</span>::MaxChars;
 <a href=#440 id=440 data-nosnippet>440</a>    <span class="kw">use </span>chrono::DateTime;
 <a href=#441 id=441 data-nosnippet>441</a>    <span class="kw">use </span>relay_event_schema::protocol::{
-<a href=#442 id=442 data-nosnippet>442</a>        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, SentryTags, Span, SpanId,
-<a href=#443 id=443 data-nosnippet>443</a>        TagEntry, Tags, Timestamp, TraceId, Values,
+<a href=#442 id=442 data-nosnippet>442</a>        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, PairList, SentryTags, Span,
+<a href=#443 id=443 data-nosnippet>443</a>        SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
 <a href=#444 id=444 data-nosnippet>444</a>    };
 <a href=#445 id=445 data-nosnippet>445</a>    <span class="kw">use </span>relay_protocol::{Map, Remark, SerializableAnnotated, get_value};
 <a href=#446 id=446 data-nosnippet>446</a>    <span class="kw">use </span>similar_asserts::assert_eq;
@@ -1118,4 +1118,82 @@
 <a href=#1118 id=1118 data-nosnippet>1118</a>        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">1</span>].start_timestamp).is_some());
 <a href=#1119 id=1119 data-nosnippet>1119</a>        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">1</span>].timestamp).is_some());
 <a href=#1120 id=1120 data-nosnippet>1120</a>    }
-<a href=#1121 id=1121 data-nosnippet>1121</a>}</code></pre></div></section></main></body></html>
+<a href=#1121 id=1121 data-nosnippet>1121</a>
+<a href=#1122 id=1122 data-nosnippet>1122</a>    <span class="attr">#[test]
+<a href=#1123 id=1123 data-nosnippet>1123</a>    </span><span class="kw">fn </span>test_too_long_tags() {
+<a href=#1124 id=1124 data-nosnippet>1124</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+<a href=#1125 id=1125 data-nosnippet>1125</a>        tags: Annotated::new(Tags(PairList(
+<a href=#1126 id=1126 data-nosnippet>1126</a>            <span class="macro">vec!</span>[Annotated::new(TagEntry(
+<a href=#1127 id=1127 data-nosnippet>1127</a>                Annotated::new(<span class="string">"foobar"</span>.to_owned()),
+<a href=#1128 id=1128 data-nosnippet>1128</a>                Annotated::new(<span class="string">"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"</span>.to_owned()),
+<a href=#1129 id=1129 data-nosnippet>1129</a>            )), Annotated::new(TagEntry(
+<a href=#1130 id=1130 data-nosnippet>1130</a>                Annotated::new(<span class="string">"foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"</span>.to_owned()),
+<a href=#1131 id=1131 data-nosnippet>1131</a>                Annotated::new(<span class="string">"bar"</span>.to_owned()),
+<a href=#1132 id=1132 data-nosnippet>1132</a>            ))]),
+<a href=#1133 id=1133 data-nosnippet>1133</a>        )),
+<a href=#1134 id=1134 data-nosnippet>1134</a>        ..Event::default()
+<a href=#1135 id=1135 data-nosnippet>1135</a>    });
+<a href=#1136 id=1136 data-nosnippet>1136</a>
+<a href=#1137 id=1137 data-nosnippet>1137</a>        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
+<a href=#1138 id=1138 data-nosnippet>1138</a>        processor::process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+<a href=#1139 id=1139 data-nosnippet>1139</a>
+<a href=#1140 id=1140 data-nosnippet>1140</a>        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="macro">get_value!</span>(event.<span class="macro">tags!</span>), @<span class="string">r###"
+<a href=#1141 id=1141 data-nosnippet>1141</a>        Tags(
+<a href=#1142 id=1142 data-nosnippet>1142</a>            PairList(
+<a href=#1143 id=1143 data-nosnippet>1143</a>                [
+<a href=#1144 id=1144 data-nosnippet>1144</a>                    TagEntry(
+<a href=#1145 id=1145 data-nosnippet>1145</a>                        "foobar",
+<a href=#1146 id=1146 data-nosnippet>1146</a>                        Annotated(
+<a href=#1147 id=1147 data-nosnippet>1147</a>                            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
+<a href=#1148 id=1148 data-nosnippet>1148</a>                            Meta {
+<a href=#1149 id=1149 data-nosnippet>1149</a>                                remarks: [
+<a href=#1150 id=1150 data-nosnippet>1150</a>                                    Remark {
+<a href=#1151 id=1151 data-nosnippet>1151</a>                                        ty: Substituted,
+<a href=#1152 id=1152 data-nosnippet>1152</a>                                        rule_id: "!limit",
+<a href=#1153 id=1153 data-nosnippet>1153</a>                                        range: Some(
+<a href=#1154 id=1154 data-nosnippet>1154</a>                                            (
+<a href=#1155 id=1155 data-nosnippet>1155</a>                                                197,
+<a href=#1156 id=1156 data-nosnippet>1156</a>                                                200,
+<a href=#1157 id=1157 data-nosnippet>1157</a>                                            ),
+<a href=#1158 id=1158 data-nosnippet>1158</a>                                        ),
+<a href=#1159 id=1159 data-nosnippet>1159</a>                                    },
+<a href=#1160 id=1160 data-nosnippet>1160</a>                                ],
+<a href=#1161 id=1161 data-nosnippet>1161</a>                                errors: [],
+<a href=#1162 id=1162 data-nosnippet>1162</a>                                original_length: Some(
+<a href=#1163 id=1163 data-nosnippet>1163</a>                                    203,
+<a href=#1164 id=1164 data-nosnippet>1164</a>                                ),
+<a href=#1165 id=1165 data-nosnippet>1165</a>                                original_value: None,
+<a href=#1166 id=1166 data-nosnippet>1166</a>                            },
+<a href=#1167 id=1167 data-nosnippet>1167</a>                        ),
+<a href=#1168 id=1168 data-nosnippet>1168</a>                    ),
+<a href=#1169 id=1169 data-nosnippet>1169</a>                    TagEntry(
+<a href=#1170 id=1170 data-nosnippet>1170</a>                        Annotated(
+<a href=#1171 id=1171 data-nosnippet>1171</a>                            "foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo...",
+<a href=#1172 id=1172 data-nosnippet>1172</a>                            Meta {
+<a href=#1173 id=1173 data-nosnippet>1173</a>                                remarks: [
+<a href=#1174 id=1174 data-nosnippet>1174</a>                                    Remark {
+<a href=#1175 id=1175 data-nosnippet>1175</a>                                        ty: Substituted,
+<a href=#1176 id=1176 data-nosnippet>1176</a>                                        rule_id: "!limit",
+<a href=#1177 id=1177 data-nosnippet>1177</a>                                        range: Some(
+<a href=#1178 id=1178 data-nosnippet>1178</a>                                            (
+<a href=#1179 id=1179 data-nosnippet>1179</a>                                                197,
+<a href=#1180 id=1180 data-nosnippet>1180</a>                                                200,
+<a href=#1181 id=1181 data-nosnippet>1181</a>                                            ),
+<a href=#1182 id=1182 data-nosnippet>1182</a>                                        ),
+<a href=#1183 id=1183 data-nosnippet>1183</a>                                    },
+<a href=#1184 id=1184 data-nosnippet>1184</a>                                ],
+<a href=#1185 id=1185 data-nosnippet>1185</a>                                errors: [],
+<a href=#1186 id=1186 data-nosnippet>1186</a>                                original_length: Some(
+<a href=#1187 id=1187 data-nosnippet>1187</a>                                    203,
+<a href=#1188 id=1188 data-nosnippet>1188</a>                                ),
+<a href=#1189 id=1189 data-nosnippet>1189</a>                                original_value: None,
+<a href=#1190 id=1190 data-nosnippet>1190</a>                            },
+<a href=#1191 id=1191 data-nosnippet>1191</a>                        ),
+<a href=#1192 id=1192 data-nosnippet>1192</a>                        "bar",
+<a href=#1193 id=1193 data-nosnippet>1193</a>                    ),
+<a href=#1194 id=1194 data-nosnippet>1194</a>                ],
+<a href=#1195 id=1195 data-nosnippet>1195</a>            ),
+<a href=#1196 id=1196 data-nosnippet>1196</a>        )
+<a href=#1197 id=1197 data-nosnippet>1197</a>        "###</span>);
+<a href=#1198 id=1198 data-nosnippet>1198</a>    }
+<a href=#1199 id=1199 data-nosnippet>1199</a>}</code></pre></div></section></main></body></html>
