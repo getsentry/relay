@@ -517,7 +517,7 @@ def envelope_with_spans(
     envelope.add_item(
         Item(
             type="span",
-            headers={"metrics_extracted": metrics_extracted, "item_count": 2},
+            headers={"metrics_extracted": metrics_extracted, "item_count": 3},
             content_type="application/vnd.sentry.items.span.v2+json",
             payload=PayloadRef(
                 json={
@@ -590,6 +590,24 @@ def envelope_with_spans(
                                 "sentry.segment.id": {
                                     "type": "string",
                                     "value": "b0429c44b67a3eb2",
+                                },
+                            },
+                        },
+                        {
+                            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+                            "span_id": "c342abb1214ca183",
+                            "name": "my span with unknown_error",
+                            "status": "unknown_error",
+                            "start_timestamp": start.timestamp(),
+                            "end_timestamp": end.timestamp(),
+                            "attributes": {
+                                "sentry.category": {
+                                    "type": "string",
+                                    "value": "http",
+                                },
+                                "sentry.exclusive_time": {
+                                    "type": "double",
+                                    "value": int((end - start).total_seconds() * 1e3),
                                 },
                             },
                         },
@@ -787,7 +805,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = spans_consumer.get_spans(timeout=10.0, n=8)
+    spans = spans_consumer.get_spans(timeout=10.0, n=9)
 
     for span in spans:
         span.pop("received", None)
@@ -854,7 +872,6 @@ def test_span_ingestion(
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Chrome",
                 "sentry.op": "default",
-                "sentry.status": "unknown",
             },
             "description": "my 1st V2 span",
             "downsampled_retention_days": 90,
@@ -880,7 +897,6 @@ def test_span_ingestion(
                 "category": "db",
                 "name": "my 1st V2 span",
                 "op": "default",
-                "status": "unknown",
             },
             "span_id": "a342abb1214ca182",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
@@ -1000,6 +1016,44 @@ def test_span_ingestion(
             "start_timestamp_precise": start.timestamp(),
             "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+        {
+            "data": {
+                "browser.name": "Chrome",
+                "client.address": "127.0.0.1",
+                "sentry.category": "http",
+                "sentry.name": "my span with unknown_error",
+                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/111.0.0.0 Safari/537.36",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Chrome",
+                "sentry.op": "default",
+                "sentry.status": "unknown",
+            },
+            "description": "my span with unknown_error",
+            "downsampled_retention_days": 90,
+            "duration_ms": 500,
+            "exclusive_time_ms": 500.0,
+            "is_segment": True,
+            "is_remote": False,
+            "organization_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
+            "segment_id": "c342abb1214ca183",
+            "sentry_tags": {
+                "browser.name": "Chrome",
+                "category": "http",
+                "name": "my span with unknown_error",
+                "op": "default",
+                "status": "unknown",
+            },
+            "span_id": "c342abb1214ca183",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
         },
         {
             "data": {
