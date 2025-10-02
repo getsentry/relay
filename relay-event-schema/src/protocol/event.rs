@@ -204,7 +204,7 @@ pub struct Event {
     ///
     /// For example, in a web app, this might be the route name (`"/users/<username>/"` or
     /// `UserView`), in a task queue it might be the function + module name.
-    #[metastructure(max_chars = 200, trim_whitespace = true)]
+    #[metastructure(max_chars = 200, trim_whitespace = true, pii = "maybe")]
     pub transaction: Annotated<String>,
 
     /// Additional information about the name of the transaction.
