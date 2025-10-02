@@ -109,7 +109,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
             .into(),
         status: Annotated::map_value(status, span_v1_status_to_span_v2_status)
             .or_else(|| SpanV2Status::Ok.into()),
-        is_remote,
+        is_remote: is_remote.or_else(|| false.into()),
         kind,
         start_timestamp,
         end_timestamp: timestamp,
