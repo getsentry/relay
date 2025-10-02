@@ -129,6 +129,7 @@ impl Item {
                 (DataCategory::LogByte, self.len().max(1)),
                 (DataCategory::LogItem, item_count)
             ],
+            ItemType::TraceMetric => smallvec![(DataCategory::TraceMetric, item_count)],
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![(DataCategory::UserReportV2, item_count)],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, item_count)],
@@ -450,6 +451,8 @@ impl Item {
             // future and break down different types of integrations here, similar to attachments.
             ItemType::Integration => false,
 
+            ItemType::TraceMetric => false,
+
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
             ItemType::Unknown(_) => false,
@@ -481,6 +484,7 @@ impl Item {
             ItemType::CheckIn => false,
             ItemType::Span => false,
             ItemType::Log => false,
+            ItemType::TraceMetric => false,
             ItemType::OtelSpan => false,
             ItemType::OtelTracesData => false,
             ItemType::ProfileChunk => false,
@@ -555,6 +559,8 @@ pub enum ItemType {
     CheckIn,
     /// A log for the log product, not internal logs.
     Log,
+    /// A trace metric item.
+    TraceMetric,
     /// A standalone span.
     Span,
     /// A standalone OpenTelemetry span serialized as JSON.
@@ -621,6 +627,7 @@ impl ItemType {
             Self::ReplayVideo => "replay_video",
             Self::CheckIn => "check_in",
             Self::Log => "log",
+            Self::TraceMetric => "metric",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
             Self::OtelTracesData => "otel_traces_data",
@@ -681,6 +688,7 @@ impl ItemType {
             ItemType::ReplayVideo => false,
             ItemType::CheckIn => true,
             ItemType::Log => true,
+            ItemType::TraceMetric => true,
             ItemType::Span => true,
             ItemType::OtelSpan => true,
             ItemType::OtelTracesData => false,
@@ -724,6 +732,7 @@ impl std::str::FromStr for ItemType {
             "replay_video" => Self::ReplayVideo,
             "check_in" => Self::CheckIn,
             "log" => Self::Log,
+            "metric" | "trace_metric" => Self::TraceMetric,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
             "otel_traces_data" => Self::OtelTracesData,
