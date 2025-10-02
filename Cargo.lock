@@ -3656,7 +3656,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.15"
+version = "0.9.16"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3789,6 +3789,7 @@ dependencies = [
  "relay-protocol",
  "relay-quotas",
  "relay-sampling",
+ "sentry_protos",
  "serde",
  "serde_json",
  "similar-asserts",
@@ -4786,9 +4787,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "2.1.1"
+version = "2.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9f3a669a7e34855a4ab0bf3698383adf78de4a723e7a845af374be2ae935519"
+checksum = "a8757c054b3dd24d457fb4b0f63a42eac257ec25640f2bdc66332f6f5956be3f"
 dependencies = [
  "jsonschema",
  "prost",

@@ -52,6 +52,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
+use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
@@ -96,7 +97,6 @@ mod profile;
 mod profile_chunk;
 mod replay;
 mod report;
-mod session;
 mod span;
 pub use span::extract_transaction_span;
 
@@ -131,7 +131,7 @@ macro_rules! if_processing {
 }
 
 /// The minimum clock drift for correction to apply.
-const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
+pub const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
 #[derive(Debug)]
 pub struct GroupTypeError;
@@ -1196,6 +1196,7 @@ struct Processing {
     logs: LogsProcessor,
     spans: SpansProcessor,
     check_ins: CheckInsProcessor,
+    sessions: SessionsProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1280,7 +1281,8 @@ impl EnvelopeProcessorService {
             processing: Processing {
                 logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
                 spans: SpansProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
-                check_ins: CheckInsProcessor::new(quota_limiter),
+                check_ins: CheckInsProcessor::new(Arc::clone(&quota_limiter)),
+                sessions: SessionsProcessor::new(quota_limiter),
             },
             geoip_lookup,
             config,
@@ -1825,6 +1827,12 @@ impl EnvelopeProcessorService {
             false => SamplingResult::Pending,
         };
 
+        relay_statsd::metric!(
+            counter(RelayCounters::SamplingDecision) += 1,
+            decision = sampling_result.decision().as_str(),
+            item = "transaction"
+        );
+
         #[cfg(feature = "processing")]
         let server_sample_rate = sampling_result.sample_rate();
 
@@ -2018,36 +2026,6 @@ impl EnvelopeProcessorService {
 
         report::process_user_reports(managed_envelope);
         attachment::scrub(managed_envelope, project_info);
-
-        Ok(Some(extracted_metrics))
-    }
-
-    /// Processes user sessions.
-    async fn process_sessions(
-        &self,
-        managed_envelope: &mut TypedEnvelope<SessionGroup>,
-        config: &Config,
-        project_info: &ProjectInfo,
-        rate_limits: &RateLimits,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        session::process(
-            managed_envelope,
-            &self.inner.global_config.current(),
-            config,
-            &mut extracted_metrics,
-            project_info,
-        );
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            project_info,
-            rate_limits,
-        )
-        .await?;
 
         Ok(Some(extracted_metrics))
     }
@@ -2307,12 +2285,10 @@ impl EnvelopeProcessorService {
                     reservoir_counters
                 )
             }
-            ProcessingGroup::Session => run!(
-                process_sessions,
-                &self.inner.config.clone(),
-                &project_info,
-                &rate_limits
-            ),
+            ProcessingGroup::Session => {
+                self.process_with_processor(&self.inner.processing.sessions, managed_envelope, ctx)
+                    .await
+            }
             ProcessingGroup::Standalone => run!(
                 process_standalone,
                 self.inner.config.clone(),
