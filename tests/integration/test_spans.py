@@ -517,7 +517,7 @@ def envelope_with_spans(
     envelope.add_item(
         Item(
             type="span",
-            headers={"metrics_extracted": metrics_extracted, "item_count": 2},
+            headers={"metrics_extracted": metrics_extracted, "item_count": 3},
             content_type="application/vnd.sentry.items.span.v2+json",
             payload=PayloadRef(
                 json={
@@ -590,6 +590,24 @@ def envelope_with_spans(
                                 "sentry.segment.id": {
                                     "type": "string",
                                     "value": "b0429c44b67a3eb2",
+                                },
+                            },
+                        },
+                        {
+                            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+                            "span_id": "c342abb1214ca183",
+                            "name": "my span with unknown_error",
+                            "status": "unknown_error",
+                            "start_timestamp": start.timestamp(),
+                            "end_timestamp": end.timestamp(),
+                            "attributes": {
+                                "sentry.category": {
+                                    "type": "string",
+                                    "value": "http",
+                                },
+                                "sentry.exclusive_time": {
+                                    "type": "double",
+                                    "value": int((end - start).total_seconds() * 1e3),
                                 },
                             },
                         },
@@ -787,7 +805,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = spans_consumer.get_spans(timeout=10.0, n=8)
+    spans = spans_consumer.get_spans(timeout=10.0, n=9)
 
     for span in spans:
         span.pop("received", None)
@@ -808,7 +826,6 @@ def test_span_ingestion(
                 # Backfilled from `sentry_tags`:
                 "sentry.op": "default",
                 "sentry.browser.name": "Chrome",
-                "sentry.status": "unknown",
             },
             "description": "my 1st OTel span",
             "downsampled_retention_days": 90,
@@ -834,13 +851,20 @@ def test_span_ingestion(
                 "category": "db",
                 "name": "my 1st OTel span",
                 "op": "default",
-                "status": "unknown",
             },
             "span_id": "a342abb1214ca181",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "start_timestamp_precise": start.timestamp(),
             "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "_meta": {
+                "status": {
+                    "": {
+                        "err": [["invalid_data", {"reason": "expected a trace status"}]],
+                        "val": "unknown",
+                    }
+                }
+            },
         },
         {
             "data": {
@@ -854,7 +878,6 @@ def test_span_ingestion(
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Chrome",
                 "sentry.op": "default",
-                "sentry.status": "unknown",
             },
             "description": "my 1st V2 span",
             "downsampled_retention_days": 90,
@@ -880,7 +903,6 @@ def test_span_ingestion(
                 "category": "db",
                 "name": "my 1st V2 span",
                 "op": "default",
-                "status": "unknown",
             },
             "span_id": "a342abb1214ca182",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
@@ -1005,6 +1027,44 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
+                "sentry.category": "http",
+                "sentry.name": "my span with unknown_error",
+                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/111.0.0.0 Safari/537.36",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Chrome",
+                "sentry.op": "default",
+                "sentry.status": "unknown",
+            },
+            "description": "my span with unknown_error",
+            "downsampled_retention_days": 90,
+            "duration_ms": 500,
+            "exclusive_time_ms": 500.0,
+            "is_segment": True,
+            "is_remote": False,
+            "organization_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
+            "segment_id": "c342abb1214ca183",
+            "sentry_tags": {
+                "browser.name": "Chrome",
+                "category": "http",
+                "name": "my span with unknown_error",
+                "op": "default",
+                "status": "unknown",
+            },
+            "span_id": "c342abb1214ca183",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+        },
+        {
+            "data": {
+                "browser.name": "Chrome",
+                "client.address": "127.0.0.1",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -1044,7 +1104,6 @@ def test_span_ingestion(
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "default",
-                "sentry.status": "unknown",
             },
             "description": "my 2nd OTel span",
             "downsampled_retention_days": 90,
@@ -1072,13 +1131,20 @@ def test_span_ingestion(
                 "browser.name": "Python Requests",
                 "name": "my 2nd OTel span",
                 "op": "default",
-                "status": "unknown",
             },
             "span_id": "d342abb1214ca182",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "start_timestamp_precise": start.timestamp(),
             "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+            "_meta": {
+                "status": {
+                    "": {
+                        "err": [["invalid_data", {"reason": "expected a trace status"}]],
+                        "val": "unknown",
+                    }
+                }
+            },
         },
         {
             "data": {
@@ -1124,7 +1190,6 @@ def test_span_ingestion(
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "default",
                 "sentry.category": "ui",
-                "sentry.status": "unknown",
             },
             "description": "my 3rd protobuf OTel span",
             "downsampled_retention_days": 90,
@@ -1153,13 +1218,20 @@ def test_span_ingestion(
                 "name": "my 3rd protobuf OTel span",
                 "op": "default",
                 "category": "ui",
-                "status": "unknown",
             },
             "span_id": "f0b809703e783d00",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "start_timestamp_precise": start.timestamp(),
             "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+            "_meta": {
+                "status": {
+                    "": {
+                        "err": [["invalid_data", {"reason": "expected a trace status"}]],
+                        "val": "unknown",
+                    }
+                }
+            },
         },
     ]
 
@@ -1250,6 +1322,7 @@ def assert_contains(span, expected_span):
         "measurements",
         "tags",
         "sentry_tags",
+        "_meta",
     }
 
     # These keys are mapped by the segment consumer, so we have to verify
@@ -1865,7 +1938,7 @@ def test_rate_limit_indexed_consistent(
     project_config["config"]["quotas"] = [
         {
             "categories": ["span_indexed"],
-            "limit": 6,
+            "limit": 7,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "indexed_exceeded",
@@ -1888,13 +1961,13 @@ def test_rate_limit_indexed_consistent(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(n=6, timeout=10)
-    assert len(spans) == 6
-    assert summarize_outcomes() == {(16, 0): 6}  # SpanIndexed, Accepted
+    spans = spans_consumer.get_spans(n=7, timeout=10)
+    assert len(spans) == 7
+    assert summarize_outcomes() == {(16, 0): 7}  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    assert summarize_outcomes() == {(16, 2): 6}  # SpanIndexed, RateLimited
+    assert summarize_outcomes() == {(16, 2): 7}  # SpanIndexed, RateLimited
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
@@ -2037,7 +2110,7 @@ def test_rate_limit_spans_in_envelope(
 
     relay.send_envelope(project_id, envelope)
 
-    assert summarize_outcomes() == {(12, 2): 6, (16, 2): 6}
+    assert summarize_outcomes() == {(12, 2): 7, (16, 2): 7}
 
     # We emit transaction metrics from spans for legacy reasons. These are not rate limited.
     # (could be a bug)
@@ -2373,14 +2446,14 @@ def test_dynamic_sampling(
         return counter
 
     if sample_rate == 1.0:
-        spans = spans_consumer.get_spans(timeout=10, n=6)
-        assert len(spans) == 6
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=6)
-        assert summarize_outcomes(outcomes) == {(16, 0): 6}  # SpanIndexed, Accepted
+        spans = spans_consumer.get_spans(timeout=10, n=7)
+        assert len(spans) == 7
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=7)
+        assert summarize_outcomes(outcomes) == {(16, 0): 7}  # SpanIndexed, Accepted
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
         assert summarize_outcomes(outcomes) == {
-            (16, 1): 6,  # SpanIndexed, Filtered
+            (16, 1): 7,  # SpanIndexed, Filtered
         }
         assert {o["reason"] for o in outcomes} == {
             "Sampled:3000",
@@ -2549,7 +2622,6 @@ def test_scrubs_ip_addresses(
             "sentry.name": "hi",
             "sentry.op": "hi",
             "sentry.platform": "other",
-            "sentry.status": "unknown",
             "sentry.trace.status": "unknown",
             "sentry.transaction": "hi",
             "sentry.transaction.op": "hi",
@@ -2577,7 +2649,6 @@ def test_scrubs_ip_addresses(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
-            "status": "unknown",
             "trace.status": "unknown",
             "transaction": "hi",
             "transaction.op": "hi",
