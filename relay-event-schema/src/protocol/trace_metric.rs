@@ -36,6 +36,8 @@ pub struct TraceMetric {
     pub unit: Annotated<MetricUnit>,
 
     /// The metric value. Should be constrained to a number.
+    ///
+    /// pii="maybe" because it might make sense to apply the `[Hash]` conversion to set values in the future. 
     #[metastructure(pii = "maybe", required = true, trim = false)]
     pub value: Annotated<Value>,
 
