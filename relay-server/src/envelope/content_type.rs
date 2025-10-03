@@ -31,8 +31,6 @@ pub enum ContentType {
     LogContainer,
     /// `application/vnd.sentry.items.span.v2+json`
     SpanV2Container,
-    /// Internal, not serialized.
-    CompatSpan,
     /// All integration content types.
     Integration(Integration),
     /// Any arbitrary content type not listed explicitly.
@@ -53,7 +51,6 @@ impl ContentType {
             Self::Protobuf => "application/x-protobuf",
             Self::LogContainer => "application/vnd.sentry.items.log+json",
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
-            Self::CompatSpan => panic!("must not be serialized"),
             Self::Integration(integration) => integration.as_content_type(),
             Self::Other(other) => other,
         }

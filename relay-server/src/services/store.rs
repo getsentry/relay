@@ -352,26 +352,16 @@ impl StoreService {
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
                 ItemType::Span if content_type == Some(&ContentType::Json) => {
-                    relay_log::error!("Store producer received legacy span");
-                    self.outcome_aggregator.send(TrackOutcome {
-                        category: DataCategory::SpanIndexed,
-                        event_id: None,
-                        outcome: Outcome::Invalid(DiscardReason::Internal),
-                        quantity: 1,
-                        remote_addr: None,
-                        scoping,
-                        timestamp: received_at,
-                    });
-                }
-                ItemType::Span if content_type == Some(&ContentType::CompatSpan) => self
-                    .produce_span(
+                    // TODO: verify span V2 here.
+                    self.produce_span(
                         scoping,
                         received_at,
                         event_id,
                         retention,
                         downsampled_retention,
                         item,
-                    )?,
+                    )?
+                }
                 ty @ ItemType::Log => {
                     debug_assert!(
                         false,
@@ -1013,7 +1003,8 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         debug_assert_eq!(item.ty(), &ItemType::Span);
-        debug_assert_eq!(item.content_type(), Some(&ContentType::CompatSpan));
+        debug_assert_eq!(item.content_type(), Some(&ContentType::Json));
+        // TODO: verify V2 here.
 
         let Scoping {
             organization_id,
