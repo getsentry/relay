@@ -13,6 +13,7 @@ use crate::services::processor::{
     TransactionGroup, dynamic_sampling, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
+use crate::statsd::RelayCounters;
 use crate::utils;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
@@ -73,6 +74,12 @@ pub async fn process(
         reservoir_counters,
     )
     .await;
+
+    relay_statsd::metric!(
+        counter(RelayCounters::SamplingDecision) += 1,
+        decision = sampling_result.decision().as_str(),
+        item = "span"
+    );
 
     let span_metrics_extraction_config = match project_info.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
