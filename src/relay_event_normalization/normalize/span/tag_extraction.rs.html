@@ -15,8 +15,8 @@
 <a href=#15 id=15 data-nosnippet>15</a>};
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>relay_protocol::{Annotated, Empty, FiniteF64, Value};
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>relay_spans::name_for_span;
-<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>sqlparser::ast::Visit;
-<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
+<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>sqlparser::ast::{ObjectNamePart, Visit};
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>url::Url;
 <a href=#21 id=21 data-nosnippet>21</a>
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::GeoIpLookup;
@@ -1343,7 +1343,7 @@
 <a href=#1343 id=1343 data-nosnippet>1343</a>    <span class="kw">type </span>Break = ();
 <a href=#1344 id=1344 data-nosnippet>1344</a>
 <a href=#1345 id=1345 data-nosnippet>1345</a>    <span class="kw">fn </span>pre_visit_relation(<span class="kw-2">&amp;mut </span><span class="self">self</span>, relation: <span class="kw-2">&amp;</span>ObjectName) -&gt; ControlFlow&lt;<span class="self">Self</span>::Break&gt; {
-<a href=#1346 id=1346 data-nosnippet>1346</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = relation.<span class="number">0</span>.last() {
+<a href=#1346 id=1346 data-nosnippet>1346</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = relation.<span class="number">0</span>.last().and_then(ObjectNamePart::as_ident) {
 <a href=#1347 id=1347 data-nosnippet>1347</a>            <span class="kw">let </span>last = name.value.split(<span class="string">'.'</span>).next_back().unwrap_or(<span class="kw-2">&amp;</span>name.value);
 <a href=#1348 id=1348 data-nosnippet>1348</a>            <span class="self">self</span>.table_names.insert(last.to_lowercase());
 <a href=#1349 id=1349 data-nosnippet>1349</a>        }

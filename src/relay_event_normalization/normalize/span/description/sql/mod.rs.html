@@ -245,7 +245,7 @@
 <a href=#245 id=245 data-nosnippet>245</a>        unparameterized_ins_odbc_escape_sequence,
 <a href=#246 id=246 data-nosnippet>246</a>        <span class="comment">// See https://learn.microsoft.com/en-us/sql/odbc/reference/appendixes/date-time-and-timestamp-escape-sequences
 <a href=#247 id=247 data-nosnippet>247</a>        </span><span class="string">"INSERT INTO a VALUES (123, {ts '2023-12-31 23:59:59.123'}, 'foo', N'bar')"</span>,
-<a href=#248 id=248 data-nosnippet>248</a>        <span class="string">"INSERT INTO a VALUES (%s)"
+<a href=#248 id=248 data-nosnippet>248</a>        <span class="string">"INSERT INTO a (..) VALUES (%s)"
 <a href=#249 id=249 data-nosnippet>249</a>    </span>);
 <a href=#250 id=250 data-nosnippet>250</a>
 <a href=#251 id=251 data-nosnippet>251</a>    <span class="macro">scrub_sql_test!</span>(
@@ -427,7 +427,7 @@
 <a href=#427 id=427 data-nosnippet>427</a>    <span class="macro">scrub_sql_test!</span>(
 <a href=#428 id=428 data-nosnippet>428</a>        fetch_cursor,
 <a href=#429 id=429 data-nosnippet>429</a>        <span class="string">"FETCH LAST FROM curs3 INTO x"</span>,
-<a href=#430 id=430 data-nosnippet>430</a>        <span class="string">"FETCH LAST IN %s INTO %s"
+<a href=#430 id=430 data-nosnippet>430</a>        <span class="string">"FETCH LAST FROM %s INTO %s"
 <a href=#431 id=431 data-nosnippet>431</a>    </span>);
 <a href=#432 id=432 data-nosnippet>432</a>
 <a href=#433 id=433 data-nosnippet>433</a>    <span class="macro">scrub_sql_test!</span>(close_cursor, <span class="string">"CLOSE curs1"</span>, <span class="string">"CLOSE %s"</span>);
@@ -699,7 +699,7 @@
 <a href=#699 id=699 data-nosnippet>699</a>            ) srpe
 <a href=#700 id=700 data-nosnippet>700</a>            inner join foo on foo.id = foo_id
 <a href=#701 id=701 data-nosnippet>701</a>        "</span>,
-<a href=#702 id=702 data-nosnippet>702</a>        <span class="string">"SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe JOIN foo ON id = foo_id"
+<a href=#702 id=702 data-nosnippet>702</a>        <span class="string">"SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe INNER JOIN foo ON id = foo_id"
 <a href=#703 id=703 data-nosnippet>703</a>    </span>);
 <a href=#704 id=704 data-nosnippet>704</a>
 <a href=#705 id=705 data-nosnippet>705</a>    <span class="macro">scrub_sql_test!</span>(
@@ -978,7 +978,7 @@
 <a href=#978 id=978 data-nosnippet>978</a>    <span class="macro">scrub_sql_test!</span>(
 <a href=#979 id=979 data-nosnippet>979</a>        fallback_hex,
 <a href=#980 id=980 data-nosnippet>980</a>        <span class="string">r#"SELECT {ts '2023-12-24 23:59'}, 0x123456789AbCdEf"#</span>,
-<a href=#981 id=981 data-nosnippet>981</a>        <span class="string">"SELECT %s, %s"
+<a href=#981 id=981 data-nosnippet>981</a>        <span class="string">"SELECT {ts %s}, %s"
 <a href=#982 id=982 data-nosnippet>982</a>    </span>);
 <a href=#983 id=983 data-nosnippet>983</a>
 <a href=#984 id=984 data-nosnippet>984</a>    <span class="macro">scrub_sql_test_with_dialect!</span>(
@@ -997,7 +997,7 @@
 <a href=#997 id=997 data-nosnippet>997</a>    <span class="macro">scrub_sql_test!</span>(
 <a href=#998 id=998 data-nosnippet>998</a>        create_index_hex,
 <a href=#999 id=999 data-nosnippet>999</a>        <span class="string">"CREATE INDEX name_0123456789abcdef0123456789abcdef ON table_0123456789abcdef0123456789abcdef USING gist (geometry)"</span>,
-<a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="string">"CREATE INDEX name_{%s} ON table_{%s} USING gist (geometry)"
+<a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="string">"CREATE INDEX name_{%s} ON table_{%s} USING GIST (geometry)"
 <a href=#1001 id=1001 data-nosnippet>1001</a>    </span>);
 <a href=#1002 id=1002 data-nosnippet>1002</a>
 <a href=#1003 id=1003 data-nosnippet>1003</a>    <span class="macro">scrub_sql_test!</span>(
