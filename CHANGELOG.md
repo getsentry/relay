@@ -14,6 +14,7 @@
 - Trim event tag keys & values to 200 chars instead of dropping them. ([#5198](https://github.com/getsentry/relay/pull/5198))
 - Add `sentry.origin` attribute to OTLP logs. ([#5190](https://github.com/getsentry/relay/pull/5190))
 - Add new iPhone 17 devices. ([#5203](https://github.com/getsentry/relay/pull/5203))
+- Upgrade sqlparser and improve SQL parsing for span grouping. ([#5211](https://github.com/getsentry/relay/pull/5211))
 
 **Bug Fixes**:
 
