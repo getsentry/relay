@@ -27,6 +27,7 @@ use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
 ///  - `max_container_size`
 ///  - `max_span_count`
 ///  - `max_log_count`
+///  - `max_trace_metric_size`
 pub fn check_envelope_size_limits(
     config: &Config,
     envelope: &Envelope,
@@ -39,6 +40,7 @@ pub fn check_envelope_size_limits(
     let mut span_count = 0;
     let mut log_count = 0;
     let mut client_reports_size = 0;
+    let mut trace_metric_count = 0;
 
     for item in envelope.items() {
         if item.is_container() && item.len() > config.max_container_size() {
@@ -78,6 +80,10 @@ pub fn check_envelope_size_limits(
             ItemType::Log => {
                 log_count += item.item_count().unwrap_or(1) as usize;
                 config.max_log_size()
+            }
+            ItemType::TraceMetric => {
+                trace_metric_count += item.item_count().unwrap_or(1) as usize;
+                config.max_trace_metric_size()
             }
             ItemType::Span | ItemType::OtelSpan => {
                 span_count += item.item_count().unwrap_or(1) as usize;
@@ -123,6 +129,9 @@ pub fn check_envelope_size_limits(
     }
     if log_count > config.max_log_count() {
         return Err(DiscardItemType::Log);
+    }
+    if trace_metric_count > config.max_trace_metric_count() {
+        return Err(DiscardItemType::TraceMetric);
     }
     if client_reports_size > config.max_client_reports_size() {
         return Err(DiscardItemType::ClientReport);

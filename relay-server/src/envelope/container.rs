@@ -284,6 +284,13 @@ impl ContainerItem for relay_event_schema::protocol::SpanV2 {
     type Header = NoHeader;
 }
 
+impl ContainerItem for relay_event_schema::protocol::TraceMetric {
+    const ITEM_TYPE: ItemType = ItemType::TraceMetric;
+    const CONTENT_TYPE: ContentType = ContentType::TraceMetricContainer;
+
+    type Header = NoHeader;
+}
+
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
