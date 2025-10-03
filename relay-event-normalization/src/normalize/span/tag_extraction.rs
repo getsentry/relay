@@ -15,8 +15,8 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Empty, FiniteF64, Value};
 use relay_spans::name_for_span;
-use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
+use sqlparser::ast::{ObjectNamePart, Visit};
 use url::Url;
 
 use crate::GeoIpLookup;
@@ -1343,7 +1343,7 @@ impl Visitor for SqlTableNameVisitor {
     type Break = ();
 
     fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
-        if let Some(name) = relation.0.last() {
+        if let Some(name) = relation.0.last().and_then(ObjectNamePart::as_ident) {
             let last = name.value.split('.').next_back().unwrap_or(&name.value);
             self.table_names.insert(last.to_lowercase());
         }
