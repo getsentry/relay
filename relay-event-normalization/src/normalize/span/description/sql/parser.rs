@@ -137,7 +137,7 @@ impl NormalizeVisitor {
             let item = match item {
                 SelectItem::ExprWithAlias { expr, .. } => SelectItem::UnnamedExpr(expr),
                 SelectItem::QualifiedWildcard(_, options) => SelectItem::Wildcard(options),
-                _ => dbg!(item),
+                _ => item,
             };
             if Self::is_collapsible(&item) {
                 collapse.push(item);

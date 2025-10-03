@@ -13,6 +13,7 @@
 - Emit a metric to record keep/drop decisions in Dynamic Sampling. ([#5164](https://github.com/getsentry/relay/pull/5164), [#5204](https://github.com/getsentry/relay/pull/5204))
 - Trim event tag keys & values to 200 chars instead of dropping them. ([#5198](https://github.com/getsentry/relay/pull/5198))
 - Add `sentry.origin` attribute to OTLP logs. ([#5190](https://github.com/getsentry/relay/pull/5190))
+- Upgrade sqlparser and improve SQL parsing for span grouping. ([#5211](https://github.com/getsentry/relay/pull/5211))
 
 **Bug Fixes**:
 
