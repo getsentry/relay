@@ -135,11 +135,9 @@ impl NormalizeVisitor {
         for item in std::mem::take(&mut select.projection) {
             // Normalize aliases.
             let item = match item {
-                // Remove alias.
                 SelectItem::ExprWithAlias { expr, .. } => SelectItem::UnnamedExpr(expr),
-                // Strip prefix, e.g. `"mytable".*`.
                 SelectItem::QualifiedWildcard(_, options) => SelectItem::Wildcard(options),
-                _ => item,
+                _ => dbg!(item),
             };
             if Self::is_collapsible(&item) {
                 collapse.push(item);
@@ -225,6 +223,11 @@ impl VisitorMut for NormalizeVisitor {
         ControlFlow::Continue(())
     }
 
+    fn pre_visit_value(&mut self, value: &mut Value) -> ControlFlow<Self::Break> {
+        *value = Value::Placeholder("%s".into());
+        ControlFlow::Continue(())
+    }
+
     fn pre_visit_table_factor(
         &mut self,
         table_factor: &mut TableFactor,
@@ -280,14 +283,13 @@ impl VisitorMut for NormalizeVisitor {
                 Self::simplify_table_alias(alias);
             }
             TableFactor::Unpivot {
-                value,
                 name,
                 columns,
                 alias,
                 ..
             } => {
                 Self::scrub_name(name);
-                for ExprWithAlias { expr, alias } in columns {
+                for ExprWithAlias { expr: _, alias } in columns {
                     if let Some(alias) = alias {
                         Self::scrub_name(alias);
                     }
@@ -296,9 +298,9 @@ impl VisitorMut for NormalizeVisitor {
             }
             // Not altering the following directly, might revisit later:
             TableFactor::OpenJsonTable { .. } => {}
-            TableFactor::MatchRecognize { .. } => todo!(),
-            TableFactor::XmlTable { .. } => todo!(),
-            TableFactor::SemanticView { .. } => todo!(),
+            TableFactor::MatchRecognize { .. } => {}
+            TableFactor::XmlTable { .. } => {}
+            TableFactor::SemanticView { .. } => {}
         }
         ControlFlow::Continue(())
     }
@@ -509,25 +511,22 @@ impl VisitorMut for NormalizeVisitor {
                                 }
                             }
                             TableConstraint::PrimaryKey {
-                                name,
-                                index_name,
-                                index_type,
-                                columns,
-                                index_options,
-                                characteristics,
-                            } => todo!(),
+                                name, index_name, ..
+                            } => {
+                                if let Some(name) = name {
+                                    Self::scrub_name(name);
+                                }
+                                if let Some(name) = index_name {
+                                    Self::scrub_name(name);
+                                }
+                            }
                         },
                         AlterTableOperation::AddColumn { column_def, .. } => {
                             let ColumnDef { name, .. } = column_def;
                             Self::scrub_name(name);
                         }
                         AlterTableOperation::DropConstraint { name, .. } => Self::scrub_name(name),
-                        AlterTableOperation::DropColumn {
-                            has_column_keyword,
-                            column_names,
-                            if_exists,
-                            drop_behavior,
-                        } => {
+                        AlterTableOperation::DropColumn { column_names, .. } => {
                             for column_name in column_names {
                                 Self::scrub_name(column_name);
                             }
@@ -575,17 +574,8 @@ impl VisitorMut for NormalizeVisitor {
                 files,
                 pattern,
                 validation_mode,
-                kind,
-                into,
-                into_columns,
                 from_obj,
-                from_obj_alias,
-                stage_params,
-                from_transformations,
-                from_query,
-                file_format,
-                copy_options,
-                partition,
+                ..
             } => {
                 if let Some(from_obj) = from_obj {
                     Self::simplify_object_name(&mut from_obj.0);
@@ -614,21 +604,7 @@ impl VisitorMut for NormalizeVisitor {
                 Self::scrub_name(module_name);
                 Self::simplify_compound_identifier(module_args);
             }
-            Statement::CreateIndex(CreateIndex {
-                name,
-                table_name,
-                using,
-                columns,
-                unique,
-                concurrently,
-                if_not_exists,
-                include,
-                nulls_distinct,
-                with,
-                predicate,
-                index_options,
-                alter_options,
-            }) => {
+            Statement::CreateIndex(CreateIndex { name, include, .. }) => {
                 // `table_name` is visited by `visit_relation`, but `name` is not.
                 if let Some(name) = name {
                     Self::simplify_object_name(&mut name.0);
@@ -659,24 +635,12 @@ impl VisitorMut for NormalizeVisitor {
             Statement::ShowVariable { variable } => Self::simplify_compound_identifier(variable),
             Statement::ShowVariables { filter, .. } => Self::scrub_statement_filter(filter),
             Statement::ShowCreate { .. } => {}
-            Statement::ShowColumns {
-                extended,
-                full,
-                show_options,
-            } => {}
-            Statement::ShowTables {
-                terse,
-                history,
-                extended,
-                full,
-                external,
-                show_options,
-            } => {}
+            Statement::ShowColumns { .. } => {}
+            Statement::ShowTables { .. } => {}
             Statement::ShowCollation { filter } => Self::scrub_statement_filter(filter),
             Statement::Use(
                 Use::Database(db_name)
                 | Use::Catalog(db_name)
-                | Use::Database(db_name)
                 | Use::Schema(db_name)
                 | Use::Role(db_name)
                 | Use::Warehouse(db_name),
@@ -772,139 +736,7 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Unload { to, .. } => {
                 Self::scrub_name(to);
             }
-            Statement::Set(set) => todo!(),
-            Statement::Case(case_statement) => todo!(),
-            Statement::If(if_statement) => todo!(),
-            Statement::While(while_statement) => todo!(),
-            Statement::Raise(raise_statement) => todo!(),
-            Statement::Open(open_statement) => todo!(),
-            Statement::CreateSecret {
-                or_replace,
-                temporary,
-                if_not_exists,
-                name,
-                storage_specifier,
-                secret_type,
-                options,
-            } => todo!(),
-            Statement::CreateServer(create_server_statement) => todo!(),
-            Statement::CreatePolicy {
-                name,
-                table_name,
-                policy_type,
-                command,
-                to,
-                using,
-                with_check,
-            } => todo!(),
-            Statement::CreateConnector(create_connector) => todo!(),
-            Statement::AlterSchema(alter_schema) => todo!(),
-            Statement::AlterType(alter_type) => todo!(),
-            Statement::AlterPolicy {
-                name,
-                table_name,
-                operation,
-            } => todo!(),
-            Statement::AlterConnector {
-                name,
-                properties,
-                url,
-                owner,
-            } => todo!(),
-            Statement::AlterSession {
-                set,
-                session_params,
-            } => todo!(),
-            Statement::AttachDuckDBDatabase {
-                if_not_exists,
-                database,
-                database_path,
-                database_alias,
-                attach_options,
-            } => todo!(),
-            Statement::DetachDuckDBDatabase {
-                if_exists,
-                database,
-                database_alias,
-            } => todo!(),
-            Statement::DropDomain(drop_domain) => todo!(),
-            Statement::DropProcedure {
-                if_exists,
-                proc_desc,
-                drop_behavior,
-            } => todo!(),
-            Statement::DropSecret {
-                if_exists,
-                temporary,
-                name,
-                storage_specifier,
-            } => todo!(),
-            Statement::DropPolicy {
-                if_exists,
-                name,
-                table_name,
-                drop_behavior,
-            } => todo!(),
-            Statement::DropConnector { if_exists, name } => todo!(),
-            Statement::DropExtension {
-                names,
-                if_exists,
-                cascade_or_restrict,
-            } => todo!(),
-            Statement::ShowDatabases {
-                terse,
-                history,
-                show_options,
-            } => todo!(),
-            Statement::ShowSchemas {
-                terse,
-                history,
-                show_options,
-            } => todo!(),
-            Statement::ShowCharset(show_charset) => todo!(),
-            Statement::ShowObjects(show_objects) => todo!(),
-            Statement::ShowViews {
-                terse,
-                materialized,
-                show_options,
-            } => todo!(),
-            Statement::CreateTrigger(create_trigger) => todo!(),
-            Statement::DropTrigger(drop_trigger) => todo!(),
-            Statement::Deny(deny_statement) => todo!(),
-            Statement::CreateDomain(create_domain) => todo!(),
-            Statement::OptimizeTable {
-                name,
-                on_cluster,
-                partition,
-                include_final,
-                deduplicate,
-            } => todo!(),
-            Statement::LISTEN { channel } => todo!(),
-            Statement::UNLISTEN { channel } => todo!(),
-            Statement::NOTIFY { channel, payload } => todo!(),
-            Statement::LoadData {
-                local,
-                inpath,
-                overwrite,
-                table_name,
-                partitioned,
-                table_format,
-            } => todo!(),
-            Statement::RenameTable(rename_tables) => todo!(),
-            Statement::List(file_staging_command) => todo!(),
-            Statement::Remove(file_staging_command) => todo!(),
-            Statement::RaisError {
-                message,
-                severity,
-                state,
-                arguments,
-                options,
-            } => todo!(),
-            Statement::Print(print_statement) => todo!(),
-            Statement::Return(return_statement) => todo!(),
-            Statement::ExportData(export_data) => todo!(),
-            Statement::CreateUser(create_user) => todo!(),
-            Statement::Vacuum(vacuum_statement) => todo!(),
+            _ => {}
         }
 
         ControlFlow::Continue(())
