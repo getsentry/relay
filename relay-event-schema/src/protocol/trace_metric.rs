@@ -46,7 +46,7 @@ pub struct TraceMetric {
     pub attributes: Annotated<Attributes>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = true, pii = "maybe")]
+    #[metastructure(additional_properties, retain = false)]
     pub other: Object<Value>,
 }
 
