@@ -55,7 +55,7 @@ impl ContentType {
             Self::Protobuf => "application/x-protobuf",
             Self::LogContainer => "application/vnd.sentry.items.log+json",
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
-            Self::TraceMetricContainer => "application/vnd.sentry.items.metric+json",
+            Self::TraceMetricContainer => "application/vnd.sentry.items.trace-metric+json",
             Self::CompatSpan => panic!("must not be serialized"),
             Self::Integration(integration) => integration.as_content_type(),
             Self::Other(other) => other,
