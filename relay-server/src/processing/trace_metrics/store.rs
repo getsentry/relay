@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
-use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
+use relay_protocol::{Annotated, IntoValue, Value};
 use relay_quotas::Scoping;
-use serde::Serialize;
 use uuid::Uuid;
 
 #[cfg(feature = "processing")]
@@ -15,6 +14,7 @@ use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::WithHeader;
 use crate::processing::Counted;
+use crate::processing::common::meta_extraction::{AttributeMeta, extract_meta_attributes};
 use crate::processing::trace_metrics::{Error, Result};
 use crate::services::outcome::DiscardReason;
 
@@ -55,7 +55,7 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
     let metric = required!(metric.value);
     let timestamp = required!(metric.timestamp);
 
-    let meta = extract_meta_attributes(&metric);
+    let meta = extract_meta_attributes(&metric, &metric.attributes);
     let attrs = metric.attributes.0.unwrap_or_default();
     let fields = FieldAttributes {
         metric_name: required!(metric.name),
@@ -93,90 +93,6 @@ fn ts(dt: DateTime<Utc>) -> Timestamp {
         seconds: dt.timestamp(),
         nanos: i32::try_from(dt.timestamp_subsec_nanos()).unwrap_or(0),
     }
-}
-
-#[cfg(feature = "processing")]
-#[derive(Debug, Serialize)]
-struct AttributeMeta {
-    /// Meta as it was extracted from Relay's annotated model.
-    meta: MetaTree,
-}
-
-#[cfg(feature = "processing")]
-impl AttributeMeta {
-    fn to_any_value(&self) -> Option<AnyValue> {
-        if self.meta.is_empty() {
-            return None;
-        }
-
-        let s = serde_json::to_string(self)
-            .inspect_err(|err| {
-                relay_log::error!(
-                    error = err as &dyn std::error::Error,
-                    "attribute meta serialization failed"
-                )
-            })
-            .ok()?;
-
-        Some(AnyValue {
-            value: Some(any_value::Value::StringValue(s)),
-        })
-    }
-}
-
-#[cfg(feature = "processing")]
-fn extract_meta_attributes(metric: &TraceMetric) -> HashMap<String, AnyValue> {
-    let mut meta = IntoValue::extract_child_meta(metric);
-    let attributes = meta.remove("attributes");
-
-    let mut result = HashMap::with_capacity(
-        meta.len()
-            + attributes.as_ref().map_or(0, size_of_meta_tree)
-            + metric.attributes.value().map_or(0, |a| a.0.len()),
-    );
-
-    for (key, meta) in meta {
-        let attr = AttributeMeta { meta };
-        if let Some(value) = attr.to_any_value() {
-            let key = format!("sentry._meta.fields.{key}");
-            result.insert(key, value);
-        }
-    }
-
-    let Some(mut attributes) = attributes else {
-        return result;
-    };
-
-    for (key, meta) in std::mem::take(&mut attributes.children) {
-        let attr = AttributeMeta { meta };
-        if let Some(value) = attr.to_any_value() {
-            let key = format!("sentry._meta.fields.attributes.{key}");
-            result.insert(key, value);
-        }
-    }
-
-    let meta = AttributeMeta { meta: attributes };
-    if let Some(value) = meta.to_any_value() {
-        result.insert("sentry._meta.fields.attributes".to_owned(), value);
-    }
-
-    result
-}
-
-#[cfg(feature = "processing")]
-fn size_of_meta_tree(meta: &MetaTree) -> usize {
-    let mut size = 0;
-
-    if !meta.meta.is_empty() {
-        size += 1;
-    }
-    for meta in meta.children.values() {
-        if !meta.meta.is_empty() {
-            size += 1;
-        }
-    }
-
-    size
 }
 
 #[cfg(feature = "processing")]

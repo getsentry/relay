@@ -66,9 +66,7 @@ impl Retentions {
                     None
                 }
             }
-            TraceItemType::Metric => {
-                self.metric.as_ref()
-            }
+            TraceItemType::Metric => self.metric.as_ref(),
             _ => None,
         }
     }

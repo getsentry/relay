@@ -37,7 +37,7 @@ pub struct TraceMetric {
 
     /// The metric value. Should be constrained to a number.
     ///
-    /// pii="maybe" because it might make sense to apply the `[Hash]` conversion to set values in the future. 
+    /// pii="maybe" because it might make sense to apply the `[Hash]` conversion to set values in the future.
     #[metastructure(pii = "maybe", required = true, trim = false)]
     pub value: Annotated<Value>,
 
@@ -69,8 +69,11 @@ impl Getter for TraceMetric {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MetricType {
     // Set has been omitted as it's not currently supported.
+    /// A gauge metric represents a single numerical value that can arbitrarily go up and down.
     Gauge,
+    /// A distribution metric represents a collection of values that can be aggregated.
     Distribution,
+    /// A counter metric represents a single numerical value.
     Counter,
     /// Unknown type, for forward compatibility.
     Unknown(String),

@@ -4,12 +4,15 @@ use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::TraceMetric;
 use relay_filter::FilterStatKey;
 use relay_pii::PiiConfigError;
-use relay_quotas::RateLimits;
+use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item};
+use crate::Envelope;
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{ContainerWriteError, ItemContainer};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Rejected};
-use crate::processing::{Context, Forward, Output, Processor, QuotaRateLimiter};
+use crate::processing::{Context, CountRateLimited, Forward, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::store::Store;
 use smallvec::smallvec;
 
 pub mod filter;
@@ -90,18 +93,18 @@ impl crate::managed::OutcomeError for Error {
 }
 
 impl Counted for ExpandedTraceMetrics {
-    fn quantities(&self) -> smallvec::SmallVec<[(relay_quotas::DataCategory, usize); 1]> {
-        smallvec![(relay_quotas::DataCategory::TraceMetric, self.metrics.len())]
+    fn quantities(&self) -> smallvec::SmallVec<[(DataCategory, usize); 1]> {
+        smallvec![(DataCategory::TraceMetric, self.metrics.len())]
     }
 }
 
 impl ExpandedTraceMetrics {
-    fn serialize(self) -> Result<SerializedTraceMetrics, crate::envelope::ContainerWriteError> {
+    fn serialize(self) -> Result<SerializedTraceMetrics, ContainerWriteError> {
         let mut metrics = Vec::new();
 
         if !self.metrics.is_empty() {
-            let mut item = crate::envelope::Item::new(crate::envelope::ItemType::TraceMetric);
-            crate::envelope::ItemContainer::from(self.metrics)
+            let mut item = Item::new(ItemType::TraceMetric);
+            ItemContainer::from(self.metrics)
                 .write_to(&mut item)
                 .inspect_err(|err| relay_log::error!("failed to serialize trace metrics: {err}"))?;
             metrics.push(item);
@@ -127,16 +130,16 @@ pub struct SerializedTraceMetrics {
 }
 
 impl Counted for SerializedTraceMetrics {
-    fn quantities(&self) -> smallvec::SmallVec<[(relay_quotas::DataCategory, usize); 1]> {
-        smallvec![(relay_quotas::DataCategory::TraceMetric, self.metrics.len())]
+    fn quantities(&self) -> smallvec::SmallVec<[(DataCategory, usize); 1]> {
+        smallvec![(DataCategory::TraceMetric, self.metrics.len())]
     }
 }
 
-impl crate::processing::CountRateLimited for Managed<SerializedTraceMetrics> {
+impl CountRateLimited for Managed<SerializedTraceMetrics> {
     type Error = Error;
 }
 
-impl crate::processing::CountRateLimited for Managed<ExpandedTraceMetrics> {
+impl CountRateLimited for Managed<ExpandedTraceMetrics> {
     type Error = Error;
 }
 
@@ -168,7 +171,7 @@ impl Processor for TraceMetricsProcessor {
 
         let metrics = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), crate::envelope::ItemType::TraceMetric))
+            .take_items_by(|item| matches!(*item.ty(), ItemType::TraceMetric))
             .into_vec();
 
         if metrics.is_empty() {
@@ -222,15 +225,10 @@ impl Forward for TraceMetricOutput {
             Self::NotProcessed(metrics) => metrics,
             Self::Processed(metrics) => {
                 let serialized = metrics.try_map(|metrics, r| {
-                    r.lenient(relay_quotas::DataCategory::TraceMetric);
-                    metrics.serialize().map_err(|_| {
-                        (
-                            Some(crate::services::outcome::Outcome::Invalid(
-                                crate::services::outcome::DiscardReason::Internal,
-                            )),
-                            (),
-                        )
-                    })
+                    r.lenient(DataCategory::TraceMetric);
+                    metrics
+                        .serialize()
+                        .map_err(|_| (Some(Outcome::Invalid(DiscardReason::Internal)), ()))
                 });
                 match serialized {
                     Ok(s) => s,
@@ -240,17 +238,14 @@ impl Forward for TraceMetricOutput {
         };
 
         Ok(metrics.map(|metrics, r| {
-            r.lenient(relay_quotas::DataCategory::TraceMetric);
+            r.lenient(DataCategory::TraceMetric);
             let SerializedTraceMetrics { headers, metrics } = metrics;
-            crate::Envelope::from_parts(headers, crate::envelope::Items::from_vec(metrics))
+            Envelope::from_parts(headers, Items::from_vec(metrics))
         }))
     }
 
     #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        s: &relay_system::Addr<crate::services::store::Store>,
-    ) -> Result<(), Rejected<()>> {
+    fn forward_store(self, s: &relay_system::Addr<Store>) -> Result<(), Rejected<()>> {
         let metrics = match self {
             TraceMetricOutput::NotProcessed(metrics) => {
                 return Err(metrics.internal_error(
