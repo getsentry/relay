@@ -8,6 +8,71 @@ use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Time
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 use serde::{Deserialize, Serialize};
 
+/// Vercel log structure matching their schema.
+/// Based on: https://vercel.com/docs/drains/reference/logs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VercelLog {
+    /// Unique identifier for the log entry.
+    pub id: String,
+    /// Identifier for the Vercel deployment.
+    #[serde(rename = "deploymentId")]
+    pub deployment_id: String,
+    /// Origin of the log.
+    pub source: String,
+    /// Deployment unique URL hostname.
+    pub host: String,
+    /// Unix timestamp in milliseconds.
+    pub timestamp: i64,
+    /// Identifier for the Vercel project.
+    pub project_id: String,
+    // Log severity level.
+    pub level: VercelLogLevel,
+    /// Log message content (may be truncated if over 256 KB).
+    pub message: Option<String>,
+    /// Identifier for the Vercel build. Only present on build logs.
+    pub build_id: Option<String>,
+    /// Entrypoint for the request.
+    pub entrypoint: Option<String>,
+    /// Origin of the external content. Only on external logs.
+    pub destination: Option<String>,
+    /// Function or dynamic path of the request.
+    pub path: Option<String>,
+    /// Log output type.
+    #[serde(rename = "type")]
+    pub log_type: Option<String>,
+    /// Log output type.
+    pub status_code: Option<i64>,
+    /// Identifier of the request.
+    pub request_id: Option<String>,
+    /// Deployment environment. One of production or preview.
+    pub environment: Option<String>,
+    /// Git branch name.
+    pub branch: Option<String>,
+    /// JA3 fingerprint digest.
+    pub ja3_digest: Option<String>,
+    /// JA4 fingerprint digest.
+    pub ja4_digest: Option<String>,
+    /// Type of edge runtime. One of edge-function or middleware
+    pub edge_type: Option<String>,
+    /// Name of the Vercel project.
+    pub project_name: Option<String>,
+    /// Region where the request is executed.
+    pub execution_region: Option<String>,
+    /// Trace identifier for distributed tracing.
+    pub trace_id: Option<String>,
+    /// Span identifier for distributed tracing.
+    pub span_id: Option<String>,
+    /// Trace identifier for distributed tracing.
+    #[serde(rename = "trace.id")]
+    pub trace_dot_id: Option<String>,
+    /// Span identifier for distributed tracing.
+    #[serde(rename = "span.id")]
+    pub span_dot_id: Option<String>,
+    /// Proxy information for requests. (Optional)
+    pub proxy: Option<VercelProxy>,
+}
+
 /// Log Level for Vercel Logs
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -24,6 +89,7 @@ pub enum VercelLogLevel {
 
 /// Vercel proxy information for requests.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VercelProxy {
     /// Unix timestamp when the proxy request was made.
     pub timestamp: i64,
@@ -34,131 +100,78 @@ pub struct VercelProxy {
     /// Request path with query parameters.
     pub path: String,
     /// User agent strings of the request.
-    #[serde(rename = "userAgent")]
     pub user_agent: Vec<String>,
     /// Referer of the request.
     pub referer: String,
     /// Region where the request is processed.
     pub region: String,
     /// HTTP status code of the proxy request.
-    #[serde(rename = "statusCode")]
     pub status_code: Option<i64>,
     /// Client IP address.
-    #[serde(rename = "clientIp")]
     pub client_ip: Option<String>,
     /// Protocol of the request.
     pub scheme: Option<String>,
     /// Size of the response in bytes.
-    #[serde(rename = "responseByteSize")]
     pub response_byte_size: Option<i64>,
     /// Original request ID when request is served from cache.
-    #[serde(rename = "cacheId")]
     pub cache_id: Option<String>,
     /// How the request was served based on its path and project configuration.
-    #[serde(rename = "pathType")]
     pub path_type: Option<String>,
     /// Variant of the path type.
-    #[serde(rename = "pathTypeVariant")]
     pub path_type_variant: Option<String>,
     /// Vercel-specific identifier.
-    #[serde(rename = "vercelId")]
     pub vercel_id: Option<String>,
     /// Cache status sent to the browser.
-    #[serde(rename = "vercelCache")]
     pub vercel_cache: Option<String>,
     /// Region where lambda function executed.
-    #[serde(rename = "lambdaRegion")]
     pub lambda_region: Option<String>,
     /// Action taken by firewall rules.
-    #[serde(rename = "wafAction")]
     pub waf_action: Option<String>,
     /// ID of the firewall rule that matched.
-    #[serde(rename = "wafRuleId")]
     pub waf_rule_id: Option<String>,
 }
 
-/// Vercel log structure matching their schema.
-/// Based on: https://vercel.com/docs/drains/reference/logs
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VercelLog {
-    /// Unique identifier for the log entry.
-    pub id: String,
-    /// Identifier for the Vercel deployment.
-    #[serde(rename = "deploymentId")]
-    pub deployment_id: String,
-    /// Origin of the log.
-    pub source: String,
-    /// Deployment unique URL hostname.
-    pub host: String,
-    /// Unix timestamp in milliseconds.
-    pub timestamp: i64,
-    /// Identifier for the Vercel project.
-    #[serde(rename = "projectId")]
-    pub project_id: String,
-    // Log severity level.
-    pub level: VercelLogLevel,
-    /// Log message content (may be truncated if over 256 KB).
-    pub message: Option<String>,
-    /// Identifier for the Vercel build. Only present on build logs.
-    #[serde(rename = "buildId")]
-    pub build_id: Option<String>,
-    /// Entrypoint for the request.
-    pub entrypoint: Option<String>,
-    /// Origin of the external content. Only on external logs.
-    pub destination: Option<String>,
-    /// Function or dynamic path of the request.
-    pub path: Option<String>,
-    /// Log output type.
-    #[serde(rename = "type")]
-    pub log_type: Option<String>,
-    /// Log output type.
-    #[serde(rename = "statusCode")]
-    pub status_code: Option<i64>,
-    /// Identifier of the request.
-    #[serde(rename = "requestId")]
-    pub request_id: Option<String>,
-    /// Deployment environment. One of production or preview.
-    pub environment: Option<String>,
-    /// Git branch name.
-    pub branch: Option<String>,
-    /// JA3 fingerprint digest.
-    #[serde(rename = "ja3Digest")]
-    pub ja3_digest: Option<String>,
-    /// JA4 fingerprint digest.
-    #[serde(rename = "ja4Digest")]
-    pub ja4_digest: Option<String>,
-    /// Type of edge runtime. One of edge-function or middleware
-    #[serde(rename = "edgeType")]
-    pub edge_type: Option<String>,
-    /// Name of the Vercel project.
-    #[serde(rename = "projectName")]
-    pub project_name: Option<String>,
-    /// Region where the request is executed.
-    #[serde(rename = "executionRegion")]
-    pub execution_region: Option<String>,
-    /// Trace identifier for distributed tracing.
-    #[serde(rename = "traceId")]
-    pub trace_id: Option<String>,
-    /// Span identifier for distributed tracing.
-    #[serde(rename = "spanId")]
-    pub span_id: Option<String>,
-    /// Trace identifier for distributed tracing.
-    #[serde(rename = "trace.id")]
-    pub trace_dot_id: Option<String>,
-    /// Span identifier for distributed tracing.
-    #[serde(rename = "span.id")]
-    pub span_dot_id: Option<String>,
-    /// Proxy information for requests. (Optional)
-    pub proxy: Option<VercelProxy>,
-}
-
 /// Maps Vercel log level to Sentry log level.
-fn map_vercel_level_to_sentry(level: &VercelLogLevel) -> OurLogLevel {
+fn map_vercel_level_to_sentry(level: VercelLogLevel) -> OurLogLevel {
     match level {
         VercelLogLevel::Info => OurLogLevel::Info,
         VercelLogLevel::Warning => OurLogLevel::Warn,
         VercelLogLevel::Error => OurLogLevel::Error,
         VercelLogLevel::Fatal => OurLogLevel::Fatal,
+    }
+}
+
+fn get_trace_id(trace_id: Option<String>, trace_dot_id: Option<String>) -> Annotated<TraceId> {
+    let trace_id_str = trace_id.or(trace_dot_id);
+    match trace_id_str {
+        Some(s) if !s.is_empty() => match TraceId::from_str(&s) {
+            Ok(id) => Annotated::new(id),
+            Err(_) => {
+                let mut meta = Meta::default();
+                meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.invalid"));
+                Annotated(Some(TraceId::random()), meta)
+            }
+        },
+        _ => {
+            let mut meta = Meta::default();
+            meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
+            Annotated(Some(TraceId::random()), meta)
+        }
+    }
+}
+
+fn get_span_id(span_id: Option<String>, span_dot_id: Option<String>) -> Annotated<SpanId> {
+    let span_id_str = span_id.or(span_dot_id);
+    match span_id_str {
+        Some(s) if !s.is_empty() => {
+            if let Ok(hex_bytes) = hex::decode(s) {
+                SpanId::try_from(hex_bytes.as_slice())
+                    .map_or_else(|err| Annotated::from_error(err, None), Annotated::new)
+            } else {
+                Annotated::empty()
+            }
+        }
+        _ => Annotated::empty(),
     }
 }
 
@@ -194,44 +207,9 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
         proxy,
     } = vercel_log;
 
-    let trace_id_str = trace_id.or(trace_dot_id);
-    let trace_id = match trace_id_str.as_deref() {
-        Some(s) if !s.is_empty() => match TraceId::from_str(s) {
-            Ok(id) => Annotated::new(id),
-            Err(_) => {
-                let mut meta = Meta::default();
-                meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.invalid"));
-                Annotated(Some(TraceId::random()), meta)
-            }
-        },
-        _ => {
-            let mut meta = Meta::default();
-            meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
-            Annotated(Some(TraceId::random()), meta)
-        }
-    };
-
-    let span_id_str = span_id.or(span_dot_id);
-    let span_id: Annotated<SpanId> = match span_id_str.as_deref() {
-        Some(s) if !s.is_empty() => {
-            if let Ok(hex_bytes) = hex::decode(s) {
-                SpanId::try_from(hex_bytes.as_slice())
-                    .map_or_else(|err| Annotated::from_error(err, None), Annotated::new)
-            } else {
-                Annotated::empty()
-            }
-        }
-        _ => Annotated::empty(),
-    };
-
     let mut attributes: Attributes = Attributes::default();
 
     macro_rules! add_optional_attribute {
-        ($name:literal, $value:expr) => {{
-            if let Some(value) = $value {
-                attributes.insert($name.to_owned(), value);
-            }
-        }};
         ($name:expr, $value:expr) => {{
             if let Some(value) = $value {
                 attributes.insert($name.to_owned(), value);
@@ -240,10 +218,6 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
     }
 
     macro_rules! add_attribute {
-        ($name:literal, $value:expr) => {{
-            let val = $value;
-            attributes.insert($name.to_owned(), val);
-        }};
         ($name:expr, $value:expr) => {{
             let val = $value;
             attributes.insert($name.to_owned(), val);
@@ -341,9 +315,9 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
 
     OurLog {
         timestamp: Annotated::new(Timestamp(ourlog_timestamp)),
-        trace_id,
-        span_id,
-        level: Annotated::new(map_vercel_level_to_sentry(&level)),
+        trace_id: get_trace_id(trace_id, trace_dot_id),
+        span_id: get_span_id(span_id, span_dot_id),
+        level: Annotated::new(map_vercel_level_to_sentry(level)),
         body: Annotated::new(message.unwrap_or_default()),
         attributes: Annotated::new(attributes),
         ..Default::default()
@@ -718,5 +692,36 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_trace_span_id_precedence() {
+        // Test that camelCase fields take precedence over dotted aliases
+        let json_with_both = r#"{
+            "id": "test-123",
+            "deploymentId": "dpl_test",
+            "source": "lambda",
+            "host": "test.vercel.app",
+            "timestamp": 1573817250283,
+            "projectId": "prj_test",
+            "level": "info",
+            "message": "Test message",
+            "traceId": "1b02cd14bb8642fd092bc23f54c7ffcd",
+            "trace.id": "922dda2462ea4ac2b6a4b339bee90863",
+            "spanId": "f24e8631bd11faa7",
+            "span.id": "a1e13f3f06239d69"
+        }"#;
+
+        let vercel_log: VercelLog =
+            serde_json::from_str(json_with_both).expect("Failed to parse JSON with both formats");
+        let our_log = vercel_log_to_sentry_log(vercel_log);
+        assert_eq!(
+            our_log.trace_id.value().map(|t| t.to_string()),
+            Some("1b02cd14bb8642fd092bc23f54c7ffcd".to_owned())
+        );
+        assert_eq!(
+            our_log.span_id.value().map(|s| s.to_string()),
+            Some("f24e8631bd11faa7".to_owned())
+        );
     }
 }
