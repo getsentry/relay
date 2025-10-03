@@ -67,11 +67,7 @@ impl Retentions {
                 }
             }
             TraceItemType::Metric => {
-                if let Some(metric) = &self.metric {
-                    Some(metric)
-                } else {
-                    None
-                }
+                self.metric.as_ref()
             }
             _ => None,
         }
