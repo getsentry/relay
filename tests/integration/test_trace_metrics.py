@@ -1,14 +1,7 @@
-import json
-
-from datetime import datetime, timezone, timedelta
-from unittest import mock
+from datetime import datetime, timezone
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
-
-from .asserts import time_within_delta, time_within, matches
-
-import pytest
 
 
 TEST_CONFIG = {
