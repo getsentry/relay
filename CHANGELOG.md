@@ -26,6 +26,7 @@
 - Add `retentions` to the project configuration and use them for logs. ([#5135](https://github.com/getsentry/relay/pull/5135))
 - Produce Span V2 Kafka messages. ([#5151](https://github.com/getsentry/relay/pull/5151), [#5173](https://github.com/getsentry/relay/pull/5173), [#5199](https://github.com/getsentry/relay/pull/5199))
 - Modernize session processing and move to Relay's new processing framework. ([#5201](https://github.com/getsentry/relay/pull/5201))
+- Add vercel log drain transform. ([#5209](https://github.com/getsentry/relay/pull/5209))
 
 ## 25.9.0
 
