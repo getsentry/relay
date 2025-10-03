@@ -4046,6 +4046,7 @@ dependencies = [
  "relay-event-schema",
  "relay-otel",
  "relay-protocol",
+ "serde",
  "serde_json",
 ]
 
