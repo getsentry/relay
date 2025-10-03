@@ -195,7 +195,7 @@ sha2 = "0.10.9"
 similar-asserts = "1.6.0"
 smallvec = { version = "1.13.2", features = ["serde"] }
 socket2 = "0.5.10"
-sqlparser = "0.44.0"
+sqlparser = "0.59.0"
 sqlx = { version = "0.8.2", default-features = false }
 statsdproxy = { version = "0.4.1", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
