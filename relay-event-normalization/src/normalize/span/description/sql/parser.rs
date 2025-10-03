@@ -649,10 +649,11 @@ impl VisitorMut for NormalizeVisitor {
             Statement::StartTransaction { .. } => {}
             Statement::Comment { comment, .. } => *comment = None,
             Statement::Commit { .. } => {}
-            Statement::Rollback { savepoint, .. } => {
-                if let Some(savepoint) = savepoint {
-                    Self::erase_name(savepoint);
-                }
+            Statement::Rollback {
+                savepoint: Some(savepoint),
+                ..
+            } => {
+                Self::erase_name(savepoint);
             }
             Statement::CreateSchema { .. } => {}
             Statement::CreateDatabase {
@@ -696,10 +697,10 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Deallocate { name, .. } => {
                 Self::scrub_name(name);
             }
-            Statement::Execute { name, .. } => {
-                if let Some(name) = name {
-                    Self::simplify_object_name(&mut name.0);
-                }
+            Statement::Execute {
+                name: Some(name), ..
+            } => {
+                Self::simplify_object_name(&mut name.0);
             }
             Statement::Prepare { name, .. } => Self::scrub_name(name),
             Statement::Kill { id, .. } => *id = 0,
