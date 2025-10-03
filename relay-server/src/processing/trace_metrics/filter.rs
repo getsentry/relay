@@ -13,6 +13,7 @@ pub fn feature_flag(ctx: Context<'_>) -> Result<()> {
         false => Ok(()),
     }
 }
+
 /// Applies inbound filters to individual trace metrics.
 pub fn filter(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
     metrics.retain_with_context(
