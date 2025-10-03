@@ -30,7 +30,7 @@ pub struct TraceMetric {
 
     /// The metric type.
     #[metastructure(pii = "false", required = true, field = "type")]
-    pub r#type: Annotated<MetricType>,
+    pub ty: Annotated<MetricType>,
 
     #[metastructure(pii = "false", required = false)]
     pub unit: Annotated<MetricUnit>,
