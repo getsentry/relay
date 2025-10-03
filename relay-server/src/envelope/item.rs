@@ -627,7 +627,7 @@ impl ItemType {
             Self::ReplayVideo => "replay_video",
             Self::CheckIn => "check_in",
             Self::Log => "log",
-            Self::TraceMetric => "metric",
+            Self::TraceMetric => "trace_metric",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
             Self::OtelTracesData => "otel_traces_data",
