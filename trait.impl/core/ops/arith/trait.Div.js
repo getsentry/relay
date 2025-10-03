@@ -1,5 +1,5 @@
 (function() {
-    var implementors = Object.fromEntries([["relay_protocol",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.90.0/core/ops/arith/trait.Div.html\" title=\"trait core::ops::arith::Div\">Div</a> for <a class=\"struct\" href=\"relay_protocol/struct.FiniteF64.html\" title=\"struct relay_protocol::FiniteF64\">FiniteF64</a>"]]]]);
+    var implementors = Object.fromEntries([["relay_protocol",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.89.0/core/ops/arith/trait.Div.html\" title=\"trait core::ops::arith::Div\">Div</a> for <a class=\"struct\" href=\"relay_protocol/struct.FiniteF64.html\" title=\"struct relay_protocol::FiniteF64\">FiniteF64</a>"]]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
