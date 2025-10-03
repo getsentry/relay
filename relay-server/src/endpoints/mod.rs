@@ -87,6 +87,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
     // configured by users or protocols may force a specific variant.
     let integration_routes = Router::new()
         .nest("/api/{project_id}/integration/otlp", integrations::otlp::routes(config))
+        .nest("/api/{project_id}/integration/vercel", integrations::vercel::routes(config))
         // Old, pre integration routes to be removed
         .route("/api/{project_id}/otlp/v1/traces", integrations::otlp::traces::route(config))
         .route("/api/{project_id}/otlp/v1/traces/", integrations::otlp::traces::route(config))
