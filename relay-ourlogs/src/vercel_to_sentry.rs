@@ -3,13 +3,12 @@
 use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
-use relay_conventions::{ENVIRONMENT, HTTP_RESPONSE_STATUS_CODE, ORIGIN, SERVER_ADDRESS, URL_PATH};
+use relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS, URL_PATH};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 use serde::{Deserialize, Serialize};
 
-/// Vercel log structure matching their schema.
-/// Based on: https://vercel.com/docs/drains/reference/logs
+/// Vercel log structure matching their [schema](https://vercel.com/docs/drains/reference/logs)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VercelLog {
@@ -236,15 +235,7 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
     add_optional_attribute!("vercel.destination", destination);
     add_optional_attribute!(URL_PATH, path);
     add_optional_attribute!("vercel.log_type", log_type);
-
-    // -1 means no response returned and the lambda crashed
-    if let Some(code) = status_code
-        && code > 0
-    {
-        add_attribute!(HTTP_RESPONSE_STATUS_CODE, code);
-    }
-
-    add_optional_attribute!(HTTP_RESPONSE_STATUS_CODE, status_code);
+    add_optional_attribute!("vercel.status_code", status_code);
     add_optional_attribute!("vercel.request_id", request_id);
     add_optional_attribute!(ENVIRONMENT, environment);
     add_optional_attribute!("vercel.branch", branch);
@@ -288,13 +279,7 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
             attributes.insert("vercel.proxy.user_agent", user_agent_string);
         }
 
-        // -1 means revalidation occurred in the background
-        if let Some(code) = status_code
-            && code > 0
-        {
-            add_attribute!("vercel.proxy.status_code", code);
-        }
-
+        add_optional_attribute!("vercel.proxy.status_code", status_code);
         add_optional_attribute!("vercel.proxy.client_ip", client_ip);
         add_optional_attribute!("vercel.proxy.scheme", scheme);
         add_optional_attribute!("vercel.proxy.response_byte_size", response_byte_size);
@@ -393,10 +378,6 @@ mod tests {
           "level": "error",
           "body": "API request errored",
           "attributes": {
-            "http.response.status_code": {
-              "type": "integer",
-              "value": 200
-            },
             "sentry.environment": {
               "type": "string",
               "value": "production"
@@ -540,6 +521,10 @@ mod tests {
             "vercel.source": {
               "type": "string",
               "value": "lambda"
+            },
+            "vercel.status_code": {
+              "type": "integer",
+              "value": 200
             }
           }
         }
@@ -597,10 +582,6 @@ mod tests {
           "level": "info",
           "body": "API request processed",
           "attributes": {
-            "http.response.status_code": {
-              "type": "integer",
-              "value": 200
-            },
             "sentry.environment": {
               "type": "string",
               "value": "production"
@@ -688,6 +669,10 @@ mod tests {
             "vercel.source": {
               "type": "string",
               "value": "lambda"
+            },
+            "vercel.status_code": {
+              "type": "integer",
+              "value": 200
             }
           }
         }
