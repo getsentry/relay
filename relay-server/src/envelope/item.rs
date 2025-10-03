@@ -151,6 +151,10 @@ impl Item {
                     (DataCategory::LogByte, self.len().max(1)),
                     (DataCategory::LogItem, item_count),
                 ],
+                Some(Integration::Logs(LogsIntegration::VercelDrainLog)) => smallvec![
+                    (DataCategory::LogByte, self.len().max(1)),
+                    (DataCategory::LogItem, item_count),
+                ],
                 Some(Integration::Spans(SpansIntegration::OtelV1 { .. })) => {
                     smallvec![(DataCategory::Span, item_count)]
                 }

@@ -18,6 +18,7 @@
 - Upgrade sqlparser and improve SQL parsing for span grouping. ([#5211](https://github.com/getsentry/relay/pull/5211))
 - Maps `unknown_error` span status to `internal_error` ([#5202](https://github.com/getsentry/relay/pull/5202))
 - Add event merging logic for Playstation crashes. ([#5228](https://github.com/getsentry/relay/pull/5228))
+- Add vercel log drain endpoint. ([#5212](https://github.com/getsentry/relay/pull/5212))
 
 **Bug Fixes**:
 
