@@ -87,7 +87,7 @@ relay_common::derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
     ValueType::Thread => "thread",
     ValueType::Breadcrumb => "breadcrumb",
     ValueType::OurLog => "log",
-    ValueType::TraceMetric => "metric",
+    ValueType::TraceMetric => "trace_metric",
 
     ValueType::Span => "span",
     ValueType::ClientSdkInfo => "sdk",
