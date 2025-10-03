@@ -131,7 +131,7 @@ fn normalize_trace_metric(metric: &mut Annotated<TraceMetric>, _meta: &RequestMe
         return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
     };
 
-    if metric_value.r#type.value().is_none() {
+    if metric_value.ty.value().is_none() {
         return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
     }
 

@@ -59,7 +59,7 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
     let attrs = metric.attributes.0.unwrap_or_default();
     let fields = FieldAttributes {
         metric_name: required!(metric.name),
-        metric_type: required!(metric.r#type),
+        metric_type: required!(metric.ty),
         value: extract_numeric_value(required!(metric.value))?,
         timestamp,
         span_id: metric.span_id.into_value(),
