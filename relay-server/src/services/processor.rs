@@ -66,7 +66,7 @@ use crate::services::upstream::{
     SendRequest, Sign, SignatureType, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, CheckLimits, EnvelopeLimiter, SamplingResult, is_rolled_out};
+use crate::utils::{self, CheckLimits, EnvelopeLimiter, SamplingResult};
 use crate::{http, processing};
 use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
@@ -97,7 +97,6 @@ mod profile;
 mod profile_chunk;
 mod replay;
 mod report;
-mod session;
 mod span;
 pub use span::extract_transaction_span;
 
@@ -2031,36 +2030,6 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
-    /// Processes user sessions.
-    async fn process_sessions(
-        &self,
-        managed_envelope: &mut TypedEnvelope<SessionGroup>,
-        config: &Config,
-        project_info: &ProjectInfo,
-        rate_limits: &RateLimits,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        session::process(
-            managed_envelope,
-            &self.inner.global_config.current(),
-            config,
-            &mut extracted_metrics,
-            project_info,
-        );
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            project_info,
-            rate_limits,
-        )
-        .await?;
-
-        Ok(Some(extracted_metrics))
-    }
-
     /// Processes user and client reports.
     async fn process_client_reports(
         &self,
@@ -2317,28 +2286,8 @@ impl EnvelopeProcessorService {
                 )
             }
             ProcessingGroup::Session => {
-                let organization_id = managed_envelope.scoping().organization_id;
-                match is_rolled_out(
-                    organization_id.value(),
-                    global_config.options.session_processing_rollout,
-                )
-                .is_keep()
-                {
-                    true => {
-                        self.process_with_processor(
-                            &self.inner.processing.sessions,
-                            managed_envelope,
-                            ctx,
-                        )
-                        .await
-                    }
-                    false => run!(
-                        process_sessions,
-                        &self.inner.config.clone(),
-                        &project_info,
-                        &rate_limits
-                    ),
-                }
+                self.process_with_processor(&self.inner.processing.sessions, managed_envelope, ctx)
+                    .await
             }
             ProcessingGroup::Standalone => run!(
                 process_standalone,
