@@ -212,6 +212,12 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_INSTALLABLE_BUILD = 32,
   /**
+   * TraceMetric
+   *
+   * This is the data category to count the number of trace metric items.
+   */
+  RELAY_DATA_CATEGORY_TRACE_METRIC = 33,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,

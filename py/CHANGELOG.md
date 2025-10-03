@@ -6,6 +6,7 @@
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
 - Add `retentions` to the project configuration. ([#5135](https://github.com/getsentry/relay/pull/5135))
 - Normalization: Trim event tag keys & values to 200 chars instead of dropping them. ([#5198](https://github.com/getsentry/relay/pull/5198))
+- Add TraceMetric data category. ([#5206](https://github.com/getsentry/relay/pull/5206))
 
 ## 0.9.16
 
