@@ -29,6 +29,7 @@ convention_attributes!(
     MESSAGING_SYSTEM => "messaging.system",
     OBSERVED_TIMESTAMP_NANOS => "sentry.observed_timestamp_nanos",
     OP => "sentry.op",
+    ORIGIN => "sentry.origin",
     PLATFORM => "sentry.platform",
     PROFILE_ID => "sentry.profile_id",
     RELEASE => "sentry.release",

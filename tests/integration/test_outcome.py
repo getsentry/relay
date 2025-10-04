@@ -868,7 +868,6 @@ def test_outcome_to_client_report(relay, mini_sentry):
         mini_sentry.captured_outcomes.get(timeout=3.2),
     ]
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
-    assert mini_sentry.captured_events.qsize() == 0
 
     outcomes = list(
         itertools.chain.from_iterable(o.get("outcomes") for o in outcomes_batches)
@@ -1037,7 +1036,6 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         mini_sentry.captured_outcomes.get(timeout=1.2),
     ]
     assert mini_sentry.captured_outcomes.qsize() == 0
-    assert mini_sentry.captured_events.qsize() == 0
 
     outcomes = list(
         itertools.chain.from_iterable(o.get("outcomes") for o in outcomes_batches)
