@@ -31,7 +31,7 @@ pub enum ContentType {
     LogContainer,
     /// `application/vnd.sentry.items.span.v2+json`
     SpanV2Container,
-    /// `application/vnd.sentry.items.metric+json`
+    /// `application/vnd.sentry.items.trace-metric+json`
     TraceMetricContainer,
     /// Internal, not serialized.
     CompatSpan,
