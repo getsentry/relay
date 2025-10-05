@@ -557,6 +557,7 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
         "projectId": "42",
         "received": time_within_delta(),
         "retentionDays": 30,
+        "downsampledRetentionDays": 390,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -618,6 +619,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
         "projectId": "42",
         "received": time_within_delta(),
         "retentionDays": 30,
+        "downsampledRetentionDays": 390,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -760,6 +762,7 @@ def test_browser_name_version_extraction(
         "projectId": "42",
         "received": time_within_delta(),
         "retentionDays": 30,
+        "downsampledRetentionDays": 390,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
