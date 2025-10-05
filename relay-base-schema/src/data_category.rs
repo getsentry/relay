@@ -199,7 +199,7 @@ impl DataCategory {
             "prevent_review" => Self::PreventReview,
             "size_analysis" => Self::SizeAnalysis,
             "installable_build" => Self::InstallableBuild,
-            "metric" => Self::TraceMetric,
+            "trace_metric" => Self::TraceMetric,
             _ => Self::Unknown,
         }
     }
@@ -241,7 +241,7 @@ impl DataCategory {
             Self::PreventReview => "prevent_review",
             Self::SizeAnalysis => "size_analysis",
             Self::InstallableBuild => "installable_build",
-            Self::TraceMetric => "metric",
+            Self::TraceMetric => "trace_metric",
             Self::Unknown => "unknown",
         }
     }
