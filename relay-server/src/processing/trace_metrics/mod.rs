@@ -12,6 +12,7 @@ use crate::envelope::{ContainerWriteError, ItemContainer};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Rejected};
 use crate::processing::{Context, CountRateLimited, Forward, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
+#[cfg(feature = "processing")]
 use crate::services::store::Store;
 use smallvec::smallvec;
 

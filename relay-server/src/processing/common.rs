@@ -1,11 +1,3 @@
-use std::collections::HashMap;
-
-use relay_protocol::{Annotated, IntoValue, MetaTree};
-use serde::Serialize;
-
-#[cfg(feature = "processing")]
-use sentry_protos::snuba::v1::{AnyValue, any_value};
-
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
 use crate::processing::check_ins::CheckInsProcessor;
@@ -14,7 +6,18 @@ use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::{Forward, Nothing, Processor};
+
+#[cfg(feature = "processing")]
+use std::collections::HashMap;
+
+#[cfg(feature = "processing")]
 use relay_event_schema::protocol::Attributes;
+#[cfg(feature = "processing")]
+use relay_protocol::{Annotated, IntoValue, MetaTree};
+#[cfg(feature = "processing")]
+use sentry_protos::snuba::v1::{AnyValue, any_value};
+#[cfg(feature = "processing")]
+use serde::Serialize;
 
 macro_rules! outputs {
     ($($variant:ident => $ty:ty,)*) => {
