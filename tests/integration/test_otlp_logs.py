@@ -139,7 +139,8 @@ def test_otlp_logs_conversion(
                 "sentry.observed_timestamp_nanos": {
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
-                "sentry.payload_size_bytes": {"intValue": "358"},
+                "sentry.origin": {"stringValue": "auto.otlp.logs"},
+                "sentry.payload_size_bytes": {"intValue": "385"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_nanos": {
@@ -189,7 +190,7 @@ def test_otlp_logs_conversion(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 358,
+            "quantity": 385,
         },
     ]
 
@@ -257,6 +258,7 @@ def test_otlp_logs_multiple_records(
                 "sentry.observed_timestamp_nanos": {
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
+                "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
@@ -296,6 +298,7 @@ def test_otlp_logs_multiple_records(
                 "sentry.observed_timestamp_nanos": {
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
+                "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
                 "sentry.severity_text": {"stringValue": "debug"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
@@ -345,6 +348,6 @@ def test_otlp_logs_multiple_records(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 251,
+            "quantity": 305,
         },
     ]
