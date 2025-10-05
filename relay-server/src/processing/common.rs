@@ -123,7 +123,7 @@ pub mod meta_extraction {
     /// a lighter implementation using a [`relay_event_schema::processor::Processor`]
     /// which removes the meta instead of cloning.
     ///
-    /// All extracted metadata is converted into [`TraceItem::attributes`] compatible values,
+    /// All extracted metadata is converted into [`Attributes`] compatible values,
     /// by building a metadata representation for each top level field and attribute,
     /// serializing the result into JSON and building an appropriate metadata key.
     ///
