@@ -96,7 +96,17 @@ def test_trace_metric_extraction(
                     precision="us",
                 )
             },
+            "sentry.observed_timestamp_nanos": {
+                "stringValue": time_within_delta(
+                    start,
+                    delta=timedelta(seconds=2),
+                    expect_resolution="ns",
+                    precision="us",
+                )
+            },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+            "sentry.browser.name": {"stringValue": mock.ANY},
+            "sentry.browser.version": {"stringValue": mock.ANY},
             "http.method": {"stringValue": "GET"},
             "http.status_code": {"intValue": "200"},
         },
@@ -228,6 +238,16 @@ def test_trace_metric_pii_scrubbing(
                     precision="us",
                 )
             },
+            "sentry.observed_timestamp_nanos": {
+                "stringValue": time_within_delta(
+                    start,
+                    delta=timedelta(seconds=2),
+                    expect_resolution="ns",
+                    precision="us",
+                )
+            },
+            "sentry.browser.name": {"stringValue": mock.ANY},
+            "sentry.browser.version": {"stringValue": mock.ANY},
             "safe.attribute": {"stringValue": "keep this"},
             "user.ip": {"stringValue": ""},
             "sentry._meta.fields.attributes.user.ip": {
