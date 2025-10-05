@@ -67,7 +67,7 @@ def test_trace_metric_extraction(
         "value": 123.45,
         "attributes": {
             "http.method": {"value": "GET", "type": "string"},
-            "http.status_code": {"value": "200", "type": "integer"},
+            "http.status_code": {"value": 200, "type": "integer"},
         },
     }
 
@@ -98,7 +98,7 @@ def test_trace_metric_extraction(
             },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             "http.method": {"stringValue": "GET"},
-            "http.status_code": {"stringValue": "200"},
+            "http.status_code": {"intValue": "200"},
         },
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 390,
