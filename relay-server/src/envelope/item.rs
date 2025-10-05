@@ -444,14 +444,13 @@ impl Item {
             | ItemType::Nel
             | ItemType::Log
             | ItemType::OtelSpan
+            | ItemType::TraceMetric
             | ItemType::OtelTracesData
             | ItemType::ProfileChunk => false,
 
             // For now integrations can not create events, we may need to revisit this in the
             // future and break down different types of integrations here, similar to attachments.
             ItemType::Integration => false,
-
-            ItemType::TraceMetric => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
