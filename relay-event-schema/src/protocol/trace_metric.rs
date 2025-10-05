@@ -68,7 +68,6 @@ impl Getter for TraceMetric {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MetricType {
-    // Set has been omitted as it's not currently supported.
     /// A gauge metric represents a single numerical value that can arbitrarily go up and down.
     Gauge,
     /// A distribution metric represents a collection of values that can be aggregated.
