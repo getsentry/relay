@@ -65,6 +65,7 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         span_id: metric.span_id.into_value(),
     };
     let retention_days = ctx.retention.unwrap_or(DEFAULT_EVENT_RETENTION);
+    let downsampled_retention_days = ctx.downsampled_retention.unwrap_or(retention_days);
 
     let trace_item = TraceItem {
         item_type: TraceItemType::Metric.into(),
@@ -72,7 +73,7 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         project_id: ctx.scoping.project_id.value(),
         received: Some(ts(ctx.received_at)),
         retention_days: retention_days.into(),
-        downsampled_retention_days: ctx.downsampled_retention.unwrap_or(retention_days).into(),
+        downsampled_retention_days: downsampled_retention_days.into(),
         timestamp: Some(ts(timestamp.0)),
         trace_id: required!(metric.trace_id).to_string(),
         item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),

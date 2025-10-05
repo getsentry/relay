@@ -23,7 +23,7 @@ sentry_sdk==2.30.0
 setuptools==78.1.1
 werkzeug==3.0.6
 zstandard==0.18.0
-sentry_protos==0.2.0
+sentry_protos==0.4.1
 
 # typing things
 mypy==1.10.0

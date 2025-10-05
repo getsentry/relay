@@ -103,7 +103,7 @@ def test_trace_metric_extraction(
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 390,
         "itemId": mock.ANY,
-        "itemType": 8,  # TRACE_ITEM_TYPE_METRIC
+        "itemType": "TRACE_ITEM_TYPE_METRIC",
         "organizationId": "1",
         "projectId": "42",
         "received": time_within_delta(),
@@ -237,7 +237,7 @@ def test_trace_metric_pii_scrubbing(
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
         "itemId": mock.ANY,
-        "itemType": 8,  # TRACE_ITEM_TYPE_METRIC
+        "itemType": "TRACE_ITEM_TYPE_METRIC",
         "organizationId": "1",
         "projectId": "42",
         "received": time_within_delta(),
