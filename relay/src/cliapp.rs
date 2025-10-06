@@ -1,5 +1,7 @@
 //! This module implements the definition of the command line app.
 
+use std::net::SocketAddr;
+
 use clap::builder::ValueParser;
 use clap::{Arg, ArgAction, ArgGroup, Command, ValueHint};
 use clap_complete::Shell;
@@ -336,28 +338,11 @@ pub fn make_app() -> Command {
                         .required(false),
                 )
                 .arg(
-                    Arg::new("host")
-                        .long("host")
-                        .short('h')
-                        .help(
-                            "If relay is not running on localhost and there are no config file, \
-                            you can specify the hostname here.",
-                        )
-                        .default_value("localhost")
-                        .value_parser(clap::value_parser!(String))
+                    Arg::new("addr")
+                        .long("addr")
+                        .help("Address where Relay is running. Defaults to the Relay configuration.")
+                        .value_parser(clap::value_parser!(SocketAddr))
                         .required(false),
                 )
-                .arg(
-                    Arg::new("port")
-                        .long("port")
-                        .short('p')
-                        .help(
-                            "If relay is not running on port 3000 and there are no config file, \
-                            you can specify the port here.",
-                        )
-                        .default_value("3000")
-                        .value_parser(clap::value_parser!(u16))
-                        .required(false),
-                ),
         )
 }
