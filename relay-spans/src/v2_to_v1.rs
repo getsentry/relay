@@ -25,7 +25,6 @@ use url::Url;
 ///   attribute, or inferred from other attributes if the `sentry.description` attribute is not set.
 /// * The V1 span's `status` field is set based on the V2 span's `status` field and
 ///   `http.status_code` and `rpc.grpc.status_code` attributes.
-/// * The V1 span's `exclusive_time` field is set based on the V2 span's `exclusive_time_nano`
 ///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 /// * The V1 span's `platform` field is set based on the V2 span's `sentry.platform` attribute.
 /// * The V1 span's `profile_id` field is set based on the V2 span's `sentry.profile_id` attribute.
@@ -77,15 +76,14 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
             OP => {
                 op = String::from_value(value);
             }
-            key if key.contains("exclusive_time_nano") => {
-                let value = match value.value() {
+            key if key.contains("exclusive_time") => {
+                exclusive_time_ms = match value.value() {
                     Some(Value::I64(v)) => *v as f64,
                     Some(Value::U64(v)) => *v as f64,
                     Some(Value::F64(v)) => *v,
                     Some(Value::String(v)) => v.parse::<f64>().unwrap_or_default(),
                     _ => 0f64,
                 };
-                exclusive_time_ms = value / 1e6f64;
             }
             // TODO: `http.status_code` is deprecated. This should probably be taken care of during normalization.
             HTTP_RESPONSE_STATUS_CODE | "http.status_code" => {
@@ -447,8 +445,8 @@ mod tests {
                     "value": true,
                     "type": "boolean"
                 },
-                "sentry.exclusive_time_nano": {
-                    "value": "1000000000",
+                "sentry.exclusive_time": {
+                    "value": "1000.",
                     "type": "u64"
                 }
             },
@@ -471,10 +469,10 @@ mod tests {
           "description": "middleware - fastify -> @fastify/multipart",
           "data": {
             "sentry.environment": "test",
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "fastify.type": "middleware",
             "hook.name": "onResponse",
             "plugin.name": "fastify -> @fastify/multipart",
-            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
           },
@@ -485,7 +483,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_with_exclusive_time_nano_attribute() {
+    fn parse_span_with_exclusive_time_attribute() {
         let json = r#"{
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
             "span_id": "e342abb1214ca181",
@@ -496,9 +494,9 @@ mod tests {
             "end_timestamp": "2023-10-18T09:14:14.980078800Z",
             "links": [],
             "attributes": {
-                "sentry.exclusive_time_nano": {
-                    "value": 3200000000,
-                    "type": "u64"
+                "sentry.exclusive_time": {
+                    "value": 3200.0,
+                    "type": "f64"
                 }
             }
         }"#;
@@ -526,7 +524,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_no_exclusive_time_nano_attribute() {
+    fn parse_span_no_exclusive_time_attribute() {
         let json = r#"{
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
             "span_id": "e342abb1214ca181",
@@ -966,8 +964,8 @@ mod tests {
           "description": "CACHE HIT",
           "data": {
             "db.system": "redis",
-            "db.statement": "GET s:user:123",
-            "sentry.name": "CACHE HIT"
+            "sentry.name": "CACHE HIT",
+            "db.statement": "GET s:user:123"
           },
           "kind": "client"
         }
@@ -1216,8 +1214,8 @@ mod tests {
           "status": "unknown",
           "description": "FAAS",
           "data": {
-            "faas.trigger": "http",
-            "sentry.name": "FAAS"
+            "sentry.name": "FAAS",
+            "faas.trigger": "http"
           }
         }
         "###);
@@ -1260,8 +1258,8 @@ mod tests {
           "description": "GET /api/users",
           "data": {
             "http.request_method": "GET",
-            "http.route": "/api/users",
-            "sentry.name": "GET /api/users"
+            "sentry.name": "GET /api/users",
+            "http.route": "/api/users"
           },
           "kind": "server"
         }
@@ -1305,8 +1303,8 @@ mod tests {
           "description": "SELECT * FROM users WHERE id = $1",
           "data": {
             "db.system": "postgres",
-            "db.statement": "SELECT * FROM users WHERE id = $1",
-            "sentry.name": "SELECT users"
+            "sentry.name": "SELECT users",
+            "db.statement": "SELECT * FROM users WHERE id = $1"
           },
           "kind": "client"
         }
@@ -1354,9 +1352,9 @@ mod tests {
           "description": "POST /graphql (getUserById)",
           "data": {
             "http.request_method": "POST",
+            "sentry.name": "POST /graphql",
             "http.route": "/graphql",
-            "sentry.graphql.operation": "getUserById",
-            "sentry.name": "POST /graphql"
+            "sentry.graphql.operation": "getUserById"
           },
           "kind": "server"
         }

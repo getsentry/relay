@@ -375,8 +375,10 @@ pub struct RawStacktrace {
 /// stack frames, `"none"` should be used here.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, ProcessValue)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum InstructionAddrAdjustment {
     /// The default. Applies a heuristic based on other event / exception attributes.
+    #[default]
     Auto,
 
     /// All but the first frame needs to be adjusted. The first frame's address is not a *return address*,
@@ -427,12 +429,6 @@ impl FromStr for InstructionAddrAdjustment {
 impl fmt::Display for InstructionAddrAdjustment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
-    }
-}
-
-impl Default for InstructionAddrAdjustment {
-    fn default() -> Self {
-        Self::Auto
     }
 }
 

@@ -19,7 +19,7 @@ pub fn feature_flag(ctx: Context<'_>) -> Result<()> {
 pub fn filter(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     logs.retain_with_context(
         |logs| (&mut logs.logs, logs.headers.meta()),
-        |log, meta| filter_log(log, meta, ctx),
+        |log, meta, _| filter_log(log, meta, ctx),
     );
 }
 

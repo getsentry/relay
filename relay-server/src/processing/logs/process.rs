@@ -5,6 +5,9 @@ use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
+#[cfg(feature = "processing")]
+use sentry_protos::snuba::v1::TraceItemType;
+
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::{RequestMeta, RequestTrust};
 use crate::processing::logs::{self, Error, ExpandedLogs, Result, SerializedLogs};
@@ -17,27 +20,31 @@ use crate::services::outcome::DiscardReason;
 pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
     let trust = logs.headers.meta().request_trust();
 
+    #[cfg(feature = "processing")]
+    let (retention, downsampled_retention) = _ctx
+        .project_info
+        .config
+        .retentions_for_trace_item(TraceItemType::Log);
+
     logs.map(|logs, records| {
         records.lenient(DataCategory::LogByte);
 
-        let mut all_logs = Vec::with_capacity(logs.count());
+        let mut all_logs = Vec::new();
         for logs in logs.logs {
             let expanded = expand_log_container(&logs, trust);
             let expanded = records.or_default(expanded, logs);
             all_logs.extend(expanded);
         }
 
-        logs::otel::expand_into(&mut all_logs, records, logs.otel_logs);
+        logs::integrations::expand_into(&mut all_logs, records, logs.integrations);
 
         ExpandedLogs {
             headers: logs.headers,
             logs: all_logs,
-            // Hard code both retentions for logs launch until we have separate retentions for
-            // different data categories.
             #[cfg(feature = "processing")]
-            retention: Some(30),
+            retention,
             #[cfg(feature = "processing")]
-            downsampled_retention: Some(30),
+            downsampled_retention,
         }
     })
 }
@@ -49,7 +56,7 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
 pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
     logs.retain_with_context(
         |logs| (&mut logs.logs, logs.headers.meta()),
-        |log, meta| {
+        |log, meta, _| {
             normalize_log(log, meta).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
             })
@@ -61,7 +68,7 @@ pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
 pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     logs.retain(
         |logs| &mut logs.logs,
-        |log| {
+        |log, _| {
             scrub_log(log, ctx)
                 .inspect_err(|err| relay_log::debug!("failed to scrub pii from log: {err}"))
         },

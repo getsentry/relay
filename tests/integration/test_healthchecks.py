@@ -6,6 +6,8 @@ import queue
 import time
 import tempfile
 import os
+import subprocess
+import pytest
 
 from requests import HTTPError
 
@@ -27,11 +29,23 @@ def wait_get(server, path):
             backoff *= 2
 
 
-def test_live(mini_sentry, relay):
+def cli_healthcheck(relay_binary, relay, mode):
+    result = subprocess.run(
+        relay_binary + ["-c", relay.config_dir, "healthcheck", "--mode", mode]
+    )
+    return result.returncode == 0
+
+
+def http_healthcheck(_, relay, mode):
+    response = relay.get(f"/api/relay/healthcheck/{mode}/")
+    return response.status_code == 200
+
+
+@pytest.mark.parametrize("check", [cli_healthcheck, http_healthcheck])
+def test_live(mini_sentry, relay, get_relay_binary, check):
     """Internal endpoint used by kubernetes"""
     relay = relay(mini_sentry)
-    response = relay.get("/api/relay/healthcheck/live/")
-    assert response.status_code == 200
+    assert check(get_relay_binary(), relay, "live")
 
 
 def test_external_live(mini_sentry, relay):
@@ -41,23 +55,22 @@ def test_external_live(mini_sentry, relay):
     assert response.status_code == 200
 
 
-def test_readiness(mini_sentry, relay):
+@pytest.mark.parametrize("check", [cli_healthcheck, http_healthcheck])
+def test_readiness(mini_sentry, relay, get_relay_binary, check):
     """Internal endpoint used by kubernetes"""
     original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
     mini_sentry.app.view_functions["check_challenge"] = failing_check_challenge
 
     try:
         relay = relay(mini_sentry, wait_health_check=False)
-        response = wait_get(relay, "/api/relay/healthcheck/ready/")
-        assert response.status_code == 503
+        assert not check(get_relay_binary(), relay, "ready")
 
         mini_sentry.app.view_functions["check_challenge"] = original_check_challenge
         relay.wait_relay_health_check()
     finally:
         mini_sentry.clear_test_failures()
 
-    response = relay.get("/api/relay/healthcheck/ready/")
-    assert response.status_code == 200
+    assert check(get_relay_binary(), relay, "ready")
 
 
 def test_readiness_flag(mini_sentry, relay):
@@ -124,7 +137,7 @@ def test_readiness_not_enough_memory_percent(mini_sentry, relay):
 def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, relay):
     relay = relay(
         mini_sentry,
-        {"aggregator": {"max_total_bucket_bytes": 1}},
+        {"aggregator": {"max_total_bucket_bytes": 1, "initial_delay": 30}},
     )
 
     metrics_payload = "transactions/foo:42|c\ntransactions/bar:17|c"
@@ -138,7 +151,7 @@ def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, r
             error = str(mini_sentry.test_failures.get(timeout=1))
             assert "Health check probe 'aggregator'" in error
             return
-        time.sleep(0.1)
+        time.sleep(0.2)
 
     assert False, "health check never failed"
 

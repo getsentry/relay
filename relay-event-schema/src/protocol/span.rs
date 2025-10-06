@@ -1,6 +1,8 @@
 mod compat;
 mod convert;
 
+pub use compat::CompatSpan;
+
 use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -349,10 +351,17 @@ pub struct SentryTags {
     #[metastructure(field = "thread.id")]
     pub thread_id: Annotated<String>,
     pub profiler_id: Annotated<String>,
+    #[metastructure(field = "user.geo.city")]
+    pub user_city: Annotated<String>,
     #[metastructure(field = "user.geo.country_code")]
     pub user_country_code: Annotated<String>,
+    #[metastructure(field = "user.geo.region")]
+    pub user_region: Annotated<String>,
+    #[metastructure(field = "user.geo.subdivision")]
+    pub user_subdivision: Annotated<String>,
     #[metastructure(field = "user.geo.subregion")]
     pub user_subregion: Annotated<String>,
+    pub name: Annotated<String>,
     // no need for an `other` entry here because these fields are added server-side.
     // If an upstream relay does not recognize a field it will be dropped.
 }
@@ -410,6 +419,7 @@ impl Getter for SentryTags {
             "messaging.operation.name" => &self.messaging_operation_name,
             "messaging.operation.type" => &self.messaging_operation_type,
             "mobile" => &self.mobile,
+            "name" => &self.name,
             "op" => &self.op,
             "os.name" => &self.os_name,
             "platform" => &self.platform,
@@ -432,7 +442,10 @@ impl Getter for SentryTags {
             "ttfd" => &self.ttfd,
             "ttid" => &self.ttid,
             "user.email" => &self.user_email,
+            "user.geo.city" => &self.user_city,
             "user.geo.country_code" => &self.user_country_code,
+            "user.geo.region" => &self.user_region,
+            "user.geo.subdivision" => &self.user_subdivision,
             "user.geo.subregion" => &self.user_subregion,
             "user.id" => &self.user_id,
             "user.ip" => &self.user_ip,
@@ -940,6 +953,11 @@ pub struct SpanData {
     #[metastructure(field = "lcp.url")]
     pub lcp_url: Annotated<String>,
 
+    // The span's name, a brief, human-readable, low cardinality description of operation
+    // represented by the span (as per OpenTelemetry/Sentry's Span V2 schema).
+    #[metastructure(field = "sentry.name")]
+    pub span_name: Annotated<String>,
+
     /// Other fields in `span.data`.
     #[metastructure(
         additional_properties,
@@ -1110,9 +1128,10 @@ impl FromValue for Route {
 ///
 /// This corresponds to OTEL's kind enum, plus a
 /// catchall variant for forward compatibility.
-#[derive(Clone, Debug, PartialEq, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, ProcessValue, Default)]
 pub enum SpanKind {
     /// An operation internal to an application.
+    #[default]
     Internal,
     /// Server-side processing requested by a client.
     Server,
@@ -1160,12 +1179,6 @@ impl std::str::FromStr for SpanKind {
             "consumer" => SpanKind::Consumer,
             other => SpanKind::Unknown(other.to_owned()),
         })
-    }
-}
-
-impl Default for SpanKind {
-    fn default() -> Self {
-        Self::Internal
     }
 }
 
@@ -1426,7 +1439,7 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r#"
+        insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
             gen_ai_request_max_tokens: ~,
@@ -1551,6 +1564,7 @@ mod tests {
             lcp_size: ~,
             lcp_id: ~,
             lcp_url: ~,
+            span_name: ~,
             other: {
                 "bar": String(
                     "3",
@@ -1560,7 +1574,7 @@ mod tests {
                 ),
             },
         }
-        "#);
+        "###);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));

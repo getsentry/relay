@@ -13,7 +13,8 @@ use crate::services::processor::{
     TransactionGroup, dynamic_sampling, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::sample;
+use crate::statsd::RelayCounters;
+use crate::utils;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -32,7 +33,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::{
-    BrowserContext, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
+    BrowserContext, CompatSpan, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
@@ -73,6 +74,12 @@ pub async fn process(
         reservoir_counters,
     )
     .await;
+
+    relay_statsd::metric!(
+        counter(RelayCounters::SamplingDecision) += 1,
+        decision = sampling_result.decision().as_str(),
+        item = "span"
+    );
 
     let span_metrics_extraction_config = match project_info.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
@@ -229,18 +236,11 @@ pub async fn process(
             }
         };
 
-        // Write back:
-        let mut new_item = Item::new(ItemType::Span);
-        let payload = match annotated_span.to_json() {
-            Ok(payload) => payload,
-            Err(err) => {
-                relay_log::debug!("failed to serialize span: {}", err);
-                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-            }
+        let Ok(mut new_item) = create_span_item(annotated_span, &config) else {
+            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
-        new_item.set_payload(ContentType::Json, payload);
-        new_item.set_metrics_extracted(item.metrics_extracted());
 
+        new_item.set_metrics_extracted(item.metrics_extracted());
         *item = new_item;
 
         ItemAction::Keep
@@ -257,6 +257,44 @@ pub async fn process(
     if let Some(outcome) = sampling_result.into_dropped_outcome() {
         managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
+}
+
+fn create_span_item(span: Annotated<Span>, config: &Config) -> Result<Item, ()> {
+    let mut new_item = Item::new(ItemType::Span);
+    if cfg!(feature = "processing") && config.processing_enabled() {
+        let span_v2 = span.map_value(relay_spans::span_v1_to_span_v2);
+        let compat_span = match span_v2.map_value(CompatSpan::try_from) {
+            Annotated(Some(Result::Err(err)), _) => {
+                relay_log::error!("failed to create compat span: {}", err);
+                return Err(());
+            }
+            Annotated(Some(Result::Ok(compat_span)), meta) => Annotated(Some(compat_span), meta),
+            Annotated(None, meta) => Annotated(None, meta),
+        };
+        let payload = match compat_span.to_json() {
+            Ok(payload) => payload,
+            Err(err) => {
+                relay_log::error!("failed to serialize compat span: {}", err);
+                return Err(());
+            }
+        };
+        if let Some(trace_id) = compat_span.value().and_then(|s| s.span_v2.trace_id.value()) {
+            new_item.set_routing_hint(*trace_id.as_ref());
+        }
+
+        new_item.set_payload(ContentType::CompatSpan, payload);
+    } else {
+        let payload = match span.to_json() {
+            Ok(payload) => payload,
+            Err(err) => {
+                relay_log::error!("failed to serialize span: {}", err);
+                return Err(());
+            }
+        };
+        new_item.set_payload(ContentType::Json, payload);
+    }
+
+    Ok(new_item)
 }
 
 fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value: Option<f64>) {
@@ -295,7 +333,7 @@ pub fn extract_from_event(
     }
 
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate
-        && sample(sample_rate).is_discard()
+        && utils::sample(sample_rate).is_discard()
     {
         return spans_extracted;
     }
@@ -338,21 +376,14 @@ pub fn extract_from_event(
             }
         };
 
-        let span = match span.to_json() {
-            Ok(span) => span,
-            Err(e) => {
-                relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
-                managed_envelope.track_outcome(
-                    Outcome::Invalid(DiscardReason::InvalidSpan),
-                    relay_quotas::DataCategory::SpanIndexed,
-                    1,
-                );
-                return;
-            }
+        let Ok(mut item) = create_span_item(span, &config) else {
+            managed_envelope.track_outcome(
+                Outcome::Invalid(DiscardReason::InvalidSpan),
+                relay_quotas::DataCategory::SpanIndexed,
+                1,
+            );
+            return;
         };
-
-        let mut item = Item::new(ItemType::Span);
-        item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(event_metrics_extracted.0);
 

@@ -74,6 +74,8 @@ pub enum EnvelopeError {
     HeaderMismatch(&'static str),
     #[error("invalid item header")]
     InvalidItemHeader(#[source] serde_json::Error),
+    #[error("internal/reserved item type used")]
+    InternalItemType,
     #[error("failed to write header")]
     HeaderIoFailed(#[source] serde_json::Error),
     #[error("failed to write payload")]
@@ -187,6 +189,11 @@ impl<M> EnvelopeHeaders<M> {
             }
             Some(ErrorBoundary::Ok(t)) => Some(t),
         }
+    }
+
+    /// Returns the timestamp when the event has been sent, according to the SDK.
+    pub fn sent_at(&self) -> Option<DateTime<Utc>> {
+        self.sent_at
     }
 }
 

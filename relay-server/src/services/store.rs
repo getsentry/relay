@@ -12,9 +12,7 @@ use futures::FutureExt;
 use futures::future::BoxFuture;
 use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
-use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
-use serde_json::Deserializer;
 use serde_json::value::RawValue;
 use uuid::Uuid;
 
@@ -23,7 +21,7 @@ use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
-use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
+use relay_event_schema::protocol::{EventId, datetime_to_timestamp};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
@@ -35,7 +33,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::managed::{Counted, Managed, OutcomeError, Quantities, TypedEnvelope};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
@@ -286,6 +284,7 @@ impl StoreService {
         .is_keep();
 
         for item in envelope.items() {
+            let content_type = item.content_type();
             match item.ty() {
                 ItemType::Attachment => {
                     if let Some(attachment) = self.produce_attachment(
@@ -352,14 +351,27 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span => self.produce_span(
-                    scoping,
-                    received_at,
-                    event_id,
-                    retention,
-                    downsampled_retention,
-                    item,
-                )?,
+                ItemType::Span if content_type == Some(&ContentType::Json) => {
+                    relay_log::error!("Store producer received legacy span");
+                    self.outcome_aggregator.send(TrackOutcome {
+                        category: DataCategory::SpanIndexed,
+                        event_id: None,
+                        outcome: Outcome::Invalid(DiscardReason::Internal),
+                        quantity: 1,
+                        remote_addr: None,
+                        scoping,
+                        timestamp: received_at,
+                    });
+                }
+                ItemType::Span if content_type == Some(&ContentType::CompatSpan) => self
+                    .produce_span(
+                        scoping,
+                        received_at,
+                        event_id,
+                        retention,
+                        downsampled_retention,
+                        item,
+                    )?,
                 ty @ ItemType::Log => {
                     debug_assert!(
                         false,
@@ -637,21 +649,6 @@ impl StoreService {
                     topic = topic_name,
                     metric_type = metric.value.variant(),
                     metric_encoding = metric.value.encoding().unwrap_or(""),
-                );
-            }
-            KafkaMessage::Span { message: span, .. } => {
-                let is_segment = span.is_segment;
-                let has_parent = span.parent_span_id.is_some();
-                let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
-
-                metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
-                    event_type = message.variant(),
-                    topic = topic_name,
-                    platform = platform.unwrap_or(&""),
-                    is_segment = bool_to_str(is_segment),
-                    has_parent = bool_to_str(has_parent),
-                    topic = topic_name,
                 );
             }
             KafkaMessage::ReplayRecordingNotChunked(replay) => {
@@ -1015,58 +1012,45 @@ impl StoreService {
         downsampled_retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        relay_log::trace!("Producing span");
+        debug_assert_eq!(item.ty(), &ItemType::Span);
+        debug_assert_eq!(item.content_type(), Some(&ContentType::CompatSpan));
+
+        let Scoping {
+            organization_id,
+            project_id,
+            project_key: _,
+            key_id,
+        } = scoping;
 
         let payload = item.payload();
-        let d = &mut Deserializer::from_slice(&payload);
-        let mut span: SpanKafkaMessage = match serde_path_to_error::deserialize(d) {
-            Ok(span) => span,
-            Err(error) => {
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    "failed to parse span"
-                );
-                self.outcome_aggregator.send(TrackOutcome {
-                    category: DataCategory::SpanIndexed,
-                    event_id: None,
-                    outcome: Outcome::Invalid(DiscardReason::InvalidSpan),
-                    quantity: 1,
-                    remote_addr: None,
-                    scoping,
-                    timestamp: received_at,
-                });
-                return Ok(());
-            }
+        let message = SpanKafkaMessage {
+            meta: SpanMeta {
+                organization_id,
+                project_id,
+                key_id,
+                event_id,
+                retention_days,
+                downsampled_retention_days,
+                received: datetime_to_timestamp(received_at),
+            },
+            span: serde_json::from_slice(&payload)
+                .map_err(|e| StoreError::EncodingFailed(e.into()))?,
         };
 
-        // Discard measurements with empty `value`s.
-        if let Some(measurements) = &mut span.measurements {
-            measurements.retain(|_, v| v.as_ref().and_then(|v| v.value).is_some());
-        }
-
-        span.backfill_data();
-        span.duration_ms =
-            ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
-        span.event_id = event_id;
-        span.organization_id = scoping.organization_id.value();
-        span.project_id = scoping.project_id.value();
-        span.retention_days = retention_days;
-        span.downsampled_retention_days = downsampled_retention_days;
-        span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
-        span.key_id = scoping.key_id;
-
+        relay_statsd::metric!(counter(RelayCounters::SpanV2Produced) += 1);
         self.produce(
             KafkaTopic::Spans,
             KafkaMessage::Span {
+                routing_key: item.routing_hint(),
                 headers: BTreeMap::from([(
                     "project_id".to_owned(),
                     scoping.project_id.to_string(),
                 )]),
-                message: span,
+                message,
             },
         )?;
 
-        // XXX: Temporarily produce span outcomes also for JSON spans. Keep in sync with either EAP
+        // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
         // or the segments consumer, depending on which will produce outcomes later.
         self.outcome_aggregator.send(TrackOutcome {
             category: DataCategory::SpanIndexed,
@@ -1190,27 +1174,6 @@ where
     serde_json::to_value(t)
         .map_err(|e| serde::ser::Error::custom(e.to_string()))?
         .serialize(serializer)
-}
-
-fn serialize_btreemap_skip_nulls<K, S, T>(
-    map: &Option<BTreeMap<K, Option<T>>>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    K: Serialize,
-    S: serde::Serializer,
-    T: serde::Serialize,
-{
-    let Some(map) = map else {
-        return serializer.serialize_none();
-    };
-    let mut m = serializer.serialize_map(Some(map.len()))?;
-    for (key, value) in map.iter() {
-        if let Some(value) = value {
-            m.serialize_entry(key, value)?;
-        }
-    }
-    m.end()
 }
 
 /// Container payload for event messages.
@@ -1397,214 +1360,29 @@ struct CheckInKafkaMessage {
     retention_days: u16,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct SpanLink<'a> {
-    pub trace_id: &'a str,
-    pub span_id: &'a str,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sampled: Option<bool>,
-    #[serde(borrow)]
-    pub attributes: Option<&'a RawValue>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct SpanMeasurement<'a> {
-    #[serde(skip_serializing_if = "Option::is_none", borrow)]
-    value: Option<&'a RawValue>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Serialize)]
 struct SpanKafkaMessage<'a> {
-    #[serde(skip_serializing_if = "Option::is_none", borrow)]
-    description: Option<Cow<'a, str>>,
-    #[serde(default)]
-    duration_ms: u32,
-    /// The ID of the transaction event associated to this span, if any.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    event_id: Option<EventId>,
-    #[serde(rename(deserialize = "exclusive_time"))]
-    exclusive_time_ms: f64,
-    #[serde(default)]
-    is_segment: bool,
-    #[serde(default)]
-    is_remote: bool,
+    #[serde(flatten)]
+    meta: SpanMeta,
+    #[serde(flatten)]
+    span: BTreeMap<&'a str, &'a RawValue>,
+}
 
-    #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    kind: Option<Cow<'a, str>>,
-    #[serde(default, skip_serializing_if = "none_or_empty_vec")]
-    links: Option<Vec<SpanLink<'a>>>,
-    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement<'a>>>>,
-    #[serde(default)]
-    organization_id: u64,
-    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    origin: Option<Cow<'a, str>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    parent_span_id: Option<Cow<'a, str>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    profile_id: Option<Cow<'a, str>>,
-    /// The numeric ID of the project.
-    #[serde(default)]
-    project_id: u64,
-    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
-    received: f64,
-    /// Number of days until these data should be deleted.
-    #[serde(default)]
-    retention_days: u16,
-    /// Number of days until the downsampled version of this data should be deleted.
-    #[serde(default)]
-    downsampled_retention_days: u16,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    segment_id: Option<Cow<'a, str>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_btreemap_skip_nulls"
-    )]
-    #[serde(borrow)]
-    sentry_tags: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
-    span_id: Cow<'a, str>,
-    #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    tags: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
-    trace_id: EventId,
-
-    #[serde(default)]
-    start_timestamp_ms: u64,
-    #[serde(rename(deserialize = "start_timestamp"))]
-    start_timestamp_precise: f64,
-    #[serde(rename(deserialize = "timestamp"))]
-    end_timestamp_precise: f64,
-
-    #[serde(borrow, default, skip_serializing)]
-    platform: Cow<'a, str>, // We only use this for logging for now
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    client_sample_rate: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    server_sample_rate: Option<f64>,
-
-    #[serde(
-        default,
-        rename = "_meta",
-        skip_serializing_if = "none_or_empty_object"
-    )]
-    meta: Option<&'a RawValue>,
-
-    #[serde(
-        default,
-        rename = "_performance_issues_spans",
-        skip_serializing_if = "Option::is_none"
-    )]
-    performance_issues_spans: Option<bool>,
-
+#[derive(Debug, Serialize)]
+struct SpanMeta {
+    organization_id: OrganizationId,
+    project_id: ProjectId,
     // Required for the buffer to emit outcomes scoped to the DSN.
     #[serde(skip_serializing_if = "Option::is_none")]
     key_id: Option<u64>,
-}
-
-impl SpanKafkaMessage<'_> {
-    /// Backfills `data` based on `sentry_tags`, `tags`, and `measurements`.
-    ///
-    /// * Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
-    ///   The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
-    ///
-    /// * Every item in `tags` is copied to `data` verbatim, with the exception of `description`, which
-    ///   is copied as `sentry.normalized_description`.
-    ///
-    /// * The value of every item in `measurements` is copied to `data` with the same key, with the exceptions
-    ///   of `client_sample_rate` and `server_sample_rate`. Those measurements are instead written to the top-level
-    ///   fields of the same names.
-    ///
-    /// In no case are existing keys overwritten. Thus, from highest to lowest, the order of precedence is
-    /// * existing values in `data`
-    /// * `measurements`
-    /// * `tags`
-    /// * `sentry_tags`
-    fn backfill_data(&mut self) {
-        let data = self.data.get_or_insert_default();
-
-        if let Some(measurements) = &self.measurements {
-            for (key, value) in measurements {
-                let Some(value) = value.as_ref().and_then(|v| v.value) else {
-                    continue;
-                };
-
-                match key.as_ref() {
-                    "client_sample_rate" => {
-                        data.entry(Cow::Borrowed("sentry.client_sample_rate"))
-                            .or_insert(Some(value));
-
-                        if let Ok(client_sample_rate) = Deserialize::deserialize(value) {
-                            self.client_sample_rate = Some(client_sample_rate);
-                        }
-                    }
-                    "server_sample_rate" => {
-                        data.entry(Cow::Borrowed("sentry.server_sample_rate"))
-                            .or_insert(Some(value));
-
-                        if let Ok(server_sample_rate) = Deserialize::deserialize(value) {
-                            self.server_sample_rate = Some(server_sample_rate);
-                        }
-                    }
-                    _ => {
-                        data.entry(key.clone()).or_insert(Some(value));
-                    }
-                }
-            }
-        }
-
-        if let Some(tags) = &self.tags {
-            for (key, value) in tags {
-                let Some(value) = value else {
-                    continue;
-                };
-
-                let key = if *key == "description" {
-                    Cow::Borrowed("sentry.normalized_description")
-                } else {
-                    key.clone()
-                };
-
-                data.entry(key).or_insert(Some(value));
-            }
-        }
-
-        if let Some(sentry_tags) = &self.sentry_tags {
-            for (key, value) in sentry_tags {
-                let Some(value) = value else {
-                    continue;
-                };
-
-                let key = if *key == "description" {
-                    Cow::Borrowed("sentry.normalized_description")
-                } else {
-                    Cow::Owned(format!("sentry.{key}"))
-                };
-
-                data.entry(key).or_insert(Some(value));
-            }
-        }
-    }
-}
-
-fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
-    match value {
-        None => true,
-        Some(raw) => raw.get() == "{}",
-    }
-}
-
-fn none_or_empty_vec<T>(value: &Option<Vec<T>>) -> bool {
-    match &value {
-        Some(vec) => vec.is_empty(),
-        None => true,
-    }
-}
-
-fn none_or_empty_map<S, T>(value: &Option<BTreeMap<S, T>>) -> bool {
-    value.as_ref().is_none_or(BTreeMap::is_empty)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    event_id: Option<EventId>,
+    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
+    received: f64,
+    /// Number of days until these data should be deleted.
+    retention_days: u16,
+    /// Number of days until the downsampled version of this data should be deleted.
+    downsampled_retention_days: u16,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1639,6 +1417,8 @@ enum KafkaMessage<'a> {
         message: TraceItem,
     },
     Span {
+        #[serde(skip)]
+        routing_key: Option<Uuid>,
         #[serde(skip)]
         headers: BTreeMap<String, String>,
         #[serde(flatten)]
@@ -1687,7 +1467,7 @@ impl Message for KafkaMessage<'_> {
         match self {
             Self::Event(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
-            Self::Span { message, .. } => Some(message.trace_id.0),
+            Self::Span { routing_key, .. } => *routing_key,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1700,7 +1480,11 @@ impl Message for KafkaMessage<'_> {
             Self::ReplayEvent(message) => Some(message.replay_id.0),
 
             // Random partitioning
-            _ => None,
+            Self::Metric { .. }
+            | Self::Item { .. }
+            | Self::Profile(_)
+            | Self::ProfileChunk(_)
+            | Self::ReplayRecordingNotChunked(_) => None,
         }
         .filter(|uuid| !uuid.is_nil())
         .map(|uuid| uuid.as_u128())
@@ -1712,7 +1496,15 @@ impl Message for KafkaMessage<'_> {
             | KafkaMessage::Span { headers, .. }
             | KafkaMessage::Item { headers, .. }
             | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) => Some(headers),
-            _ => None,
+
+            KafkaMessage::Event(_)
+            | KafkaMessage::UserReport(_)
+            | KafkaMessage::CheckIn(_)
+            | KafkaMessage::Attachment(_)
+            | KafkaMessage::AttachmentChunk(_)
+            | KafkaMessage::ProfileChunk(_)
+            | KafkaMessage::ReplayEvent(_)
+            | KafkaMessage::ReplayRecordingNotChunked(_) => None,
         }
     }
 
@@ -1728,7 +1520,14 @@ impl Message for KafkaMessage<'_> {
                     Err(_) => Err(ClientError::ProtobufEncodingFailed),
                 }
             }
-            _ => match rmp_serde::to_vec_named(&self) {
+            KafkaMessage::Event(_)
+            | KafkaMessage::UserReport(_)
+            | KafkaMessage::CheckIn(_)
+            | KafkaMessage::Attachment(_)
+            | KafkaMessage::AttachmentChunk(_)
+            | KafkaMessage::Profile(_)
+            | KafkaMessage::ProfileChunk(_)
+            | KafkaMessage::ReplayRecordingNotChunked(_) => match rmp_serde::to_vec_named(&self) {
                 Ok(x) => Ok(SerializationOutput::MsgPack(Cow::Owned(x))),
                 Err(err) => Err(ClientError::InvalidMsgPack(err)),
             },
@@ -1786,135 +1585,5 @@ mod tests {
 
             assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }
-    }
-
-    #[test]
-    fn backfill() {
-        let json = r#"{
-            "description": "/api/0/relays/projectconfigs/",
-            "duration_ms": 152,
-            "exclusive_time": 0.228,
-            "is_segment": true,
-            "data": {
-                "sentry.environment": "development",
-                "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
-                "thread.name": "uWSGIWorker1Core0",
-                "thread.id": "8522009600",
-                "sentry.segment.name": "/api/0/relays/projectconfigs/",
-                "sentry.sdk.name": "sentry.python.django",
-                "sentry.sdk.version": "2.7.0",
-                "my.float.field": 101.2,
-                "my.int.field": 2000,
-                "my.neg.field": -100,
-                "my.neg.float.field": -101.2,
-                "my.true.bool.field": true,
-                "my.false.bool.field": false,
-                "my.dict.field": {
-                    "id": 42,
-                    "name": "test"
-                },
-                "my.u64.field": 9447000002305251000,
-                "my.array.field": [1, 2, ["nested", "array"]]
-            },
-            "measurements": {
-                "num_of_spans": {"value": 50.0},
-                "client_sample_rate": {"value": 0.1},
-                "server_sample_rate": {"value": 0.2}
-            },
-            "profile_id": "56c7d1401ea14ad7b4ac86de46baebae",
-            "organization_id": 1,
-            "origin": "auto.http.django",
-            "project_id": 1,
-            "received": 1721319572.877828,
-            "retention_days": 90,
-            "segment_id": "8873a98879faf06d",
-            "sentry_tags": {
-                "description": "normalized_description",
-                "category": "http",
-                "environment": "development",
-                "op": "http.server",
-                "platform": "python",
-                "release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
-                "sdk.name": "sentry.python.django",
-                "sdk.version": "2.7.0",
-                "status": "ok",
-                "status_code": "200",
-                "thread.id": "8522009600",
-                "thread.name": "uWSGIWorker1Core0",
-                "trace.status": "ok",
-                "transaction": "/api/0/relays/projectconfigs/",
-                "transaction.method": "POST",
-                "transaction.op": "http.server",
-                "user": "ip:127.0.0.1"
-            },
-            "span_id": "8873a98879faf06d",
-            "tags": {
-                "http.status_code": "200",
-                "relay_endpoint_version": "3",
-                "relay_id": "88888888-4444-4444-8444-cccccccccccc",
-                "relay_no_cache": "False",
-                "relay_protocol_version": "3",
-                "relay_use_post_or_schedule": "True",
-                "relay_use_post_or_schedule_rejected": "version",
-                "server_name": "D23CXQ4GK2.local",
-                "spans_over_limit": "False"
-            },
-            "trace_id": "d099bf9ad5a143cf8f83a98081d0ed3b",
-            "start_timestamp_ms": 1721319572616,
-            "start_timestamp": 1721319572.616648,
-            "timestamp": 1721319572.768806
-        }"#;
-        let mut span: SpanKafkaMessage = serde_json::from_str(json).unwrap();
-        span.backfill_data();
-
-        assert_eq!(
-            serde_json::to_string_pretty(&span.data).unwrap(),
-            r#"{
-  "http.status_code": "200",
-  "my.array.field": [1, 2, ["nested", "array"]],
-  "my.dict.field": {
-                    "id": 42,
-                    "name": "test"
-                },
-  "my.false.bool.field": false,
-  "my.float.field": 101.2,
-  "my.int.field": 2000,
-  "my.neg.field": -100,
-  "my.neg.float.field": -101.2,
-  "my.true.bool.field": true,
-  "my.u64.field": 9447000002305251000,
-  "num_of_spans": 50.0,
-  "relay_endpoint_version": "3",
-  "relay_id": "88888888-4444-4444-8444-cccccccccccc",
-  "relay_no_cache": "False",
-  "relay_protocol_version": "3",
-  "relay_use_post_or_schedule": "True",
-  "relay_use_post_or_schedule_rejected": "version",
-  "sentry.category": "http",
-  "sentry.client_sample_rate": 0.1,
-  "sentry.environment": "development",
-  "sentry.normalized_description": "normalized_description",
-  "sentry.op": "http.server",
-  "sentry.platform": "python",
-  "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
-  "sentry.sdk.name": "sentry.python.django",
-  "sentry.sdk.version": "2.7.0",
-  "sentry.segment.name": "/api/0/relays/projectconfigs/",
-  "sentry.server_sample_rate": 0.2,
-  "sentry.status": "ok",
-  "sentry.status_code": "200",
-  "sentry.thread.id": "8522009600",
-  "sentry.thread.name": "uWSGIWorker1Core0",
-  "sentry.trace.status": "ok",
-  "sentry.transaction": "/api/0/relays/projectconfigs/",
-  "sentry.transaction.method": "POST",
-  "sentry.transaction.op": "http.server",
-  "sentry.user": "ip:127.0.0.1",
-  "server_name": "D23CXQ4GK2.local",
-  "spans_over_limit": "False",
-  "thread.id": "8522009600",
-  "thread.name": "uWSGIWorker1Core0"
-}"#
-        );
     }
 }

@@ -16,7 +16,6 @@ use relay_protocol::Error;
 ///   provided.
 /// * The Sentry span's `status` field is set based on the OTEL span's `status` field and
 ///   `http.status_code` and `rpc.grpc.status_code` attributes.
-/// * The Sentry span's `exclusive_time` field is set based on the OTEL span's `exclusive_time_nano`
 ///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 /// * The Sentry span's `platform` field is set based on the OTEL span's `sentry.platform` attribute.
 /// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile_id` attribute.
@@ -92,9 +91,9 @@ mod tests {
                     }
                 },
                 {
-                    "key": "sentry.exclusive_time_nano",
+                    "key": "sentry.exclusive_time",
                     "value": {
-                        "intValue": "1000000000"
+                        "doubleValue": 1000.000000
                     }
                 }
             ],
@@ -124,12 +123,12 @@ mod tests {
           "description": "GET /home",
           "data": {
             "sentry.environment": "test",
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "fastify.type": "middleware",
             "hook.name": "onResponse",
             "http.request.method": "GET",
             "http.route": "/home",
             "plugin.name": "fastify -> @fastify/multipart",
-            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1,
             "sentry.status.message": "test"
@@ -141,7 +140,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_with_exclusive_time_nano_attribute() {
+    fn parse_span_with_exclusive_time_attribute() {
         let json = r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",
@@ -152,9 +151,9 @@ mod tests {
             "endTimeUnixNano": "1697620454980078800",
             "attributes": [
                 {
-                    "key": "sentry.exclusive_time_nano",
+                    "key": "sentry.exclusive_time",
                     "value": {
-                        "intValue": "3200000000"
+                        "doubleValue": 3200.0
                     }
                 }
             ]
@@ -183,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_no_exclusive_time_nano_attribute() {
+    fn parse_span_no_exclusive_time_attribute() {
         let json = r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",
@@ -269,10 +268,10 @@ mod tests {
           "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
           "data": {
             "db.system": "mysql",
+            "sentry.name": "database query",
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-            "db.type": "sql",
-            "sentry.name": "database query"
+            "db.type": "sql"
           },
           "links": [],
           "kind": "client"
@@ -332,10 +331,10 @@ mod tests {
           "status": "unknown",
           "description": "index view query",
           "data": {
+            "sentry.name": "database query",
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-            "db.type": "sql",
-            "sentry.name": "database query"
+            "db.type": "sql"
           },
           "links": [],
           "kind": "client"
@@ -383,8 +382,8 @@ mod tests {
           "status": "unknown",
           "description": "GET /api/search?q=foobar",
           "data": {
-            "http.request.method": "GET",
             "sentry.name": "http client request",
+            "http.request.method": "GET",
             "url.path": "/api/search?q=foobar"
           },
           "links": [],
@@ -439,7 +438,7 @@ mod tests {
         let event_span = otel_to_sentry_span(otel_span).unwrap();
 
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -451,13 +450,13 @@ mod tests {
           "status": "ok",
           "description": "cmd.run",
           "data": {
+            "sentry.name": "cmd.run",
             "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]",
-            "process.info": "[41]",
-            "sentry.name": "cmd.run"
+            "process.info": "[41]"
           },
           "links": []
         }
-        "#);
+        "###);
     }
 
     /// Intended to be synced with `relay-event-schema::protocol::span::convert::tests::roundtrip`.
@@ -612,8 +611,8 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
-            "sentry.metrics_summary.some_metric": "[]",
             "sentry.name": "myname",
+            "sentry.metrics_summary.some_metric": "[]",
             "sentry.status.message": "foo"
           },
           "links": [],

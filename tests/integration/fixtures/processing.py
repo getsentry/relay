@@ -575,14 +575,18 @@ class SpansConsumer(ConsumerBase):
         assert message is not None
         assert message.error() is None
 
-        return json.loads(message.value())
+        span = json.loads(message.value())
+        assert message.key() == bytes.fromhex(span["trace_id"])
+        return span
 
-    def get_spans(self, timeout=None, n=None):
+    def get_spans(self, *, timeout=None, n=None):
         spans = []
 
         for message in self.poll_many(timeout=timeout, n=n):
             assert message.error() is None
-            spans.append(json.loads(message.value()))
+            span = json.loads(message.value())
+            assert message.key() == bytes.fromhex(span["trace_id"])
+            spans.append(span)
 
         return spans
 
