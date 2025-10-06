@@ -177,7 +177,7 @@ sentry = { version = "0.41.0", default-features = false, features = [
   "transport",
 ] }
 sentry-core = "0.41.0"
-sentry-kafka-schemas = { version = "2.1.1", default-features = false }
+sentry-kafka-schemas = { version = "2.1.6", default-features = false }
 sentry-release-parser = { version = "1.3.2", default-features = false }
 sentry-types = "0.41.0"
 sentry_protos = "0.3.3"
@@ -195,7 +195,7 @@ sha2 = "0.10.9"
 similar-asserts = "1.6.0"
 smallvec = { version = "1.13.2", features = ["serde"] }
 socket2 = "0.5.10"
-sqlparser = "0.44.0"
+sqlparser = "0.59.0"
 sqlx = { version = "0.8.2", default-features = false }
 statsdproxy = { version = "0.4.1", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }

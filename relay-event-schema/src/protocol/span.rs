@@ -351,8 +351,14 @@ pub struct SentryTags {
     #[metastructure(field = "thread.id")]
     pub thread_id: Annotated<String>,
     pub profiler_id: Annotated<String>,
+    #[metastructure(field = "user.geo.city")]
+    pub user_city: Annotated<String>,
     #[metastructure(field = "user.geo.country_code")]
     pub user_country_code: Annotated<String>,
+    #[metastructure(field = "user.geo.region")]
+    pub user_region: Annotated<String>,
+    #[metastructure(field = "user.geo.subdivision")]
+    pub user_subdivision: Annotated<String>,
     #[metastructure(field = "user.geo.subregion")]
     pub user_subregion: Annotated<String>,
     pub name: Annotated<String>,
@@ -436,7 +442,10 @@ impl Getter for SentryTags {
             "ttfd" => &self.ttfd,
             "ttid" => &self.ttid,
             "user.email" => &self.user_email,
+            "user.geo.city" => &self.user_city,
             "user.geo.country_code" => &self.user_country_code,
+            "user.geo.region" => &self.user_region,
+            "user.geo.subdivision" => &self.user_subdivision,
             "user.geo.subregion" => &self.user_subregion,
             "user.id" => &self.user_id,
             "user.ip" => &self.user_ip,

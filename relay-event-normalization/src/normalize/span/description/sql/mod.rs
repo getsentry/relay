@@ -245,7 +245,7 @@ mod tests {
         unparameterized_ins_odbc_escape_sequence,
         // See https://learn.microsoft.com/en-us/sql/odbc/reference/appendixes/date-time-and-timestamp-escape-sequences
         "INSERT INTO a VALUES (123, {ts '2023-12-31 23:59:59.123'}, 'foo', N'bar')",
-        "INSERT INTO a VALUES (%s)"
+        "INSERT INTO a (..) VALUES (%s)"
     );
 
     scrub_sql_test!(
@@ -427,7 +427,7 @@ mod tests {
     scrub_sql_test!(
         fetch_cursor,
         "FETCH LAST FROM curs3 INTO x",
-        "FETCH LAST IN %s INTO %s"
+        "FETCH LAST FROM %s INTO %s"
     );
 
     scrub_sql_test!(close_cursor, "CLOSE curs1", "CLOSE %s");
@@ -699,7 +699,7 @@ mod tests {
             ) srpe
             inner join foo on foo.id = foo_id
         ",
-        "SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe JOIN foo ON id = foo_id"
+        "SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe INNER JOIN foo ON id = foo_id"
     );
 
     scrub_sql_test!(
@@ -978,7 +978,7 @@ mod tests {
     scrub_sql_test!(
         fallback_hex,
         r#"SELECT {ts '2023-12-24 23:59'}, 0x123456789AbCdEf"#,
-        "SELECT %s, %s"
+        "SELECT {ts %s}, %s"
     );
 
     scrub_sql_test_with_dialect!(
@@ -997,7 +997,7 @@ mod tests {
     scrub_sql_test!(
         create_index_hex,
         "CREATE INDEX name_0123456789abcdef0123456789abcdef ON table_0123456789abcdef0123456789abcdef USING gist (geometry)",
-        "CREATE INDEX name_{%s} ON table_{%s} USING gist (geometry)"
+        "CREATE INDEX name_{%s} ON table_{%s} USING GIST (geometry)"
     );
 
     scrub_sql_test!(
