@@ -5,6 +5,7 @@ use relay_event_schema::processor::ProcessingAction;
 #[cfg(feature = "processing")]
 use relay_event_schema::protocol::CompatSpan;
 use relay_event_schema::protocol::SpanV2;
+use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
@@ -37,6 +38,9 @@ pub enum Error {
     /// A processor failed to process the spans.
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
+    /// Internal error, Pii config could not be loaded.
+    #[error("Pii configuration error")]
+    PiiConfig(PiiConfigError),
     /// The span is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
@@ -53,6 +57,7 @@ impl OutcomeError for Error {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
+            Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
@@ -128,10 +133,9 @@ impl processing::Processor for SpansProcessor {
 
         process::normalize(&mut spans, &self.geo_lookup);
         filter::filter(&mut spans, ctx);
+        process::scrub(&mut spans, ctx);
 
         self.limiter.enforce_quotas(&mut spans, ctx).await?;
-
-        // TODO: pii scrubbing
 
         let metrics = dynamic_sampling::create_indexed_metrics(&spans, ctx);
 

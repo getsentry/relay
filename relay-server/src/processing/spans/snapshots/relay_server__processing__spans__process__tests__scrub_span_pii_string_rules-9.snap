@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/spans/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@creditcard|4242424242424242": {
+    "type": "string",
+    "value": "[creditcard]"
+  },
+  "_meta": {
+    "@creditcard|4242424242424242": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@creditcard",
+              "s",
+              0,
+              12
+            ]
+          ],
+          "len": 16
+        }
+      }
+    }
+  }
+}
