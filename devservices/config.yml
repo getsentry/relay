@@ -32,7 +32,7 @@ services:
       - 127.0.0.1:7899:7899
     command: [run, --config, /etc/relay]
     healthcheck:
-      test: ["CMD", "/bin/relay", "healthcheck"]
+      test: ["CMD", "/bin/relay", "--config", "/etc/relay", "healthcheck"]
       interval: 5s
       timeout: 5s
       retries: 3
