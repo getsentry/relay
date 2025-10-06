@@ -6,16 +6,15 @@ use chrono::{TimeZone, Utc};
 use relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS, URL_PATH};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer};
 
-/// Vercel log structure matching their [schema](https://vercel.com/docs/drains/reference/logs)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Vercel log structure matching their [schema](https://vercel.com/docs/drains/reference/logs).
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VercelLog {
     /// Unique identifier for the log entry.
     pub id: String,
     /// Identifier for the Vercel deployment.
-    #[serde(rename = "deploymentId")]
     pub deployment_id: String,
     /// Origin of the log.
     pub source: String,
@@ -39,8 +38,8 @@ pub struct VercelLog {
     pub path: Option<String>,
     /// Log output type.
     #[serde(rename = "type")]
-    pub log_type: Option<String>,
-    /// Log output type.
+    pub ty: Option<String>,
+    /// HTTP status code of the request.
     pub status_code: Option<i64>,
     /// Identifier of the request.
     pub request_id: Option<String>,
@@ -59,21 +58,38 @@ pub struct VercelLog {
     /// Region where the request is executed.
     pub execution_region: Option<String>,
     /// Trace identifier for distributed tracing.
+    #[serde(deserialize_with = "deserialize_trace_id", flatten)]
     pub trace_id: Option<String>,
     /// Span identifier for distributed tracing.
+    #[serde(deserialize_with = "deserialize_span_id", flatten)]
     pub span_id: Option<String>,
-    /// Trace identifier for distributed tracing.
-    #[serde(rename = "trace.id")]
-    pub trace_dot_id: Option<String>,
-    /// Span identifier for distributed tracing.
-    #[serde(rename = "span.id")]
-    pub span_dot_id: Option<String>,
     /// Proxy information for requests. (Optional)
     pub proxy: Option<VercelProxy>,
 }
 
+/// Macro to create a deserializer that accepts two field name variants, preferring the first.
+macro_rules! define_fallback_field_deserializer {
+    ($fn_name:ident, $primary:literal, $fallback:literal) => {
+        fn $fn_name<'d, D: Deserializer<'d>>(d: D) -> Result<Option<String>, D::Error> {
+            #[derive(Deserialize)]
+            struct Helper {
+                #[serde(rename = $primary)]
+                primary_field: Option<String>,
+                #[serde(rename = $fallback)]
+                fallback_field: Option<String>,
+            }
+
+            let helper = Helper::deserialize(d)?;
+            Ok(helper.primary_field.or(helper.fallback_field))
+        }
+    };
+}
+
+define_fallback_field_deserializer!(deserialize_trace_id, "traceId", "trace.id");
+define_fallback_field_deserializer!(deserialize_span_id, "spanId", "span.id");
+
 /// Log Level for Vercel Logs
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum VercelLogLevel {
     /// Info level logs.
@@ -87,7 +103,7 @@ pub enum VercelLogLevel {
 }
 
 /// Vercel proxy information for requests.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VercelProxy {
     /// Unix timestamp when the proxy request was made.
@@ -140,9 +156,8 @@ fn map_vercel_level_to_sentry(level: VercelLogLevel) -> OurLogLevel {
     }
 }
 
-fn get_trace_id(trace_id: Option<String>, trace_dot_id: Option<String>) -> Annotated<TraceId> {
-    let trace_id_str = trace_id.or(trace_dot_id);
-    match trace_id_str {
+fn get_trace_id(trace_id: Option<String>) -> Annotated<TraceId> {
+    match trace_id {
         Some(s) if !s.is_empty() => match TraceId::from_str(&s) {
             Ok(id) => Annotated::new(id),
             Err(_) => {
@@ -159,16 +174,10 @@ fn get_trace_id(trace_id: Option<String>, trace_dot_id: Option<String>) -> Annot
     }
 }
 
-fn get_span_id(span_id: Option<String>, span_dot_id: Option<String>) -> Annotated<SpanId> {
-    let span_id_str = span_id.or(span_dot_id);
-    match span_id_str {
+fn get_span_id(span_id: Option<String>) -> Annotated<SpanId> {
+    match span_id {
         Some(s) if !s.is_empty() => {
-            if let Ok(hex_bytes) = hex::decode(s) {
-                SpanId::try_from(hex_bytes.as_slice())
-                    .map_or_else(|err| Annotated::from_error(err, None), Annotated::new)
-            } else {
-                Annotated::empty()
-            }
+            SpanId::from_str(&s).map_or_else(|err| Annotated::from_error(err, None), Annotated::new)
         }
         _ => Annotated::empty(),
     }
@@ -189,7 +198,7 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
         entrypoint,
         destination,
         path,
-        log_type,
+        ty,
         status_code,
         request_id,
         environment,
@@ -201,8 +210,6 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
         execution_region,
         trace_id,
         span_id,
-        trace_dot_id,
-        span_dot_id,
         proxy,
     } = vercel_log;
 
@@ -234,7 +241,7 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
     add_optional_attribute!("vercel.entrypoint", entrypoint);
     add_optional_attribute!("vercel.destination", destination);
     add_optional_attribute!(URL_PATH, path);
-    add_optional_attribute!("vercel.log_type", log_type);
+    add_optional_attribute!("vercel.log_type", ty);
     add_optional_attribute!("vercel.status_code", status_code);
     add_optional_attribute!("vercel.request_id", request_id);
     add_optional_attribute!(ENVIRONMENT, environment);
@@ -300,8 +307,8 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
 
     OurLog {
         timestamp: Annotated::new(Timestamp(ourlog_timestamp)),
-        trace_id: get_trace_id(trace_id, trace_dot_id),
-        span_id: get_span_id(span_id, span_dot_id),
+        trace_id: get_trace_id(trace_id),
+        span_id: get_span_id(span_id),
         level: Annotated::new(map_vercel_level_to_sentry(level)),
         body: Annotated::new(message.unwrap_or_default()),
         attributes: Annotated::new(attributes),
@@ -318,41 +325,39 @@ mod tests {
     fn test_vercel_log_to_sentry_log() {
         let vercel_log = VercelLog {
             id: "test-log-123".to_owned(),
+            deployment_id: "dpl_233NRGRjVZX1caZrXWtz5g1TAksD".to_owned(),
+            source: "lambda".to_owned(),
+            host: "my-app-abc123.vercel.app".to_owned(),
             timestamp: 1573817187330, // Unix timestamp in milliseconds
+            project_id: "gdufoJxB6b9b1fEqr1jUtFkyavUU".to_owned(),
             level: VercelLogLevel::Error,
             message: Some("API request errored".to_owned()),
-            source: "lambda".to_owned(),
-            deployment_id: "dpl_233NRGRjVZX1caZrXWtz5g1TAksD".to_owned(),
-            host: "my-app-abc123.vercel.app".to_owned(),
-            project_id: "gdufoJxB6b9b1fEqr1jUtFkyavUU".to_owned(),
-            project_name: Some("my-app".to_owned()),
             build_id: Some("bld_cotnkcr76".to_owned()),
-            log_type: Some("stdout".to_owned()),
             entrypoint: Some("api/index.js".to_owned()),
-            request_id: Some("643af4e3-975a-4cc7-9e7a-1eda11539d90".to_owned()),
-            status_code: Some(200),
+            destination: Some("https://api.example.com".to_owned()),
             path: Some("/api/users".to_owned()),
-            execution_region: Some("sfo1".to_owned()),
+            ty: Some("stdout".to_owned()),
+            status_code: Some(200),
+            request_id: Some("643af4e3-975a-4cc7-9e7a-1eda11539d90".to_owned()),
             environment: Some("production".to_owned()),
-            trace_id: Some("1b02cd14bb8642fd092bc23f54c7ffcd".to_owned()),
-            span_id: Some("f24e8631bd11faa7".to_owned()),
-            trace_dot_id: None,
-            span_dot_id: None,
             branch: Some("main".to_owned()),
-            destination: None,
-            edge_type: None,
             ja3_digest: Some(
                 "769,47-53-5-10-49161-49162-49171-49172-50-56-19-4,0-10-11,23-24-25,0".to_owned(),
             ),
             ja4_digest: Some("t13d1516h2_8daaf6152771_02713d6af862".to_owned()),
+            edge_type: Some("middleware".to_owned()),
+            project_name: Some("my-app".to_owned()),
+            execution_region: Some("sfo1".to_owned()),
+            trace_id: Some("1b02cd14bb8642fd092bc23f54c7ffcd".to_owned()),
+            span_id: Some("f24e8631bd11faa7".to_owned()),
             proxy: Some(VercelProxy {
                 timestamp: 1573817250172,
                 method: "GET".to_owned(),
                 host: "my-app.vercel.app".to_owned(),
                 path: "/api/users?page=1".to_owned(),
-                region: "sfo1".to_owned(),
                 user_agent: vec!["Mozilla/5.0...".to_owned()],
                 referer: "https://my-app.vercel.app".to_owned(),
+                region: "sfo1".to_owned(),
                 status_code: Some(200),
                 client_ip: Some("120.75.16.101".to_owned()),
                 scheme: Some("https".to_owned()),
@@ -405,6 +410,14 @@ mod tests {
             "vercel.deployment_id": {
               "type": "string",
               "value": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
+            },
+            "vercel.destination": {
+              "type": "string",
+              "value": "https://api.example.com"
+            },
+            "vercel.edge_type": {
+              "type": "string",
+              "value": "middleware"
             },
             "vercel.entrypoint": {
               "type": "string",
