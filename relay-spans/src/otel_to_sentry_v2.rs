@@ -1,7 +1,8 @@
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use relay_event_schema::protocol::{Attributes, SpanV2Kind};
+use relay_conventions::STATUS_MESSAGE;
+use relay_event_schema::protocol::{Attributes, SpanKind};
 use relay_otel::otel_value_to_attribute;
 use relay_protocol::ErrorKind;
 
@@ -85,7 +86,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
         .collect::<Result<_, _>>()?;
 
     if let Some(status_message) = status.clone().map(|status| status.message) {
-        sentry_attributes.insert("sentry.status.message".to_owned(), status_message);
+        sentry_attributes.insert(STATUS_MESSAGE.to_owned(), status_message);
     }
 
     let event_span = SentrySpanV2 {
@@ -116,14 +117,14 @@ fn otel_flags_is_remote(value: u32) -> Option<bool> {
     }
 }
 
-fn otel_to_sentry_kind(kind: i32) -> Annotated<SpanV2Kind> {
+fn otel_to_sentry_kind(kind: i32) -> Annotated<SpanKind> {
     match kind {
         kind if kind == OtelSpanKind::Unspecified as i32 => Annotated::empty(),
-        kind if kind == OtelSpanKind::Internal as i32 => Annotated::new(SpanV2Kind::Internal),
-        kind if kind == OtelSpanKind::Server as i32 => Annotated::new(SpanV2Kind::Server),
-        kind if kind == OtelSpanKind::Client as i32 => Annotated::new(SpanV2Kind::Client),
-        kind if kind == OtelSpanKind::Producer as i32 => Annotated::new(SpanV2Kind::Producer),
-        kind if kind == OtelSpanKind::Consumer as i32 => Annotated::new(SpanV2Kind::Consumer),
+        kind if kind == OtelSpanKind::Internal as i32 => Annotated::new(SpanKind::Internal),
+        kind if kind == OtelSpanKind::Server as i32 => Annotated::new(SpanKind::Server),
+        kind if kind == OtelSpanKind::Client as i32 => Annotated::new(SpanKind::Client),
+        kind if kind == OtelSpanKind::Producer as i32 => Annotated::new(SpanKind::Producer),
+        kind if kind == OtelSpanKind::Consumer as i32 => Annotated::new(SpanKind::Consumer),
         _ => Annotated::from_error(ErrorKind::InvalidData, Some(Value::I64(kind as i64))),
     }
 }
@@ -213,9 +214,9 @@ mod tests {
                     }
                 },
                 {
-                    "key": "sentry.exclusive_time_nano",
+                    "key": "sentry.exclusive_time",
                     "value": {
-                        "intValue": "1000000000"
+                        "doubleValue": 1000.0
                     }
                 }
             ],
@@ -260,9 +261,9 @@ mod tests {
               "type": "string",
               "value": "test"
             },
-            "sentry.exclusive_time_nano": {
-              "type": "integer",
-              "value": 1000000000
+            "sentry.exclusive_time": {
+              "type": "double",
+              "value": 1000.0
             },
             "sentry.parentSampled": {
               "type": "boolean",
@@ -282,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_with_exclusive_time_nano_attribute() {
+    fn parse_span_with_exclusive_time_attribute() {
         let json = r#"{
           "traceId": "89143b0763095bd9c9955e8175d1fb23",
           "spanId": "e342abb1214ca181",
@@ -293,9 +294,9 @@ mod tests {
           "endTimeUnixNano": "1697620454980078800",
           "attributes": [
             {
-              "key": "sentry.exclusive_time_nano",
+              "key": "sentry.exclusive_time",
               "value": {
-                "intValue": "3200000000"
+                "doubleValue": 3200.000000
               }
             }
           ]
@@ -314,9 +315,9 @@ mod tests {
           "end_timestamp": 1697620454.980079,
           "links": [],
           "attributes": {
-            "sentry.exclusive_time_nano": {
-              "type": "integer",
-              "value": 3200000000
+            "sentry.exclusive_time": {
+              "type": "double",
+              "value": 3200.0
             }
           }
         }

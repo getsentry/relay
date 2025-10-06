@@ -24,10 +24,12 @@ psl = { workspace = true }
 regex = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
+relay-conventions = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-log = { workspace = true }
 relay-pattern = { workspace = true, features = ["serde"] }
 relay-protocol = { workspace = true }
+relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-ua = { workspace = true }
 relay-filter = { workspace = true }

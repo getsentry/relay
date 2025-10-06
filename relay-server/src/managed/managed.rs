@@ -25,10 +25,6 @@ mod debug;
 mod test;
 
 #[cfg(test)]
-#[expect(
-    unused,
-    reason = "currently unused, but these are testing utilities for all of Relay"
-)]
 pub use self::test::*;
 
 /// An error which can be extracted into an outcome.
@@ -105,6 +101,7 @@ impl<T> Rejected<T> {
     }
 }
 
+/// The [`Managed`] wrapper ensures outcomes are correctly emitted for the contained item.
 pub struct Managed<T: Counted> {
     value: T,
     meta: Arc<Meta>,
@@ -221,6 +218,113 @@ impl<T: Counted> Managed<T> {
             },
             context,
         )
+    }
+
+    /// Filters individual items and emits outcomes for them if they are removed.
+    ///
+    /// This is particularly useful when the managed instance is a container of individual items,
+    /// which need to be processed or filtered on a case by case basis.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use relay_server::managed::{Counted, Managed, Quantities};
+    /// # #[derive(Copy, Clone)]
+    /// # struct Context<'a>(&'a u32);
+    /// # struct Item;
+    /// struct Items {
+    ///     items: Vec<Item>,
+    /// }
+    /// # impl Counted for Items {
+    /// #   fn quantities(&self) -> Quantities {
+    /// #       todo!()
+    /// #   }
+    /// # }
+    /// # impl Counted for Item {
+    /// #   fn quantities(&self) -> Quantities {
+    /// #       todo!()
+    /// #   }
+    /// # }
+    /// # type Error = std::convert::Infallible;
+    ///
+    /// fn process_items(items: &mut Managed<Items>, ctx: Context<'_>) {
+    ///     items.retain(|items| &mut items.items, |item, _| process(item, ctx));
+    /// }
+    ///
+    /// fn process(item: &mut Item, ctx: Context<'_>) -> Result<(), Error> {
+    ///     todo!()
+    /// }
+    /// ```
+    pub fn retain<S, I, U, E>(&mut self, select: S, mut retain: U)
+    where
+        S: FnOnce(&mut T) -> &mut Vec<I>,
+        I: Counted,
+        U: FnMut(&mut I, &mut RecordKeeper<'_>) -> Result<(), E>,
+        E: OutcomeError,
+    {
+        self.retain_with_context(
+            |inner| (select(inner), &()),
+            |item, _, records| retain(item, records),
+        );
+    }
+
+    /// Filters individual items and emits outcomes for them if they are removed.
+    ///
+    /// Like [`Self::retain`], but it allows for an additional context extracted from the managed
+    /// object passed to the retain function.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use relay_server::managed::{Counted, Managed, Quantities};
+    /// # #[derive(Copy, Clone)]
+    /// # struct Context<'a>(&'a u32);
+    /// # struct Item;
+    /// struct Items {
+    ///     ty: String,
+    ///     items: Vec<Item>,
+    /// }
+    /// # impl Counted for Items {
+    /// #   fn quantities(&self) -> Quantities {
+    /// #       todo!()
+    /// #   }
+    /// # }
+    /// # impl Counted for Item {
+    /// #   fn quantities(&self) -> Quantities {
+    /// #       todo!()
+    /// #   }
+    /// # }
+    /// # type Error = std::convert::Infallible;
+    ///
+    /// fn process_items(items: &mut Managed<Items>, ctx: Context<'_>) {
+    ///     items.retain_with_context(|items| (&mut items.items, &items.ty), |item, ty, _| process(item, ty, ctx));
+    /// }
+    ///
+    /// fn process(item: &mut Item, ty: &str, ctx: Context<'_>) -> Result<(), Error> {
+    ///     todo!()
+    /// }
+    /// ```
+    pub fn retain_with_context<S, C, I, U, E>(&mut self, select: S, mut retain: U)
+    where
+        // Returning `&'a C` here is not optimal, ideally we return C here and express the correct
+        // bound of `C: 'a` but this is, to my knowledge, currently not possible to express in stable Rust.
+        //
+        // This is unfortunately a bit limiting but for most of our purposes it is enough.
+        for<'a> S: FnOnce(&'a mut T) -> (&'a mut Vec<I>, &'a C),
+        I: Counted,
+        U: FnMut(&mut I, &C, &mut RecordKeeper<'_>) -> Result<(), E>,
+        E: OutcomeError,
+    {
+        self.modify(|inner, records| {
+            let (items, ctx) = select(inner);
+            items.retain_mut(|item| match retain(item, ctx, records) {
+                Ok(()) => true,
+                Err(err) => {
+                    records.reject_err(err, &*item);
+                    false
+                }
+            })
+        });
     }
 
     /// Maps a [`Managed<T>`] to [`Managed<S>`] by applying the mapping function `f`.

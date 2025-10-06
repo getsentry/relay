@@ -45,16 +45,14 @@ fn expand_span(item: &Item) -> Result<ContainerItems<SpanV2>> {
 
 /// Normalizes individual spans.
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup) {
-    spans.modify(|spans, records| {
-        let meta = spans.headers.meta();
-        spans.spans.retain_mut(|span| {
-            let r = normalize_span(span, meta, geo_lookup).inspect_err(|err| {
+    spans.retain_with_context(
+        |spans| (&mut spans.spans, spans.headers.meta()),
+        |span, meta, _| {
+            normalize_span(span, meta, geo_lookup).inspect_err(|err| {
                 relay_log::debug!("failed to normalize span: {err}");
-            });
-
-            records.or_default(r.map(|_| true), &*span)
-        })
-    });
+            })
+        },
+    );
 }
 
 fn normalize_span(

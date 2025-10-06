@@ -804,6 +804,9 @@ pub enum RelayCounters {
     ///  - `session`: A release health session update, sent to `ingest-sessions`.
     #[cfg(feature = "processing")]
     ProcessingMessageProduced,
+    /// Number of spans produced in the new format.
+    #[cfg(feature = "processing")]
+    SpanV2Produced,
     /// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,
     /// Minidump, Unreal.
     ///
@@ -918,6 +921,8 @@ pub enum RelayCounters {
     /// The amount of times PlayStation processing was attempted.
     #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
+    /// The number of times a sampling decision was made.
+    SamplingDecision,
 }
 
 impl CounterMetric for RelayCounters {
@@ -945,6 +950,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
+            #[cfg(feature = "processing")]
+            RelayCounters::SpanV2Produced => "store.produced.span_v2",
             RelayCounters::EventProtocol => "event.protocol",
             RelayCounters::EventTransaction => "event.transaction",
             RelayCounters::TransactionNameChanges => "event.transaction_name_changes",
@@ -969,6 +976,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelayCount => "metrics.delay.count",
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
+            RelayCounters::SamplingDecision => "sampling.decision",
         }
     }
 }

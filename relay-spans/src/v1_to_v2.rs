@@ -2,14 +2,14 @@ use std::borrow::Cow;
 
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
-    SpanData, SpanKind as SpanV1Kind, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Kind,
-    SpanV2Link, SpanV2Status,
+    SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
 };
 use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 
-const MILLIS_TO_NANOS: f64 = 1000. * 1000.;
-
-#[allow(dead_code)]
+/// Converts a legacy span to the new Span V2 schema.
+///
+/// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
+/// - Nested `data` items are encoded as JSON.
 pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let SpanV1 {
         timestamp,
@@ -43,10 +43,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let attributes = annotated_attributes.get_or_insert_with(Default::default);
 
     // Top-level fields have higher precedence than `data`:
-    attributes.insert(
-        "sentry.exclusive_time_nano", // TODO: update conventions, they list `sentry.exclusive_time`
-        exclusive_time.map_value(|v| (v * MILLIS_TO_NANOS) as i64),
-    );
+    attributes.insert("sentry.exclusive_time", exclusive_time);
     attributes.insert("sentry.op", op);
 
     attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string()));
@@ -110,9 +107,10 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
             .get_value("sentry.name")
             .and_then(|v| Some(v.as_str()?.to_owned()))
             .into(),
-        status: Annotated::map_value(status, span_v1_status_to_span_v2_status),
-        is_remote,
-        kind: Annotated::map_value(kind, span_v1_kind_to_span_v2_kind),
+        status: Annotated::map_value(status, span_v1_status_to_span_v2_status)
+            .or_else(|| SpanV2Status::Ok.into()),
+        is_remote: is_remote.or_else(|| false.into()),
+        kind,
         start_timestamp,
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
@@ -125,17 +123,6 @@ fn span_v1_status_to_span_v2_status(status: SpanV1Status) -> SpanV2Status {
     match status {
         SpanV1Status::Ok => SpanV2Status::Ok,
         _ => SpanV2Status::Error,
-    }
-}
-
-fn span_v1_kind_to_span_v2_kind(kind: SpanV1Kind) -> SpanV2Kind {
-    match kind {
-        SpanV1Kind::Internal => SpanV2Kind::Internal,
-        SpanV1Kind::Server => SpanV2Kind::Server,
-        SpanV1Kind::Client => SpanV2Kind::Client,
-        SpanV1Kind::Producer => SpanV2Kind::Producer,
-        SpanV1Kind::Consumer => SpanV2Kind::Consumer,
-        // TODO: implement catchall type so outdated customer relays can still forward the field.
     }
 }
 
@@ -226,6 +213,7 @@ fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use relay_event_schema::protocol::{CompatSpan, Event};
     use relay_protocol::{FromValue, SerializableAnnotated};
 
     #[test]
@@ -359,9 +347,9 @@ mod tests {
               "type": "string",
               "value": "raw description"
             },
-            "sentry.exclusive_time_nano": {
-              "type": "integer",
-              "value": 1230000
+            "sentry.exclusive_time": {
+              "type": "double",
+              "value": 1.23
             },
             "sentry.is_segment": {
               "type": "boolean",
@@ -423,5 +411,39 @@ mod tests {
           }
         }
         "###);
+    }
+
+    #[test]
+    fn transaction_conversion() {
+        let txn = Annotated::<Event>::from_json(r#"{"transaction": "hi"}"#)
+            .unwrap()
+            .0
+            .unwrap();
+        assert_eq!(txn.transaction.as_str(), Some("hi"));
+        let span_v1 = SpanV1::from(&txn);
+        assert_eq!(
+            span_v1.data.value().unwrap().segment_name.as_str(),
+            Some("hi")
+        );
+        let span_v2 = span_v1_to_span_v2(span_v1);
+        assert_eq!(
+            span_v2
+                .attributes
+                .value()
+                .unwrap()
+                .get_value("sentry.segment.name")
+                .and_then(Value::as_str),
+            Some("hi")
+        );
+        let compat_span = CompatSpan::try_from(span_v2).unwrap();
+        assert_eq!(
+            compat_span
+                .data
+                .value()
+                .unwrap()
+                .get("sentry.segment.name")
+                .and_then(|v| v.as_str()),
+            Some("hi")
+        );
     }
 }

@@ -1,5 +1,3 @@
-//! Envelope context type and helpers to ensure outcomes.
-
 use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::mem::size_of;
@@ -65,6 +63,7 @@ struct EnvelopeContext {
     done: bool,
 }
 
+/// Error emitted when converting a [`ManagedEnvelope`] and a processing group into a [`TypedEnvelope`].
 #[derive(Debug)]
 pub struct InvalidProcessingGroupType(pub ManagedEnvelope, pub ProcessingGroup);
 
@@ -183,6 +182,7 @@ impl ManagedEnvelope {
         }
     }
 
+    /// An untracked instance which does not emit outcomes, useful for testing.
     #[cfg(test)]
     pub fn untracked(envelope: Box<Envelope>, outcome_aggregator: Addr<TrackOutcome>) -> Self {
         let mut envelope = Self::new(envelope, outcome_aggregator);
@@ -364,6 +364,14 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.monitor_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::Monitor,
+                self.context.summary.monitor_quantity,
+            );
+        }
+
         if self.context.summary.profile_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),
@@ -465,6 +473,14 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.session_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::Session,
+                self.context.summary.session_quantity,
+            );
+        }
+
         self.finish(RelayCounters::EnvelopeRejected, handling);
     }
 
@@ -473,15 +489,18 @@ impl ManagedEnvelope {
         self.context.scoping
     }
 
+    /// Returns the partition key, which is set on upstream requests in the `X-Sentry-Relay-Shard` header.
     pub fn partition_key(&self) -> Option<u32> {
         self.context.partition_key
     }
 
+    /// Sets a new [`Self::partition_key`].
     pub fn set_partition_key(&mut self, partition_key: Option<u32>) -> &mut Self {
         self.context.partition_key = partition_key;
         self
     }
 
+    /// Returns the contained original request meta.
     pub fn meta(&self) -> &RequestMeta {
         self.envelope().meta()
     }

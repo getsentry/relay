@@ -1,18 +1,45 @@
-import json
 from datetime import datetime, timezone, timedelta
+from unittest import mock
+
+from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within
 
 
-def test_otlp_logs_conversion(mini_sentry, relay):
+TEST_CONFIG = {
+    "outcomes": {
+        "emit_outcomes": True,
+        "batch_size": 1,
+        "batch_interval": 1,
+        "aggregator": {
+            "bucket_interval": 1,
+            "flush_interval": 1,
+        },
+    },
+    "aggregator": {
+        "bucket_interval": 1,
+        "initial_delay": 0,
+    },
+}
+
+
+def test_otlp_logs_conversion(
+    mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
+):
     """Test OTLP logs conversion including basic and complex attributes."""
+    items_consumer = items_consumer()
+    outcomes_consumer = outcomes_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
         "organizations:relay-otel-logs-endpoint",
     ]
-    relay = relay(mini_sentry)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
@@ -94,54 +121,97 @@ def test_otlp_logs_conversion(mini_sentry, relay):
 
     relay.send_otel_logs(project_id, json=otel_logs_payload)
 
-    # Add some debugging to see if any envelope is captured
-    envelope = mini_sentry.captured_events.get(timeout=5)
-
-    assert [item.type for item in envelope.items] == ["log"]
-    log_item = json.loads(envelope.items[0].payload.bytes)
-
-    assert log_item["items"] == [
+    # Check that the items are properly processed via items_consumer
+    items = items_consumer.get_items(n=1)
+    assert items == [
         {
-            "__header": {"byte_size": 248},
             "attributes": {
-                "array.attribute": {"type": "string", "value": '["first","second"]'},
-                "boolean.attribute": {"type": "boolean", "value": True},
-                "double.attribute": {"type": "double", "value": 637.704},
-                "instrumentation.name": {"type": "string", "value": "test-library"},
-                "int.attribute": {"type": "integer", "value": 10},
-                "map.attribute": {
-                    "type": "string",
-                    "value": '{"nested.key":"nested value"}',
-                },
-                "resource.service.name": {"type": "string", "value": "test-service"},
-                "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-                "sentry.browser.version": {"type": "string", "value": "2.32"},
+                "array.attribute": {"stringValue": '["first","second"]'},
+                "boolean.attribute": {"boolValue": True},
+                "double.attribute": {"doubleValue": 637.704},
+                "instrumentation.name": {"stringValue": "test-library"},
+                "int.attribute": {"intValue": "10"},
+                "map.attribute": {"stringValue": '{"nested.key":"nested value"}'},
+                "resource.service.name": {"stringValue": "test-service"},
+                "sentry.body": {"stringValue": "Example log record"},
+                "sentry.browser.name": {"stringValue": "Python Requests"},
+                "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.observed_timestamp_nanos": {
-                    "type": "string",
-                    "value": time_within(ts, expect_resolution="ns"),
+                    "stringValue": time_within(ts, expect_resolution="ns")
                 },
-                "string.attribute": {"type": "string", "value": "some string"},
+                "sentry.origin": {"stringValue": "auto.otlp.logs"},
+                "sentry.payload_size_bytes": {"intValue": "385"},
+                "sentry.severity_text": {"stringValue": "info"},
+                "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
+                "sentry.timestamp_nanos": {
+                    "stringValue": time_within_delta(
+                        ts,
+                        delta=timedelta(seconds=0),
+                        expect_resolution="ns",
+                        precision="us",
+                    )
+                },
+                "sentry.timestamp_precise": {
+                    "intValue": time_within_delta(
+                        ts,
+                        delta=timedelta(seconds=0),
+                        expect_resolution="ns",
+                        precision="us",
+                    )
+                },
+                "string.attribute": {"stringValue": "some string"},
             },
-            "body": "Example log record",
-            "level": "info",
-            "span_id": "eee19b7ec3c1b174",
+            "clientSampleRate": 1.0,
+            "itemId": mock.ANY,
+            "itemType": "TRACE_ITEM_TYPE_LOG",
+            "organizationId": "1",
+            "projectId": "42",
+            "received": time_within_delta(),
+            "retentionDays": 30,
+            "serverSampleRate": 1.0,
             "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
-            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "traceId": "5b8efff798038103d269b633813fc60c",
         }
     ]
 
-    assert mini_sentry.captured_events.empty()
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+    assert outcomes == [
+        {
+            "category": DataCategory.LOG_ITEM.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.LOG_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 385,
+        },
+    ]
 
 
-def test_otlp_logs_multiple_records(mini_sentry, relay):
+def test_otlp_logs_multiple_records(
+    mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
+):
     """Test multiple log records in a single payload."""
+    items_consumer = items_consumer()
+    outcomes_consumer = outcomes_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
         "organizations:relay-otel-logs-endpoint",
     ]
-    relay = relay(mini_sentry)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
@@ -177,44 +247,107 @@ def test_otlp_logs_multiple_records(mini_sentry, relay):
 
     relay.send_otel_logs(project_id, json=otel_logs_payload)
 
-    envelope = mini_sentry.captured_events.get(timeout=5)
-
-    assert [item.type for item in envelope.items] == ["log"]
-    log_item = json.loads(envelope.items[0].payload.bytes)
-
-    assert log_item["items"] == [
+    # Check that the items are properly processed via items_consumer
+    items = items_consumer.get_items(n=2)
+    assert items == [
         {
-            "__header": {"byte_size": 15},
-            "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b174",
-            "level": "error",
-            "body": "First log entry",
             "attributes": {
-                "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-                "sentry.browser.version": {"type": "string", "value": "2.32"},
+                "sentry.body": {"stringValue": "First log entry"},
+                "sentry.browser.name": {"stringValue": "Python Requests"},
+                "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.observed_timestamp_nanos": {
-                    "type": "string",
-                    "value": time_within(ts, expect_resolution="ns"),
+                    "stringValue": time_within(ts, expect_resolution="ns")
+                },
+                "sentry.origin": {"stringValue": "auto.otlp.logs"},
+                "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "sentry.severity_text": {"stringValue": "error"},
+                "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
+                "sentry.timestamp_nanos": {
+                    "stringValue": time_within_delta(
+                        ts,
+                        delta=timedelta(seconds=0),
+                        expect_resolution="ns",
+                        precision="us",
+                    )
+                },
+                "sentry.timestamp_precise": {
+                    "intValue": time_within_delta(
+                        ts,
+                        delta=timedelta(seconds=0),
+                        expect_resolution="ns",
+                        precision="us",
+                    )
                 },
             },
+            "clientSampleRate": 1.0,
+            "itemId": mock.ANY,
+            "itemType": "TRACE_ITEM_TYPE_LOG",
+            "organizationId": "1",
+            "projectId": "42",
+            "received": time_within_delta(),
+            "retentionDays": 30,
+            "serverSampleRate": 1.0,
+            "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
+            "traceId": "5b8efff798038103d269b633813fc60c",
         },
         {
-            "__header": {"byte_size": 16},
-            "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b175",
-            "level": "debug",
-            "body": "Second log entry",
             "attributes": {
-                "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-                "sentry.browser.version": {"type": "string", "value": "2.32"},
+                "sentry.body": {"stringValue": "Second log entry"},
+                "sentry.browser.name": {"stringValue": "Python Requests"},
+                "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.observed_timestamp_nanos": {
-                    "type": "string",
-                    "value": time_within(ts, expect_resolution="ns"),
+                    "stringValue": time_within(ts, expect_resolution="ns")
+                },
+                "sentry.origin": {"stringValue": "auto.otlp.logs"},
+                "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "sentry.severity_text": {"stringValue": "debug"},
+                "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+                "sentry.timestamp_nanos": {
+                    "stringValue": time_within_delta(
+                        ts,
+                        delta=timedelta(seconds=0),
+                        expect_resolution="ns",
+                        precision="us",
+                    )
+                },
+                "sentry.timestamp_precise": {
+                    "intValue": time_within_delta(
+                        ts,
+                        delta=timedelta(seconds=0),
+                        expect_resolution="ns",
+                        precision="us",
+                    )
                 },
             },
+            "clientSampleRate": 1.0,
+            "itemId": mock.ANY,
+            "itemType": "TRACE_ITEM_TYPE_LOG",
+            "organizationId": "1",
+            "projectId": "42",
+            "received": time_within_delta(),
+            "retentionDays": 30,
+            "serverSampleRate": 1.0,
+            "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
+            "traceId": "5b8efff798038103d269b633813fc60c",
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+    assert outcomes == [
+        {
+            "category": DataCategory.LOG_ITEM.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 2,
+        },
+        {
+            "category": DataCategory.LOG_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 305,
+        },
+    ]

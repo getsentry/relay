@@ -9,6 +9,7 @@ use relay_quotas::{
 };
 
 use crate::envelope::{Envelope, Item, ItemType};
+use crate::integrations::Integration;
 use crate::managed::ManagedEnvelope;
 use crate::services::outcome::Outcome;
 
@@ -135,8 +136,8 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Span => None,
         ItemType::OtelSpan => None,
         ItemType::OtelTracesData => None,
-        ItemType::OtelLogsData => None,
         ItemType::ProfileChunk => None,
+        ItemType::Integration => None,
         ItemType::Unknown(_) => None,
     }
 }
@@ -527,7 +528,7 @@ impl Enforcement {
             ItemType::ReplayRecording => !self.replays.is_active(),
             ItemType::UserReport => !self.user_reports.is_active(),
             ItemType::CheckIn => !self.check_ins.is_active(),
-            ItemType::Log | ItemType::OtelLogsData => {
+            ItemType::Log => {
                 !(self.log_items.is_active() || self.log_bytes.is_active())
             }
             ItemType::Span | ItemType::OtelSpan | ItemType::OtelTracesData => {
@@ -536,6 +537,10 @@ impl Enforcement {
             ItemType::ProfileChunk => match item.profile_type() {
                 Some(ProfileType::Backend) => !self.profile_chunks.is_active(),
                 Some(ProfileType::Ui) => !self.profile_chunks_ui.is_active(),
+                None => true,
+            },
+            ItemType::Integration => match item.integration() {
+                Some(Integration::Logs(_)) => !(self.log_items.is_active() || self.log_bytes.is_active()),
                 None => true,
             },
             ItemType::Event
