@@ -659,6 +659,21 @@ fn normalize(
 
     span.received = Annotated::new(received_at.into());
 
+    // If this is a segment span, copy its name to the span's segment name attribute.
+    if span
+        .is_segment
+        .value()
+        .is_some_and(|is_segment| *is_segment)
+        && let Some(data) = span.data.value_mut().as_mut()
+    {
+        data.segment_name.get_or_insert_with(|| {
+            data.span_name
+                .value()
+                .map(|span_name| span_name.to_string())
+                .unwrap_or_default()
+        });
+    }
+
     if let Some(transaction) = span
         .data
         .value_mut()
