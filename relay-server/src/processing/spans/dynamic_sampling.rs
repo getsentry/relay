@@ -16,6 +16,7 @@ use crate::processing::Context;
 use crate::processing::spans::{ExpandedSpans, SampledSpans, SerializedSpans, outcome_count};
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
+use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
 
 /// Validates all sampling configurations.
@@ -56,6 +57,12 @@ pub async fn run(
     ctx: Context<'_>,
 ) -> Result<Managed<SampledSpans>, Managed<ExtractedMetrics>> {
     let sampling_result = compute(&spans, ctx).await;
+
+    relay_statsd::metric!(
+        counter(RelayCounters::SamplingDecision) += 1,
+        decision = sampling_result.decision().as_str(),
+        item = "span"
+    );
 
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
