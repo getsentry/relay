@@ -43,7 +43,6 @@ pub struct Context {
     pub downsampled_retention: Option<u16>,
 }
 
-#[cfg(feature = "processing")]
 pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTraceItem> {
     let quantities = metric.quantities();
 
@@ -83,7 +82,6 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
     })
 }
 
-#[cfg(feature = "processing")]
 fn ts(dt: DateTime<Utc>) -> Timestamp {
     Timestamp {
         seconds: dt.timestamp(),
@@ -91,7 +89,6 @@ fn ts(dt: DateTime<Utc>) -> Timestamp {
     }
 }
 
-#[cfg(feature = "processing")]
 struct FieldAttributes {
     metric_name: String,
     metric_type: MetricType,
@@ -109,7 +106,6 @@ fn extract_numeric_value(value: Value) -> Result<f64> {
     }
 }
 
-#[cfg(feature = "processing")]
 fn attributes(
     meta: HashMap<String, AnyValue>,
     attributes: Attributes,
@@ -210,7 +206,7 @@ fn attributes(
     result
 }
 
-#[cfg(all(test, feature = "processing"))]
+#[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
