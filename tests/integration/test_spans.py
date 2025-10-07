@@ -205,7 +205,6 @@ def test_span_extraction(
         tzinfo=timezone.utc
     )
     duration = (end_timestamp - start_timestamp).total_seconds()
-    duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
 
