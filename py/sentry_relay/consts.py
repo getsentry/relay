@@ -133,7 +133,9 @@ def _make_span_statuses():
         SPAN_STATUS_NAME_TO_CODE[status_name] = status_code
 
     # Legacy alias
-    SPAN_STATUS_NAME_TO_CODE["unknown_error"] = SPAN_STATUS_NAME_TO_CODE["unknown"]
+    SPAN_STATUS_NAME_TO_CODE["unknown_error"] = SPAN_STATUS_NAME_TO_CODE[
+        "internal_error"
+    ]
 
 
 _make_span_statuses()
