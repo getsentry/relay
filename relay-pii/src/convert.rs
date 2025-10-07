@@ -86,13 +86,18 @@ static REPLACE_ONLY_SELECTOR: Lazy<SelectorSpec> = Lazy::new(|| {
         "attributes.'gen_ai.request.available_tools'.value",
         "$span.data.'gen_ai.tool.name'",
         "attributes.'gen_ai.tool.name'.value",
-        // MCP
         "$span.data.'mcp.request.argument.*'",
+        "attributes.'mcp.request.argument.*'.value",
         "$span.data.'mcp.prompt.result'",
+        "attributes.'mcp.prompt.result'.value",
         "$span.data.'mcp.tool.result.content'",
+        "attributes.'mcp.tool.result.content'.value",
         "$span.data.'mcp.tool.name'",
+        "attributes.'mcp.tool.name'.value",
         "$span.data.'mcp.prompt.name'",
+        "attributes.'mcp.prompt.name'.value",
         "$span.data.'mcp.resource.uri'",
+        "attributes.'mcp.resource.uri'.value",
     ]
     .join("|")
     .parse()
