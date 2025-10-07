@@ -94,10 +94,7 @@ def test_spansv2_basic(
                         "val": {"type": "string", "value": True},
                     }
                 }
-            },
-            # The contents here are wrong but will be removed soon
-            # with the removal of `data` from the schema.
-            "data": mock.ANY,
+            }
         },
         "name": "some op",
         "received": time_within(ts),

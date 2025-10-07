@@ -211,7 +211,12 @@ def test_span_extraction(
     del transaction_span["received"]
 
     if performance_issues_spans:
-        assert transaction_span.pop("_performance_issues_spans") is True
+        assert (
+            transaction_span["attributes"].pop(
+                "sentry._internal.performance_issues_spans"
+            )["value"]
+            is True
+        )
 
     expected_transaction_span = {
         "attributes": {
