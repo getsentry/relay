@@ -155,6 +155,8 @@ pub enum AppFeature {
     Errors,
     /// Logs.
     Logs,
+    /// Trace metrics.
+    TraceMetrics,
     /// Spans.
     Spans,
     /// Sessions.
@@ -206,6 +208,7 @@ impl AppFeature {
             Self::MetricsCustom => "metrics_custom",
             Self::MetricsUnsupported => "metrics_unsupported",
             Self::Profiles => "profiles",
+            Self::TraceMetrics => "trace_metrics",
         }
     }
 }

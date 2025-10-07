@@ -43,6 +43,7 @@ class DataCategory(IntEnum):
     PREVENT_REVIEW = 30
     SIZE_ANALYSIS = 31
     INSTALLABLE_BUILD = 32
+    TRACE_METRIC = 33
     UNKNOWN = -1
     # end generated
 
