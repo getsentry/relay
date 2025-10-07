@@ -5,7 +5,7 @@
 <a href=#5 id=5 data-nosnippet>5</a>
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_event_schema::protocol::{
 <a href=#7 id=7 data-nosnippet>7</a>    Attributes, Csp, Event, EventType, Exception, LogEntry, OurLog, Replay, SessionAggregates,
-<a href=#8 id=8 data-nosnippet>8</a>    SessionUpdate, Span, SpanV2, Values,
+<a href=#8 id=8 data-nosnippet>8</a>    SessionUpdate, Span, SpanV2, TraceMetric, Values,
 <a href=#9 id=9 data-nosnippet>9</a>};
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a><span class="doccomment">/// A user agent returned from [`Filterable::user_agent`].
@@ -258,21 +258,31 @@
 <a href=#258 id=258 data-nosnippet>258</a>    }
 <a href=#259 id=259 data-nosnippet>259</a>}
 <a href=#260 id=260 data-nosnippet>260</a>
-<a href=#261 id=261 data-nosnippet>261</a><span class="kw">fn </span>user_agent_from_attributes(attributes: <span class="kw-2">&amp;</span>relay_protocol::Annotated&lt;Attributes&gt;) -&gt; UserAgent&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#262 id=262 data-nosnippet>262</a>    <span class="kw">let </span>parsed = (|| {
-<a href=#263 id=263 data-nosnippet>263</a>        <span class="kw">let </span>attributes = attributes.value()<span class="question-mark">?</span>;
-<a href=#264 id=264 data-nosnippet>264</a>
-<a href=#265 id=265 data-nosnippet>265</a>        <span class="kw">let </span>family = attributes.get_value(BROWSER_NAME)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>;
-<a href=#266 id=266 data-nosnippet>266</a>        <span class="kw">let </span>version = attributes.get_value(BROWSER_VERSION)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>;
-<a href=#267 id=267 data-nosnippet>267</a>        <span class="kw">let </span><span class="kw-2">mut </span>parts = version.splitn(<span class="number">3</span>, <span class="string">'.'</span>);
-<a href=#268 id=268 data-nosnippet>268</a>
-<a href=#269 id=269 data-nosnippet>269</a>        <span class="prelude-val">Some</span>(relay_ua::UserAgent {
-<a href=#270 id=270 data-nosnippet>270</a>            family: family.into(),
-<a href=#271 id=271 data-nosnippet>271</a>            major: parts.next().map(Into::into),
-<a href=#272 id=272 data-nosnippet>272</a>            minor: parts.next().map(Into::into),
-<a href=#273 id=273 data-nosnippet>273</a>            patch: parts.next().map(Into::into),
-<a href=#274 id=274 data-nosnippet>274</a>        })
-<a href=#275 id=275 data-nosnippet>275</a>    })();
-<a href=#276 id=276 data-nosnippet>276</a>
-<a href=#277 id=277 data-nosnippet>277</a>    UserAgent { raw: <span class="prelude-val">None</span>, parsed }
-<a href=#278 id=278 data-nosnippet>278</a>}</code></pre></div></section></main></body></html>
+<a href=#261 id=261 data-nosnippet>261</a><span class="kw">impl </span>Filterable <span class="kw">for </span>TraceMetric {
+<a href=#262 id=262 data-nosnippet>262</a>    <span class="kw">fn </span>release(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+<a href=#263 id=263 data-nosnippet>263</a>        <span class="self">self</span>.attributes.value()<span class="question-mark">?</span>.get_value(RELEASE)<span class="question-mark">?</span>.as_str()
+<a href=#264 id=264 data-nosnippet>264</a>    }
+<a href=#265 id=265 data-nosnippet>265</a>
+<a href=#266 id=266 data-nosnippet>266</a>    <span class="kw">fn </span>user_agent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; UserAgent&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#267 id=267 data-nosnippet>267</a>        user_agent_from_attributes(<span class="kw-2">&amp;</span><span class="self">self</span>.attributes)
+<a href=#268 id=268 data-nosnippet>268</a>    }
+<a href=#269 id=269 data-nosnippet>269</a>}
+<a href=#270 id=270 data-nosnippet>270</a>
+<a href=#271 id=271 data-nosnippet>271</a><span class="kw">fn </span>user_agent_from_attributes(attributes: <span class="kw-2">&amp;</span>relay_protocol::Annotated&lt;Attributes&gt;) -&gt; UserAgent&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#272 id=272 data-nosnippet>272</a>    <span class="kw">let </span>parsed = (|| {
+<a href=#273 id=273 data-nosnippet>273</a>        <span class="kw">let </span>attributes = attributes.value()<span class="question-mark">?</span>;
+<a href=#274 id=274 data-nosnippet>274</a>
+<a href=#275 id=275 data-nosnippet>275</a>        <span class="kw">let </span>family = attributes.get_value(BROWSER_NAME)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>;
+<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">let </span>version = attributes.get_value(BROWSER_VERSION)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>;
+<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">let </span><span class="kw-2">mut </span>parts = version.splitn(<span class="number">3</span>, <span class="string">'.'</span>);
+<a href=#278 id=278 data-nosnippet>278</a>
+<a href=#279 id=279 data-nosnippet>279</a>        <span class="prelude-val">Some</span>(relay_ua::UserAgent {
+<a href=#280 id=280 data-nosnippet>280</a>            family: family.into(),
+<a href=#281 id=281 data-nosnippet>281</a>            major: parts.next().map(Into::into),
+<a href=#282 id=282 data-nosnippet>282</a>            minor: parts.next().map(Into::into),
+<a href=#283 id=283 data-nosnippet>283</a>            patch: parts.next().map(Into::into),
+<a href=#284 id=284 data-nosnippet>284</a>        })
+<a href=#285 id=285 data-nosnippet>285</a>    })();
+<a href=#286 id=286 data-nosnippet>286</a>
+<a href=#287 id=287 data-nosnippet>287</a>    UserAgent { raw: <span class="prelude-val">None</span>, parsed }
+<a href=#288 id=288 data-nosnippet>288</a>}</code></pre></div></section></main></body></html>
