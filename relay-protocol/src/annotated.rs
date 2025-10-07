@@ -61,6 +61,7 @@ pub type MetaMap = Map<String, MetaTree>;
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
 /// An utility to serialize annotated objects with payload.
+#[derive(Debug)]
 pub struct SerializableAnnotated<'a, T>(pub &'a Annotated<T>);
 
 impl<T: IntoValue> Serialize for SerializableAnnotated<'_, T> {
