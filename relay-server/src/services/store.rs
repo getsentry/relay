@@ -351,17 +351,14 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span if content_type == Some(&ContentType::Json) => {
-                    // TODO: verify span V2 here.
-                    self.produce_span(
-                        scoping,
-                        received_at,
-                        event_id,
-                        retention,
-                        downsampled_retention,
-                        item,
-                    )?
-                }
+                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
+                    scoping,
+                    received_at,
+                    event_id,
+                    retention,
+                    downsampled_retention,
+                    item,
+                )?,
                 ty @ ItemType::Log => {
                     debug_assert!(
                         false,
@@ -1004,7 +1001,6 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         debug_assert_eq!(item.ty(), &ItemType::Span);
         debug_assert_eq!(item.content_type(), Some(&ContentType::Json));
-        // TODO: verify V2 here.
 
         let Scoping {
             organization_id,
@@ -1027,6 +1023,9 @@ impl StoreService {
             span: serde_json::from_slice(&payload)
                 .map_err(|e| StoreError::EncodingFailed(e.into()))?,
         };
+
+        // Verify that this is a V2 span:
+        debug_assert!(message.span.contains_key("attributes"));
 
         relay_statsd::metric!(counter(RelayCounters::SpanV2Produced) += 1);
         self.produce(
