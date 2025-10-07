@@ -170,7 +170,10 @@ pub enum LogOutput {
 }
 
 impl Forward for LogOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let logs = match self {
             Self::NotProcessed(logs) => logs,
             Self::Processed(logs) => logs.try_map(|logs, r| {
@@ -191,6 +194,7 @@ impl Forward for LogOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        _: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let logs = match self {
             LogOutput::NotProcessed(logs) => {

@@ -266,9 +266,6 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
 
 #[cfg(test)]
 mod tests {
-
-    use std::sync::Arc;
-
     use relay_cogs::Token;
     use relay_config::Config;
     use relay_event_schema::protocol::EventId;
@@ -277,9 +274,9 @@ mod tests {
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
+    use crate::processing;
     use crate::services::outcome::RuleCategory;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
-    use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
 
     use super::*;
@@ -329,10 +326,8 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            project_info: Arc::new(ProjectInfo::default()),
-            rate_limits: Default::default(),
-            sampling_project_info: None,
-            reservoir_counters: ReservoirCounters::default(),
+            ctx: processing::Context::for_test(),
+            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let envelope = processor
@@ -388,10 +383,8 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            project_info: Arc::new(ProjectInfo::default()),
-            rate_limits: Default::default(),
-            sampling_project_info: None,
-            reservoir_counters: ReservoirCounters::default(),
+            ctx: processing::Context::for_test(),
+            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =
@@ -455,10 +448,8 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            project_info: Arc::new(ProjectInfo::default()),
-            rate_limits: Default::default(),
-            sampling_project_info: None,
-            reservoir_counters: ReservoirCounters::default(),
+            ctx: processing::Context::for_test(),
+            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let envelope = processor
@@ -500,10 +491,8 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            project_info: Arc::new(ProjectInfo::default()),
-            rate_limits: Default::default(),
-            sampling_project_info: None,
-            reservoir_counters: ReservoirCounters::default(),
+            ctx: processing::Context::for_test(),
+            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =
@@ -553,10 +542,8 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            project_info: Arc::new(ProjectInfo::default()),
-            rate_limits: Default::default(),
-            sampling_project_info: None,
-            reservoir_counters: ReservoirCounters::default(),
+            ctx: processing::Context::for_test(),
+            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =

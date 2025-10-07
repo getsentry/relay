@@ -150,7 +150,10 @@ pub enum SpanOutput {
 }
 
 impl Forward for SpanOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let spans = match self {
             Self::NotProcessed(spans) => spans,
             Self::Processed(spans) => spans.try_map(|spans, _| {
@@ -168,6 +171,7 @@ impl Forward for SpanOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        _: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::envelope::ContentType;
         use crate::services::store::StoreEnvelope;

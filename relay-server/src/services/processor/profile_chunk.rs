@@ -1,7 +1,6 @@
 //! Profile chunks processor code.
 
 use relay_dynamic_config::Feature;
-use std::sync::Arc;
 
 use crate::envelope::ItemType;
 use crate::managed::{ItemAction, TypedEnvelope};
@@ -18,7 +17,7 @@ use {
 };
 
 /// Removes profile chunks from the envelope if the feature is not enabled.
-pub fn filter<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: Arc<ProjectInfo>) {
+pub fn filter<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: &ProjectInfo) {
     let continuous_profiling_enabled =
         if project_info.has_feature(Feature::ContinuousProfilingBetaIngest) {
             project_info.has_feature(Feature::ContinuousProfilingBeta)
