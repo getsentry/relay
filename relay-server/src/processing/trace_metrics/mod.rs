@@ -222,8 +222,7 @@ impl Forward for TraceMetricOutput {
         let metrics = match self {
             Self::NotProcessed(metrics) => metrics,
             Self::Processed(metrics) => {
-                let serialized = metrics.try_map(|metrics, r| {
-                    r.lenient(DataCategory::TraceMetric);
+                let serialized = metrics.try_map(|metrics, _| {
                     metrics
                         .serialize()
                         .map_err(|_| (Some(Outcome::Invalid(DiscardReason::Internal)), ()))
@@ -235,8 +234,7 @@ impl Forward for TraceMetricOutput {
             }
         };
 
-        Ok(metrics.map(|metrics, r| {
-            r.lenient(DataCategory::TraceMetric);
+        Ok(metrics.map(|metrics, _| {
             let SerializedTraceMetrics { headers, metrics } = metrics;
             Envelope::from_parts(headers, Items::from_vec(metrics))
         }))

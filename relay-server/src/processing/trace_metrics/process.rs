@@ -3,7 +3,6 @@ use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::TraceMetric;
 use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
-use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::{RequestMeta, RequestTrust};
@@ -29,8 +28,6 @@ pub fn expand(
         .retentions_for_trace_item(sentry_protos::snuba::v1::TraceItemType::Metric);
 
     metrics.map(|metrics, records| {
-        records.lenient(DataCategory::TraceMetric);
-
         let mut all_metrics = Vec::new();
         for item in metrics.metrics {
             let expanded = expand_trace_metric_container(&item, trust);

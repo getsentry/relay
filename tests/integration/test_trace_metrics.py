@@ -42,7 +42,7 @@ def test_trace_metric_extraction(
         "organizations:tracemetrics-ingestion",
     ]
     project_config["config"]["retentions"] = {
-        "metric": {"standard": 30, "downsampled": 13 * 30},
+        "trace_metric": {"standard": 30, "downsampled": 13 * 30},
     }
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
