@@ -64,7 +64,10 @@ def test_spansv2_basic(
             "is_remote": False,
             "name": "some op",
             "status": "ok",
-            "attributes": {"foo": {"value": "bar", "type": "string"}},
+            "attributes": {
+                "foo": {"value": "bar", "type": "string"},
+                "invalid": {"value": True, "type": "string"},
+            },
         }
     )
 
@@ -75,18 +78,33 @@ def test_spansv2_basic(
         "span_id": "eee19b7ec3c1b175",
         "data": {
             "foo": "bar",
+            "invalid": None,
             "sentry.browser.name": "Python Requests",
             "sentry.browser.version": "2.32",
             "sentry.observed_timestamp_nanos": time_within(ts, expect_resolution="ns"),
         },
         "attributes": {
             "foo": {"type": "string", "value": "bar"},
+            "invalid": None,
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+        },
+        "_meta": {
+            "attributes": {
+                "invalid": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": {"type": "string", "value": True},
+                    }
+                }
+            },
+            # The contents here are wrong but will be removed soon
+            # with the removal of `data` from the schema.
+            "data": mock.ANY,
         },
         "name": "some op",
         "received": time_within(ts),
