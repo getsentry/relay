@@ -29,6 +29,7 @@
 - Produce Span V2 Kafka messages. ([#5151](https://github.com/getsentry/relay/pull/5151), [#5173](https://github.com/getsentry/relay/pull/5173), [#5199](https://github.com/getsentry/relay/pull/5199))
 - Extract additional `user.geo.*` attributes on spans. ([#5194](https://github.com/getsentry/relay/pull/5194))
 - Modernize session processing and move to Relay's new processing framework. ([#5201](https://github.com/getsentry/relay/pull/5201))
+- Add TraceMetric data category. ([#5206](https://github.com/getsentry/relay/pull/5206))
 
 ## 25.9.0
 
