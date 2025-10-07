@@ -136,6 +136,7 @@ impl SelectorPathItem {
                         | ValueType::Thread
                         | ValueType::Breadcrumb
                         | ValueType::OurLog
+                        | ValueType::TraceMetric
                         | ValueType::Span
                         | ValueType::Minidump
                         | ValueType::HeapMemory
