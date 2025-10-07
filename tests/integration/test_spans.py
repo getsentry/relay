@@ -143,79 +143,60 @@ def test_span_extraction(
     del child_span["received"]
 
     expected_child_span = {
-        "data": {  # Backfilled from `sentry_tags`
-            "sentry.category": "http",
-            "sentry.name": "http",
-            "sentry.normalized_description": "GET *",
-            "sentry.group": "37e3d9fab1ae9162",
-            "sentry.op": "http",
-            "sentry.platform": "other",
-            "sentry.sdk.name": "raven-node",
-            "sentry.sdk.version": "2.6.3",
-            "sentry.status": "ok",
-            "sentry.trace.status": "ok",
-            "sentry.transaction": "hi",
-            "sentry.transaction.op": "hi",
-            "sentry.user": f"id:{user_id}",
-            "sentry.user.geo.city": "Vienna",
-            "sentry.user.geo.country_code": "AT",
-            "sentry.user.geo.region": "Austria",
-            "sentry.user.geo.subdivision": "Vienna",
-            "sentry.user.geo.subregion": "155",
-            "sentry.user.id": user_id,
-            "sentry.user.ip": "192.168.0.1",
+        "attributes": {  # Backfilled from `sentry_tags`
+            "sentry.category": {"type": "string", "value": "http"},
+            "sentry.exclusive_time": {"type": "double", "value": 500.0},
+            "sentry.name": {"type": "string", "value": "http"},
+            "sentry.normalized_description": {"type": "string", "value": "GET *"},
+            "sentry.group": {"type": "string", "value": "37e3d9fab1ae9162"},
+            "sentry.op": {"type": "string", "value": "http"},
+            "sentry.origin": {"type": "string", "value": "manual"},
+            "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.sdk.name": {"type": "string", "value": "raven-node"},
+            "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
+            "sentry.status": {"type": "string", "value": "ok"},
+            "sentry.trace.status": {"type": "string", "value": "ok"},
+            "sentry.transaction": {"type": "string", "value": "hi"},
+            "sentry.transaction.op": {"type": "string", "value": "hi"},
+            "sentry.user": {"type": "string", "value": f"id:{user_id}"},
+            "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
+            "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
+            "sentry.user.geo.region": {"type": "string", "value": "Austria"},
+            "sentry.user.geo.subdivision": {"type": "string", "value": "Vienna"},
+            "sentry.user.geo.subregion": {"type": "string", "value": "155"},
+            "sentry.user.id": {"type": "string", "value": user_id},
+            "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
+            "sentry.description": {
+                "type": "string",
+                "value": "GET /api/0/organizations/?member=1",
+            },
+            "sentry.is_segment": {"type": "boolean", "value": False},
+            "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
         },
-        "description": "GET /api/0/organizations/?member=1",
         "downsampled_retention_days": 90,
-        "duration_ms": int(duration.total_seconds() * 1e3),
+        "end_timestamp": end.timestamp(),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 500.0,
-        "is_segment": False,
         "is_remote": False,
         "links": [
             {
                 "trace_id": "0f62a8b040f340bda5d830223def1d82",
                 "span_id": "cbbbbbbbbbbbbbbc",
                 "sampled": True,
-                "attributes": {"span_key": "span_value"},
+                "attributes": {"span_key": {"type": "string", "value": "span_value"}},
             },
         ],
+        "name": "http",
         "organization_id": 1,
-        "origin": "manual",
         "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
         "key_id": 123,
         "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "category": "http",
-            "description": "GET *",
-            "group": "37e3d9fab1ae9162",
-            "name": "http",
-            "op": "http",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "status": "ok",
-            "trace.status": "ok",
-            "transaction": "hi",
-            "transaction.op": "hi",
-            "user": f"id:{user_id}",
-            "user.geo.city": "Vienna",
-            "user.geo.country_code": "AT",
-            "user.geo.region": "Austria",
-            "user.geo.subdivision": "Vienna",
-            "user.geo.subregion": "155",
-            "user.id": user_id,
-            "user.ip": "192.168.0.1",
-        },
         "span_id": "bbbbbbbbbbbbbbbb",
-        "start_timestamp_ms": int(start.timestamp() * 1e3),
-        "start_timestamp_precise": start.timestamp(),
-        "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
+        "start_timestamp": start.timestamp(),
+        "status": "ok",
         "trace_id": "ff62a8b040f340bda5d830223def1d81",
     }
-    assert_contains(child_span, expected_child_span)
+    assert child_span == expected_child_span
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
         tzinfo=timezone.utc
@@ -234,75 +215,56 @@ def test_span_extraction(
         assert transaction_span.pop("_performance_issues_spans") is True
 
     expected_transaction_span = {
-        "data": {
-            "sentry.sdk.name": "raven-node",
-            "sentry.sdk.version": "2.6.3",
-            "sentry.segment.name": "hi",
-            # Backfilled from `sentry_tags`:
-            "sentry.name": "hi",
-            "sentry.op": "hi",
-            "sentry.platform": "other",
-            "sentry.status": "ok",
-            "sentry.trace.status": "ok",
-            "sentry.transaction": "hi",
-            "sentry.transaction.op": "hi",
-            "sentry.user": f"id:{user_id}",
-            "sentry.user.geo.city": "Vienna",
-            "sentry.user.geo.country_code": "AT",
-            "sentry.user.geo.region": "Austria",
-            "sentry.user.geo.subdivision": "Vienna",
-            "sentry.user.geo.subregion": "155",
-            "sentry.user.id": user_id,
-            "sentry.user.ip": "192.168.0.1",
+        "attributes": {
+            "sentry.description": {"type": "string", "value": "hi"},
+            "sentry.exclusive_time": {"type": "double", "value": 1500.0},
+            "sentry.is_segment": {"type": "boolean", "value": True},
+            "sentry.name": {"type": "string", "value": "hi"},
+            "sentry.op": {"type": "string", "value": "hi"},
+            "sentry.origin": {"type": "string", "value": "manual"},
+            "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.sdk.name": {"type": "string", "value": "raven-node"},
+            "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
+            "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
+            "sentry.segment.name": {"type": "string", "value": "hi"},
+            "sentry.status": {"type": "string", "value": "ok"},
+            "sentry.trace.status": {"type": "string", "value": "ok"},
+            "sentry.transaction.op": {"type": "string", "value": "hi"},
+            "sentry.transaction": {"type": "string", "value": "hi"},
+            "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
+            "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
+            "sentry.user.geo.region": {"type": "string", "value": "Austria"},
+            "sentry.user.geo.subdivision": {"type": "string", "value": "Vienna"},
+            "sentry.user.geo.subregion": {"type": "string", "value": "155"},
+            "sentry.user.id": {"type": "string", "value": user_id},
+            "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
+            "sentry.user": {"type": "string", "value": f"id:{user_id}"},
+            "sentry.was_transaction": {"type": "boolean", "value": True},
         },
-        "description": "hi",
         "downsampled_retention_days": 90,
-        "duration_ms": duration_ms,
+        "end_timestamp": end_timestamp.timestamp(),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 1500.0,
-        "is_segment": True,
         "is_remote": True,
         "links": [
             {
                 "trace_id": "1f62a8b040f340bda5d830223def1d83",
                 "span_id": "dbbbbbbbbbbbbbbd",
                 "sampled": True,
-                "attributes": {"txn_key": 123},
+                "attributes": {"txn_key": {"type": "integer", "value": 123}},
             },
         ],
+        "name": "hi",
         "organization_id": 1,
-        "origin": "manual",
         "project_id": 42,
         "key_id": 123,
         "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "name": "hi",
-            "op": "hi",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "status": "ok",
-            "trace.status": "ok",
-            "transaction": "hi",
-            "transaction.op": "hi",
-            "user": f"id:{user_id}",
-            "user.geo.city": "Vienna",
-            "user.geo.country_code": "AT",
-            "user.geo.region": "Austria",
-            "user.geo.subdivision": "Vienna",
-            "user.geo.subregion": "155",
-            "user.id": user_id,
-            "user.ip": "192.168.0.1",
-        },
         "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
-        "start_timestamp_precise": start_timestamp.timestamp(),
-        "end_timestamp_precise": start_timestamp.timestamp() + duration,
+        "start_timestamp": start_timestamp.timestamp(),
+        "status": "ok",
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
-    assert_contains(transaction_span, expected_transaction_span)
+    assert transaction_span == expected_transaction_span
 
     spans_consumer.assert_empty()
 
@@ -989,7 +951,7 @@ def test_span_ingestion(
                     "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
                 },
             },
-            "end_timestamp": end.timestamp(),
+            "end_timestamp": end.timestamp() + 1,
             "is_remote": False,
             "links": [
                 {
@@ -1029,7 +991,7 @@ def test_span_ingestion(
                     "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
                 },
             },
-            "end_timestamp": end.timestamp(),
+            "end_timestamp": end.timestamp() + 1,
             "is_remote": False,
             "name": "default",
             "span_id": "cd429c44b67a3eb1",
@@ -1059,7 +1021,7 @@ def test_span_ingestion(
                     "value": "python-requests/2.32.4",
                 },
             },
-            "end_timestamp": end.timestamp() + 1,
+            "end_timestamp": end.timestamp(),
             "is_remote": False,
             "kind": "producer",
             "links": [
@@ -1129,7 +1091,7 @@ def test_span_ingestion(
                     "value": "python-requests/2.32.4",
                 },
             },
-            "end_timestamp": end.timestamp() + 1,
+            "end_timestamp": end.timestamp(),
             "is_remote": False,
             "kind": "consumer",
             "links": [
@@ -1217,65 +1179,6 @@ def test_span_ingestion(
         assert actual == expected
 
     metrics_consumer.assert_empty()
-
-
-def assert_contains(span, expected_span):
-    """Assert that an old-style kafka span is contained within the new backward compatible span.
-
-    This function can be removed once the consumer uses the new fields."""
-
-    # These keys are produced by the old producer, but we chose not to replicate them because
-    # the consumer does not need them anymore:
-    unused_keys = {
-        "exclusive_time_ms",
-        "is_segment",
-        "measurements",
-        "tags",
-        "sentry_tags",
-    }
-
-    # These keys are mapped by the segment consumer, so we have to verify
-    # that we write them directly now:
-    mapped_keys = {
-        "origin",
-    }
-
-    # These keys were set unconditionally by the store serializer, but
-    # can be omitted if False:
-    optional_flags = {"is_remote"}
-
-    for key, expected_value in expected_span.items():
-        if key in unused_keys:
-            continue
-        if key == "data":
-            # Data may have more fields than what the test expects
-            for key in expected_value:
-                assert span["data"][key] == expected_value[key]
-        elif key in mapped_keys:
-            assert key not in span
-            assert span["data"][f"sentry.{key}"] == expected_value
-            assert span["attributes"][f"sentry.{key}"]["value"] == expected_value
-        else:
-            if key in optional_flags:
-                assert span.get(key, False) == expected_span[key]
-            elif key == "links":
-                # Link attributes have a different format now, but they are heavily filtered,
-                # JSON-encoded anyway and currently not used by the product.
-                # See
-                # - https://github.com/getsentry/sentry/issues/95661
-                # - https://github.com/getsentry/sentry/pull/96510
-                links = [
-                    {
-                        **link,
-                        "attributes": {
-                            k: v["value"] for (k, v) in link["attributes"].items()
-                        },
-                    }
-                    for link in span[key]
-                ]
-                assert links == expected_value
-            else:
-                assert span[key] == expected_span[key]
 
 
 def test_standalone_span_ingestion_metric_extraction(
@@ -1668,7 +1571,6 @@ def test_span_ingestion_with_performance_scores(
     assert len(spans) == len(expected_scores)
     for span, scores in zip(spans, expected_scores):
         for key, score in scores.items():
-            assert span["data"][key] == score
             assert span["attributes"][key]["value"] == score
 
 
@@ -2208,45 +2110,28 @@ def test_scrubs_ip_addresses(
 
     child_span = spans_consumer.get_span()
 
-    assert (
-        child_span["_meta"]["attributes"]["sentry.user.email"]
-        == child_span["_meta"]["data"]["sentry.user.email"]
-        == {"": {"len": 15, "rem": [["@email", "s", 0, 7]]}}
-    )
+    assert child_span["_meta"]["attributes"]["sentry.user.email"] == {
+        "": {"len": 15, "rem": [["@email", "s", 0, 7]]}
+    }
 
     if scrub_ip_addresses:
         assert child_span["attributes"]["sentry.user.ip"] is None
-        assert child_span["data"]["sentry.user.ip"] is None
-        assert (
-            child_span["_meta"]["attributes"]["sentry.user.ip"]
-            == child_span["_meta"]["data"]["sentry.user.ip"]
-            == {
-                "": {
-                    "len": 9,
-                    "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
-                }
+        assert child_span["_meta"]["attributes"]["sentry.user.ip"] == {
+            "": {
+                "len": 9,
+                "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
             }
-        )
+        }
     else:
-        assert (
-            child_span["attributes"]["sentry.user.ip"]["value"]
-            == child_span["data"]["sentry.user.ip"]
-            == "127.0.0.1"
-        )
+        assert child_span["attributes"]["sentry.user.ip"]["value"] == "127.0.0.1"
         assert "sentry.user.ip" not in child_span["_meta"]["attributes"]
-        assert "sentry.user.ip" not in child_span["_meta"]["data"]
 
     parent_span = spans_consumer.get_span()
 
     if scrub_ip_addresses:
-        assert "sentry.user.ip" not in parent_span["data"]
         assert "sentry.user.ip" not in parent_span["attributes"]
     else:
-        assert (
-            parent_span["attributes"]["sentry.user.ip"]["value"]
-            == parent_span["data"]["sentry.user.ip"]
-            == "127.0.0.1"
-        )
+        assert parent_span["attributes"]["sentry.user.ip"]["value"] == "127.0.0.1"
 
     spans_consumer.assert_empty()
 
