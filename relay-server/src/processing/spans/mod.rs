@@ -16,7 +16,6 @@ use crate::managed::{
 };
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::statsd::RelayCounters;
 
 mod dynamic_sampling;
 mod filter;
@@ -120,16 +119,7 @@ impl processing::Processor for SpansProcessor {
         }
 
         dynamic_sampling::validate_configs(ctx);
-        let ds_result = dynamic_sampling::run(spans, ctx).await;
-        relay_statsd::metric!(
-            counter(RelayCounters::SamplingDecision) += 1,
-            decision = match ds_result.is_ok() {
-                true => "keep",
-                false => "drop",
-            },
-            item = "span"
-        );
-        let spans = match ds_result {
+        let spans = match dynamic_sampling::run(spans, ctx).await {
             Ok(spans) => spans,
             Err(metrics) => return Ok(Output::metrics(metrics)),
         };
