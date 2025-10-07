@@ -731,7 +731,7 @@ impl std::str::FromStr for ItemType {
             "replay_video" => Self::ReplayVideo,
             "check_in" => Self::CheckIn,
             "log" => Self::Log,
-            "metric" | "trace_metric" => Self::TraceMetric,
+            "trace_metric" => Self::TraceMetric,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
             "otel_traces_data" => Self::OtelTracesData,
