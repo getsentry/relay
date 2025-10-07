@@ -1,24 +1,19 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
+use prost_types::Timestamp;
 use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
 use relay_protocol::{Annotated, IntoValue, Value};
 use relay_quotas::Scoping;
-use uuid::Uuid;
-
-#[cfg(feature = "processing")]
-use prost_types::Timestamp;
-#[cfg(feature = "processing")]
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
+use uuid::Uuid;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::WithHeader;
 use crate::processing::Counted;
-use crate::processing::common::meta_extraction::{AttributeMeta, extract_meta_attributes};
 use crate::processing::trace_metrics::{Error, Result};
+use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes};
 use crate::services::outcome::DiscardReason;
-
-#[cfg(feature = "processing")]
 use crate::services::store::StoreTraceItem;
 
 macro_rules! required {

@@ -17,7 +17,6 @@
 - Add new iPhone 17 devices. ([#5203](https://github.com/getsentry/relay/pull/5203))
 - Upgrade sqlparser and improve SQL parsing for span grouping. ([#5211](https://github.com/getsentry/relay/pull/5211))
 
-
 **Bug Fixes**:
 
 - Emit monitor outcomes when dropping/rejecting an envelope. ([#5177](https://github.com/getsentry/relay/pull/5177))

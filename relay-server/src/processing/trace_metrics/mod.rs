@@ -12,12 +12,10 @@ use crate::envelope::{ContainerWriteError, ItemContainer};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Rejected};
 use crate::processing::{Context, CountRateLimited, Forward, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
-#[cfg(feature = "processing")]
-use crate::services::store::Store;
 use smallvec::smallvec;
 
-pub mod filter;
-pub mod process;
+mod filter;
+mod process;
 #[cfg(feature = "processing")]
 mod store;
 mod validate;
@@ -200,16 +198,15 @@ impl Processor for TraceMetricsProcessor {
         // Fast filters, which do not need expanded trace metrics.
         filter::feature_flag(ctx).reject(&metrics)?;
 
-        // Convert to expanded format for processing
-        let mut expanded = process::expand(metrics, ctx);
-        validate::validate(&mut expanded);
-        process::normalize(&mut expanded, ctx);
-        filter::filter(&mut expanded, ctx);
-        process::scrub(&mut expanded, ctx);
+        let mut metrics = process::expand(metrics, ctx);
+        validate::validate(&mut metrics);
+        process::normalize(&mut metrics, ctx);
+        filter::filter(&mut metrics, ctx);
+        process::scrub(&mut metrics, ctx);
 
-        self.limiter.enforce_quotas(&mut expanded, ctx).await?;
+        self.limiter.enforce_quotas(&mut metrics, ctx).await?;
 
-        Ok(Output::just(TraceMetricOutput::Processed(expanded)))
+        Ok(Output::just(TraceMetricOutput::Processed(metrics)))
     }
 }
 
@@ -246,7 +243,10 @@ impl Forward for TraceMetricOutput {
     }
 
     #[cfg(feature = "processing")]
-    fn forward_store(self, s: &relay_system::Addr<Store>) -> Result<(), Rejected<()>> {
+    fn forward_store(
+        self,
+        s: &relay_system::Addr<crate::services::store::Store>,
+    ) -> Result<(), Rejected<()>> {
         let metrics = match self {
             TraceMetricOutput::NotProcessed(metrics) => {
                 return Err(metrics.internal_error(

@@ -11,8 +11,8 @@ use uuid::Uuid;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::WithHeader;
 use crate::processing::Counted;
-use crate::processing::common::meta_extraction::{AttributeMeta, extract_meta_attributes};
 use crate::processing::logs::{Error, Result};
+use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
 

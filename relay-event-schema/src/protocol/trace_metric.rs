@@ -17,27 +17,28 @@ pub struct TraceMetric {
     pub timestamp: Annotated<Timestamp>,
 
     /// The ID of the trace the metric belongs to.
-    #[metastructure(pii = "false", required = true, trim = false)]
+    #[metastructure(required = true, trim = false)]
     pub trace_id: Annotated<TraceId>,
 
     /// The Span this metric belongs to.
-    #[metastructure(pii = "false", required = false, trim = false)]
+    #[metastructure(required = false, trim = false)]
     pub span_id: Annotated<SpanId>,
 
     /// The metric name.
-    #[metastructure(pii = "false", required = true, trim = false)]
+    #[metastructure(required = true, trim = false)]
     pub name: Annotated<String>,
 
     /// The metric type.
-    #[metastructure(pii = "false", required = true, field = "type")]
+    #[metastructure(required = true, field = "type")]
     pub ty: Annotated<MetricType>,
 
-    #[metastructure(pii = "false", required = false)]
+    /// The metric unit.
+    #[metastructure(required = false)]
     pub unit: Annotated<MetricUnit>,
 
-    /// The metric value. Should be constrained to a number.
+    /// The metric value.
     ///
-    /// pii="maybe" because it might make sense to apply the `[Hash]` conversion to set values in the future.
+    /// Should be constrained to a number.
     #[metastructure(pii = "maybe", required = true, trim = false)]
     pub value: Annotated<Value>,
 
@@ -52,7 +53,7 @@ pub struct TraceMetric {
 
 impl Getter for TraceMetric {
     fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
-        Some(match path.strip_prefix("metric.")? {
+        Some(match path.strip_prefix("trace_metric.")? {
             "name" => self.name.as_str()?.into(),
             path => {
                 if let Some(key) = path.strip_prefix("attributes.") {

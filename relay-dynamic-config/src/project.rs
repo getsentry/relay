@@ -45,7 +45,7 @@ pub struct Retentions {
     /// Retention settings for metrics.
     /// This will determine when they are removed from storage.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub metric: Option<RetentionSettings>,
+    pub trace_metric: Option<RetentionSettings>,
 }
 
 impl Retentions {
@@ -66,7 +66,7 @@ impl Retentions {
                     None
                 }
             }
-            TraceItemType::Metric => self.metric.as_ref(),
+            TraceItemType::Metric => self.trace_metric.as_ref(),
             _ => None,
         }
     }

@@ -26,6 +26,7 @@ pub mod logs;
 pub mod sessions;
 pub mod spans;
 pub mod trace_metrics;
+pub mod utils;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
 ///

@@ -4,8 +4,6 @@ use relay_event_schema::protocol::TraceMetric;
 use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
-#[cfg(feature = "processing")]
-use sentry_protos::snuba::v1::TraceItemType;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::{RequestMeta, RequestTrust};
@@ -28,7 +26,7 @@ pub fn expand(
     let (retention, downsampled_retention) = _ctx
         .project_info
         .config
-        .retentions_for_trace_item(TraceItemType::Metric);
+        .retentions_for_trace_item(sentry_protos::snuba::v1::TraceItemType::Metric);
 
     metrics.map(|metrics, records| {
         records.lenient(DataCategory::TraceMetric);
@@ -123,10 +121,6 @@ fn scrub_trace_metric(metric: &mut Annotated<TraceMetric>, ctx: Context<'_>) -> 
 
 /// Normalizes an individual trace metric entry.
 fn normalize_trace_metric(metric: &mut Annotated<TraceMetric>, meta: &RequestMeta) -> Result<()> {
-    if metric.value().is_none() {
-        return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
-    }
-
     let Some(metric_value) = metric.value_mut() else {
         return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
     };
