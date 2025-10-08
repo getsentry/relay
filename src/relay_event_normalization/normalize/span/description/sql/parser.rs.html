@@ -870,19 +870,47 @@
 <a href=#870 id=870 data-nosnippet>870</a>
 <a href=#871 id=871 data-nosnippet>871</a><span class="attr">#[cfg(test)]
 <a href=#872 id=872 data-nosnippet>872</a></span><span class="kw">mod </span>tests {
-<a href=#873 id=873 data-nosnippet>873</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#873 id=873 data-nosnippet>873</a>    <span class="kw">use </span>sqlparser::ast::{Visit, Visitor};
 <a href=#874 id=874 data-nosnippet>874</a>
-<a href=#875 id=875 data-nosnippet>875</a>    <span class="attr">#[test]
-<a href=#876 id=876 data-nosnippet>876</a>    </span><span class="kw">fn </span>parse_deep_expression() {
-<a href=#877 id=877 data-nosnippet>877</a>        <span class="kw">let </span>query = <span class="string">"SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1"</span>;
-<a href=#878 id=878 data-nosnippet>878</a>        <span class="macro">assert_eq!</span>(
-<a href=#879 id=879 data-nosnippet>879</a>            normalize_parsed_queries(<span class="prelude-val">None</span>, query).unwrap().<span class="number">0</span>,
-<a href=#880 id=880 data-nosnippet>880</a>            <span class="string">"SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"
-<a href=#881 id=881 data-nosnippet>881</a>        </span>);
-<a href=#882 id=882 data-nosnippet>882</a>    }
-<a href=#883 id=883 data-nosnippet>883</a>
-<a href=#884 id=884 data-nosnippet>884</a>    <span class="attr">#[test]
-<a href=#885 id=885 data-nosnippet>885</a>    </span><span class="kw">fn </span>parse_dont_panic() {
-<a href=#886 id=886 data-nosnippet>886</a>        <span class="macro">assert!</span>(parse_query_inner(<span class="prelude-val">None</span>, <span class="string">"REPLACE g;'341234c"</span>).is_err());
-<a href=#887 id=887 data-nosnippet>887</a>    }
-<a href=#888 id=888 data-nosnippet>888</a>}</code></pre></div></section></main></body></html>
+<a href=#875 id=875 data-nosnippet>875</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#876 id=876 data-nosnippet>876</a>
+<a href=#877 id=877 data-nosnippet>877</a>    <span class="attr">#[test]
+<a href=#878 id=878 data-nosnippet>878</a>    </span><span class="kw">fn </span>parse_deep_expression() {
+<a href=#879 id=879 data-nosnippet>879</a>        <span class="kw">let </span>query = <span class="string">"SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1"</span>;
+<a href=#880 id=880 data-nosnippet>880</a>        <span class="macro">assert_eq!</span>(
+<a href=#881 id=881 data-nosnippet>881</a>            normalize_parsed_queries(<span class="prelude-val">None</span>, query).unwrap().<span class="number">0</span>,
+<a href=#882 id=882 data-nosnippet>882</a>            <span class="string">"SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"
+<a href=#883 id=883 data-nosnippet>883</a>        </span>);
+<a href=#884 id=884 data-nosnippet>884</a>    }
+<a href=#885 id=885 data-nosnippet>885</a>
+<a href=#886 id=886 data-nosnippet>886</a>    <span class="attr">#[test]
+<a href=#887 id=887 data-nosnippet>887</a>    </span><span class="kw">fn </span>visit_deep_expression() {
+<a href=#888 id=888 data-nosnippet>888</a>        <span class="kw">struct </span>TestVisitor;
+<a href=#889 id=889 data-nosnippet>889</a>        <span class="kw">impl </span>Visitor <span class="kw">for </span>TestVisitor {
+<a href=#890 id=890 data-nosnippet>890</a>            <span class="kw">type </span>Break = ();
+<a href=#891 id=891 data-nosnippet>891</a>        }
+<a href=#892 id=892 data-nosnippet>892</a>        <span class="kw">let </span>leaf = || Box::new(Expr::Value(Value::Null.into()));
+<a href=#893 id=893 data-nosnippet>893</a>        <span class="kw">let </span>op = BinaryOperator::And;
+<a href=#894 id=894 data-nosnippet>894</a>
+<a href=#895 id=895 data-nosnippet>895</a>        <span class="kw">let </span><span class="kw-2">mut </span>expr = Expr::BinaryOp {
+<a href=#896 id=896 data-nosnippet>896</a>            left: leaf(),
+<a href=#897 id=897 data-nosnippet>897</a>            op,
+<a href=#898 id=898 data-nosnippet>898</a>            right: leaf(),
+<a href=#899 id=899 data-nosnippet>899</a>        };
+<a href=#900 id=900 data-nosnippet>900</a>
+<a href=#901 id=901 data-nosnippet>901</a>        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10_000 </span>{
+<a href=#902 id=902 data-nosnippet>902</a>            expr = Expr::BinaryOp {
+<a href=#903 id=903 data-nosnippet>903</a>                left: Box::new(expr),
+<a href=#904 id=904 data-nosnippet>904</a>                op: BinaryOperator::And,
+<a href=#905 id=905 data-nosnippet>905</a>                right: leaf(),
+<a href=#906 id=906 data-nosnippet>906</a>            }
+<a href=#907 id=907 data-nosnippet>907</a>        }
+<a href=#908 id=908 data-nosnippet>908</a>
+<a href=#909 id=909 data-nosnippet>909</a>        <span class="kw">let _ </span>= expr.visit(<span class="kw-2">&amp;mut </span>TestVisitor);
+<a href=#910 id=910 data-nosnippet>910</a>    }
+<a href=#911 id=911 data-nosnippet>911</a>
+<a href=#912 id=912 data-nosnippet>912</a>    <span class="attr">#[test]
+<a href=#913 id=913 data-nosnippet>913</a>    </span><span class="kw">fn </span>parse_dont_panic() {
+<a href=#914 id=914 data-nosnippet>914</a>        <span class="macro">assert!</span>(parse_query_inner(<span class="prelude-val">None</span>, <span class="string">"REPLACE g;'341234c"</span>).is_err());
+<a href=#915 id=915 data-nosnippet>915</a>    }
+<a href=#916 id=916 data-nosnippet>916</a>}</code></pre></div></section></main></body></html>
