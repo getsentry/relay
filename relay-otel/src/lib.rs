@@ -9,9 +9,12 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
-use relay_event_schema::protocol::{Attribute, AttributeType};
-use relay_protocol::Value;
+use opentelemetry_proto::tonic::{
+    common::v1::{InstrumentationScope, any_value::Value as OtelValue},
+    resource::v1::Resource,
+};
+use relay_event_schema::protocol::{Attribute, AttributeType, Attributes};
+use relay_protocol::{Annotated, Value};
 
 /// Converts an OpenTelemetry AnyValue to a Sentry attribute.
 ///
@@ -88,6 +91,42 @@ pub fn otel_value_to_attribute(otel_value: OtelValue) -> Option<Attribute> {
     };
 
     Some(Attribute::new(ty, value))
+}
+
+/// Applies Otel scopes into Sentry [`Attributes`].
+pub fn otel_scope_into_attributes(
+    attributes: &mut Attributes,
+    resource: Option<&Resource>,
+    scope: Option<&InstrumentationScope>,
+) {
+    for attribute in resource.into_iter().flat_map(|s| &s.attributes) {
+        if let Some(attr) = attribute
+            .value
+            .clone()
+            .and_then(|v| v.value)
+            .and_then(otel_value_to_attribute)
+        {
+            let key = format!("resource.{}", attribute.key);
+            attributes.insert_raw(key, Annotated::new(attr));
+        }
+    }
+
+    for attribute in scope.into_iter().flat_map(|s| &s.attributes) {
+        if let Some(attr) = attribute
+            .value
+            .clone()
+            .and_then(|v| v.value)
+            .and_then(otel_value_to_attribute)
+        {
+            let key = format!("instrumentation.{}", attribute.key);
+            attributes.insert_raw(key, Annotated::new(attr));
+        }
+    }
+
+    if let Some(scope) = scope {
+        attributes.insert("instrumentation.name".to_owned(), scope.name.clone());
+        attributes.insert("instrumentation.version".to_owned(), scope.version.clone());
+    }
 }
 
 #[cfg(test)]

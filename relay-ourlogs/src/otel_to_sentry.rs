@@ -77,34 +77,7 @@ pub fn otel_to_sentry_log(
     let mut attribute_data = Attributes::default();
     attribute_data.insert(ORIGIN, "auto.otlp.logs".to_owned());
 
-    for attribute in resource.into_iter().flat_map(|s| &s.attributes) {
-        if let Some(attr) = attribute
-            .value
-            .clone()
-            .and_then(|v| v.value)
-            .and_then(otel_value_to_attribute)
-        {
-            let key = format!("resource.{}", attribute.key);
-            attribute_data.insert_raw(key, Annotated::new(attr));
-        }
-    }
-
-    for attribute in scope.into_iter().flat_map(|s| &s.attributes) {
-        if let Some(attr) = attribute
-            .value
-            .clone()
-            .and_then(|v| v.value)
-            .and_then(otel_value_to_attribute)
-        {
-            let key = format!("instrumentation.{}", attribute.key);
-            attribute_data.insert_raw(key, Annotated::new(attr));
-        }
-    }
-
-    if let Some(scope) = scope {
-        attribute_data.insert("instrumentation.name".to_owned(), scope.name.clone());
-        attribute_data.insert("instrumentation.version".to_owned(), scope.version.clone());
-    }
+    relay_otel::otel_scope_into_attributes(&mut attribute_data, resource, scope);
 
     for attribute in attributes {
         if let Some(attr) = attribute
