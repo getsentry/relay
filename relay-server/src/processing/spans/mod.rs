@@ -9,6 +9,7 @@ use crate::Envelope;
 use crate::envelope::{
     ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
 };
+use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
@@ -17,6 +18,7 @@ use crate::services::outcome::{DiscardReason, Outcome};
 
 mod dynamic_sampling;
 mod filter;
+mod integrations;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
@@ -98,7 +100,16 @@ impl processing::Processor for SpansProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::Span))
             .into_vec();
 
-        let work = SerializedSpans { headers, spans };
+        let integrations = envelope
+            .envelope_mut()
+            .take_items_by(|item| matches!(item.integration(), Some(Integration::Spans(_))))
+            .into_vec();
+
+        let work = SerializedSpans {
+            headers,
+            spans,
+            integrations,
+        };
         Some(Managed::from_envelope(envelope, work))
     }
 
@@ -212,13 +223,15 @@ pub struct SerializedSpans {
     ///
     /// All items contained here must be spans.
     spans: Vec<Item>,
+
+    /// Spans which Relay received from arbitrary integrations.
+    integrations: Vec<Item>,
 }
 
 impl SerializedSpans {
     fn sampled(self, server_sample_rate: Option<f64>) -> SampledSpans {
         SampledSpans {
-            headers: self.headers,
-            spans: self.spans,
+            inner: self,
             server_sample_rate,
         }
     }
@@ -230,7 +243,7 @@ impl SerializedSpans {
 
 impl Counted for SerializedSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = outcome_count(&self.spans) as usize;
+        let quantity = (outcome_count(&self.spans) + outcome_count(&self.integrations)) as usize;
         smallvec::smallvec![
             (DataCategory::Span, quantity),
             (DataCategory::SpanIndexed, quantity),
@@ -270,6 +283,7 @@ impl ExpandedSpans {
 
         Ok(SerializedSpans {
             headers: self.headers,
+            integrations: Vec::new(),
             spans,
         })
     }
@@ -294,11 +308,8 @@ impl CountRateLimited for Managed<ExpandedSpans> {
 /// Note: Spans where dynamic sampling could not yet make a sampling decision,
 /// are considered sampled.
 struct SampledSpans {
-    /// Original envelope headers.
-    headers: EnvelopeHeaders,
-
-    /// Expanded and parsed spans.
-    spans: Vec<Item>,
+    /// Sampled spans.
+    inner: SerializedSpans,
 
     /// Server side applied (dynamic) sample rate.
     server_sample_rate: Option<f64>,
@@ -306,11 +317,7 @@ struct SampledSpans {
 
 impl Counted for SampledSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = outcome_count(&self.spans) as usize;
-        smallvec::smallvec![
-            (DataCategory::Span, quantity),
-            (DataCategory::SpanIndexed, quantity),
-        ]
+        self.inner.quantities()
     }
 }
 
@@ -321,5 +328,8 @@ fn outcome_count(spans: &[Item]) -> u32 {
     // We rely here on the invariant that all items in `self.spans` are actually spans,
     // that's why sum up `item_count`'s blindly instead of checking again for the item type
     // or using `Item::quantities`.
-    spans.iter().filter_map(|item| item.item_count()).sum()
+    spans
+        .iter()
+        .map(|item| item.item_count().unwrap_or(1))
+        .sum()
 }

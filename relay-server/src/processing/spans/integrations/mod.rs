@@ -1,48 +1,39 @@
-use relay_event_schema::protocol::{OurLog, OurLogHeader};
+use relay_event_schema::protocol::SpanV2;
 use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, Item, WithHeader};
-use crate::integrations::{Integration, LogsIntegration};
+use crate::integrations::{Integration, SpansIntegration};
 use crate::managed::RecordKeeper;
 
 mod otel;
 
 /// Expands a list of [`Integration`] items into `result`.
 ///
-/// The function expects *only* log item integrations.
+/// The function expects *only* span item integrations.
 pub fn expand_into(
-    result: &mut ContainerItems<OurLog>,
+    result: &mut ContainerItems<SpanV2>,
     records: &mut RecordKeeper<'_>,
     items: Vec<Item>,
 ) {
     for item in items {
         let integration = match item.integration() {
-            Some(Integration::Logs(integration)) => integration,
+            Some(Integration::Spans(integration)) => integration,
             integration => {
                 records.internal_error(InvalidIntegration(integration), item);
                 continue;
             }
         };
 
-        let produce = |log: OurLog| {
-            let byte_size = relay_ourlogs::calculate_size(&log);
-
-            records.modify_by(DataCategory::LogItem, 1);
-            records.modify_by(DataCategory::LogByte, byte_size as isize);
-
-            result.push(WithHeader {
-                header: Some(OurLogHeader {
-                    byte_size: Some(byte_size),
-                    other: Default::default(),
-                }),
-                value: log.into(),
-            });
+        let produce = |span: SpanV2| {
+            records.modify_by(DataCategory::Span, 1);
+            records.modify_by(DataCategory::SpanIndexed, 1);
+            result.push(WithHeader::new(span.into()));
         };
 
         let payload = item.payload();
 
         let result = match integration {
-            LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
+            SpansIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
         };
 
         match result {
@@ -59,5 +50,5 @@ pub fn expand_into(
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Expected a logs integration, got: {0:?}")]
+#[error("Expected a spans integration, got: {0:?}")]
 struct InvalidIntegration(Option<Integration>);

@@ -933,7 +933,7 @@ def test_span_ingestion(
                 "sentry.name": {"type": "string", "value": "my 2nd OTel span"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
-                "sentry.status": {"type": "string", "value": "unknown"},
+                "sentry.status": {"type": "string", "value": "ok"},
                 "user_agent.original": {
                     "type": "string",
                     "value": "python-requests/2.32.4",
@@ -953,7 +953,7 @@ def test_span_ingestion(
             "name": "my 2nd OTel span",
             "span_id": "d342abb1214ca182",
             "start_timestamp": start.timestamp(),
-            "status": "error",
+            "status": "ok",
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
         {
@@ -1002,7 +1002,7 @@ def test_span_ingestion(
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.name": {"type": "string", "value": "my 3rd protobuf OTel span"},
                 "sentry.op": {"type": "string", "value": "default"},
-                "sentry.status": {"type": "string", "value": "unknown"},
+                "sentry.status": {"type": "string", "value": "ok"},
                 "ui.component_name": {"type": "string", "value": "MyComponent"},
                 "user_agent.original": {
                     "type": "string",
@@ -1026,7 +1026,7 @@ def test_span_ingestion(
             "parent_span_id": "f0f0f0abcdef1234",
             "span_id": "f0b809703e783d00",
             "start_timestamp": start.timestamp(),
-            "status": "error",
+            "status": "ok",
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
     ]
