@@ -14,13 +14,14 @@ workspace = true
 
 [dependencies]
 deadpool = { workspace = true, optional = true }
-deadpool-redis = { workspace = true, optional = true, features = ["rt_tokio_1", "cluster", "script"] }
+deadpool-redis = { workspace = true, optional = true, features = ["rt_tokio_1", "cluster", "sentinel", "script"] }
 futures = { workspace = true }
 redis = { workspace = true, optional = true, features = [
     "cluster",
     "r2d2",
     "tls-native-tls",
     "keep-alive",
+    "sentinel",
     "script",
     "tokio-native-tls-comp",
     "cluster-async",
