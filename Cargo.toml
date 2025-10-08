@@ -220,3 +220,7 @@ utf16string = "0.2.0"
 uuid = { version = "1.11.0", features = ["serde", "v4", "v7"] }
 walkdir = "2.5.0"
 zstd = { version = "0.13.2", features = ["experimental"] }
+
+# Patch until upstream has been updated:
+[patch.crates-io]
+sqlparser_derive = { git = "https://github.com/apache/datafusion-sqlparser-rs", rev = "ade40826563451cc14c130af9d689f4050dbdb15" }
