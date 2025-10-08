@@ -4008,27 +4008,27 @@ mod tests {
             public_key: ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
             numeric_id: Some(1),
         });
-        let project_info = Arc::new(project_info);
+
+        let config = serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        });
 
         let message = ProcessEnvelopeGrouped {
             group: ProcessingGroup::Transaction,
             envelope: managed_envelope,
             ctx: processing::Context {
+                config: &Config::from_json_value(config.clone()).unwrap(),
                 project_info: &project_info,
+                sampling_project_info: Some(&project_info),
                 ..processing::Context::for_test()
             },
             reservoir_counters: &ReservoirCounters::default(),
         };
 
-        let config = Config::from_json_value(serde_json::json!({
-            "processing": {
-                "enabled": true,
-                "kafka_config": [],
-            }
-        }))
-        .unwrap();
-
-        let processor = create_test_processor(config).await;
+        let processor = create_test_processor(Config::from_json_value(config).unwrap()).await;
         let Ok(Some(Submit::Envelope(envelope))) =
             processor.process(&mut Token::noop(), message).await
         else {

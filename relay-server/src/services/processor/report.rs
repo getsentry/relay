@@ -294,7 +294,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = create_test_processor(config).await;
+        let processor = create_test_processor(Default::default()).await;
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -326,7 +326,10 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            ctx: processing::Context::for_test(),
+            ctx: processing::Context {
+                config: &config,
+                ..processing::Context::for_test()
+            },
             reservoir_counters: &ReservoirCounters::default(),
         };
 
@@ -351,7 +354,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = create_test_processor(config).await;
+        let processor = create_test_processor(Default::default()).await;
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -383,7 +386,10 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            ctx: processing::Context::for_test(),
+            ctx: processing::Context {
+                config: &config,
+                ..processing::Context::for_test()
+            },
             reservoir_counters: &ReservoirCounters::default(),
         };
 
@@ -416,7 +422,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = create_test_processor(config).await;
+        let processor = create_test_processor(Default::default()).await;
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -448,7 +454,10 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            ctx: processing::Context::for_test(),
+            ctx: processing::Context {
+                config: &config,
+                ..processing::Context::for_test()
+            },
             reservoir_counters: &ReservoirCounters::default(),
         };
 
