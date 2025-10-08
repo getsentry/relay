@@ -504,7 +504,6 @@ def test_event_merging(
         )
     )
 
-    ts = datetime.now(timezone.utc)
     relay.send_envelope(PROJECT_ID, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
