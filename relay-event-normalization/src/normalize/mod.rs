@@ -1284,38 +1284,6 @@ mod tests {
     }
 
     #[test]
-    fn test_too_long_tags() {
-        let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(PairList(
-            vec![Annotated::new(TagEntry(
-                Annotated::new("foobar".to_owned()),
-                Annotated::new("...........................................................................................................................................................................................................".to_owned()),
-            )), Annotated::new(TagEntry(
-                Annotated::new("foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo".to_owned()),
-                Annotated::new("bar".to_owned()),
-            ))]),
-        )),
-        ..Event::default()
-    });
-
-        normalize_event(&mut event, &NormalizationConfig::default());
-
-        assert_eq!(
-            get_value!(event.tags!),
-            &Tags(PairList(vec![
-                Annotated::new(TagEntry(
-                    Annotated::new("foobar".to_owned()),
-                    Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
-                )),
-                Annotated::new(TagEntry(
-                    Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
-                    Annotated::new("bar".to_owned()),
-                )),
-            ]))
-        );
-    }
-
-    #[test]
     fn test_too_long_distribution() {
         let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",

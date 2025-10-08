@@ -1,4 +1,6 @@
-use relay_event_schema::protocol::{OurLog, Span, SpanV2};
+use relay_event_schema::protocol::{
+    OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2, TraceMetric,
+};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use smallvec::SmallVec;
@@ -63,9 +65,11 @@ impl Counted for Box<Envelope> {
                 DataCategory::ProfileChunkUi,
                 summary.profile_chunk_ui_quantity,
             ),
+            (DataCategory::TraceMetric, summary.trace_metric_quantity),
             (DataCategory::LogItem, summary.log_item_quantity),
             (DataCategory::LogByte, summary.log_byte_quantity),
             (DataCategory::Monitor, summary.monitor_quantity),
+            (DataCategory::Session, summary.session_quantity),
         ];
 
         for (category, quantity) in data {
@@ -87,6 +91,12 @@ impl Counted for WithHeader<OurLog> {
                 processing::logs::get_calculated_byte_size(self)
             )
         ]
+    }
+}
+
+impl Counted for WithHeader<TraceMetric> {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::TraceMetric, 1)]
     }
 }
 
@@ -122,6 +132,23 @@ impl Counted for ExtractedMetrics {
         .into_iter()
         .filter(|(_, q)| *q > 0)
         .collect()
+    }
+}
+
+impl Counted for SessionUpdate {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Session, 1)]
+    }
+}
+
+impl Counted for SessionAggregates {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Session, self.aggregates.len())]
+    }
+}
+impl Counted for SessionAggregateItem {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Session, 1)]
     }
 }
 

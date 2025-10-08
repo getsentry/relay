@@ -542,10 +542,11 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.2.29"
+version = "1.2.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c1599538de2394445747c8cf7935946e3cc27e9625f889d979bfb2aaf569362"
+checksum = "e1d05d92f4b1fd76aad469d46cdd858ca761576082cd37df81416691e50199fb"
 dependencies = [
+ "find-msvc-tools",
  "jobserver",
  "libc",
  "shlex",
@@ -1334,6 +1335,12 @@ name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
+
+[[package]]
+name = "find-msvc-tools"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0399f9d26e5191ce32c498bebd31e7a3ceabc2745f0ac54af3f335126c3f24b3"
 
 [[package]]
 name = "findshlibs"
@@ -3369,6 +3376,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33cb294fe86a74cbcf50d4445b37da762029549ebeea341421c7c70370f86cac"
 
 [[package]]
+name = "psm"
+version = "0.1.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e66fcd288453b748497d8fb18bccc83a16b0518e3906d4b8df0a8d42d93dbb1c"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3531,6 +3547,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "recursive"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0786a43debb760f491b1bc0269fe5e84155353c67482b9e60d0cfb596054b43e"
+dependencies = [
+ "recursive-proc-macro-impl",
+ "stacker",
+]
+
+[[package]]
+name = "recursive-proc-macro-impl"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76009fbe0614077fc1a2ce255e3a1881a2e3a3527097d5dc6d8212c585e7e38b"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "redis"
 version = "0.29.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3656,7 +3692,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.15"
+version = "0.9.16"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3827,6 +3863,7 @@ dependencies = [
  "relay-log",
  "relay-pattern",
  "relay-protocol",
+ "relay-spans",
  "relay-statsd",
  "relay-ua",
  "sentry-release-parser",
@@ -4004,6 +4041,7 @@ dependencies = [
  "once_cell",
  "opentelemetry-proto",
  "relay-common",
+ "relay-conventions",
  "relay-event-schema",
  "relay-otel",
  "relay-protocol",
@@ -4273,7 +4311,7 @@ dependencies = [
  "rmp-serde",
  "semver",
  "sentry",
- "sentry_protos",
+ "sentry_protos 0.4.1",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -4785,13 +4823,13 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "2.1.1"
+version = "2.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9f3a669a7e34855a4ab0bf3698383adf78de4a723e7a845af374be2ae935519"
+checksum = "a8757c054b3dd24d457fb4b0f63a42eac257ec25640f2bdc66332f6f5956be3f"
 dependencies = [
  "jsonschema",
  "prost",
- "sentry_protos",
+ "sentry_protos 0.3.3",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -4879,6 +4917,17 @@ name = "sentry_protos"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2736920441e5f518ac0e79c27b91e2203b7c240afbd6e76771dbf78e208dbc12"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tonic",
+]
+
+[[package]]
+name = "sentry_protos"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e66eb1ca0b78dc5e93af65a213e9fa6c945ebb7278d418e801e64fcc5532a648"
 dependencies = [
  "prost",
  "prost-types",
@@ -5158,19 +5207,19 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.44.0"
+version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aaf9c7ff146298ffda83a200f8d5084f08dcee1edfc135fcc1d646a45d50ffd6"
+checksum = "4591acadbcf52f0af60eafbb2c003232b2b4cd8de5f0e9437cb8b1b59046cc0f"
 dependencies = [
  "log",
+ "recursive",
  "sqlparser_derive",
 ]
 
 [[package]]
 name = "sqlparser_derive"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01b2e185515564f15375f593fb966b5718bc624ba77fe49fa4616ad619690554"
+version = "0.3.0"
+source = "git+https://github.com/apache/datafusion-sqlparser-rs?rev=ade40826563451cc14c130af9d689f4050dbdb15#ade40826563451cc14c130af9d689f4050dbdb15"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5373,6 +5422,19 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
+
+[[package]]
+name = "stacker"
+version = "0.1.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1f8b29fb42aafcea4edeeb6b2f2d7ecd0d969c48b4cf0d2e64aafc471dd6e59"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "psm",
+ "windows-sys 0.59.0",
+]
 
 [[package]]
 name = "static_assertions"

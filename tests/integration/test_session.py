@@ -1,12 +1,19 @@
 from datetime import datetime, timedelta, timezone
 import json
+import pytest
+
+from .test_metrics import metrics_without_keys
+from .asserts.time import time_within_delta
 
 
-def test_sessions(mini_sentry, relay_chain):
+@pytest.mark.parametrize("metric_extraction", [False, True])
+def test_sessions(mini_sentry, relay_chain, metric_extraction):
     relay = relay_chain()
 
     project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    if metric_extraction:
+        project_config["config"]["sessionMetrics"] = {"version": 3}
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
@@ -29,14 +36,49 @@ def test_sessions(mini_sentry, relay_chain):
 
     relay.send_session(project_id, session_payload)
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.captured_events.get(timeout=5)
     assert len(envelope.items) == 1
 
-    session_item = envelope.items[0]
-    assert session_item.type == "session"
+    if metric_extraction:
+        metrics = envelope.items[0]
+        assert metrics.type == "metric_buckets"
 
-    session = json.loads(session_item.get_bytes())
-    assert session == session_payload
+        received_metrics = metrics_without_keys(
+            json.loads(metrics.get_bytes().decode()), keys={"metadata"}
+        )
+        assert received_metrics == [
+            {
+                "timestamp": time_within_delta(started),
+                "width": 1,
+                "name": "c:sessions/session@none",
+                "type": "c",
+                "value": 1.0,
+                "tags": {
+                    "environment": "production",
+                    "release": "sentry-test@1.0.0",
+                    "sdk": "raven-node/2.6.3",
+                    "session.status": "init",
+                },
+            },
+            {
+                "timestamp": time_within_delta(started),
+                "width": 1,
+                "name": "s:sessions/user@none",
+                "type": "s",
+                "value": [1617781333],
+                "tags": {
+                    "environment": "production",
+                    "release": "sentry-test@1.0.0",
+                    "sdk": "raven-node/2.6.3",
+                },
+            },
+        ]
+    else:
+        session_item = envelope.items[0]
+        assert session_item.type == "session"
+
+        session = json.loads(session_item.get_bytes())
+        assert session == session_payload
 
 
 def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consumer):

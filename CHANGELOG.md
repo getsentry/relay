@@ -10,16 +10,28 @@
 - Add Unity Info context to event schema. ([#5155](https://github.com/getsentry/relay/pull/5155))
 - Generate `sentry.name` attributes for spans without names. ([#5143](https://github.com/getsentry/relay/pull/5143))
 - Add integration endpoints for OTLP. ([#5176](https://github.com/getsentry/relay/pull/5176))
+- Emit a metric to record keep/drop decisions in Dynamic Sampling. ([#5164](https://github.com/getsentry/relay/pull/5164), [#5204](https://github.com/getsentry/relay/pull/5204))
+- Trim event tag keys & values to 200 chars instead of dropping them. ([#5198](https://github.com/getsentry/relay/pull/5198))
+- Add trace metric protocol. ([#5207](https://github.com/getsentry/relay/pull/5207))
+- Add `sentry.origin` attribute to OTLP logs. ([#5190](https://github.com/getsentry/relay/pull/5190))
+- Add new iPhone 17 devices. ([#5203](https://github.com/getsentry/relay/pull/5203))
+- Upgrade sqlparser and improve SQL parsing for span grouping. ([#5211](https://github.com/getsentry/relay/pull/5211))
+- Maps `unknown_error` span status to `internal_error` ([#5202](https://github.com/getsentry/relay/pull/5202))
 
 **Bug Fixes**:
 
 - Emit monitor outcomes when dropping/rejecting an envelope. ([#5177](https://github.com/getsentry/relay/pull/5177))
+- Apply span name generation to spans extracted from transaction events. ([#5191](https://github.com/getsentry/relay/pull/5191))
 
 **Internal**:
 
 - No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
 - Produce spans to `ingest-spans` by default. ([#5163](https://github.com/getsentry/relay/pull/5163))
-- Add ability to produce Span V2 Kafka messages. ([#5151](https://github.com/getsentry/relay/pull/5151), [#5173](https://github.com/getsentry/relay/pull/5173))
+- Add `retentions` to the project configuration and use them for logs. ([#5135](https://github.com/getsentry/relay/pull/5135))
+- Produce Span V2 Kafka messages. ([#5151](https://github.com/getsentry/relay/pull/5151), [#5173](https://github.com/getsentry/relay/pull/5173), [#5199](https://github.com/getsentry/relay/pull/5199), [#5216](https://github.com/getsentry/relay/pull/5216))
+- Extract additional `user.geo.*` attributes on spans. ([#5194](https://github.com/getsentry/relay/pull/5194))
+- Modernize session processing and move to Relay's new processing framework. ([#5201](https://github.com/getsentry/relay/pull/5201))
+- Add TraceMetric data category. ([#5206](https://github.com/getsentry/relay/pull/5206))
 
 ## 25.9.0
 

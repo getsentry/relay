@@ -148,7 +148,10 @@ pub enum SpanOutput {
 }
 
 impl Forward for SpanOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let spans = match self {
             Self::NotProcessed(spans) => spans,
             Self::Processed(spans) => spans.try_map(|spans, _| {
@@ -166,6 +169,7 @@ impl Forward for SpanOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        _: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::envelope::ContentType;
         use crate::services::store::StoreEnvelope;
@@ -186,15 +190,9 @@ impl Forward for SpanOutput {
         // similar to what we do for logs.
         let envelope = spans.map(|spans, records| {
             let mut items = Items::with_capacity(spans.spans.len());
-            for span in spans.spans {
-                let mut span = span.value.map_value(relay_spans::span_v2_to_span_v1);
-                if let Some(span) = span.value_mut() {
+            for mut span in spans.spans {
+                if let Some(span) = span.value_mut().as_mut() {
                     inject_server_sample_rate(span, spans.server_sample_rate);
-
-                    // TODO: this needs to be done in a normalization step, which is yet to be
-                    // implemented.
-                    span.received =
-                        relay_event_schema::protocol::Timestamp(chrono::Utc::now()).into();
                 }
 
                 let mut item = Item::new(ItemType::Span);
@@ -206,6 +204,9 @@ impl Forward for SpanOutput {
                     }
                 };
                 item.set_payload(ContentType::Json, payload);
+                if let Some(trace_id) = span.value().and_then(|s| s.trace_id.value()) {
+                    item.set_routing_hint(*trace_id.as_ref());
+                }
                 items.push(item);
             }
 
@@ -228,24 +229,14 @@ impl Forward for SpanOutput {
 /// Ideally we forward a proper data structure to the store instead, then we don't
 /// have to inject the sample rate into a measurement.
 #[cfg(feature = "processing")]
-fn inject_server_sample_rate(
-    span: &mut relay_event_schema::protocol::Span,
-    server_sample_rate: Option<f64>,
-) {
+fn inject_server_sample_rate(span: &mut SpanV2, server_sample_rate: Option<f64>) {
     let Some(server_sample_rate) = server_sample_rate.and_then(relay_protocol::FiniteF64::new)
     else {
         return;
     };
 
-    let measurements = span.measurements.get_or_insert_with(Default::default);
-    measurements.0.insert(
-        "server_sample_rate".to_owned(),
-        relay_event_schema::protocol::Measurement {
-            value: server_sample_rate.into(),
-            unit: None.into(),
-        }
-        .into(),
-    );
+    let attributes = span.attributes.get_or_insert_with(Default::default);
+    attributes.insert("sentry.server_sample_rate", server_sample_rate.to_f64());
 }
 
 /// Spans in their serialized state, as transported in an envelope.

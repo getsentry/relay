@@ -439,8 +439,8 @@ mod tests {
     use crate::MaxChars;
     use chrono::DateTime;
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, SentryTags, Span, SpanId,
-        TagEntry, Tags, Timestamp, TraceId, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, PairList, SentryTags, Span,
+        SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
     };
     use relay_protocol::{Map, Remark, SerializableAnnotated, get_value};
     use similar_asserts::assert_eq;
@@ -1117,5 +1117,83 @@ mod tests {
         assert_eq!(get_value!(event.spans[1].op!).len(), 128);
         assert!(get_value!(event.spans[1].start_timestamp).is_some());
         assert!(get_value!(event.spans[1].timestamp).is_some());
+    }
+
+    #[test]
+    fn test_too_long_tags() {
+        let mut event = Annotated::new(Event {
+        tags: Annotated::new(Tags(PairList(
+            vec![Annotated::new(TagEntry(
+                Annotated::new("foobar".to_owned()),
+                Annotated::new("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx".to_owned()),
+            )), Annotated::new(TagEntry(
+                Annotated::new("foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo".to_owned()),
+                Annotated::new("bar".to_owned()),
+            ))]),
+        )),
+        ..Event::default()
+    });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        insta::assert_debug_snapshot!(get_value!(event.tags!), @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "foobar",
+                        Annotated(
+                            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
+                            Meta {
+                                remarks: [
+                                    Remark {
+                                        ty: Substituted,
+                                        rule_id: "!limit",
+                                        range: Some(
+                                            (
+                                                197,
+                                                200,
+                                            ),
+                                        ),
+                                    },
+                                ],
+                                errors: [],
+                                original_length: Some(
+                                    203,
+                                ),
+                                original_value: None,
+                            },
+                        ),
+                    ),
+                    TagEntry(
+                        Annotated(
+                            "foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo...",
+                            Meta {
+                                remarks: [
+                                    Remark {
+                                        ty: Substituted,
+                                        rule_id: "!limit",
+                                        range: Some(
+                                            (
+                                                197,
+                                                200,
+                                            ),
+                                        ),
+                                    },
+                                ],
+                                errors: [],
+                                original_length: Some(
+                                    203,
+                                ),
+                                original_value: None,
+                            },
+                        ),
+                        "bar",
+                    ),
+                ],
+            ),
+        )
+        "###);
     }
 }

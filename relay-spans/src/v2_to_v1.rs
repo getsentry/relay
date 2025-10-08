@@ -26,7 +26,6 @@ use url::Url;
 /// * The V1 span's `description` field is set based on the V2 span's `sentry.description` attribute.
 /// * The V1 span's `status` field is set based on the V2 span's `status` field and
 ///   `http.status_code` and `rpc.grpc.status_code` attributes.
-/// * The V1 span's `exclusive_time` field is set based on the V2 span's `exclusive_time_nano`
 ///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 /// * The V1 span's `platform` field is set based on the V2 span's `sentry.platform` attribute.
 /// * The V1 span's `profile_id` field is set based on the V2 span's `sentry.profile_id` attribute.
@@ -78,15 +77,14 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
             OP => {
                 op = String::from_value(value);
             }
-            key if key.contains("exclusive_time_nano") => {
-                let value = match value.value() {
+            key if key.contains("exclusive_time") => {
+                exclusive_time_ms = match value.value() {
                     Some(Value::I64(v)) => *v as f64,
                     Some(Value::U64(v)) => *v as f64,
                     Some(Value::F64(v)) => *v,
                     Some(Value::String(v)) => v.parse::<f64>().unwrap_or_default(),
                     _ => 0f64,
                 };
-                exclusive_time_ms = value / 1e6f64;
             }
             // TODO: `http.status_code` is deprecated. This should probably be taken care of during normalization.
             HTTP_RESPONSE_STATUS_CODE | "http.status_code" => {
@@ -448,8 +446,8 @@ mod tests {
                     "value": true,
                     "type": "boolean"
                 },
-                "sentry.exclusive_time_nano": {
-                    "value": "1000000000",
+                "sentry.exclusive_time": {
+                    "value": "1000.",
                     "type": "u64"
                 }
             },
@@ -486,7 +484,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_with_exclusive_time_nano_attribute() {
+    fn parse_span_with_exclusive_time_attribute() {
         let json = r#"{
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
             "span_id": "e342abb1214ca181",
@@ -497,9 +495,9 @@ mod tests {
             "end_timestamp": "2023-10-18T09:14:14.980078800Z",
             "links": [],
             "attributes": {
-                "sentry.exclusive_time_nano": {
-                    "value": 3200000000,
-                    "type": "u64"
+                "sentry.exclusive_time": {
+                    "value": 3200.0,
+                    "type": "f64"
                 }
             }
         }"#;
@@ -527,7 +525,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_no_exclusive_time_nano_attribute() {
+    fn parse_span_no_exclusive_time_attribute() {
         let json = r#"{
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
             "span_id": "e342abb1214ca181",

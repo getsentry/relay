@@ -10,7 +10,7 @@ pub fn normalize(check_ins: &mut Managed<SerializedCheckIns>) {
 
     check_ins.retain(
         |check_ins| &mut check_ins.check_ins,
-        |check_in| {
+        |check_in, _| {
             let payload = check_in.payload();
             let result = relay_monitors::process_check_in(&payload, scoping.project_id)
                 .inspect_err(|err| {

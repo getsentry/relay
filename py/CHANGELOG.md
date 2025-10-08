@@ -2,13 +2,23 @@
 
 # Unreleased
 
-- Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077)))
+- Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077))
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
+- Add `retentions` to the project configuration. ([#5135](https://github.com/getsentry/relay/pull/5135))
+- Normalization: Trim event tag keys & values to 200 chars instead of dropping them. ([#5198](https://github.com/getsentry/relay/pull/5198))
+- Add TraceMetric data category. ([#5206](https://github.com/getsentry/relay/pull/5206))
+
+## 0.9.16
+
+### Various fixes & improvements
+
+- feat(billing): Add retentions to project configs (#5135) by @vbro
 
 ## 0.9.15
 
 ### Various fixes & improvements
 
+- feat(billing): Add retentions to the project configuration (#5135) by @vbro
 - release: 0.9.14 (fb0730ea) by @getsentry-bot
 - feat(preprod): Add SizeAnalysis, InstallableBuild data categories (#5084) by @chromy
 - feat(ds): Introduce a project dynamic sampling rule type (#5077) by @Dav1dde

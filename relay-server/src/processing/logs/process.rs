@@ -14,7 +14,7 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized logs into their [`ExpandedLogs`] representation.
 ///
 /// Individual, invalid logs will be discarded.
-pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
+pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
     let trust = logs.headers.meta().request_trust();
 
     logs.map(|logs, records| {
@@ -32,12 +32,6 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
         ExpandedLogs {
             headers: logs.headers,
             logs: all_logs,
-            // Hard code both retentions for logs launch until we have separate retentions for
-            // different data categories.
-            #[cfg(feature = "processing")]
-            retention: Some(30),
-            #[cfg(feature = "processing")]
-            downsampled_retention: Some(30),
         }
     })
 }
@@ -49,7 +43,7 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
 pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
     logs.retain_with_context(
         |logs| (&mut logs.logs, logs.headers.meta()),
-        |log, meta| {
+        |log, meta, _| {
             normalize_log(log, meta).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
             })
@@ -61,7 +55,7 @@ pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
 pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     logs.retain(
         |logs| &mut logs.logs,
-        |log| {
+        |log, _| {
             scrub_log(log, ctx)
                 .inspect_err(|err| relay_log::debug!("failed to scrub pii from log: {err}"))
         },

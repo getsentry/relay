@@ -33,7 +33,6 @@ TEST_CONFIG = {
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
 @pytest.mark.parametrize("discard_transaction", [False, True])
-@pytest.mark.parametrize("produce_compat_spans", [False, True])
 def test_span_extraction(
     mini_sentry,
     relay_with_processing,
@@ -41,14 +40,9 @@ def test_span_extraction(
     transactions_consumer,
     events_consumer,
     metrics_consumer,
-    produce_compat_spans,
     discard_transaction,
     performance_issues_spans,
 ):
-    mini_sentry.global_config["options"] = {
-        "relay.kafka.span-v2.sample-rate": float(produce_compat_spans)
-    }
-
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
     events_consumer = events_consumer()
@@ -107,6 +101,20 @@ def test_span_extraction(
         },
     ]
 
+    user_id = str(uuid.uuid4())
+    event["user"] = {
+        "id": user_id,
+        # "email": "john@example.com",
+        "ip_address": "192.168.0.1",
+        "sentry_user": f"id:{user_id}",
+        "geo": {
+            "country_code": "AT",
+            "city": "Vienna",
+            "subdivision": "Vienna",
+            "region": "Austria",
+        },
+    }
+
     relay.send_event(project_id, event)
 
     if discard_transaction:
@@ -135,64 +143,60 @@ def test_span_extraction(
     del child_span["received"]
 
     expected_child_span = {
-        "data": {  # Backfilled from `sentry_tags`
-            "sentry.category": "http",
-            "sentry.normalized_description": "GET *",
-            "sentry.group": "37e3d9fab1ae9162",
-            "sentry.op": "http",
-            "sentry.platform": "other",
-            "sentry.sdk.name": "raven-node",
-            "sentry.sdk.version": "2.6.3",
-            "sentry.status": "ok",
-            "sentry.trace.status": "ok",
-            "sentry.transaction": "hi",
-            "sentry.transaction.op": "hi",
+        "attributes": {  # Backfilled from `sentry_tags`
+            "sentry.category": {"type": "string", "value": "http"},
+            "sentry.exclusive_time": {"type": "double", "value": 500.0},
+            "sentry.name": {"type": "string", "value": "http"},
+            "sentry.normalized_description": {"type": "string", "value": "GET *"},
+            "sentry.group": {"type": "string", "value": "37e3d9fab1ae9162"},
+            "sentry.op": {"type": "string", "value": "http"},
+            "sentry.origin": {"type": "string", "value": "manual"},
+            "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.sdk.name": {"type": "string", "value": "raven-node"},
+            "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
+            "sentry.status": {"type": "string", "value": "ok"},
+            "sentry.trace.status": {"type": "string", "value": "ok"},
+            "sentry.transaction": {"type": "string", "value": "hi"},
+            "sentry.transaction.op": {"type": "string", "value": "hi"},
+            "sentry.user": {"type": "string", "value": f"id:{user_id}"},
+            "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
+            "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
+            "sentry.user.geo.region": {"type": "string", "value": "Austria"},
+            "sentry.user.geo.subdivision": {"type": "string", "value": "Vienna"},
+            "sentry.user.geo.subregion": {"type": "string", "value": "155"},
+            "sentry.user.id": {"type": "string", "value": user_id},
+            "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
+            "sentry.description": {
+                "type": "string",
+                "value": "GET /api/0/organizations/?member=1",
+            },
+            "sentry.is_segment": {"type": "boolean", "value": False},
+            "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
         },
-        "description": "GET /api/0/organizations/?member=1",
         "downsampled_retention_days": 90,
-        "duration_ms": int(duration.total_seconds() * 1e3),
+        "end_timestamp": end.timestamp(),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 500.0,
-        "is_segment": False,
         "is_remote": False,
         "links": [
             {
                 "trace_id": "0f62a8b040f340bda5d830223def1d82",
                 "span_id": "cbbbbbbbbbbbbbbc",
                 "sampled": True,
-                "attributes": {"span_key": "span_value"},
+                "attributes": {"span_key": {"type": "string", "value": "span_value"}},
             },
         ],
+        "name": "http",
         "organization_id": 1,
-        "origin": "manual",
         "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
         "key_id": 123,
         "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "category": "http",
-            "description": "GET *",
-            "group": "37e3d9fab1ae9162",
-            "op": "http",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "status": "ok",
-            "trace.status": "ok",
-            "transaction": "hi",
-            "transaction.op": "hi",
-        },
         "span_id": "bbbbbbbbbbbbbbbb",
-        "start_timestamp_ms": int(start.timestamp() * 1e3),
-        "start_timestamp_precise": start.timestamp(),
-        "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
+        "start_timestamp": start.timestamp(),
+        "status": "ok",
         "trace_id": "ff62a8b040f340bda5d830223def1d81",
     }
-    if produce_compat_spans:
-        assert_contains(child_span, expected_child_span)
-    else:
-        assert child_span == expected_child_span
+    assert child_span == expected_child_span
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
         tzinfo=timezone.utc
@@ -201,70 +205,70 @@ def test_span_extraction(
         tzinfo=timezone.utc
     )
     duration = (end_timestamp - start_timestamp).total_seconds()
-    duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
 
     del transaction_span["received"]
 
     if performance_issues_spans:
-        assert transaction_span.pop("_performance_issues_spans") is True
+        assert (
+            transaction_span["attributes"].pop(
+                "sentry._internal.performance_issues_spans"
+            )["value"]
+            is True
+        )
 
     expected_transaction_span = {
-        "data": {
-            "sentry.sdk.name": "raven-node",
-            "sentry.sdk.version": "2.6.3",
-            "sentry.segment.name": "hi",
-            # Backfilled from `sentry_tags`:
-            "sentry.op": "hi",
-            "sentry.platform": "other",
-            "sentry.status": "ok",
-            "sentry.trace.status": "ok",
-            "sentry.transaction": "hi",
-            "sentry.transaction.op": "hi",
+        "attributes": {
+            "sentry.description": {"type": "string", "value": "hi"},
+            "sentry.exclusive_time": {"type": "double", "value": 1500.0},
+            "sentry.is_segment": {"type": "boolean", "value": True},
+            "sentry.name": {"type": "string", "value": "hi"},
+            "sentry.op": {"type": "string", "value": "hi"},
+            "sentry.origin": {"type": "string", "value": "manual"},
+            "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.sdk.name": {"type": "string", "value": "raven-node"},
+            "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
+            "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
+            "sentry.segment.name": {"type": "string", "value": "hi"},
+            "sentry.status": {"type": "string", "value": "ok"},
+            "sentry.trace.status": {"type": "string", "value": "ok"},
+            "sentry.transaction.op": {"type": "string", "value": "hi"},
+            "sentry.transaction": {"type": "string", "value": "hi"},
+            "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
+            "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
+            "sentry.user.geo.region": {"type": "string", "value": "Austria"},
+            "sentry.user.geo.subdivision": {"type": "string", "value": "Vienna"},
+            "sentry.user.geo.subregion": {"type": "string", "value": "155"},
+            "sentry.user.id": {"type": "string", "value": user_id},
+            "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
+            "sentry.user": {"type": "string", "value": f"id:{user_id}"},
+            "sentry.was_transaction": {"type": "boolean", "value": True},
         },
-        "description": "hi",
         "downsampled_retention_days": 90,
-        "duration_ms": duration_ms,
+        "end_timestamp": end_timestamp.timestamp(),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 1500.0,
-        "is_segment": True,
         "is_remote": True,
         "links": [
             {
                 "trace_id": "1f62a8b040f340bda5d830223def1d83",
                 "span_id": "dbbbbbbbbbbbbbbd",
                 "sampled": True,
-                "attributes": {"txn_key": 123},
+                "attributes": {"txn_key": {"type": "integer", "value": 123}},
             },
         ],
+        "name": "hi",
         "organization_id": 1,
-        "origin": "manual",
         "project_id": 42,
         "key_id": 123,
         "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "op": "hi",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "status": "ok",
-            "trace.status": "ok",
-            "transaction": "hi",
-            "transaction.op": "hi",
-        },
         "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
-        "start_timestamp_precise": start_timestamp.timestamp(),
-        "end_timestamp_precise": start_timestamp.timestamp() + duration,
+        "start_timestamp": start_timestamp.timestamp(),
+        "status": "ok",
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
-    if produce_compat_spans:
-        assert_contains(transaction_span, expected_transaction_span)
-    else:
-        assert transaction_span == expected_transaction_span
+    assert transaction_span == expected_transaction_span
 
     spans_consumer.assert_empty()
 
@@ -411,11 +415,9 @@ def envelope_with_spans(
                                 },
                             },
                             {
-                                "key": "sentry.exclusive_time_nano",
+                                "key": "sentry.exclusive_time",
                                 "value": {
-                                    "intValue": str(
-                                        int((end - start).total_seconds() * 1e9)
-                                    ),
+                                    "doubleValue": (end - start).total_seconds() * 1e3
                                 },
                             },
                         ],
@@ -531,9 +533,9 @@ def envelope_with_spans(
                                     "type": "string",
                                     "value": "db",
                                 },
-                                "sentry.exclusive_time_nano": {
-                                    "type": "integer",
-                                    "value": int((end - start).total_seconds() * 1e9),
+                                "sentry.exclusive_time": {
+                                    "type": "double",
+                                    "value": int((end - start).total_seconds() * 1e3),
                                 },
                             },
                             "links": [
@@ -580,9 +582,9 @@ def envelope_with_spans(
                                     "type": "string",
                                     "value": "resource.script",
                                 },
-                                "sentry.exclusive_time_nano": {
-                                    "type": "integer",
-                                    "value": 161 * 1e6,
+                                "sentry.exclusive_time": {
+                                    "type": "double",
+                                    "value": 161.0,
                                 },
                                 # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
                                 "sentry.segment.id": {
@@ -655,11 +657,10 @@ def make_otel_span(start, end):
                                 "kind": 4,
                                 "attributes": [
                                     {
-                                        "key": "sentry.exclusive_time_nano",
+                                        "key": "sentry.exclusive_time",
                                         "value": {
-                                            "intValue": str(
-                                                int((end - start).total_seconds() * 1e9)
-                                            ),
+                                            "doubleValue": (end - start).total_seconds()
+                                            * 1e3,
                                         },
                                     },
                                 ],
@@ -686,17 +687,12 @@ def make_otel_span(start, end):
     }
 
 
-@pytest.mark.parametrize("produce_compat_spans", [False, True])
 def test_span_ingestion(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
-    produce_compat_spans,
 ):
-    mini_sentry.global_config["options"] = {
-        "relay.kafka.span-v2.sample-rate": float(produce_compat_spans)
-    }
 
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
@@ -705,7 +701,7 @@ def test_span_ingestion(
         options={
             "aggregator": {
                 "bucket_interval": 1,
-                "initial_delay": 0,
+                "initial_delay": 2,
                 "max_secs_in_past": 2**64 - 1,
                 "shift_key": "none",
             }
@@ -752,8 +748,8 @@ def test_span_ingestion(
         kind=5,
         attributes=[
             KeyValue(
-                key="sentry.exclusive_time_nano",
-                value=AnyValue(int_value=int(duration.total_seconds() * 1e9)),
+                key="sentry.exclusive_time",
+                value=AnyValue(double_value=duration.total_seconds() * 1e3),
             ),
             # In order to test `category` sentry tag inference.
             KeyValue(
@@ -794,254 +790,242 @@ def test_span_ingestion(
     # endpoint might overtake envelope
     spans.sort(key=lambda msg: msg["span_id"])
 
-    expected_spans = [
+    assert spans == [
         {
-            "data": {
-                "browser.name": "Chrome",
-                "client.address": "127.0.0.1",
-                "sentry.category": "db",
-                "sentry.name": "my 1st OTel span",
-                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/111.0.0.0 Safari/537.36",
-                # Backfilled from `sentry_tags`:
-                "sentry.op": "default",
-                "sentry.browser.name": "Chrome",
-                "sentry.status": "unknown",
-            },
-            "description": "my 1st OTel span",
+            "organization_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
             "downsampled_retention_days": 90,
-            "duration_ms": 500,
-            "exclusive_time_ms": 500.0,
-            "is_segment": True,
+            "attributes": {
+                "browser.name": {"type": "string", "value": "Chrome"},
+                "client.address": {"type": "string", "value": "127.0.0.1"},
+                "sentry.browser.name": {"type": "string", "value": "Chrome"},
+                "sentry.category": {"type": "string", "value": "db"},
+                "sentry.description": {"type": "string", "value": "my 1st OTel span"},
+                "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.is_segment": {"type": "boolean", "value": True},
+                "sentry.name": {"type": "string", "value": "my 1st OTel span"},
+                "sentry.op": {"type": "string", "value": "default"},
+                "sentry.segment.id": {"type": "string", "value": "a342abb1214ca181"},
+                "sentry.status": {"type": "string", "value": "unknown"},
+                "user_agent.original": {
+                    "type": "string",
+                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                },
+            },
+            "end_timestamp": end.timestamp(),
             "is_remote": False,
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
                     "span_id": "e342abb1214ca183",
                     "sampled": False,
-                    "attributes": {"link_double_key": 1.23},
+                    "attributes": {
+                        "link_double_key": {"type": "double", "value": 1.23}
+                    },
                 }
             ],
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "segment_id": "a342abb1214ca181",
-            "sentry_tags": {
-                "browser.name": "Chrome",
-                "category": "db",
-                "op": "default",
-                "status": "unknown",
-            },
+            "name": "my 1st OTel span",
             "span_id": "a342abb1214ca181",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp(),
+            "start_timestamp": start.timestamp(),
+            "status": "error",
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
         },
         {
-            "data": {
-                "browser.name": "Chrome",
-                "client.address": "127.0.0.1",
-                "sentry.category": "db",
-                "sentry.name": "my 1st V2 span",
-                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/111.0.0.0 Safari/537.36",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Chrome",
-                "sentry.op": "default",
-                "sentry.status": "unknown",
-            },
-            "description": "my 1st V2 span",
+            "organization_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
             "downsampled_retention_days": 90,
-            "duration_ms": 500,
-            "exclusive_time_ms": 500.0,
-            "is_segment": True,
+            "attributes": {
+                "browser.name": {"type": "string", "value": "Chrome"},
+                "client.address": {"type": "string", "value": "127.0.0.1"},
+                "sentry.browser.name": {"type": "string", "value": "Chrome"},
+                "sentry.category": {"type": "string", "value": "db"},
+                "sentry.description": {"type": "string", "value": "my 1st V2 span"},
+                "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.is_segment": {"type": "boolean", "value": True},
+                "sentry.name": {"type": "string", "value": "my 1st V2 span"},
+                "sentry.op": {"type": "string", "value": "default"},
+                "sentry.segment.id": {"type": "string", "value": "a342abb1214ca182"},
+                "sentry.status": {"type": "string", "value": "unknown"},
+                "user_agent.original": {
+                    "type": "string",
+                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                },
+            },
+            "end_timestamp": end.timestamp(),
             "is_remote": False,
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
                     "span_id": "e342abb1214ca183",
                     "sampled": False,
-                    "attributes": {"link_double_key": 1.23},
+                    "attributes": {
+                        "link_double_key": {"type": "double", "value": 1.23}
+                    },
                 }
             ],
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "segment_id": "a342abb1214ca182",
-            "sentry_tags": {
-                "browser.name": "Chrome",
-                "category": "db",
-                "op": "default",
-                "status": "unknown",
-            },
+            "name": "my 1st V2 span",
             "span_id": "a342abb1214ca182",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp(),
+            "start_timestamp": start.timestamp(),
+            "status": "error",
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
         },
         {
-            "data": {
-                "browser.name": "Chrome",
-                "client.address": "127.0.0.1",
-                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/111.0.0.0 Safari/537.36",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Chrome",
-                "sentry.category": "resource",
-                "sentry.name": "resource.script",
-                "sentry.normalized_description": "https://example.com/*/blah.js",
-                "sentry.domain": "example.com",
-                "sentry.file_extension": "js",
-                "sentry.group": "8a97a9e43588e2bd",
-                "sentry.op": "resource.script",
-                # Backfilled from `measurements`:
-                "score.total": 0.12121616,
-            },
-            "description": "https://example.com/p/blah.js",
+            "organization_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
             "downsampled_retention_days": 90,
-            "duration_ms": 1500,
-            "exclusive_time_ms": 345.0,
-            "is_segment": True,
+            "attributes": {
+                "browser.name": {"type": "string", "value": "Chrome"},
+                "client.address": {"type": "string", "value": "127.0.0.1"},
+                "score.total": {"type": "double", "value": 0.12121616},
+                "sentry.browser.name": {"type": "string", "value": "Chrome"},
+                "sentry.category": {"type": "string", "value": "resource"},
+                "sentry.description": {
+                    "type": "string",
+                    "value": "https://example.com/p/blah.js",
+                },
+                "sentry.domain": {"type": "string", "value": "example.com"},
+                "sentry.exclusive_time": {"type": "double", "value": 345.0},
+                "sentry.file_extension": {"type": "string", "value": "js"},
+                "sentry.group": {"type": "string", "value": "8a97a9e43588e2bd"},
+                "sentry.is_segment": {"type": "boolean", "value": True},
+                "sentry.name": {"type": "string", "value": "resource.script"},
+                "sentry.normalized_description": {
+                    "type": "string",
+                    "value": "https://example.com/*/blah.js",
+                },
+                "sentry.op": {"type": "string", "value": "resource.script"},
+                "sentry.segment.id": {"type": "string", "value": "b0429c44b67a3eb1"},
+                "user_agent.original": {
+                    "type": "string",
+                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                },
+            },
+            "end_timestamp": end.timestamp() + 1,
             "is_remote": False,
             "links": [
                 {
                     "trace_id": "99143b0763095bd9c9955e8175d1fb25",
                     "span_id": "e342abb1214ca183",
                     "sampled": True,
-                    "attributes": {
-                        "link_bool_key": True,
-                    },
-                },
+                    "attributes": {"link_bool_key": {"type": "boolean", "value": True}},
+                }
             ],
-            "measurements": {"score.total": {"value": 0.12121616}},
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "segment_id": "b0429c44b67a3eb1",
-            "sentry_tags": {
-                "browser.name": "Chrome",
-                "category": "resource",
-                "description": "https://example.com/*/blah.js",
-                "domain": "example.com",
-                "file_extension": "js",
-                "group": "8a97a9e43588e2bd",
-                "op": "resource.script",
-            },
+            "name": "resource.script",
             "span_id": "b0429c44b67a3eb1",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp() + 1,
+            "start_timestamp": start.timestamp(),
+            "status": "ok",
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
-            "data": {
-                "browser.name": "Chrome",
-                "client.address": "127.0.0.1",
-                "sentry.name": "resource.script",
-                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/111.0.0.0 Safari/537.36",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Chrome",
-                "sentry.category": "resource",
-                "sentry.normalized_description": "https://example.com/*/blah.js",
-                "sentry.domain": "example.com",
-                "sentry.file_extension": "js",
-                "sentry.group": "8a97a9e43588e2bd",
-                "sentry.op": "resource.script",
-                "sentry.status": "ok",
-            },
-            "description": "https://example.com/p/blah.js",
+            "organization_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
             "downsampled_retention_days": 90,
-            "duration_ms": 1500,
-            "exclusive_time_ms": 161.0,
-            "is_segment": True,
+            "attributes": {
+                "browser.name": {"type": "string", "value": "Chrome"},
+                "client.address": {"type": "string", "value": "127.0.0.1"},
+                "sentry.browser.name": {"type": "string", "value": "Chrome"},
+                "sentry.category": {"type": "string", "value": "resource"},
+                "sentry.description": {
+                    "type": "string",
+                    "value": "https://example.com/p/blah.js",
+                },
+                "sentry.domain": {"type": "string", "value": "example.com"},
+                "sentry.exclusive_time": {"type": "double", "value": 161.0},
+                "sentry.file_extension": {"type": "string", "value": "js"},
+                "sentry.group": {"type": "string", "value": "8a97a9e43588e2bd"},
+                "sentry.is_segment": {"type": "boolean", "value": True},
+                "sentry.name": {"type": "string", "value": "resource.script"},
+                "sentry.normalized_description": {
+                    "type": "string",
+                    "value": "https://example.com/*/blah.js",
+                },
+                "sentry.op": {"type": "string", "value": "resource.script"},
+                "sentry.segment.id": {"type": "string", "value": "b0429c44b67a3eb2"},
+                "sentry.status": {"type": "string", "value": "ok"},
+                "user_agent.original": {
+                    "type": "string",
+                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                },
+            },
+            "end_timestamp": end.timestamp() + 1,
             "is_remote": False,
             "links": [
                 {
                     "trace_id": "99143b0763095bd9c9955e8175d1fb25",
                     "span_id": "e342abb1214ca183",
                     "sampled": True,
-                    "attributes": {
-                        "link_bool_key": True,
-                    },
-                },
+                    "attributes": {"link_bool_key": {"type": "boolean", "value": True}},
+                }
             ],
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "segment_id": "b0429c44b67a3eb2",
-            "sentry_tags": {
-                "browser.name": "Chrome",
-                "category": "resource",
-                "description": "https://example.com/*/blah.js",
-                "domain": "example.com",
-                "file_extension": "js",
-                "group": "8a97a9e43588e2bd",
-                "op": "resource.script",
-                "status": "ok",
-            },
+            "name": "resource.script",
             "span_id": "b0429c44b67a3eb2",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp() + 1,
+            "start_timestamp": start.timestamp(),
+            "status": "ok",
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
-            "data": {
-                "browser.name": "Chrome",
-                "client.address": "127.0.0.1",
-                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/111.0.0.0 Safari/537.36",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Chrome",
-                "sentry.name": "default",
-                "sentry.op": "default",
-            },
-            "description": r"test \" with \" escaped \" chars",
-            "downsampled_retention_days": 90,
-            "duration_ms": 1500,
-            "exclusive_time_ms": 345.0,
-            "is_segment": False,
-            "is_remote": False,
             "organization_id": 1,
             "project_id": 42,
             "key_id": 123,
             "retention_days": 90,
-            "segment_id": "968cff94913ebb07",
-            "sentry_tags": {"browser.name": "Chrome", "op": "default"},
+            "downsampled_retention_days": 90,
+            "attributes": {
+                "browser.name": {"type": "string", "value": "Chrome"},
+                "client.address": {"type": "string", "value": "127.0.0.1"},
+                "sentry.browser.name": {"type": "string", "value": "Chrome"},
+                "sentry.description": {
+                    "type": "string",
+                    "value": 'test \\" with \\" escaped \\" chars',
+                },
+                "sentry.exclusive_time": {"type": "double", "value": 345.0},
+                "sentry.is_segment": {"type": "boolean", "value": False},
+                "sentry.name": {"type": "string", "value": "default"},
+                "sentry.op": {"type": "string", "value": "default"},
+                "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
+                "user_agent.original": {
+                    "type": "string",
+                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                },
+            },
+            "end_timestamp": end.timestamp() + 1,
+            "is_remote": False,
+            "name": "default",
             "span_id": "cd429c44b67a3eb1",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp() + 1,
+            "start_timestamp": start.timestamp(),
+            "status": "ok",
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
-            "data": {
-                "browser.name": "Python Requests",
-                "client.address": "127.0.0.1",
-                "sentry.name": "my 2nd OTel span",
-                "user_agent.original": "python-requests/2.32.4",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Python Requests",
-                "sentry.op": "default",
-                "sentry.status": "unknown",
-            },
-            "description": "my 2nd OTel span",
+            "organization_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
             "downsampled_retention_days": 90,
-            "duration_ms": 500,
-            "exclusive_time_ms": 500.0,
-            "is_segment": True,
+            "attributes": {
+                "browser.name": {"type": "string", "value": "Python Requests"},
+                "client.address": {"type": "string", "value": "127.0.0.1"},
+                "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+                "sentry.description": {"type": "string", "value": "my 2nd OTel span"},
+                "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.is_segment": {"type": "boolean", "value": True},
+                "sentry.name": {"type": "string", "value": "my 2nd OTel span"},
+                "sentry.op": {"type": "string", "value": "default"},
+                "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
+                "sentry.status": {"type": "string", "value": "unknown"},
+                "user_agent.original": {
+                    "type": "string",
+                    "value": "python-requests/2.32.4",
+                },
+            },
+            "end_timestamp": end.timestamp(),
             "is_remote": False,
             "kind": "producer",
             "links": [
@@ -1049,77 +1033,69 @@ def test_span_ingestion(
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
                     "span_id": "e342abb1214ca183",
                     "sampled": False,
-                    "attributes": {
-                        "link_int_key": 123,
-                    },
-                },
+                    "attributes": {"link_int_key": {"type": "integer", "value": 123}},
+                }
             ],
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "segment_id": "d342abb1214ca182",
-            "sentry_tags": {
-                "browser.name": "Python Requests",
-                "op": "default",
-                "status": "unknown",
-            },
+            "name": "my 2nd OTel span",
             "span_id": "d342abb1214ca182",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp(),
+            "start_timestamp": start.timestamp(),
+            "status": "error",
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
         {
-            "data": {
-                "browser.name": "Chrome",
-                "client.address": "127.0.0.1",
-                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/111.0.0.0 Safari/537.36",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Chrome",
-                "sentry.name": "default",
-                "sentry.op": "default",
-            },
-            "downsampled_retention_days": 90,
-            "duration_ms": 1500,
-            "exclusive_time_ms": 345.0,
-            "is_segment": False,
-            "is_remote": False,
             "organization_id": 1,
             "project_id": 42,
             "key_id": 123,
             "retention_days": 90,
-            "segment_id": "968cff94913ebb07",
-            "sentry_tags": {
-                "browser.name": "Chrome",
-                "op": "default",
+            "downsampled_retention_days": 90,
+            "attributes": {
+                "browser.name": {"type": "string", "value": "Chrome"},
+                "client.address": {"type": "string", "value": "127.0.0.1"},
+                "sentry.browser.name": {"type": "string", "value": "Chrome"},
+                "sentry.exclusive_time": {"type": "double", "value": 345.0},
+                "sentry.is_segment": {"type": "boolean", "value": False},
+                "sentry.name": {"type": "string", "value": "default"},
+                "sentry.op": {"type": "string", "value": "default"},
+                "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
+                "user_agent.original": {
+                    "type": "string",
+                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                },
             },
+            "end_timestamp": end.timestamp() + 1,
+            "is_remote": False,
+            "name": "default",
             "span_id": "ed429c44b67a3eb1",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp() + 1,
+            "start_timestamp": start.timestamp(),
+            "status": "ok",
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
-            "data": {
-                "browser.name": "Python Requests",
-                "client.address": "127.0.0.1",
-                "sentry.name": "my 3rd protobuf OTel span",
-                "ui.component_name": "MyComponent",
-                "user_agent.original": "python-requests/2.32.4",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Python Requests",
-                "sentry.op": "default",
-                "sentry.category": "ui",
-                "sentry.status": "unknown",
-            },
-            "description": "my 3rd protobuf OTel span",
+            "organization_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
             "downsampled_retention_days": 90,
-            "duration_ms": 500,
-            "exclusive_time_ms": 500.0,
-            "is_segment": False,
+            "attributes": {
+                "browser.name": {"type": "string", "value": "Python Requests"},
+                "client.address": {"type": "string", "value": "127.0.0.1"},
+                "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+                "sentry.category": {"type": "string", "value": "ui"},
+                "sentry.description": {
+                    "type": "string",
+                    "value": "my 3rd protobuf OTel span",
+                },
+                "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.name": {"type": "string", "value": "my 3rd protobuf OTel span"},
+                "sentry.op": {"type": "string", "value": "default"},
+                "sentry.status": {"type": "string", "value": "unknown"},
+                "ui.component_name": {"type": "string", "value": "MyComponent"},
+                "user_agent.original": {
+                    "type": "string",
+                    "value": "python-requests/2.32.4",
+                },
+            },
+            "end_timestamp": end.timestamp(),
             "is_remote": False,
             "kind": "consumer",
             "links": [
@@ -1128,34 +1104,18 @@ def test_span_ingestion(
                     "span_id": "e0b809703e783d01",
                     "sampled": False,
                     "attributes": {
-                        "link_str_key": "link_str_value",
+                        "link_str_key": {"type": "string", "value": "link_str_value"}
                     },
-                },
+                }
             ],
-            "organization_id": 1,
+            "name": "my 3rd protobuf OTel span",
             "parent_span_id": "f0f0f0abcdef1234",
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "sentry_tags": {
-                "browser.name": "Python Requests",
-                "op": "default",
-                "category": "ui",
-                "status": "unknown",
-            },
             "span_id": "f0b809703e783d00",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp(),
+            "start_timestamp": start.timestamp(),
+            "status": "error",
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
     ]
-
-    if produce_compat_spans:
-        for span, expected_span in zip(spans, expected_spans):
-            assert_contains(span, expected_span)
-    else:
-        assert spans == expected_spans
 
     spans_consumer.assert_empty()
 
@@ -1223,65 +1183,6 @@ def test_span_ingestion(
         assert actual == expected
 
     metrics_consumer.assert_empty()
-
-
-def assert_contains(span, expected_span):
-    """Assert that an old-style kafka span is contained within the new backward compatible span.
-
-    This function can be removed once the consumer uses the new fields."""
-
-    # These keys are produced by the old producer, but we chose not to replicate them because
-    # the consumer does not need them anymore:
-    unused_keys = {
-        "exclusive_time_ms",
-        "is_segment",
-        "measurements",
-        "tags",
-        "sentry_tags",
-    }
-
-    # These keys are mapped by the segment consumer, so we have to verify
-    # that we write them directly now:
-    mapped_keys = {
-        "origin",
-    }
-
-    # These keys were set unconditionally by the store serializer, but
-    # can be omitted if False:
-    optional_flags = {"is_remote"}
-
-    for key, expected_value in expected_span.items():
-        if key in unused_keys:
-            continue
-        if key == "data":
-            # Data may have more fields than what the test expects
-            for key in expected_value:
-                assert span["data"][key] == expected_value[key]
-        elif key in mapped_keys:
-            assert key not in span
-            assert span["data"][f"sentry.{key}"] == expected_value
-            assert span["attributes"][f"sentry.{key}"]["value"] == expected_value
-        else:
-            if key in optional_flags:
-                assert span.get(key, False) == expected_span[key]
-            elif key == "links":
-                # Link attributes have a different format now, but they are heavily filtered,
-                # JSON-encoded anyway and currently not used by the product.
-                # See
-                # - https://github.com/getsentry/sentry/issues/95661
-                # - https://github.com/getsentry/sentry/pull/96510
-                links = [
-                    {
-                        **link,
-                        "attributes": {
-                            k: v["value"] for (k, v) in link["attributes"].items()
-                        },
-                    }
-                    for link in span[key]
-                ]
-                assert links == expected_value
-            else:
-                assert span[key] == expected_span[key]
 
 
 def test_standalone_span_ingestion_metric_extraction(
@@ -1518,56 +1419,7 @@ def test_span_reject_invalid_timestamps(
 
     spans = spans_consumer.get_spans(timeout=10.0, n=1)
     assert len(spans) == 1
-    assert spans[0]["sentry_tags"]["op"] == "default"
-
-
-def test_span_filter_empty_measurements(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-):
-    spans_consumer = spans_consumer()
-
-    relay = relay_with_processing()
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
-
-    start = datetime.now(UTC)
-    end = start + timedelta(seconds=1)
-
-    envelope = Envelope()
-    envelope.add_item(
-        Item(
-            type="span",
-            payload=PayloadRef(
-                bytes=json.dumps(
-                    {
-                        "description": "https://example.com/p/blah.js",
-                        "op": "resource.script",
-                        "span_id": "b0429c44b67a3eb1",
-                        "segment_id": "b0429c44b67a3eb1",
-                        "start_timestamp": start.timestamp(),
-                        "timestamp": end.timestamp() + 1,
-                        "exclusive_time": 345.0,
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                        "measurements": {
-                            "score.total": {"unit": "ratio", "value": 0.12121616},
-                            "missing": {"unit": "ratio", "value": None},
-                            "other_missing": {"unit": "ratio"},
-                        },
-                    },
-                ).encode()
-            ),
-        )
-    )
-    relay.send_envelope(project_id, envelope)
-
-    spans = spans_consumer.get_spans(timeout=10.0, n=1)
-    assert len(spans) == 1
-    assert spans[0]["measurements"] == {"score.total": {"value": 0.12121616}}
+    assert spans[0]["name"] == "span with valid timestamps"
 
 
 def test_span_ingestion_with_performance_scores(
@@ -1687,152 +1539,43 @@ def test_span_ingestion_with_performance_scores(
     # endpoint might overtake envelope
     spans.sort(key=lambda msg: msg["span_id"])
 
-    assert spans == [
+    expected_scores = [
         {
-            "data": {
-                "browser.name": "Python Requests",
-                "client.address": "127.0.0.1",
-                "user_agent.original": "python-requests/2.32.4",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Python Requests",
-                "sentry.name": "ui.interaction.click",
-                "sentry.op": "ui.interaction.click",
-                # Backfilled from `measurements`:
-                "score.fcp": 0.14999972769539766,
-                "score.fid": 0.14999999985,
-                "score.lcp": 0.29986141375718806,
-                "score.ratio.cls": 0.0,
-                "score.ratio.fcp": 0.9999981846359844,
-                "score.ratio.fid": 0.4999999995,
-                "score.ratio.lcp": 0.9995380458572936,
-                "score.ratio.ttfb": 0.0,
-                "score.total": 0.5998611413025857,
-                "score.ttfb": 0.0,
-                "score.weight.cls": 0.25,
-                "score.weight.fcp": 0.15,
-                "score.weight.fid": 0.3,
-                "score.weight.lcp": 0.3,
-                "score.weight.ttfb": 0.0,
-                "cls": 100.0,
-                "fcp": 200.0,
-                "fid": 300.0,
-                "lcp": 400.0,
-                "ttfb": 500.0,
-                "score.cls": 0.0,
-            },
-            "downsampled_retention_days": 90,
-            "duration_ms": 1500,
-            "exclusive_time_ms": 345.0,
-            "is_segment": False,
-            "is_remote": False,
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "sentry_tags": {
-                "browser.name": "Python Requests",
-                "op": "ui.interaction.click",
-            },
-            "span_id": "bd429c44b67a3eb1",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp() + 1,
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            "measurements": {
-                "score.fcp": {"value": 0.14999972769539766},
-                "score.fid": {"value": 0.14999999985},
-                "score.lcp": {"value": 0.29986141375718806},
-                "score.ratio.cls": {"value": 0.0},
-                "score.ratio.fcp": {"value": 0.9999981846359844},
-                "score.ratio.fid": {"value": 0.4999999995},
-                "score.ratio.lcp": {"value": 0.9995380458572936},
-                "score.ratio.ttfb": {"value": 0.0},
-                "score.total": {"value": 0.5998611413025857},
-                "score.ttfb": {"value": 0.0},
-                "score.weight.cls": {"value": 0.25},
-                "score.weight.fcp": {"value": 0.15},
-                "score.weight.fid": {"value": 0.3},
-                "score.weight.lcp": {"value": 0.3},
-                "score.weight.ttfb": {"value": 0.0},
-                "cls": {"value": 100.0},
-                "fcp": {"value": 200.0},
-                "fid": {"value": 300.0},
-                "lcp": {"value": 400.0},
-                "ttfb": {"value": 500.0},
-                "score.cls": {"value": 0.0},
-            },
+            "score.fcp": 0.14999972769539766,
+            "score.fid": 0.14999999985,
+            "score.lcp": 0.29986141375718806,
+            "score.ratio.cls": 0.0,
+            "score.ratio.fcp": 0.9999981846359844,
+            "score.ratio.fid": 0.4999999995,
+            "score.ratio.lcp": 0.9995380458572936,
+            "score.ratio.ttfb": 0.0,
+            "score.total": 0.5998611413025857,
+            "score.ttfb": 0.0,
+            "score.weight.cls": 0.25,
+            "score.weight.fcp": 0.15,
+            "score.weight.fid": 0.3,
+            "score.weight.lcp": 0.3,
+            "score.weight.ttfb": 0.0,
+            "cls": 100.0,
+            "fcp": 200.0,
+            "fid": 300.0,
+            "lcp": 400.0,
+            "ttfb": 500.0,
+            "score.cls": 0.0,
         },
         {
-            "_meta": {
-                "data": {
-                    "sentry.segment.name": {
-                        "": {
-                            "rem": [
-                                [
-                                    "int",
-                                    "s",
-                                    34,
-                                    37,
-                                ],
-                                ["**/interaction/*/**", "s"],
-                            ],
-                            "val": "/page/with/click/interaction/jane/123",
-                        }
-                    }
-                }
-            },
-            "data": {
-                "browser.name": "Python Requests",
-                "client.address": "127.0.0.1",
-                "sentry.replay.id": "8477286c8e5148b386b71ade38374d58",
-                "sentry.segment.name": "/page/with/click/interaction/*/*",
-                "user": "[email]",
-                "user_agent.original": "python-requests/2.32.4",
-                # Backfilled from `sentry_tags`:
-                "sentry.browser.name": "Python Requests",
-                "sentry.name": "ui.interaction.click",
-                "sentry.op": "ui.interaction.click",
-                "sentry.transaction": "/page/with/click/interaction/*/*",
-                "sentry.replay_id": "8477286c8e5148b386b71ade38374d58",
-                "sentry.user": "[email]",
-                # Backfilled from `measurements`:
-                "inp": 100.0,
-                "score.inp": 0.9948129113413748,
-                "score.ratio.inp": 0.9948129113413748,
-                "score.total": 0.9948129113413748,
-                "score.weight.inp": 1.0,
-            },
-            "downsampled_retention_days": 90,
-            "duration_ms": 1500,
-            "exclusive_time_ms": 345.0,
-            "is_segment": False,
-            "is_remote": False,
-            "profile_id": "3d9428087fda4ba0936788b70a7587d0",
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "sentry_tags": {
-                "browser.name": "Python Requests",
-                "op": "ui.interaction.click",
-                "transaction": "/page/with/click/interaction/*/*",
-                "replay_id": "8477286c8e5148b386b71ade38374d58",
-                "user": "[email]",
-            },
-            "span_id": "cd429c44b67a3eb1",
-            "start_timestamp_ms": int(start.timestamp() * 1e3),
-            "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp() + 1,
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            "measurements": {
-                "inp": {"value": 100.0},
-                "score.inp": {"value": 0.9948129113413748},
-                "score.ratio.inp": {"value": 0.9948129113413748},
-                "score.total": {"value": 0.9948129113413748},
-                "score.weight.inp": {"value": 1.0},
-            },
+            "inp": 100.0,
+            "score.inp": 0.9948129113413748,
+            "score.ratio.inp": 0.9948129113413748,
+            "score.total": 0.9948129113413748,
+            "score.weight.inp": 1.0,
         },
     ]
+
+    assert len(spans) == len(expected_scores)
+    for span, scores in zip(spans, expected_scores):
+        for key, score in scores.items():
+            assert span["attributes"][key]["value"] == score
 
 
 def test_rate_limit_indexed_consistent(
@@ -2151,63 +1894,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
         assert usage_metrics() == (1, 2)
 
 
-@pytest.mark.parametrize(
-    "tags, expected_tags",
-    [
-        (
-            {
-                "some": "tag",
-                "other": "value",
-            },
-            {
-                "some": "tag",
-                "other": "value",
-            },
-        ),
-        (
-            {
-                "some": 1,
-                "other": True,
-            },
-            {
-                "some": "1",
-                "other": "True",
-            },
-        ),
-    ],
-)
-def test_span_extraction_with_tags(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    tags,
-    expected_tags,
-):
-    spans_consumer = spans_consumer()
-
-    relay = relay_with_processing()
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
-
-    event = make_transaction(
-        {
-            "event_id": "e022a2da91e9495d944c291fe065972d",
-            "tags": tags,
-        }
-    )
-
-    relay.send_event(project_id, event)
-
-    transaction_span = spans_consumer.get_span()
-
-    assert transaction_span["tags"] == expected_tags
-
-    spans_consumer.assert_empty()
-
-
 def test_span_filtering_with_generic_inbound_filter(
     mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
 ):
@@ -2428,157 +2114,28 @@ def test_scrubs_ip_addresses(
 
     child_span = spans_consumer.get_span()
 
-    del child_span["received"]
+    assert child_span["_meta"]["attributes"]["sentry.user.email"] == {
+        "": {"len": 15, "rem": [["@email", "s", 0, 7]]}
+    }
 
-    expected = {
-        "_meta": {
-            "sentry_tags": {
-                "user.email": {"": {"len": 15, "rem": [["@email", "s", 0, 7]]}},
-                "user.ip": {
-                    "": {
-                        "len": 9,
-                        "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
-                    }
-                },
+    if scrub_ip_addresses:
+        assert child_span["attributes"]["sentry.user.ip"] is None
+        assert child_span["_meta"]["attributes"]["sentry.user.ip"] == {
+            "": {
+                "len": 9,
+                "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
             }
-        },
-        "data": {
-            # Backfilled from `sentry_tags`
-            "sentry.category": "http",
-            "sentry.normalized_description": "GET *",
-            "sentry.group": "37e3d9fab1ae9162",
-            "sentry.op": "http",
-            "sentry.platform": "other",
-            "sentry.sdk.name": "raven-node",
-            "sentry.sdk.version": "2.6.3",
-            "sentry.status": "ok",
-            "sentry.trace.status": "unknown",
-            "sentry.transaction": "hi",
-            "sentry.transaction.op": "hi",
-            "sentry.user": "id:unique_id",
-            "sentry.user.email": "[email]",
-            "sentry.user.id": "unique_id",
-            "sentry.user.ip": "127.0.0.1",
-            "sentry.user.username": "my_user",
-            # Backfilled from `tags`
-            "extra_info": "added by user",
-        },
-        "description": "GET /api/0/organizations/?member=1",
-        "downsampled_retention_days": 90,
-        "duration_ms": int(duration.total_seconds() * 1e3),
-        "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 500.0,
-        "is_segment": False,
-        "is_remote": False,
-        "organization_id": 1,
-        "origin": "manual",
-        "parent_span_id": "968cff94913ebb07",
-        "project_id": 42,
-        "key_id": 123,
-        "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "category": "http",
-            "description": "GET *",
-            "group": "37e3d9fab1ae9162",
-            "op": "http",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "status": "ok",
-            "trace.status": "unknown",
-            "transaction": "hi",
-            "transaction.op": "hi",
-            "user": "id:unique_id",
-            "user.email": "[email]",
-            "user.id": "unique_id",
-            "user.ip": "127.0.0.1",
-            "user.username": "my_user",
-        },
-        "tags": {
-            "extra_info": "added by user",
-        },
-        "span_id": "bbbbbbbbbbbbbbbb",
-        "start_timestamp_ms": int(start.timestamp() * 1e3),
-        "start_timestamp_precise": start.timestamp(),
-        "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
-        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-    }
-    if scrub_ip_addresses:
-        del expected["sentry_tags"]["user.ip"]
-        del expected["data"]["sentry.user.ip"]
+        }
     else:
-        del expected["_meta"]["sentry_tags"]["user.ip"]
-    assert child_span == expected
+        assert child_span["attributes"]["sentry.user.ip"]["value"] == "127.0.0.1"
+        assert "sentry.user.ip" not in child_span["_meta"]["attributes"]
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
-        tzinfo=timezone.utc
-    )
-    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
-        tzinfo=timezone.utc
-    )
-    duration = (end_timestamp - start_timestamp).total_seconds()
-    duration_ms = int(duration * 1e3)
+    parent_span = spans_consumer.get_span()
 
-    child_span = spans_consumer.get_span()
-
-    del child_span["received"]
-
-    expected = {
-        "data": {
-            "sentry.sdk.name": "raven-node",
-            "sentry.sdk.version": "2.6.3",
-            "sentry.segment.name": "hi",
-            # Backfilled from `sentry_tags`:
-            "sentry.op": "hi",
-            "sentry.platform": "other",
-            "sentry.status": "unknown",
-            "sentry.trace.status": "unknown",
-            "sentry.transaction": "hi",
-            "sentry.transaction.op": "hi",
-            "sentry.user": "id:unique_id",
-            "sentry.user.email": "[email]",
-            "sentry.user.id": "unique_id",
-            "sentry.user.ip": "127.0.0.1",
-            "sentry.user.username": "my_user",
-        },
-        "description": "hi",
-        "downsampled_retention_days": 90,
-        "duration_ms": duration_ms,
-        "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 1500.0,
-        "is_segment": True,
-        "is_remote": True,
-        "organization_id": 1,
-        "project_id": 42,
-        "key_id": 123,
-        "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "op": "hi",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "status": "unknown",
-            "trace.status": "unknown",
-            "transaction": "hi",
-            "transaction.op": "hi",
-            "user": "id:unique_id",
-            "user.email": "[email]",
-            "user.id": "unique_id",
-            "user.ip": "127.0.0.1",
-            "user.username": "my_user",
-        },
-        "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
-        "start_timestamp_precise": start_timestamp.timestamp(),
-        "end_timestamp_precise": start_timestamp.timestamp() + duration,
-        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-    }
     if scrub_ip_addresses:
-        del expected["sentry_tags"]["user.ip"]
-        del expected["data"]["sentry.user.ip"]
-    assert child_span == expected
+        assert "sentry.user.ip" not in parent_span["attributes"]
+    else:
+        assert parent_span["attributes"]["sentry.user.ip"]["value"] == "127.0.0.1"
 
     spans_consumer.assert_empty()
 

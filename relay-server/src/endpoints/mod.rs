@@ -11,11 +11,10 @@ mod common;
 mod envelope;
 mod forward;
 mod health_check;
+mod integrations;
 mod minidump;
 mod monitor;
 mod nel;
-mod otlp_log;
-mod otlp_traces;
 #[cfg(sentry)]
 mod playstation;
 mod project_configs;
@@ -76,31 +75,28 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))
         .route("/api/{project_id}/events/{event_id}/attachments/", post(attachments::handle))
-        .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
-        // The OTLP/HTTP transport defaults to a request suffix of /v1/traces (no trailing slash):
-        // https://opentelemetry.io/docs/specs/otlp/#otlphttp-request
-        // Because we initially released this endpoint with a trailing slash, keeping it for
-        // backwards compatibility.
-        .route("/api/{project_id}/otlp/v1/traces", otlp_traces::route(config))
-        .route("/api/{project_id}/otlp/v1/traces/", otlp_traces::route(config))
-        // Integration Endpoints
-        // Trailing slash is optional to match otlp specification:
-        // https://opentelemetry.io/docs/specs/otlp/#otlphttp-request
-        .route("/api/{project_id}/integration/otlp/v1/traces", otlp_traces::route(config))
-        .route("/api/{project_id}/integration/otlp/v1/traces/", otlp_traces::route(config))
-        .route("/api/{project_id}/integration/otlp/v1/logs", otlp_log::route(config))
-        .route("/api/{project_id}/integration/otlp/v1/logs/", otlp_log::route(config));
-        // NOTE: If you add a new (non-experimental) route here, please also list it in
-        // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
+        .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config));
 
     #[cfg(sentry)]
     let store_routes = store_routes.route("/api/{project_id}/playstation/", playstation::route(config));
     let store_routes = store_routes.route_layer(middlewares::cors());
 
+    // Integration routes.
+    //
+    // For integrations we want to be lenient on trailing `/`, as they are often manually
+    // configured by users or protocols may force a specific variant.
+    let integration_routes = Router::new()
+        .nest("/api/{project_id}/integration/otlp", integrations::otlp::routes(config))
+        .route_layer(middlewares::cors());
+
+    // NOTE: If you add a new (non-experimental) route here, please also list it in
+    // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
+
     Router::new().merge(internal_routes)
         .merge(web_routes)
         .merge(batch_routes)
         .merge(store_routes)
+        .merge(integration_routes)
         // Forward all other API routes to the upstream. This will 404 for non-API routes.
         .fallback(forward::forward)
 }
