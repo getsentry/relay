@@ -420,6 +420,12 @@ impl<T> From<Option<T>> for Annotated<T> {
     }
 }
 
+impl<T> From<Result<T, Error>> for Annotated<T> {
+    fn from(t: Result<T, Error>) -> Self {
+        t.map_or_else(|err| Annotated::from_error(err, None), Annotated::new)
+    }
+}
+
 impl<T> Default for Annotated<T> {
     fn default() -> Annotated<T> {
         Annotated::empty()

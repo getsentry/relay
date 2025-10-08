@@ -1,6 +1,6 @@
 use relay_protocol::{
-    Annotated, Array, Empty, Error, FromValue, HexId, IntoValue, Object, SkipSerialization, Val,
-    Value,
+    Annotated, Array, Empty, Error, FromValue, HexId, IntoValue, Meta, Object, Remark, RemarkType,
+    SkipSerialization, Val, Value,
 };
 use serde::Serializer;
 use std::fmt;
@@ -33,6 +33,23 @@ impl TraceId {
     /// Creates a new, random, trace id.
     pub fn random() -> Self {
         Self(Uuid::new_v4())
+    }
+
+    /// Parses a [`TraceId`] from a slice, if it fails uses a [`Self::random`] id instead.
+    ///
+    /// Additionally adds a remark to the [`Annotated`] that parsing failed.
+    pub fn try_from_slice_or_random(value: &[u8]) -> Annotated<Self> {
+        TraceId::try_from(value)
+            .map(Annotated::new)
+            .unwrap_or_else(|_| {
+                let mut meta = Meta::default();
+                let rule_id = match value.is_empty() {
+                    true => "trace_id.missing",
+                    false => "trace_id.invalid",
+                };
+                meta.add_remark(Remark::new(RemarkType::Substituted, rule_id));
+                Annotated(Some(TraceId::random()), meta)
+            })
     }
 }
 
