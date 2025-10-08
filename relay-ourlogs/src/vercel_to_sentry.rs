@@ -303,13 +303,17 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
         add_optional_attribute!("vercel.proxy.waf_rule_id", waf_rule_id);
     }
 
-    let ourlog_timestamp = Utc
-        .timestamp_millis_opt(timestamp)
-        .single()
-        .unwrap_or_else(Utc::now);
+    let timestamp = match Utc.timestamp_millis_opt(timestamp).single() {
+        Some(datetime) => Annotated::new(Timestamp(datetime)),
+        None => {
+            let mut meta = Meta::default();
+            meta.add_remark(Remark::new(RemarkType::Substituted, "timestamp.invalid"));
+            Annotated(Some(Timestamp(Utc::now())), meta)
+        }
+    };
 
     OurLog {
-        timestamp: Annotated::new(Timestamp(ourlog_timestamp)),
+        timestamp,
         trace_id: get_trace_id(trace_id),
         span_id: get_span_id(span_id),
         level: Annotated::new(map_vercel_level_to_sentry(level)),
