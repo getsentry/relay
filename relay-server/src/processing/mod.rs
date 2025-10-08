@@ -10,15 +10,16 @@ use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_quotas::RateLimits;
 
-use crate::Envelope;
 use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
 mod common;
+mod forward;
 mod limits;
 
 pub use self::common::*;
+pub use self::forward::*;
 pub use self::limits::*;
 
 pub mod check_ins;
@@ -168,65 +169,5 @@ impl<T> Output<T> {
             main: self.main.map(f),
             metrics: self.metrics,
         }
-    }
-}
-
-/// Context passed to [`Forward`].
-///
-/// A minified version of [`Context`], which does not contain processing specific information.
-#[derive(Copy, Clone, Debug)]
-pub struct ForwardContext<'a> {
-    /// The Relay configuration.
-    #[expect(unused, reason = "not yet used")]
-    pub config: &'a Config,
-    /// A view of the currently active global configuration.
-    #[expect(unused, reason = "not yet used")]
-    pub global_config: &'a GlobalConfig,
-    /// Project configuration associated with the unit of work.
-    #[expect(unused, reason = "not yet used")]
-    pub project_info: &'a ProjectInfo,
-}
-
-/// A processor output which can be forwarded to a different destination.
-pub trait Forward {
-    /// Serializes the output into an [`Envelope`].
-    ///
-    /// All output must be serializable as an envelope.
-    fn serialize_envelope(
-        self,
-        ctx: ForwardContext<'_>,
-    ) -> Result<Managed<Box<Envelope>>, Rejected<()>>;
-
-    /// Serializes the output into a [`crate::services::store::StoreService`] compatible format.
-    ///
-    /// This function must only be called when Relay is configured to be in processing mode.
-    #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        s: &relay_system::Addr<crate::services::store::Store>,
-        ctx: ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>>;
-}
-
-/// The [`Nothing`] output.
-///
-/// Some processors may only produce by-products and not have any output of their own.
-pub struct Nothing(std::convert::Infallible);
-
-impl Forward for Nothing {
-    fn serialize_envelope(
-        self,
-        _: ForwardContext<'_>,
-    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        match self {}
-    }
-
-    #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        _: &relay_system::Addr<crate::services::store::Store>,
-        _: ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>> {
-        match self {}
     }
 }

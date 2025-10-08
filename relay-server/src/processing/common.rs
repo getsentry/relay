@@ -6,7 +6,7 @@ use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
-use crate::processing::{Forward, Nothing, Processor};
+use crate::processing::{Forward, Processor};
 
 macro_rules! outputs {
     ($($variant:ident => $ty:ty,)*) => {
@@ -58,9 +58,3 @@ outputs!(
     Spans => SpansProcessor,
     Sessions => SessionsProcessor,
 );
-
-impl From<Nothing> for Outputs {
-    fn from(value: Nothing) -> Self {
-        match value {}
-    }
-}
