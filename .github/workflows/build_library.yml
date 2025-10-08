@@ -1,7 +1,7 @@
 name: Library Release Build
 
 on:
-  push:
+  pull_request:
     branches:
       - release-library/**
 
@@ -69,13 +69,20 @@ jobs:
           rustup override set stable
           rustup target add --toolchain stable ${{ matrix.target }}
 
-      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
         with:
-          python-version: "3.10"
+          version: '0.8.2'
+          # we just cache the venv-dir directly in action-setup-venv
+          enable-cache: false
+
+      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
+        with:
+          python-version: 3.11.9
+          cache-dependency-path: uv.lock
+          install-cmd: uv sync --frozen --only-dev --active
 
       - name: Build Wheel
         run: |
-          pip install wheel
           python setup.py bdist_wheel -p ${{ matrix.py-platform }}
         working-directory: py
         env:
@@ -99,9 +106,17 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
         with:
-          python-version: "3.10"
+          version: '0.8.2'
+          # we just cache the venv-dir directly in action-setup-venv
+          enable-cache: false
+
+      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
+        with:
+          python-version: 3.11.9
+          cache-dependency-path: uv.lock
+          install-cmd: uv sync --frozen --only-dev --active
 
       - name: Build sdist
         run: python setup.py sdist
