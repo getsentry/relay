@@ -58,6 +58,8 @@ impl FromMessage<MergeBuckets> for Aggregator {
 /// - If flushing fails and should be retried at a later time, respond with `Err` containing the
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
+// TODO: Check when we write into the aggregator (see if this can happen in Proxy Mode) -> Double check that no one writes into this. (Think about ProxyAggregator or just forwarding)
+// Since than we are just very defensive in the setup.
 pub struct FlushBuckets {
     /// The partition to which the buckets belong.
     pub partition_key: u32,

@@ -984,6 +984,7 @@ pub struct ProcessMetrics {
 pub enum MetricData {
     /// Raw data, unparsed envelope items.
     Raw(Vec<Item>),
+    // FIXME: This might needs to be serialized.
     /// Already parsed buckets but unprocessed.
     Parsed(Vec<Bucket>),
 }
@@ -1164,6 +1165,12 @@ pub struct EnvelopeProcessorService {
     inner: Arc<InnerProcessor>,
 }
 
+// TODO: Add documentation
+#[derive(Clone)]
+pub struct ProxyProcessorService {
+    inner: Arc<InnerProxyProcessor>,
+}
+
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -1185,6 +1192,21 @@ impl Default for Addrs {
             aggregator: Addr::dummy(),
             #[cfg(feature = "processing")]
             global_rate_limits: None,
+        }
+    }
+}
+
+/// Contains the addresses of services that the proxy-processor publishes to.
+pub struct ProxyAddrs {
+    pub outcome_aggregator: Addr<TrackOutcome>,
+    pub upstream_relay: Addr<UpstreamRelay>,
+}
+
+impl Default for ProxyAddrs {
+    fn default() -> Self {
+        ProxyAddrs {
+            outcome_aggregator: Addr::dummy(),
+            upstream_relay: Addr::dummy(),
         }
     }
 }
@@ -1213,6 +1235,13 @@ struct Processing {
     spans: SpansProcessor,
     check_ins: CheckInsProcessor,
     sessions: SessionsProcessor,
+}
+
+struct InnerProxyProcessor {
+    pool: EnvelopeProcessorServicePool,
+    config: Arc<Config>,
+    project_cache: ProjectCacheHandle,
+    addrs: ProxyAddrs,
 }
 
 impl EnvelopeProcessorService {
@@ -2308,6 +2337,8 @@ impl EnvelopeProcessorService {
         }
     }
 
+    // TODO: Better understand what is going on here.
+
     /// Processes the envelope and returns the processed envelope back.
     ///
     /// Returns `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
@@ -2323,6 +2354,8 @@ impl EnvelopeProcessorService {
             ctx,
             ..
         } = message;
+
+        // TODO: Not entirely sure why the envelope can't have the project_id for example, but I guess we defo want to avoid this though
 
         // Prefer the project's project ID, and fall back to the stated project id from the
         // envelope. The project ID is available in all modes, other than in proxy mode, where
@@ -2362,6 +2395,7 @@ impl EnvelopeProcessorService {
             }
         });
 
+        // TODO: This we want to skip for sure
         let result = match self.process_envelope(cogs, project_id, message).await {
             Ok(ProcessingResult::Envelope {
                 mut managed_envelope,
@@ -2461,6 +2495,7 @@ impl EnvelopeProcessorService {
                 reservoir_counters: &message.reservoir_counters,
             };
 
+            // TODO: Wonder if we can just skip this in its entirety :thinking:
             let result = metric!(
                 timer(RelayTimers::EnvelopeProcessingTime),
                 group = group.variant(),
@@ -3238,6 +3273,157 @@ impl EnvelopeProcessorService {
 }
 
 impl Service for EnvelopeProcessorService {
+    type Interface = EnvelopeProcessor;
+
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        while let Some(message) = rx.recv().await {
+            let service = self.clone();
+            self.inner
+                .pool
+                .spawn_async(
+                    async move {
+                        service.handle_message(message).await;
+                    }
+                    .boxed(),
+                )
+                .await;
+        }
+    }
+}
+
+// TODO: Add documentation
+impl ProxyProcessorService {
+    /// Creates a multi-threaded proxy processor.
+    pub fn new(
+        pool: EnvelopeProcessorServicePool,
+        config: Arc<Config>,
+        project_cache: ProjectCacheHandle,
+        addrs: ProxyAddrs,
+    ) -> Self {
+        Self {
+            inner: Arc::new(InnerProxyProcessor {
+                pool,
+                project_cache,
+                addrs,
+                config,
+            }),
+        }
+    }
+
+    async fn handle_process_envelope(&self, message: ProcessEnvelope) {
+        let wait_time = message.envelope.age();
+        metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
+
+        let scoping = message.envelope.scoping();
+        for (_, envelope) in ProcessingGroup::split_envelope(
+            *message.envelope.into_envelope(),
+            &message.project_info,
+        ) {
+            let mut envelope =
+                ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
+            envelope.scope(scoping);
+
+            // FIXME: This might be too naive
+            self.submit_upstream(envelope);
+        }
+    }
+
+    fn handle_process_metrics(&self, _message: ProcessMetrics) {
+        // TODO: Add logic to forward the ProcessMetrics
+        // TODO: Think about if outcomes should be emitted for this
+        relay_log::error!("internal error: Metrics not supported in Proxy mode");
+    }
+
+    fn handle_process_batched_metrics(&self, _message: ProcessBatchedMetrics) {
+        // TODO: Add logic to forward the ProcessBatchedMetrics
+        // TODO: Think about if outcomes should be emitted for this
+        relay_log::error!("internal error: Metrics not supported in Proxy mode");
+    }
+
+    async fn handle_flush_buckets(&self, mut _message: FlushBuckets) {
+        // TODO: Add logic to forward the FlushBuckets
+        // TODO: Think about if outcomes should be emitted for this
+        relay_log::error!("internal error: Metrics not supported in Proxy mode");
+    }
+
+    fn handle_submit_client_reports(&self, message: SubmitClientReports) {
+        let SubmitClientReports {
+            client_reports,
+            scoping,
+        } = message;
+
+        let upstream = self.inner.config.upstream_descriptor();
+        let dsn = PartialDsn::outbound(&scoping, upstream);
+
+        let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
+        for client_report in client_reports {
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
+            envelope.add_item(item);
+        }
+
+        let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
+        self.submit_upstream(envelope);
+    }
+
+    fn submit_upstream(&self, envelope: ManagedEnvelope) {
+        let mut envelope = envelope;
+
+        if envelope.envelope_mut().is_empty() {
+            envelope.accept();
+            return;
+        }
+
+        relay_log::trace!("sending envelope to sentry endpoint");
+        let http_encoding = self.inner.config.http_encoding();
+        let result = envelope.envelope().to_vec().and_then(|v| {
+            encode_payload(&v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
+        });
+
+        match result {
+            Ok(body) => {
+                self.inner
+                    .addrs
+                    .upstream_relay
+                    .send(SendRequest(SendEnvelope {
+                        envelope: envelope.into_processed(),
+                        body,
+                        http_encoding,
+                        project_cache: self.inner.project_cache.clone(),
+                    }));
+            }
+            Err(error) => {
+                // Errors are only logged for what we consider an internal discard reason. These
+                // indicate errors in the infrastructure or implementation bugs.
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    tags.project_key = %envelope.scoping().project_key,
+                    "failed to serialize envelope payload"
+                );
+
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+            }
+        }
+    }
+
+    async fn handle_message(&self, message: EnvelopeProcessor) {
+        let ty = message.variant();
+
+        metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
+            match message {
+                EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m).await,
+                EnvelopeProcessor::ProcessProjectMetrics(m) => self.handle_process_metrics(*m),
+                EnvelopeProcessor::ProcessBatchedMetrics(m) => {
+                    self.handle_process_batched_metrics(*m)
+                }
+                EnvelopeProcessor::FlushBuckets(m) => self.handle_flush_buckets(*m).await,
+                EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
+            }
+        });
+    }
+}
+
+impl Service for ProxyProcessorService {
     type Interface = EnvelopeProcessor;
 
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
