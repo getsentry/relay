@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from unittest import mock
 import pytest
 import os
@@ -451,3 +452,202 @@ def test_data_request(mini_sentry, relay_processing_with_playstation):
     }
     assert response.status_code == 200
     assert response.json() == expected_response
+
+
+def test_event_merging(
+    mini_sentry,
+    relay_processing_with_playstation,
+    outcomes_consumer,
+    attachments_consumer,
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("user_data.prosperodmp")
+    mini_sentry.add_full_project_config(
+        PROJECT_ID,
+        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
+    )
+    outcomes_consumer = outcomes_consumer()
+    attachments_consumer = attachments_consumer()
+    relay = relay_processing_with_playstation()
+
+    tempest_event = {
+        "event_id": "123-123-123",
+        "level": "fatal",
+        "sdk": {
+            "name": "sentry.playstation.crs",
+            "version": "0.0.1",
+            "packages": [],
+            "integrations": [],
+        },
+        "contexts": {
+            "CRS": {
+                "crash_id": "123",
+                "crash_url": "https://link_to_the_crash/123",
+            }
+        },
+        "tags": {"CRS CrashID": "123"},
+    }
+
+    envelope = Envelope()
+    envelope.add_event(tempest_event)
+
+    # Add the PlayStation dump as an attachment
+    envelope.add_item(
+        Item(
+            type="attachment",
+            payload=PayloadRef(bytes=playstation_dump),
+            headers={
+                "attachment_type": "playstation.prosperodump",
+                "filename": "playstation.prosperodmp",
+                "content_type": "application/octet-stream",
+            },
+        )
+    )
+
+    ts = datetime.now(timezone.utc)
+    relay.send_envelope(PROJECT_ID, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 0
+
+    event, payload = attachments_consumer.get_event_only()
+    assert payload == {
+        "event_id": mock.ANY,
+        "level": "error",
+        "version": "5",
+        "type": "error",
+        "logger": "",
+        "platform": "native",
+        "timestamp": time_within_delta(),
+        "received": time_within_delta(),
+        "environment": "production",
+        "contexts": {
+            "CRS": {
+                "crash_id": "123",
+                "crash_url": "https://link_to_the_crash/123",
+                "type": "CRS",
+            },
+            "app": {"app_version": "", "type": "app"},
+            "device": {
+                "name": "",
+                "model": "PS5",
+                "model_id": "5be3652dd663dbdcd044da0f2144b17f",
+                "arch": "x86_64",
+                "manufacturer": "Sony",
+                "type": "device",
+            },
+            "os": {"os": "Prospero", "name": "Prospero", "type": "os"},
+            "runtime": {
+                "runtime": "PS5 11.20.00.05-00.00.00.0.1",
+                "name": "PS5",
+                "version": "11.20.00.05-00.00.00.0.1",
+                "type": "runtime",
+            },
+            "trace": {
+                "trace_id": "a4c6cc5ab0d949d23f6d42e518ba49b4",
+                "span_id": "75470378528743c2",
+                "status": "unknown",
+                "type": "trace",
+            },
+        },
+        "breadcrumbs": {
+            "values": [
+                {
+                    "timestamp": time_within_delta(),
+                    "type": "default",
+                    "level": "info",
+                    "message": "crumb",
+                }
+            ]
+        },
+        "exception": {
+            "values": [
+                {
+                    "type": "Minidump",
+                    "value": "Invalid Minidump",
+                    "mechanism": {
+                        "type": "minidump",
+                        "synthetic": True,
+                        "handled": False,
+                    },
+                }
+            ]
+        },
+        "tags": [
+            ["CRS-CrashID", "123"],
+            ["tag-name", "tag value"],
+            ["server_name", "5be3652dd663dbdcd044da0f2144b17f"],
+        ],
+        "extra": {"extra-name": "extra value"},
+        "sdk": {
+            "name": "sentry.native.playstation",
+            "version": "0.8.5",
+            "packages": [
+                {"name": "github:getsentry/sentry-native", "version": "0.8.5"}
+            ],
+        },
+        "errors": [
+            {
+                "type": "past_timestamp",
+                "name": "timestamp",
+                "sdk_time": "2025-05-27T19:19:13+00:00",
+                "server_time": mock.ANY,
+            }
+        ],
+        "key_id": "123",
+        "project": 42,
+        "grouping_config": {
+            "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
+            "id": "legacy:2019-03-12",
+        },
+        "_metrics": {
+            "bytes.ingested.event": 600,
+            "bytes.ingested.event.minidump": 42734,
+            "bytes.ingested.event.attachment": 225354,
+        },
+        "_meta": {
+            "timestamp": {
+                "": {
+                    "err": [
+                        [
+                            "past_timestamp",
+                            {
+                                "sdk_time": "2025-05-27T19:19:13+00:00",
+                                "server_time": mock.ANY,
+                            },
+                        ]
+                    ]
+                }
+            }
+        },
+    }
+
+    assert event["attachments"] == (
+        {
+            "id": mock.ANY,
+            "name": "playstation.prosperodmp",
+            "rate_limited": False,
+            "content_type": "application/octet-stream",
+            "attachment_type": "playstation.prosperodump",
+            "size": 233960,
+            "chunks": 1,
+        },
+        {
+            "id": mock.ANY,
+            "name": "console.log",
+            "rate_limited": False,
+            "content_type": "text/plain",
+            "attachment_type": "event.attachment",
+            "size": 225354,
+            "chunks": 1,
+        },
+        {
+            "id": mock.ANY,
+            "name": "generated_minidump.dmp",
+            "rate_limited": False,
+            "content_type": "application/x-dmp",
+            "attachment_type": "event.minidump",
+            "size": 42734,
+            "chunks": 1,
+        },
+    )

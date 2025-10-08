@@ -48,15 +48,10 @@ pub fn expand(
             ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {err}"))
         })?;
 
-        if envelope
-            .get_item_by(|item| item.ty() == &ItemType::Event)
-            .is_none()
-            && let Some(json) = prospero_dump.userdata.get(SENTRY_PAYLOAD_KEY)
-        {
-            let json = json.clone().into_owned();
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(ContentType::Json, json);
-            envelope.add_item(item);
+        if let Some(json) = prospero_dump.userdata.get(SENTRY_PAYLOAD_KEY) {
+            let event = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
+            let event_item = merge_json_into_event(json, event);
+            envelope.add_item(event_item);
         }
 
         add_attachments(envelope, prospero_dump, minidump_buffer);
@@ -284,6 +279,31 @@ fn infer_content_type(filename: &str) -> ContentType {
         Some("json") => ContentType::Json,
         Some("xml") => ContentType::Xml,
         _ => ContentType::OctetStream,
+    }
+}
+
+fn create_item_with_json_payload(payload: &str) -> Item {
+    let mut item = Item::new(ItemType::Event);
+    item.set_payload(ContentType::Json, payload.to_owned());
+    item
+}
+
+fn merge_json_into_event(json: &str, event: Option<Item>) -> Item {
+    match event {
+        Some(event) => {
+            let event_json =
+                serde_json::from_slice::<serde_json::Value>(&event.payload()).unwrap_or_default();
+            let mut base_json = serde_json::from_str::<serde_json::Value>(json).unwrap_or_default();
+
+            utils::merge_values(&mut base_json, event_json);
+
+            if let Ok(merged_json) = serde_json::to_string(&base_json) {
+                create_item_with_json_payload(&merged_json)
+            } else {
+                event
+            }
+        }
+        None => create_item_with_json_payload(json),
     }
 }
 
