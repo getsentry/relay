@@ -8,11 +8,10 @@ use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 use uuid::Uuid;
 
-use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::WithHeader;
-use crate::processing::Counted;
 use crate::processing::logs::{Error, Result};
 use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes};
+use crate::processing::{Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
 
@@ -38,10 +37,8 @@ pub struct Context {
     pub received_at: DateTime<Utc>,
     /// Item scoping.
     pub scoping: Scoping,
-    /// Storage retention in days.
-    pub retention: Option<u16>,
-    /// Storage retention for downsampled data in days
-    pub downsampled_retention: Option<u16>,
+    /// Item retention.
+    pub retention: Retention,
 }
 
 pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem> {
@@ -64,15 +61,14 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         span_id: log.span_id.into_value(),
         payload_size_bytes,
     };
-    let retention_days = ctx.retention.unwrap_or(DEFAULT_EVENT_RETENTION);
 
     let trace_item = TraceItem {
         item_type: TraceItemType::Log.into(),
         organization_id: ctx.scoping.organization_id.value(),
         project_id: ctx.scoping.project_id.value(),
         received: Some(ts(ctx.received_at)),
-        retention_days: retention_days.into(),
-        downsampled_retention_days: ctx.downsampled_retention.unwrap_or(retention_days).into(),
+        retention_days: ctx.retention.standard.into(),
+        downsampled_retention_days: ctx.retention.downsampled.into(),
         timestamp: Some(ts(timestamp.0)),
         trace_id: required!(log.trace_id).to_string(),
         item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
@@ -264,8 +260,10 @@ mod tests {
                 project_key: "12333333333333333333333333333333".parse().unwrap(),
                 key_id: Some(3),
             },
-            retention: Some(42),
-            downsampled_retention: Some(42),
+            retention: Retention {
+                standard: 42,
+                downsampled: 43,
+            },
         }
     }
 

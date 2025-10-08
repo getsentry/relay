@@ -29,7 +29,6 @@ relay-pii = { workspace = true }
 relay-protocol = { workspace = true }
 relay-quotas = { workspace = true }
 relay-sampling = { workspace = true }
-sentry_protos = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }

@@ -3825,7 +3825,6 @@ dependencies = [
  "relay-protocol",
  "relay-quotas",
  "relay-sampling",
- "sentry_protos 0.4.1",
  "serde",
  "serde_json",
  "similar-asserts",

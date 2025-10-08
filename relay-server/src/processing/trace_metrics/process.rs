@@ -5,7 +5,7 @@ use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
-use crate::extractors::{RequestMeta, RequestTrust};
+use crate::extractors::RequestMeta;
 use crate::processing::Context;
 use crate::processing::Managed;
 use crate::processing::trace_metrics::{Error, Result};
@@ -15,22 +15,11 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized trace metrics into their [`ExpandedTraceMetrics`] representation.
 ///
 /// Individual, invalid trace metrics will be discarded.
-pub fn expand(
-    metrics: Managed<SerializedTraceMetrics>,
-    _ctx: Context<'_>,
-) -> Managed<ExpandedTraceMetrics> {
-    let trust = metrics.headers.meta().request_trust();
-
-    #[cfg(feature = "processing")]
-    let (retention, downsampled_retention) = _ctx
-        .project_info
-        .config
-        .retentions_for_trace_item(sentry_protos::snuba::v1::TraceItemType::Metric);
-
+pub fn expand(metrics: Managed<SerializedTraceMetrics>) -> Managed<ExpandedTraceMetrics> {
     metrics.map(|metrics, records| {
         let mut all_metrics = Vec::new();
         for item in metrics.metrics {
-            let expanded = expand_trace_metric_container(&item, trust);
+            let expanded = expand_trace_metric_container(&item);
             let expanded = records.or_default(expanded, item);
             all_metrics.extend(expanded);
         }
@@ -38,10 +27,6 @@ pub fn expand(
         ExpandedTraceMetrics {
             headers: metrics.headers,
             metrics: all_metrics,
-            #[cfg(feature = "processing")]
-            retention,
-            #[cfg(feature = "processing")]
-            downsampled_retention,
         }
     })
 }
@@ -74,10 +59,7 @@ pub fn scrub(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 }
 
 /// Parses a trace metric container into its [`ContainerItems<TraceMetric>`] representation.
-fn expand_trace_metric_container(
-    item: &Item,
-    _trust: RequestTrust,
-) -> Result<ContainerItems<TraceMetric>> {
+fn expand_trace_metric_container(item: &Item) -> Result<ContainerItems<TraceMetric>> {
     let metrics = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse trace metrics container: {err}");

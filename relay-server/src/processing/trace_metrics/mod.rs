@@ -20,25 +20,6 @@ mod process;
 mod store;
 mod validate;
 
-/// Trace metrics which have been parsed and expanded from their serialized state.
-#[derive(Debug)]
-pub struct ExpandedTraceMetrics {
-    /// Original envelope headers.
-    headers: EnvelopeHeaders,
-    /// Expanded and parsed trace metrics.
-    metrics: ContainerItems<TraceMetric>,
-
-    // These fields are currently necessary as we don't pass any project config context to the
-    // store serialization. The plan is to get rid of them by giving the serialization context,
-    // including the project info, where these are pulled from.
-    /// Retention in days.
-    #[cfg(feature = "processing")]
-    retention: Option<u16>,
-    /// Downsampled retention in days.
-    #[cfg(feature = "processing")]
-    downsampled_retention: Option<u16>,
-}
-
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -89,57 +70,6 @@ impl crate::managed::OutcomeError for Error {
         };
         (outcome, self)
     }
-}
-
-impl Counted for ExpandedTraceMetrics {
-    fn quantities(&self) -> smallvec::SmallVec<[(DataCategory, usize); 1]> {
-        smallvec![(DataCategory::TraceMetric, self.metrics.len())]
-    }
-}
-
-impl ExpandedTraceMetrics {
-    fn serialize(self) -> Result<SerializedTraceMetrics, ContainerWriteError> {
-        let mut metrics = Vec::new();
-
-        if !self.metrics.is_empty() {
-            let mut item = Item::new(ItemType::TraceMetric);
-            ItemContainer::from(self.metrics)
-                .write_to(&mut item)
-                .inspect_err(|err| relay_log::error!("failed to serialize trace metrics: {err}"))?;
-            metrics.push(item);
-        }
-
-        Ok(SerializedTraceMetrics {
-            headers: self.headers,
-            metrics,
-        })
-    }
-}
-
-/// Serialized trace metrics extracted from an envelope.
-#[derive(Debug)]
-pub struct SerializedTraceMetrics {
-    /// Original envelope headers.
-    pub headers: EnvelopeHeaders,
-    /// Trace metrics are sent in item containers, there is specified limit of a single container per
-    /// envelope.
-    ///
-    /// But at this point this has not yet been validated.
-    pub metrics: Vec<Item>,
-}
-
-impl Counted for SerializedTraceMetrics {
-    fn quantities(&self) -> smallvec::SmallVec<[(DataCategory, usize); 1]> {
-        smallvec![(DataCategory::TraceMetric, self.metrics.len())]
-    }
-}
-
-impl CountRateLimited for Managed<SerializedTraceMetrics> {
-    type Error = Error;
-}
-
-impl CountRateLimited for Managed<ExpandedTraceMetrics> {
-    type Error = Error;
 }
 
 /// A processor for trace metrics.
@@ -198,7 +128,7 @@ impl processing::Processor for TraceMetricsProcessor {
         // Fast filters, which do not need expanded trace metrics.
         filter::feature_flag(ctx).reject(&metrics)?;
 
-        let mut metrics = process::expand(metrics, ctx);
+        let mut metrics = process::expand(metrics);
         validate::validate(&mut metrics);
         process::normalize(&mut metrics, ctx);
         filter::filter(&mut metrics, ctx);
@@ -247,7 +177,7 @@ impl Forward for TraceMetricOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
-        _: processing::ForwardContext<'_>,
+        ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let metrics = match self {
             TraceMetricOutput::NotProcessed(metrics) => {
@@ -258,28 +188,78 @@ impl Forward for TraceMetricOutput {
             TraceMetricOutput::Processed(metrics) => metrics,
         };
 
-        let scoping = metrics.scoping();
-        let received_at = metrics.received_at();
-
-        let (metrics, retentions) = metrics.split_with_context(|metrics| {
-            (
-                metrics.metrics,
-                (metrics.retention, metrics.downsampled_retention),
-            )
-        });
         let ctx = store::Context {
-            scoping,
-            received_at,
-            retention: retentions.0,
-            downsampled_retention: retentions.1,
+            scoping: metrics.scoping(),
+            received_at: metrics.received_at(),
+            retention: ctx.retention(|r| r.trace_metric.as_ref()),
         };
 
-        for metric in metrics.into_iter() {
+        for metric in metrics.split(|metrics| metrics.metrics) {
             if let Ok(metric) = metric.try_map(|metric, _| store::convert(metric, &ctx)) {
                 s.send(metric);
             }
         }
 
         Ok(())
+    }
+}
+
+/// Serialized trace metrics extracted from an envelope.
+#[derive(Debug)]
+pub struct SerializedTraceMetrics {
+    /// Original envelope headers.
+    pub headers: EnvelopeHeaders,
+    /// Trace metrics are sent in item containers, there is specified limit of a single container per
+    /// envelope.
+    ///
+    /// But at this point this has not yet been validated.
+    pub metrics: Vec<Item>,
+}
+
+impl Counted for SerializedTraceMetrics {
+    fn quantities(&self) -> smallvec::SmallVec<[(DataCategory, usize); 1]> {
+        smallvec![(DataCategory::TraceMetric, self.metrics.len())]
+    }
+}
+
+impl CountRateLimited for Managed<SerializedTraceMetrics> {
+    type Error = Error;
+}
+
+impl CountRateLimited for Managed<ExpandedTraceMetrics> {
+    type Error = Error;
+}
+
+/// Trace metrics which have been parsed and expanded from their serialized state.
+#[derive(Debug)]
+pub struct ExpandedTraceMetrics {
+    /// Original envelope headers.
+    headers: EnvelopeHeaders,
+    /// Expanded and parsed trace metrics.
+    metrics: ContainerItems<TraceMetric>,
+}
+
+impl Counted for ExpandedTraceMetrics {
+    fn quantities(&self) -> smallvec::SmallVec<[(DataCategory, usize); 1]> {
+        smallvec![(DataCategory::TraceMetric, self.metrics.len())]
+    }
+}
+
+impl ExpandedTraceMetrics {
+    fn serialize(self) -> Result<SerializedTraceMetrics, ContainerWriteError> {
+        let mut metrics = Vec::new();
+
+        if !self.metrics.is_empty() {
+            let mut item = Item::new(ItemType::TraceMetric);
+            ItemContainer::from(self.metrics)
+                .write_to(&mut item)
+                .inspect_err(|err| relay_log::error!("failed to serialize trace metrics: {err}"))?;
+            metrics.push(item);
+        }
+
+        Ok(SerializedTraceMetrics {
+            headers: self.headers,
+            metrics,
+        })
     }
 }
