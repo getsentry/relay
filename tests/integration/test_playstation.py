@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from unittest import mock
 import pytest
 import os

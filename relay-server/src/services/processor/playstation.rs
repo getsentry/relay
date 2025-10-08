@@ -50,7 +50,7 @@ pub fn expand(
 
         if let Some(json) = prospero_dump.userdata.get(SENTRY_PAYLOAD_KEY) {
             let event = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
-            let event_item = merge_json_into_event(json, event);
+            let event_item = merge_or_create_event_item(json, event);
             envelope.add_item(event_item);
         }
 
@@ -288,7 +288,7 @@ fn create_item_with_json_payload(payload: &str) -> Item {
     item
 }
 
-fn merge_json_into_event(json: &str, event: Option<Item>) -> Item {
+fn merge_or_create_event_item(json: &str, event: Option<Item>) -> Item {
     match event {
         Some(event) => {
             let event_json =
