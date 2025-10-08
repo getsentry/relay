@@ -5,7 +5,7 @@ use url::Url;
 
 use relay_event_schema::protocol::{
     Attributes, Csp, Event, EventType, Exception, LogEntry, OurLog, Replay, SessionAggregates,
-    SessionUpdate, Span, SpanV2, Values,
+    SessionUpdate, Span, SpanV2, TraceMetric, Values,
 };
 
 /// A user agent returned from [`Filterable::user_agent`].
@@ -249,6 +249,16 @@ impl Filterable for SessionAggregates {
 }
 
 impl Filterable for OurLog {
+    fn release(&self) -> Option<&str> {
+        self.attributes.value()?.get_value(RELEASE)?.as_str()
+    }
+
+    fn user_agent(&self) -> UserAgent<'_> {
+        user_agent_from_attributes(&self.attributes)
+    }
+}
+
+impl Filterable for TraceMetric {
     fn release(&self) -> Option<&str> {
         self.attributes.value()?.get_value(RELEASE)?.as_str()
     }

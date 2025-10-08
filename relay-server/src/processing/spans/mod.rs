@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
-#[cfg(feature = "processing")]
-use relay_event_schema::protocol::CompatSpan;
 use relay_event_schema::protocol::SpanV2;
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -16,7 +14,6 @@ use crate::managed::{
 };
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::statsd::RelayCounters;
 
 mod dynamic_sampling;
 mod filter;
@@ -120,16 +117,7 @@ impl processing::Processor for SpansProcessor {
         }
 
         dynamic_sampling::validate_configs(ctx);
-        let ds_result = dynamic_sampling::run(spans, ctx).await;
-        relay_statsd::metric!(
-            counter(RelayCounters::SamplingDecision) += 1,
-            decision = match ds_result.is_ok() {
-                true => "keep",
-                false => "drop",
-            },
-            item = "span"
-        );
-        let spans = match ds_result {
+        let spans = match dynamic_sampling::run(spans, ctx).await {
             Ok(spans) => spans,
             Err(metrics) => return Ok(Output::metrics(metrics)),
         };
@@ -160,7 +148,10 @@ pub enum SpanOutput {
 }
 
 impl Forward for SpanOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let spans = match self {
             Self::NotProcessed(spans) => spans,
             Self::Processed(spans) => spans.try_map(|spans, _| {
@@ -178,6 +169,7 @@ impl Forward for SpanOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        _: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::envelope::ContentType;
         use crate::services::store::StoreEnvelope;
@@ -198,25 +190,9 @@ impl Forward for SpanOutput {
         // similar to what we do for logs.
         let envelope = spans.map(|spans, records| {
             let mut items = Items::with_capacity(spans.spans.len());
-            for span in spans.spans {
-                use relay_protocol::Annotated;
-
-                let mut span = match span.value.map_value(CompatSpan::try_from) {
-                    Annotated(Some(Result::Err(error)), _) => {
-                        // TODO: Use records.internal_error(error, span)
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            "Failed to create CompatSpan"
-                        );
-                        continue;
-                    }
-                    Annotated(Some(Result::Ok(compat_span)), meta) => {
-                        Annotated(Some(compat_span), meta)
-                    }
-                    Annotated(None, meta) => Annotated(None, meta),
-                };
-                if let Some(span) = span.value_mut() {
-                    inject_server_sample_rate(&mut span.span_v2, spans.server_sample_rate);
+            for mut span in spans.spans {
+                if let Some(span) = span.value_mut().as_mut() {
+                    inject_server_sample_rate(span, spans.server_sample_rate);
                 }
 
                 let mut item = Item::new(ItemType::Span);
@@ -227,8 +203,8 @@ impl Forward for SpanOutput {
                         continue;
                     }
                 };
-                item.set_payload(ContentType::CompatSpan, payload);
-                if let Some(trace_id) = span.value().and_then(|s| s.span_v2.trace_id.value()) {
+                item.set_payload(ContentType::Json, payload);
+                if let Some(trace_id) = span.value().and_then(|s| s.trace_id.value()) {
                     item.set_routing_hint(*trace_id.as_ref());
                 }
                 items.push(item);

@@ -351,27 +351,14 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span if content_type == Some(&ContentType::Json) => {
-                    relay_log::error!("Store producer received legacy span");
-                    self.outcome_aggregator.send(TrackOutcome {
-                        category: DataCategory::SpanIndexed,
-                        event_id: None,
-                        outcome: Outcome::Invalid(DiscardReason::Internal),
-                        quantity: 1,
-                        remote_addr: None,
-                        scoping,
-                        timestamp: received_at,
-                    });
-                }
-                ItemType::Span if content_type == Some(&ContentType::CompatSpan) => self
-                    .produce_span(
-                        scoping,
-                        received_at,
-                        event_id,
-                        retention,
-                        downsampled_retention,
-                        item,
-                    )?,
+                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
+                    scoping,
+                    received_at,
+                    event_id,
+                    retention,
+                    downsampled_retention,
+                    item,
+                )?,
                 ty @ ItemType::Log => {
                     debug_assert!(
                         false,
@@ -1013,7 +1000,7 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         debug_assert_eq!(item.ty(), &ItemType::Span);
-        debug_assert_eq!(item.content_type(), Some(&ContentType::CompatSpan));
+        debug_assert_eq!(item.content_type(), Some(&ContentType::Json));
 
         let Scoping {
             organization_id,
@@ -1036,6 +1023,9 @@ impl StoreService {
             span: serde_json::from_slice(&payload)
                 .map_err(|e| StoreError::EncodingFailed(e.into()))?,
         };
+
+        // Verify that this is a V2 span:
+        debug_assert!(message.span.contains_key("attributes"));
 
         relay_statsd::metric!(counter(RelayCounters::SpanV2Produced) += 1);
         self.produce(

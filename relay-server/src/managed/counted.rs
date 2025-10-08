@@ -1,5 +1,5 @@
 use relay_event_schema::protocol::{
-    CompatSpan, OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2,
+    OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2, TraceMetric,
 };
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
@@ -65,6 +65,7 @@ impl Counted for Box<Envelope> {
                 DataCategory::ProfileChunkUi,
                 summary.profile_chunk_ui_quantity,
             ),
+            (DataCategory::TraceMetric, summary.trace_metric_quantity),
             (DataCategory::LogItem, summary.log_item_quantity),
             (DataCategory::LogByte, summary.log_byte_quantity),
             (DataCategory::Monitor, summary.monitor_quantity),
@@ -93,6 +94,12 @@ impl Counted for WithHeader<OurLog> {
     }
 }
 
+impl Counted for WithHeader<TraceMetric> {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::TraceMetric, 1)]
+    }
+}
+
 impl Counted for WithHeader<SpanV2> {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
@@ -100,12 +107,6 @@ impl Counted for WithHeader<SpanV2> {
 }
 
 impl Counted for Annotated<Span> {
-    fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
-    }
-}
-
-impl Counted for Annotated<CompatSpan> {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
     }

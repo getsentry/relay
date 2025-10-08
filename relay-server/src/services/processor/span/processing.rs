@@ -1,7 +1,6 @@
 //! Contains the processing-only functionality.
 
 use std::error::Error;
-use std::sync::Arc;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
@@ -14,7 +13,7 @@ use crate::services::processor::{
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
-use crate::utils;
+use crate::{processing, utils};
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -33,7 +32,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::{
-    BrowserContext, CompatSpan, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
+    BrowserContext, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
@@ -53,11 +52,8 @@ pub async fn process(
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
     event: &mut Annotated<Event>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
-    global_config: &GlobalConfig,
-    config: Arc<Config>,
     project_id: ProjectId,
-    project_info: Arc<ProjectInfo>,
-    sampling_project_info: Option<Arc<ProjectInfo>>,
+    ctx: processing::Context<'_>,
     geo_lookup: &GeoIpLookup,
     reservoir_counters: &ReservoirEvaluator<'_>,
 ) {
@@ -68,9 +64,9 @@ pub async fn process(
     let sampling_result = dynamic_sampling::run(
         managed_envelope,
         event,
-        config.clone(),
-        project_info.clone(),
-        sampling_project_info,
+        ctx.config,
+        ctx.project_info,
+        ctx.sampling_project_info,
         reservoir_counters,
     )
     .await;
@@ -81,14 +77,14 @@ pub async fn process(
         item = "span"
     );
 
-    let span_metrics_extraction_config = match project_info.config.metric_extraction {
+    let span_metrics_extraction_config = match ctx.project_info.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
     let normalize_span_config = NormalizeSpanConfig::new(
-        &config,
-        global_config,
-        project_info.config(),
+        ctx.config,
+        ctx.global_config,
+        ctx.project_info.config(),
         managed_envelope,
         managed_envelope
             .envelope()
@@ -99,20 +95,14 @@ pub async fn process(
     );
 
     let client_ip = managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &project_info.config.filter_settings;
+    let filter_settings = &ctx.project_info.config.filter_settings;
     let sampling_decision = sampling_result.decision();
 
     let mut span_count = 0;
     managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => match relay_spans::otel_to_sentry_span(otel_span) {
-                    Ok(span) => Annotated::new(span),
-                    Err(err) => {
-                        relay_log::debug!("failed to convert OTel span to Sentry span: {:?}", err);
-                        return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
-                    }
-                },
+                Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel span: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
@@ -146,7 +136,7 @@ pub async fn process(
                 span,
                 client_ip,
                 filter_settings,
-                global_config.filters(),
+                ctx.global_config.filters(),
             ) {
                 relay_log::trace!(
                     "filtering span {:?} that matched an inbound filter",
@@ -162,7 +152,8 @@ pub async fn process(
             };
             relay_log::trace!("extracting metrics from standalone span {:?}", span.span_id);
 
-            let ErrorBoundary::Ok(global_metrics_config) = &global_config.metric_extraction else {
+            let ErrorBoundary::Ok(global_metrics_config) = &ctx.global_config.metric_extraction
+            else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
 
@@ -173,7 +164,7 @@ pub async fn process(
 
             extracted_metrics.extend_project_metrics(metrics, Some(sampling_decision));
 
-            if project_info.config.features.produces_spans() {
+            if ctx.project_info.config.features.produces_spans() {
                 let transaction = span
                     .data
                     .value()
@@ -199,7 +190,7 @@ pub async fn process(
             return ItemAction::DropSilently;
         }
 
-        if let Err(e) = scrub(&mut annotated_span, &project_info.config) {
+        if let Err(e) = scrub(&mut annotated_span, &ctx.project_info.config) {
             relay_log::error!("failed to scrub span: {e}");
         }
 
@@ -236,7 +227,7 @@ pub async fn process(
             }
         };
 
-        let Ok(mut new_item) = create_span_item(annotated_span, &config) else {
+        let Ok(mut new_item) = create_span_item(annotated_span, ctx.config) else {
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
 
@@ -263,26 +254,18 @@ fn create_span_item(span: Annotated<Span>, config: &Config) -> Result<Item, ()> 
     let mut new_item = Item::new(ItemType::Span);
     if cfg!(feature = "processing") && config.processing_enabled() {
         let span_v2 = span.map_value(relay_spans::span_v1_to_span_v2);
-        let compat_span = match span_v2.map_value(CompatSpan::try_from) {
-            Annotated(Some(Result::Err(err)), _) => {
-                relay_log::error!("failed to create compat span: {}", err);
-                return Err(());
-            }
-            Annotated(Some(Result::Ok(compat_span)), meta) => Annotated(Some(compat_span), meta),
-            Annotated(None, meta) => Annotated(None, meta),
-        };
-        let payload = match compat_span.to_json() {
+        let payload = match span_v2.to_json() {
             Ok(payload) => payload,
             Err(err) => {
-                relay_log::error!("failed to serialize compat span: {}", err);
+                relay_log::error!("failed to serialize span V2: {}", err);
                 return Err(());
             }
         };
-        if let Some(trace_id) = compat_span.value().and_then(|s| s.span_v2.trace_id.value()) {
+        if let Some(trace_id) = span_v2.value().and_then(|s| s.trace_id.value()) {
             new_item.set_routing_hint(*trace_id.as_ref());
         }
 
-        new_item.set_payload(ContentType::CompatSpan, payload);
+        new_item.set_payload(ContentType::Json, payload);
     } else {
         let payload = match span.to_json() {
             Ok(payload) => payload,
@@ -318,7 +301,7 @@ pub fn extract_from_event(
     managed_envelope: &mut TypedEnvelope<TransactionGroup>,
     event: &Annotated<Event>,
     global_config: &GlobalConfig,
-    config: Arc<Config>,
+    config: &Config,
     server_sample_rate: Option<f64>,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
@@ -376,7 +359,7 @@ pub fn extract_from_event(
             }
         };
 
-        let Ok(mut item) = create_span_item(span, &config) else {
+        let Ok(mut item) = create_span_item(span, config) else {
             managed_envelope.track_outcome(
                 Outcome::Invalid(DiscardReason::InvalidSpan),
                 relay_quotas::DataCategory::SpanIndexed,
@@ -437,7 +420,7 @@ pub fn extract_from_event(
 pub fn maybe_discard_transaction(
     managed_envelope: &mut TypedEnvelope<TransactionGroup>,
     event: Annotated<Event>,
-    project_info: Arc<ProjectInfo>,
+    project_info: &ProjectInfo,
 ) -> Annotated<Event> {
     if event_type(&event) == Some(EventType::Transaction)
         && project_info.has_feature(Feature::DiscardTransaction)
@@ -905,14 +888,13 @@ mod tests {
     #[test]
     fn extract_sampled_default() {
         let global_config = GlobalConfig::default();
-        let config = Arc::new(Config::default());
         assert!(global_config.options.span_extraction_sample_rate.is_none());
         let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
-            config,
+            &Default::default(),
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -931,13 +913,12 @@ mod tests {
     fn extract_sampled_explicit() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
-        let config = Arc::new(Config::default());
         let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
-            config,
+            &Default::default(),
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -956,13 +937,12 @@ mod tests {
     fn extract_sampled_dropped() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
-        let config = Arc::new(Config::default());
         let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
-            config,
+            &Default::default(),
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -981,13 +961,12 @@ mod tests {
     fn extract_sample_rates() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
-        let config = Arc::new(Config::default());
         let (mut managed_envelope, event, _) = params(); // client sample rate is 0.2
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
-            config,
+            &Default::default(),
             Some(0.1),
             EventMetricsExtracted(false),
             SpansExtracted(false),

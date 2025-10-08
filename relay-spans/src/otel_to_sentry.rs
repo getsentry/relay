@@ -2,7 +2,6 @@ use crate::otel_to_sentry_v2;
 use crate::otel_trace::Span as OtelSpan;
 use crate::v2_to_v1;
 use relay_event_schema::protocol::Span as EventSpan;
-use relay_protocol::Error;
 
 /// Transforms an OTEL span to a Sentry span.
 ///
@@ -22,9 +21,9 @@ use relay_protocol::Error;
 /// * The Sentry span's `segment_id` field is set based on the OTEL span's `sentry.segment.id` attribute.
 ///
 /// All other attributes are carried over from the OTEL span to the Sentry span's `data`.
-pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<EventSpan, Error> {
-    let span_v2 = otel_to_sentry_v2::otel_to_sentry_span(otel_span)?;
-    Ok(v2_to_v1::span_v2_to_span_v1(span_v2))
+pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
+    let span_v2 = otel_to_sentry_v2::otel_to_sentry_span(otel_span);
+    v2_to_v1::span_v2_to_span_v1(span_v2)
 }
 
 #[cfg(test)]
@@ -108,7 +107,7 @@ mod tests {
             "droppedLinksCount": 0
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -159,7 +158,7 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -193,7 +192,7 @@ mod tests {
             "endTimeUnixNano": "1697620454980078800"
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -253,7 +252,7 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -317,7 +316,7 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -368,7 +367,7 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -435,7 +434,7 @@ mod tests {
         }"#;
 
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let event_span = otel_to_sentry_span(otel_span);
 
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
@@ -589,7 +588,7 @@ mod tests {
         }"#;
 
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let event_span = otel_to_sentry_span(otel_span);
 
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
@@ -632,7 +631,7 @@ mod tests {
             "flags": 768
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -662,7 +661,7 @@ mod tests {
             "flags": 256
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -692,7 +691,7 @@ mod tests {
             "kind": 3
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -751,7 +750,7 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
 
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
@@ -792,7 +791,7 @@ mod tests {
           }
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let event_span = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
