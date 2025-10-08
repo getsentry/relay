@@ -23,15 +23,15 @@ pub enum DataCategory {
     Default = 0,
     /// Error events and Events with an `event_type` not explicitly listed below.
     ///
-    /// SDK rate limiting behavior: apply to envelope items of type `event`.
+    /// SDK rate limiting behavior: apply to the entire envelope if it contains an item type `event`.
     Error = 1,
     /// Transaction events.
     ///
-    /// SDK rate limiting behavior: apply to envelope items of type `transaction`.
+    /// SDK rate limiting behavior: apply to the entire envelope if it contains an item `transaction`.
     Transaction = 2,
     /// Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.
     ///
-    /// SDK rate limiting behavior: ignore (?).
+    /// SDK rate limiting behavior: ignore.
     Security = 3,
     /// An attachment. Quantity is the size of the attachment in bytes.
     ///
@@ -163,7 +163,7 @@ pub enum DataCategory {
     ///
     /// See also: [`Self::ProfileDuration`]
     ///
-    /// SDK rate limiting behavior: ignore.
+    /// SDK rate limiting behavior: apply to profile chunks.
     ProfileDurationUi = 25,
     /// UI Profile Chunk.
     ///
@@ -172,7 +172,7 @@ pub enum DataCategory {
     ///
     /// See also: [`Self::ProfileChunk`]
     ///
-    /// SDK rate limiting behavior: ignore.
+    /// SDK rate limiting behavior: apply to profile chunks.
     ProfileChunkUi = 26,
     /// This is the data category to count Seer Autofix run events.
     ///
