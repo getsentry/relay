@@ -100,6 +100,8 @@ pub enum VercelLogLevel {
     Error,
     /// Fatal level logs.
     Fatal,
+    /// Unknown status, for forward compatibility.
+    Unknown(String),
 }
 
 /// Vercel proxy information for requests.
@@ -153,6 +155,7 @@ fn map_vercel_level_to_sentry(level: VercelLogLevel) -> OurLogLevel {
         VercelLogLevel::Warning => OurLogLevel::Warn,
         VercelLogLevel::Error => OurLogLevel::Error,
         VercelLogLevel::Fatal => OurLogLevel::Fatal,
+        VercelLogLevel::Unknown(_) => OurLogLevel::Info,
     }
 }
 
