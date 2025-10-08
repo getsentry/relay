@@ -1,5 +1,6 @@
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
+use crate::processing::ForwardContext;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
@@ -18,10 +19,10 @@ macro_rules! outputs {
         }
 
         impl Forward for Outputs {
-            fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+            fn serialize_envelope(self, ctx: ForwardContext<'_>) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
                 match self {
                     $(
-                        Self::$variant(output) => output.serialize_envelope()
+                        Self::$variant(output) => output.serialize_envelope(ctx)
                     ),*
                 }
             }
@@ -30,10 +31,11 @@ macro_rules! outputs {
             fn forward_store(
                 self,
                 s: &relay_system::Addr<crate::services::store::Store>,
+                ctx: ForwardContext<'_>,
             ) -> Result<(), Rejected<()>> {
                 match self {
                     $(
-                        Self::$variant(output) => output.forward_store(s)
+                        Self::$variant(output) => output.forward_store(s, ctx)
                     ),*
                 }
             }

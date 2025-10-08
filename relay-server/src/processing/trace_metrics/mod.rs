@@ -10,7 +10,7 @@ use crate::Envelope;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
 use crate::envelope::{ContainerWriteError, ItemContainer};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Rejected};
-use crate::processing::{Context, CountRateLimited, Forward, Output, Processor, QuotaRateLimiter};
+use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 use smallvec::smallvec;
 
@@ -157,7 +157,7 @@ impl TraceMetricsProcessor {
     }
 }
 
-impl Processor for TraceMetricsProcessor {
+impl processing::Processor for TraceMetricsProcessor {
     type UnitOfWork = SerializedTraceMetrics;
     type Output = TraceMetricOutput;
     type Error = Error;
@@ -218,7 +218,10 @@ pub enum TraceMetricOutput {
 }
 
 impl Forward for TraceMetricOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
         let metrics = match self {
             Self::NotProcessed(metrics) => metrics,
             Self::Processed(metrics) => {
@@ -244,6 +247,7 @@ impl Forward for TraceMetricOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        _: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let metrics = match self {
             TraceMetricOutput::NotProcessed(metrics) => {
