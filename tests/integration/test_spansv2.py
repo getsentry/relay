@@ -64,7 +64,10 @@ def test_spansv2_basic(
             "is_remote": False,
             "name": "some op",
             "status": "ok",
-            "attributes": {"foo": {"value": "bar", "type": "string"}},
+            "attributes": {
+                "foo": {"value": "bar", "type": "string"},
+                "invalid": {"value": True, "type": "string"},
+            },
         }
     )
 
@@ -73,14 +76,9 @@ def test_spansv2_basic(
     assert spans_consumer.get_span() == {
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
-        "data": {
-            "foo": "bar",
-            "sentry.browser.name": "Python Requests",
-            "sentry.browser.version": "2.32",
-            "sentry.observed_timestamp_nanos": time_within(ts, expect_resolution="ns"),
-        },
         "attributes": {
             "foo": {"type": "string", "value": "bar"},
+            "invalid": None,
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
@@ -88,14 +86,20 @@ def test_spansv2_basic(
                 "value": time_within(ts, expect_resolution="ns"),
             },
         },
+        "_meta": {
+            "attributes": {
+                "invalid": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": {"type": "string", "value": True},
+                    }
+                }
+            }
+        },
         "name": "some op",
         "received": time_within(ts),
-        "start_timestamp_ms": time_within(ts, precision="ms", expect_resolution="ms"),
         "start_timestamp": time_within(ts),
-        "start_timestamp_precise": time_within(ts),
         "end_timestamp": time_within(ts.timestamp() + 0.5),
-        "end_timestamp_precise": time_within(ts.timestamp() + 0.5),
-        "duration_ms": 500,
         "is_remote": False,
         "status": "ok",
         "retention_days": 90,

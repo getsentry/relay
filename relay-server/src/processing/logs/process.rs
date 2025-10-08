@@ -5,9 +5,6 @@ use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-#[cfg(feature = "processing")]
-use sentry_protos::snuba::v1::TraceItemType;
-
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::{RequestMeta, RequestTrust};
 use crate::processing::logs::{self, Error, ExpandedLogs, Result, SerializedLogs};
@@ -17,14 +14,8 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized logs into their [`ExpandedLogs`] representation.
 ///
 /// Individual, invalid logs will be discarded.
-pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
+pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
     let trust = logs.headers.meta().request_trust();
-
-    #[cfg(feature = "processing")]
-    let (retention, downsampled_retention) = _ctx
-        .project_info
-        .config
-        .retentions_for_trace_item(TraceItemType::Log);
 
     logs.map(|logs, records| {
         records.lenient(DataCategory::LogByte);
@@ -41,10 +32,6 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
         ExpandedLogs {
             headers: logs.headers,
             logs: all_logs,
-            #[cfg(feature = "processing")]
-            retention,
-            #[cfg(feature = "processing")]
-            downsampled_retention,
         }
     })
 }

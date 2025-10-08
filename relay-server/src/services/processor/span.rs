@@ -1,7 +1,5 @@
 //! Processor code related to standalone spans.
 
-use std::sync::Arc;
-
 use opentelemetry_proto::tonic::common::v1::any_value::Value;
 use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
 use prost::Message;
@@ -29,11 +27,11 @@ use super::ProcessingError;
 
 pub fn filter(
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
-    config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
+    config: &Config,
+    project_info: &ProjectInfo,
 ) {
-    let disabled = should_filter(&config, &project_info, Feature::StandaloneSpanIngestion);
-    let otel_disabled = should_filter(&config, &project_info, Feature::OtelEndpoint);
+    let disabled = should_filter(config, project_info, Feature::StandaloneSpanIngestion);
+    let otel_disabled = should_filter(config, project_info, Feature::OtelEndpoint);
 
     managed_envelope.retain_items(|item| {
         if disabled && item.is_span() {

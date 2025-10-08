@@ -98,7 +98,10 @@ impl processing::Processor for CheckInsProcessor {
 pub struct CheckInsOutput(Managed<SerializedCheckIns>);
 
 impl Forward for CheckInsOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let envelope = self.0.map(|SerializedCheckIns { headers, check_ins }, _| {
             Envelope::from_parts(headers, Items::from_vec(check_ins))
         });
@@ -110,8 +113,9 @@ impl Forward for CheckInsOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let envelope = self.serialize_envelope()?;
+        let envelope = self.serialize_envelope(ctx)?;
         let envelope = ManagedEnvelope::from(envelope).into_processed();
 
         s.send(crate::services::store::StoreEnvelope { envelope });

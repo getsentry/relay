@@ -3825,7 +3825,6 @@ dependencies = [
  "relay-protocol",
  "relay-quotas",
  "relay-sampling",
- "sentry_protos 0.4.1",
  "serde",
  "serde_json",
  "similar-asserts",
@@ -5220,8 +5219,7 @@ dependencies = [
 [[package]]
 name = "sqlparser_derive"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da5fc6819faabb412da764b99d3b713bb55083c11e7e0c00144d386cd6a1939c"
+source = "git+https://github.com/apache/datafusion-sqlparser-rs?rev=ade40826563451cc14c130af9d689f4050dbdb15#ade40826563451cc14c130af9d689f4050dbdb15"
 dependencies = [
  "proc-macro2",
  "quote",
