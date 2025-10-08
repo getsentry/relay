@@ -54,7 +54,7 @@ pub enum Feature {
     ///
     /// Serialized as `organizations:relay-otlp-traces-endpoint`.
     #[serde(rename = "organizations:relay-otlp-traces-endpoint")]
-    OtelEndpoint,
+    OtelTracesEndpoint,
     /// Enable logs ingestion via the `/logs/` OTel endpoint.
     ///
     /// Serialized as `organizations:relay-otel-logs-endpoint`.

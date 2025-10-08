@@ -326,10 +326,8 @@ impl ProcessingGroup {
 
         // Extract spans.
         let span_items = envelope.take_items_by(|item| {
-            matches!(
-                item.ty(),
-                &ItemType::Span | &ItemType::OtelSpan | &ItemType::OtelTracesData
-            )
+            matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan)
+                || matches!(item.integration(), Some(Integration::Spans(_)))
         });
 
         if !span_items.is_empty() {

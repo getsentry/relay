@@ -11,6 +11,7 @@ use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
 
 use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
+use crate::integrations::{Integration, OtelFormat, SpansIntegration};
 use crate::managed::{ItemAction, TypedEnvelope};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{SpanGroup, should_filter};
@@ -31,17 +32,20 @@ pub fn filter(
     project_info: &ProjectInfo,
 ) {
     let disabled = should_filter(config, project_info, Feature::StandaloneSpanIngestion);
-    let otel_disabled = should_filter(config, project_info, Feature::OtelEndpoint);
+    if !disabled {
+        return;
+    }
 
     managed_envelope.retain_items(|item| {
-        if disabled && item.is_span() {
-            relay_log::debug!("dropping span because feature is disabled");
-            ItemAction::DropSilently
-        } else if otel_disabled && item.ty() == &ItemType::OtelTracesData {
-            relay_log::debug!("dropping otel trace because feature is disabled");
-            ItemAction::DropSilently
-        } else {
-            ItemAction::Keep
+        let is_span = matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan)
+            || matches!(item.integration(), Some(Integration::Spans(_)));
+
+        match is_span {
+            true => {
+                relay_log::debug!("dropping span because feature is disabled");
+                ItemAction::DropSilently
+            }
+            false => ItemAction::Keep,
         }
     });
 }
@@ -113,7 +117,12 @@ pub fn expand_v2_spans(
 pub fn convert_otel_traces_data(managed_envelope: &mut TypedEnvelope<SpanGroup>) {
     let envelope = managed_envelope.envelope_mut();
 
-    for item in envelope.take_items_by(|item| item.ty() == &ItemType::OtelTracesData) {
+    for item in envelope.take_items_by(|item| {
+        matches!(
+            item.integration(),
+            Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
+        )
+    }) {
         convert_traces_data(item, managed_envelope);
     }
 }
@@ -192,22 +201,25 @@ fn track_invalid(
 }
 
 fn parse_traces_data(item: Item) -> Result<TracesData, DiscardReason> {
-    match item.content_type() {
-        Some(&ContentType::Json) => serde_json::from_slice(&item.payload()).map_err(|e| {
+    let Some(Integration::Spans(SpansIntegration::OtelV1 { format })) = item.integration() else {
+        return Err(DiscardReason::ContentType);
+    };
+
+    match format {
+        OtelFormat::Json => serde_json::from_slice(&item.payload()).map_err(|e| {
             relay_log::debug!(
                 error = &e as &dyn std::error::Error,
                 "Failed to parse traces data as JSON"
             );
             DiscardReason::InvalidJson
         }),
-        Some(&ContentType::Protobuf) => TracesData::decode(item.payload()).map_err(|e| {
+        OtelFormat::Protobuf => TracesData::decode(item.payload()).map_err(|e| {
             relay_log::debug!(
                 error = &e as &dyn std::error::Error,
                 "Failed to parse traces data as protobuf"
             );
             DiscardReason::InvalidProtobuf
         }),
-        _ => Err(DiscardReason::ContentType),
     }
 }
 
@@ -301,8 +313,14 @@ mod tests {
         let mut typed_envelope: TypedEnvelope<_> = (managed_envelope, ProcessingGroup::Span)
             .try_into()
             .unwrap();
-        let mut item = Item::new(ItemType::OtelTracesData);
-        item.set_payload(ContentType::Json, traces_data);
+        let mut item = Item::new(ItemType::Integration);
+        item.set_payload(
+            Integration::Spans(SpansIntegration::OtelV1 {
+                format: OtelFormat::Json,
+            })
+            .into(),
+            traces_data,
+        );
         typed_envelope.envelope_mut().add_item(item.clone());
 
         // Convert the OTLP trace data into `OtelSpan` item(s).

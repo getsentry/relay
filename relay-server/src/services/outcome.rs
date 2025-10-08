@@ -616,8 +616,6 @@ pub enum DiscardItemType {
     Span,
     /// A standalone OpenTelemetry span serialized as JSON.
     OtelSpan,
-    /// An OTLP TracesData container.
-    OtelTracesData,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
@@ -674,7 +672,6 @@ impl DiscardItemType {
             Self::TraceMetric => "trace_metric",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
-            Self::OtelTracesData => "otel_traces_data",
             Self::UserReportV2 => "user_report_v2",
             Self::ProfileChunk => "profile_chunk",
             Self::Integration => "integration",
@@ -708,7 +705,6 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::TraceMetric => Self::TraceMetric,
             ItemType::Span => Self::Span,
             ItemType::OtelSpan => Self::OtelSpan,
-            ItemType::OtelTracesData => Self::OtelTracesData,
             ItemType::UserReportV2 => Self::UserReportV2,
             ItemType::ProfileChunk => Self::ProfileChunk,
             ItemType::Integration => Self::Integration,
