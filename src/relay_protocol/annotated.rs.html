@@ -420,8 +420,14 @@
 <a href=#420 id=420 data-nosnippet>420</a>    }
 <a href=#421 id=421 data-nosnippet>421</a>}
 <a href=#422 id=422 data-nosnippet>422</a>
-<a href=#423 id=423 data-nosnippet>423</a><span class="kw">impl</span>&lt;T&gt; Default <span class="kw">for </span>Annotated&lt;T&gt; {
-<a href=#424 id=424 data-nosnippet>424</a>    <span class="kw">fn </span>default() -&gt; Annotated&lt;T&gt; {
-<a href=#425 id=425 data-nosnippet>425</a>        Annotated::empty()
+<a href=#423 id=423 data-nosnippet>423</a><span class="kw">impl</span>&lt;T&gt; From&lt;<span class="prelude-ty">Result</span>&lt;T, Error&gt;&gt; <span class="kw">for </span>Annotated&lt;T&gt; {
+<a href=#424 id=424 data-nosnippet>424</a>    <span class="kw">fn </span>from(t: <span class="prelude-ty">Result</span>&lt;T, Error&gt;) -&gt; <span class="self">Self </span>{
+<a href=#425 id=425 data-nosnippet>425</a>        t.map_or_else(|err| Annotated::from_error(err, <span class="prelude-val">None</span>), Annotated::new)
 <a href=#426 id=426 data-nosnippet>426</a>    }
-<a href=#427 id=427 data-nosnippet>427</a>}</code></pre></div></section></main></body></html>
+<a href=#427 id=427 data-nosnippet>427</a>}
+<a href=#428 id=428 data-nosnippet>428</a>
+<a href=#429 id=429 data-nosnippet>429</a><span class="kw">impl</span>&lt;T&gt; Default <span class="kw">for </span>Annotated&lt;T&gt; {
+<a href=#430 id=430 data-nosnippet>430</a>    <span class="kw">fn </span>default() -&gt; Annotated&lt;T&gt; {
+<a href=#431 id=431 data-nosnippet>431</a>        Annotated::empty()
+<a href=#432 id=432 data-nosnippet>432</a>    }
+<a href=#433 id=433 data-nosnippet>433</a>}</code></pre></div></section></main></body></html>
