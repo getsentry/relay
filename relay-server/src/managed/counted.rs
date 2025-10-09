@@ -106,6 +106,12 @@ impl Counted for WithHeader<SpanV2> {
     }
 }
 
+impl Counted for SpanV2 {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
+    }
+}
+
 impl Counted for Annotated<Span> {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
@@ -158,5 +164,14 @@ where
 {
     fn quantities(&self) -> Quantities {
         (*self).quantities()
+    }
+}
+
+impl<T> Counted for Box<T>
+where
+    T: Counted,
+{
+    fn quantities(&self) -> Quantities {
+        self.as_ref().quantities()
     }
 }

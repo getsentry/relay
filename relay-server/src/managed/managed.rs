@@ -101,6 +101,24 @@ impl<T> Rejected<T> {
     }
 }
 
+impl<T> std::error::Error for Rejected<T>
+where
+    T: std::error::Error,
+{
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.0.source()
+    }
+}
+
+impl<T> std::fmt::Display for Rejected<T>
+where
+    T: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// The [`Managed`] wrapper ensures outcomes are correctly emitted for the contained item.
 pub struct Managed<T: Counted> {
     value: T,
