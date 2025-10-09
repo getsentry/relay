@@ -662,7 +662,7 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
     pub gen_ai_operation_type: Annotated<String>,
 
-    /// The result of the MCP prompt
+    /// The result of the MCP prompt.
     #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
     pub mcp_prompt_result: Annotated<Value>,
 
