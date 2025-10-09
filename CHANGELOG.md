@@ -17,7 +17,7 @@
 - Add new iPhone 17 devices. ([#5203](https://github.com/getsentry/relay/pull/5203))
 - Upgrade sqlparser and improve SQL parsing for span grouping. ([#5211](https://github.com/getsentry/relay/pull/5211))
 - Maps `unknown_error` span status to `internal_error` ([#5202](https://github.com/getsentry/relay/pull/5202))
-- Add event merging logic for Playstation crashes ([#5228](https://github.com/getsentry/relay/pull/5228))
+- Add event merging logic for Playstation crashes. ([#5228](https://github.com/getsentry/relay/pull/5228))
 
 **Bug Fixes**:
 
