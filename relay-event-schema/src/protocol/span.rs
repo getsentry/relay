@@ -666,7 +666,7 @@ pub struct SpanData {
     #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
     pub mcp_prompt_result: Annotated<Value>,
 
-    /// The result of the MCP tool
+    /// The result of the MCP tool.
     #[metastructure(field = "mcp.tool.result.content", pii = "maybe")]
     pub mcp_tool_result_content: Annotated<Value>,
 
