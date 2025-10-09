@@ -3104,7 +3104,9 @@ version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "913273894cec178f401a31ec4b656318d95473527be05c0752cc41cdc32be8b7"
 dependencies = [
+ "phf_macros",
  "phf_shared 0.12.1",
+ "serde",
 ]
 
 [[package]]
@@ -3125,6 +3127,19 @@ checksum = "2cbb1126afed61dd6368748dae63b1ee7dc480191c6262a3b4ff1e29d86a6c5b"
 dependencies = [
  "fastrand",
  "phf_shared 0.12.1",
+]
+
+[[package]]
+name = "phf_macros"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d713258393a82f091ead52047ca779d37e5766226d009de21696c4e667044368"
+dependencies = [
+ "phf_generator",
+ "phf_shared 0.12.1",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -3297,9 +3312,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.92"
+version = "1.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37d3544b3f2748c54e147655edb5025752e2303145b5aefb3c3ea2c78b973bb0"
+checksum = "89ae43fd86e4158d6db51ad8e2b80f313af9cc74f5c0e03ccb87de09998732de"
 dependencies = [
  "unicode-ident",
 ]
@@ -4312,7 +4327,7 @@ dependencies = [
  "rmp-serde",
  "semver",
  "sentry",
- "sentry_protos 0.4.1",
+ "sentry_protos",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -4830,7 +4845,7 @@ checksum = "a8757c054b3dd24d457fb4b0f63a42eac257ec25640f2bdc66332f6f5956be3f"
 dependencies = [
  "jsonschema",
  "prost",
- "sentry_protos 0.3.3",
+ "sentry_protos",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -4911,17 +4926,6 @@ dependencies = [
  "time",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "sentry_protos"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2736920441e5f518ac0e79c27b91e2203b7c240afbd6e76771dbf78e208dbc12"
-dependencies = [
- "prost",
- "prost-types",
- "tonic",
 ]
 
 [[package]]

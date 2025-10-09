@@ -50,9 +50,19 @@ pub struct AttributeInfo {
     pub aliases: &'static [&'static str],
 }
 
+struct AttributeNode {
+    info: Option<AttributeInfo>,
+    children: phf::Map<&'static str, AttributeNode>,
+}
+
 /// Returns information about an attribute, as defined in `sentry-conventions`.
 pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
-    ATTRIBUTES.get(key)
+    let mut node = &ATTRIBUTES;
+    let mut parts = key.split('.');
+    while let Some(part) = parts.next() {
+        node = node.children.get(part)?;
+    }
+    node.info.as_ref()
 }
 
 #[cfg(test)]
@@ -65,7 +75,7 @@ mod tests {
 
     #[test]
     fn test_http_response_content_length() {
-        let info = ATTRIBUTES.get("http.response_content_length").unwrap();
+        let info = attribute_info("http.response_content_length").unwrap();
 
         insta::assert_debug_snapshot!(info, @r###"
         AttributeInfo {
