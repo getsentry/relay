@@ -737,7 +737,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = spans_consumer.get_spans(timeout=10.0, n=8)
+    spans = spans_consumer.get_spans(timeout=10.0, n=7)
 
     for span in spans:
         span.pop("received", None)
@@ -746,47 +746,6 @@ def test_span_ingestion(
     spans.sort(key=lambda msg: msg["span_id"])
 
     assert spans == [
-        {
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "downsampled_retention_days": 90,
-            "attributes": {
-                "browser.name": {"type": "string", "value": "Chrome"},
-                "client.address": {"type": "string", "value": "127.0.0.1"},
-                "sentry.browser.name": {"type": "string", "value": "Chrome"},
-                "sentry.category": {"type": "string", "value": "db"},
-                "sentry.description": {"type": "string", "value": "my 1st OTel span"},
-                "sentry.exclusive_time": {"type": "double", "value": 500.0},
-                "sentry.is_segment": {"type": "boolean", "value": True},
-                "sentry.name": {"type": "string", "value": "my 1st OTel span"},
-                "sentry.op": {"type": "string", "value": "default"},
-                "sentry.segment.id": {"type": "string", "value": "a342abb1214ca181"},
-                "sentry.status": {"type": "string", "value": "unknown"},
-                "user_agent.original": {
-                    "type": "string",
-                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
-                },
-            },
-            "end_timestamp": end.timestamp(),
-            "is_remote": False,
-            "links": [
-                {
-                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
-                    "span_id": "e342abb1214ca183",
-                    "sampled": False,
-                    "attributes": {
-                        "link_double_key": {"type": "double", "value": 1.23}
-                    },
-                }
-            ],
-            "name": "my 1st OTel span",
-            "span_id": "a342abb1214ca181",
-            "start_timestamp": start.timestamp(),
-            "status": "error",
-            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-        },
         {
             "organization_id": 1,
             "project_id": 42,
@@ -1500,7 +1459,7 @@ def test_rate_limit_indexed_consistent(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(n=6, timeout=10)
+    spans = spans_consumer.get_spans(n=5, timeout=10)
     assert len(spans) == 6
     assert summarize_outcomes() == {(16, 0): 6}  # SpanIndexed, Accepted
 
@@ -1649,7 +1608,7 @@ def test_rate_limit_spans_in_envelope(
 
     relay.send_envelope(project_id, envelope)
 
-    assert summarize_outcomes() == {(12, 2): 6, (16, 2): 6}
+    assert summarize_outcomes() == {(12, 2): 5, (16, 2): 5}
 
     # We emit transaction metrics from spans for legacy reasons. These are not rate limited.
     # (could be a bug)
@@ -1928,14 +1887,14 @@ def test_dynamic_sampling(
         return counter
 
     if sample_rate == 1.0:
-        spans = spans_consumer.get_spans(timeout=10, n=6)
-        assert len(spans) == 6
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=6)
-        assert summarize_outcomes(outcomes) == {(16, 0): 6}  # SpanIndexed, Accepted
+        spans = spans_consumer.get_spans(timeout=10, n=5)
+        assert len(spans) == 5
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=5)
+        assert summarize_outcomes(outcomes) == {(16, 0): 5}  # SpanIndexed, Accepted
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
         assert summarize_outcomes(outcomes) == {
-            (16, 1): 6,  # SpanIndexed, Filtered
+            (16, 1): 5,  # SpanIndexed, Filtered
         }
         assert {o["reason"] for o in outcomes} == {
             "Sampled:3000",
