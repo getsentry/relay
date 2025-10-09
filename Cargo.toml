@@ -149,7 +149,7 @@ path-slash = "0.2.1"
 pest = "2.1.3"
 pest_derive = "2.1.0"
 phf = { version = "0.13.1", features = ["macros"] }
-phf_codegen = "0.12"
+phf_codegen = "0.13.1"
 pin-project-lite = "0.2.15"
 pretty-hex = "0.4.1"
 priority-queue = "2.0.3"

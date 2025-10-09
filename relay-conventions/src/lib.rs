@@ -60,9 +60,18 @@ pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
     let mut node = &ATTRIBUTES;
     let mut parts = key.split('.');
     while let Some(part) = parts.next() {
-        node = node.children.get(part)?;
+        let (_, child) = node
+            .children
+            .entries()
+            .find(|(segment, _)| is_match(part, **segment))?;
+        node = child;
     }
     node.info.as_ref()
+}
+
+fn is_match(needle: &str, haystack: &str) -> bool {
+    let is_wildcard = haystack.starts_with('<') && haystack.ends_with('>');
+    is_wildcard || needle == haystack
 }
 
 #[cfg(test)]
