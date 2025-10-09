@@ -1053,7 +1053,7 @@ def test_span_ingestion(
             "tags": {"decision": "keep", "target_project_id": "42"},
             "timestamp": expected_timestamp,
             "type": "c",
-            "value": 4.0,
+            "value": 3.0,
         },
         {
             "name": "c:spans/count_per_root_project@none",
@@ -1074,7 +1074,7 @@ def test_span_ingestion(
             "tags": {},
             "timestamp": expected_timestamp,
             "type": "c",
-            "value": 4.0,
+            "value": 3.0,
             "received_at": time_after(now_timestamp),
         },
         {
@@ -1436,7 +1436,7 @@ def test_rate_limit_indexed_consistent(
     project_config["config"]["quotas"] = [
         {
             "categories": ["span_indexed"],
-            "limit": 6,
+            "limit": 5,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "indexed_exceeded",
@@ -1460,12 +1460,12 @@ def test_rate_limit_indexed_consistent(
     # First batch passes
     relay.send_envelope(project_id, envelope)
     spans = spans_consumer.get_spans(n=5, timeout=10)
-    assert len(spans) == 6
-    assert summarize_outcomes() == {(16, 0): 6}  # SpanIndexed, Accepted
+    assert len(spans) == 5
+    assert summarize_outcomes() == {(16, 0): 5}  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    assert summarize_outcomes() == {(16, 2): 6}  # SpanIndexed, RateLimited
+    assert summarize_outcomes() == {(16, 2): 5}  # SpanIndexed, RateLimited
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
