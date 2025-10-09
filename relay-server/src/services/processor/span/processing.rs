@@ -32,7 +32,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::{
-    BrowserContext, CompatSpan, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
+    BrowserContext, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
@@ -102,13 +102,7 @@ pub async fn process(
     managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => match relay_spans::otel_to_sentry_span(otel_span) {
-                    Ok(span) => Annotated::new(span),
-                    Err(err) => {
-                        relay_log::debug!("failed to convert OTel span to Sentry span: {:?}", err);
-                        return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
-                    }
-                },
+                Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel span: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
@@ -260,26 +254,18 @@ fn create_span_item(span: Annotated<Span>, config: &Config) -> Result<Item, ()> 
     let mut new_item = Item::new(ItemType::Span);
     if cfg!(feature = "processing") && config.processing_enabled() {
         let span_v2 = span.map_value(relay_spans::span_v1_to_span_v2);
-        let compat_span = match span_v2.map_value(CompatSpan::try_from) {
-            Annotated(Some(Result::Err(err)), _) => {
-                relay_log::error!("failed to create compat span: {}", err);
-                return Err(());
-            }
-            Annotated(Some(Result::Ok(compat_span)), meta) => Annotated(Some(compat_span), meta),
-            Annotated(None, meta) => Annotated(None, meta),
-        };
-        let payload = match compat_span.to_json() {
+        let payload = match span_v2.to_json() {
             Ok(payload) => payload,
             Err(err) => {
-                relay_log::error!("failed to serialize compat span: {}", err);
+                relay_log::error!("failed to serialize span V2: {}", err);
                 return Err(());
             }
         };
-        if let Some(trace_id) = compat_span.value().and_then(|s| s.span_v2.trace_id.value()) {
+        if let Some(trace_id) = span_v2.value().and_then(|s| s.trace_id.value()) {
             new_item.set_routing_hint(*trace_id.as_ref());
         }
 
-        new_item.set_payload(ContentType::CompatSpan, payload);
+        new_item.set_payload(ContentType::Json, payload);
     } else {
         let payload = match span.to_json() {
             Ok(payload) => payload,

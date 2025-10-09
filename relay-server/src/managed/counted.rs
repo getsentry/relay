@@ -1,6 +1,5 @@
 use relay_event_schema::protocol::{
-    CompatSpan, OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2,
-    TraceMetric,
+    OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2, TraceMetric,
 };
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
@@ -107,13 +106,13 @@ impl Counted for WithHeader<SpanV2> {
     }
 }
 
-impl Counted for Annotated<Span> {
+impl Counted for SpanV2 {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
     }
 }
 
-impl Counted for Annotated<CompatSpan> {
+impl Counted for Annotated<Span> {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
     }
@@ -165,5 +164,14 @@ where
 {
     fn quantities(&self) -> Quantities {
         (*self).quantities()
+    }
+}
+
+impl<T> Counted for Box<T>
+where
+    T: Counted,
+{
+    fn quantities(&self) -> Quantities {
+        self.as_ref().quantities()
     }
 }

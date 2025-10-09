@@ -21,13 +21,13 @@ use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
-use relay_event_schema::protocol::{EventId, datetime_to_timestamp};
+use relay_event_schema::protocol::{EventId, SpanV2, datetime_to_timestamp};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
     MetricNamespace, SetView,
 };
-use relay_protocol::FiniteF64;
+use relay_protocol::{Annotated, FiniteF64, SerializableAnnotated};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
@@ -103,7 +103,7 @@ pub struct StoreMetrics {
     pub retention: u16,
 }
 
-/// Publishes a log item to Sentry core application through Kafka.
+/// Publishes a log item to the Sentry core application through Kafka.
 #[derive(Debug)]
 pub struct StoreTraceItem {
     /// The final trace item which will be produced to Kafka.
@@ -118,6 +118,25 @@ pub struct StoreTraceItem {
 impl Counted for StoreTraceItem {
     fn quantities(&self) -> Quantities {
         self.quantities.clone()
+    }
+}
+
+/// Publishes a span item to the Sentry core application through Kafka.
+#[derive(Debug)]
+pub struct StoreSpanV2 {
+    /// Routing key to assign a Kafka partition.
+    pub routing_key: Option<Uuid>,
+    /// Default retention of the span.
+    pub retention_days: u16,
+    /// Downsampled retention of the span.
+    pub downsampled_retention_days: u16,
+    /// The final Sentry compatible span item.
+    pub item: SpanV2,
+}
+
+impl Counted for StoreSpanV2 {
+    fn quantities(&self) -> Quantities {
+        self.item.quantities()
     }
 }
 
@@ -139,6 +158,8 @@ pub enum Store {
     Metrics(StoreMetrics),
     /// A singular [`TraceItem`].
     TraceItem(Managed<StoreTraceItem>),
+    /// A singular Span.
+    Span(Managed<Box<StoreSpanV2>>),
 }
 
 impl Store {
@@ -148,6 +169,7 @@ impl Store {
             Store::Envelope(_) => "envelope",
             Store::Metrics(_) => "metrics",
             Store::TraceItem(_) => "log",
+            Store::Span(_) => "span",
         }
     }
 }
@@ -175,6 +197,14 @@ impl FromMessage<Managed<StoreTraceItem>> for Store {
 
     fn from_message(message: Managed<StoreTraceItem>, _: ()) -> Self {
         Self::TraceItem(message)
+    }
+}
+
+impl FromMessage<Managed<Box<StoreSpanV2>>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<Box<StoreSpanV2>>, _: ()) -> Self {
+        Self::Span(message)
     }
 }
 
@@ -214,6 +244,7 @@ impl StoreService {
                 Store::Envelope(message) => self.handle_store_envelope(message),
                 Store::Metrics(message) => self.handle_store_metrics(message),
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
+                Store::Span(message) => self.handle_store_span(message),
             }
         })
     }
@@ -351,27 +382,14 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span if content_type == Some(&ContentType::Json) => {
-                    relay_log::error!("Store producer received legacy span");
-                    self.outcome_aggregator.send(TrackOutcome {
-                        category: DataCategory::SpanIndexed,
-                        event_id: None,
-                        outcome: Outcome::Invalid(DiscardReason::Internal),
-                        quantity: 1,
-                        remote_addr: None,
-                        scoping,
-                        timestamp: received_at,
-                    });
-                }
-                ItemType::Span if content_type == Some(&ContentType::CompatSpan) => self
-                    .produce_span(
-                        scoping,
-                        received_at,
-                        event_id,
-                        retention,
-                        downsampled_retention,
-                        item,
-                    )?,
+                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
+                    scoping,
+                    received_at,
+                    event_id,
+                    retention,
+                    downsampled_retention,
+                    item,
+                )?,
                 ty @ ItemType::Log => {
                     debug_assert!(
                         false,
@@ -589,6 +607,66 @@ impl StoreService {
                     scoping,
                     timestamp: received_at,
                 });
+            }
+        }
+    }
+
+    fn handle_store_span(&self, message: Managed<Box<StoreSpanV2>>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let meta = SpanMeta {
+            organization_id: scoping.organization_id,
+            project_id: scoping.project_id,
+            key_id: scoping.key_id,
+            event_id: None,
+            retention_days: message.retention_days,
+            downsampled_retention_days: message.downsampled_retention_days,
+            received: datetime_to_timestamp(received_at),
+        };
+
+        let result = message.try_accept(|span| {
+            let item = Annotated::new(span.item);
+            let message = KafkaMessage::SpanV2 {
+                routing_key: span.routing_key,
+                headers: BTreeMap::from([(
+                    "project_id".to_owned(),
+                    scoping.project_id.to_string(),
+                )]),
+                message: SpanKafkaMessage {
+                    meta,
+                    span: SerializableAnnotated(&item),
+                },
+            };
+
+            self.produce(KafkaTopic::Spans, message)
+        });
+
+        match result {
+            Ok(()) => {
+                relay_statsd::metric!(
+                    counter(RelayCounters::SpanV2Produced) += 1,
+                    via = "processing"
+                );
+
+                // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
+                // or the segments consumer, depending on which will produce outcomes later.
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::SpanIndexed,
+                    event_id: None,
+                    outcome: Outcome::Accepted,
+                    quantity: 1,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: received_at,
+                });
+            }
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    tags.project_key = %scoping.project_key,
+                    "failed to store span"
+                );
             }
         }
     }
@@ -1013,7 +1091,7 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         debug_assert_eq!(item.ty(), &ItemType::Span);
-        debug_assert_eq!(item.content_type(), Some(&ContentType::CompatSpan));
+        debug_assert_eq!(item.content_type(), Some(&ContentType::Json));
 
         let Scoping {
             organization_id,
@@ -1023,7 +1101,7 @@ impl StoreService {
         } = scoping;
 
         let payload = item.payload();
-        let message = SpanKafkaMessage {
+        let message = SpanKafkaMessageRaw {
             meta: SpanMeta {
                 organization_id,
                 project_id,
@@ -1037,10 +1115,16 @@ impl StoreService {
                 .map_err(|e| StoreError::EncodingFailed(e.into()))?,
         };
 
-        relay_statsd::metric!(counter(RelayCounters::SpanV2Produced) += 1);
+        // Verify that this is a V2 span:
+        debug_assert!(message.span.contains_key("attributes"));
+        relay_statsd::metric!(
+            counter(RelayCounters::SpanV2Produced) += 1,
+            via = "envelope"
+        );
+
         self.produce(
             KafkaTopic::Spans,
-            KafkaMessage::Span {
+            KafkaMessage::SpanRaw {
                 routing_key: item.routing_hint(),
                 headers: BTreeMap::from([(
                     "project_id".to_owned(),
@@ -1361,11 +1445,19 @@ struct CheckInKafkaMessage {
 }
 
 #[derive(Debug, Serialize)]
-struct SpanKafkaMessage<'a> {
+struct SpanKafkaMessageRaw<'a> {
     #[serde(flatten)]
     meta: SpanMeta,
     #[serde(flatten)]
     span: BTreeMap<&'a str, &'a RawValue>,
+}
+
+#[derive(Debug, Serialize)]
+struct SpanKafkaMessage<'a> {
+    #[serde(flatten)]
+    meta: SpanMeta,
+    #[serde(flatten)]
+    span: SerializableAnnotated<'a, SpanV2>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1416,7 +1508,15 @@ enum KafkaMessage<'a> {
         #[serde(skip)]
         message: TraceItem,
     },
-    Span {
+    SpanRaw {
+        #[serde(skip)]
+        routing_key: Option<Uuid>,
+        #[serde(skip)]
+        headers: BTreeMap<String, String>,
+        #[serde(flatten)]
+        message: SpanKafkaMessageRaw<'a>,
+    },
+    SpanV2 {
         #[serde(skip)]
         routing_key: Option<Uuid>,
         #[serde(skip)]
@@ -1448,7 +1548,7 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
             KafkaMessage::CheckIn(_) => "check_in",
-            KafkaMessage::Span { .. } => "span",
+            KafkaMessage::SpanRaw { .. } | KafkaMessage::SpanV2 { .. } => "span",
             KafkaMessage::Item { item_type, .. } => item_type.as_str_name(),
 
             KafkaMessage::Attachment(_) => "attachment",
@@ -1467,7 +1567,7 @@ impl Message for KafkaMessage<'_> {
         match self {
             Self::Event(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
-            Self::Span { routing_key, .. } => *routing_key,
+            Self::SpanRaw { routing_key, .. } | Self::SpanV2 { routing_key, .. } => *routing_key,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1493,7 +1593,8 @@ impl Message for KafkaMessage<'_> {
     fn headers(&self) -> Option<&BTreeMap<String, String>> {
         match &self {
             KafkaMessage::Metric { headers, .. }
-            | KafkaMessage::Span { headers, .. }
+            | KafkaMessage::SpanRaw { headers, .. }
+            | KafkaMessage::SpanV2 { headers, .. }
             | KafkaMessage::Item { headers, .. }
             | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) => Some(headers),
 
@@ -1512,7 +1613,8 @@ impl Message for KafkaMessage<'_> {
         match self {
             KafkaMessage::Metric { message, .. } => serialize_as_json(message),
             KafkaMessage::ReplayEvent(message) => serialize_as_json(message),
-            KafkaMessage::Span { message, .. } => serialize_as_json(message),
+            KafkaMessage::SpanRaw { message, .. } => serialize_as_json(message),
+            KafkaMessage::SpanV2 { message, .. } => serialize_as_json(message),
             KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();
                 match message.encode(&mut payload) {

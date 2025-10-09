@@ -28,7 +28,7 @@
 - No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
 - Produce spans to `ingest-spans` by default. ([#5163](https://github.com/getsentry/relay/pull/5163))
 - Add `retentions` to the project configuration and use them for logs. ([#5135](https://github.com/getsentry/relay/pull/5135))
-- Produce Span V2 Kafka messages. ([#5151](https://github.com/getsentry/relay/pull/5151), [#5173](https://github.com/getsentry/relay/pull/5173), [#5199](https://github.com/getsentry/relay/pull/5199))
+- Produce Span V2 Kafka messages. ([#5151](https://github.com/getsentry/relay/pull/5151), [#5173](https://github.com/getsentry/relay/pull/5173), [#5199](https://github.com/getsentry/relay/pull/5199), [#5216](https://github.com/getsentry/relay/pull/5216))
 - Extract additional `user.geo.*` attributes on spans. ([#5194](https://github.com/getsentry/relay/pull/5194))
 - Modernize session processing and move to Relay's new processing framework. ([#5201](https://github.com/getsentry/relay/pull/5201))
 - Add TraceMetric data category. ([#5206](https://github.com/getsentry/relay/pull/5206))
