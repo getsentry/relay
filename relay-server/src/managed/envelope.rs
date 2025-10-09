@@ -242,9 +242,6 @@ impl ManagedEnvelope {
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
                 for (category, quantity) in item.quantities() {
-                    if let Some(indexed) = category.index_category() {
-                        outcomes.push((outcome.clone(), indexed, quantity));
-                    };
                     outcomes.push((outcome.clone(), category, quantity));
                 }
 
