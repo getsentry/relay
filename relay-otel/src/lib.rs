@@ -135,7 +135,7 @@ mod tests {
     use opentelemetry_proto::tonic::common::v1::{
         AnyValue, ArrayValue, KeyValue, KeyValueList, any_value,
     };
-    use relay_protocol::get_value;
+    use relay_protocol::{SerializableAnnotated, get_value};
 
     #[test]
     fn test_string_value() {
@@ -222,5 +222,70 @@ mod tests {
             get_value!(value!),
             &Value::String("{\"key1\":\"value1\"}".to_owned())
         );
+    }
+
+    #[test]
+    fn test_scope_attributes() {
+        let resource = serde_json::from_value(serde_json::json!({
+            "attributes": [{
+                "key": "service.name",
+                "value": {"stringValue": "test-service"},
+            },
+            {
+                "key": "the.answer",
+                "value": {"stringValue": "foobar"},
+            },
+        ]}))
+        .unwrap();
+
+        let scope = InstrumentationScope {
+            name: "Eins Name".to_owned(),
+            version: "123.42".to_owned(),
+            attributes: vec![
+                KeyValue {
+                    key: "the.answer".to_owned(),
+                    value: Some(AnyValue {
+                        value: Some(any_value::Value::IntValue(42)),
+                    }),
+                },
+                // Clashes with `scope.name` and should be overwritten.
+                KeyValue {
+                    key: "name".to_owned(),
+                    value: Some(AnyValue {
+                        value: Some(any_value::Value::StringValue("oops".to_owned())),
+                    }),
+                },
+            ],
+            dropped_attributes_count: 12,
+        };
+
+        let mut attributes = Attributes::new();
+
+        otel_scope_into_attributes(&mut attributes, Some(&resource), Some(&scope));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(attributes)), @r#"
+        {
+          "instrumentation.name": {
+            "type": "string",
+            "value": "Eins Name"
+          },
+          "instrumentation.the.answer": {
+            "type": "integer",
+            "value": 42
+          },
+          "instrumentation.version": {
+            "type": "string",
+            "value": "123.42"
+          },
+          "resource.service.name": {
+            "type": "string",
+            "value": "test-service"
+          },
+          "resource.the.answer": {
+            "type": "string",
+            "value": "foobar"
+          }
+        }
+        "#);
     }
 }

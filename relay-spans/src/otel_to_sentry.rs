@@ -112,10 +112,26 @@ mod tests {
             "links": [],
             "droppedLinksCount": 0
         }"#;
+
+        let resource = serde_json::from_value(serde_json::json!({
+            "attributes": [{
+                "key": "service.name",
+                "value": {"intValue": 42},
+            }]
+        }))
+        .unwrap();
+
+        let scope = InstrumentationScope {
+            name: "Eins Name".to_owned(),
+            version: "123.42".to_owned(),
+            attributes: Vec::new(),
+            dropped_attributes_count: 12,
+        };
+
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span, None, None);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span, Some(&resource), Some(&scope));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
@@ -133,7 +149,10 @@ mod tests {
             "hook.name": "onResponse",
             "http.request.method": "GET",
             "http.route": "/home",
+            "instrumentation.name": "Eins Name",
+            "instrumentation.version": "123.42",
             "plugin.name": "fastify -> @fastify/multipart",
+            "resource.service.name": 42,
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1,
             "sentry.status.message": "test"
@@ -141,7 +160,7 @@ mod tests {
           "links": [],
           "kind": "server"
         }
-        "###);
+        "#);
     }
 
     #[test]

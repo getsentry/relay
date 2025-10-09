@@ -237,10 +237,26 @@ mod tests {
             "links": [],
             "droppedLinksCount": 0
         }"#;
+
+        let resource = serde_json::from_value(serde_json::json!({
+            "attributes": [{
+                "key": "service.name",
+                "value": {"stringValue": "test-service"},
+            }]
+        }))
+        .unwrap();
+
+        let scope = InstrumentationScope {
+            name: "Eins Name".to_owned(),
+            version: "123.42".to_owned(),
+            attributes: Vec::new(),
+            dropped_attributes_count: 12,
+        };
+
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span = otel_to_sentry_span(otel_span, None, None);
+        let event_span = otel_to_sentry_span(otel_span, Some(&resource), Some(&scope));
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "parent_span_id": "0c7a7dea069bf5a6",
@@ -260,9 +276,21 @@ mod tests {
               "type": "string",
               "value": "onResponse"
             },
+            "instrumentation.name": {
+              "type": "string",
+              "value": "Eins Name"
+            },
+            "instrumentation.version": {
+              "type": "string",
+              "value": "123.42"
+            },
             "plugin.name": {
               "type": "string",
               "value": "fastify -> @fastify/multipart"
+            },
+            "resource.service.name": {
+              "type": "string",
+              "value": "test-service"
             },
             "sentry.environment": {
               "type": "string",
@@ -286,7 +314,7 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
