@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Enables more PII rules for MCP attributes. ([#5219](https://github.com/getsentry/relay/pull/5219)
 - Enables more PII rules for AI attributes. ([#5166](https://github.com/getsentry/relay/pull/5166)
 - Add Memory Info context to event schema. ([#5154](https://github.com/getsentry/relay/pull/5154))
 - Add Thread Pool Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))

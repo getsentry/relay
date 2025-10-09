@@ -86,6 +86,10 @@ static REPLACE_ONLY_SELECTOR: Lazy<SelectorSpec> = Lazy::new(|| {
         "attributes.'gen_ai.request.available_tools'.value",
         "$span.data.'gen_ai.tool.name'",
         "attributes.'gen_ai.tool.name'.value",
+        "$span.data.'mcp.prompt.result'",
+        "attributes.'mcp.prompt.result'.value",
+        "$span.data.'mcp.tool.result.content'",
+        "attributes.'mcp.tool.result.content'.value",
     ]
     .join("|")
     .parse()
@@ -337,7 +341,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value": [
+            "$logentry.formatted || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
@@ -369,7 +373,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value": [
+            "$logentry.formatted || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
@@ -412,7 +416,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value": [
+            "$logentry.formatted || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
@@ -444,7 +448,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value": [
+            "$logentry.formatted || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
@@ -1365,7 +1369,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value": [
+            "$logentry.formatted || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
@@ -1888,6 +1892,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             serde_json::json!({
                 "attributes": {
                     "gen_ai.prompt": {"value": "Buy me a drink with my creditcard 4111-1111-1111-1111"},
+                    "mcp.prompt.result": {"value": "Contact me at user@example.com or use card 4111-1111-1111-1111"},
+                    "mcp.tool.result.content": {"value": "My email is test@domain.com and I accept payments"},
                 }
             })
             .into(),
@@ -1896,33 +1902,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = to_pii_config(&simple_enabled_config()).unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data, @r#"
-        {
-          "attributes": {
-            "gen_ai.prompt": {
-              "value": "Buy me a drink with my creditcard [creditcard]"
-            }
-          },
-          "_meta": {
-            "attributes": {
-              "gen_ai.prompt": {
-                "value": {
-                  "": {
-                    "rem": [
-                      [
-                        "@creditcard:replace",
-                        "s",
-                        34,
-                        46
-                      ]
-                    ],
-                    "len": 53
-                  }
-                }
-              }
-            }
-          }
-        }
-        "#);
+        assert_annotated_snapshot!(data);
     }
 }
