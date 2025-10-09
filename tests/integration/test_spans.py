@@ -397,51 +397,6 @@ def envelope_with_spans(
     envelope = Envelope()
     envelope.add_item(
         Item(
-            type="otel_span",
-            headers={"metrics_extracted": metrics_extracted},
-            payload=PayloadRef(
-                bytes=json.dumps(
-                    {
-                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
-                        "spanId": "a342abb1214ca181",
-                        "name": "my 1st OTel span",
-                        "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
-                        "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
-                        "attributes": [
-                            {
-                                "key": "sentry.category",
-                                "value": {
-                                    "stringValue": "db",
-                                },
-                            },
-                            {
-                                "key": "sentry.exclusive_time",
-                                "value": {
-                                    "doubleValue": (end - start).total_seconds() * 1e3
-                                },
-                            },
-                        ],
-                        "links": [
-                            {
-                                "traceId": "89143b0763095bd9c9955e8175d1fb24",
-                                "spanId": "e342abb1214ca183",
-                                "attributes": [
-                                    {
-                                        "key": "link_double_key",
-                                        "value": {
-                                            "doubleValue": 1.23,
-                                        },
-                                    },
-                                ],
-                            },
-                        ],
-                    },
-                ).encode()
-            ),
-        )
-    )
-    envelope.add_item(
-        Item(
             type="span",
             payload=PayloadRef(
                 bytes=json.dumps(
@@ -1348,78 +1303,6 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
 
     # No envelopes were received:
     assert mini_sentry.captured_events.empty()
-
-
-def test_span_reject_invalid_timestamps(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-):
-    spans_consumer = spans_consumer()
-
-    relay = relay_with_processing(
-        options={
-            "aggregator": {
-                "max_secs_in_past": 10,
-                "max_secs_in_future": 10,
-            }
-        }
-    )
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
-
-    duration = timedelta(milliseconds=500)
-    yesterday_delta = timedelta(days=1)
-
-    end_yesterday = datetime.now(timezone.utc) - yesterday_delta
-    start_yesterday = end_yesterday - duration
-
-    end_today = datetime.now(timezone.utc) - timedelta(seconds=1)
-    start_today = end_today - duration
-
-    envelope = Envelope()
-    envelope.add_item(
-        Item(
-            type="otel_span",
-            payload=PayloadRef(
-                bytes=json.dumps(
-                    {
-                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
-                        "spanId": "a342abb1214ca181",
-                        "name": "span with invalid timestamps",
-                        "startTimeUnixNano": str(
-                            int(start_yesterday.timestamp() * 1e9)
-                        ),
-                        "endTimeUnixNano": str(int(end_yesterday.timestamp() * 1e9)),
-                    },
-                ).encode()
-            ),
-        )
-    )
-    envelope.add_item(
-        Item(
-            type="otel_span",
-            payload=PayloadRef(
-                bytes=json.dumps(
-                    {
-                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
-                        "spanId": "a342abb1214ca181",
-                        "name": "span with valid timestamps",
-                        "startTimeUnixNano": str(int(start_today.timestamp() * 1e9)),
-                        "endTimeUnixNano": str(int(end_today.timestamp() * 1e9)),
-                    },
-                ).encode()
-            ),
-        )
-    )
-    relay.send_envelope(project_id, envelope)
-
-    spans = spans_consumer.get_spans(timeout=10.0, n=1)
-    assert len(spans) == 1
-    assert spans[0]["name"] == "span with valid timestamps"
 
 
 def test_span_ingestion_with_performance_scores(
