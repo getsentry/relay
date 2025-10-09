@@ -460,7 +460,7 @@ def test_event_merging(
     attachments_consumer,
 ):
     PROJECT_ID = 42
-    playstation_dump = load_dump_file("user_data.prosperodmp")
+    playstation_dump = load_dump_file("native_user_data.prosperodmp")
     mini_sentry.add_full_project_config(
         PROJECT_ID,
         extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
@@ -511,14 +511,15 @@ def test_event_merging(
     event, payload = attachments_consumer.get_event_only()
     assert payload == {
         "event_id": mock.ANY,
-        "level": "error",
+        "level": "fatal",
         "version": "5",
         "type": "error",
         "logger": "",
         "platform": "native",
-        "timestamp": time_within_delta(),
+        "timestamp": 1759841673.0,
         "received": time_within_delta(),
-        "environment": "production",
+        "release": "test-app@1.0.0",
+        "environment": "integration-test",
         "contexts": {
             "CRS": {
                 "crash_id": "123",
@@ -527,36 +528,30 @@ def test_event_merging(
             },
             "app": {"app_version": "", "type": "app"},
             "device": {
-                "name": "",
-                "model": "PS5",
-                "model_id": "5be3652dd663dbdcd044da0f2144b17f",
+                "name": "PS5",
                 "arch": "x86_64",
                 "manufacturer": "Sony",
                 "type": "device",
             },
-            "os": {"os": "Prospero", "name": "Prospero", "type": "os"},
+            "os": {
+                "os": "PlayStation 12.00.00.43-00.00.00.0.1",
+                "name": "PlayStation",
+                "version": "12.00.00.43-00.00.00.0.1",
+                "type": "os",
+            },
             "runtime": {
-                "runtime": "PS5 11.20.00.05-00.00.00.0.1",
+                "runtime": "PS5 12.00.00.43-00.00.00.0.1",
                 "name": "PS5",
-                "version": "11.20.00.05-00.00.00.0.1",
+                "version": "12.00.00.43-00.00.00.0.1",
                 "type": "runtime",
             },
             "trace": {
-                "trace_id": "a4c6cc5ab0d949d23f6d42e518ba49b4",
-                "span_id": "75470378528743c2",
+                "trace_id": "327245d5fdaa4b7e4689f44dc0bfd10d",
+                "span_id": "dd5205ce07f34128",
                 "status": "unknown",
+                "sample_rand": 0.2063985201360333,
                 "type": "trace",
             },
-        },
-        "breadcrumbs": {
-            "values": [
-                {
-                    "timestamp": time_within_delta(),
-                    "type": "default",
-                    "level": "info",
-                    "message": "crumb",
-                }
-            ]
         },
         "exception": {
             "values": [
@@ -573,25 +568,18 @@ def test_event_merging(
         },
         "tags": [
             ["CRS-CrashID", "123"],
-            ["tag-name", "tag value"],
+            ["test.crash_id", "30b929e6-add4-4fce-e457-cb3187a0db7a"],
+            ["test.suite", "integration"],
+            ["test.type", "crash-capture"],
             ["server_name", "5be3652dd663dbdcd044da0f2144b17f"],
         ],
-        "extra": {"extra-name": "extra value"},
         "sdk": {
             "name": "sentry.native.playstation",
-            "version": "0.8.5",
+            "version": "0.10.1+20250903",
             "packages": [
-                {"name": "github:getsentry/sentry-native", "version": "0.8.5"}
+                {"name": "github:getsentry/sentry-native", "version": "0.10.1+20250903"}
             ],
         },
-        "errors": [
-            {
-                "type": "past_timestamp",
-                "name": "timestamp",
-                "sdk_time": "2025-05-27T19:19:13+00:00",
-                "server_time": mock.ANY,
-            }
-        ],
         "key_id": "123",
         "project": 42,
         "grouping_config": {
@@ -599,24 +587,9 @@ def test_event_merging(
             "id": "legacy:2019-03-12",
         },
         "_metrics": {
-            "bytes.ingested.event": 600,
-            "bytes.ingested.event.minidump": 42734,
-            "bytes.ingested.event.attachment": 225354,
-        },
-        "_meta": {
-            "timestamp": {
-                "": {
-                    "err": [
-                        [
-                            "past_timestamp",
-                            {
-                                "sdk_time": "2025-05-27T19:19:13+00:00",
-                                "server_time": mock.ANY,
-                            },
-                        ]
-                    ]
-                }
-            }
+            "bytes.ingested.event": 725,
+            "bytes.ingested.event.minidump": 60446,
+            "bytes.ingested.event.attachment": 158008,
         },
     }
 
@@ -627,7 +600,7 @@ def test_event_merging(
             "rate_limited": False,
             "content_type": "application/octet-stream",
             "attachment_type": "playstation.prosperodump",
-            "size": 233960,
+            "size": 210174,
             "chunks": 1,
         },
         {
@@ -636,7 +609,7 @@ def test_event_merging(
             "rate_limited": False,
             "content_type": "text/plain",
             "attachment_type": "event.attachment",
-            "size": 225354,
+            "size": 158008,
             "chunks": 1,
         },
         {
@@ -645,7 +618,7 @@ def test_event_merging(
             "rate_limited": False,
             "content_type": "application/x-dmp",
             "attachment_type": "event.minidump",
-            "size": 42734,
+            "size": 60446,
             "chunks": 1,
         },
     )
