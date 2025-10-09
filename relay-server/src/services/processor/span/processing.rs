@@ -102,7 +102,9 @@ pub async fn process(
     managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
+                Ok(otel_span) => {
+                    Annotated::new(relay_spans::otel_to_sentry_span(otel_span, None, None))
+                }
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel span: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
