@@ -55,7 +55,7 @@ fn main() {
             while let Some(part) = parts.next() {
                 node = node
                     .children
-                    .entry(part.to_string())
+                    .entry(part.to_owned())
                     .or_insert_with(RawNode::default);
                 if parts.peek().is_none() {
                     node.info = Some(value);

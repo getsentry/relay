@@ -26,7 +26,7 @@ pub enum Pii {
 }
 
 /// Under which names an attribute should be saved.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub enum WriteBehavior {
     /// Save the attribute under its current name.
     ///
@@ -40,7 +40,7 @@ pub enum WriteBehavior {
 }
 
 /// Information about an attribute, as defined in `sentry-conventions`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct AttributeInfo {
     /// How this attribute should be saved.
     pub write_behavior: WriteBehavior,
@@ -58,12 +58,11 @@ struct AttributeNode {
 /// Returns information about an attribute, as defined in `sentry-conventions`.
 pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
     let mut node = &ATTRIBUTES;
-    let mut parts = key.split('.');
-    while let Some(part) = parts.next() {
+    for part in key.split('.') {
         let (_, child) = node
             .children
             .entries()
-            .find(|(segment, _)| is_match(part, **segment))?;
+            .find(|(segment, _)| is_match(part, segment))?;
         node = child;
     }
     node.info.as_ref()
