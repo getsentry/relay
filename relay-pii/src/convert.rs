@@ -86,18 +86,10 @@ static REPLACE_ONLY_SELECTOR: Lazy<SelectorSpec> = Lazy::new(|| {
         "attributes.'gen_ai.request.available_tools'.value",
         "$span.data.'gen_ai.tool.name'",
         "attributes.'gen_ai.tool.name'.value",
-        "$span.data.'mcp.request.argument.*'",
-        "attributes.'mcp.request.argument.*'.value",
         "$span.data.'mcp.prompt.result'",
         "attributes.'mcp.prompt.result'.value",
         "$span.data.'mcp.tool.result.content'",
         "attributes.'mcp.tool.result.content'.value",
-        "$span.data.'mcp.tool.name'",
-        "attributes.'mcp.tool.name'.value",
-        "$span.data.'mcp.prompt.name'",
-        "attributes.'mcp.prompt.name'.value",
-        "$span.data.'mcp.resource.uri'",
-        "attributes.'mcp.resource.uri'.value",
     ]
     .join("|")
     .parse()
@@ -1936,5 +1928,23 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_replace_fields_applies_to_mcp_attributes() {
+        let mut data = SpanV2::from_value(
+            serde_json::json!({
+                "attributes": {
+                    "mcp.prompt.result": {"value": "Contact me at user@example.com or use card 4111-1111-1111-1111"},
+                    "mcp.tool.result.content": {"value": "My email is test@domain.com and I accept payments"},
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&simple_enabled_config()).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
     }
 }

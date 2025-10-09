@@ -1,0 +1,55 @@
+---
+source: relay-pii/src/convert.rs
+assertion_line: 1948
+expression: data
+---
+{
+  "attributes": {
+    "mcp.prompt.result": {
+      "value": "Contact me at [email] or use card [Filtered]"
+    },
+    "mcp.tool.result.content": {
+      "value": "My email is [email] and I accept payments"
+    }
+  },
+  "_meta": {
+    "attributes": {
+      "mcp.prompt.result": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@email:replace",
+                "s",
+                14,
+                21
+              ],
+              [
+                "@creditcard:filter",
+                "s",
+                34,
+                44
+              ]
+            ],
+            "len": 62
+          }
+        }
+      },
+      "mcp.tool.result.content": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@email:replace",
+                "s",
+                12,
+                19
+              ]
+            ],
+            "len": 49
+          }
+        }
+      }
+    }
+  }
+}
