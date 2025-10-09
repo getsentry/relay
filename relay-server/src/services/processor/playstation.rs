@@ -291,9 +291,9 @@ fn create_item_with_json_payload(payload: &str) -> Item {
 fn merge_or_create_event_item(json: &str, event: Option<Item>) -> Item {
     match event {
         Some(event) => {
-            let event_json =
+            let event =
                 serde_json::from_slice::<serde_json::Value>(&event.payload()).unwrap_or_default();
-            let mut base_json = serde_json::from_str::<serde_json::Value>(json).unwrap_or_default();
+            let mut base_event = serde_json::from_str::<serde_json::Value>(json).unwrap_or_default();
 
             utils::merge_values(&mut base_json, event_json);
 
