@@ -94,70 +94,73 @@
 <a href=#94 id=94 data-nosnippet>94</a>                    log_count += item.item_count().unwrap_or(<span class="number">1</span>) <span class="kw">as </span>usize;
 <a href=#95 id=95 data-nosnippet>95</a>                    config.max_log_size()
 <a href=#96 id=96 data-nosnippet>96</a>                }
-<a href=#97 id=97 data-nosnippet>97</a>                <span class="prelude-val">None </span>=&gt; NO_LIMIT,
-<a href=#98 id=98 data-nosnippet>98</a>            },
-<a href=#99 id=99 data-nosnippet>99</a>            ItemType::OtelTracesData =&gt; config.max_event_size(), <span class="comment">// a spans container similar to `Transaction`
-<a href=#100 id=100 data-nosnippet>100</a>            </span>ItemType::ProfileChunk =&gt; config.max_profile_size(),
-<a href=#101 id=101 data-nosnippet>101</a>            ItemType::Unknown(<span class="kw">_</span>) =&gt; NO_LIMIT,
-<a href=#102 id=102 data-nosnippet>102</a>        };
-<a href=#103 id=103 data-nosnippet>103</a>
-<a href=#104 id=104 data-nosnippet>104</a>        <span class="comment">// For item containers, we want to check that the contained items obey
-<a href=#105 id=105 data-nosnippet>105</a>        // the size limits *on average*.
-<a href=#106 id=106 data-nosnippet>106</a>        // For standalone items, this is just the item size itself.
-<a href=#107 id=107 data-nosnippet>107</a>        </span><span class="kw">let </span>avg_item_size = item.len() / (item.item_count().unwrap_or(<span class="number">1</span>).max(<span class="number">1</span>) <span class="kw">as </span>usize);
-<a href=#108 id=108 data-nosnippet>108</a>        <span class="kw">if </span>avg_item_size &gt; max_size {
-<a href=#109 id=109 data-nosnippet>109</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(item
-<a href=#110 id=110 data-nosnippet>110</a>                .attachment_type()
-<a href=#111 id=111 data-nosnippet>111</a>                .map(|t| t.into())
-<a href=#112 id=112 data-nosnippet>112</a>                .unwrap_or_else(|| item.ty().into()));
-<a href=#113 id=113 data-nosnippet>113</a>        }
-<a href=#114 id=114 data-nosnippet>114</a>    }
-<a href=#115 id=115 data-nosnippet>115</a>
-<a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">if </span>event_size &gt; config.max_event_size() {
-<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::Event);
-<a href=#118 id=118 data-nosnippet>118</a>    }
-<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">if </span>attachments_size &gt; config.max_attachments_size() {
-<a href=#120 id=120 data-nosnippet>120</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::Attachment(
-<a href=#121 id=121 data-nosnippet>121</a>            DiscardAttachmentType::Attachment,
-<a href=#122 id=122 data-nosnippet>122</a>        ));
-<a href=#123 id=123 data-nosnippet>123</a>    }
-<a href=#124 id=124 data-nosnippet>124</a>    <span class="kw">if </span>session_count &gt; config.max_session_count() {
-<a href=#125 id=125 data-nosnippet>125</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::Session);
+<a href=#97 id=97 data-nosnippet>97</a>                <span class="prelude-val">Some</span>(Integration::Spans(<span class="kw">_</span>)) =&gt; {
+<a href=#98 id=98 data-nosnippet>98</a>                    span_count += item.item_count().unwrap_or(<span class="number">1</span>) <span class="kw">as </span>usize;
+<a href=#99 id=99 data-nosnippet>99</a>                    config.max_event_size()
+<a href=#100 id=100 data-nosnippet>100</a>                }
+<a href=#101 id=101 data-nosnippet>101</a>                <span class="prelude-val">None </span>=&gt; NO_LIMIT,
+<a href=#102 id=102 data-nosnippet>102</a>            },
+<a href=#103 id=103 data-nosnippet>103</a>            ItemType::ProfileChunk =&gt; config.max_profile_size(),
+<a href=#104 id=104 data-nosnippet>104</a>            ItemType::Unknown(<span class="kw">_</span>) =&gt; NO_LIMIT,
+<a href=#105 id=105 data-nosnippet>105</a>        };
+<a href=#106 id=106 data-nosnippet>106</a>
+<a href=#107 id=107 data-nosnippet>107</a>        <span class="comment">// For item containers, we want to check that the contained items obey
+<a href=#108 id=108 data-nosnippet>108</a>        // the size limits *on average*.
+<a href=#109 id=109 data-nosnippet>109</a>        // For standalone items, this is just the item size itself.
+<a href=#110 id=110 data-nosnippet>110</a>        </span><span class="kw">let </span>avg_item_size = item.len() / (item.item_count().unwrap_or(<span class="number">1</span>).max(<span class="number">1</span>) <span class="kw">as </span>usize);
+<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">if </span>avg_item_size &gt; max_size {
+<a href=#112 id=112 data-nosnippet>112</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(item
+<a href=#113 id=113 data-nosnippet>113</a>                .attachment_type()
+<a href=#114 id=114 data-nosnippet>114</a>                .map(|t| t.into())
+<a href=#115 id=115 data-nosnippet>115</a>                .unwrap_or_else(|| item.ty().into()));
+<a href=#116 id=116 data-nosnippet>116</a>        }
+<a href=#117 id=117 data-nosnippet>117</a>    }
+<a href=#118 id=118 data-nosnippet>118</a>
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">if </span>event_size &gt; config.max_event_size() {
+<a href=#120 id=120 data-nosnippet>120</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::Event);
+<a href=#121 id=121 data-nosnippet>121</a>    }
+<a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">if </span>attachments_size &gt; config.max_attachments_size() {
+<a href=#123 id=123 data-nosnippet>123</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::Attachment(
+<a href=#124 id=124 data-nosnippet>124</a>            DiscardAttachmentType::Attachment,
+<a href=#125 id=125 data-nosnippet>125</a>        ));
 <a href=#126 id=126 data-nosnippet>126</a>    }
-<a href=#127 id=127 data-nosnippet>127</a>    <span class="kw">if </span>span_count &gt; config.max_span_count() {
-<a href=#128 id=128 data-nosnippet>128</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::Span);
+<a href=#127 id=127 data-nosnippet>127</a>    <span class="kw">if </span>session_count &gt; config.max_session_count() {
+<a href=#128 id=128 data-nosnippet>128</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::Session);
 <a href=#129 id=129 data-nosnippet>129</a>    }
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">if </span>log_count &gt; config.max_log_count() {
-<a href=#131 id=131 data-nosnippet>131</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::Log);
+<a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">if </span>span_count &gt; config.max_span_count() {
+<a href=#131 id=131 data-nosnippet>131</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::Span);
 <a href=#132 id=132 data-nosnippet>132</a>    }
-<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">if </span>trace_metric_count &gt; config.max_trace_metric_count() {
-<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::TraceMetric);
+<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">if </span>log_count &gt; config.max_log_count() {
+<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::Log);
 <a href=#135 id=135 data-nosnippet>135</a>    }
-<a href=#136 id=136 data-nosnippet>136</a>    <span class="kw">if </span>client_reports_size &gt; config.max_client_reports_size() {
-<a href=#137 id=137 data-nosnippet>137</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::ClientReport);
+<a href=#136 id=136 data-nosnippet>136</a>    <span class="kw">if </span>trace_metric_count &gt; config.max_trace_metric_count() {
+<a href=#137 id=137 data-nosnippet>137</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::TraceMetric);
 <a href=#138 id=138 data-nosnippet>138</a>    }
-<a href=#139 id=139 data-nosnippet>139</a>
-<a href=#140 id=140 data-nosnippet>140</a>    <span class="prelude-val">Ok</span>(())
-<a href=#141 id=141 data-nosnippet>141</a>}
+<a href=#139 id=139 data-nosnippet>139</a>    <span class="kw">if </span>client_reports_size &gt; config.max_client_reports_size() {
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardItemType::ClientReport);
+<a href=#141 id=141 data-nosnippet>141</a>    }
 <a href=#142 id=142 data-nosnippet>142</a>
-<a href=#143 id=143 data-nosnippet>143</a><span class="doccomment">/// Checks for valid envelope items.
-<a href=#144 id=144 data-nosnippet>144</a>///
-<a href=#145 id=145 data-nosnippet>145</a>/// If Relay is configured to drop unknown items, this function removes them from the Envelope. All
-<a href=#146 id=146 data-nosnippet>146</a>/// known items will be retained.
-<a href=#147 id=147 data-nosnippet>147</a></span><span class="kw">pub fn </span>remove_unknown_items(config: <span class="kw-2">&amp;</span>Config, envelope: <span class="kw-2">&amp;mut </span>ManagedEnvelope) {
-<a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">if </span>!config.accept_unknown_items() {
-<a href=#149 id=149 data-nosnippet>149</a>        envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
-<a href=#150 id=150 data-nosnippet>150</a>            ItemType::Unknown(ty) =&gt; {
-<a href=#151 id=151 data-nosnippet>151</a>                <span class="macro">relay_log::debug!</span>(<span class="string">"dropping unknown item of type '{ty}'"</span>);
-<a href=#152 id=152 data-nosnippet>152</a>                ItemAction::DropSilently
-<a href=#153 id=153 data-nosnippet>153</a>            }
-<a href=#154 id=154 data-nosnippet>154</a>            <span class="kw">_ </span>=&gt; <span class="kw">match </span>item.attachment_type() {
-<a href=#155 id=155 data-nosnippet>155</a>                <span class="prelude-val">Some</span>(AttachmentType::Unknown(ty)) =&gt; {
-<a href=#156 id=156 data-nosnippet>156</a>                    <span class="macro">relay_log::debug!</span>(<span class="string">"dropping unknown attachment of type '{ty}'"</span>);
-<a href=#157 id=157 data-nosnippet>157</a>                    ItemAction::DropSilently
-<a href=#158 id=158 data-nosnippet>158</a>                }
-<a href=#159 id=159 data-nosnippet>159</a>                <span class="kw">_ </span>=&gt; ItemAction::Keep,
-<a href=#160 id=160 data-nosnippet>160</a>            },
-<a href=#161 id=161 data-nosnippet>161</a>        });
-<a href=#162 id=162 data-nosnippet>162</a>    }
-<a href=#163 id=163 data-nosnippet>163</a>}</code></pre></div></section></main></body></html>
+<a href=#143 id=143 data-nosnippet>143</a>    <span class="prelude-val">Ok</span>(())
+<a href=#144 id=144 data-nosnippet>144</a>}
+<a href=#145 id=145 data-nosnippet>145</a>
+<a href=#146 id=146 data-nosnippet>146</a><span class="doccomment">/// Checks for valid envelope items.
+<a href=#147 id=147 data-nosnippet>147</a>///
+<a href=#148 id=148 data-nosnippet>148</a>/// If Relay is configured to drop unknown items, this function removes them from the Envelope. All
+<a href=#149 id=149 data-nosnippet>149</a>/// known items will be retained.
+<a href=#150 id=150 data-nosnippet>150</a></span><span class="kw">pub fn </span>remove_unknown_items(config: <span class="kw-2">&amp;</span>Config, envelope: <span class="kw-2">&amp;mut </span>ManagedEnvelope) {
+<a href=#151 id=151 data-nosnippet>151</a>    <span class="kw">if </span>!config.accept_unknown_items() {
+<a href=#152 id=152 data-nosnippet>152</a>        envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+<a href=#153 id=153 data-nosnippet>153</a>            ItemType::Unknown(ty) =&gt; {
+<a href=#154 id=154 data-nosnippet>154</a>                <span class="macro">relay_log::debug!</span>(<span class="string">"dropping unknown item of type '{ty}'"</span>);
+<a href=#155 id=155 data-nosnippet>155</a>                ItemAction::DropSilently
+<a href=#156 id=156 data-nosnippet>156</a>            }
+<a href=#157 id=157 data-nosnippet>157</a>            <span class="kw">_ </span>=&gt; <span class="kw">match </span>item.attachment_type() {
+<a href=#158 id=158 data-nosnippet>158</a>                <span class="prelude-val">Some</span>(AttachmentType::Unknown(ty)) =&gt; {
+<a href=#159 id=159 data-nosnippet>159</a>                    <span class="macro">relay_log::debug!</span>(<span class="string">"dropping unknown attachment of type '{ty}'"</span>);
+<a href=#160 id=160 data-nosnippet>160</a>                    ItemAction::DropSilently
+<a href=#161 id=161 data-nosnippet>161</a>                }
+<a href=#162 id=162 data-nosnippet>162</a>                <span class="kw">_ </span>=&gt; ItemAction::Keep,
+<a href=#163 id=163 data-nosnippet>163</a>            },
+<a href=#164 id=164 data-nosnippet>164</a>        });
+<a href=#165 id=165 data-nosnippet>165</a>    }
+<a href=#166 id=166 data-nosnippet>166</a>}</code></pre></div></section></main></body></html>
