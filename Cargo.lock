@@ -4312,7 +4312,7 @@ dependencies = [
  "rmp-serde",
  "semver",
  "sentry",
- "sentry_protos 0.4.1",
+ "sentry_protos",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -4824,13 +4824,13 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "2.1.6"
+version = "2.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8757c054b3dd24d457fb4b0f63a42eac257ec25640f2bdc66332f6f5956be3f"
+checksum = "1d70fd89edfb5ff14253446c28cc7e672d734e9ec43d63ec5c7130ca548e6254"
 dependencies = [
  "jsonschema",
  "prost",
- "sentry_protos 0.3.3",
+ "sentry_protos",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -4911,17 +4911,6 @@ dependencies = [
  "time",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "sentry_protos"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2736920441e5f518ac0e79c27b91e2203b7c240afbd6e76771dbf78e208dbc12"
-dependencies = [
- "prost",
- "prost-types",
- "tonic",
 ]
 
 [[package]]
