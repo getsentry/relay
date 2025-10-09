@@ -26,7 +26,7 @@ pub enum Pii {
 }
 
 /// Under which names an attribute should be saved.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WriteBehavior {
     /// Save the attribute under its current name.
     ///
@@ -40,7 +40,7 @@ pub enum WriteBehavior {
 }
 
 /// Information about an attribute, as defined in `sentry-conventions`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AttributeInfo {
     /// How this attribute should be saved.
     pub write_behavior: WriteBehavior,
@@ -76,6 +76,22 @@ mod tests {
             aliases: [
                 "http.response.body.size",
                 "http.response.header.content-length",
+            ],
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_url_path_parameter() {
+        // See https://github.com/getsentry/sentry-conventions/blob/d80504a40ba3a0a23eb746e2608425cf8d8e68bf/model/attributes/url/url__path__parameter__%5Bkey%5D.json.
+        let info = attribute_info("url.path.parameter.'id=123'").unwrap();
+
+        insta::assert_debug_snapshot!(info, @r###"
+        AttributeInfo {
+            write_behavior: CurrentName,
+            pii: Maybe,
+            aliases: [
+                "params.<key>",
             ],
         }
         "###);
