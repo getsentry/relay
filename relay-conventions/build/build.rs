@@ -36,6 +36,14 @@ impl RawNode {
     }
 }
 
+/// Parse a path-like attribute key into individual segments.
+///
+/// NOTE: This does not yet support escaped segments, e.g. `"foo.'my.thing'.bar"` will split into
+/// `["foo.'my", "thing'.bar"]`.
+fn parse_segments(key: &str) -> impl Iterator<Item = &str> {
+    key.split('.')
+}
+
 fn main() {
     let crate_dir: PathBuf = env::var("CARGO_MANIFEST_DIR").unwrap().into();
     let mut root = RawNode::default();
@@ -51,7 +59,7 @@ fn main() {
             let (key, value) = raw::format_attribute_info(attr);
 
             let mut node = &mut root;
-            let mut parts = key.split('.').peekable();
+            let mut parts = parse_segments(&key).peekable();
             while let Some(part) = parts.next() {
                 node = node
                     .children

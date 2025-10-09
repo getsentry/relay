@@ -55,22 +55,27 @@ struct AttributeNode {
     children: phf::Map<&'static str, AttributeNode>,
 }
 
+/// Special path segment in attribute keys that matches any value.
+const PLACEHOLDER_SEGMENT: &str = "<key>";
+
 /// Returns information about an attribute, as defined in `sentry-conventions`.
 pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
     let mut node = &ATTRIBUTES;
-    for part in key.split('.') {
-        let (_, child) = node
+    for part in parse_segments(key) {
+        node = node
             .children
-            .entries()
-            .find(|(segment, _)| is_match(part, segment))?;
-        node = child;
+            .get(part)
+            .or_else(|| node.children.get(PLACEHOLDER_SEGMENT))?;
     }
     node.info.as_ref()
 }
 
-fn is_match(needle: &str, haystack: &str) -> bool {
-    let is_wildcard = haystack.starts_with('<') && haystack.ends_with('>');
-    is_wildcard || needle == haystack
+/// Parse a path-like attribute key into individual segments.
+///
+/// NOTE: This does not yet support escaped segments, e.g. `"foo.'my.thing'.bar"` will split into
+/// `["foo.'my", "thing'.bar"]`.
+fn parse_segments(key: &str) -> impl Iterator<Item = &str> {
+    key.split('.')
 }
 
 #[cfg(test)]
