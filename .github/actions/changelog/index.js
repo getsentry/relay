@@ -1,4 +1,4 @@
-module.exports = async ({github, context, core}) => {
+module.exports = async ({ github, context, core }) => {
   const PR_LINK = `[#${context.payload.pull_request.number}](${context.payload.pull_request.html_url})`;
 
   function getCleanTitle(title) {
@@ -10,6 +10,11 @@ module.exports = async ({github, context, core}) => {
     title = title.replace(/\.+$/, '');
 
     return title;
+  }
+
+  function isRevert(title) {
+    const REVERT_RE = /^Revert ".*"$/;
+    return title && title.match(REVERT_RE) !== null;
   }
 
   function getChangelogDetails(title) {
@@ -39,7 +44,7 @@ module.exports = async ({github, context, core}) => {
   }
 
   async function containsChangelog(path) {
-    const {data} = await github.rest.repos.getContent({
+    const { data } = await github.rest.repos.getContent({
       owner: context.repo.owner,
       repo: context.repo.repo,
       ref: context.ref,
@@ -53,6 +58,10 @@ module.exports = async ({github, context, core}) => {
   async function checkChangelog(pr) {
     const hasSkipLabel = (pr.labels || []).some(label => label.name === 'skip-changelog');
     if (hasSkipLabel) {
+      return;
+    }
+
+    if (isRevert(pr.title)) {
       return;
     }
 
@@ -88,10 +97,9 @@ module.exports = async ({github, context, core}) => {
     }
 
     // From: <https://develop.sentry.dev/engineering-practices/commit-messages/>.
-    const TITLE_RE = /^(ci|build|docs|feat|fix|perf|ref|style|test|meta|license)(\([^)]+\))?: [A-Z].*[^,.]$/;
-    const REVERT_RE = /^Revert ".*"$/;
+    const TITLE_RE = /^(ci|build|docs|feat|fix|perf|ref|style|test|meta|license)(\([^)]+\))?: [A-Z`'"].*[^,.]$/;
 
-    if (pr.title.match(TITLE_RE) === null && pr.title.match(REVERT_RE) === null) {
+    if (pr.title.match(TITLE_RE) === null && !isRevert(pr.title)) {
       core.setFailed('PR title does not match Sentry conventions.');
       core.info('Please follow the Sentry commit message conventions: https://develop.sentry.dev/engineering-practices/commit-messages/');
       core.info('')
@@ -104,14 +112,14 @@ module.exports = async ({github, context, core}) => {
   }
 
   async function checkAll() {
-    const {data: pr} = await github.rest.pulls.get({
+    const { data: pr } = await github.rest.pulls.get({
       owner: context.repo.owner,
       repo: context.repo.repo,
       pull_number: context.payload.pull_request.number,
     });
 
-   // While in draft mode, skip the check because changelogs often cause merge conflicts.
-   if (pr.merged || pr.draft) {
+    // While in draft mode, skip the check because changelogs often cause merge conflicts.
+    if (pr.merged || pr.draft) {
       return;
     }
 

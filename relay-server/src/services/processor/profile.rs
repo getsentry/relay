@@ -1,7 +1,6 @@
 //! Profiles related processor code.
 use relay_dynamic_config::{Feature, GlobalConfig};
 use std::net::IpAddr;
-use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -25,11 +24,11 @@ use crate::services::projects::project::ProjectInfo;
 pub fn filter<Group>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &Annotated<Event>,
-    config: Arc<Config>,
+    config: &Config,
     project_id: ProjectId,
     project_info: &ProjectInfo,
 ) -> Option<ProfileId> {
-    let profiling_disabled = should_filter(&config, project_info, Feature::Profiling);
+    let profiling_disabled = should_filter(config, project_info, Feature::Profiling);
     let has_transaction = event_type(event) == Some(EventType::Transaction);
     let keep_unsampled_profiles = true;
 
@@ -129,8 +128,8 @@ pub fn process(
     managed_envelope: &mut TypedEnvelope<TransactionGroup>,
     event: &mut Annotated<Event>,
     global_config: &GlobalConfig,
-    config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
+    config: &Config,
+    project_info: &ProjectInfo,
 ) -> Option<ProfileId> {
     let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
@@ -153,7 +152,7 @@ pub fn process(
             match expand_profile(
                 item,
                 event,
-                &config,
+                config,
                 client_ip,
                 filter_settings,
                 global_config,
@@ -210,7 +209,6 @@ fn expand_profile(
 mod tests {
     #[cfg(feature = "processing")]
     use chrono::{Duration, TimeZone, Utc};
-    use std::sync::Arc;
     #[cfg(feature = "processing")]
     use uuid::Uuid;
 
@@ -228,6 +226,7 @@ mod tests {
     use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
+    use crate::processing;
     #[cfg(feature = "processing")]
     use crate::services::processor::Submit;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
@@ -239,8 +238,6 @@ mod tests {
     #[cfg(feature = "processing")]
     #[tokio::test]
     async fn test_profile_id_transfered() {
-        // Setup
-
         let config = Config::from_json_value(serde_json::json!({
             "processing": {
                 "enabled": true,
@@ -326,8 +323,8 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectInfo::default();
-        project_state.config.features.0.insert(Feature::Profiling);
+        let mut project_info = ProjectInfo::default();
+        project_info.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
@@ -338,10 +335,11 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            project_info: Arc::new(project_state),
-            rate_limits: Default::default(),
-            sampling_project_info: None,
-            reservoir_counters: ReservoirCounters::default(),
+            ctx: processing::Context {
+                project_info: &project_info,
+                ..processing::Context::for_test()
+            },
+            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =
@@ -473,10 +471,11 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            project_info: Arc::new(project_info),
-            rate_limits: Default::default(),
-            sampling_project_info: None,
-            reservoir_counters: ReservoirCounters::default(),
+            ctx: processing::Context {
+                project_info: &project_info,
+                ..processing::Context::for_test()
+            },
+            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =
@@ -535,8 +534,8 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectInfo::default();
-        project_state.config.features.0.insert(Feature::Profiling);
+        let mut project_info = ProjectInfo::default();
+        project_info.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
@@ -547,10 +546,11 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            project_info: Arc::new(project_state),
-            rate_limits: Default::default(),
-            sampling_project_info: None,
-            reservoir_counters: ReservoirCounters::default(),
+            ctx: processing::Context {
+                project_info: &project_info,
+                ..processing::Context::for_test()
+            },
+            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let envelope = processor
@@ -611,8 +611,8 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectInfo::default();
-        project_state.config.features.0.insert(Feature::Profiling);
+        let mut project_info = ProjectInfo::default();
+        project_info.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
@@ -623,10 +623,11 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
-            project_info: Arc::new(project_state),
-            rate_limits: Default::default(),
-            sampling_project_info: None,
-            reservoir_counters: ReservoirCounters::default(),
+            ctx: processing::Context {
+                project_info: &project_info,
+                ..processing::Context::for_test()
+            },
+            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =

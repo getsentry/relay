@@ -54,7 +54,7 @@ pub enum Feature {
     ///
     /// Serialized as `organizations:relay-otlp-traces-endpoint`.
     #[serde(rename = "organizations:relay-otlp-traces-endpoint")]
-    OtelEndpoint,
+    OtelTracesEndpoint,
     /// Enable logs ingestion via the `/logs/` OTel endpoint.
     ///
     /// Serialized as `organizations:relay-otel-logs-endpoint`.
@@ -100,6 +100,11 @@ pub enum Feature {
     /// Serialized as `organizations:ourlogs-ingestion`.
     #[serde(rename = "organizations:ourlogs-ingestion")]
     OurLogsIngestion,
+    /// Enable trace metric ingestion for our trace metric product.
+    ///
+    /// Serialized as `organizations:tracemetrics-ingestion`.
+    #[serde(rename = "organizations:tracemetrics-ingestion")]
+    TraceMetricsIngestion,
     /// This feature has graduated ant is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]

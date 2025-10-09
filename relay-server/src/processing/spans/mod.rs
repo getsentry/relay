@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
-#[cfg(feature = "processing")]
-use relay_event_schema::protocol::CompatSpan;
 use relay_event_schema::protocol::SpanV2;
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -20,6 +18,8 @@ use crate::services::outcome::{DiscardReason, Outcome};
 mod dynamic_sampling;
 mod filter;
 mod process;
+#[cfg(feature = "processing")]
+mod store;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -150,7 +150,10 @@ pub enum SpanOutput {
 }
 
 impl Forward for SpanOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let spans = match self {
             Self::NotProcessed(spans) => spans,
             Self::Processed(spans) => spans.try_map(|spans, _| {
@@ -168,10 +171,8 @@ impl Forward for SpanOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        _: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use crate::envelope::ContentType;
-        use crate::services::store::StoreEnvelope;
-
         let spans = match self {
             SpanOutput::NotProcessed(spans) => {
                 return Err(spans.internal_error(
@@ -181,76 +182,24 @@ impl Forward for SpanOutput {
             SpanOutput::Processed(spans) => spans,
         };
 
-        // Converts all SpanV2 spans into their SpanV1 counterparts and packages them into an
-        // envelope to forward them.
-        //
-        // This is temporary until we have proper mapping code from SpanV2 -> SpanKafka,
-        // similar to what we do for logs.
-        let envelope = spans.map(|spans, records| {
-            let mut items = Items::with_capacity(spans.spans.len());
-            for span in spans.spans {
-                use relay_protocol::Annotated;
+        let (spans, server_sample_rate) =
+            spans.split_with_context(|spans| (spans.spans, spans.server_sample_rate));
 
-                let mut span = match span.value.map_value(CompatSpan::try_from) {
-                    Annotated(Some(Result::Err(error)), _) => {
-                        // TODO: Use records.internal_error(error, span)
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            "Failed to create CompatSpan"
-                        );
-                        continue;
-                    }
-                    Annotated(Some(Result::Ok(compat_span)), meta) => {
-                        Annotated(Some(compat_span), meta)
-                    }
-                    Annotated(None, meta) => Annotated(None, meta),
-                };
-                if let Some(span) = span.value_mut() {
-                    inject_server_sample_rate(&mut span.span_v2, spans.server_sample_rate);
-                }
+        let ctx = store::Context {
+            server_sample_rate,
+            // TODO: retentions still need to be taken from the project info.
+            retention_days: crate::constants::DEFAULT_EVENT_RETENTION,
+            downsampled_retention_days: crate::constants::DEFAULT_EVENT_RETENTION,
+        };
 
-                let mut item = Item::new(ItemType::Span);
-                let payload = match span.to_json() {
-                    Ok(payload) => payload,
-                    Err(error) => {
-                        records.internal_error(error, span);
-                        continue;
-                    }
-                };
-                item.set_payload(ContentType::CompatSpan, payload);
-                if let Some(trace_id) = span.value().and_then(|s| s.span_v2.trace_id.value()) {
-                    item.set_routing_hint(*trace_id.as_ref());
-                }
-                items.push(item);
-            }
-
-            Envelope::from_parts(spans.headers, items)
-        });
-
-        s.send(StoreEnvelope {
-            envelope: ManagedEnvelope::from(envelope).into_processed(),
-        });
+        for span in spans {
+            if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
+                s.send(span)
+            };
+        }
 
         Ok(())
     }
-}
-
-/// Injects a server sample rate into a 'v1' span.
-///
-/// This is a temporary measure to correctly add the server sample rate to a span,
-/// so the store can later read it again.
-///
-/// Ideally we forward a proper data structure to the store instead, then we don't
-/// have to inject the sample rate into a measurement.
-#[cfg(feature = "processing")]
-fn inject_server_sample_rate(span: &mut SpanV2, server_sample_rate: Option<f64>) {
-    let Some(server_sample_rate) = server_sample_rate.and_then(relay_protocol::FiniteF64::new)
-    else {
-        return;
-    };
-
-    let attributes = span.attributes.get_or_insert_with(Default::default);
-    attributes.insert("sentry.server_sample_rate", server_sample_rate.to_f64());
 }
 
 /// Spans in their serialized state, as transported in an envelope.

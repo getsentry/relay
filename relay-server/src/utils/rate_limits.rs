@@ -133,9 +133,9 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::CheckIn => None,
         ItemType::Nel => None,
         ItemType::Log => None,
+        ItemType::TraceMetric => None,
         ItemType::Span => None,
         ItemType::OtelSpan => None,
-        ItemType::OtelTracesData => None,
         ItemType::ProfileChunk => None,
         ItemType::Integration => None,
         ItemType::Unknown(_) => None,
@@ -205,6 +205,9 @@ pub struct EnvelopeSummary {
     pub profile_chunk_quantity: usize,
     /// The number of UI profile chunks in this envelope.
     pub profile_chunk_ui_quantity: usize,
+
+    /// The number of trace metrics in this envelope.
+    pub trace_metric_quantity: usize,
 }
 
 impl EnvelopeSummary {
@@ -263,6 +266,7 @@ impl EnvelopeSummary {
             DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
             DataCategory::Monitor => &mut self.monitor_quantity,
             DataCategory::Span => &mut self.span_quantity,
+            DataCategory::TraceMetric => &mut self.trace_metric_quantity,
             DataCategory::LogItem => &mut self.log_item_quantity,
             DataCategory::LogByte => &mut self.log_byte_quantity,
             DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
@@ -385,6 +389,8 @@ pub struct Enforcement {
     pub profile_chunks: CategoryLimit,
     /// The combined profile chunk ui item rate limit.
     pub profile_chunks_ui: CategoryLimit,
+    /// The combined trace metric item rate limit.
+    pub trace_metrics: CategoryLimit,
 }
 
 impl Enforcement {
@@ -425,6 +431,7 @@ impl Enforcement {
             user_reports,
             profile_chunks,
             profile_chunks_ui,
+            trace_metrics,
         } = self;
 
         let limits = [
@@ -443,6 +450,7 @@ impl Enforcement {
             user_reports,
             profile_chunks,
             profile_chunks_ui,
+            trace_metrics,
         ];
 
         limits
@@ -531,16 +539,16 @@ impl Enforcement {
             ItemType::Log => {
                 !(self.log_items.is_active() || self.log_bytes.is_active())
             }
-            ItemType::Span | ItemType::OtelSpan | ItemType::OtelTracesData => {
-                !self.spans_indexed.is_active()
-            }
+            ItemType::Span | ItemType::OtelSpan => !self.spans_indexed.is_active(),
             ItemType::ProfileChunk => match item.profile_type() {
                 Some(ProfileType::Backend) => !self.profile_chunks.is_active(),
                 Some(ProfileType::Ui) => !self.profile_chunks_ui.is_active(),
                 None => true,
             },
+            ItemType::TraceMetric => !self.trace_metrics.is_active(),
             ItemType::Integration => match item.integration() {
                 Some(Integration::Logs(_)) => !(self.log_items.is_active() || self.log_bytes.is_active()),
+                Some(Integration::Spans(_)) => !self.spans_indexed.is_active(),
                 None => true,
             },
             ItemType::Event
@@ -760,6 +768,21 @@ where
                 session_limits.longest(),
             );
             rate_limits.merge(session_limits);
+        }
+
+        // Handle trace metrics.
+        if summary.trace_metric_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::TraceMetric);
+            let trace_metric_limits = self
+                .check
+                .apply(item_scoping, summary.trace_metric_quantity)
+                .await?;
+            enforcement.trace_metrics = CategoryLimit::new(
+                DataCategory::TraceMetric,
+                summary.trace_metric_quantity,
+                trace_metric_limits.longest(),
+            );
+            rate_limits.merge(trace_metric_limits);
         }
 
         // Handle logs.
