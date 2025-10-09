@@ -1,10 +1,12 @@
 ---
 source: relay-pii/src/convert.rs
-assertion_line: 1948
 expression: data
 ---
 {
   "attributes": {
+    "gen_ai.prompt": {
+      "value": "Buy me a drink with my creditcard [creditcard]"
+    },
     "mcp.prompt.result": {
       "value": "Contact me at [email] or use card [Filtered]"
     },
@@ -14,6 +16,21 @@ expression: data
   },
   "_meta": {
     "attributes": {
+      "gen_ai.prompt": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@creditcard:replace",
+                "s",
+                34,
+                46
+              ]
+            ],
+            "len": 53
+          }
+        }
+      },
       "mcp.prompt.result": {
         "value": {
           "": {

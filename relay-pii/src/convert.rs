@@ -1892,49 +1892,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             serde_json::json!({
                 "attributes": {
                     "gen_ai.prompt": {"value": "Buy me a drink with my creditcard 4111-1111-1111-1111"},
-                }
-            })
-            .into(),
-        );
-
-        let pii_config = to_pii_config(&simple_enabled_config()).unwrap();
-        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data, @r#"
-        {
-          "attributes": {
-            "gen_ai.prompt": {
-              "value": "Buy me a drink with my creditcard [creditcard]"
-            }
-          },
-          "_meta": {
-            "attributes": {
-              "gen_ai.prompt": {
-                "value": {
-                  "": {
-                    "rem": [
-                      [
-                        "@creditcard:replace",
-                        "s",
-                        34,
-                        46
-                      ]
-                    ],
-                    "len": 53
-                  }
-                }
-              }
-            }
-          }
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_replace_fields_applies_to_mcp_attributes() {
-        let mut data = SpanV2::from_value(
-            serde_json::json!({
-                "attributes": {
                     "mcp.prompt.result": {"value": "Contact me at user@example.com or use card 4111-1111-1111-1111"},
                     "mcp.tool.result.content": {"value": "My email is test@domain.com and I accept payments"},
                 }
