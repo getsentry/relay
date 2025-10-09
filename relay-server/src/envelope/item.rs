@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
-use crate::integrations::{Integration, LogsIntegration};
+use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
 
 #[derive(Clone, Debug)]
 pub struct Item {
@@ -141,7 +141,6 @@ impl Item {
             ItemType::CheckIn => smallvec![(DataCategory::Monitor, item_count)],
             ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, item_count)],
             // NOTE: semantically wrong, but too expensive to parse.
-            ItemType::OtelTracesData => smallvec![(DataCategory::Span, item_count)],
             ItemType::ProfileChunk => match self.profile_type() {
                 Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
                 Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
@@ -150,20 +149,15 @@ impl Item {
             ItemType::Integration => match self.integration() {
                 Some(Integration::Logs(LogsIntegration::OtelV1 { .. })) => smallvec![
                     (DataCategory::LogByte, self.len().max(1)),
-                    (DataCategory::LogItem, item_count), // NOTE: semantically wrong, but too expensive to parse.
+                    (DataCategory::LogItem, item_count),
                 ],
+                Some(Integration::Spans(SpansIntegration::OtelV1 { .. })) => {
+                    smallvec![(DataCategory::Span, item_count)]
+                }
                 None => smallvec![],
             },
             ItemType::Unknown(_) => smallvec![],
         }
-    }
-
-    /// True if the item represents any kind of span.
-    pub fn is_span(&self) -> bool {
-        matches!(
-            self.ty(),
-            ItemType::OtelSpan | ItemType::Span | ItemType::OtelTracesData
-        )
     }
 
     /// Returns `true` if this item's payload is empty.
@@ -445,7 +439,6 @@ impl Item {
             | ItemType::Log
             | ItemType::OtelSpan
             | ItemType::TraceMetric
-            | ItemType::OtelTracesData
             | ItemType::ProfileChunk => false,
 
             // For now integrations can not create events, we may need to revisit this in the
@@ -485,7 +478,6 @@ impl Item {
             ItemType::Log => false,
             ItemType::TraceMetric => false,
             ItemType::OtelSpan => false,
-            ItemType::OtelTracesData => false,
             ItemType::ProfileChunk => false,
             ItemType::Integration => false,
 
@@ -564,8 +556,6 @@ pub enum ItemType {
     Span,
     /// A standalone OpenTelemetry span serialized as JSON.
     OtelSpan,
-    /// An OTLP TracesData container.
-    OtelTracesData, // TODO: remove me
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
@@ -629,7 +619,6 @@ impl ItemType {
             Self::TraceMetric => "trace_metric",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
-            Self::OtelTracesData => "otel_traces_data",
             Self::ProfileChunk => "profile_chunk",
             Self::Integration => "integration",
             Self::Unknown(_) => "unknown",
@@ -690,7 +679,6 @@ impl ItemType {
             ItemType::TraceMetric => true,
             ItemType::Span => true,
             ItemType::OtelSpan => true,
-            ItemType::OtelTracesData => false,
             ItemType::UserReportV2 => false,
             ItemType::ProfileChunk => true,
             ItemType::Integration => false,
@@ -734,7 +722,6 @@ impl std::str::FromStr for ItemType {
             "trace_metric" => Self::TraceMetric,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
-            "otel_traces_data" => Self::OtelTracesData,
             "profile_chunk" => Self::ProfileChunk,
             // "profile_chunk_ui" is to be treated as an alias for `ProfileChunk`
             // because Android 8.10.0 and 8.11.0 is sending it as the item type.

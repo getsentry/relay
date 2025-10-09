@@ -94,9 +94,12 @@ pub fn check_envelope_size_limits(
                     log_count += item.item_count().unwrap_or(1) as usize;
                     config.max_log_size()
                 }
+                Some(Integration::Spans(_)) => {
+                    span_count += item.item_count().unwrap_or(1) as usize;
+                    config.max_event_size()
+                }
                 None => NO_LIMIT,
             },
-            ItemType::OtelTracesData => config.max_event_size(), // a spans container similar to `Transaction`
             ItemType::ProfileChunk => config.max_profile_size(),
             ItemType::Unknown(_) => NO_LIMIT,
         };

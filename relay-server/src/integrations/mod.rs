@@ -40,6 +40,8 @@ macro_rules! define_integrations {
 define_integrations!(
     "application/vnd.sentry.integration.otel.logs+json" => Integration::Logs(LogsIntegration::OtelV1 { format: OtelFormat::Json }),
     "application/vnd.sentry.integration.otel.logs+protobuf" => Integration::Logs(LogsIntegration::OtelV1 { format: OtelFormat::Protobuf }),
+    "application/vnd.sentry.integration.otel.spans+json" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Json }),
+    "application/vnd.sentry.integration.otel.spans+protobuf" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Protobuf }),
 );
 
 /// An exhaustive list of all integrations supported by Relay.
@@ -49,11 +51,19 @@ define_integrations!(
 pub enum Integration {
     /// All logging integrations.
     Logs(LogsIntegration),
+    /// All tracing/spans integrations.
+    Spans(SpansIntegration),
 }
 
 impl From<LogsIntegration> for Integration {
     fn from(value: LogsIntegration) -> Self {
         Self::Logs(value)
+    }
+}
+
+impl From<SpansIntegration> for Integration {
+    fn from(value: SpansIntegration) -> Self {
+        Self::Spans(value)
     }
 }
 
@@ -63,6 +73,15 @@ pub enum LogsIntegration {
     /// The OTeL logging integration.
     ///
     /// Supports OTeL's [`LogsData`](opentelemetry_proto::tonic::logs::v1::LogsData).
+    OtelV1 { format: OtelFormat },
+}
+
+/// All span integrations supported by Relay.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum SpansIntegration {
+    /// The OTeL traces integration.
+    ///
+    /// Supports OTeL's [`TracesData`](opentelemetry_proto::tonic::trace::v1::TracesData).
     OtelV1 { format: OtelFormat },
 }
 

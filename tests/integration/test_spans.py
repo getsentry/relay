@@ -1343,7 +1343,7 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
     response = exc_info.value.response
     assert response.status_code == 403
     assert response.json() == {
-        "detail": "event submission rejected with_reason: FeatureDisabled(OtelEndpoint)"
+        "detail": "event submission rejected with_reason: FeatureDisabled(OtelTracesEndpoint)"
     }
 
     # No envelopes were received:
