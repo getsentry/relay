@@ -139,7 +139,7 @@ impl Item {
             }
             ItemType::ClientReport => smallvec![],
             ItemType::CheckIn => smallvec![(DataCategory::Monitor, item_count)],
-            ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, item_count)],
+            ItemType::Span => smallvec![(DataCategory::Span, item_count)],
             // NOTE: semantically wrong, but too expensive to parse.
             ItemType::ProfileChunk => match self.profile_type() {
                 Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
@@ -437,7 +437,6 @@ impl Item {
             | ItemType::Span
             | ItemType::Nel
             | ItemType::Log
-            | ItemType::OtelSpan
             | ItemType::TraceMetric
             | ItemType::ProfileChunk => false,
 
@@ -477,7 +476,6 @@ impl Item {
             ItemType::Span => false,
             ItemType::Log => false,
             ItemType::TraceMetric => false,
-            ItemType::OtelSpan => false,
             ItemType::ProfileChunk => false,
             ItemType::Integration => false,
 
@@ -554,8 +552,6 @@ pub enum ItemType {
     TraceMetric,
     /// A standalone span.
     Span,
-    /// A standalone OpenTelemetry span serialized as JSON.
-    OtelSpan,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
@@ -618,7 +614,6 @@ impl ItemType {
             Self::Log => "log",
             Self::TraceMetric => "trace_metric",
             Self::Span => "span",
-            Self::OtelSpan => "otel_span",
             Self::ProfileChunk => "profile_chunk",
             Self::Integration => "integration",
             Self::Unknown(_) => "unknown",
@@ -678,7 +673,6 @@ impl ItemType {
             ItemType::Log => true,
             ItemType::TraceMetric => true,
             ItemType::Span => true,
-            ItemType::OtelSpan => true,
             ItemType::UserReportV2 => false,
             ItemType::ProfileChunk => true,
             ItemType::Integration => false,
@@ -721,7 +715,6 @@ impl std::str::FromStr for ItemType {
             "log" => Self::Log,
             "trace_metric" => Self::TraceMetric,
             "span" => Self::Span,
-            "otel_span" => Self::OtelSpan,
             "profile_chunk" => Self::ProfileChunk,
             // "profile_chunk_ui" is to be treated as an alias for `ProfileChunk`
             // because Android 8.10.0 and 8.11.0 is sending it as the item type.

@@ -1,7 +1,5 @@
 //! Processor code related to standalone spans.
 
-use opentelemetry_proto::tonic::common::v1::any_value::Value;
-use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
 use prost::Message;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::tag_extraction;
@@ -37,7 +35,7 @@ pub fn filter(
     }
 
     managed_envelope.retain_items(|item| {
-        let is_span = matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan)
+        let is_span = matches!(item.ty(), &ItemType::Span)
             || matches!(item.integration(), Some(Integration::Spans(_)));
 
         match is_span {
@@ -139,46 +137,19 @@ fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGrou
     };
     for resource_spans in traces_data.resource_spans {
         for scope_spans in resource_spans.scope_spans {
-            for mut span in scope_spans.spans {
-                // Denormalize instrumentation scope and resource attributes into every span.
-                if let Some(ref scope) = scope_spans.scope {
-                    if !scope.name.is_empty() {
-                        span.attributes.push(KeyValue {
-                            key: "instrumentation.name".to_owned(),
-                            value: Some(AnyValue {
-                                value: Some(Value::StringValue(scope.name.clone())),
-                            }),
-                        })
-                    }
-                    if !scope.version.is_empty() {
-                        span.attributes.push(KeyValue {
-                            key: "instrumentation.version".to_owned(),
-                            value: Some(AnyValue {
-                                value: Some(Value::StringValue(scope.version.clone())),
-                            }),
-                        })
-                    }
-                    scope.attributes.iter().for_each(|a| {
-                        span.attributes.push(KeyValue {
-                            key: format!("instrumentation.{}", a.key),
-                            value: a.value.clone(),
-                        });
-                    });
-                }
-                if let Some(ref resource) = resource_spans.resource {
-                    resource.attributes.iter().for_each(|a| {
-                        span.attributes.push(KeyValue {
-                            key: format!("resource.{}", a.key),
-                            value: a.value.clone(),
-                        });
-                    });
-                }
+            for span in scope_spans.spans {
+                let span = relay_spans::otel_to_sentry_span(
+                    span,
+                    resource_spans.resource.as_ref(),
+                    scope_spans.scope.as_ref(),
+                );
 
-                let Ok(payload) = serde_json::to_vec(&span) else {
+                let Ok(payload) = Annotated::new(span).to_json() else {
                     track_invalid(managed_envelope, DiscardReason::Internal, 1);
                     continue;
                 };
-                let mut item = Item::new(ItemType::OtelSpan);
+
+                let mut item = Item::new(ItemType::Span);
                 item.set_payload(ContentType::Json, payload);
                 managed_envelope.envelope_mut().add_item(item);
             }
@@ -241,14 +212,12 @@ pub fn extract_transaction_span(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
 
     use super::*;
     use crate::Envelope;
     use crate::managed::{ManagedEnvelope, TypedEnvelope};
     use crate::services::processor::ProcessingGroup;
     use bytes::Bytes;
-    use relay_spans::otel_trace::Span as OtelSpan;
     use relay_system::Addr;
 
     #[test]
@@ -287,6 +256,8 @@ mod tests {
                             },
                             "spans": [
                                 {
+                                    "traceId": "89143b0763095bd9c9955e8175d1fb23",
+                                    "spanId": "e342abb1214ca181",
                                     "attributes": [
                                         {
                                             "key": "span_key",
@@ -323,7 +294,7 @@ mod tests {
         );
         typed_envelope.envelope_mut().add_item(item.clone());
 
-        // Convert the OTLP trace data into `OtelSpan` item(s).
+        // Convert the OTLP trace data into `Span` item(s).
         convert_traces_data(item, &mut typed_envelope);
 
         // Assert that the attributes from the resource and instrumentation
@@ -331,49 +302,28 @@ mod tests {
         let item = typed_envelope
             .envelope()
             .items()
-            .find(|i| *i.ty() == ItemType::OtelSpan)
+            .find(|i| *i.ty() == ItemType::Span)
             .expect("converted span missing from envelope");
-        let attributes = serde_json::from_slice::<OtelSpan>(&item.payload())
-            .expect("unable to deserialize otel span")
-            .attributes
-            .into_iter()
-            .map(|kv| (kv.key, kv.value.unwrap()))
-            .collect::<BTreeMap<_, _>>();
-        let attribute_value = |key: &str| -> String {
-            match attributes
-                .get(key)
-                .unwrap_or_else(|| panic!("attribute {key} missing"))
-                .to_owned()
-                .value
-            {
-                Some(Value::StringValue(str)) => str,
-                _ => panic!("attribute {key} not a string"),
-            }
-        };
-        assert_eq!(
-            attribute_value("span_key"),
-            "span_value".to_owned(),
-            "original span attribute should be present"
-        );
-        assert_eq!(
-            attribute_value("instrumentation.name"),
-            "test_instrumentation".to_owned(),
-            "instrumentation name should be in attributes"
-        );
-        assert_eq!(
-            attribute_value("instrumentation.version"),
-            "0.0.1".to_owned(),
-            "instrumentation version should be in attributes"
-        );
-        assert_eq!(
-            attribute_value("resource.resource_key"),
-            "resource_value".to_owned(),
-            "resource attribute should be copied with prefix"
-        );
-        assert_eq!(
-            attribute_value("instrumentation.scope_key"),
-            "scope_value".to_owned(),
-            "instruementation scope attribute should be copied with prefix"
-        );
+
+        let payload = serde_json::from_slice::<serde_json::Value>(&item.payload()).unwrap();
+        insta::assert_json_snapshot!(payload, @r#"
+        {
+          "data": {
+            "instrumentation.name": "test_instrumentation",
+            "instrumentation.scope_key": "scope_value",
+            "instrumentation.version": "0.0.1",
+            "resource.resource_key": "resource_value",
+            "span_key": "span_value"
+          },
+          "exclusive_time": 0.0,
+          "links": [],
+          "op": "default",
+          "span_id": "e342abb1214ca181",
+          "start_timestamp": 0.0,
+          "status": "unknown",
+          "timestamp": 0.0,
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23"
+        }
+        "#);
     }
 }
