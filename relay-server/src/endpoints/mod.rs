@@ -87,6 +87,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
     // configured by users or protocols may force a specific variant.
     let integration_routes = Router::new()
         .nest("/api/{project_id}/integration/otlp", integrations::otlp::routes(config))
+        .nest("/api/{project_id}/integration/vercel", integrations::vercel::routes(config))
         .route_layer(middlewares::cors());
 
     // NOTE: If you add a new (non-experimental) route here, please also list it in

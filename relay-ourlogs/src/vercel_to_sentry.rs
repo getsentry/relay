@@ -24,7 +24,7 @@ pub struct VercelLog {
     pub timestamp: i64,
     /// Identifier for the Vercel project.
     pub project_id: String,
-    // Log severity level.
+    /// Log severity level.
     pub level: VercelLogLevel,
     /// Log message content (may be truncated if over 256 KB).
     pub message: Option<String>,
