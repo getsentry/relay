@@ -32,5 +32,5 @@ relay-statsd = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
 uuid = { workspace = true }
 reqwest = { workspace = true, features = ["gzip", "native-tls-vendored"] }
-mimalloc = { workspace = true, features = ["v3", "debug_in_debug"] }
+mimalloc = { workspace = true, features = ["v3", "override", "debug_in_debug"] }
 
