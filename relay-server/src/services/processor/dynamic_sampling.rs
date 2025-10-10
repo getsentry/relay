@@ -131,12 +131,12 @@ pub fn drop_unsampled_items(
 
     for item in dropped_items {
         for (category, quantity) in item.quantities() {
-            // Dynamic sampling only drops indexed items. Upgrade the category to the index
-            // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
-            // but attachments are still emitted as attachments.
-            let category = category.index_category().unwrap_or(category);
-
-            managed_envelope.track_outcome(outcome.clone(), category, quantity);
+            // Dynamic sampling only drops indexed items.
+            //
+            // Only emit the base category, if the item does not have an indexed category.
+            if category.index_category().is_none() {
+                managed_envelope.track_outcome(outcome.clone(), category, quantity);
+            }
         }
     }
 
