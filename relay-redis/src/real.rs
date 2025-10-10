@@ -21,7 +21,11 @@ pub enum RedisError {
 
     /// An error that occurs during communication with Redis.
     #[error("failed to communicate with redis: {0}")]
-    Redis(#[source] redis::RedisError),
+    Redis(
+        #[source]
+        #[from]
+        redis::RedisError,
+    ),
 
     /// An error that occurs when interacting with the Redis connection pool.
     #[error("failed to interact with the redis pool: {0}")]

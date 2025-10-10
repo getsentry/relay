@@ -30,3 +30,6 @@ mod noop;
 
 #[cfg(not(feature = "impl"))]
 pub use self::noop::*;
+
+/// Typical `Result` when dealing with Redis.
+pub type Result<T, E = RedisError> = std::result::Result<T, E>;
