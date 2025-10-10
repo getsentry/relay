@@ -27,6 +27,7 @@
 
 **Internal**:
 
+- Update all dependencies to semver compatible versions. ([#5240](https://github.com/getsentry/relay/pull/5240))
 - No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
 - Removes support for the `otel_span` envelope item type. ([#5238](https://github.com/getsentry/relay/pull/5238))
 - Produce spans to `ingest-spans` by default. ([#5163](https://github.com/getsentry/relay/pull/5163))
