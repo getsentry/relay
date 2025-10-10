@@ -136,6 +136,7 @@ lru = "0.16.0"
 maxminddb = "0.26.0"
 md5 = "0.8.0"
 memchr = "2.7.4"
+mimalloc = { version = "0.1.48", features = ["v3"] }
 mime = "0.3.17"
 minidump = "0.26.0"
 multer = "3.1.0"
@@ -205,7 +206,6 @@ synstructure = { version = "0.13.1" }
 sysinfo = "0.35.1"
 tempfile = "3.14.0"
 thiserror = "2.0.12"
-tikv-jemallocator = "0.6.0"
 tokio = { version = "1.42.0", default-features = false }
 tokio-util = { version = "0.7.13", default-features = false }
 tower = { version = "0.5.2", default-features = false }
