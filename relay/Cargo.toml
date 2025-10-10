@@ -24,7 +24,6 @@ clap = { workspace = true, features = ["env", "wrap_help"] }
 clap_complete = { workspace = true }
 dialoguer = { workspace = true }
 hostname = { workspace = true }
-once_cell = { workspace = true }
 relay-config = { workspace = true }
 relay-log = { workspace = true, features = ["init"] }
 relay-server = { workspace = true }

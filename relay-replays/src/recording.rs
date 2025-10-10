@@ -11,16 +11,15 @@
 //! identified by `type: 5`. The scrubber skips all other node types and does not perform any
 //! validation beyond JSON parsing.
 
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fmt;
 use std::io::Read;
 use std::rc::Rc;
+use std::{borrow::Cow, sync::LazyLock};
 
 use flate2::Compression;
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use once_cell::sync::Lazy;
 use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_pii::{PiiConfig, PiiProcessor};
 use relay_protocol::Meta;
@@ -32,7 +31,7 @@ use relay_pii::transform::Transform;
 /// Paths to fields on which datascrubbing rules should be applied.
 ///
 /// This is equivalent to marking a field as `pii = true` in an `Annotated` schema.
-static PII_FIELDS: Lazy<[Vec<&str>; 2]> = Lazy::new(|| {
+static PII_FIELDS: LazyLock<[Vec<&str>; 2]> = LazyLock::new(|| {
     [
         vec!["data", "payload", "description"],
         vec!["data", "payload", "data"],

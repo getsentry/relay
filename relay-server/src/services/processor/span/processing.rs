@@ -818,10 +818,9 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::sync::Arc;
+    use std::sync::{Arc, LazyLock};
 
     use bytes::Bytes;
-    use once_cell::sync::Lazy;
     use relay_event_schema::protocol::{Context, ContextInner, EventId, Timestamp, TraceContext};
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
@@ -1237,7 +1236,7 @@ mod tests {
         assert_eq!(get_value!(span.data.browser_name!), "Opera");
     }
 
-    static GEO_LOOKUP: Lazy<GeoIpLookup> = Lazy::new(|| {
+    static GEO_LOOKUP: LazyLock<GeoIpLookup> = LazyLock::new(|| {
         GeoIpLookup::open("../relay-event-normalization/tests/fixtures/GeoIP2-Enterprise-Test.mmdb")
             .unwrap()
     });
