@@ -5,7 +5,7 @@ macro_rules! convention_attributes {
         #[test]
         fn test_attributes_defined_in_conventions() {
             $(
-                assert!(crate::ATTRIBUTES.contains_key($name));
+                assert!(crate::attribute_info($name).is_some());
             )*
         }
     };

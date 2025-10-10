@@ -50,9 +50,32 @@ pub struct AttributeInfo {
     pub aliases: &'static [&'static str],
 }
 
+struct AttributeNode {
+    info: Option<AttributeInfo>,
+    children: phf::Map<&'static str, AttributeNode>,
+}
+
+/// Special path segment in attribute keys that matches any value.
+const PLACEHOLDER_SEGMENT: &str = "<key>";
+
 /// Returns information about an attribute, as defined in `sentry-conventions`.
 pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
-    ATTRIBUTES.get(key)
+    let mut node = &ATTRIBUTES;
+    for part in parse_segments(key) {
+        node = node
+            .children
+            .get(part)
+            .or_else(|| node.children.get(PLACEHOLDER_SEGMENT))?;
+    }
+    node.info.as_ref()
+}
+
+/// Parse a path-like attribute key into individual segments.
+///
+/// NOTE: This does not yet support escaped segments, e.g. `"foo.'my.thing'.bar"` will split into
+/// `["foo.'my", "thing'.bar"]`.
+fn parse_segments(key: &str) -> impl Iterator<Item = &str> {
+    key.split('.')
 }
 
 #[cfg(test)]
@@ -65,7 +88,7 @@ mod tests {
 
     #[test]
     fn test_http_response_content_length() {
-        let info = ATTRIBUTES.get("http.response_content_length").unwrap();
+        let info = attribute_info("http.response_content_length").unwrap();
 
         insta::assert_debug_snapshot!(info, @r###"
         AttributeInfo {
@@ -76,6 +99,22 @@ mod tests {
             aliases: [
                 "http.response.body.size",
                 "http.response.header.content-length",
+            ],
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_url_path_parameter() {
+        // See https://github.com/getsentry/sentry-conventions/blob/d80504a40ba3a0a23eb746e2608425cf8d8e68bf/model/attributes/url/url__path__parameter__%5Bkey%5D.json.
+        let info = attribute_info("url.path.parameter.'id=123'").unwrap();
+
+        insta::assert_debug_snapshot!(info, @r###"
+        AttributeInfo {
+            write_behavior: CurrentName,
+            pii: Maybe,
+            aliases: [
+                "params.<key>",
             ],
         }
         "###);
