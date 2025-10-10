@@ -40,7 +40,6 @@ use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::ReservoirEvaluator;
-use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -101,15 +100,6 @@ pub async fn process(
     let mut span_count = 0;
     managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
-            ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => {
-                    Annotated::new(relay_spans::otel_to_sentry_span(otel_span, None, None))
-                }
-                Err(err) => {
-                    relay_log::debug!("failed to parse OTel span: {}", err);
-                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
-                }
-            },
             ItemType::Span => match Annotated::<Span>::from_json_bytes(&item.payload()) {
                 Ok(span) => span,
                 Err(err) => {
