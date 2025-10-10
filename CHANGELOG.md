@@ -28,6 +28,7 @@
 **Internal**:
 
 - No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
+- Switch default allocator from jemalloc to mimalloc. ([#5239](https://github.com/getsentry/relay/pull/5239))
 - Produce spans to `ingest-spans` by default. ([#5163](https://github.com/getsentry/relay/pull/5163))
 - Add `retentions` to the project configuration and use them for logs. ([#5135](https://github.com/getsentry/relay/pull/5135))
 - Produce Span V2 Kafka messages. ([#5151](https://github.com/getsentry/relay/pull/5151), [#5173](https://github.com/getsentry/relay/pull/5173), [#5199](https://github.com/getsentry/relay/pull/5199), [#5216](https://github.com/getsentry/relay/pull/5216))
