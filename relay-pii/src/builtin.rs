@@ -1,7 +1,6 @@
 #![allow(clippy::needless_update)]
 use std::collections::BTreeMap;
-
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use crate::{
     AliasRule, MultipleRule, PatternRule, Redaction, ReplaceRedaction, RuleSpec, RuleType,
@@ -9,7 +8,7 @@ use crate::{
 
 macro_rules! declare_builtin_rules {
     ($($rule_id:expr => $spec:expr;)*) => {
-        pub(crate) static BUILTIN_RULES_MAP: Lazy<BTreeMap<&str, RuleSpec>> = Lazy::new(|| {
+        pub(crate) static BUILTIN_RULES_MAP: LazyLock<BTreeMap<&str, RuleSpec>> = LazyLock::new(|| {
             let mut map = BTreeMap::new();
             $(
                 map.insert($rule_id, $spec);

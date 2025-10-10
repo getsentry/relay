@@ -1,7 +1,7 @@
 use std::io;
+use std::sync::LazyLock;
 use std::time::Duration;
 
-use once_cell::sync::Lazy;
 use tokio::sync::watch;
 
 /// Determines how to shut down the Relay system.
@@ -40,10 +40,10 @@ pub struct Shutdown {
 type Channel<T> = (watch::Sender<Option<T>>, watch::Receiver<Option<T>>);
 
 /// Global channel to notify all services of a shutdown.
-static SHUTDOWN: Lazy<Channel<Shutdown>> = Lazy::new(|| watch::channel(None));
+static SHUTDOWN: LazyLock<Channel<Shutdown>> = LazyLock::new(|| watch::channel(None));
 
 /// Internal channel to trigger a manual shutdown via [`Controller::shutdown`].
-static MANUAL_SHUTDOWN: Lazy<Channel<ShutdownMode>> = Lazy::new(|| watch::channel(None));
+static MANUAL_SHUTDOWN: LazyLock<Channel<ShutdownMode>> = LazyLock::new(|| watch::channel(None));
 
 /// Notifies a service about an upcoming shutdown.
 ///

@@ -3650,7 +3650,6 @@ dependencies = [
  "clap_complete",
  "dialoguer",
  "hostname 0.4.0",
- "once_cell",
  "relay-config",
  "relay-kafka",
  "relay-log",
@@ -3699,7 +3698,6 @@ dependencies = [
  "globset",
  "json-forensics",
  "lru",
- "once_cell",
  "regex",
  "relay-auth",
  "relay-base-schema",
@@ -3752,7 +3750,6 @@ version = "25.9.0"
 dependencies = [
  "chrono",
  "criterion",
- "once_cell",
  "regex-lite",
  "relay-pattern",
  "sentry-types",
@@ -3852,7 +3849,6 @@ dependencies = [
  "itertools 0.14.0",
  "maxminddb",
  "md5",
- "once_cell",
  "psl",
  "regex",
  "relay-base-schema",
@@ -3927,7 +3923,6 @@ dependencies = [
  "indexmap",
  "insta",
  "ipnetwork",
- "once_cell",
  "regex",
  "relay-common",
  "relay-conventions",
@@ -4038,7 +4033,6 @@ dependencies = [
  "chrono",
  "hex",
  "insta",
- "once_cell",
  "opentelemetry-proto",
  "relay-common",
  "relay-conventions",
@@ -4076,7 +4070,6 @@ dependencies = [
  "itertools 0.14.0",
  "minidump",
  "num-traits",
- "once_cell",
  "pest",
  "pest_derive",
  "pretty-hex",
@@ -4207,7 +4200,6 @@ dependencies = [
  "criterion",
  "flate2",
  "insta",
- "once_cell",
  "relay-event-schema",
  "relay-log",
  "relay-pii",
@@ -4271,7 +4263,6 @@ dependencies = [
  "mime",
  "minidump",
  "multer",
- "once_cell",
  "opentelemetry-proto",
  "papaya",
  "pin-project-lite",
@@ -4342,7 +4333,6 @@ dependencies = [
  "chrono",
  "hex",
  "insta",
- "once_cell",
  "opentelemetry-proto",
  "relay-conventions",
  "relay-event-schema",
@@ -4370,7 +4360,6 @@ version = "25.9.0"
 dependencies = [
  "futures",
  "insta",
- "once_cell",
  "pin-project-lite",
  "relay-log",
  "relay-statsd",
@@ -4402,7 +4391,6 @@ dependencies = [
 name = "relay-ua"
 version = "25.9.0"
 dependencies = [
- "once_cell",
  "uaparser",
 ]
 

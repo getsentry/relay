@@ -8,13 +8,13 @@ use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::LazyLock;
 
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::handler::Handler;
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
-use once_cell::sync::Lazy;
 use relay_common::glob2::GlobMatcher;
 use relay_config::Config;
 use tokio::sync::oneshot;
@@ -225,7 +225,7 @@ enum SpecialRoute {
 }
 
 /// Glob matcher for special routes.
-static SPECIAL_ROUTES: Lazy<GlobMatcher<SpecialRoute>> = Lazy::new(|| {
+static SPECIAL_ROUTES: LazyLock<GlobMatcher<SpecialRoute>> = LazyLock::new(|| {
     let mut m = GlobMatcher::new();
     // file uploads / legacy dsym uploads
     m.add(

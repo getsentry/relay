@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::net::IpAddr;
 use std::ops::ControlFlow;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
@@ -1301,7 +1301,7 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
 /// Regex with a capture group to extract the database action from a query.
 ///
 /// Currently we have an explicit allow-list of database actions considered important.
-static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+static SQL_ACTION_EXTRACTOR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)(?P<action>(SELECT|INSERT|DELETE|UPDATE|SET|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT))"#).unwrap()
 });
 
@@ -1311,7 +1311,7 @@ fn sql_action_from_query(query: &str) -> Option<&str> {
 
 /// Regex with a capture group to extract the table from a database query,
 /// based on `FROM`, `INTO` and `UPDATE` keywords.
-static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+static SQL_TABLE_EXTRACTOR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)(from|into|update)(\s|")+(?P<table>(\w+(\.\w+)*))(\s|")+"#).unwrap()
 });
 
@@ -1374,7 +1374,7 @@ impl Visitor for SqlTableNameVisitor {
 }
 
 /// Regex with a capture group to extract the HTTP method from a string.
-pub static HTTP_METHOD_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+pub static HTTP_METHOD_EXTRACTOR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\b")
         .unwrap()
 });
@@ -1386,7 +1386,10 @@ fn http_method_from_transaction_name(name: &str) -> Option<&str> {
 /// Returns the captured substring in `string` with the capture group in `pattern`.
 ///
 /// It assumes there's only one capture group in `pattern`, and only returns the first one.
-fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> Option<&'a str> {
+fn extract_captured_substring<'a>(
+    string: &'a str,
+    pattern: &'a LazyLock<Regex>,
+) -> Option<&'a str> {
     let capture_names: Vec<_> = pattern.capture_names().flatten().collect();
 
     for captures in pattern.captures_iter(string) {

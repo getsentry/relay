@@ -1,8 +1,8 @@
 //! Computation and normalization of contexts from event data.
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{
     BrowserContext, Context, Cookies, OsContext, ResponseContext, RuntimeContext,
@@ -10,49 +10,49 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Empty, Value};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
-static OS_WINDOWS_REGEX1: Lazy<Regex> = Lazy::new(|| {
+static OS_WINDOWS_REGEX1: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(Microsoft\s+)?Windows\s+(NT\s+)?(?P<version>\d+\.\d+\.(?P<build_number>\d+)).*$")
         .unwrap()
 });
-static OS_WINDOWS_REGEX2: Lazy<Regex> = Lazy::new(|| {
+static OS_WINDOWS_REGEX2: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^Windows\s+\d+\s+\((?P<version>\d+\.\d+\.(?P<build_number>\d+)).*$").unwrap()
 });
 
-static OS_ANDROID_REGEX: Lazy<Regex> = Lazy::new(|| {
+static OS_ANDROID_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^Android (OS )?(?P<version>\d+(\.\d+){0,2}) / API-(?P<api>(\d+))").unwrap()
 });
 
 /// Format sent by Unreal Engine on macOS
-static OS_MACOS_REGEX: Lazy<Regex> = Lazy::new(|| {
+static OS_MACOS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^Mac OS X (?P<version>\d+\.\d+\.\d+)( \((?P<build>[a-fA-F0-9]+)\))?$").unwrap()
 });
 
 /// Format sent by Unity on iOS
-static OS_IOS_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^iOS (?P<version>\d+\.\d+\.\d+)").unwrap());
+static OS_IOS_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^iOS (?P<version>\d+\.\d+\.\d+)").unwrap());
 
 /// Format sent by Unity on iPadOS
-static OS_IPADOS_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^iPadOS (?P<version>\d+\.\d+\.\d+)").unwrap());
+static OS_IPADOS_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^iPadOS (?P<version>\d+\.\d+\.\d+)").unwrap());
 
 /// Specific regex to parse Linux distros
-static OS_LINUX_DISTRO_UNAME_REGEX: Lazy<Regex> = Lazy::new(|| {
+static OS_LINUX_DISTRO_UNAME_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^Linux (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P<name>[a-zA-Z]+) (?P<version>\d+(\.\d+){0,2})").unwrap()
 });
 
 /// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on
 /// macOS, iOS, Linux, etc.
-static OS_UNAME_REGEX: Lazy<Regex> = Lazy::new(|| {
+static OS_UNAME_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(?P<name>[a-zA-Z]+) (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?)").unwrap()
 });
 
 /// Mono 5.4, .NET Core 2.0
-static RUNTIME_DOTNET_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+){0,2}).*$").unwrap());
+static RUNTIME_DOTNET_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+){0,2}).*$").unwrap());
 
 /// A hashmap that translates from the android model to the more human-friendly product-names.
 /// E.g. NE2211 -> OnePlus 10 Pro 5G
-static ANDROID_MODEL_NAMES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+static ANDROID_MODEL_NAMES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     let mut map = HashMap::new();
     // Note that windows paths with backslashes '\' won't work on unix systems.
     let android_str = include_str!("android_models.csv");

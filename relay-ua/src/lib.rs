@@ -6,7 +6,8 @@
 //! this, integration tests could fail. To fix this, you will need to add a timeout to your
 //! consumer.
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
+
 use uaparser::{Parser, UserAgentParser};
 
 #[doc(inline)]
@@ -15,7 +16,7 @@ pub use uaparser::{Device, OS, UserAgent};
 /// The global [`UserAgentParser`] already configured with a user agent database.
 ///
 /// For usage, see [`Parser`].
-static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
+static UA_PARSER: LazyLock<UserAgentParser> = LazyLock::new(|| {
     let ua_regexes = include_bytes!("../uap-core/regexes.yaml");
     UserAgentParser::builder()
         .with_unicode_support(false)
@@ -29,7 +30,7 @@ static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
 /// agent parser initializes on-demand when using one of the parse methods. This function forces
 /// initialization at a convenient point without introducing unwanted delays.
 pub fn init_parser() {
-    Lazy::force(&UA_PARSER);
+    LazyLock::force(&UA_PARSER);
 }
 
 /// Returns the family and version of a user agent client.

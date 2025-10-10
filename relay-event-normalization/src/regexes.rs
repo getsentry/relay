@@ -1,11 +1,12 @@
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
+
 use regex::Regex;
 
 /// Contains multiple capture groups which will be used as a replace placeholder.
 ///
 /// This regex is inspired by one used for grouping:
 /// <https://github.com/getsentry/sentry/blob/6ba59023a78bfe033e48ea4e035b64710a905c6b/src/sentry/grouping/strategies/message.py#L16-L97>
-pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+pub static TRANSACTION_NAME_NORMALIZER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?x)
     (?P<uuid>[^/\\]*
@@ -59,7 +60,7 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
 ///
 /// Slightly modified Regex from
 /// <https://github.com/getsentry/sentry/blob/de5949a9a313d7ef0bf0685f84fe6e981ac38558/src/sentry/utils/performance_issues/base.py#L292-L306>
-pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+pub static RESOURCE_NORMALIZER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?x)
         # UUIDs.
@@ -75,10 +76,10 @@ pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-pub static DB_SQL_TRANSACTION_CORE_DATA_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?P<int>[0-9]+)").unwrap());
+pub static DB_SQL_TRANSACTION_CORE_DATA_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?P<int>[0-9]+)").unwrap());
 
-pub static DB_SUPABASE_REGEX: Lazy<Regex> = Lazy::new(|| {
+pub static DB_SUPABASE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?x)
         # UUIDs.
@@ -92,7 +93,7 @@ pub static DB_SUPABASE_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-pub static FUNCTION_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+pub static FUNCTION_NORMALIZER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?x)
         # UUIDs.

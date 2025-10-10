@@ -14,7 +14,6 @@ workspace = true
 
 [dependencies]
 ipnetwork = { workspace = true }
-once_cell = { workspace = true }
 indexmap = { workspace = true }
 regex = { workspace = true }
 relay-common = { workspace = true }

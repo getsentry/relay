@@ -1,14 +1,14 @@
 //! Code for scrubbing resource span description.
 use std::collections::BTreeSet;
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 // TODO: move functions from parent module here.
 
 /// Parts of a resource path that we allowlist.
 ///
 /// By default, all path segments except the last are dropped.
-pub static COMMON_PATH_SEGMENTS: Lazy<BTreeSet<&str>> = Lazy::new(|| {
+pub static COMMON_PATH_SEGMENTS: LazyLock<BTreeSet<&str>> = LazyLock::new(|| {
     BTreeSet::from([
         "_app",
         "_next",
