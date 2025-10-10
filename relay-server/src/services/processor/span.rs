@@ -138,7 +138,7 @@ fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGrou
     for resource_spans in traces_data.resource_spans {
         for scope_spans in resource_spans.scope_spans {
             for span in scope_spans.spans {
-                let span = relay_spans::otel_to_sentry_span(
+                let span = relay_spans::otel_to_sentry_span_v1(
                     span,
                     resource_spans.resource.as_ref(),
                     scope_spans.scope.as_ref(),
@@ -316,11 +316,12 @@ mod tests {
             "span_key": "span_value"
           },
           "exclusive_time": 0.0,
+          "is_remote": false,
           "links": [],
           "op": "default",
           "span_id": "e342abb1214ca181",
           "start_timestamp": 0.0,
-          "status": "unknown",
+          "status": "ok",
           "timestamp": 0.0,
           "trace_id": "89143b0763095bd9c9955e8175d1fb23"
         }
