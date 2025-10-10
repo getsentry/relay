@@ -131,12 +131,12 @@
 <a href=#131 id=131 data-nosnippet>131</a>
 <a href=#132 id=132 data-nosnippet>132</a>    <span class="kw">for </span>item <span class="kw">in </span>dropped_items {
 <a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">for </span>(category, quantity) <span class="kw">in </span>item.quantities() {
-<a href=#134 id=134 data-nosnippet>134</a>            <span class="comment">// Dynamic sampling only drops indexed items. Upgrade the category to the index
-<a href=#135 id=135 data-nosnippet>135</a>            // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
-<a href=#136 id=136 data-nosnippet>136</a>            // but attachments are still emitted as attachments.
-<a href=#137 id=137 data-nosnippet>137</a>            </span><span class="kw">let </span>category = category.index_category().unwrap_or(category);
-<a href=#138 id=138 data-nosnippet>138</a>
-<a href=#139 id=139 data-nosnippet>139</a>            managed_envelope.track_outcome(outcome.clone(), category, quantity);
+<a href=#134 id=134 data-nosnippet>134</a>            <span class="comment">// Dynamic sampling only drops indexed items.
+<a href=#135 id=135 data-nosnippet>135</a>            //
+<a href=#136 id=136 data-nosnippet>136</a>            // Only emit the base category, if the item does not have an indexed category.
+<a href=#137 id=137 data-nosnippet>137</a>            </span><span class="kw">if </span>category.index_category().is_none() {
+<a href=#138 id=138 data-nosnippet>138</a>                managed_envelope.track_outcome(outcome.clone(), category, quantity);
+<a href=#139 id=139 data-nosnippet>139</a>            }
 <a href=#140 id=140 data-nosnippet>140</a>        }
 <a href=#141 id=141 data-nosnippet>141</a>    }
 <a href=#142 id=142 data-nosnippet>142</a>
