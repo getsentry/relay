@@ -151,7 +151,7 @@ impl Item {
                     (DataCategory::LogByte, self.len().max(1)),
                     (DataCategory::LogItem, item_count),
                 ],
-                Some(Integration::Logs(LogsIntegration::VercelDrainLog)) => smallvec![
+                Some(Integration::Logs(LogsIntegration::VercelDrainLog { .. })) => smallvec![
                     (DataCategory::LogByte, self.len().max(1)),
                     (DataCategory::LogItem, item_count),
                 ],

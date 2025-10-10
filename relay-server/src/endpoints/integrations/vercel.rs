@@ -6,8 +6,9 @@ use relay_config::Config;
 use relay_dynamic_config::Feature;
 
 use crate::endpoints::common;
-use crate::extractors::IntegrationBuilder;
-use crate::integrations::LogsIntegration;
+use crate::envelope::ContentType;
+use crate::extractors::{IntegrationBuilder, RawContentType};
+use crate::integrations::{LogsIntegration, VercelLogDrainFormat};
 use crate::service::ServiceState;
 
 /// All routes configured for the Vercel integration.
@@ -24,11 +25,18 @@ mod logs {
     use super::*;
 
     async fn handle(
+        content_type: RawContentType,
         state: ServiceState,
         builder: IntegrationBuilder,
     ) -> axum::response::Result<impl IntoResponse> {
+        let format = match ContentType::from(content_type.as_ref()) {
+            ContentType::Json => VercelLogDrainFormat::Json,
+            ContentType::NDJson => VercelLogDrainFormat::NDJson,
+            _ => return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE),
+        };
+
         let envelope = builder
-            .with_type(LogsIntegration::VercelDrainLog)
+            .with_type(LogsIntegration::VercelDrainLog { format })
             .with_required_feature(Feature::VercelLogDrainEndpoint)
             .build();
 
