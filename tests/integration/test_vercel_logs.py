@@ -69,6 +69,93 @@ VERCEL_LOG_2 = {
     },
 }
 
+EXPECTED_ITEMS = [
+    {
+        "organizationId": "1",
+        "projectId": "42",
+        "traceId": mock.ANY,
+        "itemId": mock.ANY,
+        "itemType": "TRACE_ITEM_TYPE_LOG",
+        "timestamp": mock.ANY,
+        "attributes": {
+            "vercel.id": {"stringValue": "1573817187330377061717300000"},
+            "sentry.browser.version": {"stringValue": "2.32"},
+            "sentry.timestamp_nanos": {"stringValue": "1573817187330000000"},
+            "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
+            "server.address": {"stringValue": "my-app-abc123.vercel.app"},
+            "vercel.source": {"stringValue": "build"},
+            "vercel.deployment_id": {"stringValue": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"},
+            "vercel.log_type": {"stringValue": "stdout"},
+            "sentry.body": {"stringValue": "Build completed successfully"},
+            "vercel.project_name": {"stringValue": "my-app"},
+            "sentry.severity_text": {"stringValue": "info"},
+            "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
+            "sentry.timestamp_precise": {"intValue": "1573817187330000000"},
+            "vercel.build_id": {"stringValue": "bld_cotnkcr76"},
+            "sentry.payload_size_bytes": {"intValue": "436"},
+            "sentry.browser.name": {"stringValue": "Python Requests"},
+            "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
+            "sentry._meta.fields.trace_id": {
+                "stringValue": '{"meta":{"":{"rem":[["trace_id.missing","s"]]}}}'
+            },
+        },
+        "clientSampleRate": 1.0,
+        "serverSampleRate": 1.0,
+        "retentionDays": 90,
+        "received": mock.ANY,
+        "downsampledRetentionDays": 90,
+    },
+    {
+        "organizationId": "1",
+        "projectId": "42",
+        "traceId": "1b02cd14bb8642fd092bc23f54c7ffcd",
+        "itemId": mock.ANY,
+        "itemType": "TRACE_ITEM_TYPE_LOG",
+        "timestamp": mock.ANY,
+        "attributes": {
+            "url.path": {"stringValue": "/api/users"},
+            "sentry.browser.version": {"stringValue": "2.32"},
+            "vercel.proxy.scheme": {"stringValue": "https"},
+            "vercel.entrypoint": {"stringValue": "api/index.js"},
+            "vercel.proxy.user_agent": {"stringValue": '["Mozilla/5.0..."]'},
+            "vercel.proxy.client_ip": {"stringValue": "120.75.16.101"},
+            "server.address": {"stringValue": "my-app-abc123.vercel.app"},
+            "vercel.proxy.path": {"stringValue": "/api/users?page=1"},
+            "vercel.status_code": {"intValue": "200"},
+            "vercel.deployment_id": {"stringValue": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"},
+            "vercel.proxy.method": {"stringValue": "GET"},
+            "vercel.execution_region": {"stringValue": "sfo1"},
+            "sentry.severity_text": {"stringValue": "info"},
+            "sentry.span_id": {"stringValue": "f24e8631bd11faa7"},
+            "sentry.browser.name": {"stringValue": "Python Requests"},
+            "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
+            "vercel.request_id": {
+                "stringValue": "643af4e3-975a-4cc7-9e7a-1eda11539d90"
+            },
+            "vercel.proxy.host": {"stringValue": "my-app.vercel.app"},
+            "vercel.proxy.referer": {"stringValue": "https://my-app.vercel.app"},
+            "vercel.id": {"stringValue": "1573817250283254651097202070"},
+            "sentry.environment": {"stringValue": "production"},
+            "vercel.proxy.vercel_cache": {"stringValue": "MISS"},
+            "sentry.timestamp_nanos": {"stringValue": "1573817250283000000"},
+            "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
+            "vercel.source": {"stringValue": "lambda"},
+            "vercel.proxy.timestamp": {"intValue": "1573817250172"},
+            "sentry.body": {"stringValue": "API request processed"},
+            "vercel.proxy.status_code": {"intValue": "200"},
+            "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
+            "sentry.timestamp_precise": {"intValue": "1573817250283000000"},
+            "sentry.payload_size_bytes": {"intValue": "886"},
+            "vercel.proxy.region": {"stringValue": "sfo1"},
+        },
+        "clientSampleRate": 1.0,
+        "serverSampleRate": 1.0,
+        "retentionDays": 90,
+        "received": mock.ANY,
+        "downsampledRetentionDays": 90,
+    },
+]
+
 
 def test_vercel_logs_json_array(
     mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
@@ -82,9 +169,6 @@ def test_vercel_logs_json_array(
         "organizations:ourlogs-ingestion",
         "organizations:relay-vercel-log-drain-endpoint",
     ]
-    project_config["config"]["retentions"] = {
-        "log": {"standard": 30, "downsampled": 13 * 30},
-    }
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
@@ -99,98 +183,9 @@ def test_vercel_logs_json_array(
         headers={"Content-Type": "application/json"},
     )
 
-    # Check that the items are properly processed via items_consumer
     items = items_consumer.get_items(n=2)
-    assert items == [
-        {
-            "attributes": {
-                "sentry._meta.fields.trace_id": {"stringValue": mock.ANY},
-                "sentry.body": {"stringValue": "Build completed successfully"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
-                "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
-                "sentry.severity_text": {"stringValue": "info"},
-                "sentry.timestamp_nanos": {"stringValue": mock.ANY},
-                "sentry.timestamp_precise": {"intValue": mock.ANY},
-                "server.address": {"stringValue": "my-app-abc123.vercel.app"},
-                "vercel.build_id": {"stringValue": "bld_cotnkcr76"},
-                "vercel.deployment_id": {
-                    "stringValue": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
-                },
-                "vercel.id": {"stringValue": "1573817187330377061717300000"},
-                "vercel.log_type": {"stringValue": "stdout"},
-                "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
-                "vercel.project_name": {"stringValue": "my-app"},
-                "vercel.source": {"stringValue": "build"},
-            },
-            "clientSampleRate": 1.0,
-            "downsampledRetentionDays": 390,
-            "itemId": mock.ANY,
-            "itemType": "TRACE_ITEM_TYPE_LOG",
-            "organizationId": "1",
-            "projectId": "42",
-            "received": mock.ANY,
-            "retentionDays": 30,
-            "serverSampleRate": 1.0,
-            "timestamp": mock.ANY,
-            "traceId": mock.ANY,
-        },
-        {
-            "attributes": {
-                "sentry.environment": {"stringValue": "production"},
-                "sentry.body": {"stringValue": "API request processed"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
-                "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
-                "sentry.severity_text": {"stringValue": "info"},
-                "sentry.span_id": {"stringValue": "f24e8631bd11faa7"},
-                "sentry.timestamp_nanos": {"stringValue": mock.ANY},
-                "sentry.timestamp_precise": {"intValue": mock.ANY},
-                "server.address": {"stringValue": "my-app-abc123.vercel.app"},
-                "url.path": {"stringValue": "/api/users"},
-                "vercel.deployment_id": {
-                    "stringValue": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
-                },
-                "vercel.entrypoint": {"stringValue": "api/index.js"},
-                "vercel.execution_region": {"stringValue": "sfo1"},
-                "vercel.id": {"stringValue": "1573817250283254651097202070"},
-                "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
-                "vercel.proxy.client_ip": {"stringValue": "120.75.16.101"},
-                "vercel.proxy.host": {"stringValue": "my-app.vercel.app"},
-                "vercel.proxy.method": {"stringValue": "GET"},
-                "vercel.proxy.path": {"stringValue": "/api/users?page=1"},
-                "vercel.proxy.referer": {"stringValue": "https://my-app.vercel.app"},
-                "vercel.proxy.region": {"stringValue": "sfo1"},
-                "vercel.proxy.scheme": {"stringValue": "https"},
-                "vercel.proxy.status_code": {"intValue": "200"},
-                "vercel.proxy.timestamp": {"intValue": "1573817250172"},
-                "vercel.proxy.user_agent": {"stringValue": '["Mozilla/5.0..."]'},
-                "vercel.proxy.vercel_cache": {"stringValue": "MISS"},
-                "vercel.request_id": {
-                    "stringValue": "643af4e3-975a-4cc7-9e7a-1eda11539d90"
-                },
-                "vercel.source": {"stringValue": "lambda"},
-                "vercel.status_code": {"intValue": "200"},
-            },
-            "clientSampleRate": 1.0,
-            "downsampledRetentionDays": 390,
-            "itemId": mock.ANY,
-            "itemType": "TRACE_ITEM_TYPE_LOG",
-            "organizationId": "1",
-            "projectId": "42",
-            "received": mock.ANY,
-            "retentionDays": 30,
-            "serverSampleRate": 1.0,
-            "timestamp": mock.ANY,
-            "traceId": "1b02cd14bb8642fd092bc23f54c7ffcd",
-        },
-    ]
+    assert items == EXPECTED_ITEMS
 
-    # Check outcomes
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
@@ -207,7 +202,7 @@ def test_vercel_logs_json_array(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": mock.ANY,
+            "quantity": 1322,
         },
     ]
 
@@ -224,9 +219,6 @@ def test_vercel_logs_ndjson(
         "organizations:ourlogs-ingestion",
         "organizations:relay-vercel-log-drain-endpoint",
     ]
-    project_config["config"]["retentions"] = {
-        "log": {"standard": 30, "downsampled": 13 * 30},
-    }
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
@@ -239,98 +231,9 @@ def test_vercel_logs_ndjson(
         headers={"Content-Type": "application/x-ndjson"},
     )
 
-    # Check that the items are properly processed via items_consumer
     items = items_consumer.get_items(n=2)
-    assert items == [
-        {
-            "attributes": {
-                "sentry._meta.fields.trace_id": {"stringValue": mock.ANY},
-                "sentry.body": {"stringValue": "Build completed successfully"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
-                "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
-                "sentry.severity_text": {"stringValue": "info"},
-                "sentry.timestamp_nanos": {"stringValue": mock.ANY},
-                "sentry.timestamp_precise": {"intValue": mock.ANY},
-                "server.address": {"stringValue": "my-app-abc123.vercel.app"},
-                "vercel.build_id": {"stringValue": "bld_cotnkcr76"},
-                "vercel.deployment_id": {
-                    "stringValue": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
-                },
-                "vercel.id": {"stringValue": "1573817187330377061717300000"},
-                "vercel.log_type": {"stringValue": "stdout"},
-                "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
-                "vercel.project_name": {"stringValue": "my-app"},
-                "vercel.source": {"stringValue": "build"},
-            },
-            "clientSampleRate": 1.0,
-            "downsampledRetentionDays": 390,
-            "itemId": mock.ANY,
-            "itemType": "TRACE_ITEM_TYPE_LOG",
-            "organizationId": "1",
-            "projectId": "42",
-            "received": mock.ANY,
-            "retentionDays": 30,
-            "serverSampleRate": 1.0,
-            "timestamp": mock.ANY,
-            "traceId": mock.ANY,
-        },
-        {
-            "attributes": {
-                "sentry.environment": {"stringValue": "production"},
-                "sentry.body": {"stringValue": "API request processed"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
-                "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
-                "sentry.severity_text": {"stringValue": "info"},
-                "sentry.span_id": {"stringValue": "f24e8631bd11faa7"},
-                "sentry.timestamp_nanos": {"stringValue": mock.ANY},
-                "sentry.timestamp_precise": {"intValue": mock.ANY},
-                "server.address": {"stringValue": "my-app-abc123.vercel.app"},
-                "url.path": {"stringValue": "/api/users"},
-                "vercel.deployment_id": {
-                    "stringValue": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
-                },
-                "vercel.entrypoint": {"stringValue": "api/index.js"},
-                "vercel.execution_region": {"stringValue": "sfo1"},
-                "vercel.id": {"stringValue": "1573817250283254651097202070"},
-                "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
-                "vercel.proxy.client_ip": {"stringValue": "120.75.16.101"},
-                "vercel.proxy.host": {"stringValue": "my-app.vercel.app"},
-                "vercel.proxy.method": {"stringValue": "GET"},
-                "vercel.proxy.path": {"stringValue": "/api/users?page=1"},
-                "vercel.proxy.referer": {"stringValue": "https://my-app.vercel.app"},
-                "vercel.proxy.region": {"stringValue": "sfo1"},
-                "vercel.proxy.scheme": {"stringValue": "https"},
-                "vercel.proxy.status_code": {"intValue": "200"},
-                "vercel.proxy.timestamp": {"intValue": "1573817250172"},
-                "vercel.proxy.user_agent": {"stringValue": '["Mozilla/5.0..."]'},
-                "vercel.proxy.vercel_cache": {"stringValue": "MISS"},
-                "vercel.request_id": {
-                    "stringValue": "643af4e3-975a-4cc7-9e7a-1eda11539d90"
-                },
-                "vercel.source": {"stringValue": "lambda"},
-                "vercel.status_code": {"intValue": "200"},
-            },
-            "clientSampleRate": 1.0,
-            "downsampledRetentionDays": 390,
-            "itemId": mock.ANY,
-            "itemType": "TRACE_ITEM_TYPE_LOG",
-            "organizationId": "1",
-            "projectId": "42",
-            "received": mock.ANY,
-            "retentionDays": 30,
-            "serverSampleRate": 1.0,
-            "timestamp": mock.ANY,
-            "traceId": "1b02cd14bb8642fd092bc23f54c7ffcd",
-        },
-    ]
+    assert items == EXPECTED_ITEMS
 
-    # Check outcomes
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
@@ -347,6 +250,6 @@ def test_vercel_logs_ndjson(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": mock.ANY,
+            "quantity": 1322,
         },
     ]
