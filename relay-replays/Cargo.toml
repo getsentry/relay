@@ -14,7 +14,6 @@ workspace = true
 
 [dependencies]
 flate2 = { workspace = true }
-once_cell = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-log = { workspace = true }
 relay-pii = { workspace = true }

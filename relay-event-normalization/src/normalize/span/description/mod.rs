@@ -2,12 +2,12 @@
 mod redis;
 mod resource;
 mod sql;
-use once_cell::sync::Lazy;
 use psl;
 use relay_filter::matches_any_origin;
 use serde_json::Value;
 #[cfg(test)]
 pub use sql::{Mode, scrub_queries};
+use std::sync::LazyLock;
 
 use relay_event_schema::protocol::Span;
 use std::borrow::Cow;
@@ -25,7 +25,7 @@ use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 
 /// Dummy URL used to parse relative URLs.
-static DUMMY_BASE_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
+static DUMMY_BASE_URL: LazyLock<Url> = LazyLock::new(|| "http://replace_me".parse().unwrap());
 
 /// Maximum length of a resource URL segment.
 ///
