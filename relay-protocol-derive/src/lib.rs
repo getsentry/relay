@@ -208,7 +208,7 @@ fn derive_enum_metastructure(
             (quote! {
                 #type_name::#variant_name(ref __value) => {
                     let mut __map_ser = ::serde::Serializer::serialize_map(__serializer, None)?;
-                    ::relay_protocol::IntoValue::serialize_payload(__value, ::serde::__private::ser::FlatMapSerializer(&mut __map_ser), __behavior)?;
+                    ::relay_protocol::IntoValue::serialize_payload(__value, ::serde::__private228::ser::FlatMapSerializer(&mut __map_ser), __behavior)?;
                     ::serde::ser::SerializeMap::serialize_key(&mut __map_ser, #tag_key_str)?;
                     ::serde::ser::SerializeMap::serialize_value(&mut __map_ser, #tag)?;
                     ::serde::ser::SerializeMap::end(__map_ser)
@@ -391,7 +391,7 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
             .to_tokens(&mut to_value_body);
 
             (quote! {
-                ::relay_protocol::IntoValue::serialize_payload(#bi, ::serde::__private::ser::FlatMapSerializer(&mut __map_serializer), __behavior)?;
+                ::relay_protocol::IntoValue::serialize_payload(#bi, ::serde::__private228::ser::FlatMapSerializer(&mut __map_serializer), __behavior)?;
             }).to_tokens(&mut serialize_body);
 
             (quote! {
