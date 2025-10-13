@@ -470,7 +470,7 @@ mod tests {
     fn test_process_recording_bad_body_data() {
         // Invalid gzip body contents.  Can not deflate.
         let payload: &[u8] = &[
-            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 22, 123,
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 22,
         ];
 
         let config = default_pii_config();
