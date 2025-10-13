@@ -11,7 +11,7 @@
 <a href=#11 id=11 data-nosnippet>11</a>
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>chrono::{DateTime, Utc};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>relay_cardinality::CardinalityLimit;
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>relay_dynamic_config::{GlobalConfig, ProjectConfig, normalize_json};
+<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>relay_dynamic_config::{GlobalConfig, ProjectConfig};
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>relay_event_normalization::{
 <a href=#16 id=16 data-nosnippet>16</a>    BreakdownsConfig, ClientHints, EventValidationConfig, GeoIpLookup, NormalizationConfig,
 <a href=#17 id=17 data-nosnippet>17</a>    RawUserAgentInfo, normalize_event, validate_event,
@@ -464,61 +464,71 @@
 <a href=#464 id=464 data-nosnippet>464</a>    }
 <a href=#465 id=465 data-nosnippet>465</a>}
 <a href=#466 id=466 data-nosnippet>466</a>
-<a href=#467 id=467 data-nosnippet>467</a><span class="attr">#[cfg(test)]
-<a href=#468 id=468 data-nosnippet>468</a></span><span class="kw">mod </span>tests {
-<a href=#469 id=469 data-nosnippet>469</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#470 id=470 data-nosnippet>470</a>
-<a href=#471 id=471 data-nosnippet>471</a>    <span class="attr">#[test]
-<a href=#472 id=472 data-nosnippet>472</a>    </span><span class="kw">fn </span>pii_config_validation_invalid_regex() {
-<a href=#473 id=473 data-nosnippet>473</a>        <span class="kw">let </span>config = <span class="string">r#"
-<a href=#474 id=474 data-nosnippet>474</a>        {
-<a href=#475 id=475 data-nosnippet>475</a>          "rules": {
-<a href=#476 id=476 data-nosnippet>476</a>            "strip-fields": {
-<a href=#477 id=477 data-nosnippet>477</a>              "type": "redact_pair",
-<a href=#478 id=478 data-nosnippet>478</a>              "keyPattern": "(not valid regex",
-<a href=#479 id=479 data-nosnippet>479</a>              "redaction": {
-<a href=#480 id=480 data-nosnippet>480</a>                "method": "replace",
-<a href=#481 id=481 data-nosnippet>481</a>                "text": "[Filtered]"
-<a href=#482 id=482 data-nosnippet>482</a>              }
-<a href=#483 id=483 data-nosnippet>483</a>            }
-<a href=#484 id=484 data-nosnippet>484</a>          },
-<a href=#485 id=485 data-nosnippet>485</a>          "applications": {
-<a href=#486 id=486 data-nosnippet>486</a>            "*.everything": ["strip-fields"]
-<a href=#487 id=487 data-nosnippet>487</a>          }
-<a href=#488 id=488 data-nosnippet>488</a>        }
-<a href=#489 id=489 data-nosnippet>489</a>    "#</span>;
-<a href=#490 id=490 data-nosnippet>490</a>        <span class="kw">unsafe </span>{
-<a href=#491 id=491 data-nosnippet>491</a>            <span class="macro">assert_eq!</span>(
-<a href=#492 id=492 data-nosnippet>492</a>                relay_validate_pii_config(<span class="kw-2">&amp;</span>RelayStr::from(config)).as_str(),
-<a href=#493 id=493 data-nosnippet>493</a>                <span class="string">"regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group"
-<a href=#494 id=494 data-nosnippet>494</a>            </span>);
-<a href=#495 id=495 data-nosnippet>495</a>        }
-<a href=#496 id=496 data-nosnippet>496</a>    }
-<a href=#497 id=497 data-nosnippet>497</a>
-<a href=#498 id=498 data-nosnippet>498</a>    <span class="attr">#[test]
-<a href=#499 id=499 data-nosnippet>499</a>    </span><span class="kw">fn </span>pii_config_validation_valid_regex() {
-<a href=#500 id=500 data-nosnippet>500</a>        <span class="kw">let </span>config = <span class="string">r#"
-<a href=#501 id=501 data-nosnippet>501</a>        {
-<a href=#502 id=502 data-nosnippet>502</a>          "rules": {
-<a href=#503 id=503 data-nosnippet>503</a>            "strip-fields": {
-<a href=#504 id=504 data-nosnippet>504</a>              "type": "redact_pair",
-<a href=#505 id=505 data-nosnippet>505</a>              "keyPattern": "(\\w+)?+",
-<a href=#506 id=506 data-nosnippet>506</a>              "redaction": {
-<a href=#507 id=507 data-nosnippet>507</a>                "method": "replace",
-<a href=#508 id=508 data-nosnippet>508</a>                "text": "[Filtered]"
-<a href=#509 id=509 data-nosnippet>509</a>              }
-<a href=#510 id=510 data-nosnippet>510</a>            }
-<a href=#511 id=511 data-nosnippet>511</a>          },
-<a href=#512 id=512 data-nosnippet>512</a>          "applications": {
-<a href=#513 id=513 data-nosnippet>513</a>            "*.everything": ["strip-fields"]
-<a href=#514 id=514 data-nosnippet>514</a>          }
-<a href=#515 id=515 data-nosnippet>515</a>        }
-<a href=#516 id=516 data-nosnippet>516</a>    "#</span>;
-<a href=#517 id=517 data-nosnippet>517</a>        <span class="kw">unsafe </span>{
-<a href=#518 id=518 data-nosnippet>518</a>            <span class="macro">assert_eq!</span>(
-<a href=#519 id=519 data-nosnippet>519</a>                relay_validate_pii_config(<span class="kw-2">&amp;</span>RelayStr::from(config)).as_str(),
-<a href=#520 id=520 data-nosnippet>520</a>                <span class="string">""
-<a href=#521 id=521 data-nosnippet>521</a>            </span>);
-<a href=#522 id=522 data-nosnippet>522</a>        }
-<a href=#523 id=523 data-nosnippet>523</a>    }
-<a href=#524 id=524 data-nosnippet>524</a>}</code></pre></div></section></main></body></html>
+<a href=#467 id=467 data-nosnippet>467</a><span class="doccomment">/// Normalizes the given value by deserializing it and serializing it back.
+<a href=#468 id=468 data-nosnippet>468</a></span><span class="kw">fn </span>normalize_json&lt;<span class="lifetime">'de</span>, S&gt;(value: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>str) -&gt; serde_json::Result&lt;String&gt;
+<a href=#469 id=469 data-nosnippet>469</a><span class="kw">where
+<a href=#470 id=470 data-nosnippet>470</a>    </span>S: serde::Serialize + serde::Deserialize&lt;<span class="lifetime">'de</span>&gt;,
+<a href=#471 id=471 data-nosnippet>471</a>{
+<a href=#472 id=472 data-nosnippet>472</a>    <span class="kw">let </span>deserialized: S = serde_json::from_str(value)<span class="question-mark">?</span>;
+<a href=#473 id=473 data-nosnippet>473</a>    <span class="kw">let </span>serialized = serde_json::to_value(<span class="kw-2">&amp;</span>deserialized)<span class="question-mark">?</span>.to_string();
+<a href=#474 id=474 data-nosnippet>474</a>    <span class="prelude-val">Ok</span>(serialized)
+<a href=#475 id=475 data-nosnippet>475</a>}
+<a href=#476 id=476 data-nosnippet>476</a>
+<a href=#477 id=477 data-nosnippet>477</a><span class="attr">#[cfg(test)]
+<a href=#478 id=478 data-nosnippet>478</a></span><span class="kw">mod </span>tests {
+<a href=#479 id=479 data-nosnippet>479</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#480 id=480 data-nosnippet>480</a>
+<a href=#481 id=481 data-nosnippet>481</a>    <span class="attr">#[test]
+<a href=#482 id=482 data-nosnippet>482</a>    </span><span class="kw">fn </span>pii_config_validation_invalid_regex() {
+<a href=#483 id=483 data-nosnippet>483</a>        <span class="kw">let </span>config = <span class="string">r#"
+<a href=#484 id=484 data-nosnippet>484</a>        {
+<a href=#485 id=485 data-nosnippet>485</a>          "rules": {
+<a href=#486 id=486 data-nosnippet>486</a>            "strip-fields": {
+<a href=#487 id=487 data-nosnippet>487</a>              "type": "redact_pair",
+<a href=#488 id=488 data-nosnippet>488</a>              "keyPattern": "(not valid regex",
+<a href=#489 id=489 data-nosnippet>489</a>              "redaction": {
+<a href=#490 id=490 data-nosnippet>490</a>                "method": "replace",
+<a href=#491 id=491 data-nosnippet>491</a>                "text": "[Filtered]"
+<a href=#492 id=492 data-nosnippet>492</a>              }
+<a href=#493 id=493 data-nosnippet>493</a>            }
+<a href=#494 id=494 data-nosnippet>494</a>          },
+<a href=#495 id=495 data-nosnippet>495</a>          "applications": {
+<a href=#496 id=496 data-nosnippet>496</a>            "*.everything": ["strip-fields"]
+<a href=#497 id=497 data-nosnippet>497</a>          }
+<a href=#498 id=498 data-nosnippet>498</a>        }
+<a href=#499 id=499 data-nosnippet>499</a>    "#</span>;
+<a href=#500 id=500 data-nosnippet>500</a>        <span class="kw">unsafe </span>{
+<a href=#501 id=501 data-nosnippet>501</a>            <span class="macro">assert_eq!</span>(
+<a href=#502 id=502 data-nosnippet>502</a>                relay_validate_pii_config(<span class="kw-2">&amp;</span>RelayStr::from(config)).as_str(),
+<a href=#503 id=503 data-nosnippet>503</a>                <span class="string">"regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group"
+<a href=#504 id=504 data-nosnippet>504</a>            </span>);
+<a href=#505 id=505 data-nosnippet>505</a>        }
+<a href=#506 id=506 data-nosnippet>506</a>    }
+<a href=#507 id=507 data-nosnippet>507</a>
+<a href=#508 id=508 data-nosnippet>508</a>    <span class="attr">#[test]
+<a href=#509 id=509 data-nosnippet>509</a>    </span><span class="kw">fn </span>pii_config_validation_valid_regex() {
+<a href=#510 id=510 data-nosnippet>510</a>        <span class="kw">let </span>config = <span class="string">r#"
+<a href=#511 id=511 data-nosnippet>511</a>        {
+<a href=#512 id=512 data-nosnippet>512</a>          "rules": {
+<a href=#513 id=513 data-nosnippet>513</a>            "strip-fields": {
+<a href=#514 id=514 data-nosnippet>514</a>              "type": "redact_pair",
+<a href=#515 id=515 data-nosnippet>515</a>              "keyPattern": "(\\w+)?+",
+<a href=#516 id=516 data-nosnippet>516</a>              "redaction": {
+<a href=#517 id=517 data-nosnippet>517</a>                "method": "replace",
+<a href=#518 id=518 data-nosnippet>518</a>                "text": "[Filtered]"
+<a href=#519 id=519 data-nosnippet>519</a>              }
+<a href=#520 id=520 data-nosnippet>520</a>            }
+<a href=#521 id=521 data-nosnippet>521</a>          },
+<a href=#522 id=522 data-nosnippet>522</a>          "applications": {
+<a href=#523 id=523 data-nosnippet>523</a>            "*.everything": ["strip-fields"]
+<a href=#524 id=524 data-nosnippet>524</a>          }
+<a href=#525 id=525 data-nosnippet>525</a>        }
+<a href=#526 id=526 data-nosnippet>526</a>    "#</span>;
+<a href=#527 id=527 data-nosnippet>527</a>        <span class="kw">unsafe </span>{
+<a href=#528 id=528 data-nosnippet>528</a>            <span class="macro">assert_eq!</span>(
+<a href=#529 id=529 data-nosnippet>529</a>                relay_validate_pii_config(<span class="kw-2">&amp;</span>RelayStr::from(config)).as_str(),
+<a href=#530 id=530 data-nosnippet>530</a>                <span class="string">""
+<a href=#531 id=531 data-nosnippet>531</a>            </span>);
+<a href=#532 id=532 data-nosnippet>532</a>        }
+<a href=#533 id=533 data-nosnippet>533</a>    }
+<a href=#534 id=534 data-nosnippet>534</a>}</code></pre></div></section></main></body></html>

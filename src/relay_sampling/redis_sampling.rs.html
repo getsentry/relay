@@ -23,7 +23,7 @@
 <a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">pub async fn </span>increment_redis_reservoir_count(
 <a href=#24 id=24 data-nosnippet>24</a>    connection: <span class="kw-2">&amp;mut </span>AsyncRedisConnection,
 <a href=#25 id=25 data-nosnippet>25</a>    key: <span class="kw-2">&amp;</span>ReservoirRuleKey,
-<a href=#26 id=26 data-nosnippet>26</a>) -&gt; anyhow::Result&lt;i64&gt; {
+<a href=#26 id=26 data-nosnippet>26</a>) -&gt; relay_redis::Result&lt;i64&gt; {
 <a href=#27 id=27 data-nosnippet>27</a>    <span class="kw">let </span>val = relay_redis::redis::cmd(<span class="string">"INCR"</span>)
 <a href=#28 id=28 data-nosnippet>28</a>        .arg(key.as_str())
 <a href=#29 id=29 data-nosnippet>29</a>        .query_async(connection)
@@ -37,7 +37,7 @@
 <a href=#37 id=37 data-nosnippet>37</a>    connection: <span class="kw-2">&amp;mut </span>AsyncRedisConnection,
 <a href=#38 id=38 data-nosnippet>38</a>    key: <span class="kw-2">&amp;</span>ReservoirRuleKey,
 <a href=#39 id=39 data-nosnippet>39</a>    rule_expiry: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DateTime&lt;Utc&gt;&gt;,
-<a href=#40 id=40 data-nosnippet>40</a>) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#40 id=40 data-nosnippet>40</a>) -&gt; relay_redis::Result&lt;()&gt; {
 <a href=#41 id=41 data-nosnippet>41</a>    <span class="kw">let </span>now = Utc::now().timestamp();
 <a href=#42 id=42 data-nosnippet>42</a>    <span class="kw">let </span>expiry_time = rule_expiry
 <a href=#43 id=43 data-nosnippet>43</a>        .map(|rule_expiry| rule_expiry.timestamp() + <span class="number">60</span>)
