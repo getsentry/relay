@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 
 use chrono::{DateTime, Utc};
 use relay_cardinality::CardinalityLimit;
-use relay_dynamic_config::{GlobalConfig, ProjectConfig, normalize_json};
+use relay_dynamic_config::{GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
     BreakdownsConfig, ClientHints, EventValidationConfig, GeoIpLookup, NormalizationConfig,
     RawUserAgentInfo, normalize_event, validate_event,
@@ -462,6 +462,16 @@ pub unsafe extern "C" fn relay_normalize_global_config(value: *const RelayStr) -
         Ok(normalized) => RelayStr::from_string(normalized),
         Err(e) => RelayStr::from_string(e.to_string()),
     }
+}
+
+/// Normalizes the given value by deserializing it and serializing it back.
+fn normalize_json<'de, S>(value: &'de str) -> serde_json::Result<String>
+where
+    S: serde::Serialize + serde::Deserialize<'de>,
+{
+    let deserialized: S = serde_json::from_str(value)?;
+    let serialized = serde_json::to_value(&deserialized)?.to_string();
+    Ok(serialized)
 }
 
 #[cfg(test)]
