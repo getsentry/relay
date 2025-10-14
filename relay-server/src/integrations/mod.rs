@@ -43,7 +43,7 @@ define_integrations!(
     "application/vnd.sentry.integration.otel.spans+json" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Json }),
     "application/vnd.sentry.integration.otel.spans+protobuf" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Protobuf }),
     "application/vnd.sentry.integration.vercel.logs+json" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::Json }),
-    "application/vnd.sentry.integration.vercel.logs+ndjson" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::NDJson }),
+    "application/vnd.sentry.integration.vercel.logs+ndjson" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::NdJson }),
 );
 
 /// An exhaustive list of all integrations supported by Relay.
@@ -105,5 +105,5 @@ pub enum VercelLogDrainFormat {
     // Vercel Log Drain data in a json array payload
     Json,
     // Vercel Log Drain data in a newline delimited json payload
-    NDJson,
+    NdJson,
 }

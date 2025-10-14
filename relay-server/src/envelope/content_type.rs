@@ -16,7 +16,7 @@ pub enum ContentType {
     /// `application/json`
     Json,
     /// `application/x-ndjson`
-    NDJson,
+    NdJson,
     /// `application/x-msgpack`
     MsgPack,
     /// `application/octet-stream`
@@ -47,7 +47,7 @@ impl ContentType {
         match self {
             Self::Text => "text/plain",
             Self::Json => "application/json",
-            Self::NDJson => "application/x-ndjson",
+            Self::NdJson => "application/x-ndjson",
             Self::MsgPack => "application/x-msgpack",
             Self::OctetStream => "application/octet-stream",
             Self::Minidump => "application/x-dmp",
@@ -77,8 +77,8 @@ impl ContentType {
             Some(Self::Text)
         } else if ct.eq_ignore_ascii_case(Self::Json.as_str()) {
             Some(Self::Json)
-        } else if ct.eq_ignore_ascii_case(Self::NDJson.as_str()) {
-            Some(Self::NDJson)
+        } else if ct.eq_ignore_ascii_case(Self::NdJson.as_str()) {
+            Some(Self::NdJson)
         } else if ct.eq_ignore_ascii_case(Self::MsgPack.as_str()) {
             Some(Self::MsgPack)
         } else if ct.eq_ignore_ascii_case(Self::OctetStream.as_str()) {

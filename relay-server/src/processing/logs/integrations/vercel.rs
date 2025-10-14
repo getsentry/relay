@@ -28,7 +28,7 @@ where
                 produce(ourlog)
             }
         }
-        VercelLogDrainFormat::NDJson => {
+        VercelLogDrainFormat::NdJson => {
             for line in payload.split(|&b| b == b'\n') {
                 if line.is_empty() {
                     continue;

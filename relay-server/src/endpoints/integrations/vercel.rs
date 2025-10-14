@@ -31,7 +31,7 @@ mod logs {
     ) -> axum::response::Result<impl IntoResponse> {
         let format = match ContentType::from(content_type.as_ref()) {
             ContentType::Json => VercelLogDrainFormat::Json,
-            ContentType::NDJson => VercelLogDrainFormat::NDJson,
+            ContentType::NdJson => VercelLogDrainFormat::NdJson,
             _ => return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE),
         };
 
