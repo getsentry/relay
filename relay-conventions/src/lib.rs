@@ -50,34 +50,36 @@ pub struct AttributeInfo {
     pub aliases: &'static [&'static str],
 }
 
-struct Node<T: 'static> {
-    info: Option<T>,
-    children: phf::Map<&'static str, Node<T>>,
+/// Returns information about an attribute, as defined in `sentry-conventions`.
+pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
+    ATTRIBUTES.find(key)
 }
 
 /// Special path segment in attribute keys that matches any value.
 const PLACEHOLDER_SEGMENT: &str = "<key>";
 
-/// Returns information about an attribute, as defined in `sentry-conventions`.
-pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
-    find_node(&ATTRIBUTES, key)
+struct Node<T: 'static> {
+    info: Option<T>,
+    children: phf::Map<&'static str, Node<T>>,
 }
 
-fn find_node<'a, T>(node: &'a Node<T>, key: &str) -> Option<&'a T> {
-    if key == "" {
-        return node.info.as_ref();
-    }
-    let (prefix, suffix) = key.split_once('.').unwrap_or((key, ""));
-    for candidate in [prefix, PLACEHOLDER_SEGMENT] {
-        if let Some(info) = node
-            .children
-            .get(candidate)
-            .and_then(|child| find_node(child, suffix))
-        {
-            return Some(info);
+impl<T> Node<T> {
+    fn find(&self, key: &str) -> Option<&T> {
+        if key == "" {
+            return self.info.as_ref();
         }
+        let (prefix, suffix) = key.split_once('.').unwrap_or((key, ""));
+        for candidate in [prefix, PLACEHOLDER_SEGMENT] {
+            if let Some(info) = self
+                .children
+                .get(candidate)
+                .and_then(|child| child.find(suffix))
+            {
+                return Some(info);
+            }
+        }
+        None
     }
-    None
 }
 
 #[cfg(test)]
@@ -144,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_hypothetical() {
-        assert_eq!(find_node(&ROOT, "foo.bar"), Some(&2));
+        assert_eq!(ROOT.find("foo.bar"), Some(&2));
     }
 
     struct GetterMap<'a>(HashMap<&'a str, Val<'a>>);
