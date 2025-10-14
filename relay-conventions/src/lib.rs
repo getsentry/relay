@@ -65,7 +65,7 @@ struct Node<T: 'static> {
 
 impl<T> Node<T> {
     fn find(&self, key: &str) -> Option<&T> {
-        if key == "" {
+        if key.is_empty() {
             return self.info.as_ref();
         }
         let (prefix, suffix) = key.split_once('.').unwrap_or((key, ""));
