@@ -966,7 +966,6 @@ pub struct ProcessMetrics {
 pub enum MetricData {
     /// Raw data, unparsed envelope items.
     Raw(Vec<Item>),
-    // FIXME: This might needs to be serialized.
     /// Already parsed buckets but unprocessed.
     Parsed(Vec<Bucket>),
 }
@@ -1147,7 +1146,10 @@ pub struct EnvelopeProcessorService {
     inner: Arc<InnerProcessor>,
 }
 
-// TODO: Add documentation
+/// Service implementing the [`EnvelopeProcessor`] interface.
+///
+/// Analog to [`EnvelopeProcessorService`] this service handles messages when Relay is run in
+/// proxy mode.
 #[derive(Clone)]
 pub struct ProxyProcessorService {
     inner: Arc<InnerProxyProcessor>,
@@ -2473,8 +2475,6 @@ impl EnvelopeProcessorService {
         }
     }
 
-    // TODO: Better understand what is going on here.
-
     /// Processes the envelope and returns the processed envelope back.
     ///
     /// Returns `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
@@ -2491,8 +2491,6 @@ impl EnvelopeProcessorService {
             ref sampling_project_info,
             ..
         } = message;
-
-        // TODO: Not entirely sure why the envelope can't have the project_id for example, but I guess we defo want to avoid this though
 
         // Prefer the project's project ID, and fall back to the stated project id from the
         // envelope. The project ID is available in all modes, other than in proxy mode, where
@@ -2531,7 +2529,6 @@ impl EnvelopeProcessorService {
             }
         });
 
-        // TODO: This we want to skip for sure
         let result = match self.process_envelope(cogs, project_id, message).await {
             Ok(ProcessingResult::Envelope {
                 mut managed_envelope,
@@ -2622,7 +2619,6 @@ impl EnvelopeProcessorService {
                 reservoir_counters: Arc::clone(&message.reservoir_counters),
             };
 
-            // TODO: Wonder if we can just skip this in its entirety :thinking:
             let result = metric!(
                 timer(RelayTimers::EnvelopeProcessingTime),
                 group = group.variant(),
@@ -3418,7 +3414,6 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
-// TODO: Add documentation
 impl ProxyProcessorService {
     /// Creates a multi-threaded proxy processor.
     pub fn new(
@@ -3449,28 +3444,8 @@ impl ProxyProcessorService {
             let mut envelope =
                 ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
             envelope.scope(scoping);
-
-            // FIXME: This might be too naive
             self.submit_upstream(envelope);
         }
-    }
-
-    fn handle_process_metrics(&self, _message: ProcessMetrics) {
-        // TODO: Add logic to forward the ProcessMetrics
-        // TODO: Think about if outcomes should be emitted for this
-        relay_log::error!("internal error: Metrics not supported in Proxy mode");
-    }
-
-    fn handle_process_batched_metrics(&self, _message: ProcessBatchedMetrics) {
-        // TODO: Add logic to forward the ProcessBatchedMetrics
-        // TODO: Think about if outcomes should be emitted for this
-        relay_log::error!("internal error: Metrics not supported in Proxy mode");
-    }
-
-    async fn handle_flush_buckets(&self, mut _message: FlushBuckets) {
-        // TODO: Add logic to forward the FlushBuckets
-        // TODO: Think about if outcomes should be emitted for this
-        relay_log::error!("internal error: Metrics not supported in Proxy mode");
     }
 
     fn handle_submit_client_reports(&self, message: SubmitClientReports) {
@@ -3539,12 +3514,12 @@ impl ProxyProcessorService {
         metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
             match message {
                 EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m).await,
-                EnvelopeProcessor::ProcessProjectMetrics(m) => self.handle_process_metrics(*m),
-                EnvelopeProcessor::ProcessBatchedMetrics(m) => {
-                    self.handle_process_batched_metrics(*m)
-                }
-                EnvelopeProcessor::FlushBuckets(m) => self.handle_flush_buckets(*m).await,
                 EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
+                EnvelopeProcessor::ProcessBatchedMetrics(_)
+                | EnvelopeProcessor::ProcessProjectMetrics(_)
+                | EnvelopeProcessor::FlushBuckets(_) => {
+                    relay_log::error!("internal error: Metrics not supported in Proxy mode");
+                }
             }
         });
     }

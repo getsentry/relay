@@ -360,7 +360,6 @@ pub async fn handle_envelope(
 
     queue_envelope(state, managed_envelope)?;
 
-    // TODO: Check this again to understand the flow
     if checked.rate_limits.is_limited() {
         // Even if some envelope items have been queued, there might be active rate limits on
         // other items. Communicate these rate limits to the downstream (Relay or SDK).

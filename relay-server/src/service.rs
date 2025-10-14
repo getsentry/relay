@@ -253,7 +253,7 @@ impl ServiceState {
 
         let processor_pool = create_processor_pool(&config)?;
 
-        // TODO: This can probably be done more elegantly
+        // TODO: Think about if it makes more sense to rewrite this such that we don't start stuff that we are not actually needing (i.e the aggregator).
         match config.relay_mode() {
             relay_config::RelayMode::Proxy => services.start_with(
                 ProxyProcessorService::new(

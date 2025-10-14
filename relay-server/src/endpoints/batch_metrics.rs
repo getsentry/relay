@@ -14,7 +14,6 @@ pub async fn handle(
     ReceivedAt(received_at): ReceivedAt,
     body: SignedBytes,
 ) -> impl IntoResponse {
-    // TODO: Internal and proxy will be mutual exclusive (maybe)
     if !body.relay.internal {
         return StatusCode::FORBIDDEN.into_response();
     }
