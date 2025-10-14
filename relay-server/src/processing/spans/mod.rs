@@ -22,11 +22,15 @@ mod integrations;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
+mod validate;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Multiple item containers for spans in a single envelope are not allowed.
+    #[error("duplicate span container")]
+    DuplicateContainer,
     /// Standalone spans filtered because of a missing feature flag.
     #[error("spans feature flag missing")]
     FilterFeatureFlag,
@@ -49,6 +53,7 @@ impl OutcomeError for Error {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
+            Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::FilterFeatureFlag => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
@@ -119,6 +124,7 @@ impl processing::Processor for SpansProcessor {
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         filter::feature_flag(ctx).reject(&spans)?;
+        validate::container(&spans).reject(&spans)?;
 
         if ctx.is_proxy() {
             // If running in proxy mode, just apply cached rate limits and forward without
