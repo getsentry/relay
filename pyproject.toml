@@ -81,5 +81,6 @@ module = [
     "pytest_localserver.*",
     "opentelemetry.*",
     "sentry_relay._lowlevel",
+    "_cffi_backend",
 ]
 ignore_missing_imports = true
