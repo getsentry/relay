@@ -536,12 +536,8 @@ def test_spanv2_inbound_filters(
 
 def test_spans_v2_multiple_containers_not_allowed(
     mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    outcomes_consumer,
+    relay,
 ):
-    spans_consumer = spans_consumer()
-    outcomes_consumer = outcomes_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -549,7 +545,7 @@ def test_spans_v2_multiple_containers_not_allowed(
         "projects:span-v2-experimental-processing",
     ]
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay(mini_sentry, options=TEST_CONFIG)
     start = datetime.now(timezone.utc)
     envelope = Envelope()
 
@@ -581,10 +577,10 @@ def test_spans_v2_multiple_containers_not_allowed(
 
     relay.send_envelope(project_id, envelope)
 
-    spans_consumer.assert_empty()
-
-    outcomes = outcomes_consumer.get_outcomes()
-    outcomes.sort(key=lambda o: sorted(o.items()))
+    outcomes = []
+    for _ in range(2):
+        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
+    outcomes.sort(key=lambda x: x["category"])
 
     assert outcomes == [
         {
@@ -608,3 +604,6 @@ def test_spans_v2_multiple_containers_not_allowed(
             "reason": "duplicate_item",
         },
     ]
+
+    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_outcomes.empty()
