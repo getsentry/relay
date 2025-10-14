@@ -80,7 +80,6 @@ impl<'a> Project<'a> {
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
         let envelope_limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |item_scoping, _| {
             let current_limits = Arc::clone(&current_limits);
-            // FIXME: Write test that checks that this still works like it should in (very important to still check this.)[ see if there is already one just in case ]
             async move { Ok(current_limits.check_with_quotas(quotas, item_scoping)) }
         });
 
