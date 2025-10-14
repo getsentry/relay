@@ -40,12 +40,24 @@ use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::ReservoirEvaluator;
-use relay_spans::otel_trace::Span as OtelSpan;
-use thiserror::Error;
 
-#[derive(Error, Debug)]
-#[error(transparent)]
-struct ValidationError(#[from] anyhow::Error);
+#[derive(thiserror::Error, Debug)]
+enum ValidationError {
+    #[error("empty span")]
+    EmptySpan,
+    #[error("span is missing `trace_id`")]
+    MissingTraceId,
+    #[error("span is missing `span_id`")]
+    MissingSpanId,
+    #[error("span is missing `timestamp`")]
+    MissingTimestamp,
+    #[error("span is missing `start_timestamp`")]
+    MissingStartTimestamp,
+    #[error("span end must be after start")]
+    EndBeforeStartTimestamp,
+    #[error("span is missing `exclusive_time`")]
+    MissingExclusiveTime,
+}
 
 #[allow(clippy::too_many_arguments)]
 pub async fn process(
@@ -101,15 +113,6 @@ pub async fn process(
     let mut span_count = 0;
     managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
-            ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => {
-                    Annotated::new(relay_spans::otel_to_sentry_span(otel_span, None, None))
-                }
-                Err(err) => {
-                    relay_log::debug!("failed to parse OTel span: {}", err);
-                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
-                }
-            },
             ItemType::Span => match Annotated::<Span>::from_json_bytes(&item.payload()) {
                 Ok(span) => span,
                 Err(err) => {
@@ -758,7 +761,7 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     let inner = span
         .value_mut()
         .as_mut()
-        .ok_or(anyhow::anyhow!("empty span"))?;
+        .ok_or(ValidationError::EmptySpan)?;
     let Span {
         exclusive_time,
         tags,
@@ -770,36 +773,19 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
         ..
     } = inner;
 
-    trace_id
-        .value()
-        .ok_or(anyhow::anyhow!("span is missing trace_id"))?;
-    span_id
-        .value()
-        .ok_or(anyhow::anyhow!("span is missing span_id"))?;
+    trace_id.value().ok_or(ValidationError::MissingTraceId)?;
+    span_id.value().ok_or(ValidationError::MissingSpanId)?;
 
     match (start_timestamp.value(), timestamp.value()) {
-        (Some(start), Some(end)) => {
-            if end < start {
-                return Err(ValidationError(anyhow::anyhow!(
-                    "end timestamp is smaller than start timestamp"
-                )));
-            }
-        }
-        (_, None) => {
-            return Err(ValidationError(anyhow::anyhow!(
-                "timestamp hard-required for spans"
-            )));
-        }
-        (None, _) => {
-            return Err(ValidationError(anyhow::anyhow!(
-                "start_timestamp hard-required for spans"
-            )));
-        }
-    }
+        (Some(start), Some(end)) if end < start => Err(ValidationError::EndBeforeStartTimestamp),
+        (Some(_), Some(_)) => Ok(()),
+        (_, None) => Err(ValidationError::MissingTimestamp),
+        (None, _) => Err(ValidationError::MissingStartTimestamp),
+    }?;
 
     exclusive_time
         .value()
-        .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
+        .ok_or(ValidationError::MissingExclusiveTime)?;
 
     if let Some(sentry_tags) = sentry_tags.value_mut() {
         if sentry_tags
@@ -828,10 +814,9 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::sync::Arc;
+    use std::sync::{Arc, LazyLock};
 
     use bytes::Bytes;
-    use once_cell::sync::Lazy;
     use relay_event_schema::protocol::{Context, ContextInner, EventId, Timestamp, TraceContext};
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
@@ -1247,7 +1232,7 @@ mod tests {
         assert_eq!(get_value!(span.data.browser_name!), "Opera");
     }
 
-    static GEO_LOOKUP: Lazy<GeoIpLookup> = Lazy::new(|| {
+    static GEO_LOOKUP: LazyLock<GeoIpLookup> = LazyLock::new(|| {
         GeoIpLookup::open("../relay-event-normalization/tests/fixtures/GeoIP2-Enterprise-Test.mmdb")
             .unwrap()
     });

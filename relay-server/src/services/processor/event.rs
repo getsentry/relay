@@ -466,7 +466,6 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::Log => false,
         ItemType::TraceMetric => false,
         ItemType::Span => false,
-        ItemType::OtelSpan => false,
         ItemType::ProfileChunk => false,
         ItemType::Integration => false,
 

@@ -85,7 +85,7 @@ pub fn check_envelope_size_limits(
                 trace_metric_count += item.item_count().unwrap_or(1) as usize;
                 config.max_trace_metric_size()
             }
-            ItemType::Span | ItemType::OtelSpan => {
+            ItemType::Span => {
                 span_count += item.item_count().unwrap_or(1) as usize;
                 config.max_span_size()
             }

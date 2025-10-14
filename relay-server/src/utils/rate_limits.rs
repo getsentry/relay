@@ -135,7 +135,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Log => None,
         ItemType::TraceMetric => None,
         ItemType::Span => None,
-        ItemType::OtelSpan => None,
         ItemType::ProfileChunk => None,
         ItemType::Integration => None,
         ItemType::Unknown(_) => None,
@@ -539,7 +538,7 @@ impl Enforcement {
             ItemType::Log => {
                 !(self.log_items.is_active() || self.log_bytes.is_active())
             }
-            ItemType::Span | ItemType::OtelSpan => !self.spans_indexed.is_active(),
+            ItemType::Span => !self.spans_indexed.is_active(),
             ItemType::ProfileChunk => match item.profile_type() {
                 Some(ProfileType::Backend) => !self.profile_chunks.is_active(),
                 Some(ProfileType::Ui) => !self.profile_chunks_ui.is_active(),
@@ -1770,7 +1769,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_enforce_span() {
-        let mut envelope = envelope![Span, OtelSpan];
+        let mut envelope = envelope![Span, Span];
 
         let mock = mock_limiter(Some(DataCategory::Span));
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
@@ -1788,7 +1787,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_enforce_span_no_indexing_quota() {
-        let mut envelope = envelope![OtelSpan, Span];
+        let mut envelope = envelope![Span, Span];
 
         let mock = mock_limiter(Some(DataCategory::SpanIndexed));
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
@@ -1807,7 +1806,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_enforce_span_metrics_extracted_no_indexing_quota() {
-        let mut envelope = envelope![Span, OtelSpan];
+        let mut envelope = envelope![Span, Span];
         set_extracted(envelope.envelope_mut(), ItemType::Span);
 
         let mock = mock_limiter(Some(DataCategory::SpanIndexed));

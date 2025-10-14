@@ -11,7 +11,7 @@ use crate::utils::EnvelopeSummary;
 use crate::{Envelope, metrics, processing};
 
 /// A list of data categories and amounts.
-pub type Quantities = SmallVec<[(DataCategory, usize); 1]>;
+pub type Quantities = SmallVec<[(DataCategory, usize); 2]>;
 
 /// A counted item.
 ///

@@ -468,7 +468,7 @@ pub struct SpanData {
     pub app_start_type: Annotated<Value>,
 
     /// The maximum number of tokens that should be used by an LLM call.
-    #[metastructure(field = "gen_ai.request.max_tokens")]
+    #[metastructure(field = "gen_ai.request.max_tokens", pii = "maybe")]
     pub gen_ai_request_max_tokens: Annotated<Value>,
 
     /// Name of the AI pipeline or chain being executed.
@@ -478,7 +478,8 @@ pub struct SpanData {
     /// The total tokens that were used by an LLM call
     #[metastructure(
         field = "gen_ai.usage.total_tokens",
-        legacy_alias = "ai.total_tokens.used"
+        legacy_alias = "ai.total_tokens.used",
+        pii = "maybe"
     )]
     pub gen_ai_usage_total_tokens: Annotated<Value>,
 
@@ -486,27 +487,51 @@ pub struct SpanData {
     #[metastructure(
         field = "gen_ai.usage.input_tokens",
         legacy_alias = "ai.prompt_tokens.used",
-        legacy_alias = "gen_ai.usage.prompt_tokens"
+        legacy_alias = "gen_ai.usage.prompt_tokens",
+        pii = "maybe"
     )]
     pub gen_ai_usage_input_tokens: Annotated<Value>,
 
     /// The input tokens used by an LLM call that were cached
     /// (cheaper and faster than non-cached input tokens)
-    #[metastructure(field = "gen_ai.usage.input_tokens.cached")]
+    #[metastructure(field = "gen_ai.usage.input_tokens.cached", pii = "maybe")]
     pub gen_ai_usage_input_tokens_cached: Annotated<Value>,
+
+    /// The input tokens written to cache during an LLM call
+    #[metastructure(field = "gen_ai.usage.input_tokens.cache_write", pii = "maybe")]
+    pub gen_ai_usage_input_tokens_cache_write: Annotated<Value>,
+
+    /// The input tokens that missed the cache (DeepSeek provider)
+    #[metastructure(field = "gen_ai.usage.input_tokens.cache_miss", pii = "maybe")]
+    pub gen_ai_usage_input_tokens_cache_miss: Annotated<Value>,
 
     /// The output tokens used by an LLM call (the ones the LLM actually generated)
     #[metastructure(
         field = "gen_ai.usage.output_tokens",
         legacy_alias = "ai.completion_tokens.used",
-        legacy_alias = "gen_ai.usage.completion_tokens"
+        legacy_alias = "gen_ai.usage.completion_tokens",
+        pii = "maybe"
     )]
     pub gen_ai_usage_output_tokens: Annotated<Value>,
 
     /// The output tokens used to represent the model's internal thought
     /// process while generating a response
-    #[metastructure(field = "gen_ai.usage.output_tokens.reasoning")]
+    #[metastructure(field = "gen_ai.usage.output_tokens.reasoning", pii = "maybe")]
     pub gen_ai_usage_output_tokens_reasoning: Annotated<Value>,
+
+    /// The output tokens for accepted predictions (OpenAI provider)
+    #[metastructure(
+        field = "gen_ai.usage.output_tokens.prediction_accepted",
+        pii = "maybe"
+    )]
+    pub gen_ai_usage_output_tokens_prediction_accepted: Annotated<Value>,
+
+    /// The output tokens for rejected predictions (OpenAI provider)
+    #[metastructure(
+        field = "gen_ai.usage.output_tokens.prediction_rejected",
+        pii = "maybe"
+    )]
+    pub gen_ai_usage_output_tokens_prediction_rejected: Annotated<Value>,
 
     // Exact model used to generate the response (e.g. gpt-4o-mini-2024-07-18)
     #[metastructure(field = "gen_ai.response.model")]
@@ -521,15 +546,15 @@ pub struct SpanData {
     pub gen_ai_usage_total_cost: Annotated<Value>,
 
     /// The total cost for the tokens used (duplicate field for migration)
-    #[metastructure(field = "gen_ai.cost.total_tokens")]
+    #[metastructure(field = "gen_ai.cost.total_tokens", pii = "maybe")]
     pub gen_ai_cost_total_tokens: Annotated<Value>,
 
     /// The cost for input tokens used
-    #[metastructure(field = "gen_ai.cost.input_tokens")]
+    #[metastructure(field = "gen_ai.cost.input_tokens", pii = "maybe")]
     pub gen_ai_cost_input_tokens: Annotated<Value>,
 
     /// The cost for output tokens used
-    #[metastructure(field = "gen_ai.cost.output_tokens")]
+    #[metastructure(field = "gen_ai.cost.output_tokens", pii = "maybe")]
     pub gen_ai_cost_output_tokens: Annotated<Value>,
 
     /// Prompt passed to LLM (Vercel AI SDK)
@@ -587,7 +612,7 @@ pub struct SpanData {
     pub gen_ai_response_streaming: Annotated<Value>,
 
     ///  Total output tokens per seconds throughput
-    #[metastructure(field = "gen_ai.response.tokens_per_second")]
+    #[metastructure(field = "gen_ai.response.tokens_per_second", pii = "maybe")]
     pub gen_ai_response_tokens_per_second: Annotated<Value>,
 
     /// The available tools for a request to an LLM
@@ -658,6 +683,14 @@ pub struct SpanData {
     /// The type of the operation being performed.
     #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
     pub gen_ai_operation_type: Annotated<String>,
+
+    /// The result of the MCP prompt.
+    #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
+    pub mcp_prompt_result: Annotated<Value>,
+
+    /// The result of the MCP tool.
+    #[metastructure(field = "mcp.tool.result.content", pii = "maybe")]
+    pub mcp_tool_result_content: Annotated<Value>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -1436,7 +1469,7 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r###"
+        insta::assert_debug_snapshot!(data, @r#"
         SpanData {
             app_start_type: ~,
             gen_ai_request_max_tokens: ~,
@@ -1444,8 +1477,12 @@ mod tests {
             gen_ai_usage_total_tokens: ~,
             gen_ai_usage_input_tokens: ~,
             gen_ai_usage_input_tokens_cached: ~,
+            gen_ai_usage_input_tokens_cache_write: ~,
+            gen_ai_usage_input_tokens_cache_miss: ~,
             gen_ai_usage_output_tokens: ~,
             gen_ai_usage_output_tokens_reasoning: ~,
+            gen_ai_usage_output_tokens_prediction_accepted: ~,
+            gen_ai_usage_output_tokens_prediction_rejected: ~,
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
@@ -1474,6 +1511,8 @@ mod tests {
             gen_ai_tool_name: ~,
             gen_ai_operation_name: ~,
             gen_ai_operation_type: ~,
+            mcp_prompt_result: ~,
+            mcp_tool_result_content: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
@@ -1571,7 +1610,7 @@ mod tests {
                 ),
             },
         }
-        "###);
+        "#);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));

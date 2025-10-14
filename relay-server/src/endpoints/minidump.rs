@@ -359,7 +359,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_minidump_multipart_attachments() -> anyhow::Result<()> {
+    async fn test_minidump_multipart_attachments() {
         let multipart_body: &[u8] =
             b"-----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
             Content-Disposition: form-data; name=\"guid\"\x0d\x0a\x0d\x0add46bb04-bb27-448c-aad0-0deb0c134bdb\x0d\x0a\
@@ -391,15 +391,17 @@ mod tests {
                 "content-type",
                 "multipart/form-data; boundary=---MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---",
             )
-            .body(Body::from(multipart_body))?;
+            .body(Body::from(multipart_body)).unwrap();
 
         let config = Config::default();
 
-        let multipart = ConstrainedMultipart(utils::multipart_from_request(
-            request,
-            multer::Constraints::new(),
-        )?);
-        let items = multipart.items(infer_attachment_type, &config).await?;
+        let multipart = ConstrainedMultipart(
+            utils::multipart_from_request(request, multer::Constraints::new()).unwrap(),
+        );
+        let items = multipart
+            .items(infer_attachment_type, &config)
+            .await
+            .unwrap();
 
         // we expect the multipart body to contain
         // * one arbitrary attachment from the user (a `config.json`)
@@ -474,7 +476,5 @@ mod tests {
             form_data_entry.value(),
             "dd46bb04-bb27-448c-aad0-0deb0c134bdb"
         );
-
-        Ok(())
     }
 }

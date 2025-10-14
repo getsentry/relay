@@ -2,25 +2,27 @@
 mod parser;
 
 use std::borrow::Cow;
+use std::sync::LazyLock;
 use std::time::Instant;
 
 use crate::statsd::Timers;
-use once_cell::sync::Lazy;
 use parser::normalize_parsed_queries;
 use regex::Regex;
 
 /// Removes SQL comments starting with "--" or "#".
-static COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n|$)").unwrap());
+static COMMENTS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n|$)").unwrap());
 
 /// Removes MySQL inline comments.
-static INLINE_COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\*(?:.|\n)*?\*/").unwrap());
+static INLINE_COMMENTS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"/\*(?:.|\n)*?\*/").unwrap());
 
 /// Regex with multiple capture groups for SQL tokens we should scrub.
 ///
 /// Slightly modified from
 /// <https://github.com/getsentry/sentry/blob/65fb6fdaa0080b824ab71559ce025a9ec6818b3e/src/sentry/spans/grouping/strategy/base.py#L170>
 /// <https://github.com/getsentry/sentry/blob/17af7efe869007f85c5322e48aa9f80a8515bde4/src/sentry/spans/grouping/strategy/base.py#L163>
-static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+static NORMALIZER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?xi)
         # Capture `SAVEPOINT` savepoints.
@@ -45,7 +47,7 @@ static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// For MySQL, also look for double quoted strings.
-static DOUBLE_QUOTED_STRING_REGEX: Lazy<Regex> = Lazy::new(|| {
+static DOUBLE_QUOTED_STRING_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?xi)
         # Capture double-quoted strings, including the remaining substring if `\'` is found.
@@ -56,22 +58,22 @@ static DOUBLE_QUOTED_STRING_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Removes extra whitespace and newlines.
-static WHITESPACE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\s*\n\s*)|(\s\s+)").unwrap());
+static WHITESPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\s*\n\s*)|(\s\s+)").unwrap());
 
 /// Removes whitespace around parentheses.
-static PARENS: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"((?P<pre>\()\s+)|(\s+(?P<post>\)))").unwrap());
+static PARENS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"((?P<pre>\()\s+)|(\s+(?P<post>\)))").unwrap());
 
-static STRIP_QUOTES: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"["`](?P<entity_name>\w+)($|["`])"#).unwrap());
+static STRIP_QUOTES: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"["`](?P<entity_name>\w+)($|["`])"#).unwrap());
 
 /// Regex to shorten table or column references, e.g. `"table1"."col1"` -> `col1`.
-static COLLAPSE_ENTITIES: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?:\w+\.)+(?P<entity_name>\w+)").unwrap());
+static COLLAPSE_ENTITIES: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:\w+\.)+(?P<entity_name>\w+)").unwrap());
 
 /// Regex to make multiple placeholders collapse into one.
 /// This can be used as a second pass after [`NORMALIZER_REGEX`].
-static COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
+static COLLAPSE_PLACEHOLDERS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?xi)
         (?P<pre>(?:VALUES|IN) \s+\() (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) (?P<post>\s*\)?)
@@ -86,7 +88,7 @@ static COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
 ///   SELECT "a.b" AS a__b, "a.c" AS a__c FROM x -> SELECT .. FROM x
 ///
 /// Assumes that column names have already been normalized.
-static COLLAPSE_COLUMNS: Lazy<Regex> = Lazy::new(|| {
+static COLLAPSE_COLUMNS: LazyLock<Regex> = LazyLock::new(|| {
     let col = r"\w+(\s+AS\s+\w+)?";
     Regex::new(
         format!(
@@ -105,7 +107,8 @@ static COLLAPSE_COLUMNS: Lazy<Regex> = Lazy::new(|| {
 ///
 /// Looks for `?`, `$1` or `%s` identifiers, commonly used identifiers in
 /// Python, Ruby on Rails and PHP platforms.
-static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1|%s").unwrap());
+static ALREADY_NORMALIZED_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"/\?|\$1|%s").unwrap());
 
 /// Normalizes the given SQL-query-like string.
 pub fn scrub_queries(db_system: Option<&str>, string: &str) -> (Option<String>, Mode) {

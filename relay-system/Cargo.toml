@@ -17,7 +17,6 @@ test = []
 
 [dependencies]
 futures = { workspace = true }
-once_cell = { workspace = true }
 relay-log = { workspace = true }
 relay-statsd = { workspace = true }
 tokio = { workspace = true, features = ["rt", "signal", "macros", "sync", "time", "rt-multi-thread"] }

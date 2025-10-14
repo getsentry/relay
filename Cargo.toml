@@ -75,99 +75,98 @@ relay-test = { path = "relay-test" }
 relay-threading = { path = "relay-threading" }
 relay-ua = { path = "relay-ua" }
 
-ahash = "0.8.11"
+ahash = "0.8.12"
 android_trace_log = { version = "0.3.0", features = ["serde"] }
 # This version is pinned because upgrading it enables backtrace by default without the possibility to disable it
 # which will increase processing time for transactions massively.
 # Keep it pinned until it's possible to disable backtrace.
 anyhow = "=1.0.69"
 arc-swap = "1.7.1"
-async-trait = "0.1.83"
-axum = "0.8.1"
-axum-extra = "0.10.0"
-axum-server = "0.7.1"
+async-trait = "0.1.89"
+axum = "0.8.6"
+axum-extra = "0.10.3"
+axum-server = "0.7.2"
 backoff = "0.4.0"
-bindgen = "0.72.0"
+bindgen = "0.72.1"
 brotli = "7.0.0"
-bytecount = "0.6.8"
+bytecount = "0.6.9"
 bytes = "1.10.1"
 bzip2 = "0.6.0"
-cadence = "1.5.0"
-chrono = { version = "0.4.38", default-features = false, features = [
+cadence = "1.6.0"
+chrono = { version = "0.4.42", default-features = false, features = [
   "std",
   "serde",
 ] }
-clap = { version = "4.4.18" }
-clap_complete = "4.1.6"
+clap = { version = "4.5.48" }
+clap_complete = "4.5.48"
 cmake = "0.1.54"
 console = "0.15.11"
 cookie = "0.18.1"
 criterion = "0.5.1"
 crossbeam-channel = "0.5.15"
-data-encoding = "2.6.0"
-deadpool = "0.12.2"
+data-encoding = "2.9.0"
+deadpool = "0.12.3"
 deadpool-redis = "0.20.0"
 debugid = "0.8.0"
 dialoguer = "0.11.0"
 dynfmt = "0.1.5"
-ed25519-dalek = { version = "2.1.1", features = ["digest"] }
-enumset = "1.0.13"
-flate2 = "1.0.35"
+ed25519-dalek = { version = "2.2.0", features = ["digest"] }
+enumset = "1.1.10"
+flate2 = "1.1.4"
 flume = { version = "0.11.1", default-features = false }
-futures = { version = "0.3", default-features = false, features = ["std"] }
-globset = "0.4.15"
+futures = { version = "0.3.31", default-features = false, features = ["std"] }
+globset = "0.4.16"
 hash32 = "1.0.0"
 hashbrown = "0.15.4"
 hex = "0.4.3"
 hmac = "0.12.1"
-hostname = "0.4.0"
-http = "1.1.0"
+hostname = "0.4.1"
+http = "1.3.1"
 human-size = "0.4.3"
-hyper = "1.6.0"
-hyper-util = { version = "0.1.14", features = ["tokio"] }
-indexmap = "2.2.6"
+hyper = "1.7.0"
+hyper-util = { version = "0.1.17", features = ["tokio"] }
+indexmap = "2.11.4"
 insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }
-ipnetwork = "0.21.0"
+ipnetwork = "0.21.1"
 itertools = "0.14.0"
 json-forensics = "0.1.1"
-libc = "0.2.174"
-liblzma = "0.4.2"
-lru = "0.16.0"
+libc = "0.2.177"
+liblzma = "0.4.5"
+lru = "0.16.1"
 maxminddb = "0.26.0"
 md5 = "0.8.0"
-memchr = "2.7.4"
+memchr = "2.7.6"
 mime = "0.3.17"
 minidump = "0.26.0"
 multer = "3.1.0"
 num-traits = "0.2.19"
-num_cpus = "1.13.1"
-once_cell = "1.13.1"
+num_cpus = "1.17.0"
 opentelemetry-proto = { version = "0.30.0", default-features = false }
 papaya = "0.2.3"
-parking_lot = "0.12.3"
+parking_lot = "0.12.5"
 path-slash = "0.2.1"
-pest = "2.1.3"
-pest_derive = "2.1.0"
-phf = { version = "0.12", default-features = false }
-phf_codegen = "0.12"
-pin-project-lite = "0.2.15"
+pest = "2.8.3"
+pest_derive = "2.8.3"
+phf = { version = "0.13.1", features = ["macros"] }
+phf_codegen = "0.13.1"
+pin-project-lite = "0.2.16"
 pretty-hex = "0.4.1"
-priority-queue = "2.0.3"
-proc-macro2 = "1.0.92"
+priority-queue = "2.7.0"
+proc-macro2 = "1.0.101"
 prost = "0.13.3"
 prost-types = "0.13.3"
-psl = "2.1.65"
-quote = "1.0.37"
-rand = "0.9.1"
+psl = "2.1.148"
+quote = "1.0.41"
+rand = "0.9.2"
 rand_pcg = "0.9.0"
 rdkafka = "0.36.2"
 rdkafka-sys = "4.8.0"
 redis = { version = "0.29.2", default-features = false }
-regex = "1.11.1"
-regex-lite = "0.1.6"
-reqwest = "0.12.9"
+regex = "1.11.3"
+regex-lite = "0.1.7"
+reqwest = "0.12.23"
 rmp-serde = "1.3.0"
-semver = "1.0.23"
+semver = "1.0.27"
 sentry = { version = "0.41.0", default-features = false, features = [
   # default features, except `release-health` is disabled
   "backtrace",
@@ -177,49 +176,49 @@ sentry = { version = "0.41.0", default-features = false, features = [
   "transport",
 ] }
 sentry-core = "0.41.0"
-sentry-kafka-schemas = { version = "2.1.6", default-features = false }
+sentry-kafka-schemas = { version = "2.1.7", default-features = false }
 sentry-release-parser = { version = "1.3.2", default-features = false }
 sentry-types = "0.41.0"
-sentry_protos = "0.4.1"
-serde = { version = "1.0.215", features = ["derive", "rc"] }
+sentry_protos = "0.4.2"
+serde = { version = "=1.0.228", features = ["derive", "rc"] }
 serde-transcode = "1.1.1"
 serde-vars = "0.2.0"
 serde_bytes = "0.11.17"
 serde_json = "1.0.140"
-serde_path_to_error = "0.1.17"
+serde_path_to_error = "0.1.20"
 serde_test = "1.0.177"
 serde_urlencoded = "0.7.1"
 serde_yaml = "0.9.33"
 sha1 = "0.10.6"
 sha2 = "0.10.9"
-similar-asserts = "1.6.0"
-smallvec = { version = "1.13.2", features = ["serde"] }
+similar-asserts = "1.7.0"
+smallvec = { version = "1.15.1", features = ["serde"] }
 socket2 = "0.5.10"
 sqlparser = "0.59.0"
-sqlx = { version = "0.8.2", default-features = false }
+sqlx = { version = "0.8.6", default-features = false }
 statsdproxy = { version = "0.4.1", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
 symbolic-unreal = { version = "12.12.3", default-features = false }
-syn = { version = "2.0.90" }
-synstructure = { version = "0.13.1" }
+syn = { version = "2.0.106" }
+synstructure = { version = "0.13.2" }
 sysinfo = "0.35.1"
-tempfile = "3.14.0"
-thiserror = "2.0.12"
+tempfile = "3.23.0"
+thiserror = "2.0.17"
 tikv-jemallocator = "0.6.0"
 tokio = { version = "1.42.0", default-features = false }
 tokio-util = { version = "0.7.13", default-features = false }
 tower = { version = "0.5.2", default-features = false }
-tower-http = { version = "0.6.2", default-features = false }
+tower-http = { version = "0.6.6", default-features = false }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
 uaparser = "0.6.4"
-unescaper = "0.1.5"
-unicase = "2.8.0"
-url = "2.5.4"
+unescaper = "0.1.6"
+unicase = "2.8.1"
+url = "2.5.7"
 utf16string = "0.2.0"
-uuid = { version = "1.11.0", features = ["serde", "v4", "v7"] }
+uuid = { version = "1.18.1", features = ["serde", "v4", "v7"] }
 walkdir = "2.5.0"
-zstd = { version = "0.13.2", features = ["experimental"] }
+zstd = { version = "0.13.3", features = ["experimental"] }
 
 # Patch until https://github.com/apache/datafusion-sqlparser-rs/pull/2060 has been merged.
 # This prevents stack overflows in span description normalization.

@@ -45,7 +45,7 @@ use zstd::stream::Encoder as ZstdEncoder;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
-use crate::integrations::Integration;
+use crate::integrations::{Integration, SpansIntegration};
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -314,7 +314,12 @@ impl ProcessingGroup {
         }
 
         if project_info.has_feature(Feature::SpanV2ExperimentalProcessing) {
-            let span_v2_items = envelope.take_items_by(ItemContainer::<SpanV2>::is_container);
+            let span_v2_items = envelope.take_items_by(|item| {
+                matches!(
+                    item.integration(),
+                    Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
+                ) || ItemContainer::<SpanV2>::is_container(item)
+            });
 
             if !span_v2_items.is_empty() {
                 grouped_envelopes.push((
@@ -326,7 +331,7 @@ impl ProcessingGroup {
 
         // Extract spans.
         let span_items = envelope.take_items_by(|item| {
-            matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan)
+            matches!(item.ty(), &ItemType::Span)
                 || matches!(item.integration(), Some(Integration::Spans(_)))
         });
 
