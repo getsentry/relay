@@ -320,8 +320,7 @@ impl ProcessingGroup {
                 Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
             );
 
-            return ItemContainer::<SpanV2>::is_container(item)
-                || (exp_feature && is_supported_integration);
+            ItemContainer::<SpanV2>::is_container(item) || (exp_feature && is_supported_integration)
         });
 
         if !span_v2_items.is_empty() {
