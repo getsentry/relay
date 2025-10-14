@@ -619,10 +619,10 @@ impl Serialize for BucketView<'_> {
         if self.is_full_bucket() {
             self.inner
                 .value
-                .serialize(serde::__private228::ser::FlatMapSerializer(&mut state))?;
+                .serialize(serde::__private::ser::FlatMapSerializer(&mut state))?;
         } else {
             self.value()
-                .serialize(serde::__private228::ser::FlatMapSerializer(&mut state))?;
+                .serialize(serde::__private::ser::FlatMapSerializer(&mut state))?;
         }
 
         if !tags.is_empty() {

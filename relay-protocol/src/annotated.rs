@@ -327,7 +327,7 @@ where
 
         if let Some(value) = self.value() {
             // NOTE: This is a hack and known to be instable use of serde.
-            use serde::__private228::ser::FlatMapSerializer;
+            use serde::__private::ser::FlatMapSerializer;
             IntoValue::serialize_payload(
                 value,
                 FlatMapSerializer(&mut map_ser),
