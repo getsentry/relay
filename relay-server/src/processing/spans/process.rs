@@ -3,7 +3,6 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::SpanV2;
-use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
@@ -108,21 +107,12 @@ fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
         .pii_config()
         .map_err(|e| Error::PiiConfig(e.clone()))?;
 
-    let state = ProcessingState::root().enter_borrowed("", None, [ValueType::Span]);
-
-    if let Some(ref config) = ctx.project_info.config.pii_config {
-        let mut processor = PiiProcessor::new(config.compiled())
-            // For advanced rules we want to treat attributes as objects.
-            .attribute_mode(AttributeMode::Object);
-        process_value(span, &mut processor, &state)?;
-    }
-
-    if let Some(config) = pii_config_from_scrubbing {
-        let mut processor = PiiProcessor::new(config.compiled())
-            // For "legacy" rules we want to identify attributes with their values.
-            .attribute_mode(AttributeMode::ValueOnly);
-        process_value(span, &mut processor, &state)?;
-    }
+    relay_pii::scrub_eap_item(
+        ValueType::Span,
+        span,
+        ctx.project_info.config.pii_config.as_ref(),
+        pii_config_from_scrubbing.as_ref(),
+    )?;
 
     Ok(())
 }
