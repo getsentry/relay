@@ -50,9 +50,9 @@ pub struct AttributeInfo {
     pub aliases: &'static [&'static str],
 }
 
-struct AttributeNode {
-    info: Option<AttributeInfo>,
-    children: phf::Map<&'static str, AttributeNode>,
+struct Node<T: 'static> {
+    info: Option<T>,
+    children: phf::Map<&'static str, Node<T>>,
 }
 
 /// Special path segment in attribute keys that matches any value.
@@ -60,28 +60,31 @@ const PLACEHOLDER_SEGMENT: &str = "<key>";
 
 /// Returns information about an attribute, as defined in `sentry-conventions`.
 pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
-    let mut node = &ATTRIBUTES;
-    for part in parse_segments(key) {
-        node = node
-            .children
-            .get(part)
-            .or_else(|| node.children.get(PLACEHOLDER_SEGMENT))?;
-    }
-    node.info.as_ref()
+    find_node(&ATTRIBUTES, key)
 }
 
-/// Parse a path-like attribute key into individual segments.
-///
-/// NOTE: This does not yet support escaped segments, e.g. `"foo.'my.thing'.bar"` will split into
-/// `["foo.'my", "thing'.bar"]`.
-fn parse_segments(key: &str) -> impl Iterator<Item = &str> {
-    key.split('.')
+fn find_node<'a, T>(node: &'a Node<T>, key: &str) -> Option<&'a T> {
+    if key == "" {
+        return node.info.as_ref();
+    }
+    let (prefix, suffix) = key.split_once('.').unwrap_or((key, ""));
+    for candidate in [prefix, PLACEHOLDER_SEGMENT] {
+        if let Some(info) = node
+            .children
+            .get(candidate)
+            .and_then(|child| find_node(child, suffix))
+        {
+            return Some(info);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
+    use phf::phf_map;
     use relay_protocol::{Getter, Val};
 
     use super::*;
@@ -118,6 +121,30 @@ mod tests {
             ],
         }
         "###);
+    }
+
+    const ROOT: Node<u8> = Node {
+        info: None,
+        children: phf_map! {
+            "foo" => Node {
+                info: Some(1),
+                children: phf_map!{}
+            },
+            "<key>" =>  Node {
+                info: None,
+                children: phf_map!{
+                    "bar" => Node {
+                        info: Some(2),
+                        children: phf_map! {}
+                    }
+                }
+            }
+        },
+    };
+
+    #[test]
+    fn test_hypothetical() {
+        assert_eq!(find_node(&ROOT, "foo.bar"), Some(&2));
     }
 
     struct GetterMap<'a>(HashMap<&'a str, Val<'a>>);

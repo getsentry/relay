@@ -21,7 +21,7 @@ struct RawNode {
 impl RawNode {
     fn build(&self, w: &mut impl std::io::Write) -> Result<(), std::io::Error> {
         let Self { children, info } = self;
-        write!(w, "AttributeNode {{ info: ")?;
+        write!(w, "Node {{ info: ")?;
         match info {
             Some(info) => write!(w, "Some({})", info)?,
             None => write!(w, "None")?,
@@ -76,7 +76,7 @@ fn main() {
     let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_map.rs");
     let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
 
-    write!(&mut out_file, "static ATTRIBUTES: AttributeNode = ",).unwrap();
+    write!(&mut out_file, "static ATTRIBUTES: Node<AttributeInfo> = ",).unwrap();
     root.build(&mut out_file).unwrap();
     write!(&mut out_file, ";").unwrap();
 
