@@ -213,7 +213,7 @@ fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_event_schema::protocol::{CompatSpan, Event};
+    use relay_event_schema::protocol::Event;
     use relay_protocol::{FromValue, SerializableAnnotated};
 
     #[test]
@@ -433,16 +433,6 @@ mod tests {
                 .unwrap()
                 .get_value("sentry.segment.name")
                 .and_then(Value::as_str),
-            Some("hi")
-        );
-        let compat_span = CompatSpan::try_from(span_v2).unwrap();
-        assert_eq!(
-            compat_span
-                .data
-                .value()
-                .unwrap()
-                .get("sentry.segment.name")
-                .and_then(|v| v.as_str()),
             Some("hi")
         );
     }

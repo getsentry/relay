@@ -10,7 +10,7 @@ use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::processing::Context;
-use crate::processing::spans::{Error, ExpandedSpans, Result, SampledSpans};
+use crate::processing::spans::{self, Error, ExpandedSpans, Result, SampledSpans};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized spans.
@@ -20,14 +20,16 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
     spans.map(|spans, records| {
         let mut all_spans = Vec::new();
 
-        for item in &spans.spans {
+        for item in &spans.inner.spans {
             let expanded = expand_span(item);
             let expanded = records.or_default(expanded, item);
             all_spans.extend(expanded);
         }
 
+        spans::integrations::expand_into(&mut all_spans, records, spans.inner.integrations);
+
         ExpandedSpans {
-            headers: spans.headers,
+            headers: spans.inner.headers,
             server_sample_rate: spans.server_sample_rate,
             spans: all_spans,
         }

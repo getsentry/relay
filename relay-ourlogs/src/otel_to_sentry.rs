@@ -12,7 +12,7 @@ use relay_conventions::ORIGIN;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_otel::otel_value_to_attribute;
-use relay_protocol::{Annotated, Meta, Object, Remark, RemarkType};
+use relay_protocol::{Annotated, Object};
 
 /// Maps OpenTelemetry severity number to Sentry log level.
 ///
@@ -62,25 +62,11 @@ pub fn otel_to_sentry_log(
         ..
     } = otel_log;
 
-    let span_id = if span_id.is_empty() {
-        Annotated::empty()
-    } else {
-        SpanId::try_from(span_id.as_slice())
-            .map_or_else(|err| Annotated::from_error(err, None), Annotated::new)
+    let span_id = match span_id.is_empty() {
+        true => Annotated::empty(),
+        false => SpanId::try_from(span_id.as_slice()).into(),
     };
-    let trace_id = match TraceId::try_from(trace_id.as_slice()) {
-        Ok(id) => Annotated::new(id),
-        Err(_) => {
-            let mut meta = Meta::default();
-            let rule_id = if trace_id.is_empty() {
-                "trace_id.missing"
-            } else {
-                "trace_id.invalid"
-            };
-            meta.add_remark(Remark::new(RemarkType::Substituted, rule_id));
-            Annotated(Some(TraceId::random()), meta)
-        }
-    };
+    let trace_id = TraceId::try_from_slice_or_random(trace_id.as_slice());
     let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
     let level = map_severity_to_level(severity_number, &severity_text);
     let body = body.and_then(|v| v.value).and_then(|v| match v {
@@ -91,34 +77,7 @@ pub fn otel_to_sentry_log(
     let mut attribute_data = Attributes::default();
     attribute_data.insert(ORIGIN, "auto.otlp.logs".to_owned());
 
-    for attribute in resource.into_iter().flat_map(|s| &s.attributes) {
-        if let Some(attr) = attribute
-            .value
-            .clone()
-            .and_then(|v| v.value)
-            .and_then(otel_value_to_attribute)
-        {
-            let key = format!("resource.{}", attribute.key);
-            attribute_data.insert_raw(key, Annotated::new(attr));
-        }
-    }
-
-    for attribute in scope.into_iter().flat_map(|s| &s.attributes) {
-        if let Some(attr) = attribute
-            .value
-            .clone()
-            .and_then(|v| v.value)
-            .and_then(otel_value_to_attribute)
-        {
-            let key = format!("instrumentation.{}", attribute.key);
-            attribute_data.insert_raw(key, Annotated::new(attr));
-        }
-    }
-
-    if let Some(scope) = scope {
-        attribute_data.insert("instrumentation.name".to_owned(), scope.name.clone());
-        attribute_data.insert("instrumentation.version".to_owned(), scope.version.clone());
-    }
+    relay_otel::otel_scope_into_attributes(&mut attribute_data, resource, scope);
 
     for attribute in attributes {
         if let Some(attr) = attribute

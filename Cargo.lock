@@ -3100,31 +3100,46 @@ dependencies = [
 
 [[package]]
 name = "phf"
-version = "0.12.1"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "913273894cec178f401a31ec4b656318d95473527be05c0752cc41cdc32be8b7"
+checksum = "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf"
 dependencies = [
- "phf_shared 0.12.1",
+ "phf_macros",
+ "phf_shared 0.13.1",
+ "serde",
 ]
 
 [[package]]
 name = "phf_codegen"
-version = "0.12.1"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efbdcb6f01d193b17f0b9c3360fa7e0e620991b193ff08702f78b3ce365d7e61"
+checksum = "49aa7f9d80421bca176ca8dbfebe668cc7a2684708594ec9f3c0db0805d5d6e1"
 dependencies = [
  "phf_generator",
- "phf_shared 0.12.1",
+ "phf_shared 0.13.1",
 ]
 
 [[package]]
 name = "phf_generator"
-version = "0.12.1"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cbb1126afed61dd6368748dae63b1ee7dc480191c6262a3b4ff1e29d86a6c5b"
+checksum = "135ace3a761e564ec88c03a77317a7c6b80bb7f7135ef2544dbe054243b89737"
 dependencies = [
  "fastrand",
- "phf_shared 0.12.1",
+ "phf_shared 0.13.1",
+]
+
+[[package]]
+name = "phf_macros"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "812f032b54b1e759ccd5f8b6677695d5268c588701effba24601f6932f8269ef"
+dependencies = [
+ "phf_generator",
+ "phf_shared 0.13.1",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -3138,9 +3153,9 @@ dependencies = [
 
 [[package]]
 name = "phf_shared"
-version = "0.12.1"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06005508882fb681fd97892ecff4b7fd0fee13ef1aa569f8695dae7ab9099981"
+checksum = "e57fef6bc5981e38c2ce2d63bfa546861309f875b8a75f092d1d54ae2d64f266"
 dependencies = [
  "siphasher 1.0.1",
 ]
@@ -3297,9 +3312,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.92"
+version = "1.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37d3544b3f2748c54e147655edb5025752e2303145b5aefb3c3ea2c78b973bb0"
+checksum = "89ae43fd86e4158d6db51ad8e2b80f313af9cc74f5c0e03ccb87de09998732de"
 dependencies = [
  "unicode-ident",
 ]
@@ -3650,7 +3665,6 @@ dependencies = [
  "clap_complete",
  "dialoguer",
  "hostname 0.4.0",
- "once_cell",
  "relay-config",
  "relay-kafka",
  "relay-log",
@@ -3692,14 +3706,13 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.16"
+version = "0.9.17"
 dependencies = [
  "anyhow",
  "chrono",
  "globset",
  "json-forensics",
  "lru",
- "once_cell",
  "regex",
  "relay-auth",
  "relay-base-schema",
@@ -3752,7 +3765,6 @@ version = "25.9.0"
 dependencies = [
  "chrono",
  "criterion",
- "once_cell",
  "regex-lite",
  "relay-pattern",
  "sentry-types",
@@ -3825,7 +3837,6 @@ dependencies = [
  "relay-protocol",
  "relay-quotas",
  "relay-sampling",
- "sentry_protos",
  "serde",
  "serde_json",
  "similar-asserts",
@@ -3853,7 +3864,6 @@ dependencies = [
  "itertools 0.14.0",
  "maxminddb",
  "md5",
- "once_cell",
  "psl",
  "regex",
  "relay-base-schema",
@@ -3928,7 +3938,6 @@ dependencies = [
  "indexmap",
  "insta",
  "ipnetwork",
- "once_cell",
  "regex",
  "relay-common",
  "relay-conventions",
@@ -4039,13 +4048,13 @@ dependencies = [
  "chrono",
  "hex",
  "insta",
- "once_cell",
  "opentelemetry-proto",
  "relay-common",
  "relay-conventions",
  "relay-event-schema",
  "relay-otel",
  "relay-protocol",
+ "serde",
  "serde_json",
 ]
 
@@ -4076,7 +4085,6 @@ dependencies = [
  "itertools 0.14.0",
  "minidump",
  "num-traits",
- "once_cell",
  "pest",
  "pest_derive",
  "pretty-hex",
@@ -4207,7 +4215,6 @@ dependencies = [
  "criterion",
  "flate2",
  "insta",
- "once_cell",
  "relay-event-schema",
  "relay-log",
  "relay-pii",
@@ -4271,7 +4278,6 @@ dependencies = [
  "mime",
  "minidump",
  "multer",
- "once_cell",
  "opentelemetry-proto",
  "papaya",
  "pin-project-lite",
@@ -4342,7 +4348,6 @@ dependencies = [
  "chrono",
  "hex",
  "insta",
- "once_cell",
  "opentelemetry-proto",
  "relay-conventions",
  "relay-event-schema",
@@ -4370,7 +4375,6 @@ version = "25.9.0"
 dependencies = [
  "futures",
  "insta",
- "once_cell",
  "pin-project-lite",
  "relay-log",
  "relay-statsd",
@@ -4402,7 +4406,6 @@ dependencies = [
 name = "relay-ua"
 version = "25.9.0"
 dependencies = [
- "once_cell",
  "uaparser",
 ]
 
@@ -4824,9 +4827,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "2.1.6"
+version = "2.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8757c054b3dd24d457fb4b0f63a42eac257ec25640f2bdc66332f6f5956be3f"
+checksum = "1d70fd89edfb5ff14253446c28cc7e672d734e9ec43d63ec5c7130ca548e6254"
 dependencies = [
  "jsonschema",
  "prost",
@@ -4915,9 +4918,9 @@ dependencies = [
 
 [[package]]
 name = "sentry_protos"
-version = "0.3.3"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2736920441e5f518ac0e79c27b91e2203b7c240afbd6e76771dbf78e208dbc12"
+checksum = "e66eb1ca0b78dc5e93af65a213e9fa6c945ebb7278d418e801e64fcc5532a648"
 dependencies = [
  "prost",
  "prost-types",
@@ -5209,8 +5212,7 @@ dependencies = [
 [[package]]
 name = "sqlparser_derive"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da5fc6819faabb412da764b99d3b713bb55083c11e7e0c00144d386cd6a1939c"
+source = "git+https://github.com/apache/datafusion-sqlparser-rs?rev=ade40826563451cc14c130af9d689f4050dbdb15#ade40826563451cc14c130af9d689f4050dbdb15"
 dependencies = [
  "proc-macro2",
  "quote",

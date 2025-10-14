@@ -482,6 +482,9 @@ pub enum DiscardReason {
     /// (Relay) A log that is not valid after normalization.
     InvalidLog,
 
+    /// (Relay) A trace metric that is not valid after normalization.
+    InvalidTraceMetric,
+
     /// (Relay) A span is not valid after normalization.
     InvalidSpan,
 
@@ -546,6 +549,7 @@ impl DiscardReason {
             DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
             DiscardReason::Profiling(reason) => reason,
             DiscardReason::InvalidLog => "invalid_log",
+            DiscardReason::InvalidTraceMetric => "invalid_trace_metric",
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
             DiscardReason::TransactionAttachment => "transaction_attachment",
@@ -606,12 +610,10 @@ pub enum DiscardItemType {
     CheckIn,
     /// A log for the log product, not internal logs.
     Log,
+    /// A trace metric item.
+    TraceMetric,
     /// A standalone span.
     Span,
-    /// A standalone OpenTelemetry span serialized as JSON.
-    OtelSpan,
-    /// An OTLP TracesData container.
-    OtelTracesData,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
@@ -665,9 +667,8 @@ impl DiscardItemType {
             Self::ReplayVideo => "replay_video",
             Self::CheckIn => "check_in",
             Self::Log => "log",
+            Self::TraceMetric => "trace_metric",
             Self::Span => "span",
-            Self::OtelSpan => "otel_span",
-            Self::OtelTracesData => "otel_traces_data",
             Self::UserReportV2 => "user_report_v2",
             Self::ProfileChunk => "profile_chunk",
             Self::Integration => "integration",
@@ -698,9 +699,8 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::ReplayVideo => Self::ReplayVideo,
             ItemType::CheckIn => Self::CheckIn,
             ItemType::Log => Self::Log,
+            ItemType::TraceMetric => Self::TraceMetric,
             ItemType::Span => Self::Span,
-            ItemType::OtelSpan => Self::OtelSpan,
-            ItemType::OtelTracesData => Self::OtelTracesData,
             ItemType::UserReportV2 => Self::UserReportV2,
             ItemType::ProfileChunk => Self::ProfileChunk,
             ItemType::Integration => Self::Integration,

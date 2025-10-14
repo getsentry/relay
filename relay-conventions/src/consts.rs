@@ -5,7 +5,7 @@ macro_rules! convention_attributes {
         #[test]
         fn test_attributes_defined_in_conventions() {
             $(
-                assert!(crate::ATTRIBUTES.contains_key($name));
+                assert!(crate::attribute_info($name).is_some());
             )*
         }
     };
@@ -27,12 +27,14 @@ convention_attributes!(
     HTTP_ROUTE => "http.route",
     HTTP_TARGET => "http.target",
     MESSAGING_SYSTEM => "messaging.system",
+    ENVIRONMENT => "sentry.environment",
     OBSERVED_TIMESTAMP_NANOS => "sentry.observed_timestamp_nanos",
     OP => "sentry.op",
     ORIGIN => "sentry.origin",
     PLATFORM => "sentry.platform",
     PROFILE_ID => "sentry.profile_id",
     RELEASE => "sentry.release",
+    SERVER_ADDRESS => "server.address",
     RPC_GRPC_STATUS_CODE => "rpc.grpc.status_code",
     RPC_SERVICE => "rpc.service",
     SEGMENT_ID => "sentry.segment.id",

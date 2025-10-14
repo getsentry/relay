@@ -1,6 +1,5 @@
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_quotas::DataCategory;
-use zstd::zstd_safe::WriteBuf;
 
 use crate::envelope::{ContainerItems, Item, WithHeader};
 use crate::integrations::{Integration, LogsIntegration};
@@ -41,10 +40,9 @@ pub fn expand_into(
         };
 
         let payload = item.payload();
-        let payload = payload.as_slice();
 
         let result = match integration {
-            LogsIntegration::OtelV1 { format } => otel::expand(format, payload, produce),
+            LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
         };
 
         match result {

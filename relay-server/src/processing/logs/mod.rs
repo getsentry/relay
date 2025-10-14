@@ -151,7 +151,7 @@ impl processing::Processor for LogsProcessor {
         // Fast filters, which do not need expanded logs.
         filter::feature_flag(ctx).reject(&logs)?;
 
-        let mut logs = process::expand(logs, ctx);
+        let mut logs = process::expand(logs);
         process::normalize(&mut logs);
         filter::filter(&mut logs, ctx);
         process::scrub(&mut logs, ctx);
@@ -170,7 +170,10 @@ pub enum LogOutput {
 }
 
 impl Forward for LogOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let logs = match self {
             Self::NotProcessed(logs) => logs,
             Self::Processed(logs) => logs.try_map(|logs, r| {
@@ -191,6 +194,7 @@ impl Forward for LogOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let logs = match self {
             LogOutput::NotProcessed(logs) => {
@@ -201,20 +205,13 @@ impl Forward for LogOutput {
             LogOutput::Processed(logs) => logs,
         };
 
-        let scoping = logs.scoping();
-        let received_at = logs.received_at();
-
-        let (logs, retentions) = logs
-            .split_with_context(|logs| (logs.logs, (logs.retention, logs.downsampled_retention)));
         let ctx = store::Context {
-            scoping,
-            received_at,
-            // Hard-code retentions until we have a per data category retention
-            retention: retentions.0,
-            downsampled_retention: retentions.1,
+            scoping: logs.scoping(),
+            received_at: logs.received_at(),
+            retention: ctx.retention(|r| r.log.as_ref()),
         };
 
-        for log in logs {
+        for log in logs.split(|logs| logs.logs) {
             if let Ok(log) = log.try_map(|log, _| store::convert(log, &ctx)) {
                 s.send(log)
             };
@@ -296,16 +293,6 @@ pub struct ExpandedLogs {
     headers: EnvelopeHeaders,
     /// Expanded and parsed logs.
     logs: ContainerItems<OurLog>,
-
-    // These fields are currently necessary as we don't pass any project config context to the
-    // store serialization. The plan is to get rid of them by giving the serialization context,
-    // including the project info, where these are pulled from: #4878.
-    /// Retention in days.
-    #[cfg(feature = "processing")]
-    retention: Option<u16>,
-    /// Downsampled retention in days.
-    #[cfg(feature = "processing")]
-    downsampled_retention: Option<u16>,
 }
 
 impl Counted for ExpandedLogs {

@@ -870,6 +870,8 @@ impl Dialect for DialectWithParameters {
 
 #[cfg(test)]
 mod tests {
+    use sqlparser::ast::{Visit, Visitor};
+
     use super::*;
 
     #[test]
@@ -879,6 +881,32 @@ mod tests {
             normalize_parsed_queries(None, query).unwrap().0,
             "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"
         );
+    }
+
+    #[test]
+    fn visit_deep_expression() {
+        struct TestVisitor;
+        impl Visitor for TestVisitor {
+            type Break = ();
+        }
+        let leaf = || Box::new(Expr::Value(Value::Null.into()));
+        let op = BinaryOperator::And;
+
+        let mut expr = Expr::BinaryOp {
+            left: leaf(),
+            op,
+            right: leaf(),
+        };
+
+        for _ in 0..10_000 {
+            expr = Expr::BinaryOp {
+                left: Box::new(expr),
+                op: BinaryOperator::And,
+                right: leaf(),
+            }
+        }
+
+        let _ = expr.visit(&mut TestVisitor);
     }
 
     #[test]

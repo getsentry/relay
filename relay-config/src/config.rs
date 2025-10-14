@@ -605,6 +605,8 @@ pub struct Limits {
     pub max_span_count: usize,
     /// The maximum number of log items per envelope.
     pub max_log_count: usize,
+    /// The maximum number of trace metrics per envelope.
+    pub max_trace_metric_count: usize,
     /// The maximum payload size for general API requests.
     pub max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
@@ -613,6 +615,8 @@ pub struct Limits {
     pub max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
     pub max_profile_size: ByteSize,
+    /// The maximum payload size for a trace metric.
+    pub max_trace_metric_size: ByteSize,
     /// The maximum payload size for a log.
     pub max_log_size: ByteSize,
     /// The maximum payload size for a span.
@@ -689,10 +693,12 @@ impl Default for Limits {
             max_session_count: 100,
             max_span_count: 1000,
             max_log_count: 1000,
+            max_trace_metric_count: 1000,
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
+            max_trace_metric_size: ByteSize::kibibytes(2),
             max_log_size: ByteSize::mebibytes(1),
             max_span_size: ByteSize::mebibytes(1),
             max_container_size: ByteSize::mebibytes(3),
@@ -2313,6 +2319,11 @@ impl Config {
         self.values.limits.max_log_count
     }
 
+    /// Returns the maximum number of trace metrics per envelope.
+    pub fn max_trace_metric_count(&self) -> usize {
+        self.values.limits.max_trace_metric_count
+    }
+
     /// Returns the maximum payload size of a statsd metric in bytes.
     pub fn max_statsd_size(&self) -> usize {
         self.values.limits.max_statsd_size.as_bytes()
@@ -2341,6 +2352,11 @@ impl Config {
     /// Returns the maximum payload size for a profile
     pub fn max_profile_size(&self) -> usize {
         self.values.limits.max_profile_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size for a trace metric.
+    pub fn max_trace_metric_size(&self) -> usize {
+        self.values.limits.max_trace_metric_size.as_bytes()
     }
 
     /// Returns the maximum payload size for a compressed replay.
