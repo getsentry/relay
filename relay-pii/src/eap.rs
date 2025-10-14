@@ -33,10 +33,1120 @@ pub fn scrub_eap_item<T: ProcessValue>(
 #[cfg(test)]
 mod tests {
     use relay_event_schema::processor::ValueType;
-    use relay_event_schema::protocol::{OurLog, SpanV2};
+    use relay_event_schema::protocol::{Attributes, OurLog, SpanV2};
     use relay_protocol::{Annotated, SerializableAnnotated};
 
-    use crate::PiiConfig;
+    use crate::{DataScrubbingConfig, PiiConfig, scrub_eap_item};
+
+    #[test]
+    fn test_scrub_attributes_pii_default_rules() {
+        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `user.name`: `true`
+        // * `sentry.release`: `false`
+        // * `url.path`: `maybe`
+        // Therefore, `user.name` is the only one that should be scrubbed by default rules.
+        let json = r#"{
+              "sentry.description": {
+                  "type": "string",
+                  "value": "secret123"
+              },
+              "user.name": {
+                  "type": "string",
+                  "value": "secret123"
+              },
+              "sentry.release": {
+                  "type": "string",
+                  "value": "secret123"
+              },
+              "url.path": {
+                  "type": "string",
+                  "value": "secret123"
+              },
+              "password": {
+                  "type": "string",
+                  "value": "secret123"
+              },
+              "secret": {
+                  "type": "string",
+                  "value": "topsecret"
+              },
+              "api_key": {
+                  "type": "string",
+                  "value": "sk-1234567890abcdef"
+              },
+              "auth_token": {
+                  "type": "string",
+                  "value": "bearer_token_123"
+              },
+              "credit_card": {
+                  "type": "string",
+                  "value": "4571234567890111"
+              },
+              "visa_card": {
+                  "type": "string",
+                  "value": "4571 2345 6789 0111"
+              },
+              "bank_account": {
+                  "type": "string",
+                  "value": "DE89370400440532013000"
+              },
+              "iban_code": {
+                  "type": "string",
+                  "value": "NO9386011117945"
+              },
+              "authorization": {
+                  "type": "string",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+              },
+              "private_key": {
+                  "type": "string",
+                  "value": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKB\n-----END PRIVATE KEY-----"
+              },
+              "database_url": {
+                  "type": "string",
+                  "value": "https://username:password@example.com/db"
+              },
+              "file_path": {
+                  "type": "string",
+                  "value": "C:\\Users\\john\\Documents\\secret.txt"
+              },
+              "unix_path": {
+                  "type": "string",
+                  "value": "/home/alice/private/data.json"
+              },
+              "social_security": {
+                  "type": "string",
+                  "value": "078-05-1120"
+              },
+              "user_email": {
+                  "type": "string",
+                  "value": "john.doe@example.com"
+              },
+              "client_ip": {
+                  "type": "string",
+                  "value": "192.168.1.100"
+              },
+              "ipv6_addr": {
+                  "type": "string",
+                  "value": "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+              },
+              "mac_address": {
+                  "type": "string",
+                  "value": "4a:00:04:10:9b:50"
+              },
+              "session_id": {
+                  "type": "string",
+                  "value": "ceee0822-ed8f-4622-b2a3-789e73e75cd1"
+              },
+              "device_imei": {
+                  "type": "string",
+                  "value": "356938035643809"
+              },
+              "public_data": {
+                  "type": "string",
+                  "value": "public_data"
+              },
+              "very_sensitive_data": {
+                  "type": "string",
+                  "value": "very_sensitive_data"
+              }
+        }"#;
+
+        let mut data = Annotated::<Attributes>::from_json(json).unwrap();
+
+        let data_scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            scrub_ip_addresses: true,
+            exclude_fields: vec!["public_data".to_owned()],
+            sensitive_fields: vec![
+                "value".to_owned(), // Make sure the inner 'value' of the attribute object isn't scrubbed.
+                "very_sensitive_data".to_owned(),
+            ],
+            ..Default::default()
+        };
+
+        let scrubbing_config = data_scrubbing_config.pii_config().unwrap();
+
+        scrub_eap_item(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "api_key": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "auth_token": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "authorization": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "bank_account": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "client_ip": {
+            "type": "string",
+            "value": "[ip]"
+          },
+          "credit_card": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "database_url": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "device_imei": {
+            "type": "string",
+            "value": "356938035643809"
+          },
+          "file_path": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "iban_code": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "ipv6_addr": {
+            "type": "string",
+            "value": "[ip]"
+          },
+          "mac_address": {
+            "type": "string",
+            "value": "4a:00:04:10:9b:50"
+          },
+          "password": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "private_key": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "public_data": {
+            "type": "string",
+            "value": "public_data"
+          },
+          "secret": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "secret123"
+          },
+          "sentry.release": {
+            "type": "string",
+            "value": "secret123"
+          },
+          "session_id": {
+            "type": "string",
+            "value": "ceee0822-ed8f-4622-b2a3-789e73e75cd1"
+          },
+          "social_security": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "unix_path": {
+            "type": "string",
+            "value": "/home/alice/private/data.json"
+          },
+          "url.path": {
+            "type": "string",
+            "value": "secret123"
+          },
+          "user.name": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "user_email": {
+            "type": "string",
+            "value": "john.doe@example.com"
+          },
+          "very_sensitive_data": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "visa_card": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "_meta": {
+            "api_key": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 19
+                }
+              }
+            },
+            "auth_token": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 16
+                }
+              }
+            },
+            "authorization": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@bearer:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 43
+                }
+              }
+            },
+            "bank_account": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@iban:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 22
+                }
+              }
+            },
+            "client_ip": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@ip:replace",
+                      "s",
+                      0,
+                      4
+                    ]
+                  ],
+                  "len": 13
+                }
+              }
+            },
+            "credit_card": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@creditcard:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 16
+                }
+              }
+            },
+            "database_url": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 40
+                }
+              }
+            },
+            "file_path": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 34
+                }
+              }
+            },
+            "iban_code": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@iban:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 15
+                }
+              }
+            },
+            "ipv6_addr": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@ip:replace",
+                      "s",
+                      0,
+                      4
+                    ]
+                  ],
+                  "len": 39
+                }
+              }
+            },
+            "password": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
+            "private_key": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 118
+                }
+              }
+            },
+            "secret": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
+            "social_security": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@usssn:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 11
+                }
+              }
+            },
+            "user.name": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
+            "very_sensitive_data": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "strip-fields",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 19
+                }
+              }
+            },
+            "visa_card": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@creditcard:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 19
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_attributes_pii_custom_object_rules() {
+        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `user.name`: `true`
+        // * `sentry.release`: `false`
+        // * `url.path`: `maybe`
+        // Therefore, `sentry.release` is the only one that should not be scrubbed by custom rules.
+        let json = r#"
+        {
+          "sentry.description": {
+              "type": "string",
+              "value": "secret123"
+          },
+          "user.name": {
+              "type": "string",
+              "value": "secret123"
+          },
+          "sentry.release": {
+              "type": "string",
+              "value": "secret123"
+          },
+          "url.path": {
+              "type": "string",
+              "value": "secret123"
+          },
+          "password": {
+              "type": "string",
+              "value": "default_scrubbing_rules_are_off"
+          },
+          "test_field_mac": {
+              "type": "string",
+              "value": "4a:00:04:10:9b:50"
+          },
+          "test_field_imei": {
+              "type": "string",
+              "value": "356938035643809"
+          },
+          "test_field_uuid": {
+              "type": "string",
+              "value": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "test_field_regex_passes": {
+              "type": "string",
+              "value": "wxyz"
+          },
+          "test_field_regex_fails": {
+              "type": "string",
+              "value": "abc"
+          }
+        }"#;
+
+        let mut data = Annotated::<Attributes>::from_json(json).unwrap();
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: false,
+            scrub_ip_addresses: false,
+            ..Default::default()
+        };
+
+        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
+        {
+            "rules": {
+                "project:0": {
+                    "type": "mac",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "ITS_GONE"
+                    }
+                },
+                "project:1": {
+                    "type": "imei",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "ITS_GONE"
+                    }
+                },
+                "project:2": {
+                    "type": "uuid",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "BYE"
+                    }
+                },
+                "project:3": {
+                    "type": "pattern",
+                    "pattern": "[w-z]+",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "REGEXED"
+                    }
+                },
+                "project:4": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[USER NAME]"
+                    }
+                },
+                "project:5": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[RELEASE]"
+                    }
+                },
+                "project:6": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[URL PATH]"
+                    }
+                },
+                "project:7": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[DESCRIPTION]"
+                    }
+                }
+            },
+            "applications": {
+                "test_field_mac.value": [
+                    "project:0"
+                ],
+                "test_field_imei.value": [
+                    "project:1"
+                ],
+                "test_field_uuid.value": [
+                    "project:2"
+                ],
+                "test_field_regex_passes.value || test_field_regex_fails.value": [
+                    "project:3"
+                ],
+                "'user.name'.value": [
+                    "project:4"
+                ],
+                "'sentry.release'.value": [
+                    "project:5"
+                ],
+                "'url.path'.value": [
+                    "project:6"
+                ],
+                "'sentry.description'.value": [
+                    "project:7"
+                ]
+            }
+        }
+        ))
+        .unwrap();
+
+        scrub_eap_item(
+            ValueType::Span,
+            &mut data,
+            Some(&config),
+            scrubbing_config.as_ref(),
+        )
+        .unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "password": {
+            "type": "string",
+            "value": "default_scrubbing_rules_are_off"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "[DESCRIPTION]"
+          },
+          "sentry.release": {
+            "type": "string",
+            "value": "secret123"
+          },
+          "test_field_imei": {
+            "type": "string",
+            "value": "ITS_GONE"
+          },
+          "test_field_mac": {
+            "type": "string",
+            "value": "ITS_GONE"
+          },
+          "test_field_regex_fails": {
+            "type": "string",
+            "value": "abc"
+          },
+          "test_field_regex_passes": {
+            "type": "string",
+            "value": "REGEXED"
+          },
+          "test_field_uuid": {
+            "type": "string",
+            "value": "BYE"
+          },
+          "url.path": {
+            "type": "string",
+            "value": "[URL PATH]"
+          },
+          "user.name": {
+            "type": "string",
+            "value": "[USER NAME]"
+          },
+          "_meta": {
+            "sentry.description": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:7",
+                      "s",
+                      0,
+                      13
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
+            "test_field_imei": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:1",
+                      "s",
+                      0,
+                      8
+                    ]
+                  ],
+                  "len": 15
+                }
+              }
+            },
+            "test_field_mac": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:0",
+                      "s",
+                      0,
+                      8
+                    ]
+                  ],
+                  "len": 17
+                }
+              }
+            },
+            "test_field_regex_passes": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:3",
+                      "s",
+                      0,
+                      7
+                    ]
+                  ],
+                  "len": 4
+                }
+              }
+            },
+            "test_field_uuid": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:2",
+                      "s",
+                      0,
+                      3
+                    ]
+                  ],
+                  "len": 36
+                }
+              }
+            },
+            "url.path": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:6",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
+            "user.name": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:4",
+                      "s",
+                      0,
+                      11
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_attributes_sensitive_fields() {
+        let json = r#"
+        {
+            "normal_field": {
+                "type": "string",
+                "value": "normal_data"
+            },
+            "sensitive_custom": {
+                "type": "string",
+                "value": "should_be_removed"
+            },
+            "another_sensitive": {
+                "type": "integer",
+                "value": 42
+            },
+            "my_value": {
+                "type": "string",
+                "value": "this_should_be_removed_as_sensitive"
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<Attributes>::from_json(json).unwrap();
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: false,
+            scrub_ip_addresses: false,
+            sensitive_fields: vec![
+                "value".to_owned(), // Make sure the inner 'value' of the attribute object isn't scrubbed.
+                "sensitive_custom".to_owned(),
+                "another_sensitive".to_owned(),
+            ],
+            ..Default::default()
+        };
+
+        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+
+        scrub_eap_item(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "another_sensitive": {
+            "type": "integer",
+            "value": null
+          },
+          "my_value": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "normal_field": {
+            "type": "string",
+            "value": "normal_data"
+          },
+          "sensitive_custom": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "_meta": {
+            "another_sensitive": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "strip-fields",
+                      "x"
+                    ]
+                  ]
+                }
+              }
+            },
+            "my_value": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "strip-fields",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 35
+                }
+              }
+            },
+            "sensitive_custom": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "strip-fields",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 17
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_attributes_safe_fields() {
+        let json = r#"
+        {
+            "password": {
+                "type": "string",
+                "value": "secret123"
+            },
+            "credit_card": {
+                "type": "string",
+                "value": "4242424242424242"
+            },
+            "secret": {
+                "type": "string",
+                "value": "this_should_stay"
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<Attributes>::from_json(json).unwrap();
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            scrub_ip_addresses: false,
+            exclude_fields: vec!["secret".to_owned()], // Only 'secret' is safe
+            ..Default::default()
+        };
+
+        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+
+        scrub_eap_item(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "credit_card": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "password": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "secret": {
+            "type": "string",
+            "value": "this_should_stay"
+          },
+          "_meta": {
+            "credit_card": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@creditcard:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 16
+                }
+              }
+            },
+            "password": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_attributes_implicit_attribute_value() {
+        let json = r#"
+        {
+            "remove_this_string_abc123": {
+                "type": "string",
+                "value": "abc123"
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<Attributes>::from_json(json).unwrap();
+
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "remove_abc123": {
+                    "type": "pattern",
+                    "pattern": "abc123",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "abc---"
+                    }
+                },
+            },
+            "applications": {
+                "remove_this_string_abc123": ["remove_abc123"], // This selector should NOT match
+            }
+        }))
+        .unwrap();
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+
+        scrub_eap_item(
+            ValueType::OurLog,
+            &mut data,
+            Some(&config),
+            scrubbing_config.as_ref(),
+        )
+        .unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "remove_this_string_abc123": {
+            "type": "string",
+            "value": "abc123"
+          }
+        }
+        "###);
+
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "remove_abc123": {
+                    "type": "pattern",
+                    "pattern": "abc123",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "abc---"
+                    }
+                },
+            },
+            "applications": {
+                "remove_this_string_abc123.value": ["remove_abc123"],
+            }
+        }))
+        .unwrap();
+
+        scrub_eap_item(
+            ValueType::OurLog,
+            &mut data,
+            Some(&config),
+            scrubbing_config.as_ref(),
+        )
+        .unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "remove_this_string_abc123": {
+            "type": "string",
+            "value": "abc---"
+          },
+          "_meta": {
+            "remove_this_string_abc123": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "remove_abc123",
+                      "s",
+                      0,
+                      6
+                    ]
+                  ],
+                  "len": 6
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
 
     macro_rules! attribute_rule_test {
         ($test_name:ident, $rule_type:expr, $test_value:expr, @$snapshot:literal) => {
