@@ -127,7 +127,8 @@ def test_store_pii_stripping(mini_sentry, relay):
     assert event["extra"]["foo"] == "[email]"
 
 
-def test_store_rate_limit(mini_sentry, relay):
+@pytest.mark.parametrize("relay_mode", ["proxy", "managed"])
+def test_store_rate_limit(mini_sentry, relay, relay_mode):
     from time import sleep
 
     store_event_original = mini_sentry.app.view_functions["store_event"]
@@ -146,7 +147,10 @@ def test_store_rate_limit(mini_sentry, relay):
             return "", 429, {"retry-after": "2"}
 
     # Disable outcomes so client report envelopes do not interfere with the events we are looking for
-    config = {"outcomes": {"emit_outcomes": "as_client_reports"}}
+    config = {
+        "outcomes": {"emit_outcomes": "as_client_reports"},
+        "relay": {"mode": relay_mode},
+    }
     relay = relay(mini_sentry, config)
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
@@ -171,7 +175,12 @@ def test_store_rate_limit(mini_sentry, relay):
     relay.send_event(project_id, {"message": "correct"})
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event["logentry"] == {"formatted": "correct"}
+    if relay_mode == "proxy":
+        assert (
+            event["message"] == "correct"
+        )  # No normalization hence this check is different
+    else:
+        assert event["logentry"] == {"formatted": "correct"}
 
 
 def test_store_proxy_config(mini_sentry, relay):
