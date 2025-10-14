@@ -5,6 +5,7 @@ use relay_protocol::Annotated;
 
 use crate::{AttributeMode, PiiConfig, PiiProcessor};
 
+/// Scrubs an EAP item (such as an `OurLog` or `SpanV2`) with the given PII configs.
 pub fn scrub_eap_item<T: ProcessValue>(
     value_type: ValueType,
     item: &mut Annotated<T>,
