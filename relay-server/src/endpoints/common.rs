@@ -270,7 +270,6 @@ fn queue_envelope(
 ) -> Result<(), BadStoreRequest> {
     let envelope = managed_envelope.envelope_mut();
 
-    // TODO: See if we can get rid of this (see if it can happen in this PR or the next)
     if state.config().relay_mode() != RelayMode::Proxy {
         // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
         // In proxy mode, we cannot aggregate metrics because we may not have a project ID.

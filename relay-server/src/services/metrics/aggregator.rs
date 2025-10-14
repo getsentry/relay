@@ -58,7 +58,6 @@ impl FromMessage<MergeBuckets> for Aggregator {
 /// - If flushing fails and should be retried at a later time, respond with `Err` containing the
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
-
 pub struct FlushBuckets {
     /// The partition to which the buckets belong.
     pub partition_key: u32,
