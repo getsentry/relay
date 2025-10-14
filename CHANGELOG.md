@@ -35,6 +35,7 @@
 - Extract additional `user.geo.*` attributes on spans. ([#5194](https://github.com/getsentry/relay/pull/5194))
 - Modernize session processing and move to Relay's new processing framework. ([#5201](https://github.com/getsentry/relay/pull/5201))
 - Add TraceMetric data category. ([#5206](https://github.com/getsentry/relay/pull/5206))
+- Match placeholder segments in sentry conventions attributes. ([#5237](https://github.com/getsentry/relay/pull/5237))
 
 ## 25.9.0
 
