@@ -101,4 +101,45 @@ def test_replay_allowed(mini_sentry, relay):
     envelope = mini_sentry.captured_events.get(timeout=10)
 
 
-# TODO: Extend the logic here.
+def test_error_event_passthrough(mini_sentry, relay):
+    relay = relay(mini_sentry, options={"relay": {"mode": "proxy"}})
+
+    error_event = {
+        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "message": "test",
+        "extra": {"msg_text": "test"},
+        "type": "error",
+        "environment": "production",
+        "release": "foo@1.2.3",
+    }
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(type="event", payload=PayloadRef(json.dumps(error_event).encode()))
+    )
+    relay.send_envelope(42, envelope)
+
+    captured_event = mini_sentry.captured_events.get(timeout=10).get_event()
+    assert error_event == captured_event
+
+
+def test_user_report_pass_through(relay, mini_sentry):
+    project_id = 42
+    relay = relay(mini_sentry, options={"relay": {"mode": "proxy"}})
+
+    report_payload = {
+        "name": "Josh",
+        "email": "",
+        "comments": "I'm having fun",
+        "event_id": "4cec9f3e1f214073b816e0f4de5f59b1",
+    }
+
+    relay.send_user_report(
+        project_id,
+        report_payload,
+    )
+
+    captured_report = json.loads(
+        mini_sentry.captured_events.get(timeout=10).items[0].payload.get_bytes()
+    )
+    assert report_payload == captured_report
