@@ -3,22 +3,6 @@ import json
 
 from sentry_relay.consts import DataCategory
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-        "batch_size": 1,
-        "batch_interval": 1,
-        "aggregator": {
-            "bucket_interval": 1,
-            "flush_interval": 1,
-        },
-    },
-    "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
-    },
-}
-
 # From Vercel Log Drain Docs: https://vercel.com/docs/drains/reference/logs#format
 VERCEL_LOG_1 = {
     "id": "1573817187330377061717300000",
@@ -170,7 +154,7 @@ def test_vercel_logs_json_array(
         "organizations:relay-vercel-log-drain-endpoint",
     ]
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     vercel_logs_payload = [
         VERCEL_LOG_1,
@@ -186,7 +170,7 @@ def test_vercel_logs_json_array(
     items = items_consumer.get_items(n=2)
     assert items == EXPECTED_ITEMS
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
@@ -220,7 +204,7 @@ def test_vercel_logs_ndjson(
         "organizations:relay-vercel-log-drain-endpoint",
     ]
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     # Format as NDJSON
     ndjson_payload = json.dumps(VERCEL_LOG_1) + "\n" + json.dumps(VERCEL_LOG_2) + "\n"
@@ -234,7 +218,7 @@ def test_vercel_logs_ndjson(
     items = items_consumer.get_items(n=2)
     assert items == EXPECTED_ITEMS
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
