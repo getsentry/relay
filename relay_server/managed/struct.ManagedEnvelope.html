@@ -14,7 +14,7 @@ specifies the reason.</li>
 management. It is automatically reclaimed when the context is dropped along with the envelope.</p>
 </div></details><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-ManagedEnvelope" class="impl"><a class="src rightside" href="../../src/relay_server/managed/envelope.rs.html#164-548">Source</a><a href="#impl-ManagedEnvelope" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.ManagedEnvelope.html" title="struct relay_server::managed::ManagedEnvelope">ManagedEnvelope</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.new" class="method"><a class="src rightside" href="../../src/relay_server/managed/envelope.rs.html#168-183">Source</a><h4 class="code-header">pub fn <a href="#method.new" class="fn">new</a>(
     envelope: <a class="struct" href="https://doc.rust-lang.org/1.90.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;Envelope&gt;,
-    outcome_aggregator: <a class="struct" href="../../relay_system/service/struct.Addr.html" title="struct relay_system::service::Addr">Addr</a>&lt;TrackOutcome&gt;,
+    outcome_aggregator: Addr&lt;TrackOutcome&gt;,
 ) -&gt; Self</h4></section></summary><div class="docblock"><p>Computes a managed envelope from the given envelope and binds it to the processing queue.</p>
 <p>To provide additional scoping, use <a href="struct.ManagedEnvelope.html#method.scope" title="method relay_server::managed::ManagedEnvelope::scope"><code>ManagedEnvelope::scope</code></a>.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.envelope" class="method"><a class="src rightside" href="../../src/relay_server/managed/envelope.rs.html#194-196">Source</a><h4 class="code-header">pub fn <a href="#method.envelope" class="fn">envelope</a>(&amp;self) -&gt; &amp;Envelope</h4></section></summary><div class="docblock"><p>Returns a reference to the contained [<code>Envelope</code>].</p>
@@ -34,7 +34,7 @@ management. It is automatically reclaimed when the context is dropped along with
 </div></details><details class="toggle method-toggle" open><summary><section id="method.track_outcome" class="method"><a class="src rightside" href="../../src/relay_server/managed/envelope.rs.html#285-297">Source</a><h4 class="code-header">pub fn <a href="#method.track_outcome" class="fn">track_outcome</a>(
     &amp;self,
     outcome: Outcome,
-    category: <a class="enum" href="../../relay_base_schema/data_category/enum.DataCategory.html" title="enum relay_base_schema::data_category::DataCategory">DataCategory</a>,
+    category: DataCategory,
     quantity: <a class="primitive" href="https://doc.rust-lang.org/1.90.0/std/primitive.usize.html">usize</a>,
 )</h4></section></summary><div class="docblock"><p>Records an outcome scoped to this envelope’s context.</p>
 <p>This managed envelope should be updated using <a href="struct.ManagedEnvelope.html#method.update" title="method relay_server::managed::ManagedEnvelope::update"><code>update</code></a> soon after this
