@@ -47,10 +47,15 @@ def test_spansv2_basic(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
-    ]
+    project_config["config"].update(
+        {
+            "features": [
+                "organizations:standalone-span-ingestion",
+                "projects:span-v2-experimental-processing",
+            ],
+            "retentions": {"span": {"standard": 42, "downsampled": 1337}},
+        }
+    )
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
@@ -102,8 +107,8 @@ def test_spansv2_basic(
         "end_timestamp": time_within(ts.timestamp() + 0.5),
         "is_remote": False,
         "status": "ok",
-        "retention_days": 90,
-        "downsampled_retention_days": 90,
+        "retention_days": 42,
+        "downsampled_retention_days": 1337,
         "key_id": 123,
         "organization_id": 1,
         "project_id": 42,

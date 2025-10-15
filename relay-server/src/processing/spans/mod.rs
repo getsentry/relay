@@ -182,7 +182,7 @@ impl Forward for SpanOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
-        _: processing::ForwardContext<'_>,
+        ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let spans = match self {
             SpanOutput::NotProcessed(spans) => {
@@ -198,9 +198,7 @@ impl Forward for SpanOutput {
 
         let ctx = store::Context {
             server_sample_rate,
-            // TODO: retentions still need to be taken from the project info.
-            retention_days: crate::constants::DEFAULT_EVENT_RETENTION,
-            downsampled_retention_days: crate::constants::DEFAULT_EVENT_RETENTION,
+            retention: ctx.retention(|r| r.span.as_ref()),
         };
 
         for span in spans {
