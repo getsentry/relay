@@ -102,8 +102,8 @@ pub enum OtelFormat {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum VercelLogDrainFormat {
-    // Vercel Log Drain data in a json array payload
+    // Vercel Log Drain data in a JSON array payload
     Json,
-    // Vercel Log Drain data in a newline delimited json payload
+    // Vercel Log Drain data in a newline delimited JSON payload
     NdJson,
 }

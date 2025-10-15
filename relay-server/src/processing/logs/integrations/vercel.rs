@@ -25,7 +25,7 @@ where
             for log in logs {
                 count += 1;
                 let ourlog = relay_ourlogs::vercel_log_to_sentry_log(log);
-                produce(ourlog)
+                produce(ourlog);
             }
         }
         VercelLogDrainFormat::NdJson => {
