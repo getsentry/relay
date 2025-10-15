@@ -1907,4 +1907,33 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
     }
+
+    #[test]
+    fn test_password_rule_only_full_match_fields() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "not-a-two-factor": "I am okay",
+                    "not_a_two_factor": "I am okay",
+                    "footpath": "I am okay",
+                    "idiotproof": "I am okay",
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data, @r#"
+        {
+          "extra": {
+            "footpath": "I am okay",
+            "idiotproof": "I am okay",
+            "not-a-two-factor": "I am okay",
+            "not_a_two_factor": "I am okay"
+          }
+        }
+        "#);
+    }
 }
