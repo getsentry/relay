@@ -1228,12 +1228,7 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
         json=make_otel_span(start, end),
     )
 
-    outcomes = []
-    for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
-    outcomes.sort(key=lambda x: x["category"])
-
-    assert outcomes == [
+    assert mini_sentry.get_outcomes(2) == [
         {
             "org_id": 1,
             "key_id": 123,

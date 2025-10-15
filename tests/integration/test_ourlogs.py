@@ -874,12 +874,7 @@ def test_filters_are_applied_to_logs(
 
     relay.send_envelope(project_id, envelope, headers=headers)
 
-    outcomes = []
-    for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=5).get("outcomes"))
-    outcomes.sort(key=lambda x: x["category"])
-
-    assert outcomes == [
+    assert mini_sentry.get_outcomes(2) == [
         {
             "category": DataCategory.LOG_ITEM.value,
             "org_id": 1,
