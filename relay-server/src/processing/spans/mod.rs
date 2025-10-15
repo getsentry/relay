@@ -193,15 +193,12 @@ impl Forward for SpanOutput {
             SpanOutput::Processed(spans) => spans,
         };
 
-        let (spans, server_sample_rate) =
-            spans.split_with_context(|spans| (spans.spans, spans.server_sample_rate));
-
         let ctx = store::Context {
-            server_sample_rate,
+            server_sample_rate: spans.server_sample_rate,
             retention: ctx.retention(|r| r.span.as_ref()),
         };
 
-        for span in spans {
+        for span in spans.split(|spans| spans.spans) {
             if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
                 s.send(span)
             };
