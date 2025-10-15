@@ -305,44 +305,12 @@ def test_ourlog_extraction_with_sentry_logs(
     ]
 
 
-@pytest.mark.parametrize(
-    "rule_type,test_value,expected_scrubbed",
-    [
-        ("@ip", "127.0.0.1", "[ip]"),
-        ("@email", "test@example.com", "[email]"),
-        ("@creditcard", "4242424242424242", "[creditcard]"),
-        ("@iban", "DE89370400440532013000", "[iban]"),
-        ("@mac", "4a:00:04:10:9b:50", "*****************"),
-        (
-            "@uuid",
-            "ceee0822-ed8f-4622-b2a3-789e73e75cd1",
-            "************************************",
-        ),
-        ("@imei", "356938035643809", "[imei]"),
-        (
-            "@pemkey",
-            "-----BEGIN EC PRIVATE KEY-----\nMIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL\n-----END EC PRIVATE KEY-----",
-            "-----BEGIN EC PRIVATE KEY-----\n[pemkey]\n-----END EC PRIVATE KEY-----",
-        ),
-        (
-            "@urlauth",
-            "https://username:password@example.com/",
-            "https://[auth]@example.com/",
-        ),
-        ("@usssn", "078-05-1120", "***********"),
-        ("@userpath", "/Users/john/Documents", "/Users/[user]/Documents"),
-        ("@password", "my_password_123", ""),
-        ("@bearer", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "Bearer [token]"),
-    ],
-)
 def test_ourlog_extraction_with_string_pii_scrubbing(
     mini_sentry,
     relay,
-    items_consumer,
-    rule_type,
-    test_value,
-    expected_scrubbed,
+    scrubbing_rule,
 ):
+    rule_type, test_value, expected_scrubbed = scrubbing_rule
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["retentions"] = {
@@ -375,36 +343,45 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
     envelope = mini_sentry.captured_events.get()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
-    attributes = item["attributes"]
 
-    assert "test_pii" in attributes
-    assert attributes["test_pii"]["value"] == expected_scrubbed
-    assert "_meta" in item
-    meta = item["_meta"]["attributes"]["test_pii"]["value"][""]
-    assert "rem" in meta
+    assert item == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b174",
+        "attributes": {
+            "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": mock.ANY},
+        "_meta": {
+            "attributes": {
+                "test_pii": {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                        }
+                    }
+                }
+            },
+        },
+        "body": "Test log",
+        "level": "info",
+        "timestamp": time_within(ts),
+    }
 
-    # Check that the rule type is mentioned in the metadata
-    rem_info = meta["rem"][0]
-    assert rule_type in rem_info[0]
 
-
-@pytest.mark.parametrize(
-    "attribute_key,attribute_value,expected_value,rule_type",
-    [
-        ("password", "my_password_123", "[Filtered]", "@password:filter"),
-        ("secret_key", "my_secret_key_123", "[Filtered]", "@password:filter"),
-        ("api_key", "my_api_key_123", "[Filtered]", "@password:filter"),
-    ],
-)
 def test_ourlog_extraction_default_pii_scrubbing_attributes(
     mini_sentry,
     relay,
     items_consumer,
-    attribute_key,
-    attribute_value,
-    expected_value,
-    rule_type,
+    secret_attribute,
 ):
+    attribute_key, attribute_value, expected_value, rule_type = secret_attribute
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -874,12 +851,7 @@ def test_filters_are_applied_to_logs(
 
     relay.send_envelope(project_id, envelope, headers=headers)
 
-    outcomes = []
-    for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=5).get("outcomes"))
-    outcomes.sort(key=lambda x: x["category"])
-
-    assert outcomes == [
+    assert mini_sentry.get_outcomes(2) == [
         {
             "category": DataCategory.LOG_ITEM.value,
             "org_id": 1,

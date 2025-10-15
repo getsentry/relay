@@ -591,8 +591,6 @@ pub enum RelayTimers {
     BodyReadDuration,
     /// Timing in milliseconds to count spans in a serialized transaction payload.
     CheckNestedSpans,
-    /// The time in milliseconds it takes to expand a Span V2 container into Spans V1.
-    SpanV2Expansion,
     /// The time it needs to create a signature. Includes both the signature used for
     /// trusted relays and for register challenges.
     SignatureCreationDuration,
@@ -649,7 +647,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
             RelayTimers::BodyReadDuration => "requests.body_read.duration",
             RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
-            RelayTimers::SpanV2Expansion => "envelope.span_v2_expansion",
             RelayTimers::SignatureCreationDuration => "signature.create.duration",
         }
     }

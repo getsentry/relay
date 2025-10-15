@@ -1,5 +1,7 @@
 //! Contains type definitions for deserializing attribute definitions from JSON files in `sentry-conventions/model`.
 
+use std::collections::BTreeMap;
+
 use serde::Deserialize;
 
 /// Whether an attribute can contain PII.
@@ -88,4 +90,36 @@ pub fn format_attribute_info(attr: Attribute) -> (String, String) {
         }}"
     );
     (key, value)
+}
+
+/// Parse a path-like attribute key into individual segments.
+///
+/// NOTE: This does not yet support escaped segments, e.g. `"foo.'my.thing'.bar"` will split into
+/// `["foo.'my", "thing'.bar"]`.
+pub fn parse_segments(key: &str) -> impl Iterator<Item = &str> {
+    key.split('.')
+}
+
+#[derive(Default)]
+pub struct RawNode {
+    pub children: BTreeMap<String, RawNode>,
+    pub info: Option<String>,
+}
+
+impl RawNode {
+    pub fn build(&self, w: &mut impl std::io::Write) -> Result<(), std::io::Error> {
+        let Self { children, info } = self;
+        write!(w, "Node {{ info: ")?;
+        match info {
+            Some(info) => write!(w, "Some({})", info)?,
+            None => write!(w, "None")?,
+        };
+        write!(w, ", children: ::phf::phf_map!{{",)?;
+        for (segment, child) in children {
+            write!(w, "\"{segment}\" => ")?;
+            child.build(w)?;
+            write!(w, ",")?;
+        }
+        write!(w, "}} }}")
+    }
 }

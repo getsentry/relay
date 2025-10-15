@@ -137,7 +137,7 @@ impl processing::Processor for LogsProcessor {
         mut logs: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
-        validate::container(&logs)?;
+        validate::container(&logs).reject(&logs)?;
 
         if ctx.is_proxy() {
             // If running in proxy mode, just apply cached rate limits and forward without
@@ -154,9 +154,10 @@ impl processing::Processor for LogsProcessor {
         let mut logs = process::expand(logs);
         process::normalize(&mut logs);
         filter::filter(&mut logs, ctx);
-        process::scrub(&mut logs, ctx);
 
         self.limiter.enforce_quotas(&mut logs, ctx).await?;
+
+        process::scrub(&mut logs, ctx);
 
         Ok(Output::just(LogOutput::Processed(logs)))
     }
