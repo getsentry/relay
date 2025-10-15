@@ -137,7 +137,7 @@
 <a href=#137 id=137 data-nosnippet>137</a>        <span class="kw-2">mut </span>logs: Managed&lt;<span class="self">Self</span>::UnitOfWork&gt;,
 <a href=#138 id=138 data-nosnippet>138</a>        ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#139 id=139 data-nosnippet>139</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Output&lt;<span class="self">Self</span>::Output&gt;, Rejected&lt;Error&gt;&gt; {
-<a href=#140 id=140 data-nosnippet>140</a>        validate::container(<span class="kw-2">&amp;</span>logs)<span class="question-mark">?</span>;
+<a href=#140 id=140 data-nosnippet>140</a>        validate::container(<span class="kw-2">&amp;</span>logs).reject(<span class="kw-2">&amp;</span>logs)<span class="question-mark">?</span>;
 <a href=#141 id=141 data-nosnippet>141</a>
 <a href=#142 id=142 data-nosnippet>142</a>        <span class="kw">if </span>ctx.is_proxy() {
 <a href=#143 id=143 data-nosnippet>143</a>            <span class="comment">// If running in proxy mode, just apply cached rate limits and forward without
