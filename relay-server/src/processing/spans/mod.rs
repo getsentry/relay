@@ -144,9 +144,10 @@ impl processing::Processor for SpansProcessor {
 
         process::normalize(&mut spans, &self.geo_lookup);
         filter::filter(&mut spans, ctx);
-        process::scrub(&mut spans, ctx);
 
         self.limiter.enforce_quotas(&mut spans, ctx).await?;
+
+        process::scrub(&mut spans, ctx);
 
         let metrics = dynamic_sampling::create_indexed_metrics(&spans, ctx);
 

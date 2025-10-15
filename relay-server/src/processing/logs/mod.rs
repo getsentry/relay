@@ -154,9 +154,10 @@ impl processing::Processor for LogsProcessor {
         let mut logs = process::expand(logs);
         process::normalize(&mut logs);
         filter::filter(&mut logs, ctx);
-        process::scrub(&mut logs, ctx);
 
         self.limiter.enforce_quotas(&mut logs, ctx).await?;
+
+        process::scrub(&mut logs, ctx);
 
         Ok(Output::just(LogOutput::Processed(logs)))
     }
