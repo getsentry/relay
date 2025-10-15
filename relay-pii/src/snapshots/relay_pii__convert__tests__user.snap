@@ -11,8 +11,11 @@ expression: data
       "apiKey": "[Filtered]",
       "api_key": "[Filtered]",
       "foo": "bar",
+      "otp": "[Filtered]",
       "password": "[Filtered]",
-      "the_secret": "[Filtered]"
+      "the_secret": "[Filtered]",
+      "two-factor": "[Filtered]",
+      "two_factor": "[Filtered]"
     }
   },
   "_meta": {
@@ -57,6 +60,19 @@ expression: data
             "len": 10
           }
         },
+        "otp": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
+          }
+        },
         "password": {
           "": {
             "rem": [
@@ -81,6 +97,32 @@ expression: data
               ]
             ],
             "len": 5
+          }
+        },
+        "two-factor": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
+          }
+        },
+        "two_factor": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
           }
         }
       },
