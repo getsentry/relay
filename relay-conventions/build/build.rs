@@ -1,7 +1,6 @@
+mod attributes;
 mod name;
-mod raw;
 
-use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -12,40 +11,22 @@ use walkdir::WalkDir;
 const ATTRIBUTE_DIR: &str = "sentry-conventions/model/attributes";
 const NAME_DIR: &str = "sentry-conventions/model/name";
 
-#[derive(Default)]
-struct RawNode {
-    children: BTreeMap<String, RawNode>,
-    info: Option<String>,
-}
-
-impl RawNode {
-    fn build(&self, w: &mut impl std::io::Write) -> Result<(), std::io::Error> {
-        let Self { children, info } = self;
-        write!(w, "Node {{ info: ")?;
-        match info {
-            Some(info) => write!(w, "Some({})", info)?,
-            None => write!(w, "None")?,
-        };
-        write!(w, ", children: ::phf::phf_map!{{",)?;
-        for (segment, child) in children {
-            write!(w, "\"{segment}\" => ")?;
-            child.build(w)?;
-            write!(w, ",")?;
-        }
-        write!(w, "}} }}")
-    }
-}
-
-/// Parse a path-like attribute key into individual segments.
-///
-/// NOTE: This does not yet support escaped segments, e.g. `"foo.'my.thing'.bar"` will split into
-/// `["foo.'my", "thing'.bar"]`.
-fn parse_segments(key: &str) -> impl Iterator<Item = &str> {
-    key.split('.')
-}
-
 fn main() {
     let crate_dir: PathBuf = env::var("CARGO_MANIFEST_DIR").unwrap().into();
+
+    write_attribute_rs(&crate_dir);
+    write_name_rs(&crate_dir);
+
+    // Ideally this would only run when compiling for tests, but #[cfg(test)] doesn't seem to work
+    // here.
+    write_test_name_rs();
+
+    println!("cargo::rerun-if-changed=.");
+}
+
+fn write_attribute_rs(crate_dir: &Path) {
+    use attributes::{Attribute, RawNode, format_attribute_info, parse_segments};
+
     let mut root = RawNode::default();
 
     for file in WalkDir::new(crate_dir.join(ATTRIBUTE_DIR)) {
@@ -55,8 +36,8 @@ fn main() {
             && ext.to_str() == Some("json")
         {
             let contents = std::fs::read_to_string(file.path()).unwrap();
-            let attr: raw::Attribute = serde_json::from_str(&contents).unwrap();
-            let (key, value) = raw::format_attribute_info(attr);
+            let attr: Attribute = serde_json::from_str(&contents).unwrap();
+            let (key, value) = format_attribute_info(attr);
 
             let mut node = &mut root;
             let mut parts = parse_segments(&key).peekable();
@@ -79,14 +60,6 @@ fn main() {
     write!(&mut out_file, "static ATTRIBUTES: Node<AttributeInfo> = ",).unwrap();
     root.build(&mut out_file).unwrap();
     write!(&mut out_file, ";").unwrap();
-
-    write_name_rs(&crate_dir);
-
-    // Ideally this would only run when compiling for tests, but #[cfg(test)] doesn't seem to work
-    // here.
-    write_test_name_rs();
-
-    println!("cargo::rerun-if-changed=.");
 }
 
 fn write_name_rs(crate_dir: &Path) {
