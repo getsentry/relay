@@ -13,19 +13,19 @@ use crate::{AttributeMode, PiiConfig, PiiProcessor};
 pub fn scrub<T: ProcessValue>(
     value_type: ValueType,
     item: &mut Annotated<T>,
-    pii_config: Option<&PiiConfig>,
-    pii_config_from_scrubbing: Option<&PiiConfig>,
+    advanced_rules: Option<&PiiConfig>,
+    legacy_rule: Option<&PiiConfig>,
 ) -> ProcessingResult {
     let state = ProcessingState::root().enter_borrowed("", None, [value_type]);
 
-    if let Some(config) = pii_config {
+    if let Some(config) = advanced_rules {
         let mut processor = PiiProcessor::new(config.compiled())
             // For advanced rules we want to treat attributes as objects.
             .attribute_mode(AttributeMode::Object);
         process_value(item, &mut processor, &state)?;
     }
 
-    if let Some(config) = pii_config_from_scrubbing {
+    if let Some(config) = legacy_rule {
         let mut processor = PiiProcessor::new(config.compiled())
             // For "legacy" rules we want to identify attributes with their values.
             .attribute_mode(AttributeMode::ValueOnly);
