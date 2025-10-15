@@ -540,43 +540,12 @@ def test_spanv2_inbound_filters(
     assert mini_sentry.captured_events.empty()
 
 
-@pytest.mark.parametrize(
-    "rule_type,test_value,expected_scrubbed",
-    [
-        ("@ip", "127.0.0.1", "[ip]"),
-        ("@email", "test@example.com", "[email]"),
-        ("@creditcard", "4242424242424242", "[creditcard]"),
-        ("@iban", "DE89370400440532013000", "[iban]"),
-        ("@mac", "4a:00:04:10:9b:50", "*****************"),
-        (
-            "@uuid",
-            "ceee0822-ed8f-4622-b2a3-789e73e75cd1",
-            "************************************",
-        ),
-        ("@imei", "356938035643809", "[imei]"),
-        (
-            "@pemkey",
-            "-----BEGIN EC PRIVATE KEY-----\nMIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL\n-----END EC PRIVATE KEY-----",
-            "-----BEGIN EC PRIVATE KEY-----\n[pemkey]\n-----END EC PRIVATE KEY-----",
-        ),
-        (
-            "@urlauth",
-            "https://username:password@example.com/",
-            "https://[auth]@example.com/",
-        ),
-        ("@usssn", "078-05-1120", "***********"),
-        ("@userpath", "/Users/john/Documents", "/Users/[user]/Documents"),
-        ("@password", "my_password_123", ""),
-        ("@bearer", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "Bearer [token]"),
-    ],
-)
 def test_spanv2_with_string_pii_scrubbing(
     mini_sentry,
     relay,
-    rule_type,
-    test_value,
-    expected_scrubbed,
+    scrubbing_rule,
 ):
+    rule_type, test_value, expected_scrubbed = scrubbing_rule
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -621,22 +590,12 @@ def test_spanv2_with_string_pii_scrubbing(
     assert rule_type in rem_info[0]
 
 
-@pytest.mark.parametrize(
-    "attribute_key,attribute_value,expected_value,rule_type",
-    [
-        ("password", "my_password_123", "[Filtered]", "@password:filter"),
-        ("secret_key", "my_secret_key_123", "[Filtered]", "@password:filter"),
-        ("api_key", "my_api_key_123", "[Filtered]", "@password:filter"),
-    ],
-)
 def test_spanv2_default_pii_scrubbing_attributes(
     mini_sentry,
     relay,
-    attribute_key,
-    attribute_value,
-    expected_value,
-    rule_type,
+    secret_attribute,
 ):
+    attribute_key, attribute_value, expected_value, rule_type = secret_attribute
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [

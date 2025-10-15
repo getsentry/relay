@@ -18,6 +18,10 @@ from .fixtures.relay import (  # noqa
     get_relay_binary,
     latest_relay_version,
 )
+from .fixtures.pii import (  # noqa
+    scrubbing_rule,
+    secret_attribute,
+)
 from .fixtures.processing import (  # noqa
     kafka_consumer,
     get_topic_name,
