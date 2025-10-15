@@ -137,7 +137,7 @@ impl processing::Processor for LogsProcessor {
         mut logs: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
-        validate::container(&logs)?;
+        validate::container(&logs).reject(&logs)?;
 
         if ctx.is_proxy() {
             // If running in proxy mode, just apply cached rate limits and forward without
