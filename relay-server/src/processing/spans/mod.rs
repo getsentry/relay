@@ -102,7 +102,7 @@ impl processing::Processor for SpansProcessor {
 
         let spans = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Span))
+            .take_items_by(ItemContainer::<SpanV2>::is_container)
             .into_vec();
 
         let integrations = envelope
