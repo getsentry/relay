@@ -1,5 +1,5 @@
-use crate::processing::logs::{Error, SerializedLogs};
-use crate::processing::{Managed, Rejected};
+use crate::processing::Managed;
+use crate::processing::logs::{Error, Result, SerializedLogs};
 
 /// Validates that there is only a single log container processed at a time.
 ///
@@ -10,10 +10,10 @@ use crate::processing::{Managed, Rejected};
 ///
 /// This limit mostly exists to incentivise SDKs to batch multiple logs into a single container,
 /// technically it can be removed without issues.
-pub fn container(logs: &Managed<SerializedLogs>) -> Result<(), Rejected<Error>> {
+pub fn container(logs: &Managed<SerializedLogs>) -> Result<()> {
     // It's fine if there was no log container, as we still accept OTel logs.
     if logs.logs.len() > 1 {
-        return Err(logs.reject_err(Error::DuplicateContainer));
+        return Err(Error::DuplicateContainer);
     }
 
     Ok(())

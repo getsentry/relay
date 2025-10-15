@@ -10,8 +10,11 @@ expression: data
     "fieldy_field": "[Filtered]",
     "foo": "bar",
     "moar_other_field": "[Filtered]",
+    "otp": "[Filtered]",
     "password": "[Filtered]",
-    "the_secret": "[Filtered]"
+    "the_secret": "[Filtered]",
+    "two-factor": "[Filtered]",
+    "two_factor": "[Filtered]"
   },
   "_meta": {
     "extra": {
@@ -80,6 +83,19 @@ expression: data
           "len": 13
         }
       },
+      "otp": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 8
+        }
+      },
       "password": {
         "": {
           "rem": [
@@ -104,6 +120,32 @@ expression: data
             ]
           ],
           "len": 5
+        }
+      },
+      "two-factor": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 8
+        }
+      },
+      "two_factor": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 8
         }
       }
     }
