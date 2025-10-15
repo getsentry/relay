@@ -88,15 +88,13 @@ fn normalize_span(
 
 /// Applies PII scrubbing to individual spans.
 pub fn scrub(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
-    spans.modify(|spans, records| {
-        spans.spans.retain_mut(|span| {
-            let r = scrub_span(span, ctx).inspect_err(|err| {
-                relay_log::debug!("failed to scrub pii from span: {err}");
-            });
-
-            records.or_default(r.map(|_| true), &*span)
-        })
-    });
+    spans.retain(
+        |spans| &mut spans.spans,
+        |span, _| {
+            scrub_span(span, ctx)
+                .inspect_err(|err| relay_log::debug!("failed to scrub pii from span: {err}"))
+        },
+    );
 }
 
 fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
