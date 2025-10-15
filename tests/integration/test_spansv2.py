@@ -577,17 +577,38 @@ def test_spanv2_with_string_pii_scrubbing(
     envelope = mini_sentry.captured_events.get()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
-    attributes = item["attributes"]
 
-    assert "test_pii" in attributes
-    assert attributes["test_pii"]["value"] == expected_scrubbed
-    assert "_meta" in item
-    meta = item["_meta"]["attributes"]["test_pii"]["value"][""]
-    assert "rem" in meta
-
-    # Check that the rule type is mentioned in the metadata
-    rem_info = meta["rem"][0]
-    assert rule_type in rem_info[0]
+    assert item == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b174",
+        "attributes": {
+            "test_pii": { "type": "string", "value": expected_scrubbed},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+        },
+        "_meta": {
+            "attributes": {
+                "test_pii": {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]]
+                        }
+                    }
+                }
+            },
+            "status": {"": {"err": ["missing_attribute"]}},
+        },
+        "name": "Test span",
+        "start_timestamp": time_within(ts),
+        "end_timestamp": time_within(ts.timestamp() + 0.5),
+        "is_remote": False,
+        "status": None,
+    }
 
 
 def test_spanv2_default_pii_scrubbing_attributes(
