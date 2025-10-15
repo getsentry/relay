@@ -3,105 +3,14 @@
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
+from time import sleep
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 import pytest
 from .test_dynamic_sampling import get_profile_payload
 import queue
-
-
-def test_span_allowed(mini_sentry, relay):
-    relay = relay(mini_sentry, options={"relay": {"mode": "proxy"}})
-
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    duration = timedelta(milliseconds=500)
-    start = end - duration
-    envelope = Envelope()
-    envelope.add_item(
-        Item(
-            type="span",
-            payload=PayloadRef(
-                bytes=json.dumps(
-                    {
-                        "description": r"test \" with \" escaped \" chars",
-                        "op": "default",
-                        "span_id": "cd429c44b67a3eb1",
-                        "segment_id": "968cff94913ebb07",
-                        "start_timestamp": start.timestamp(),
-                        "timestamp": end.timestamp() + 1,
-                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    },
-                ).encode()
-            ),
-        )
-    )
-    relay.send_envelope(42, envelope)
-
-    # Does not raise queue.Empty
-    envelope = mini_sentry.captured_events.get(timeout=10)
-
-
-def test_profile_allowed(mini_sentry, relay):
-    relay = relay(mini_sentry, options={"relay": {"mode": "proxy"}})
-
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    duration = timedelta(milliseconds=500)
-    start = end - duration
-    envelope = Envelope()
-    transaction = {
-        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
-        "type": "transaction",
-        "transaction": "foo",
-        "start_timestamp": start.timestamp(),
-        "timestamp": end.timestamp(),
-        "contexts": {
-            "trace": {
-                "trace_id": "1234F60C11214EB38604F4AE0781BFB2",
-                "span_id": "ABCDFDEAD5F74052",
-                "type": "trace",
-            }
-        },
-    }
-    envelope.add_item(
-        Item(
-            payload=PayloadRef(json.dumps(transaction).encode()),
-            type="transaction",
-        )
-    )
-    envelope.add_item(
-        Item(
-            payload=PayloadRef(json.dumps(get_profile_payload(transaction)).encode()),
-            type="profile",
-        )
-    )
-    relay.send_envelope(42, envelope)
-
-    # Does not raise queue.Empty
-    envelope = mini_sentry.captured_events.get(timeout=10)
-    assert {item.type for item in envelope.items} == {"transaction", "profile"}
-
-
-def test_replay_allowed(mini_sentry, relay):
-    relay = relay(mini_sentry, options={"relay": {"mode": "proxy"}})
-
-    envelope = Envelope()
-    envelope.add_item(
-        Item(
-            type="replay_event",
-            payload=PayloadRef(
-                bytes=open(
-                    Path(__file__).parent.parent / "fixtures" / "replay.json", "rb"
-                ).read(),
-            ),
-        )
-    )
-    relay.send_envelope(42, envelope)
-
-    # Does not raise queue.Empty
-    envelope = mini_sentry.captured_events.get(timeout=10)
-
+from requests.exceptions import HTTPError
 
 TRANSACTION = {
     "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
@@ -229,12 +138,120 @@ BINARY_ITEMS = {
 }
 
 
-@pytest.mark.parametrize(
-    "item_type",
-    [k for k in PAYLOADS.keys()],
-)
-def test_passthrough(relay, mini_sentry, item_type):
+def test_span_allowed(mini_sentry, relay):
     relay = relay(mini_sentry, options={"relay": {"mode": "proxy"}})
+
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "description": r"test \" with \" escaped \" chars",
+                        "op": "default",
+                        "span_id": "cd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    },
+                ).encode()
+            ),
+        )
+    )
+    relay.send_envelope(42, envelope)
+
+    # Does not raise queue.Empty
+    envelope = mini_sentry.captured_events.get(timeout=10)
+
+
+def test_profile_allowed(mini_sentry, relay):
+    relay = relay(mini_sentry, options={"relay": {"mode": "proxy"}})
+
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    envelope = Envelope()
+    transaction = {
+        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "type": "transaction",
+        "transaction": "foo",
+        "start_timestamp": start.timestamp(),
+        "timestamp": end.timestamp(),
+        "contexts": {
+            "trace": {
+                "trace_id": "1234F60C11214EB38604F4AE0781BFB2",
+                "span_id": "ABCDFDEAD5F74052",
+                "type": "trace",
+            }
+        },
+    }
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(json.dumps(transaction).encode()),
+            type="transaction",
+        )
+    )
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(json.dumps(get_profile_payload(transaction)).encode()),
+            type="profile",
+        )
+    )
+    relay.send_envelope(42, envelope)
+
+    # Does not raise queue.Empty
+    envelope = mini_sentry.captured_events.get(timeout=10)
+    assert {item.type for item in envelope.items} == {"transaction", "profile"}
+
+
+def test_replay_allowed(mini_sentry, relay):
+    relay = relay(mini_sentry, options={"relay": {"mode": "proxy"}})
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="replay_event",
+            payload=PayloadRef(
+                bytes=open(
+                    Path(__file__).parent.parent / "fixtures" / "replay.json", "rb"
+                ).read(),
+            ),
+        )
+    )
+    relay.send_envelope(42, envelope)
+
+    # Does not raise queue.Empty
+    envelope = mini_sentry.captured_events.get(timeout=10)
+
+
+@pytest.mark.parametrize("item_type", PAYLOADS.keys())
+@pytest.mark.parametrize("rate_limited", [True, False])
+def test_passthrough(relay, mini_sentry, item_type, rate_limited):
+    if rate_limited:
+        # Logic taken from: test_store.py::test_store_rate_limit
+        store_event_original = mini_sentry.app.view_functions["store_event"]
+        rate_limit_sent = False
+
+        @mini_sentry.app.endpoint("store_event")
+        def store_event():
+            nonlocal rate_limit_sent
+            if rate_limit_sent:
+                return store_event_original()
+            else:
+                rate_limit_sent = True
+                return "", 429, {"retry-after": "20"}
+
+    config = {
+        "outcomes": {"emit_outcomes": "as_client_reports"},
+        "relay": {"mode": "proxy"},
+    }
+    relay = relay(mini_sentry, config)
 
     payload = PAYLOADS[item_type]
     envelope = Envelope()
@@ -248,11 +265,26 @@ def test_passthrough(relay, mini_sentry, item_type):
     )
     relay.send_envelope(42, envelope)
 
-    captured_envelope = mini_sentry.captured_events.get(timeout=10)
-    assert len(captured_envelope.items) == 1
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_outcomes.get(timeout=1)
-    if item_type in BINARY_ITEMS:
-        assert payload == captured_envelope.items[0].payload.get_bytes()
+    if rate_limited:
+        with pytest.raises(queue.Empty):
+            mini_sentry.captured_events.get(timeout=1)
+
+        sleep(1)
+        # Not entirely sure why they are special
+        if item_type not in {"client_report", "profile_chunk"}:
+            with pytest.raises(HTTPError):
+                relay.send_envelope(42, envelope)
+
+            if item_type not in {"session", "sessions", "statsd"}:
+                outcome_envelope = mini_sentry.captured_events.get(timeout=2)
+                outcome = json.loads(outcome_envelope.items[0].payload.bytes)
+                assert len(outcome["rate_limited_events"]) == 1
+
     else:
-        assert payload == json.loads(captured_envelope.items[0].payload.get_bytes())
+        captured_envelope = mini_sentry.captured_events.get(timeout=10)
+        assert len(captured_envelope.items) == 1
+
+        if item_type in BINARY_ITEMS:
+            assert payload == captured_envelope.items[0].payload.get_bytes()
+        else:
+            assert payload == json.loads(captured_envelope.items[0].payload.get_bytes())
