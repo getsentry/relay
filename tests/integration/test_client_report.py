@@ -37,15 +37,8 @@ def test_client_reports(relay, mini_sentry):
     report_payload["timestamp"] = (timestamp + timedelta(milliseconds=100)).isoformat()
     relay.send_client_report(project_id, report_payload)
 
-    outcomes = []
-    for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=1.2)["outcomes"])
-    assert mini_sentry.captured_outcomes.qsize() == 0
-
-    outcomes.sort(key=lambda x: x["category"])
-
     timestamp_formatted = timestamp.isoformat().split(".")[0] + ".000000Z"
-    assert outcomes == [
+    assert mini_sentry.get_outcomes(2) == [
         {
             "timestamp": timestamp_formatted,
             "org_id": 1,
@@ -69,6 +62,8 @@ def test_client_reports(relay, mini_sentry):
             "quantity": 2462,
         },
     ]
+
+    assert mini_sentry.captured_outcomes.empty()
 
 
 def test_client_reports_bad_timestamps(relay, mini_sentry):

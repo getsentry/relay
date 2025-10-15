@@ -23,11 +23,15 @@ mod integrations;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
+mod validate;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Multiple item containers for spans in a single envelope are not allowed.
+    #[error("duplicate span container")]
+    DuplicateContainer,
     /// Standalone spans filtered because of a missing feature flag.
     #[error("spans feature flag missing")]
     FilterFeatureFlag,
@@ -53,6 +57,7 @@ impl OutcomeError for Error {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
+            Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::FilterFeatureFlag => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
@@ -102,7 +107,7 @@ impl processing::Processor for SpansProcessor {
 
         let spans = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Span))
+            .take_items_by(ItemContainer::<SpanV2>::is_container)
             .into_vec();
 
         let integrations = envelope
@@ -124,6 +129,7 @@ impl processing::Processor for SpansProcessor {
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         filter::feature_flag(ctx).reject(&spans)?;
+        validate::container(&spans).reject(&spans)?;
 
         if ctx.is_proxy() {
             // If running in proxy mode, just apply cached rate limits and forward without
@@ -187,7 +193,7 @@ impl Forward for SpanOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
-        _: processing::ForwardContext<'_>,
+        ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let spans = match self {
             SpanOutput::NotProcessed(spans) => {
@@ -198,17 +204,12 @@ impl Forward for SpanOutput {
             SpanOutput::Processed(spans) => spans,
         };
 
-        let (spans, server_sample_rate) =
-            spans.split_with_context(|spans| (spans.spans, spans.server_sample_rate));
-
         let ctx = store::Context {
-            server_sample_rate,
-            // TODO: retentions still need to be taken from the project info.
-            retention_days: crate::constants::DEFAULT_EVENT_RETENTION,
-            downsampled_retention_days: crate::constants::DEFAULT_EVENT_RETENTION,
+            server_sample_rate: spans.server_sample_rate,
+            retention: ctx.retention(|r| r.span.as_ref()),
         };
 
-        for span in spans {
+        for span in spans.split(|spans| spans.spans) {
             if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
                 s.send(span)
             };

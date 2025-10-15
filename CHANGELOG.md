@@ -17,7 +17,8 @@
 - Add `sentry.origin` attribute to OTLP logs. ([#5190](https://github.com/getsentry/relay/pull/5190))
 - Add new iPhone 17 devices. ([#5203](https://github.com/getsentry/relay/pull/5203))
 - Upgrade sqlparser and improve SQL parsing for span grouping. ([#5211](https://github.com/getsentry/relay/pull/5211))
-- Maps `unknown_error` span status to `internal_error` ([#5202](https://github.com/getsentry/relay/pull/5202))
+- Maps `unknown_error` span status to `internal_error`. ([#5202](https://github.com/getsentry/relay/pull/5202))
+- Add `otp` and `two[-_]factor` to default scrubbing rules. ([#5250](https://github.com/getsentry/relay/pull/5250))
 - Add event merging logic for Playstation crashes. ([#5228](https://github.com/getsentry/relay/pull/5228))
 
 **Bug Fixes**:
@@ -27,6 +28,7 @@
 
 **Internal**:
 
+- Update most dependencies to semver compatible versions. ([#5245](https://github.com/getsentry/relay/pull/5245))
 - No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
 - Removes support for the `otel_span` envelope item type. ([#5238](https://github.com/getsentry/relay/pull/5238))
 - Produce spans to `ingest-spans` by default. ([#5163](https://github.com/getsentry/relay/pull/5163))

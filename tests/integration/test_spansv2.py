@@ -48,10 +48,15 @@ def test_spansv2_basic(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
-    ]
+    project_config["config"].update(
+        {
+            "features": [
+                "organizations:standalone-span-ingestion",
+                "projects:span-v2-experimental-processing",
+            ],
+            "retentions": {"span": {"standard": 42, "downsampled": 1337}},
+        }
+    )
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
@@ -103,8 +108,8 @@ def test_spansv2_basic(
         "end_timestamp": time_within(ts.timestamp() + 0.5),
         "is_remote": False,
         "status": "ok",
-        "retention_days": 90,
-        "downsampled_retention_days": 90,
+        "retention_days": 42,
+        "downsampled_retention_days": 1337,
         "key_id": 123,
         "organization_id": 1,
         "project_id": 42,
@@ -509,12 +514,7 @@ def test_spanv2_inbound_filters(
 
     relay.send_envelope(project_id, envelope, headers=headers)
 
-    outcomes = []
-    for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=5).get("outcomes"))
-    outcomes.sort(key=lambda x: x["category"])
-
-    assert outcomes == [
+    assert mini_sentry.get_outcomes(2) == [
         {
             "category": DataCategory.SPAN.value,
             "org_id": 1,
@@ -538,6 +538,76 @@ def test_spanv2_inbound_filters(
     ]
 
     assert mini_sentry.captured_events.empty()
+
+
+def test_spans_v2_multiple_containers_not_allowed(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+    start = datetime.now(timezone.utc)
+    envelope = Envelope()
+
+    payload = {
+        "start_timestamp": start.timestamp(),
+        "end_timestamp": start.timestamp() + 0.500,
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b175",
+        "name": "some op",
+        "is_remote": False,
+        "status": "ok",
+    }
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(json={"items": [payload]}),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": 1},
+        )
+    )
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(json={"items": [payload, payload]}),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": 2},
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_outcomes(2) == [
+        {
+            "category": DataCategory.SPAN.value,
+            "timestamp": time_within_delta(),
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 3,
+            "reason": "duplicate_item",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "timestamp": time_within_delta(),
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 3,
+            "reason": "duplicate_item",
+        },
+    ]
+
+    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_outcomes.empty()
 
 
 def test_spanv2_with_string_pii_scrubbing(
