@@ -1,3 +1,7 @@
+//! Provides the `scrub` function for scrubbing EAP items.
+//!
+//! This module also contains tests for scrubbing attributes.
+
 use relay_event_schema::processor::{
     ProcessValue, ProcessingResult, ProcessingState, ValueType, process_value,
 };
@@ -6,7 +10,7 @@ use relay_protocol::Annotated;
 use crate::{AttributeMode, PiiConfig, PiiProcessor};
 
 /// Scrubs an EAP item (such as an `OurLog` or `SpanV2`) with the given PII configs.
-pub fn scrub_eap_item<T: ProcessValue>(
+pub fn scrub<T: ProcessValue>(
     value_type: ValueType,
     item: &mut Annotated<T>,
     pii_config: Option<&PiiConfig>,
@@ -37,7 +41,7 @@ mod tests {
     use relay_event_schema::protocol::{Attributes, OurLog, SpanV2};
     use relay_protocol::{Annotated, SerializableAnnotated};
 
-    use crate::{DataScrubbingConfig, PiiConfig, scrub_eap_item};
+    use crate::{DataScrubbingConfig, PiiConfig, eap};
 
     #[test]
     fn test_scrub_attributes_pii_default_rules() {
@@ -169,7 +173,7 @@ mod tests {
 
         let scrubbing_config = data_scrubbing_config.pii_config().unwrap();
 
-        scrub_eap_item(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
+        eap::scrub(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
         {
@@ -691,7 +695,7 @@ mod tests {
         ))
         .unwrap();
 
-        scrub_eap_item(
+        eap::scrub(
             ValueType::Span,
             &mut data,
             Some(&config),
@@ -891,7 +895,7 @@ mod tests {
 
         let scrubbing_config = scrubbing_config.pii_config().unwrap();
 
-        scrub_eap_item(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
+        eap::scrub(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
         {
@@ -990,7 +994,7 @@ mod tests {
 
         let scrubbing_config = scrubbing_config.pii_config().unwrap();
 
-        scrub_eap_item(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
+        eap::scrub(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
         {
@@ -1080,7 +1084,7 @@ mod tests {
 
         let scrubbing_config = scrubbing_config.pii_config().unwrap();
 
-        scrub_eap_item(
+        eap::scrub(
             ValueType::OurLog,
             &mut data,
             Some(&config),
@@ -1114,7 +1118,7 @@ mod tests {
         }))
         .unwrap();
 
-        scrub_eap_item(
+        eap::scrub(
             ValueType::OurLog,
             &mut data,
             Some(&config),
@@ -1189,7 +1193,7 @@ mod tests {
 
                 let mut span = Annotated::<SpanV2>::from_json(&span_json).unwrap();
 
-                crate::scrub_eap_item(ValueType::Span, &mut span, Some(&config), scrubbing_config.as_ref()).unwrap();
+                eap::scrub(ValueType::Span, &mut span, Some(&config), scrubbing_config.as_ref()).unwrap();
 
                 insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&span.value().unwrap().attributes), @$snapshot));
 
@@ -1215,7 +1219,7 @@ mod tests {
 
                 let mut log = Annotated::<OurLog>::from_json(&log_json).unwrap();
 
-                crate::scrub_eap_item(ValueType::OurLog, &mut log, Some(&config), scrubbing_config.as_ref()).unwrap();
+                eap::scrub(ValueType::OurLog, &mut log, Some(&config), scrubbing_config.as_ref()).unwrap();
 
                 insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&log.value().unwrap().attributes), @$snapshot));
             }

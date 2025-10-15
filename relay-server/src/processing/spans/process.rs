@@ -107,7 +107,7 @@ fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
         .pii_config()
         .map_err(|e| Error::PiiConfig(e.clone()))?;
 
-    relay_pii::scrub_eap_item(
+    relay_pii::eap::scrub(
         ValueType::Span,
         span,
         ctx.project_info.config.pii_config.as_ref(),

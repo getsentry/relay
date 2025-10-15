@@ -11,7 +11,6 @@ mod builtin;
 mod compiledconfig;
 mod config;
 mod convert;
-mod eap;
 mod generate_selectors;
 mod json;
 mod legacy;
@@ -22,12 +21,12 @@ mod regexes;
 mod selector;
 mod utils;
 
+pub mod eap;
 pub mod transform;
 
 pub use self::attachments::*;
 pub use self::compiledconfig::*;
 pub use self::config::*;
-pub use self::eap::*;
 pub use self::generate_selectors::selector_suggestions_from_value;
 pub use self::json::*;
 pub use self::legacy::*;
