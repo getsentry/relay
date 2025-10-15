@@ -348,7 +348,7 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b174",
         "attributes": {
-            "test_pii": { "type": "string", "value": expected_scrubbed},
+            "test_pii": {"type": "string", "value": expected_scrubbed},
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
@@ -363,7 +363,7 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
                     "value": {
                         "": {
                             "len": mock.ANY,
-                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]]
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
                         }
                     }
                 }
