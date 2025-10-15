@@ -6,6 +6,7 @@ use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
 
 mod otel;
+mod vercel;
 
 /// Expands a list of [`Integration`] items into `result`.
 ///
@@ -43,6 +44,7 @@ pub fn expand_into(
 
         let result = match integration {
             LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
+            LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
         };
 
         match result {

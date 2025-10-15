@@ -21,6 +21,7 @@
 - Add `otp` and `two[-_]factor` to default scrubbing rules. ([#5250](https://github.com/getsentry/relay/pull/5250))
 - Add event merging logic for Playstation crashes. ([#5228](https://github.com/getsentry/relay/pull/5228))
 - Implement PII scrubbing for V2 spans. ([#5168](https://github.com/getsentry/relay/pull/5168))
+- Add vercel log drain endpoint. ([#5212](https://github.com/getsentry/relay/pull/5212))
 
 **Bug Fixes**:
 
