@@ -278,6 +278,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "a_password_here": "hello",
             "api_key": "secret_key",
             "apiKey": "secret_key",
+            "otp": "otp_code",
+            "two-factor": "otp_code",
+            "two_factor": "otp_code",
         })
     }
 

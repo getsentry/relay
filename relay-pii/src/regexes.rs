@@ -336,7 +336,7 @@ regex!(BEARER_TOKEN_REGEX, r"(?i)\b(Bearer\s+)([^\s]+)");
 
 regex!(
     PASSWORD_KEY_REGEX,
-    r"(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token)"
+    r"(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token|otp|two[-_]factor)"
 );
 
 #[cfg(test)]

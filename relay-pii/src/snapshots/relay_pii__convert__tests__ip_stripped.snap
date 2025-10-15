@@ -11,8 +11,11 @@ expression: data
       "apiKey": "secret_key",
       "api_key": "secret_key",
       "foo": "bar",
+      "otp": "otp_code",
       "password": "hello",
-      "the_secret": "hello"
+      "the_secret": "hello",
+      "two-factor": "otp_code",
+      "two_factor": "otp_code"
     }
   },
   "breadcrumbs": {
