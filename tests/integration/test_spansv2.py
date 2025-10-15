@@ -577,12 +577,7 @@ def test_spans_v2_multiple_containers_not_allowed(
 
     relay.send_envelope(project_id, envelope)
 
-    outcomes = []
-    for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
-    outcomes.sort(key=lambda x: x["category"])
-
-    assert outcomes == [
+    assert mini_sentry.get_outcomes(2) == [
         {
             "category": DataCategory.SPAN.value,
             "timestamp": time_within_delta(),
