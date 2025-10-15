@@ -8,6 +8,7 @@ from .asserts import time_within_delta, time_within
 
 from .test_dynamic_sampling import _add_sampling_config
 
+import json
 import pytest
 
 TEST_CONFIG = {
@@ -607,3 +608,128 @@ def test_spans_v2_multiple_containers_not_allowed(
 
     assert mini_sentry.captured_events.empty()
     assert mini_sentry.captured_outcomes.empty()
+
+
+def test_spanv2_with_string_pii_scrubbing(
+    mini_sentry,
+    relay,
+    scrubbing_rule,
+):
+    rule_type, test_value, expected_scrubbed = scrubbing_rule
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+
+    project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "Test span",
+            "is_remote": False,
+            "attributes": {
+                "test_pii": {"value": test_value, "type": "string"},
+            },
+        }
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.captured_events.get()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b174",
+        "attributes": {
+            "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+        },
+        "_meta": {
+            "attributes": {
+                "test_pii": {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                        }
+                    }
+                }
+            },
+            "status": {"": {"err": ["missing_attribute"]}},
+        },
+        "name": "Test span",
+        "start_timestamp": time_within(ts),
+        "end_timestamp": time_within(ts.timestamp() + 0.5),
+        "is_remote": False,
+        "status": None,
+    }
+
+
+def test_spanv2_default_pii_scrubbing_attributes(
+    mini_sentry,
+    relay,
+    secret_attribute,
+):
+    attribute_key, attribute_value, expected_value, rule_type = secret_attribute
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "Test span",
+            "attributes": {
+                attribute_key: {"value": attribute_value, "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.captured_events.get()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+    attributes = item["attributes"]
+
+    assert attribute_key in attributes
+    assert attributes[attribute_key]["value"] == expected_value
+    assert "_meta" in item
+    meta = item["_meta"]["attributes"][attribute_key]["value"][""]
+    assert "rem" in meta
+    rem_info = meta["rem"]
+    assert len(rem_info) == 1
+    assert rem_info[0][0] == rule_type
