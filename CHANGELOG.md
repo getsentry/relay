@@ -22,6 +22,7 @@
 - Add event merging logic for Playstation crashes. ([#5228](https://github.com/getsentry/relay/pull/5228))
 - Implement PII scrubbing for V2 spans. ([#5168](https://github.com/getsentry/relay/pull/5168))
 - Add vercel log drain endpoint. ([#5212](https://github.com/getsentry/relay/pull/5212))
+- Normalize deprecated attribute names according to `sentry-convetions` for logs and V2 spans. ([#5257](https://github.com/getsentry/relay/pull/5257))
 
 **Bug Fixes**:
 
