@@ -172,7 +172,7 @@ fn attributes(
         },
     );
     result.insert(
-        format!("sentry._meta.cooccuring.type.{}", metric_type),
+        format!("sentry._meta.cooccuring.type.{metric_type}"),
         AnyValue {
             value: Some(any_value::Value::BoolValue(true)),
         },
