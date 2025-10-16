@@ -236,6 +236,24 @@ impl Attributes {
         Some(&self.0.get(key)?.value()?.value.value)
     }
 
+    /// Returns the annotated attribute with the given key.
+    pub fn get_raw<Q>(&self, key: &Q) -> Option<&Annotated<Attribute>>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.0.get(key)
+    }
+
+    /// Mutably returns the annotated attribute with the given key.
+    pub fn get_raw_mut<Q>(&mut self, key: &Q) -> Option<&mut Annotated<Attribute>>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.0.get_mut(key)
+    }
+
     /// Inserts an attribute with the given value into this collection.
     pub fn insert<K: Into<String>, V: Into<AttributeValue>>(&mut self, key: K, value: V) {
         fn inner(slf: &mut Attributes, key: String, value: AttributeValue) {
@@ -295,6 +313,17 @@ impl Attributes {
         &mut self,
     ) -> std::collections::btree_map::IterMut<'_, String, Annotated<Attribute>> {
         self.0.iter_mut()
+    }
+
+    pub fn keys(&self) -> std::collections::btree_map::Keys<'_, String, Annotated<Attribute>> {
+        self.0.keys()
+    }
+
+    pub fn entry(
+        &mut self,
+        key: String,
+    ) -> std::collections::btree_map::Entry<'_, String, Annotated<Attribute>> {
+        self.0.entry(key)
     }
 }
 

@@ -73,6 +73,7 @@ def test_spansv2_basic(
             "attributes": {
                 "foo": {"value": "bar", "type": "string"},
                 "invalid": {"value": True, "type": "string"},
+                "http.response_content_length": {"value": 17, "type": "integer"},
             },
         }
     )
@@ -84,10 +85,16 @@ def test_spansv2_basic(
         "span_id": "eee19b7ec3c1b175",
         "attributes": {
             "foo": {"type": "string", "value": "bar"},
+            "http.response_content_length": {"value": 17, "type": "integer"},
+            "http.response.body.size": {"value": 17, "type": "integer"},
             "invalid": None,
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "sentry._internal.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
@@ -656,6 +663,10 @@ def test_spanv2_with_string_pii_scrubbing(
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "sentry._internal.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
