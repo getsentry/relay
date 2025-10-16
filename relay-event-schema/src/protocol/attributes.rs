@@ -315,10 +315,12 @@ impl Attributes {
         self.0.iter_mut()
     }
 
+    /// Returns an iterator over the keys in this collection.
     pub fn keys(&self) -> std::collections::btree_map::Keys<'_, String, Annotated<Attribute>> {
         self.0.keys()
     }
 
+    /// Provides mutable access to an entry in this collection.
     pub fn entry(
         &mut self,
         key: String,
