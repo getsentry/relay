@@ -3,7 +3,7 @@
 ## Unreleased
 
 **Internal**:
-- Add internal attributes to aid searching trace metrics ([#5260]https://github.com/getsentry/relay/pull/5260)
+- Add internal attributes to aid searching trace metrics ([#5260](https://github.com/getsentry/relay/pull/5260))
 
 ## 25.10.0
 
