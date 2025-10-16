@@ -135,24 +135,25 @@ def patch_sentry_envelope_for_proxy_tests():
     Item.deserialize_from = original  # Restore after module tests complete
 
 
-# TODO: Check if making this a fixture is better
 @dataclass
 class RateLimitBehavior:
     item_type: str
+    # None if sending an envelope with the item does not get a 429
     expected_outcomes: list[dict[str, Any]] | None
+    # True if the envelope should get a 429 but also should still be forwarded
+    expected_forward: bool = False
 
 
 ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
-    # TODO: Check if it makes sense that these are not getting a ratelimit
+    RateLimitBehavior("bogus_type", None),
     RateLimitBehavior("client_report", None),
     RateLimitBehavior("form_data", None),
     RateLimitBehavior("nel", None),
     RateLimitBehavior("profile_chunk", None),
-    # TODO: Understand why these are not emitting an outcome
+    RateLimitBehavior("statsd", [], True),
+    RateLimitBehavior("metric_buckets", [], True),
+    RateLimitBehavior("sessions", [], True),
     RateLimitBehavior("session", []),
-    RateLimitBehavior("sessions", []),
-    RateLimitBehavior("statsd", []),
-    RateLimitBehavior("metric_buckets", []),
     RateLimitBehavior(
         "event", [{"reason": "generic", "category": "error", "quantity": 1}]
     ),
@@ -280,17 +281,24 @@ def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior):
         with pytest.raises(HTTPError):
             relay.send_envelope(project_id, envelope)
 
-        # TODO: There might be a better way to do this
         for _ in range(0, len(behavior.expected_outcomes)):
             client_report = mini_sentry.get_client_report(timeout=1)
             rate_limited_events = client_report["rate_limited_events"]
             assert len(rate_limited_events) == 1
             assert rate_limited_events[0] in behavior.expected_outcomes
 
-        # TODO: Find a more elegant way to do this:
-        if behavior.item_type in ("sessions", "statsd", "metric_buckets"):
+        if behavior.expected_forward:
             captured = mini_sentry.captured_events.get(timeout=1)
+            (item,) = captured.items
+            assert item.payload.get_bytes() == payload
+    else:
+        # If there is no outcome than they should just be forwarded
+        relay.send_envelope(project_id, envelope)
+        captured = mini_sentry.captured_events.get(timeout=1)
+        (item,) = captured.items
+        assert item.payload.get_bytes() == payload
 
-        # Just a sanity check to make sure there are no client reports left
-        with pytest.raises(queue.Empty):
-            mini_sentry.get_client_report(timeout=1)
+    with pytest.raises(queue.Empty):
+        mini_sentry.get_client_report(timeout=1)
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_events.get(timeout=1)
