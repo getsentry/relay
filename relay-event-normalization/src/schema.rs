@@ -8,9 +8,56 @@ use smallvec::SmallVec;
 #[derive(Debug, Default)]
 pub enum RequiredMode {
     /// The default mode, which only deletes the value and leaves a remark.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use relay_event_schema::processor::{self, ProcessingState, ProcessValue};
+    /// # use relay_protocol::{Annotated, FromValue, IntoValue, Empty};
+    /// # use relay_event_normalization::{RequiredMode, SchemaProcessor};
+    /// #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+    /// struct Item {
+    ///     #[metastructure(required = true)]
+    ///     name: Annotated<String>,
+    /// }
+    ///
+    /// let mut item = Annotated::new(Item {
+    ///     name: Annotated::empty(),
+    /// });
+    ///
+    /// let mut processor = SchemaProcessor::new().with_required(Default::default());
+    /// processor::process_value(&mut item, &mut processor, ProcessingState::root()).unwrap();
+    ///
+    /// let name = &item.value().unwrap().name;
+    /// assert!(name.value().is_none());
+    /// assert!(name.meta().has_errors());
+    /// ```
     #[default]
     DeleteValue,
-    /// Instead of removing the value, the entire container containing the value is removed instead.
+    /// Instead of removing the value, the entire container containing the value is removed.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use relay_event_schema::processor::{self, ProcessingState, ProcessValue};
+    /// # use relay_protocol::{Annotated, FromValue, IntoValue, Empty};
+    /// # use relay_event_normalization::{RequiredMode, SchemaProcessor};
+    /// #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+    /// struct Item {
+    ///     #[metastructure(required = true)]
+    ///     name: Annotated<String>,
+    /// }
+    ///
+    /// let mut item = Annotated::new(Item {
+    ///     name: Annotated::empty(),
+    /// });
+    ///
+    /// let mut processor = SchemaProcessor::new().with_required(RequiredMode::DeleteParent);
+    /// processor::process_value(&mut item, &mut processor, ProcessingState::root()).unwrap();
+    ///
+    /// assert!(item.meta().has_errors());
+    /// assert!(item.value().is_none());
+    /// ```
     DeleteParent,
 }
 
@@ -101,30 +148,23 @@ impl Processor for SchemaProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // The stack is not filled if we're in delete value mode.
-        let Some(current) = self.stack.pop() else {
-            debug_assert!(
-                matches!(self.required, RequiredMode::DeleteValue),
-                "processing stack should always have a value"
-            );
+        if matches!(self.required, RequiredMode::DeleteValue) {
+            return Ok(());
+        }
 
+        let Some(current) = self.stack.pop() else {
+            debug_assert!(false, "processing stack should always have a value");
             return Ok(());
         };
 
-        // There is a require validation if the field is required and the value is `None`, or
-        // the current object had any required validations already.
+        // There is a required validation if the field is required and the value is `None`, or
+        // the current object had any required violations already.
         let is_required_violation =
             state.attrs().required && (value.is_none() || current.has_required_violation);
 
-        if let Some(container) = self.stack.last_mut() {
-            // Propagate the violation to the container, to make sure the container is deleted.
-            if is_required_violation {
-                container.has_required_violation = true;
-            }
-        }
-
-        if is_required_violation && let Some(container) = self.stack.last_mut() {
-            container.has_required_violation = true;
+        // Propagate the violation to the parent container, to make sure the parent is deleted.
+        if is_required_violation && let Some(parent) = self.stack.last_mut() {
+            parent.has_required_violation = true;
         }
 
         // Delete the current value if it is a container containing a violation.
