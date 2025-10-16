@@ -166,13 +166,13 @@ fn attributes(
 
     // Add key names matching metric name and type to workaround current co-occuring attributes limitations.
     result.insert(
-        format!("sentry._meta.cooccuring.name.{metric_name}"),
+        format!("sentry._internal.cooccuring.name.{metric_name}"),
         AnyValue {
             value: Some(any_value::Value::BoolValue(true)),
         },
     );
     result.insert(
-        format!("sentry._meta.cooccuring.type.{metric_type}"),
+        format!("sentry._internal.cooccuring.type.{metric_type}"),
         AnyValue {
             value: Some(any_value::Value::BoolValue(true)),
         },
