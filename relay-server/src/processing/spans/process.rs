@@ -1,5 +1,5 @@
 use relay_event_normalization::{
-    GeoIpLookup, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
+    GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
 };
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::SpanV2;
@@ -63,7 +63,6 @@ fn normalize_span(
     meta: &RequestMeta,
     geo_lookup: &GeoIpLookup,
 ) -> Result<()> {
-    process_value(span, &mut SchemaProcessor, ProcessingState::root())?;
     process_value(span, &mut TimestampProcessor, ProcessingState::root())?;
 
     // TODO: `validate_span()` (start/end timestamps)
@@ -77,11 +76,19 @@ fn normalize_span(
         });
 
         // TODO: ai model costs
-    } else {
-        return Err(Error::Invalid(DiscardReason::NoData));
     };
 
     process_value(span, &mut TrimmingProcessor::new(), ProcessingState::root())?;
+    process_value(
+        span,
+        &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+        ProcessingState::root(),
+    )?;
+
+    if let Annotated(None, meta) = span {
+        relay_log::debug!("empty span: {meta:?}");
+        return Err(Error::Invalid(DiscardReason::NoData));
+    }
 
     Ok(())
 }

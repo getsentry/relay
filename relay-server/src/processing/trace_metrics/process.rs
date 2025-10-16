@@ -1,4 +1,4 @@
-use relay_event_normalization::{SchemaProcessor, eap};
+use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::TraceMetric;
 use relay_pii::{AttributeMode, PiiProcessor};
@@ -100,24 +100,26 @@ fn scrub_trace_metric(metric: &mut Annotated<TraceMetric>, ctx: Context<'_>) -> 
 
 /// Normalizes an individual trace metric entry.
 fn normalize_trace_metric(metric: &mut Annotated<TraceMetric>, meta: &RequestMeta) -> Result<()> {
-    let Some(metric_value) = metric.value_mut() else {
-        return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
+    if let Some(metric_value) = metric.value_mut() {
+        eap::normalize_received(&mut metric_value.attributes, meta.received_at());
+        eap::normalize_user_agent(
+            &mut metric_value.attributes,
+            meta.user_agent(),
+            meta.client_hints(),
+        );
+        eap::normalize_attribute_types(&mut metric_value.attributes);
     };
 
-    eap::normalize_received(&mut metric_value.attributes, meta.received_at());
-    eap::normalize_user_agent(
-        &mut metric_value.attributes,
-        meta.user_agent(),
-        meta.client_hints(),
-    );
-    eap::normalize_attribute_types(&mut metric_value.attributes);
+    process_value(
+        metric,
+        &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+        ProcessingState::root(),
+    )?;
 
-    if metric_value.ty.value().is_none() {
-        return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
+    if let Annotated(None, meta) = metric {
+        relay_log::debug!("empty metric: {meta:?}");
+        return Err(Error::Invalid(DiscardReason::NoData));
     }
-
-    let mut processor = SchemaProcessor;
-    process_value(metric, &mut processor, ProcessingState::root()).ok();
 
     Ok(())
 }
