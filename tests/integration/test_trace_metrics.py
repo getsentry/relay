@@ -99,6 +99,8 @@ def test_trace_metric_extraction(
             "sentry.browser.version": {"stringValue": mock.ANY},
             "http.method": {"stringValue": "GET"},
             "http.status_code": {"intValue": "200"},
+            "sentry._meta.cooccuring.name.http.request.duration": {"boolValue": True},
+            "sentry._meta.cooccuring.type.distribution": {"boolValue": True},
         },
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 390,
@@ -243,6 +245,8 @@ def test_trace_metric_pii_scrubbing(
             "sentry._meta.fields.attributes.user.ip": {
                 "stringValue": '{"meta":{"value":{"":{"rem":[["strip_ips","x",0,0]],"len":11}}}}'
             },
+            "sentry._meta.cooccuring.name.test.metric": {"boolValue": True},
+            "sentry._meta.cooccuring.type.counter": {"boolValue": True},
         },
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
