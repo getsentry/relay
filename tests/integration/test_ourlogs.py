@@ -512,7 +512,7 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "sentry._meta.fields.body": {
                 "stringValue": '{"meta":{"":{"rem":[["remove_custom_field","s",0,10]],"len":8}}}'
             },
-            **timestamps(ts)
+            **timestamps(ts),
         },
         "clientSampleRate": 1.0,
         "itemId": mock.ANY,
