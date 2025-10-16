@@ -146,7 +146,6 @@ def test_span_extraction(
         "attributes": {  # Backfilled from `sentry_tags`
             "sentry.category": {"type": "string", "value": "http"},
             "sentry.exclusive_time": {"type": "double", "value": 500.0},
-            "sentry.name": {"type": "string", "value": "http"},
             "sentry.normalized_description": {"type": "string", "value": "GET *"},
             "sentry.group": {"type": "string", "value": "37e3d9fab1ae9162"},
             "sentry.op": {"type": "string", "value": "http"},
@@ -223,7 +222,6 @@ def test_span_extraction(
             "sentry.description": {"type": "string", "value": "hi"},
             "sentry.exclusive_time": {"type": "double", "value": 1500.0},
             "sentry.is_segment": {"type": "boolean", "value": True},
-            "sentry.name": {"type": "string", "value": "hi"},
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
@@ -682,7 +680,6 @@ def test_span_ingestion(
                 "sentry.file_extension": {"type": "string", "value": "js"},
                 "sentry.group": {"type": "string", "value": "8a97a9e43588e2bd"},
                 "sentry.is_segment": {"type": "boolean", "value": True},
-                "sentry.name": {"type": "string", "value": "resource.script"},
                 "sentry.normalized_description": {
                     "type": "string",
                     "value": "https://example.com/*/blah.js",
@@ -726,7 +723,6 @@ def test_span_ingestion(
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
                 "sentry.is_segment": {"type": "boolean", "value": False},
-                "sentry.name": {"type": "string", "value": "default"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
                 "user_agent.original": {
@@ -755,7 +751,6 @@ def test_span_ingestion(
                 "sentry.description": {"type": "string", "value": "my 2nd OTel span"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.is_segment": {"type": "boolean", "value": True},
-                "sentry.name": {"type": "string", "value": "my 2nd OTel span"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
                 "sentry.status": {"type": "string", "value": "ok"},
@@ -793,7 +788,6 @@ def test_span_ingestion(
                 "sentry.browser.name": {"type": "string", "value": "Chrome"},
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
                 "sentry.is_segment": {"type": "boolean", "value": False},
-                "sentry.name": {"type": "string", "value": "default"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
                 "user_agent.original": {
@@ -825,7 +819,6 @@ def test_span_ingestion(
                     "value": "my 3rd protobuf OTel span",
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
-                "sentry.name": {"type": "string", "value": "my 3rd protobuf OTel span"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "ui.component_name": {"type": "string", "value": "MyComponent"},

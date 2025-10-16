@@ -238,6 +238,17 @@ impl<T> Annotated<T> {
     }
 }
 
+impl<T> Annotated<Option<T>> {
+    /// Transposes an `Annotated` of [`Option`] into a [`Option`] of `Annotated`.
+    pub fn transpose(self) -> Option<Annotated<T>> {
+        match self {
+            Annotated(Some(Some(value)), meta) => Some(Annotated(Some(value), meta)),
+            Annotated(Some(None), _) => None,
+            Annotated(None, meta) => Some(Annotated(None, meta)),
+        }
+    }
+}
+
 impl<T> Annotated<T>
 where
     T: AsRef<str>,
