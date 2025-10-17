@@ -33,7 +33,7 @@ pub use event::{
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use remove_other::RemoveOtherProcessor;
-pub use schema::SchemaProcessor;
+pub use schema::{RequiredMode, SchemaProcessor};
 pub use timestamp::TimestampProcessor;
 pub use transactions::*;
 pub use trimming::TrimmingProcessor;

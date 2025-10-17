@@ -500,6 +500,7 @@ def test_spanv2_inbound_filters(
             "span_id": "eee19b7ec3c1b175",
             "is_remote": False,
             "name": "some op",
+            "status": "ok",
             "attributes": {
                 "some_integer": {"value": 123, "type": "integer"},
                 "sentry.release": {"value": "foobar@1.0", "type": "string"},
@@ -635,6 +636,7 @@ def test_spanv2_with_string_pii_scrubbing(
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b174",
             "name": "Test span",
+            "status": "ok",
             "is_remote": False,
             "attributes": {
                 "test_pii": {"value": test_value, "type": "string"},
@@ -644,7 +646,7 @@ def test_spanv2_with_string_pii_scrubbing(
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get()
+    envelope = mini_sentry.captured_events.get(timeout=3)
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
 
@@ -671,13 +673,12 @@ def test_spanv2_with_string_pii_scrubbing(
                     }
                 }
             },
-            "status": {"": {"err": ["missing_attribute"]}},
         },
         "name": "Test span",
         "start_timestamp": time_within(ts),
         "end_timestamp": time_within(ts.timestamp() + 0.5),
         "is_remote": False,
-        "status": None,
+        "status": "ok",
     }
 
 
@@ -712,6 +713,8 @@ def test_spanv2_default_pii_scrubbing_attributes(
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b174",
             "name": "Test span",
+            "status": "ok",
+            "is_remote": False,
             "attributes": {
                 attribute_key: {"value": attribute_value, "type": "string"},
             },
@@ -720,7 +723,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get()
+    envelope = mini_sentry.captured_events.get(timeout=3)
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
     attributes = item["attributes"]
@@ -733,3 +736,54 @@ def test_spanv2_default_pii_scrubbing_attributes(
     rem_info = meta["rem"]
     assert len(rem_info) == 1
     assert rem_info[0][0] == rule_type
+
+
+def test_spansv2_non_empty_span_id(mini_sentry, relay):
+    """
+    A test asserting proper outcomes are emitted for invalid spans missing required attributes.
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "some op",
+        }
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_outcomes(2) == [
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "no_data",
+            "category": DataCategory.SPAN,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "no_data",
+            "category": DataCategory.SPAN_INDEXED,
+            "quantity": 1,
+        },
+    ]
+
+    assert mini_sentry.captured_events.empty()
