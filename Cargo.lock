@@ -2303,6 +2303,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kanal"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e3953adf0cd667798b396c2fa13552d6d9b3269d7dd1154c4c416442d1ff574"
+dependencies = [
+ "futures-core",
+ "lock_api",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4461,6 +4471,7 @@ dependencies = [
  "criterion",
  "flume",
  "futures",
+ "kanal",
  "pin-project-lite",
  "relay-system",
  "tokio",
@@ -5820,7 +5831,8 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 [[package]]
 name = "tokio"
 version = "1.46.1"
-source = "git+https://github.com/dav1dde/tokio?rev=b5d827e709e097fb5a9a391e2327880fce2a7759#b5d827e709e097fb5a9a391e2327880fce2a7759"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cc3a2344dafbe23a245241fe8b09735b521110d30fcefbbd5feb1797ca35d17"
 dependencies = [
  "backtrace",
  "bytes",
@@ -5838,7 +5850,8 @@ dependencies = [
 [[package]]
 name = "tokio-macros"
 version = "2.5.0"
-source = "git+https://github.com/dav1dde/tokio?rev=b5d827e709e097fb5a9a391e2327880fce2a7759#b5d827e709e097fb5a9a391e2327880fce2a7759"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
 dependencies = [
  "proc-macro2",
  "quote",
