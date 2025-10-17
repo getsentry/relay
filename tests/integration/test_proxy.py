@@ -230,30 +230,6 @@ ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
             {"category": "span_indexed", "quantity": 1, "reason": "generic"},
         ],
     ),
-    RateLimitBehavior(
-        "otel_span",
-        PayloadType.BINARY,
-        [
-            {"category": "span", "quantity": 1, "reason": "generic"},
-            {"category": "span_indexed", "quantity": 1, "reason": "generic"},
-        ],
-    ),
-    RateLimitBehavior(
-        "otel_traces_data",
-        PayloadType.BINARY,
-        [
-            {"category": "span", "quantity": 1, "reason": "generic"},
-            {"category": "span_indexed", "quantity": 1, "reason": "generic"},
-        ],
-    ),
-    RateLimitBehavior(
-        "otel_logs_data",
-        PayloadType.BINARY,
-        [
-            {"category": "log_byte", "quantity": 100, "reason": "generic"},
-            {"category": "log_item", "quantity": 1, "reason": "generic"},
-        ],
-    ),
 ]
 
 
