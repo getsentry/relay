@@ -23,7 +23,7 @@ pub struct AsyncPool<F> {
     /// Name of the pool.
     name: &'static str,
     /// Transmission containing all tasks.
-    tx: flume::Sender<F>,
+    tx: kanal::AsyncSender<F>,
     /// The maximum number of tasks that are expected to run concurrently at any point in time.
     max_tasks: u64,
     /// Vector containing all the metrics collected individually in each thread.
@@ -59,7 +59,7 @@ where
         S: ThreadSpawn,
     {
         let pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
-        let (tx, rx) = flume::bounded(builder.num_threads * 2);
+        let (tx, rx) = kanal::bounded_async(builder.num_threads * 2);
         let mut threads_metrics = Vec::with_capacity(builder.num_threads);
 
         for thread_id in 0..builder.num_threads {
@@ -67,16 +67,26 @@ where
 
             let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
             let metrics = Arc::new(ThreadMetrics::default());
-            let task = MonitoredFuture::wrap_with_metrics(
-                Multiplexed::new(
-                    pool_name,
-                    builder.max_concurrency,
-                    rx.into_stream(),
-                    builder.task_panic_handler.clone(),
-                    metrics.clone(),
-                ),
-                metrics.raw_metrics.clone(),
-            );
+
+            let task = {
+                let metrics = Arc::clone(&metrics);
+                let task_panic_handler = builder.task_panic_handler.clone();
+                async move {
+                    let stream = rx.stream();
+
+                    MonitoredFuture::wrap_with_metrics(
+                        Multiplexed::new(
+                            pool_name,
+                            builder.max_concurrency,
+                            stream,
+                            task_panic_handler,
+                            metrics.clone(),
+                        ),
+                        metrics.raw_metrics.clone(),
+                    )
+                    .await
+                }
+            };
 
             let thread = Thread {
                 id: thread_id,
@@ -110,7 +120,7 @@ where
     /// the pool panicked.
     pub fn spawn(&self, future: F) {
         assert!(
-            self.tx.send(future).is_ok(),
+            self.tx.as_sync().send(future).is_ok(),
             "failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         );
     }
@@ -125,7 +135,7 @@ where
     /// the pool panicked.
     pub async fn spawn_async(&self, future: F) {
         assert!(
-            self.tx.send_async(future).await.is_ok(),
+            self.tx.send(future).await.is_ok(),
             "failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         );
     }
