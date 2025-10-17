@@ -168,7 +168,8 @@ def test_attachments_pii(mini_sentry, relay):
         relay.send_attachments(project_id, event_id, [attachment])
 
     payloads = {
-        mini_sentry.captured_events.get().items[0].payload.bytes for _ in range(2)
+        mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
+        for _ in range(2)
     }
     assert payloads == {
         b"here's an IP that should get masked -> ********* <-",
@@ -212,7 +213,9 @@ def test_view_hierarchy_scrubbing(mini_sentry, relay, feature_flags, expected):
     relay.send_envelope(project_id, envelope)
 
     relay.send_envelope(project_id, envelope)
-    payload = json.loads(mini_sentry.captured_events.get().items[0].payload.bytes)
+    payload = json.loads(
+        mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
+    )
     assert payload == {"rendering_system": "UIKIT", "identifier": expected}
 
 
@@ -263,7 +266,7 @@ def test_attachment_scrubbing_with_fallback(
 
     relay.send_envelope(project_id, envelope)
 
-    payload = mini_sentry.captured_events.get().items[0].payload.bytes
+    payload = mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
     assert payload == expected
 
 
@@ -287,7 +290,9 @@ def test_view_hierarchy_not_scrubbed_without_config(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    payload = json.loads(mini_sentry.captured_events.get().items[0].payload.bytes)
+    payload = json.loads(
+        mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
+    )
     assert payload == json_payload
 
 
@@ -321,7 +326,7 @@ password=mysupersecretpassword123"""
 
     relay.send_envelope(project_id, envelope)
 
-    scrubbed_payload = mini_sentry.captured_events.get().items[0].payload.bytes
+    scrubbed_payload = mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
 
     assert (
         scrubbed_payload
