@@ -1,4 +1,4 @@
-"""Tests for proxy and static mode."""
+"""Tests for proxy mode."""
 
 from datetime import datetime, timedelta, timezone
 import json
@@ -13,6 +13,7 @@ import queue
 from requests.exceptions import HTTPError
 from dataclasses import dataclass
 from random import randbytes
+from enum import Enum
 
 
 def test_span_allowed(mini_sentry, relay):
@@ -108,111 +109,113 @@ def test_replay_allowed(mini_sentry, relay):
     envelope = mini_sentry.captured_events.get(timeout=10)
 
 
-# Need to monkey patch this here since the original does json parsing which interferes with us
-# sending random binary data.
-@pytest.fixture(autouse=True, scope="module")
-def patch_sentry_envelope_for_proxy_tests():
-    original = Item.deserialize_from
-
-    @classmethod
-    def patched(cls, f):
-        line = f.readline().rstrip()
-        if not line:
-            return None
-        headers = json.loads(line)
-        length = headers.get("length")
-        if length is not None:
-            payload = f.read(length)
-            f.readline()
-        else:
-            payload = f.readline().rstrip(b"\n")
-
-        # Store all payloads as raw bytes without JSON parsing
-        return cls(headers=headers, payload=PayloadRef(bytes=payload))
-
-    Item.deserialize_from = patched
-    yield
-    Item.deserialize_from = original  # Restore after module tests complete
+class PayloadType(Enum):
+    JSON = 1
+    BINARY = 2
 
 
 @dataclass
 class RateLimitBehavior:
     item_type: str
+    # Needed due to Item.deserialize_from doing json deserialization for certain item types.
+    payload_type: PayloadType
     # None if sending an envelope with the item does not get a 429
     expected_outcomes: list[dict[str, Any]] | None
     # True if the envelope should get a 429 but also should still be forwarded
     expected_forward: bool = False
+    headers: dict | None = None
 
 
 ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
-    RateLimitBehavior("bogus_type", None),
-    RateLimitBehavior("client_report", None),
-    RateLimitBehavior("form_data", None),
-    RateLimitBehavior("nel", None),
-    RateLimitBehavior("profile_chunk", None),
-    RateLimitBehavior("statsd", [], True),
-    RateLimitBehavior("metric_buckets", [], True),
-    RateLimitBehavior("sessions", [], True),
-    RateLimitBehavior("session", []),
+    RateLimitBehavior("bogus_type", PayloadType.BINARY, None),
+    RateLimitBehavior("client_report", PayloadType.BINARY, None),
+    RateLimitBehavior("form_data", PayloadType.BINARY, None),
+    RateLimitBehavior("nel", PayloadType.BINARY, None),
     RateLimitBehavior(
-        "event", [{"reason": "generic", "category": "error", "quantity": 1}]
+        "profile_chunk",
+        PayloadType.BINARY,
+        [{"category": "profile_chunk_ui", "quantity": 1, "reason": "generic"}],
+        headers={"platform": "cocoa"},
+    ),
+    RateLimitBehavior("profile_chunk", PayloadType.BINARY, None),
+    RateLimitBehavior("statsd", PayloadType.BINARY, [], True),
+    RateLimitBehavior("metric_buckets", PayloadType.JSON, [], True),
+    RateLimitBehavior("sessions", PayloadType.BINARY, [], True),
+    RateLimitBehavior("session", PayloadType.BINARY, []),
+    RateLimitBehavior(
+        "event",
+        PayloadType.JSON,
+        [{"category": "error", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "transaction",
+        PayloadType.JSON,
         [
-            {"reason": "generic", "category": "transaction_indexed", "quantity": 1},
-            {"reason": "generic", "category": "transaction", "quantity": 1},
+            {"category": "transaction", "quantity": 1, "reason": "generic"},
+            {"category": "transaction_indexed", "quantity": 1, "reason": "generic"},
         ],
     ),
     RateLimitBehavior(
         "security",
-        [{"reason": "generic", "category": "security", "quantity": 1}],
+        PayloadType.BINARY,
+        [{"category": "security", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "attachment",
+        PayloadType.BINARY,
         [{"category": "attachment", "quantity": 100, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "raw_security",
+        PayloadType.BINARY,
         [{"category": "security", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "unreal_report",
+        PayloadType.BINARY,
         [{"category": "error", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "user_report",
+        PayloadType.BINARY,
         [{"category": "user_report_v2", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "feedback",
+        PayloadType.BINARY,
         [{"category": "user_report_v2", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "profile",
+        PayloadType.BINARY,
         [
-            {"category": "profile_indexed", "quantity": 1, "reason": "generic"},
             {"category": "profile", "quantity": 1, "reason": "generic"},
+            {"category": "profile_indexed", "quantity": 1, "reason": "generic"},
         ],
     ),
     RateLimitBehavior(
         "replay_event",
+        PayloadType.BINARY,
         [{"category": "replay", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "replay_recording",
+        PayloadType.BINARY,
         [{"category": "replay", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "replay_video",
+        PayloadType.BINARY,
         [{"category": "replay", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "check_in",
+        PayloadType.BINARY,
         [{"category": "monitor", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "log",
+        PayloadType.BINARY,
         [
             {"category": "log_byte", "quantity": 100, "reason": "generic"},
             {"category": "log_item", "quantity": 1, "reason": "generic"},
@@ -220,20 +223,23 @@ ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
     ),
     RateLimitBehavior(
         "span",
+        PayloadType.BINARY,
         [
-            {"category": "span_indexed", "quantity": 1, "reason": "generic"},
             {"category": "span", "quantity": 1, "reason": "generic"},
+            {"category": "span_indexed", "quantity": 1, "reason": "generic"},
         ],
     ),
     RateLimitBehavior(
         "otel_span",
+        PayloadType.BINARY,
         [
-            {"category": "span_indexed", "quantity": 1, "reason": "generic"},
             {"category": "span", "quantity": 1, "reason": "generic"},
+            {"category": "span_indexed", "quantity": 1, "reason": "generic"},
         ],
     ),
     RateLimitBehavior(
         "otel_traces_data",
+        PayloadType.BINARY,
         [
             {"category": "span", "quantity": 1, "reason": "generic"},
             {"category": "span_indexed", "quantity": 1, "reason": "generic"},
@@ -241,9 +247,10 @@ ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
     ),
     RateLimitBehavior(
         "otel_logs_data",
+        PayloadType.BINARY,
         [
-            {"category": "log_item", "quantity": 1, "reason": "generic"},
             {"category": "log_byte", "quantity": 100, "reason": "generic"},
+            {"category": "log_item", "quantity": 1, "reason": "generic"},
         ],
     ),
 ]
@@ -252,7 +259,7 @@ ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
 @pytest.mark.parametrize(
     "behavior", ITEM_TYPE_RATE_LIMIT_BEHAVIORS, ids=lambda b: b.item_type
 )
-def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior):
+def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior: RateLimitBehavior):
     store_event_original = mini_sentry.app.view_functions["store_event"]
 
     @mini_sentry.app.endpoint("store_event")
@@ -267,12 +274,22 @@ def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior):
     relay = relay(mini_sentry, config)
     project_id = 42
 
-    payload = randbytes(100)
+    if behavior.payload_type == PayloadType.BINARY:
+        payload = randbytes(100)
+    else:
+        # Needed due to Item.deserialize_from doing json deserialization for certain item types.
+        payload = json.dumps(f'{{"key":"{randbytes(100)!r}"}}').encode()
+
     envelope = Envelope()
-    envelope.add_item(Item(type=behavior.item_type, payload=PayloadRef(payload)))
+    envelope.add_item(
+        Item(
+            type=behavior.item_type,
+            headers=behavior.headers,
+            payload=PayloadRef(payload),
+        )
+    )
 
     relay.send_envelope(project_id, envelope)
-
     captured = mini_sentry.captured_events.get(timeout=1)
     (item,) = captured.items
     assert item.payload.get_bytes() == payload
@@ -281,11 +298,12 @@ def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior):
         with pytest.raises(HTTPError):
             relay.send_envelope(project_id, envelope)
 
-        for _ in range(0, len(behavior.expected_outcomes)):
+        rate_limited_events = []
+        for _ in range(len(behavior.expected_outcomes)):
             client_report = mini_sentry.get_client_report(timeout=1)
-            rate_limited_events = client_report["rate_limited_events"]
-            assert len(rate_limited_events) == 1
-            assert rate_limited_events[0] in behavior.expected_outcomes
+            rate_limited_events.extend(client_report["rate_limited_events"])
+        rate_limited_events.sort(key=lambda x: x["category"])
+        assert rate_limited_events == behavior.expected_outcomes
 
         if behavior.expected_forward:
             captured = mini_sentry.captured_events.get(timeout=1)
