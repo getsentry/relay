@@ -164,7 +164,6 @@ impl Processor for SchemaProcessor {
 
         // Propagate the violation to the parent container, to make sure the parent is deleted.
         if is_required_violation && let Some(parent) = self.stack.last_mut() {
-            dbg!(&value, &state);
             parent.has_required_violation = true;
         }
 
