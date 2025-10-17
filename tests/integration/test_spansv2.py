@@ -500,6 +500,7 @@ def test_spanv2_inbound_filters(
             "span_id": "eee19b7ec3c1b175",
             "is_remote": False,
             "name": "some op",
+            "status": "ok",
             "attributes": {
                 "some_integer": {"value": 123, "type": "integer"},
                 "sentry.release": {"value": "foobar@1.0", "type": "string"},
@@ -635,6 +636,7 @@ def test_spanv2_with_string_pii_scrubbing(
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b174",
             "name": "Test span",
+            "status": "ok",
             "is_remote": False,
             "attributes": {
                 "test_pii": {"value": test_value, "type": "string"},
@@ -644,7 +646,7 @@ def test_spanv2_with_string_pii_scrubbing(
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get()
+    envelope = mini_sentry.captured_events.get(timeout=3)
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
 
@@ -671,13 +673,12 @@ def test_spanv2_with_string_pii_scrubbing(
                     }
                 }
             },
-            "status": {"": {"err": ["missing_attribute"]}},
         },
         "name": "Test span",
         "start_timestamp": time_within(ts),
         "end_timestamp": time_within(ts.timestamp() + 0.5),
         "is_remote": False,
-        "status": None,
+        "status": "ok",
     }
 
 
