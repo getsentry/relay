@@ -376,7 +376,7 @@ def test_duplicate_performance_score(mini_sentry, relay):
 
     score_total_seen = 0
     for _ in range(3):  # 2 client reports and the actual item we're interested in
-        envelope = mini_sentry.captured_events.get()
+        envelope = mini_sentry.captured_events.get(timeout=5)
         for item in envelope.items:
             if item.type == "metric_buckets":
                 for metric in item.payload.json:
