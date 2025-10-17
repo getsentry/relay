@@ -226,7 +226,7 @@
 <a href=#226 id=226 data-nosnippet>226</a>
 <a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">if </span>!is_renormalize {
 <a href=#228 id=228 data-nosnippet>228</a>        <span class="comment">// Check for required and non-empty values
-<a href=#229 id=229 data-nosnippet>229</a>        </span><span class="kw">let _ </span>= schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
+<a href=#229 id=229 data-nosnippet>229</a>        </span><span class="kw">let _ </span>= schema::SchemaProcessor::new().process_event(event, meta, ProcessingState::root());
 <a href=#230 id=230 data-nosnippet>230</a>
 <a href=#231 id=231 data-nosnippet>231</a>        normalize(event, meta, config);
 <a href=#232 id=232 data-nosnippet>232</a>    }
