@@ -20,7 +20,7 @@ use crate::statsd::RelayTimers;
 
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
-/// Analog to [`EnvelopeProcessorService`] this service handles messages when Relay is run in
+/// Analog to [`crate::services::processor::EnvelopeProcessorService`] this service handles messages when Relay is run in
 /// proxy mode.
 pub struct ProxyProcessorService {
     inner: InnerProxyProcessor,

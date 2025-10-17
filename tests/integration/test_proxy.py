@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 from typing import Any
+from time import sleep
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -295,6 +296,7 @@ def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior: RateLimitBeh
     assert item.payload.get_bytes() == payload
 
     if behavior.expected_outcomes is not None:
+        sleep(1)
         with pytest.raises(HTTPError):
             relay.send_envelope(project_id, envelope)
 
