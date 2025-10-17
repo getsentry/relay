@@ -1,4 +1,3 @@
-from collections import Counter
 from datetime import datetime, timezone
 from unittest import mock
 
@@ -761,12 +760,17 @@ def test_invalid_spans(mini_sentry, relay):
         "span_id": "eee19b7ec3c1b174",
         "start_timestamp": ts.timestamp(),
         "status": "ok",
-        "trace_id": "5b8ef"
-        "ff798038103d269b633813fc60c",
+        "trace_id": "5b8ef" "ff798038103d269b633813fc60c",
     }
 
     required_keys = valid_span.keys()
-    nonempty_keys = {"end_timestamp", "is_remote", "span_id", "start_timestamp", "trace_id"}
+    nonempty_keys = {
+        "end_timestamp",
+        "is_remote",
+        "span_id",
+        "start_timestamp",
+        "trace_id",
+    }
 
     def without(dct, key):
         dct = dct.copy()

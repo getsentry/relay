@@ -251,7 +251,6 @@ class Sentry(SentryLike):
                     quantity = outcome.pop("quantity")
                     aggregated[tuple(sorted(outcome.items()))] += quantity
         except Empty:
-            print("Empty")
             outcomes = [
                 {**{k: v for (k, v) in fields}, "quantity": quantity}
                 for (fields, quantity) in aggregated.items()
