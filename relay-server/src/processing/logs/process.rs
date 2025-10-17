@@ -114,10 +114,10 @@ fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> 
         return Err(Error::Invalid(DiscardReason::NoData));
     };
 
-    eap::normalize_received(&mut log.attributes, meta.received_at());
-    eap::normalize_user_agent(&mut log.attributes, meta.user_agent(), meta.client_hints());
     eap::normalize_attribute_types(&mut log.attributes);
     eap::normalize_attribute_names(&mut log.attributes);
+    eap::normalize_received(&mut log.attributes, meta.received_at());
+    eap::normalize_user_agent(&mut log.attributes, meta.user_agent(), meta.client_hints());
 
     Ok(())
 }

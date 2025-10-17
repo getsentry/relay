@@ -5,8 +5,9 @@
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::{
-    AttributeInfo, BROWSER_NAME, BROWSER_VERSION, OBSERVED_TIMESTAMP_NANOS, USER_GEO_CITY,
-    USER_GEO_COUNTRY_CODE, USER_GEO_REGION, USER_GEO_SUBDIVISION, WriteBehavior,
+    AttributeInfo, BROWSER_NAME, BROWSER_VERSION, OBSERVED_TIMESTAMP_NANOS,
+    OBSERVED_TIMESTAMP_NANOS_DEPRECATED, USER_GEO_CITY, USER_GEO_COUNTRY_CODE, USER_GEO_REGION,
+    USER_GEO_SUBDIVISION, WriteBehavior,
 };
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Remark, RemarkType, Value};
@@ -64,14 +65,21 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
 
 /// Adds the `received` time to the attributes.
 pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: DateTime<Utc>) {
-    attributes
-        .get_or_insert_with(Default::default)
-        .insert_if_missing(OBSERVED_TIMESTAMP_NANOS, || {
-            received
-                .timestamp_nanos_opt()
-                .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
-                .to_string()
-        });
+    let attributes = attributes.get_or_insert_with(Default::default);
+
+    attributes.insert_if_missing(OBSERVED_TIMESTAMP_NANOS, || {
+        received
+            .timestamp_nanos_opt()
+            .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
+            .to_string()
+    });
+
+    attributes.insert_if_missing(OBSERVED_TIMESTAMP_NANOS_DEPRECATED, || {
+        received
+            .timestamp_nanos_opt()
+            .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
+            .to_string()
+    });
 }
 
 /// Normalizes the user agent/client information into [`Attributes`].
