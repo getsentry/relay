@@ -713,6 +713,8 @@ def test_spanv2_default_pii_scrubbing_attributes(
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b174",
             "name": "Test span",
+            "status": "ok",
+            "is_remote": False,
             "attributes": {
                 attribute_key: {"value": attribute_value, "type": "string"},
             },
@@ -721,7 +723,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get()
+    envelope = mini_sentry.captured_events.get(timeout=3)
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
     attributes = item["attributes"]
