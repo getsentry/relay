@@ -772,24 +772,21 @@ def test_invalid_spans(mini_sentry, relay):
         "trace_id",
     }
 
-    def without(dct, key):
-        dct = dct.copy()
-        dct.pop(key)
-        return dct
+    invalid_spans = []
+    for key in required_keys:
+        invalid_span = valid_span.copy()
+        del invalid_span[key]
+        invalid_spans.append(invalid_span)
 
-    invalid_spans = [
-        modify(valid_span)
-        for field in required_keys
-        for modify in [
-            lambda span: without(span, field),
-            lambda span: {**span, field: None},
-        ]
-    ] + [
-        {**valid_span, field: ""}
-        for field in [
-            key for (key, value) in valid_span.items() if key in nonempty_keys
-        ]
-    ]
+    for key in required_keys:
+        invalid_span = valid_span.copy()
+        invalid_span[key] = None
+        invalid_spans.append(invalid_span)
+
+    for key in nonempty_keys:
+        invalid_span = valid_span.copy()
+        invalid_span[key] = ""
+        invalid_spans.append(invalid_span)
 
     envelope = envelope_with_spans(*(invalid_spans + [valid_span]))
     relay.send_envelope(project_id, envelope)
