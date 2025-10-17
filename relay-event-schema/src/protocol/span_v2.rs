@@ -48,11 +48,11 @@ pub struct SpanV2 {
     pub kind: Annotated<SpanKind>,
 
     /// Timestamp when the span started.
-    #[metastructure(required = true)]
+    #[metastructure(required = true, nonempty = true)]
     pub start_timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the span was ended.
-    #[metastructure(required = true)]
+    #[metastructure(required = true, nonempty = true)]
     pub end_timestamp: Annotated<Timestamp>,
 
     /// Links from this span to other spans.
