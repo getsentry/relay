@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Simplify proxy mode to forward envelopes without processing ([#5165](https://github.com/getsentry/relay/pull/5165))
+
 **Internal**:
 
 - Add internal attributes to aid searching trace metrics ([#5260](https://github.com/getsentry/relay/pull/5260))
