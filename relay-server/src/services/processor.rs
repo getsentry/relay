@@ -1150,9 +1150,8 @@ pub struct EnvelopeProcessorService {
 ///
 /// Analog to [`EnvelopeProcessorService`] this service handles messages when Relay is run in
 /// proxy mode.
-#[derive(Clone)]
 pub struct ProxyProcessorService {
-    inner: Arc<InnerProxyProcessor>,
+    inner: InnerProxyProcessor,
 }
 
 /// Contains the addresses of services that the processor publishes to.
@@ -1219,7 +1218,6 @@ struct Processing {
 }
 
 struct InnerProxyProcessor {
-    pool: EnvelopeProcessorServicePool,
     config: Arc<Config>,
     project_cache: ProjectCacheHandle,
     addrs: ProxyAddrs,
@@ -3416,23 +3414,17 @@ impl Service for EnvelopeProcessorService {
 
 impl ProxyProcessorService {
     /// Creates a multi-threaded proxy processor.
-    pub fn new(
-        pool: EnvelopeProcessorServicePool,
-        config: Arc<Config>,
-        project_cache: ProjectCacheHandle,
-        addrs: ProxyAddrs,
-    ) -> Self {
+    pub fn new(config: Arc<Config>, project_cache: ProjectCacheHandle, addrs: ProxyAddrs) -> Self {
         Self {
-            inner: Arc::new(InnerProxyProcessor {
-                pool,
+            inner: InnerProxyProcessor {
                 project_cache,
                 addrs,
                 config,
-            }),
+            },
         }
     }
 
-    async fn handle_process_envelope(&self, message: ProcessEnvelope) {
+    fn handle_process_envelope(&self, message: ProcessEnvelope) {
         let wait_time = message.envelope.age();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
@@ -3508,12 +3500,12 @@ impl ProxyProcessorService {
         }
     }
 
-    async fn handle_message(&self, message: EnvelopeProcessor) {
+    fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();
 
         metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
             match message {
-                EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m).await,
+                EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
                 EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
                 EnvelopeProcessor::ProcessBatchedMetrics(_)
                 | EnvelopeProcessor::ProcessProjectMetrics(_)
@@ -3530,16 +3522,7 @@ impl Service for ProxyProcessorService {
 
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         while let Some(message) = rx.recv().await {
-            let service = self.clone();
-            self.inner
-                .pool
-                .spawn_async(
-                    async move {
-                        service.handle_message(message).await;
-                    }
-                    .boxed(),
-                )
-                .await;
+            self.handle_message(message);
         }
     }
 }

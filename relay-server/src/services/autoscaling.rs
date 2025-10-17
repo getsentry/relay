@@ -21,7 +21,7 @@ pub struct AutoscalingMetricService {
     /// This will always report `1` unless the instance is shutting down.
     up: u8,
     /// Gives access to AsyncPool metrics.
-    async_pool: EnvelopeProcessorServicePool,
+    async_pool: Option<EnvelopeProcessorServicePool>,
 }
 
 impl AutoscalingMetricService {
@@ -29,7 +29,7 @@ impl AutoscalingMetricService {
         memory_stat: MemoryStat,
         envelope_buffer: PartitionedEnvelopeBuffer,
         handle: Handle,
-        async_pool: EnvelopeProcessorServicePool,
+        async_pool: Option<EnvelopeProcessorServicePool>,
     ) -> Self {
         let runtime_metrics = handle.metrics();
         Self {
@@ -68,7 +68,7 @@ impl Service for AutoscalingMetricService {
                                 }
                             )
                                 .collect();
-                            let worker_pool_utilization = self.async_pool.metrics().total_utilization();
+                            let worker_pool_utilization = self.async_pool.as_ref().map_or(0, |pool| pool.metrics().total_utilization());
                             let runtime_utilization = self.runtime_utilization();
 
                             sender.send(AutoscalingData {

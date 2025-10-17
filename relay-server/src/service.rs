@@ -238,23 +238,24 @@ impl ServiceState {
             .as_ref()
             .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
 
-        let processor_pool = create_processor_pool(&config)?;
-
-        let mut aggregator_handle = None;
-        match config.relay_mode() {
-            relay_config::RelayMode::Proxy => services.start_with(
-                ProxyProcessorService::new(
-                    processor_pool.clone(),
-                    config.clone(),
-                    project_cache_handle.clone(),
-                    processor::ProxyAddrs {
-                        outcome_aggregator: outcome_aggregator.clone(),
-                        upstream_relay: upstream_relay.clone(),
-                    },
-                ),
-                processor_rx,
-            ),
+        let (processor_pool, aggregator_handle) = match config.relay_mode() {
+            relay_config::RelayMode::Proxy => {
+                services.start_with(
+                    ProxyProcessorService::new(
+                        config.clone(),
+                        project_cache_handle.clone(),
+                        processor::ProxyAddrs {
+                            outcome_aggregator: outcome_aggregator.clone(),
+                            upstream_relay: upstream_relay.clone(),
+                        },
+                    ),
+                    processor_rx,
+                );
+                (None, None)
+            }
             relay_config::RelayMode::Managed => {
+                let processor_pool = create_processor_pool(&config)?;
+
                 let aggregator = RouterService::new(
                     handle.clone(),
                     config.default_aggregator_config().clone(),
@@ -262,8 +263,7 @@ impl ServiceState {
                     Some(processor.clone().recipient()),
                     project_cache_handle.clone(),
                 );
-
-                aggregator_handle = Some(aggregator.handle());
+                let aggregator_handle = aggregator.handle();
                 let aggregator = services.start(aggregator);
 
                 let cogs = CogsService::new(&config);
@@ -290,9 +290,10 @@ impl ServiceState {
                         metric_outcomes.clone(),
                     ),
                     processor_rx,
-                )
+                );
+                (Some(processor_pool), Some(aggregator_handle))
             }
-        }
+        };
 
         let envelope_buffer = PartitionedEnvelopeBuffer::create(
             config.spool_partitions(),
