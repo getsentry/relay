@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Normalize deprecated attribute names according to `sentry-conventions` for logs and V2 spans. ([#5257](https://github.com/getsentry/relay/pull/5257))
+
 ## 25.10.0
 
 **Features**:
