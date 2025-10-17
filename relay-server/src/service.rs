@@ -17,10 +17,10 @@ use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOut
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{
     self, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
-    ProxyProcessorService,
 };
 use crate::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 use crate::services::projects::source::ProjectSource;
+use crate::services::proxy_processor::{ProxyAddrs, ProxyProcessorService};
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
@@ -244,7 +244,7 @@ impl ServiceState {
                     ProxyProcessorService::new(
                         config.clone(),
                         project_cache_handle.clone(),
-                        processor::ProxyAddrs {
+                        ProxyAddrs {
                             outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
                         },

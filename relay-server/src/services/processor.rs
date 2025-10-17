@@ -277,7 +277,7 @@ pub enum ProcessingGroup {
 
 impl ProcessingGroup {
     /// Splits provided envelope into list of tuples of groups with associated envelopes.
-    fn split_envelope(
+    pub fn split_envelope(
         mut envelope: Envelope,
         project_info: &ProjectInfo,
     ) -> SmallVec<[(Self, Box<Envelope>); 3]> {
@@ -1146,14 +1146,6 @@ pub struct EnvelopeProcessorService {
     inner: Arc<InnerProcessor>,
 }
 
-/// Service implementing the [`EnvelopeProcessor`] interface.
-///
-/// Analog to [`EnvelopeProcessorService`] this service handles messages when Relay is run in
-/// proxy mode.
-pub struct ProxyProcessorService {
-    inner: InnerProxyProcessor,
-}
-
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -1179,21 +1171,6 @@ impl Default for Addrs {
     }
 }
 
-/// Contains the addresses of services that the proxy-processor publishes to.
-pub struct ProxyAddrs {
-    pub outcome_aggregator: Addr<TrackOutcome>,
-    pub upstream_relay: Addr<UpstreamRelay>,
-}
-
-impl Default for ProxyAddrs {
-    fn default() -> Self {
-        ProxyAddrs {
-            outcome_aggregator: Addr::dummy(),
-            upstream_relay: Addr::dummy(),
-        }
-    }
-}
-
 struct InnerProcessor {
     pool: EnvelopeProcessorServicePool,
     config: Arc<Config>,
@@ -1215,12 +1192,6 @@ struct InnerProcessor {
 struct Processing {
     logs: LogsProcessor,
     spans: SpansProcessor,
-}
-
-struct InnerProxyProcessor {
-    config: Arc<Config>,
-    project_cache: ProjectCacheHandle,
-    addrs: ProxyAddrs,
 }
 
 impl EnvelopeProcessorService {
@@ -3412,121 +3383,6 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
-impl ProxyProcessorService {
-    /// Creates a multi-threaded proxy processor.
-    pub fn new(config: Arc<Config>, project_cache: ProjectCacheHandle, addrs: ProxyAddrs) -> Self {
-        Self {
-            inner: InnerProxyProcessor {
-                project_cache,
-                addrs,
-                config,
-            },
-        }
-    }
-
-    fn handle_process_envelope(&self, message: ProcessEnvelope) {
-        let wait_time = message.envelope.age();
-        metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
-
-        let scoping = message.envelope.scoping();
-        for (_, envelope) in ProcessingGroup::split_envelope(
-            *message.envelope.into_envelope(),
-            &message.project_info,
-        ) {
-            let mut envelope =
-                ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
-            envelope.scope(scoping);
-            self.submit_upstream(envelope);
-        }
-    }
-
-    fn handle_submit_client_reports(&self, message: SubmitClientReports) {
-        let SubmitClientReports {
-            client_reports,
-            scoping,
-        } = message;
-
-        let upstream = self.inner.config.upstream_descriptor();
-        let dsn = PartialDsn::outbound(&scoping, upstream);
-
-        let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
-        for client_report in client_reports {
-            let mut item = Item::new(ItemType::ClientReport);
-            item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
-            envelope.add_item(item);
-        }
-
-        let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
-        self.submit_upstream(envelope);
-    }
-
-    fn submit_upstream(&self, envelope: ManagedEnvelope) {
-        let mut envelope = envelope;
-
-        if envelope.envelope_mut().is_empty() {
-            envelope.accept();
-            return;
-        }
-
-        relay_log::trace!("sending envelope to sentry endpoint");
-        let http_encoding = self.inner.config.http_encoding();
-        let result = envelope.envelope().to_vec().and_then(|v| {
-            encode_payload(&v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
-        });
-
-        match result {
-            Ok(body) => {
-                self.inner
-                    .addrs
-                    .upstream_relay
-                    .send(SendRequest(SendEnvelope {
-                        envelope: envelope.into_processed(),
-                        body,
-                        http_encoding,
-                        project_cache: self.inner.project_cache.clone(),
-                    }));
-            }
-            Err(error) => {
-                // Errors are only logged for what we consider an internal discard reason. These
-                // indicate errors in the infrastructure or implementation bugs.
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    tags.project_key = %envelope.scoping().project_key,
-                    "failed to serialize envelope payload"
-                );
-
-                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-            }
-        }
-    }
-
-    fn handle_message(&self, message: EnvelopeProcessor) {
-        let ty = message.variant();
-
-        metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
-            match message {
-                EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
-                EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
-                EnvelopeProcessor::ProcessBatchedMetrics(_)
-                | EnvelopeProcessor::ProcessProjectMetrics(_)
-                | EnvelopeProcessor::FlushBuckets(_) => {
-                    relay_log::error!("internal error: Metrics not supported in Proxy mode");
-                }
-            }
-        });
-    }
-}
-
-impl Service for ProxyProcessorService {
-    type Interface = EnvelopeProcessor;
-
-    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        while let Some(message) = rx.recv().await {
-            self.handle_message(message);
-        }
-    }
-}
-
 /// Result of the enforcement of rate limiting.
 ///
 /// If the event is already `None` or it's rate limited, it will be `None`
@@ -3630,7 +3486,7 @@ impl RateLimiter {
     }
 }
 
-fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
+pub fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
     let envelope_body: Vec<u8> = match http_encoding {
         HttpEncoding::Identity => return Ok(body.clone()),
         HttpEncoding::Deflate => {
@@ -3664,10 +3520,10 @@ fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, st
 /// An upstream request that submits an envelope via HTTP.
 #[derive(Debug)]
 pub struct SendEnvelope {
-    envelope: TypedEnvelope<Processed>,
-    body: Bytes,
-    http_encoding: HttpEncoding,
-    project_cache: ProjectCacheHandle,
+    pub envelope: TypedEnvelope<Processed>,
+    pub body: Bytes,
+    pub http_encoding: HttpEncoding,
+    pub project_cache: ProjectCacheHandle,
 }
 
 impl UpstreamRequest for SendEnvelope {
