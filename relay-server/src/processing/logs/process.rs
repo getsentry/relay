@@ -1,4 +1,4 @@
-use relay_event_normalization::{SchemaProcessor, eap};
+use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_protocol::Annotated;
@@ -108,15 +108,22 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
 }
 
 fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
-    process_value(log, &mut SchemaProcessor, ProcessingState::root())?;
+    if let Some(log) = log.value_mut() {
+        eap::normalize_received(&mut log.attributes, meta.received_at());
+        eap::normalize_user_agent(&mut log.attributes, meta.user_agent(), meta.client_hints());
+        eap::normalize_attribute_types(&mut log.attributes);
+    }
 
-    let Some(log) = log.value_mut() else {
+    process_value(
+        log,
+        &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+        ProcessingState::root(),
+    )?;
+
+    if let Annotated(None, meta) = log {
+        relay_log::debug!("empty log: {meta:?}");
         return Err(Error::Invalid(DiscardReason::NoData));
-    };
-
-    eap::normalize_received(&mut log.attributes, meta.received_at());
-    eap::normalize_user_agent(&mut log.attributes, meta.user_agent(), meta.client_hints());
-    eap::normalize_attribute_types(&mut log.attributes);
+    }
 
     Ok(())
 }

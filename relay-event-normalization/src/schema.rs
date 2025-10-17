@@ -2,9 +2,84 @@ use relay_event_schema::processor::{
     ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_protocol::{Array, Empty, Error, ErrorKind, Meta, Object};
+use smallvec::SmallVec;
+
+/// Mode how `required` values should be validated in a [`SchemaProcessor`].
+#[derive(Debug, Default)]
+pub enum RequiredMode {
+    /// The default mode, which only deletes the value and leaves a remark.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use relay_event_schema::processor::{self, ProcessingState, ProcessValue};
+    /// # use relay_protocol::{Annotated, FromValue, IntoValue, Empty};
+    /// # use relay_event_normalization::{RequiredMode, SchemaProcessor};
+    /// #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+    /// struct Item {
+    ///     #[metastructure(required = true)]
+    ///     name: Annotated<String>,
+    /// }
+    ///
+    /// let mut item = Annotated::new(Item {
+    ///     name: Annotated::empty(),
+    /// });
+    ///
+    /// let mut processor = SchemaProcessor::new().with_required(Default::default());
+    /// processor::process_value(&mut item, &mut processor, ProcessingState::root()).unwrap();
+    ///
+    /// let name = &item.value().unwrap().name;
+    /// assert!(name.value().is_none());
+    /// assert!(name.meta().has_errors());
+    /// ```
+    #[default]
+    DeleteValue,
+    /// Instead of removing the value, the entire container containing the value is removed.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use relay_event_schema::processor::{self, ProcessingState, ProcessValue};
+    /// # use relay_protocol::{Annotated, FromValue, IntoValue, Empty};
+    /// # use relay_event_normalization::{RequiredMode, SchemaProcessor};
+    /// #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+    /// struct Item {
+    ///     #[metastructure(required = true)]
+    ///     name: Annotated<String>,
+    /// }
+    ///
+    /// let mut item = Annotated::new(Item {
+    ///     name: Annotated::empty(),
+    /// });
+    ///
+    /// let mut processor = SchemaProcessor::new().with_required(RequiredMode::DeleteParent);
+    /// processor::process_value(&mut item, &mut processor, ProcessingState::root()).unwrap();
+    ///
+    /// assert!(item.meta().has_errors());
+    /// assert!(item.value().is_none());
+    /// ```
+    DeleteParent,
+}
 
 /// Validates constraints such as empty strings or arrays and invalid characters.
-pub struct SchemaProcessor;
+#[derive(Debug, Default)]
+pub struct SchemaProcessor {
+    required: RequiredMode,
+    stack: SmallVec<[SchemaState; 10]>,
+}
+
+impl SchemaProcessor {
+    /// Creates a new [`SchemaProcessor`].
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Configures how `required` values should be validated.
+    pub fn with_required(mut self, mode: RequiredMode) -> Self {
+        self.required = mode;
+        self
+    }
+}
 
 impl Processor for SchemaProcessor {
     fn process_string(
@@ -53,12 +128,59 @@ impl Processor for SchemaProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if value.is_none() && state.attrs().required && !meta.has_errors() {
-            meta.add_error(ErrorKind::MissingAttribute);
+        match self.required {
+            RequiredMode::DeleteParent => {
+                self.stack.push(SchemaState::default());
+            }
+            RequiredMode::DeleteValue => {
+                if value.is_none() && state.attrs().required && !meta.has_errors() {
+                    meta.add_error(ErrorKind::MissingAttribute);
+                }
+            }
         }
 
         Ok(())
     }
+
+    fn after_process<T: ProcessValue>(
+        &mut self,
+        value: Option<&T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if matches!(self.required, RequiredMode::DeleteValue) {
+            return Ok(());
+        }
+
+        let Some(current) = self.stack.pop() else {
+            debug_assert!(false, "processing stack should always have a value");
+            return Ok(());
+        };
+
+        // There is a required validation if the field is required and the value is `None`, or
+        // the current object had any required violations already.
+        let is_required_violation =
+            state.attrs().required && (value.is_none() || current.has_required_violation);
+
+        // Propagate the violation to the parent container, to make sure the parent is deleted.
+        if is_required_violation && let Some(parent) = self.stack.last_mut() {
+            parent.has_required_violation = true;
+        }
+
+        // Delete the current value if it is a container containing a violation.
+        match current.has_required_violation {
+            true => {
+                meta.add_error(ErrorKind::MissingAttribute);
+                Err(ProcessingAction::DeleteValueHard)
+            }
+            false => Ok(()),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct SchemaState {
+    has_required_violation: bool,
 }
 
 fn value_trim_whitespace(value: &mut String, _meta: &mut Meta, state: &ProcessingState<'_>) {
@@ -125,7 +247,7 @@ mod tests {
         CError, ClientSdkInfo, Event, MachException, Mechanism, MechanismMeta, PosixSignal,
         RawStacktrace, User,
     };
-    use relay_protocol::{Annotated, FromValue, IntoValue};
+    use relay_protocol::{Annotated, FromValue, IntoValue, assert_annotated_snapshot};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -145,8 +267,12 @@ mod tests {
             bar: Annotated::new(T::default()),
             bar2: Annotated::new(T::default()),
         });
-        processor::process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root())
-            .unwrap();
+        processor::process_value(
+            &mut wrapper,
+            &mut SchemaProcessor::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         assert_eq!(
             wrapper,
@@ -180,7 +306,12 @@ mod tests {
         });
 
         let expected = user.clone();
-        processor::process_value(&mut user, &mut SchemaProcessor, ProcessingState::root()).unwrap();
+        processor::process_value(
+            &mut user,
+            &mut SchemaProcessor::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         assert_eq!(user, expected);
     }
@@ -192,7 +323,12 @@ mod tests {
             ..Default::default()
         });
 
-        processor::process_value(&mut info, &mut SchemaProcessor, ProcessingState::root()).unwrap();
+        processor::process_value(
+            &mut info,
+            &mut SchemaProcessor::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         let expected = Annotated::new(ClientSdkInfo {
             name: Annotated::new("sentry.rust".to_owned()),
@@ -227,7 +363,7 @@ mod tests {
 
         processor::process_value(
             &mut mechanism,
-            &mut SchemaProcessor,
+            &mut SchemaProcessor::new(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -263,8 +399,12 @@ mod tests {
     fn test_stacktrace_missing_attribute() {
         let mut stack = Annotated::new(RawStacktrace::default());
 
-        processor::process_value(&mut stack, &mut SchemaProcessor, ProcessingState::root())
-            .unwrap();
+        processor::process_value(
+            &mut stack,
+            &mut SchemaProcessor::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         let expected = Annotated::new(RawStacktrace {
             frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
@@ -281,8 +421,12 @@ mod tests {
             ..Default::default()
         });
 
-        processor::process_value(&mut event, &mut SchemaProcessor, ProcessingState::root())
-            .unwrap();
+        processor::process_value(
+            &mut event,
+            &mut SchemaProcessor::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         let expected = Annotated::new(Event {
             release: Annotated::new("42".to_owned().into()),
@@ -290,5 +434,244 @@ mod tests {
         });
 
         assert_eq!(expected, event);
+    }
+
+    #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+    struct TestItem<T> {
+        #[metastructure(required = true, nonempty = true)]
+        req_non_empty: Annotated<T>,
+        #[metastructure(required = true)]
+        req: Annotated<T>,
+        other: Annotated<T>,
+    }
+
+    #[test]
+    fn test_required_delete_parent_top_level_nonempty() {
+        let mut item = Annotated::new(TestItem {
+            req_non_empty: Annotated::new("".to_owned()),
+            req: Annotated::new("something".to_owned()),
+            other: Annotated::new("something".to_owned()),
+        });
+
+        processor::process_value(
+            &mut item,
+            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(item, @r#"
+        {
+          "_meta": {
+            "": {
+              "err": [
+                "missing_attribute"
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_required_delete_parent_top_level_req() {
+        let mut item = Annotated::new(TestItem {
+            req_non_empty: Annotated::new("something".to_owned()),
+            req: Annotated::empty(),
+            other: Annotated::new("something".to_owned()),
+        });
+
+        processor::process_value(
+            &mut item,
+            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(item, @r#"
+        {
+          "_meta": {
+            "": {
+              "err": [
+                "missing_attribute"
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_required_delete_parent_top_level_req_error() {
+        let mut item = Annotated::new(TestItem {
+            req_non_empty: Annotated::new("something".to_owned()),
+            req: Annotated(None, Meta::from_error(Error::expected("something"))),
+            other: Annotated::new("something".to_owned()),
+        });
+
+        processor::process_value(
+            &mut item,
+            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(item, @r#"
+        {
+          "_meta": {
+            "": {
+              "err": [
+                "missing_attribute"
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_required_delete_parent_top_level_okay() {
+        let mut item = Annotated::new(TestItem {
+            req_non_empty: Annotated::new("something".to_owned()),
+            req: Annotated::new("something".to_owned()),
+            other: Annotated::empty(),
+        });
+
+        processor::process_value(
+            &mut item,
+            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(item, @r#"
+        {
+          "req_non_empty": "something",
+          "req": "something"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_required_delete_parent_nested_propagated() {
+        let mut item = Annotated::new(TestItem {
+            req_non_empty: Annotated::new(TestItem {
+                req_non_empty: Annotated::new("".to_owned()),
+                req: Annotated::new("something".to_owned()),
+                other: Annotated::new("something".to_owned()),
+            }),
+            req: Annotated::new(TestItem {
+                req_non_empty: Annotated::new("something".to_owned()),
+                req: Annotated::new("something".to_owned()),
+                other: Annotated::new("something".to_owned()),
+            }),
+            other: Annotated::empty(),
+        });
+
+        processor::process_value(
+            &mut item,
+            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(item, @r#"
+        {
+          "_meta": {
+            "": {
+              "err": [
+                "missing_attribute"
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_required_delete_nested_simple_all_the_way() {
+        #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+        struct Foo {
+            #[metastructure(required = true)]
+            bar: Annotated<Bar>,
+            other: Annotated<String>,
+        }
+
+        #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+        struct Bar {
+            #[metastructure(required = true, nonempty = true)]
+            value: Annotated<String>,
+        }
+
+        let mut item = Annotated::new(Foo {
+            bar: Annotated::new(Bar {
+                value: Annotated::new("".to_owned()),
+            }),
+            other: Annotated::new("something".to_owned()),
+        });
+
+        processor::process_value(
+            &mut item,
+            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(item, @r#"
+        {
+          "_meta": {
+            "": {
+              "err": [
+                "missing_attribute"
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_required_delete_nested_simple_one_layer() {
+        #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+        struct Foo {
+            bar: Annotated<Bar>,
+            other: Annotated<String>,
+        }
+
+        #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+        struct Bar {
+            #[metastructure(required = true, nonempty = true)]
+            value: Annotated<String>,
+        }
+
+        let mut item = Annotated::new(Foo {
+            bar: Annotated::new(Bar {
+                value: Annotated::new("".to_owned()),
+            }),
+            other: Annotated::new("something".to_owned()),
+        });
+
+        processor::process_value(
+            &mut item,
+            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(item, @r#"
+        {
+          "bar": null,
+          "other": "something",
+          "_meta": {
+            "bar": {
+              "": {
+                "err": [
+                  "missing_attribute"
+                ]
+              }
+            }
+          }
+        }
+        "#);
     }
 }

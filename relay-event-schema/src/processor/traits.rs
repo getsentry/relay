@@ -142,7 +142,7 @@ pub trait Processor: Sized {
 pub use enumset::{EnumSet, enum_set};
 
 /// A recursively processable value.
-pub trait ProcessValue: FromValue + IntoValue + Debug + Clone {
+pub trait ProcessValue: FromValue + IntoValue + Debug + Clone + std::fmt::Debug {
     /// Returns the type of the value.
     #[inline]
     fn value_type(&self) -> EnumSet<ValueType> {
