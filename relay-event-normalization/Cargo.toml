@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Event normalization and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.9.0"
+version = "25.10.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -19,15 +19,16 @@ dynfmt = { workspace = true, features = ["python", "curly"] }
 itertools = { workspace = true }
 maxminddb = { workspace = true }
 md5 = { workspace = true }
-once_cell = { workspace = true }
 psl = { workspace = true }
 regex = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
+relay-conventions = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-log = { workspace = true }
 relay-pattern = { workspace = true, features = ["serde"] }
 relay-protocol = { workspace = true }
+relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-ua = { workspace = true }
 relay-filter = { workspace = true }
@@ -37,7 +38,6 @@ serde_json = { workspace = true }
 serde_urlencoded = { workspace = true }
 smallvec = { workspace = true }
 sqlparser = { workspace = true, features = ["visitor"] }
-
 thiserror = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }

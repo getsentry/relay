@@ -3,12 +3,14 @@ use std::sync::Arc;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::SpanV2;
+use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{
     ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
 };
+use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
@@ -17,12 +19,19 @@ use crate::services::outcome::{DiscardReason, Outcome};
 
 mod dynamic_sampling;
 mod filter;
+mod integrations;
 mod process;
+#[cfg(feature = "processing")]
+mod store;
+mod validate;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Multiple item containers for spans in a single envelope are not allowed.
+    #[error("duplicate span container")]
+    DuplicateContainer,
     /// Standalone spans filtered because of a missing feature flag.
     #[error("spans feature flag missing")]
     FilterFeatureFlag,
@@ -35,6 +44,9 @@ pub enum Error {
     /// A processor failed to process the spans.
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
+    /// Internal error, Pii config could not be loaded.
+    #[error("Pii configuration error")]
+    PiiConfig(PiiConfigError),
     /// The span is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
@@ -45,12 +57,14 @@ impl OutcomeError for Error {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
+            Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::FilterFeatureFlag => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
+            Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
@@ -93,10 +107,19 @@ impl processing::Processor for SpansProcessor {
 
         let spans = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Span))
+            .take_items_by(ItemContainer::<SpanV2>::is_container)
             .into_vec();
 
-        let work = SerializedSpans { headers, spans };
+        let integrations = envelope
+            .envelope_mut()
+            .take_items_by(|item| matches!(item.integration(), Some(Integration::Spans(_))))
+            .into_vec();
+
+        let work = SerializedSpans {
+            headers,
+            spans,
+            integrations,
+        };
         Some(Managed::from_envelope(envelope, work))
     }
 
@@ -106,6 +129,7 @@ impl processing::Processor for SpansProcessor {
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         filter::feature_flag(ctx).reject(&spans)?;
+        validate::container(&spans).reject(&spans)?;
 
         if ctx.is_proxy() {
             // If running in proxy mode, just apply cached rate limits and forward without
@@ -129,7 +153,7 @@ impl processing::Processor for SpansProcessor {
 
         self.limiter.enforce_quotas(&mut spans, ctx).await?;
 
-        // TODO: pii scrubbing
+        process::scrub(&mut spans, ctx);
 
         let metrics = dynamic_sampling::create_indexed_metrics(&spans, ctx);
 
@@ -148,7 +172,10 @@ pub enum SpanOutput {
 }
 
 impl Forward for SpanOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let spans = match self {
             Self::NotProcessed(spans) => spans,
             Self::Processed(spans) => spans.try_map(|spans, _| {
@@ -166,10 +193,8 @@ impl Forward for SpanOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use crate::envelope::ContentType;
-        use crate::services::store::StoreEnvelope;
-
         let spans = match self {
             SpanOutput::NotProcessed(spans) => {
                 return Err(spans.internal_error(
@@ -179,73 +204,19 @@ impl Forward for SpanOutput {
             SpanOutput::Processed(spans) => spans,
         };
 
-        // Converts all SpanV2 spans into their SpanV1 counterparts and packages them into an
-        // envelope to forward them.
-        //
-        // This is temporary until we have proper mapping code from SpanV2 -> SpanKafka,
-        // similar to what we do for logs.
-        let envelope = spans.map(|spans, records| {
-            let mut items = Items::with_capacity(spans.spans.len());
-            for span in spans.spans {
-                let mut span = span.value.map_value(relay_spans::span_v2_to_span_v1);
-                if let Some(span) = span.value_mut() {
-                    inject_server_sample_rate(span, spans.server_sample_rate);
+        let ctx = store::Context {
+            server_sample_rate: spans.server_sample_rate,
+            retention: ctx.retention(|r| r.span.as_ref()),
+        };
 
-                    // TODO: this needs to be done in a normalization step, which is yet to be
-                    // implemented.
-                    span.received =
-                        relay_event_schema::protocol::Timestamp(chrono::Utc::now()).into();
-                }
-
-                let mut item = Item::new(ItemType::Span);
-                let payload = match span.to_json() {
-                    Ok(payload) => payload,
-                    Err(error) => {
-                        records.internal_error(error, span);
-                        continue;
-                    }
-                };
-                item.set_payload(ContentType::Json, payload);
-                items.push(item);
-            }
-
-            Envelope::from_parts(spans.headers, items)
-        });
-
-        s.send(StoreEnvelope {
-            envelope: ManagedEnvelope::from(envelope).into_processed(),
-        });
+        for span in spans.split(|spans| spans.spans) {
+            if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
+                s.send(span)
+            };
+        }
 
         Ok(())
     }
-}
-
-/// Injects a server sample rate into a 'v1' span.
-///
-/// This is a temporary measure to correctly add the server sample rate to a span,
-/// so the store can later read it again.
-///
-/// Ideally we forward a proper data structure to the store instead, then we don't
-/// have to inject the sample rate into a measurement.
-#[cfg(feature = "processing")]
-fn inject_server_sample_rate(
-    span: &mut relay_event_schema::protocol::Span,
-    server_sample_rate: Option<f64>,
-) {
-    let Some(server_sample_rate) = server_sample_rate.and_then(relay_protocol::FiniteF64::new)
-    else {
-        return;
-    };
-
-    let measurements = span.measurements.get_or_insert_with(Default::default);
-    measurements.0.insert(
-        "server_sample_rate".to_owned(),
-        relay_event_schema::protocol::Measurement {
-            value: server_sample_rate.into(),
-            unit: None.into(),
-        }
-        .into(),
-    );
 }
 
 /// Spans in their serialized state, as transported in an envelope.
@@ -258,13 +229,15 @@ pub struct SerializedSpans {
     ///
     /// All items contained here must be spans.
     spans: Vec<Item>,
+
+    /// Spans which Relay received from arbitrary integrations.
+    integrations: Vec<Item>,
 }
 
 impl SerializedSpans {
     fn sampled(self, server_sample_rate: Option<f64>) -> SampledSpans {
         SampledSpans {
-            headers: self.headers,
-            spans: self.spans,
+            inner: self,
             server_sample_rate,
         }
     }
@@ -276,7 +249,7 @@ impl SerializedSpans {
 
 impl Counted for SerializedSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = outcome_count(&self.spans) as usize;
+        let quantity = (outcome_count(&self.spans) + outcome_count(&self.integrations)) as usize;
         smallvec::smallvec![
             (DataCategory::Span, quantity),
             (DataCategory::SpanIndexed, quantity),
@@ -316,6 +289,7 @@ impl ExpandedSpans {
 
         Ok(SerializedSpans {
             headers: self.headers,
+            integrations: Vec::new(),
             spans,
         })
     }
@@ -340,11 +314,8 @@ impl CountRateLimited for Managed<ExpandedSpans> {
 /// Note: Spans where dynamic sampling could not yet make a sampling decision,
 /// are considered sampled.
 struct SampledSpans {
-    /// Original envelope headers.
-    headers: EnvelopeHeaders,
-
-    /// Expanded and parsed spans.
-    spans: Vec<Item>,
+    /// Sampled spans.
+    inner: SerializedSpans,
 
     /// Server side applied (dynamic) sample rate.
     server_sample_rate: Option<f64>,
@@ -352,11 +323,7 @@ struct SampledSpans {
 
 impl Counted for SampledSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = outcome_count(&self.spans) as usize;
-        smallvec::smallvec![
-            (DataCategory::Span, quantity),
-            (DataCategory::SpanIndexed, quantity),
-        ]
+        self.inner.quantities()
     }
 }
 
@@ -367,5 +334,8 @@ fn outcome_count(spans: &[Item]) -> u32 {
     // We rely here on the invariant that all items in `self.spans` are actually spans,
     // that's why sum up `item_count`'s blindly instead of checking again for the item type
     // or using `Item::quantities`.
-    spans.iter().filter_map(|item| item.item_count()).sum()
+    spans
+        .iter()
+        .map(|item| item.item_count().unwrap_or(1))
+        .sum()
 }

@@ -10,18 +10,24 @@ use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_quotas::RateLimits;
 
-use crate::Envelope;
 use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
 mod common;
+mod forward;
 mod limits;
-pub mod logs;
-pub mod spans;
 
 pub use self::common::*;
+pub use self::forward::*;
 pub use self::limits::*;
+
+pub mod check_ins;
+pub mod logs;
+pub mod sessions;
+pub mod spans;
+pub mod trace_metrics;
+pub mod utils;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
 ///
@@ -54,7 +60,7 @@ pub trait Processor {
 }
 
 /// Read-only context for processing.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Context<'a> {
     /// The Relay configuration.
     pub config: &'a Config,
@@ -70,7 +76,7 @@ pub struct Context<'a> {
     pub rate_limits: &'a RateLimits,
 }
 
-impl Context<'_> {
+impl<'a> Context<'a> {
     /// Returns `true` if Relay is running in proxy mode.
     pub fn is_proxy(&self) -> bool {
         matches!(self.config.relay_mode(), relay_config::RelayMode::Proxy)
@@ -80,7 +86,7 @@ impl Context<'_> {
     ///
     /// Processing indicates, this Relay is the final Relay processing this item.
     pub fn is_processing(&self) -> bool {
-        self.config.processing_enabled()
+        cfg!(feature = "processing") && self.config.processing_enabled()
     }
 
     /// Checks on-off feature flags for envelope items, like profiles and spans.
@@ -94,6 +100,36 @@ impl Context<'_> {
         match self.config.relay_mode() {
             Proxy => false,
             Managed => !self.project_info.has_feature(feature),
+        }
+    }
+
+    /// Creates a [`ForwardContext`] from this [`Context`].
+    pub fn to_forward(self) -> ForwardContext<'a> {
+        ForwardContext {
+            config: self.config,
+            global_config: self.global_config,
+            project_info: self.project_info,
+        }
+    }
+}
+
+#[cfg(test)]
+impl Context<'static> {
+    /// Returns a [`Context`] with default values for testing.
+    pub fn for_test() -> Self {
+        use std::sync::LazyLock;
+
+        static CONFIG: LazyLock<Config> = LazyLock::new(Default::default);
+        static GLOBAL_CONFIG: LazyLock<GlobalConfig> = LazyLock::new(Default::default);
+        static PROJECT_INFO: LazyLock<ProjectInfo> = LazyLock::new(Default::default);
+        static RATE_LIMITS: LazyLock<RateLimits> = LazyLock::new(Default::default);
+
+        Self {
+            config: &CONFIG,
+            global_config: &GLOBAL_CONFIG,
+            project_info: &PROJECT_INFO,
+            sampling_project_info: None,
+            rate_limits: &RATE_LIMITS,
         }
     }
 }
@@ -134,21 +170,4 @@ impl<T> Output<T> {
             metrics: self.metrics,
         }
     }
-}
-
-/// A processor output which can be forwarded to a different destination.
-pub trait Forward {
-    /// Serializes the output into an [`Envelope`].
-    ///
-    /// All output must be serializable as an envelope.
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>>;
-
-    /// Serializes the output into a [`crate::services::store::StoreService`] compatible format.
-    ///
-    /// This function must only be called when Relay is configured to be in processing mode.
-    #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        s: &relay_system::Addr<crate::services::store::Store>,
-    ) -> Result<(), Rejected<()>>;
 }

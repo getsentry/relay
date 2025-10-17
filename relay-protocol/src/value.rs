@@ -70,6 +70,14 @@ impl Value {
         }
     }
 
+    /// Returns the string if this value is a string, otherwise `None`.
+    pub fn into_string(self) -> Option<String> {
+        match self {
+            Value::String(string) => Some(string),
+            _ => None,
+        }
+    }
+
     /// Returns a f64 if the value can be converted to it, otherwise `None`.
     pub fn as_f64(&self) -> Option<f64> {
         match self {

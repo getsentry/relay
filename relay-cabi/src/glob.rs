@@ -1,11 +1,10 @@
 //! Binary glob pattern matching for the C-ABI.
 
-use std::borrow::Cow;
 use std::num::NonZeroUsize;
+use std::{borrow::Cow, sync::LazyLock};
 
 use globset::GlobBuilder;
 use lru::LruCache;
-use once_cell::sync::Lazy;
 use regex::bytes::{Regex, RegexBuilder};
 use std::sync::{Mutex, PoisonError};
 
@@ -56,8 +55,8 @@ pub unsafe extern "C" fn relay_is_glob_match(
 }
 
 /// LRU cache for [`Regex`]s in relation to [`GlobOptions`] and the provided string pattern.
-static GLOB_CACHE: Lazy<Mutex<LruCache<(GlobOptions, String), Regex>>> =
-    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
+static GLOB_CACHE: LazyLock<Mutex<LruCache<(GlobOptions, String), Regex>>> =
+    LazyLock::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
 
 /// Controls the options of the globber.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

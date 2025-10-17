@@ -101,6 +101,24 @@ impl<T> Rejected<T> {
     }
 }
 
+impl<T> std::error::Error for Rejected<T>
+where
+    T: std::error::Error,
+{
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.0.source()
+    }
+}
+
+impl<T> std::fmt::Display for Rejected<T>
+where
+    T: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// The [`Managed`] wrapper ensures outcomes are correctly emitted for the contained item.
 pub struct Managed<T: Counted> {
     value: T,
@@ -248,7 +266,7 @@ impl<T: Counted> Managed<T> {
     /// # type Error = std::convert::Infallible;
     ///
     /// fn process_items(items: &mut Managed<Items>, ctx: Context<'_>) {
-    ///     items.retain(|items| &mut items.items, |item| process(item, ctx));
+    ///     items.retain(|items| &mut items.items, |item, _| process(item, ctx));
     /// }
     ///
     /// fn process(item: &mut Item, ctx: Context<'_>) -> Result<(), Error> {
@@ -259,10 +277,13 @@ impl<T: Counted> Managed<T> {
     where
         S: FnOnce(&mut T) -> &mut Vec<I>,
         I: Counted,
-        U: FnMut(&mut I) -> Result<(), E>,
+        U: FnMut(&mut I, &mut RecordKeeper<'_>) -> Result<(), E>,
         E: OutcomeError,
     {
-        self.retain_with_context(|inner| (select(inner), &()), |item, _| retain(item));
+        self.retain_with_context(
+            |inner| (select(inner), &()),
+            |item, _, records| retain(item, records),
+        );
     }
 
     /// Filters individual items and emits outcomes for them if they are removed.
@@ -294,7 +315,7 @@ impl<T: Counted> Managed<T> {
     /// # type Error = std::convert::Infallible;
     ///
     /// fn process_items(items: &mut Managed<Items>, ctx: Context<'_>) {
-    ///     items.retain_with_context(|items| (&mut items.items, &items.ty), |item, ty| process(item, ty, ctx));
+    ///     items.retain_with_context(|items| (&mut items.items, &items.ty), |item, ty, _| process(item, ty, ctx));
     /// }
     ///
     /// fn process(item: &mut Item, ty: &str, ctx: Context<'_>) -> Result<(), Error> {
@@ -309,12 +330,12 @@ impl<T: Counted> Managed<T> {
         // This is unfortunately a bit limiting but for most of our purposes it is enough.
         for<'a> S: FnOnce(&'a mut T) -> (&'a mut Vec<I>, &'a C),
         I: Counted,
-        U: FnMut(&mut I, &C) -> Result<(), E>,
+        U: FnMut(&mut I, &C, &mut RecordKeeper<'_>) -> Result<(), E>,
         E: OutcomeError,
     {
         self.modify(|inner, records| {
             let (items, ctx) = select(inner);
-            items.retain_mut(|item| match retain(item, ctx) {
+            items.retain_mut(|item| match retain(item, ctx, records) {
                 Ok(()) => true,
                 Err(err) => {
                     records.reject_err(err, &*item);

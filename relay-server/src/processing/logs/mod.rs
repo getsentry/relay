@@ -10,6 +10,7 @@ use crate::Envelope;
 use crate::envelope::{
     ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
 };
+use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
 };
@@ -19,7 +20,7 @@ use crate::processing::{
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod filter;
-mod otel;
+mod integrations;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
@@ -113,15 +114,20 @@ impl processing::Processor for LogsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::Log))
             .into_vec();
 
-        let otel_logs = envelope
+        // TODO: there might be a better way to extract an item and its integration type type safe.
+        // So later we don't have a fallible conversion for the integration.
+        //
+        // Maybe a 2 phase thing where we take items, then grab the integration again and debug
+        // assert + return if the impossible happens.
+        let integrations = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::OtelLogsData))
+            .take_items_by(|item| matches!(item.integration(), Some(Integration::Logs(_))))
             .into_vec();
 
         let work = SerializedLogs {
             headers,
             logs,
-            otel_logs,
+            integrations,
         };
         Some(Managed::from_envelope(envelope, work))
     }
@@ -131,7 +137,7 @@ impl processing::Processor for LogsProcessor {
         mut logs: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
-        validate::container(&logs)?;
+        validate::container(&logs).reject(&logs)?;
 
         if ctx.is_proxy() {
             // If running in proxy mode, just apply cached rate limits and forward without
@@ -145,12 +151,13 @@ impl processing::Processor for LogsProcessor {
         // Fast filters, which do not need expanded logs.
         filter::feature_flag(ctx).reject(&logs)?;
 
-        let mut logs = process::expand(logs, ctx);
+        let mut logs = process::expand(logs);
         process::normalize(&mut logs);
         filter::filter(&mut logs, ctx);
-        process::scrub(&mut logs, ctx);
 
         self.limiter.enforce_quotas(&mut logs, ctx).await?;
+
+        process::scrub(&mut logs, ctx);
 
         Ok(Output::just(LogOutput::Processed(logs)))
     }
@@ -164,7 +171,10 @@ pub enum LogOutput {
 }
 
 impl Forward for LogOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let logs = match self {
             Self::NotProcessed(logs) => logs,
             Self::Processed(logs) => logs.try_map(|logs, r| {
@@ -185,6 +195,7 @@ impl Forward for LogOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let logs = match self {
             LogOutput::NotProcessed(logs) => {
@@ -195,20 +206,13 @@ impl Forward for LogOutput {
             LogOutput::Processed(logs) => logs,
         };
 
-        let scoping = logs.scoping();
-        let received_at = logs.received_at();
-
-        let (logs, retentions) = logs
-            .split_with_context(|logs| (logs.logs, (logs.retention, logs.downsampled_retention)));
         let ctx = store::Context {
-            scoping,
-            received_at,
-            // Hard-code retentions until we have a per data category retention
-            retention: retentions.0,
-            downsampled_retention: retentions.1,
+            scoping: logs.scoping(),
+            received_at: logs.received_at(),
+            retention: ctx.retention(|r| r.log.as_ref()),
         };
 
-        for log in logs {
+        for log in logs.split(|logs| logs.logs) {
             if let Ok(log) = log.try_map(|log, _| store::convert(log, &ctx)) {
                 s.send(log)
             };
@@ -230,8 +234,8 @@ pub struct SerializedLogs {
     /// But at this point this has not yet been validated.
     logs: Vec<Item>,
 
-    /// Logs which Relay received from the OTLP logs endpoint.
-    otel_logs: Vec<Item>,
+    /// Logs which Relay received from arbitrary integrations.
+    integrations: Vec<Item>,
 }
 
 impl SerializedLogs {
@@ -242,16 +246,16 @@ impl SerializedLogs {
         // Both vectors can contain items, but very likely only one does.
         // We can use the bigger one as a base to copy/allocate less data.
         // This implicitly also assumes the capacity of the vectors follows the length.
-        let (mut long, short) = match self.logs.len() > self.otel_logs.len() {
-            true => (self.logs, self.otel_logs),
-            false => (self.otel_logs, self.logs),
+        let (mut long, short) = match self.logs.len() > self.integrations.len() {
+            true => (self.logs, self.integrations),
+            false => (self.integrations, self.logs),
         };
         long.extend(short);
         Envelope::from_parts(self.headers, Items::from_vec(long))
     }
 
     fn items(&self) -> impl Iterator<Item = &Item> {
-        self.logs.iter().chain(self.otel_logs.iter())
+        self.logs.iter().chain(self.integrations.iter())
     }
 
     /// Returns the total count of all logs contained.
@@ -290,16 +294,6 @@ pub struct ExpandedLogs {
     headers: EnvelopeHeaders,
     /// Expanded and parsed logs.
     logs: ContainerItems<OurLog>,
-
-    // These fields are currently necessary as we don't pass any project config context to the
-    // store serialization. The plan is to get rid of them by giving the serialization context,
-    // including the project info, where these are pulled from: #4878.
-    /// Retention in days.
-    #[cfg(feature = "processing")]
-    retention: Option<u16>,
-    /// Downsampled retention in days.
-    #[cfg(feature = "processing")]
-    downsampled_retention: Option<u16>,
 }
 
 impl Counted for ExpandedLogs {
@@ -329,7 +323,7 @@ impl ExpandedLogs {
         Ok(SerializedLogs {
             headers: self.headers,
             logs,
-            otel_logs: Vec::new(),
+            integrations: Vec::new(),
         })
     }
 }

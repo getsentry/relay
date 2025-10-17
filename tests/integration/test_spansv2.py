@@ -8,22 +8,13 @@ from .asserts import time_within_delta, time_within
 
 from .test_dynamic_sampling import _add_sampling_config
 
+import json
 import pytest
 
 TEST_CONFIG = {
     "outcomes": {
         "emit_outcomes": True,
-        "batch_size": 1,
-        "batch_interval": 1,
-        "aggregator": {
-            "bucket_interval": 1,
-            "flush_interval": 1,
-        },
-    },
-    "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
-    },
+    }
 }
 
 
@@ -57,10 +48,15 @@ def test_spansv2_basic(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
-    ]
+    project_config["config"].update(
+        {
+            "features": [
+                "organizations:standalone-span-ingestion",
+                "projects:span-v2-experimental-processing",
+            ],
+            "retentions": {"span": {"standard": 42, "downsampled": 1337}},
+        }
+    )
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
@@ -73,7 +69,11 @@ def test_spansv2_basic(
             "span_id": "eee19b7ec3c1b175",
             "is_remote": False,
             "name": "some op",
-            "attributes": {"foo": {"value": "bar", "type": "string"}},
+            "status": "ok",
+            "attributes": {
+                "foo": {"value": "bar", "type": "string"},
+                "invalid": {"value": True, "type": "string"},
+            },
         }
     )
 
@@ -82,24 +82,34 @@ def test_spansv2_basic(
     assert spans_consumer.get_span() == {
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
-        "data": {
-            "foo": "bar",
-            "sentry.name": "some op",
-            "sentry.browser.name": "Python Requests",
-            "sentry.browser.version": "2.32",
-            "sentry.observed_timestamp_nanos": time_within(ts, expect_resolution="ns"),
+        "attributes": {
+            "foo": {"type": "string", "value": "bar"},
+            "invalid": None,
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
         },
-        "description": "some op",
+        "_meta": {
+            "attributes": {
+                "invalid": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": {"type": "string", "value": True},
+                    }
+                }
+            }
+        },
+        "name": "some op",
         "received": time_within(ts),
-        "start_timestamp_ms": time_within(ts, precision="ms", expect_resolution="ms"),
-        "start_timestamp_precise": time_within(ts),
-        "end_timestamp_precise": time_within(ts.timestamp() + 0.5),
-        "duration_ms": 500,
-        "exclusive_time_ms": 500.0,
+        "start_timestamp": time_within(ts),
+        "end_timestamp": time_within(ts.timestamp() + 0.5),
         "is_remote": False,
-        "is_segment": False,
-        "retention_days": 90,
-        "downsampled_retention_days": 90,
+        "status": "ok",
+        "retention_days": 42,
+        "downsampled_retention_days": 1337,
         "key_id": 123,
         "organization_id": 1,
         "project_id": 42,
@@ -250,6 +260,7 @@ def test_spansv2_ds_sampled(
             "is_remote": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
+            "status": "ok",
         },
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
@@ -259,34 +270,9 @@ def test_spansv2_ds_sampled(
 
     relay.send_envelope(project_id, envelope)
 
-    assert spans_consumer.get_span() == {
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-        "span_id": "eee19b7ec3c1b175",
-        "description": "some op",
-        "data": {
-            "foo": "bar",
-            "sentry.name": "some op",
-            "sentry.server_sample_rate": 0.9,
-            "sentry.browser.name": "Python Requests",
-            "sentry.browser.version": "2.32",
-            "sentry.observed_timestamp_nanos": time_within(ts, expect_resolution="ns"),
-        },
-        "measurements": {"server_sample_rate": {"value": 0.9}},
-        "server_sample_rate": 0.9,
-        "received": time_within_delta(ts),
-        "start_timestamp_ms": time_within(ts, precision="ms", expect_resolution="ms"),
-        "start_timestamp_precise": time_within(ts),
-        "end_timestamp_precise": time_within(ts.timestamp() + 0.5),
-        "duration_ms": 500,
-        "exclusive_time_ms": 500.0,
-        "is_remote": False,
-        "is_segment": False,
-        "retention_days": 90,
-        "downsampled_retention_days": 90,
-        "key_id": 123,
-        "organization_id": 1,
-        "project_id": 42,
-    }
+    span = spans_consumer.get_span()
+    assert span["span_id"] == "eee19b7ec3c1b175"
+    assert span["attributes"]["sentry.server_sample_rate"]["value"] == 0.9
 
     assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
         {
@@ -528,12 +514,7 @@ def test_spanv2_inbound_filters(
 
     relay.send_envelope(project_id, envelope, headers=headers)
 
-    outcomes = []
-    for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=5).get("outcomes"))
-    outcomes.sort(key=lambda x: x["category"])
-
-    assert outcomes == [
+    assert mini_sentry.get_outcomes(2) == [
         {
             "category": DataCategory.SPAN.value,
             "org_id": 1,
@@ -557,3 +538,198 @@ def test_spanv2_inbound_filters(
     ]
 
     assert mini_sentry.captured_events.empty()
+
+
+def test_spans_v2_multiple_containers_not_allowed(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+    start = datetime.now(timezone.utc)
+    envelope = Envelope()
+
+    payload = {
+        "start_timestamp": start.timestamp(),
+        "end_timestamp": start.timestamp() + 0.500,
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b175",
+        "name": "some op",
+        "is_remote": False,
+        "status": "ok",
+    }
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(json={"items": [payload]}),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": 1},
+        )
+    )
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(json={"items": [payload, payload]}),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": 2},
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_outcomes(2) == [
+        {
+            "category": DataCategory.SPAN.value,
+            "timestamp": time_within_delta(),
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 3,
+            "reason": "duplicate_item",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "timestamp": time_within_delta(),
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 3,
+            "reason": "duplicate_item",
+        },
+    ]
+
+    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_outcomes.empty()
+
+
+def test_spanv2_with_string_pii_scrubbing(
+    mini_sentry,
+    relay,
+    scrubbing_rule,
+):
+    rule_type, test_value, expected_scrubbed = scrubbing_rule
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+
+    project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "Test span",
+            "is_remote": False,
+            "attributes": {
+                "test_pii": {"value": test_value, "type": "string"},
+            },
+        }
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.captured_events.get()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b174",
+        "attributes": {
+            "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+        },
+        "_meta": {
+            "attributes": {
+                "test_pii": {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                        }
+                    }
+                }
+            },
+            "status": {"": {"err": ["missing_attribute"]}},
+        },
+        "name": "Test span",
+        "start_timestamp": time_within(ts),
+        "end_timestamp": time_within(ts.timestamp() + 0.5),
+        "is_remote": False,
+        "status": None,
+    }
+
+
+def test_spanv2_default_pii_scrubbing_attributes(
+    mini_sentry,
+    relay,
+    secret_attribute,
+):
+    attribute_key, attribute_value, expected_value, rule_type = secret_attribute
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "Test span",
+            "attributes": {
+                attribute_key: {"value": attribute_value, "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.captured_events.get()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+    attributes = item["attributes"]
+
+    assert attribute_key in attributes
+    assert attributes[attribute_key]["value"] == expected_value
+    assert "_meta" in item
+    meta = item["_meta"]["attributes"][attribute_key]["value"][""]
+    assert "rem" in meta
+    rem_info = meta["rem"]
+    assert len(rem_info) == 1
+    assert rem_info[0][0] == rule_type

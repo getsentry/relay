@@ -242,9 +242,6 @@ impl ManagedEnvelope {
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
                 for (category, quantity) in item.quantities() {
-                    if let Some(indexed) = category.index_category() {
-                        outcomes.push((outcome.clone(), indexed, quantity));
-                    };
                     outcomes.push((outcome.clone(), category, quantity));
                 }
 
@@ -364,6 +361,14 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.monitor_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::Monitor,
+                self.context.summary.monitor_quantity,
+            );
+        }
+
         if self.context.summary.profile_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),
@@ -462,6 +467,14 @@ impl ManagedEnvelope {
                 outcome.clone(),
                 DataCategory::ProfileChunkUi,
                 self.context.summary.profile_chunk_ui_quantity,
+            );
+        }
+
+        if self.context.summary.session_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::Session,
+                self.context.summary.session_quantity,
             );
         }
 

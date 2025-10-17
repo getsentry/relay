@@ -1,7 +1,7 @@
 //! Event processor related code.
 
 use std::error::Error;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 
 use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
@@ -296,7 +296,7 @@ pub enum FiltersStatus {
 pub fn filter<Group: EventProcessing>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
-    project_info: Arc<ProjectInfo>,
+    project_info: &ProjectInfo,
     global_config: &GlobalConfig,
 ) -> Result<FiltersStatus, ProcessingError> {
     let event = match event.value_mut() {
@@ -338,7 +338,7 @@ pub fn filter<Group: EventProcessing>(
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
 pub fn scrub(
     event: &mut Annotated<Event>,
-    project_info: Arc<ProjectInfo>,
+    project_info: &ProjectInfo,
 ) -> Result<(), ProcessingError> {
     let config = &project_info.config;
 
@@ -464,11 +464,10 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::ReplayVideo => false,
         ItemType::CheckIn => false,
         ItemType::Log => false,
+        ItemType::TraceMetric => false,
         ItemType::Span => false,
-        ItemType::OtelSpan => false,
-        ItemType::OtelTracesData => false,
-        ItemType::OtelLogsData => false,
         ItemType::ProfileChunk => false,
+        ItemType::Integration => false,
 
         // Without knowing more, `Unknown` items are allowed to be repeated
         ItemType::Unknown(_) => false,

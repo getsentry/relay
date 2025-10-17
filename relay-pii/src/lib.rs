@@ -21,6 +21,7 @@ mod regexes;
 mod selector;
 mod utils;
 
+pub mod eap;
 pub mod transform;
 
 pub use self::attachments::*;

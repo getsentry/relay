@@ -87,11 +87,23 @@ impl<T: ContainerItem> WithHeader<T> {
     ///
     /// This should only be used when creating new items, in most cases existing headers should be
     /// respected and explicitly handled and passed along.
+    ///
+    /// Prefer using [`WithHeader::new`] where possible.
     pub fn just(value: Annotated<T>) -> Self {
         Self {
             header: None,
             value,
         }
+    }
+}
+
+impl<T: ContainerItem<Header = NoHeader>> WithHeader<T> {
+    /// Creates a new [`Self`].
+    ///
+    /// Like [`Self::just`], but providing a type safe way to ensure `T::Header` is always explicitly
+    /// set by only implementing [`Self::new`] for items which have a [`NoHeader`] as header.
+    pub fn new(value: Annotated<T>) -> Self {
+        Self::just(value)
     }
 }
 
@@ -280,6 +292,13 @@ impl ContainerItem for relay_event_schema::protocol::OurLog {
 impl ContainerItem for relay_event_schema::protocol::SpanV2 {
     const ITEM_TYPE: ItemType = ItemType::Span;
     const CONTENT_TYPE: ContentType = ContentType::SpanV2Container;
+
+    type Header = NoHeader;
+}
+
+impl ContainerItem for relay_event_schema::protocol::TraceMetric {
+    const ITEM_TYPE: ItemType = ItemType::TraceMetric;
+    const CONTENT_TYPE: ContentType = ContentType::TraceMetricContainer;
 
     type Header = NoHeader;
 }

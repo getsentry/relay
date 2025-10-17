@@ -2,6 +2,8 @@ use std::fmt;
 
 use serde::Serialize;
 
+use crate::integrations::Integration;
+
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
 /// Payload content types.
@@ -13,6 +15,8 @@ pub enum ContentType {
     Text,
     /// `application/json`
     Json,
+    /// `application/x-ndjson`
+    NdJson,
     /// `application/x-msgpack`
     MsgPack,
     /// `application/octet-stream`
@@ -29,6 +33,10 @@ pub enum ContentType {
     LogContainer,
     /// `application/vnd.sentry.items.span.v2+json`
     SpanV2Container,
+    /// `application/vnd.sentry.items.trace-metric+json`
+    TraceMetricContainer,
+    /// All integration content types.
+    Integration(Integration),
     /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
@@ -36,9 +44,10 @@ pub enum ContentType {
 impl ContentType {
     #[inline]
     pub fn as_str(&self) -> &str {
-        match *self {
+        match self {
             Self::Text => "text/plain",
             Self::Json => "application/json",
+            Self::NdJson => "application/x-ndjson",
             Self::MsgPack => "application/x-msgpack",
             Self::OctetStream => "application/octet-stream",
             Self::Minidump => "application/x-dmp",
@@ -47,7 +56,9 @@ impl ContentType {
             Self::Protobuf => "application/x-protobuf",
             Self::LogContainer => "application/vnd.sentry.items.log+json",
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
-            Self::Other(ref other) => other,
+            Self::TraceMetricContainer => "application/vnd.sentry.items.trace-metric+json",
+            Self::Integration(integration) => integration.as_content_type(),
+            Self::Other(other) => other,
         }
     }
 
@@ -55,7 +66,9 @@ impl ContentType {
     pub fn is_container(&self) -> bool {
         matches!(
             self,
-            ContentType::LogContainer | ContentType::SpanV2Container
+            ContentType::LogContainer
+                | ContentType::SpanV2Container
+                | ContentType::TraceMetricContainer
         )
     }
 
@@ -64,6 +77,8 @@ impl ContentType {
             Some(Self::Text)
         } else if ct.eq_ignore_ascii_case(Self::Json.as_str()) {
             Some(Self::Json)
+        } else if ct.eq_ignore_ascii_case(Self::NdJson.as_str()) {
+            Some(Self::NdJson)
         } else if ct.eq_ignore_ascii_case(Self::MsgPack.as_str()) {
             Some(Self::MsgPack)
         } else if ct.eq_ignore_ascii_case(Self::OctetStream.as_str()) {
@@ -82,8 +97,10 @@ impl ContentType {
             Some(Self::LogContainer)
         } else if ct.eq_ignore_ascii_case(Self::SpanV2Container.as_str()) {
             Some(Self::SpanV2Container)
+        } else if ct.eq_ignore_ascii_case(Self::TraceMetricContainer.as_str()) {
+            Some(Self::TraceMetricContainer)
         } else {
-            None
+            Integration::from_content_type(ct).map(Self::Integration)
         }
     }
 }
@@ -107,6 +124,12 @@ impl From<&'_ str> for ContentType {
     fn from(content_type: &str) -> Self {
         Self::from_str(content_type)
             .unwrap_or_else(|| ContentType::Other(content_type.to_ascii_lowercase()))
+    }
+}
+
+impl From<Integration> for ContentType {
+    fn from(value: Integration) -> Self {
+        Self::Integration(value)
     }
 }
 

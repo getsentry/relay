@@ -125,52 +125,52 @@ mod tests {
         CError, ClientSdkInfo, Event, MachException, Mechanism, MechanismMeta, PosixSignal,
         RawStacktrace, User,
     };
-    use relay_protocol::Annotated;
+    use relay_protocol::{Annotated, FromValue, IntoValue};
     use similar_asserts::assert_eq;
 
     use super::*;
 
-    // TODO(ja): Enable this test
-    // fn assert_nonempty_base<T>(expected_error: &str)
-    // where
-    //     T: Default + PartialEq + ProcessValue,
-    // {
-    //     #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-    //     struct Foo<T> {
-    //         #[metastructure(required = "true", nonempty = "true")]
-    //         bar: Annotated<T>,
-    //         bar2: Annotated<T>,
-    //     }
+    fn assert_nonempty_base<T>(expected_error: &str)
+    where
+        T: Default + PartialEq + ProcessValue,
+    {
+        #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+        struct Foo<T> {
+            #[metastructure(required = true, nonempty = true)]
+            bar: Annotated<T>,
+            bar2: Annotated<T>,
+        }
 
-    //     let mut wrapper = Annotated::new(Foo {
-    //         bar: Annotated::new(T::default()),
-    //         bar2: Annotated::new(T::default()),
-    //     });
-    //     process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root()).unwrap();
+        let mut wrapper = Annotated::new(Foo {
+            bar: Annotated::new(T::default()),
+            bar2: Annotated::new(T::default()),
+        });
+        processor::process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root())
+            .unwrap();
 
-    //     assert_eq!(
-    //         wrapper,
-    //         Annotated::new(Foo {
-    //             bar: Annotated::from_error(Error::expected(expected_error), None),
-    //             bar2: Annotated::new(T::default())
-    //         })
-    //     );
-    // }
+        assert_eq!(
+            wrapper,
+            Annotated::new(Foo {
+                bar: Annotated::from_error(Error::expected(expected_error), None),
+                bar2: Annotated::new(T::default())
+            })
+        );
+    }
 
-    // #[test]
-    // fn test_nonempty_string() {
-    //     assert_nonempty_base::<String>("a non-empty string");
-    // }
+    #[test]
+    fn test_nonempty_string() {
+        assert_nonempty_base::<String>("a non-empty string");
+    }
 
-    // #[test]
-    // fn test_nonempty_array() {
-    //     assert_nonempty_base::<Array<u64>>("a non-empty value");
-    // }
+    #[test]
+    fn test_nonempty_array() {
+        assert_nonempty_base::<Array<u64>>("a non-empty value");
+    }
 
-    // #[test]
-    // fn test_nonempty_object() {
-    //     assert_nonempty_base::<Object<u64>>("a non-empty value");
-    // }
+    #[test]
+    fn test_nonempty_object() {
+        assert_nonempty_base::<Object<u64>>("a non-empty value");
+    }
 
     #[test]
     fn test_invalid_email() {

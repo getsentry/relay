@@ -9,8 +9,11 @@ expression: data
       "apiKey": "[Filtered]",
       "api_key": "[Filtered]",
       "foo": "bar",
+      "otp": "[Filtered]",
       "password": "[Filtered]",
-      "the_secret": "[Filtered]"
+      "the_secret": "[Filtered]",
+      "two-factor": "[Filtered]",
+      "two_factor": "[Filtered]"
     },
     "cookies": [
       [
@@ -30,11 +33,23 @@ expression: data
         "bar"
       ],
       [
+        "otp",
+        "[Filtered]"
+      ],
+      [
         "password",
         "[Filtered]"
       ],
       [
         "the_secret",
+        "[Filtered]"
+      ],
+      [
+        "two-factor",
+        "[Filtered]"
+      ],
+      [
+        "two_factor",
         "[Filtered]"
       ]
     ],
@@ -56,11 +71,23 @@ expression: data
         "bar"
       ],
       [
+        "Otp",
+        "[Filtered]"
+      ],
+      [
         "Password",
         "[Filtered]"
       ],
       [
         "The_secret",
+        "[Filtered]"
+      ],
+      [
+        "Two-Factor",
+        "[Filtered]"
+      ],
+      [
+        "Two_factor",
         "[Filtered]"
       ]
     ],
@@ -69,8 +96,11 @@ expression: data
       "apiKey": "[Filtered]",
       "api_key": "[Filtered]",
       "foo": "bar",
+      "otp": "[Filtered]",
       "password": "[Filtered]",
-      "the_secret": "[Filtered]"
+      "the_secret": "[Filtered]",
+      "two-factor": "[Filtered]",
+      "two_factor": "[Filtered]"
     }
   },
   "_meta": {
@@ -132,7 +162,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 5
+              "len": 8
             }
           }
         },
@@ -148,6 +178,51 @@ expression: data
                 ]
               ],
               "len": 5
+            }
+          }
+        },
+        "6": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 5
+            }
+          }
+        },
+        "7": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 8
+            }
+          }
+        },
+        "8": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 8
             }
           }
         }
@@ -192,6 +267,19 @@ expression: data
             "len": 10
           }
         },
+        "otp": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
+          }
+        },
         "password": {
           "": {
             "rem": [
@@ -216,6 +304,32 @@ expression: data
               ]
             ],
             "len": 5
+          }
+        },
+        "two-factor": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
+          }
+        },
+        "two_factor": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
           }
         }
       },
@@ -259,6 +373,19 @@ expression: data
             "len": 10
           }
         },
+        "otp": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
+          }
+        },
         "password": {
           "": {
             "rem": [
@@ -283,6 +410,32 @@ expression: data
               ]
             ],
             "len": 5
+          }
+        },
+        "two-factor": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
+          }
+        },
+        "two_factor": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
           }
         }
       },
@@ -343,7 +496,7 @@ expression: data
                   10
                 ]
               ],
-              "len": 5
+              "len": 8
             }
           }
         },
@@ -359,6 +512,51 @@ expression: data
                 ]
               ],
               "len": 5
+            }
+          }
+        },
+        "6": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 5
+            }
+          }
+        },
+        "7": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 8
+            }
+          }
+        },
+        "8": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 8
             }
           }
         }

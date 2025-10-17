@@ -330,7 +330,7 @@ mod tests {
         update3.status = SessionStatus::Ok;
         update3.errors = 123;
 
-        for (update, expected_metrics) in vec![
+        for (update, expected_metrics) in [
             (update1, 3), // init == true, so expect 3 metrics
             (update2, 2),
             (update3, 2),

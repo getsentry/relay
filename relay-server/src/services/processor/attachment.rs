@@ -1,7 +1,6 @@
 //! Attachments processor code.
 
 use std::error::Error;
-use std::sync::Arc;
 use std::time::Instant;
 
 use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
@@ -59,7 +58,7 @@ pub fn create_placeholders(
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: Arc<ProjectInfo>) {
+pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: &ProjectInfo) {
     let envelope = managed_envelope.envelope_mut();
     if let Some(ref config) = project_info.config.pii_config {
         let view_hierarchy_scrubbing_enabled = project_info

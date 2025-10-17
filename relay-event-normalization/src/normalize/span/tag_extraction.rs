@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::net::IpAddr;
 use std::ops::ControlFlow;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
@@ -14,8 +14,9 @@ use relay_event_schema::protocol::{
     OsContext, ProfileContext, RuntimeContext, SentryTags, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Empty, FiniteF64, Value};
-use sqlparser::ast::Visit;
+use relay_spans::name_for_span;
 use sqlparser::ast::{ObjectName, Visitor};
+use sqlparser::ast::{ObjectNamePart, Visit};
 use url::Url;
 
 use crate::GeoIpLookup;
@@ -166,10 +167,13 @@ struct SharedTags {
     transaction_method: Annotated<String>,
     transaction_op: Annotated<String>,
     transaction: Annotated<String>,
+    user_city: Annotated<String>,
     user_country_code: Annotated<String>,
     user_email: Annotated<String>,
     user_id: Annotated<String>,
     user_ip: Annotated<String>,
+    user_region: Annotated<String>,
+    user_subdivision: Annotated<String>,
     user_subregion: Annotated<String>,
     user_username: Annotated<String>,
     user: Annotated<String>,
@@ -194,10 +198,13 @@ impl SharedTags {
             transaction_method,
             transaction_op,
             transaction,
+            user_city,
             user_country_code,
             user_email,
             user_id,
             user_ip,
+            user_region,
+            user_subdivision,
             user_subregion,
             user_username,
             user,
@@ -250,6 +257,9 @@ impl SharedTags {
         if tags.transaction.value().is_none() {
             tags.transaction = transaction.clone();
         };
+        if tags.user_city.value().is_none() {
+            tags.user_city = user_city.clone();
+        }
         if tags.user_country_code.value().is_none() {
             tags.user_country_code = user_country_code.clone();
         };
@@ -262,6 +272,12 @@ impl SharedTags {
         if tags.user_ip.value().is_none() {
             tags.user_ip = user_ip.clone();
         };
+        if tags.user_region.value().is_none() {
+            tags.user_region = user_region.clone();
+        };
+        if tags.user_subdivision.value().is_none() {
+            tags.user_subdivision = user_subdivision.clone();
+        }
         if tags.user_subregion.value().is_none() {
             tags.user_subregion = user_subregion.clone();
         };
@@ -299,18 +315,25 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
             tags.user_email = user_email.clone().into();
         }
 
-        // We only want this on frontend or mobile modules.
-        let should_extract_geo = (event.context::<BrowserContext>().is_some()
-            && event.platform.as_str() == Some("javascript"))
-            || MOBILE_SDKS.contains(&event.sdk_name());
+        if let Some(geo) = user.geo.value() {
+            if let Some(city) = geo.city.value() {
+                tags.user_city = city.clone().into();
+            }
 
-        if should_extract_geo
-            && let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value())
-        {
-            tags.user_country_code = country_code.to_owned().into();
-            if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
-                let numerical_subregion = subregion as u8;
-                tags.user_subregion = numerical_subregion.to_string().into();
+            if let Some(country_code) = geo.country_code.value() {
+                tags.user_country_code = country_code.clone().into();
+                if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
+                    let numerical_subregion = subregion as u8;
+                    tags.user_subregion = numerical_subregion.to_string().into();
+                }
+            }
+
+            if let Some(region) = geo.region.value() {
+                tags.user_region = region.clone().into();
+            }
+
+            if let Some(subdivision) = geo.subdivision.value() {
+                tags.user_subdivision = subdivision.clone().into();
             }
         }
     }
@@ -1103,6 +1126,15 @@ pub fn extract_tags(
             span_tags.thread_name = thread_name.to_owned().into();
         }
     }
+
+    if let Some(name) = span.data.value().and_then(|data| data.span_name.value())
+        && !name.is_empty()
+    {
+        span_tags.name = name.to_owned().into();
+    } else if let Some(name) = name_for_span(span) {
+        span_tags.name = name.into();
+    }
+
     span_tags
 }
 
@@ -1269,7 +1301,7 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
 /// Regex with a capture group to extract the database action from a query.
 ///
 /// Currently we have an explicit allow-list of database actions considered important.
-static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+static SQL_ACTION_EXTRACTOR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)(?P<action>(SELECT|INSERT|DELETE|UPDATE|SET|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT))"#).unwrap()
 });
 
@@ -1279,7 +1311,7 @@ fn sql_action_from_query(query: &str) -> Option<&str> {
 
 /// Regex with a capture group to extract the table from a database query,
 /// based on `FROM`, `INTO` and `UPDATE` keywords.
-static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+static SQL_TABLE_EXTRACTOR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)(from|into|update)(\s|")+(?P<table>(\w+(\.\w+)*))(\s|")+"#).unwrap()
 });
 
@@ -1333,7 +1365,7 @@ impl Visitor for SqlTableNameVisitor {
     type Break = ();
 
     fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
-        if let Some(name) = relation.0.last() {
+        if let Some(name) = relation.0.last().and_then(ObjectNamePart::as_ident) {
             let last = name.value.split('.').next_back().unwrap_or(&name.value);
             self.table_names.insert(last.to_lowercase());
         }
@@ -1342,7 +1374,7 @@ impl Visitor for SqlTableNameVisitor {
 }
 
 /// Regex with a capture group to extract the HTTP method from a string.
-pub static HTTP_METHOD_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+pub static HTTP_METHOD_EXTRACTOR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\b")
         .unwrap()
 });
@@ -1354,7 +1386,10 @@ fn http_method_from_transaction_name(name: &str) -> Option<&str> {
 /// Returns the captured substring in `string` with the capture group in `pattern`.
 ///
 /// It assumes there's only one capture group in `pattern`, and only returns the first one.
-fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> Option<&'a str> {
+fn extract_captured_substring<'a>(
+    string: &'a str,
+    pattern: &'a LazyLock<Regex>,
+) -> Option<&'a str> {
     let capture_names: Vec<_> = pattern.capture_names().flatten().collect();
 
     for captures in pattern.captures_iter(string) {
@@ -3042,7 +3077,10 @@ LIMIT 1
                     "email": "admin@sentry.io",
                     "username": "admin",
                     "geo": {
-                        "country_code": "US"
+                        "country_code": "AT",
+                        "city": "Vienna",
+                        "subdivision": "Vienna",
+                        "region": "Austria"
                     }
                 },
                 "spans": [
@@ -3075,65 +3113,11 @@ LIMIT 1
         assert_eq!(get_value!(span.sentry_tags.user_ip!), "127.0.0.1");
         assert_eq!(get_value!(span.sentry_tags.user_username!), "admin");
         assert_eq!(get_value!(span.sentry_tags.user_email!), "admin@sentry.io");
-        assert_eq!(get_value!(span.sentry_tags.user_country_code!), "US");
-        assert_eq!(get_value!(span.sentry_tags.user_subregion!), "21");
-    }
-
-    #[test]
-    fn not_extract_geo_location_if_not_browser() {
-        let json = r#"
-            {
-                "type": "transaction",
-                "platform": "python",
-                "start_timestamp": "2021-04-26T07:59:01+0100",
-                "timestamp": "2021-04-26T08:00:00+0100",
-                "transaction": "foo",
-                "contexts": {
-                    "trace": {
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                        "span_id": "bd429c44b67a3eb4"
-                    },
-                    "browser": {
-                        "name": "Chrome"
-                    }
-                },
-                "user": {
-                    "id": "1",
-                    "email": "admin@sentry.io",
-                    "username": "admin",
-                    "geo": {
-                        "country_code": "US"
-                    }
-                },
-                "spans": [
-                    {
-                        "op": "http.client",
-                        "span_id": "bd429c44b67a3eb1",
-                        "start_timestamp": 1597976300.0000000,
-                        "timestamp": 1597976302.0000000,
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-
-        normalize_event(
-            &mut event,
-            &NormalizationConfig {
-                enrich_spans: true,
-                ..Default::default()
-            },
-        );
-
-        let spans = get_value!(event.spans!);
-        let span = &spans[0];
-
-        let tags = span.value().unwrap().sentry_tags.value().unwrap();
-
-        assert_eq!(tags.get_value("user.geo.subregion"), None);
-        assert_eq!(tags.get_value("user.geo.country_code"), None);
+        assert_eq!(get_value!(span.sentry_tags.user_country_code!), "AT");
+        assert_eq!(get_value!(span.sentry_tags.user_city!), "Vienna");
+        assert_eq!(get_value!(span.sentry_tags.user_region!), "Austria");
+        assert_eq!(get_value!(span.sentry_tags.user_subdivision!), "Vienna");
+        assert_eq!(get_value!(span.sentry_tags.user_subregion!), "155");
     }
 
     #[test]
@@ -3359,5 +3343,67 @@ LIMIT 1
         let tags = extract_tags(&span, 200, None, None, false, None, &[], &lookup);
         assert_eq!(tags.user_country_code.value(), Some(&"GB".to_owned()));
         assert_eq!(tags.user_subregion.value(), Some(&"154".to_owned()));
+    }
+
+    #[test]
+    fn extract_name_from_data() {
+        let span: Span = Annotated::<Span>::from_json(
+            r#"{
+                "start_timestamp": 0,
+                "timestamp": 1,
+                "span_id": "922dda2462ea4ac2",
+                "data": {
+                    "sentry.name": "my name"
+                },
+                "op": "my op"
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            &GeoIpLookup::empty(),
+        );
+
+        assert_eq!(tags.name.value(), Some(&"my name".to_owned()));
+    }
+
+    #[test]
+    fn generate_name_from_attributes() {
+        let span: Span = Annotated::<Span>::from_json(
+            r#"{
+                "start_timestamp": 0,
+                "timestamp": 1,
+                "span_id": "922dda2462ea4ac2",
+                "data": {
+                    "db.query.summary": "SELECT users"
+                },
+                "op": "db"
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            &GeoIpLookup::empty(),
+        );
+
+        assert_eq!(tags.name.value(), Some(&"SELECT users".to_owned()));
     }
 }

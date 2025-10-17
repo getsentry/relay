@@ -23,7 +23,7 @@ impl ReservoirRuleKey {
 pub async fn increment_redis_reservoir_count(
     connection: &mut AsyncRedisConnection,
     key: &ReservoirRuleKey,
-) -> anyhow::Result<i64> {
+) -> relay_redis::Result<i64> {
     let val = relay_redis::redis::cmd("INCR")
         .arg(key.as_str())
         .query_async(connection)
@@ -37,7 +37,7 @@ pub async fn set_redis_expiry(
     connection: &mut AsyncRedisConnection,
     key: &ReservoirRuleKey,
     rule_expiry: Option<&DateTime<Utc>>,
-) -> anyhow::Result<()> {
+) -> relay_redis::Result<()> {
     let now = Utc::now().timestamp();
     let expiry_time = rule_expiry
         .map(|rule_expiry| rule_expiry.timestamp() + 60)

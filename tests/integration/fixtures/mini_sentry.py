@@ -49,6 +49,8 @@ class Sentry(SentryLike):
         self.project_config_simulate_pending = False
         self.project_config_ignore_revision = False
 
+        self.timeout = 5
+
     @property
     def internal_error_dsn(self):
         """DSN whose events make the test fail."""
@@ -201,7 +203,7 @@ class Sentry(SentryLike):
         self.global_config["options"][option_name] = value
 
     def get_client_report(self, timeout=None):
-        envelope = self.captured_events.get(timeout=timeout)
+        envelope = self.captured_events.get(timeout=timeout or self.timeout)
         items = envelope.items
         assert len(items) == 1
         item = items[0]
@@ -210,7 +212,7 @@ class Sentry(SentryLike):
         return json.loads(item.payload.bytes)
 
     def get_metrics(self, timeout=None):
-        envelope = self.captured_events.get(timeout=timeout)
+        envelope = self.captured_events.get(timeout=timeout or self.timeout)
         items = envelope.items
         assert len(items) == 1
         item = items[0]
@@ -224,6 +226,17 @@ class Sentry(SentryLike):
                 m["timestamp"],
             ),
         )
+
+    def get_outcomes(self, n, *, timeout=None):
+        outcomes = []
+        for _ in range(n):
+            outcomes.extend(
+                self.captured_outcomes.get(timeout=timeout or self.timeout).get(
+                    "outcomes"
+                )
+            )
+        outcomes.sort(key=lambda x: x["category"])
+        return outcomes
 
 
 def _get_project_id(public_key, project_configs):
@@ -531,5 +544,8 @@ GLOBAL_CONFIG = {
         "maxCustomMeasurements": 10,
     },
     "filters": {"version": 1, "filters": []},
-    "options": {"relay.span-usage-metric": True},
+    "options": {
+        "relay.span-usage-metric": True,
+        "relay.session.processing.rollout": 1.0,
+    },
 }

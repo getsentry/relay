@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
+use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
 
 #[derive(Clone, Debug)]
 pub struct Item {
@@ -67,6 +68,10 @@ impl Item {
             Some(Ok(headers)) => headers,
         };
 
+        if headers.ty.is_internal() {
+            return Err(EnvelopeError::InternalItemType);
+        }
+
         // Each header is terminated by a UNIX newline.
         let headers_end = stream.byte_offset();
         super::require_termination(slice, headers_end)?;
@@ -101,12 +106,15 @@ impl Item {
     /// Returns the number used for counting towards rate limits and producing outcomes.
     ///
     /// For attachments, we count the number of bytes. Other items are counted as 1.
-    pub fn quantities(&self) -> SmallVec<[(DataCategory, usize); 1]> {
+    pub fn quantities(&self) -> SmallVec<[(DataCategory, usize); 2]> {
         let item_count = self.item_count().unwrap_or(1) as usize;
 
         match self.ty() {
             ItemType::Event => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Transaction => smallvec![(DataCategory::Transaction, item_count)],
+            ItemType::Transaction => smallvec![
+                (DataCategory::Transaction, item_count),
+                (DataCategory::TransactionIndexed, item_count),
+            ],
             ItemType::Security | ItemType::RawSecurity => {
                 smallvec![(DataCategory::Security, item_count)]
             }
@@ -114,7 +122,7 @@ impl Item {
             ItemType::UnrealReport => smallvec![(DataCategory::Error, item_count)],
             ItemType::Attachment => smallvec![
                 (DataCategory::Attachment, self.len().max(1)),
-                (DataCategory::AttachmentItem, item_count)
+                (DataCategory::AttachmentItem, item_count),
             ],
             ItemType::Session | ItemType::Sessions => {
                 smallvec![(DataCategory::Session, item_count)]
@@ -124,37 +132,48 @@ impl Item {
                 (DataCategory::LogByte, self.len().max(1)),
                 (DataCategory::LogItem, item_count)
             ],
+            ItemType::TraceMetric => smallvec![(DataCategory::TraceMetric, item_count)],
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![(DataCategory::UserReportV2, item_count)],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, item_count)],
-            ItemType::Profile => smallvec![(DataCategory::Profile, item_count)],
+            ItemType::Profile => smallvec![
+                (DataCategory::Profile, item_count),
+                (DataCategory::ProfileIndexed, item_count)
+            ],
             ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
                 smallvec![(DataCategory::Replay, item_count)]
             }
             ItemType::ClientReport => smallvec![],
             ItemType::CheckIn => smallvec![(DataCategory::Monitor, item_count)],
-            ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, item_count)],
-            // NOTE: semantically wrong, but too expensive to parse.
-            ItemType::OtelTracesData => smallvec![(DataCategory::Span, item_count)],
-            ItemType::OtelLogsData => smallvec![
-                (DataCategory::LogByte, self.len().max(1)),
-                (DataCategory::LogItem, item_count) // NOTE: semantically wrong, but too expensive to parse.
+            ItemType::Span => smallvec![
+                (DataCategory::Span, item_count),
+                (DataCategory::SpanIndexed, item_count),
             ],
+            // NOTE: semantically wrong, but too expensive to parse.
             ItemType::ProfileChunk => match self.profile_type() {
                 Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
                 Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
                 None => smallvec![],
             },
+            ItemType::Integration => match self.integration() {
+                Some(Integration::Logs(LogsIntegration::OtelV1 { .. })) => smallvec![
+                    (DataCategory::LogByte, self.len().max(1)),
+                    (DataCategory::LogItem, item_count),
+                ],
+                Some(Integration::Logs(LogsIntegration::VercelDrainLog { .. })) => smallvec![
+                    (DataCategory::LogByte, self.len().max(1)),
+                    (DataCategory::LogItem, item_count),
+                ],
+                Some(Integration::Spans(SpansIntegration::OtelV1 { .. })) => {
+                    smallvec![
+                        (DataCategory::Span, item_count),
+                        (DataCategory::SpanIndexed, item_count),
+                    ]
+                }
+                None => smallvec![],
+            },
             ItemType::Unknown(_) => smallvec![],
         }
-    }
-
-    /// True if the item represents any kind of span.
-    pub fn is_span(&self) -> bool {
-        matches!(
-            self.ty(),
-            ItemType::OtelSpan | ItemType::Span | ItemType::OtelTracesData
-        )
     }
 
     /// Returns `true` if this item's payload is empty.
@@ -179,6 +198,22 @@ impl Item {
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn content_type(&self) -> Option<&ContentType> {
         self.headers.content_type.as_ref()
+    }
+
+    /// Returns the [`Integration`] the item belongs.
+    pub fn integration(&self) -> Option<Integration> {
+        if !matches!(self.ty(), ItemType::Integration) {
+            return None;
+        }
+
+        match self.content_type() {
+            Some(ContentType::Integration(integration)) => Some(*integration),
+            _ => {
+                // This is a bug which should never happen.
+                debug_assert!(false, "integration item, but no integration content type");
+                None
+            }
+        }
     }
 
     /// Returns the attachment type if this item is an attachment.
@@ -254,13 +289,11 @@ impl Item {
     }
 
     /// Returns the routing_hint of this item.
-    #[cfg(feature = "processing")]
     pub fn routing_hint(&self) -> Option<Uuid> {
         self.headers.routing_hint
     }
 
     /// Set the routing_hint of this item.
-    #[cfg(feature = "processing")]
     pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
         self.headers.routing_hint = Some(routing_hint);
     }
@@ -420,10 +453,12 @@ impl Item {
             | ItemType::Span
             | ItemType::Nel
             | ItemType::Log
-            | ItemType::OtelSpan
-            | ItemType::OtelTracesData
-            | ItemType::OtelLogsData
+            | ItemType::TraceMetric
             | ItemType::ProfileChunk => false,
+
+            // For now integrations can not create events, we may need to revisit this in the
+            // future and break down different types of integrations here, similar to attachments.
+            ItemType::Integration => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -456,10 +491,9 @@ impl Item {
             ItemType::CheckIn => false,
             ItemType::Span => false,
             ItemType::Log => false,
-            ItemType::OtelSpan => false,
-            ItemType::OtelTracesData => false,
-            ItemType::OtelLogsData => false,
+            ItemType::TraceMetric => false,
             ItemType::ProfileChunk => false,
+            ItemType::Integration => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
@@ -530,18 +564,22 @@ pub enum ItemType {
     CheckIn,
     /// A log for the log product, not internal logs.
     Log,
+    /// A trace metric item.
+    TraceMetric,
     /// A standalone span.
     Span,
-    /// A standalone OpenTelemetry span serialized as JSON.
-    OtelSpan,
-    /// An OTLP TracesData container.
-    OtelTracesData,
-    /// An OTLP LogsData container.
-    OtelLogsData,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
     ProfileChunk,
+    /// Integrations are a vendor specific set of endpoints providing integrations with external
+    /// systems, standards and vendors.
+    ///
+    /// Relay stores payloads received from integration endpoints in envelope items of this type.
+    ///
+    /// This is an [internal item type](`Self::is_internal`) and must be converted within the same
+    /// instance of Relay.
+    Integration,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -590,11 +628,10 @@ impl ItemType {
             Self::ReplayVideo => "replay_video",
             Self::CheckIn => "check_in",
             Self::Log => "log",
+            Self::TraceMetric => "trace_metric",
             Self::Span => "span",
-            Self::OtelSpan => "otel_span",
-            Self::OtelTracesData => "otel_traces_data",
-            Self::OtelLogsData => "otel_logs_data",
             Self::ProfileChunk => "profile_chunk",
+            Self::Integration => "integration",
             Self::Unknown(_) => "unknown",
         }
     }
@@ -610,6 +647,14 @@ impl ItemType {
     /// Returns `true` if the item is a metric type.
     pub fn is_metrics(&self) -> bool {
         matches!(self, ItemType::Statsd | ItemType::MetricBuckets)
+    }
+
+    /// Returns `true` if the item is a Relay internal item type.
+    ///
+    /// Internal items are not allowed to be forwarded or sent upstream and will be rejected by
+    /// other Relays. Internal items must be converted to Sentry native items before forwarded.
+    pub fn is_internal(&self) -> bool {
+        matches!(self, ItemType::Integration)
     }
 
     /// Returns `true` if the specified [`ItemType`] can occur in an [`super::ItemContainer`].
@@ -642,12 +687,11 @@ impl ItemType {
             ItemType::ReplayVideo => false,
             ItemType::CheckIn => true,
             ItemType::Log => true,
+            ItemType::TraceMetric => true,
             ItemType::Span => true,
-            ItemType::OtelSpan => true,
-            ItemType::OtelTracesData => false,
-            ItemType::OtelLogsData => false,
             ItemType::UserReportV2 => false,
             ItemType::ProfileChunk => true,
+            ItemType::Integration => false,
             ItemType::Unknown(_) => true,
         }
     }
@@ -685,14 +729,13 @@ impl std::str::FromStr for ItemType {
             "replay_video" => Self::ReplayVideo,
             "check_in" => Self::CheckIn,
             "log" => Self::Log,
+            "trace_metric" => Self::TraceMetric,
             "span" => Self::Span,
-            "otel_span" => Self::OtelSpan,
-            "otel_traces_data" => Self::OtelTracesData,
-            "otel_logs_data" => Self::OtelLogsData,
             "profile_chunk" => Self::ProfileChunk,
             // "profile_chunk_ui" is to be treated as an alias for `ProfileChunk`
             // because Android 8.10.0 and 8.11.0 is sending it as the item type.
             "profile_chunk_ui" => Self::ProfileChunk,
+            "integration" => Self::Integration,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -867,6 +910,8 @@ fn is_true(value: &bool) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::integrations::OtelFormat;
+
     use super::*;
 
     #[test]
@@ -928,6 +973,36 @@ mod tests {
         item.set_source_quantities(source_quantities);
 
         assert_eq!(item.source_quantities(), Some(source_quantities));
+    }
+
+    #[test]
+    fn test_internal_item_type_does_not_parse() {
+        let err = Item::parse(Bytes::from_static(
+            br#"{"type":"integration","content_type":"application/vnd.sentry.integration.otel.logs+json"}"#,
+        ))
+        .unwrap_err();
+
+        assert!(matches!(err, EnvelopeError::InternalItemType));
+    }
+
+    #[test]
+    fn test_internal_content_type_does_parse() {
+        let (item, _) = Item::parse(Bytes::from_static(concat!(
+            r#"{"type":"attachment","content_type":"application/vnd.sentry.integration.otel.logs+json","length":5}"#,
+            "\n",
+            "12345"
+        ).as_bytes()))
+        .unwrap();
+
+        assert_eq!(
+            item.content_type(),
+            Some(&ContentType::Integration(Integration::Logs(
+                LogsIntegration::OtelV1 {
+                    format: OtelFormat::Json
+                }
+            )))
+        );
+        assert_eq!(item.integration(), None);
     }
 
     #[test]

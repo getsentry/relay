@@ -47,6 +47,9 @@ pub struct ProjectConfig {
     /// Maximum sampled event retention for the organization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub downsampled_event_retention: Option<u16>,
+    /// Retention settings for different products.
+    #[serde(default, skip_serializing_if = "RetentionsConfig::is_empty")]
+    pub retentions: RetentionsConfig,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
@@ -142,6 +145,7 @@ impl Default for ProjectConfig {
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
             downsampled_event_retention: None,
+            retentions: Default::default(),
             quotas: Vec::new(),
             sampling: None,
             measurements: None,
@@ -217,6 +221,42 @@ pub struct LimitedProjectConfig {
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
+}
+
+/// Per-Category settings for retention policy.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct RetentionConfig {
+    /// Standard / full fidelity retention policy in days.
+    pub standard: u16,
+    /// Downsampled retention policy in days.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub downsampled: Option<u16>,
+}
+
+/// Settings for retention policy.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RetentionsConfig {
+    /// Retention settings for logs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log: Option<RetentionConfig>,
+    /// Retention settings for spans.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span: Option<RetentionConfig>,
+    /// Retention settings for metrics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trace_metric: Option<RetentionConfig>,
+}
+
+impl RetentionsConfig {
+    fn is_empty(&self) -> bool {
+        let Self {
+            log,
+            span,
+            trace_metric,
+        } = self;
+
+        log.is_none() && span.is_none() && trace_metric.is_none()
+    }
 }
 
 fn is_false(value: &bool) -> bool {

@@ -1,12 +1,13 @@
 //! Implements filtering for events caused by problematic browsers extensions.
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
+
 use regex::Regex;
 use relay_event_schema::protocol::Exception;
 
 use crate::{FilterConfig, FilterStatKey, Filterable};
 
-static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
+static EXTENSION_EXC_VALUES: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?ix)
         # Random plugins/extensions
@@ -59,7 +60,7 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
     .expect("Invalid browser extensions filter (Exec Vals) Regex")
 });
 
-static EXTENSION_EXC_SOURCES: Lazy<Regex> = Lazy::new(|| {
+static EXTENSION_EXC_SOURCES: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?ix)
         graph\.facebook\.com|                           # Facebook flakiness

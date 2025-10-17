@@ -216,7 +216,7 @@ class SentryLike:
         if dsn_key is None:
             dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
 
-        url = f"/api/{project_id}/otlp/v1/traces?sentry_key={dsn_key}"
+        url = f"/api/{project_id}/integration/otlp/v1/traces?sentry_key={dsn_key}"
 
         if json:
             headers = {
@@ -243,7 +243,7 @@ class SentryLike:
         if dsn_key is None:
             dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
 
-        url = f"/api/{project_id}/otlp/v1/logs?sentry_key={dsn_key}"
+        url = f"/api/{project_id}/integration/otlp/v1/logs?sentry_key={dsn_key}"
 
         if json:
             headers = {
@@ -256,6 +256,25 @@ class SentryLike:
             response = self.post(url, headers=headers, data=bytes)
 
         response.raise_for_status()
+
+    def send_vercel_logs(
+        self,
+        project_id,
+        data=None,
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+
+        if dsn_key is None:
+            dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
+
+        url = f"/api/{project_id}/integration/vercel/logs?sentry_key={dsn_key}"
+
+        response = self.post(url, headers=headers, data=data)
+
+        response.raise_for_status()
+        return response
 
     def send_options(self, project_id, headers=None, dsn_key_idx=0):
         headers = {

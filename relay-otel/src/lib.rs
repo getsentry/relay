@@ -9,9 +9,12 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
-use relay_event_schema::protocol::{Attribute, AttributeType};
-use relay_protocol::Value;
+use opentelemetry_proto::tonic::{
+    common::v1::{InstrumentationScope, any_value::Value as OtelValue},
+    resource::v1::Resource,
+};
+use relay_event_schema::protocol::{Attribute, AttributeType, Attributes};
+use relay_protocol::{Annotated, Value};
 
 /// Converts an OpenTelemetry AnyValue to a Sentry attribute.
 ///
@@ -90,13 +93,49 @@ pub fn otel_value_to_attribute(otel_value: OtelValue) -> Option<Attribute> {
     Some(Attribute::new(ty, value))
 }
 
+/// Applies Otel scopes into Sentry [`Attributes`].
+pub fn otel_scope_into_attributes(
+    attributes: &mut Attributes,
+    resource: Option<&Resource>,
+    scope: Option<&InstrumentationScope>,
+) {
+    for attribute in resource.into_iter().flat_map(|s| &s.attributes) {
+        if let Some(attr) = attribute
+            .value
+            .clone()
+            .and_then(|v| v.value)
+            .and_then(otel_value_to_attribute)
+        {
+            let key = format!("resource.{}", attribute.key);
+            attributes.insert_raw(key, Annotated::new(attr));
+        }
+    }
+
+    for attribute in scope.into_iter().flat_map(|s| &s.attributes) {
+        if let Some(attr) = attribute
+            .value
+            .clone()
+            .and_then(|v| v.value)
+            .and_then(otel_value_to_attribute)
+        {
+            let key = format!("instrumentation.{}", attribute.key);
+            attributes.insert_raw(key, Annotated::new(attr));
+        }
+    }
+
+    if let Some(scope) = scope {
+        attributes.insert("instrumentation.name".to_owned(), scope.name.clone());
+        attributes.insert("instrumentation.version".to_owned(), scope.version.clone());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use opentelemetry_proto::tonic::common::v1::{
         AnyValue, ArrayValue, KeyValue, KeyValueList, any_value,
     };
-    use relay_protocol::get_value;
+    use relay_protocol::{SerializableAnnotated, get_value};
 
     #[test]
     fn test_string_value() {
@@ -183,5 +222,70 @@ mod tests {
             get_value!(value!),
             &Value::String("{\"key1\":\"value1\"}".to_owned())
         );
+    }
+
+    #[test]
+    fn test_scope_attributes() {
+        let resource = serde_json::from_value(serde_json::json!({
+            "attributes": [{
+                "key": "service.name",
+                "value": {"stringValue": "test-service"},
+            },
+            {
+                "key": "the.answer",
+                "value": {"stringValue": "foobar"},
+            },
+        ]}))
+        .unwrap();
+
+        let scope = InstrumentationScope {
+            name: "Eins Name".to_owned(),
+            version: "123.42".to_owned(),
+            attributes: vec![
+                KeyValue {
+                    key: "the.answer".to_owned(),
+                    value: Some(AnyValue {
+                        value: Some(any_value::Value::IntValue(42)),
+                    }),
+                },
+                // Clashes with `scope.name` and should be overwritten.
+                KeyValue {
+                    key: "name".to_owned(),
+                    value: Some(AnyValue {
+                        value: Some(any_value::Value::StringValue("oops".to_owned())),
+                    }),
+                },
+            ],
+            dropped_attributes_count: 12,
+        };
+
+        let mut attributes = Attributes::new();
+
+        otel_scope_into_attributes(&mut attributes, Some(&resource), Some(&scope));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(attributes)), @r#"
+        {
+          "instrumentation.name": {
+            "type": "string",
+            "value": "Eins Name"
+          },
+          "instrumentation.the.answer": {
+            "type": "integer",
+            "value": 42
+          },
+          "instrumentation.version": {
+            "type": "string",
+            "value": "123.42"
+          },
+          "resource.service.name": {
+            "type": "string",
+            "value": "test-service"
+          },
+          "resource.the.answer": {
+            "type": "string",
+            "value": "foobar"
+          }
+        }
+        "#);
     }
 }
