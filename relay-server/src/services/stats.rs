@@ -24,7 +24,7 @@ pub struct RelayStats {
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     redis_clients: Option<RedisClients>,
-    processor_pool: EnvelopeProcessorServicePool,
+    processor_pool: Option<EnvelopeProcessorServicePool>,
     #[cfg(feature = "processing")]
     store_pool: StoreServicePool,
 }
@@ -35,7 +35,7 @@ impl RelayStats {
         runtime: Handle,
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] redis_clients: Option<RedisClients>,
-        processor_pool: EnvelopeProcessorServicePool,
+        processor_pool: Option<EnvelopeProcessorServicePool>,
         #[cfg(feature = "processing")] store_pool: StoreServicePool,
     ) -> Self {
         Self {
@@ -215,7 +215,9 @@ impl RelayStats {
     }
 
     async fn async_pools_metrics(&self) {
-        Self::emit_async_pool_metrics(&self.processor_pool);
+        if let Some(processor_pool) = &self.processor_pool {
+            Self::emit_async_pool_metrics(processor_pool)
+        }
         #[cfg(feature = "processing")]
         Self::emit_async_pool_metrics(&self.store_pool);
     }

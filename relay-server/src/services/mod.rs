@@ -38,6 +38,7 @@ pub mod outcome;
 pub mod outcome_aggregator;
 pub mod processor;
 pub mod projects;
+pub mod proxy_processor;
 pub mod relays;
 pub mod server;
 pub mod stats;
