@@ -114,7 +114,6 @@ ed25519-dalek = { version = "2.2.0", features = ["digest"] }
 enumset = "1.1.10"
 flate2 = "1.1.4"
 flume = { version = "0.11.1", default-features = false }
-kanal = "0.1.1"
 futures = { version = "0.3.31", default-features = false, features = ["std"] }
 globset = "0.4.16"
 hash32 = "1.0.0"
@@ -207,7 +206,7 @@ tempfile = "3.23.0"
 thiserror = "2.0.17"
 tikv-jemallocator = "0.6.0"
 # tokio = { git = "https://github.com/dav1dde/tokio", rev = "b5d827e709e097fb5a9a391e2327880fce2a7759", default-features = false }
-tokio = { version = "=1.46.1", default-features = false }
+tokio = { version = "1.48.0", default-features = false }
 tokio-util = { version = "0.7.13", default-features = false }
 tower = { version = "0.5.2", default-features = false }
 tower-http = { version = "0.6.6", default-features = false }

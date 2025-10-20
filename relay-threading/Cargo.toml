@@ -11,7 +11,6 @@ publish = false
 
 [dependencies]
 flume = { workspace = true, features = ["async"] }
-kanal = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true }
 pin-project-lite = { workspace = true }
