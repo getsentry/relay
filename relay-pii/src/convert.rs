@@ -68,6 +68,7 @@ static SENSITIVE_COOKIES: LazyLock<SelectorSpec> = LazyLock::new(|| {
 static REPLACE_ONLY_SELECTOR: LazyLock<SelectorSpec> = LazyLock::new(|| {
     [
         "$logentry.formatted",
+        "$log.body",
         "$span.data.'gen_ai.prompt'",
         "attributes.'gen_ai.prompt'.value",
         "$span.data.'gen_ai.request.messages'",

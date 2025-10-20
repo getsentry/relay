@@ -29,7 +29,7 @@ pub struct OurLog {
     pub level: Annotated<OurLogLevel>,
 
     /// Log body.
-    #[metastructure(required = true, pii = "true", trim = false)]
+    #[metastructure(required = true, pii = "maybe", trim = false)]
     pub body: Annotated<String>,
 
     /// Arbitrary attributes on a log.
