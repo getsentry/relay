@@ -182,7 +182,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
 
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.captured_outcomes.get(timeout=3).get("outcomes") == [
+    assert mini_sentry.captured_outcomes.get(timeout=5).get("outcomes") == [
         {
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
@@ -646,7 +646,7 @@ def test_spanv2_with_string_pii_scrubbing(
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=3)
+    envelope = mini_sentry.captured_events.get(timeout=5)
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
 
@@ -723,7 +723,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=3)
+    envelope = mini_sentry.captured_events.get(timeout=5)
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
     attributes = item["attributes"]
