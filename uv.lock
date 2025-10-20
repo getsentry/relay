@@ -501,6 +501,17 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-timeout"
+version = "2.2.0"
+source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+dependencies = [
+    { name = "pytest", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/pytest_timeout-2.2.0-py3-none-any.whl", hash = "sha256:bde531e096466f49398a59f2dde76fa78429a09a12411466f88a07213e220de2" },
+]
+
+[[package]]
 name = "pytest-xdist"
 version = "3.5.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
@@ -567,6 +578,7 @@ dev = [
     { name = "pytest", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest-localserver", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest-sentry", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "pytest-timeout", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest-xdist", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pyyaml", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "redis", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -604,6 +616,7 @@ dev = [
     { name = "pytest", specifier = ">=7.4.3" },
     { name = "pytest-localserver", specifier = ">=0.8.1" },
     { name = "pytest-sentry", specifier = ">=0.3.0" },
+    { name = "pytest-timeout", specifier = ">=2.2.0" },
     { name = "pytest-xdist", specifier = ">=3.5.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "redis", specifier = ">=4.5.4" },
