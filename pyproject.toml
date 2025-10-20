@@ -72,7 +72,8 @@ exclude = '''
 '''
 
 [tool.mypy]
-exclude = ["^py/sentry_relay/_lowlevel__ffi.py"]
+mypy_path = "py"
+explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 module = [
@@ -80,7 +81,6 @@ module = [
     "msgpack.*",
     "pytest_localserver.*",
     "opentelemetry.*",
-    "sentry_relay._lowlevel",
     "_cffi_backend",
 ]
 ignore_missing_imports = true
