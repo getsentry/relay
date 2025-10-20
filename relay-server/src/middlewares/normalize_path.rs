@@ -1,8 +1,8 @@
 use std::borrow::Cow;
+use std::sync::LazyLock;
 use std::task::{Context, Poll};
 
 use axum::http::{Request, Response, Uri};
-use once_cell::sync::Lazy;
 use regex::Regex;
 use tower::Service;
 
@@ -41,7 +41,7 @@ where
 }
 
 fn fold_duplicate_slashes(uri: &mut Uri) {
-    static REPLACE: Lazy<Regex> = Lazy::new(|| Regex::new("/{2,}").unwrap());
+    static REPLACE: LazyLock<Regex> = LazyLock::new(|| Regex::new("/{2,}").unwrap());
 
     let Cow::Owned(new_path) = REPLACE.replace_all(uri.path(), "/") else {
         return;

@@ -30,6 +30,11 @@ impl Attribute {
             other: Object::new(),
         }
     }
+
+    /// Returns the string value of this attribute.
+    pub fn into_string(self) -> Option<String> {
+        self.value.value.into_value()?.into_string()
+    }
 }
 
 impl fmt::Debug for Attribute {
@@ -42,8 +47,12 @@ impl fmt::Debug for Attribute {
     }
 }
 
-impl From<AttributeValue> for Attribute {
-    fn from(value: AttributeValue) -> Self {
+impl<T> From<T> for Attribute
+where
+    AttributeValue: From<T>,
+{
+    fn from(value: T) -> Self {
+        let value = value.into();
         Self {
             value,
             other: Default::default(),
@@ -267,6 +276,15 @@ impl Attributes {
         self.0.contains_key(key)
     }
 
+    /// Removes an attribute from this collection.
+    pub fn remove<Q>(&mut self, key: &Q) -> Option<Annotated<Attribute>>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.0.remove(key)
+    }
+
     /// Iterates over this collection's attribute keys and values.
     pub fn iter(&self) -> std::collections::btree_map::Iter<'_, String, Annotated<Attribute>> {
         self.0.iter()
@@ -293,6 +311,12 @@ impl IntoIterator for Attributes {
 impl FromIterator<(String, Annotated<Attribute>)> for Attributes {
     fn from_iter<T: IntoIterator<Item = (String, Annotated<Attribute>)>>(iter: T) -> Self {
         Self(Object::from_iter(iter))
+    }
+}
+
+impl<const N: usize> From<[(String, Annotated<Attribute>); N]> for Attributes {
+    fn from(value: [(String, Annotated<Attribute>); N]) -> Self {
+        value.into_iter().collect()
     }
 }
 

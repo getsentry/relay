@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
 use relay_event_schema::processor::ValueType;
 
 use crate::selector::{SelectorPathItem, SelectorSpec};
@@ -13,20 +13,20 @@ use crate::{
 ///
 /// We define this list independently of `metastructure(pii = true/false)` because the new PII
 /// scrubber should be able to strip more.
-static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
+static DATASCRUBBER_IGNORE: LazyLock<SelectorSpec> = LazyLock::new(|| {
     "(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value | $request.headers.user-agent)"
         .parse()
         .unwrap()
 });
 
 /// Fields that are known to contain IPs. Used for legacy IP scrubbing.
-static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
+static KNOWN_IP_FIELDS: LazyLock<SelectorSpec> = LazyLock::new(|| {
     "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip | $span.sentry_tags.'user.ip')"
         .parse()
         .unwrap()
 });
 
-static SENSITIVE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
+static SENSITIVE_COOKIES: LazyLock<SelectorSpec> = LazyLock::new(|| {
     [
         // Common session cookie names for popular web frameworks
         "*.cookies.sentrysid", // Sentry default session cookie name
@@ -65,7 +65,7 @@ static SENSITIVE_COOKIES: Lazy<SelectorSpec> = Lazy::new(|| {
 ///
 /// This is currently a workaround until we have a more powerful version of the PII processor
 /// in place: <https://github.com/getsentry/relay/issues/5158>.
-static REPLACE_ONLY_SELECTOR: Lazy<SelectorSpec> = Lazy::new(|| {
+static REPLACE_ONLY_SELECTOR: LazyLock<SelectorSpec> = LazyLock::new(|| {
     [
         "$logentry.formatted",
         "$span.data.'gen_ai.prompt'",
@@ -278,6 +278,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "a_password_here": "hello",
             "api_key": "secret_key",
             "apiKey": "secret_key",
+            "otp": "otp_code",
+            "two-factor": "otp_code",
+            "two_factor": "otp_code",
         })
     }
 
@@ -1903,5 +1906,34 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_password_rule_only_full_match_fields() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "not-a-two-factor": "I am okay",
+                    "not_a_two_factor": "I am okay",
+                    "footpath": "I am okay",
+                    "idiotproof": "I am okay",
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data, @r#"
+        {
+          "extra": {
+            "footpath": "I am okay",
+            "idiotproof": "I am okay",
+            "not-a-two-factor": "I am okay",
+            "not_a_two_factor": "I am okay"
+          }
+        }
+        "#);
     }
 }

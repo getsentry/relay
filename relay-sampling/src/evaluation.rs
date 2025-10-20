@@ -77,7 +77,7 @@ impl ReservoirEvaluator<'_> {
         key: &ReservoirRuleKey,
         client: &AsyncRedisClient,
         rule_expiry: Option<&DateTime<Utc>>,
-    ) -> anyhow::Result<i64> {
+    ) -> relay_redis::Result<i64> {
         relay_statsd::metric!(timer(crate::statsd::SamplingTimers::RedisReservoir), {
             let mut connection = client.get_connection().await?;
 
@@ -124,7 +124,10 @@ impl ReservoirEvaluator<'_> {
             let redis_count = match self.redis_incr(&key, client, _rule_expiry).await {
                 Ok(redis_count) => redis_count,
                 Err(e) => {
-                    relay_log::error!(error = &*e, "failed to increment reservoir rule");
+                    relay_log::error!(
+                        error = &e as &dyn std::error::Error,
+                        "failed to increment reservoir rule"
+                    );
                     return false;
                 }
             };

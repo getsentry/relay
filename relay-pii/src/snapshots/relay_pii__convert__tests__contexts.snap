@@ -9,8 +9,11 @@ expression: data
       "apiKey": "secret_key",
       "api_key": "secret_key",
       "foo": "bar",
+      "otp": "otp_code",
       "password": "hello",
       "the_secret": "hello",
+      "two-factor": "otp_code",
+      "two_factor": "otp_code",
       "type": "app"
     },
     "biz": {
@@ -18,8 +21,11 @@ expression: data
       "apiKey": "[Filtered]",
       "api_key": "[Filtered]",
       "foo": "bar",
+      "otp": "[Filtered]",
       "password": "[Filtered]",
       "the_secret": "[Filtered]",
+      "two-factor": "[Filtered]",
+      "two_factor": "[Filtered]",
       "type": "biz"
     },
     "browser": {
@@ -27,8 +33,11 @@ expression: data
       "apiKey": "secret_key",
       "api_key": "secret_key",
       "foo": "bar",
+      "otp": "otp_code",
       "password": "hello",
       "the_secret": "hello",
+      "two-factor": "otp_code",
+      "two_factor": "otp_code",
       "type": "browser"
     },
     "device": {
@@ -36,8 +45,11 @@ expression: data
       "apiKey": "secret_key",
       "api_key": "secret_key",
       "foo": "bar",
+      "otp": "otp_code",
       "password": "hello",
       "the_secret": "hello",
+      "two-factor": "otp_code",
+      "two_factor": "otp_code",
       "type": "device"
     },
     "gpu": {
@@ -45,8 +57,11 @@ expression: data
       "apiKey": "secret_key",
       "api_key": "secret_key",
       "foo": "bar",
+      "otp": "otp_code",
       "password": "hello",
       "the_secret": "hello",
+      "two-factor": "otp_code",
+      "two_factor": "otp_code",
       "type": "gpu"
     },
     "monitor": {
@@ -54,8 +69,11 @@ expression: data
       "apiKey": "secret_key",
       "api_key": "secret_key",
       "foo": "bar",
+      "otp": "otp_code",
       "password": "hello",
       "the_secret": "hello",
+      "two-factor": "otp_code",
+      "two_factor": "otp_code",
       "type": "monitor"
     },
     "os": {
@@ -63,8 +81,11 @@ expression: data
       "apiKey": "secret_key",
       "api_key": "secret_key",
       "foo": "bar",
+      "otp": "otp_code",
       "password": "hello",
       "the_secret": "hello",
+      "two-factor": "otp_code",
+      "two_factor": "otp_code",
       "type": "os"
     },
     "runtime": {
@@ -72,8 +93,11 @@ expression: data
       "apiKey": "secret_key",
       "api_key": "secret_key",
       "foo": "bar",
+      "otp": "otp_code",
       "password": "hello",
       "the_secret": "hello",
+      "two-factor": "otp_code",
+      "two_factor": "otp_code",
       "type": "runtime"
     },
     "secret": null,
@@ -82,8 +106,11 @@ expression: data
       "apiKey": "secret_key",
       "api_key": "secret_key",
       "foo": "bar",
+      "otp": "otp_code",
       "password": "hello",
       "the_secret": "hello",
+      "two-factor": "otp_code",
+      "two_factor": "otp_code",
       "type": "trace"
     }
   },
@@ -129,6 +156,19 @@ expression: data
             "len": 10
           }
         },
+        "otp": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
+          }
+        },
         "password": {
           "": {
             "rem": [
@@ -153,6 +193,32 @@ expression: data
               ]
             ],
             "len": 5
+          }
+        },
+        "two-factor": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
+          }
+        },
+        "two_factor": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 8
           }
         }
       },

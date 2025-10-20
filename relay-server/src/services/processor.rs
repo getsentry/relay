@@ -45,7 +45,7 @@ use zstd::stream::Encoder as ZstdEncoder;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
-use crate::integrations::Integration;
+use crate::integrations::{Integration, SpansIntegration};
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -313,20 +313,26 @@ impl ProcessingGroup {
             ))
         }
 
-        if project_info.has_feature(Feature::SpanV2ExperimentalProcessing) {
-            let span_v2_items = envelope.take_items_by(ItemContainer::<SpanV2>::is_container);
+        let span_v2_items = envelope.take_items_by(|item| {
+            let exp_feature = project_info.has_feature(Feature::SpanV2ExperimentalProcessing);
+            let is_supported_integration = matches!(
+                item.integration(),
+                Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
+            );
 
-            if !span_v2_items.is_empty() {
-                grouped_envelopes.push((
-                    ProcessingGroup::SpanV2,
-                    Envelope::from_parts(headers.clone(), span_v2_items),
-                ))
-            }
+            ItemContainer::<SpanV2>::is_container(item) || (exp_feature && is_supported_integration)
+        });
+
+        if !span_v2_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::SpanV2,
+                Envelope::from_parts(headers.clone(), span_v2_items),
+            ))
         }
 
         // Extract spans.
         let span_items = envelope.take_items_by(|item| {
-            matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan)
+            matches!(item.ty(), &ItemType::Span)
                 || matches!(item.integration(), Some(Integration::Spans(_)))
         });
 
@@ -2117,7 +2123,6 @@ impl EnvelopeProcessorService {
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
-        span::expand_v2_spans(managed_envelope)?;
         span::filter(managed_envelope, ctx.config, ctx.project_info);
         span::convert_otel_traces_data(managed_envelope);
 

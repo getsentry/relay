@@ -1,11 +1,12 @@
 //! Filters events coming from user agents known to be web crawlers.
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
+
 use regex::Regex;
 
 use crate::{FilterConfig, FilterStatKey, Filterable};
 
-static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
+static WEB_CRAWLERS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?ix)
         Mediapartners-Google|
@@ -49,7 +50,7 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     .expect("Invalid web crawlers filter Regex")
 });
 
-static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
+static ALLOWED_WEB_CRAWLERS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?ix)
         Slackbot\s1\.\d+|            # Slack - see https://api.slack.com/robots

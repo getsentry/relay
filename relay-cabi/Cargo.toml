@@ -21,7 +21,6 @@ chrono = { workspace = true }
 globset = { workspace = true }
 json-forensics = { workspace = true }
 lru = { workspace = true }
-once_cell = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }

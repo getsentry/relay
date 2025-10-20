@@ -146,7 +146,6 @@ def test_span_extraction(
         "attributes": {  # Backfilled from `sentry_tags`
             "sentry.category": {"type": "string", "value": "http"},
             "sentry.exclusive_time": {"type": "double", "value": 500.0},
-            "sentry.name": {"type": "string", "value": "http"},
             "sentry.normalized_description": {"type": "string", "value": "GET *"},
             "sentry.group": {"type": "string", "value": "37e3d9fab1ae9162"},
             "sentry.op": {"type": "string", "value": "http"},
@@ -223,7 +222,6 @@ def test_span_extraction(
             "sentry.description": {"type": "string", "value": "hi"},
             "sentry.exclusive_time": {"type": "double", "value": 1500.0},
             "sentry.is_segment": {"type": "boolean", "value": True},
-            "sentry.name": {"type": "string", "value": "hi"},
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
@@ -378,7 +376,7 @@ def test_duplicate_performance_score(mini_sentry, relay):
 
     score_total_seen = 0
     for _ in range(3):  # 2 client reports and the actual item we're interested in
-        envelope = mini_sentry.captured_events.get()
+        envelope = mini_sentry.captured_events.get(timeout=5)
         for item in envelope.items:
             if item.type == "metric_buckets":
                 for metric in item.payload.json:
@@ -395,51 +393,6 @@ def envelope_with_spans(
     start: datetime, end: datetime, metrics_extracted: bool = False
 ) -> Envelope:
     envelope = Envelope()
-    envelope.add_item(
-        Item(
-            type="otel_span",
-            headers={"metrics_extracted": metrics_extracted},
-            payload=PayloadRef(
-                bytes=json.dumps(
-                    {
-                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
-                        "spanId": "a342abb1214ca181",
-                        "name": "my 1st OTel span",
-                        "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
-                        "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
-                        "attributes": [
-                            {
-                                "key": "sentry.category",
-                                "value": {
-                                    "stringValue": "db",
-                                },
-                            },
-                            {
-                                "key": "sentry.exclusive_time",
-                                "value": {
-                                    "doubleValue": (end - start).total_seconds() * 1e3
-                                },
-                            },
-                        ],
-                        "links": [
-                            {
-                                "traceId": "89143b0763095bd9c9955e8175d1fb24",
-                                "spanId": "e342abb1214ca183",
-                                "attributes": [
-                                    {
-                                        "key": "link_double_key",
-                                        "value": {
-                                            "doubleValue": 1.23,
-                                        },
-                                    },
-                                ],
-                            },
-                        ],
-                    },
-                ).encode()
-            ),
-        )
-    )
     envelope.add_item(
         Item(
             type="span",
@@ -510,91 +463,6 @@ def envelope_with_spans(
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     },
                 ).encode()
-            ),
-        )
-    )
-
-    envelope.add_item(
-        Item(
-            type="span",
-            headers={"metrics_extracted": metrics_extracted, "item_count": 2},
-            content_type="application/vnd.sentry.items.span.v2+json",
-            payload=PayloadRef(
-                json={
-                    "items": [
-                        {
-                            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-                            "span_id": "a342abb1214ca182",
-                            "name": "my 1st V2 span",
-                            "start_timestamp": start.timestamp(),
-                            "end_timestamp": end.timestamp(),
-                            "attributes": {
-                                "sentry.category": {
-                                    "type": "string",
-                                    "value": "db",
-                                },
-                                "sentry.exclusive_time": {
-                                    "type": "double",
-                                    "value": int((end - start).total_seconds() * 1e3),
-                                },
-                            },
-                            "links": [
-                                {
-                                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
-                                    "span_id": "e342abb1214ca183",
-                                    "sampled": False,
-                                    "attributes": {
-                                        "link_double_key": {
-                                            "type": "double",
-                                            "value": 1.23,
-                                        },
-                                    },
-                                },
-                            ],
-                        },
-                        {
-                            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                            "span_id": "b0429c44b67a3eb2",
-                            "name": "resource.script",
-                            "status": "ok",
-                            "start_timestamp": start.timestamp(),
-                            "end_timestamp": end.timestamp() + 1,
-                            "links": [
-                                {
-                                    "trace_id": "99143b0763095bd9c9955e8175d1fb25",
-                                    "span_id": "e342abb1214ca183",
-                                    "sampled": True,
-                                    "attributes": {
-                                        "link_bool_key": {
-                                            "type": "boolean",
-                                            "value": True,
-                                        },
-                                    },
-                                },
-                            ],
-                            "attributes": {
-                                "browser.name": {"type": "string", "value": "Chrome"},
-                                "sentry.description": {
-                                    "type": "string",
-                                    "value": "https://example.com/p/blah.js",
-                                },
-                                "sentry.op": {
-                                    "type": "string",
-                                    "value": "resource.script",
-                                },
-                                "sentry.exclusive_time": {
-                                    "type": "double",
-                                    "value": 161.0,
-                                },
-                                # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
-                                "sentry.segment.id": {
-                                    "type": "string",
-                                    "value": "b0429c44b67a3eb2",
-                                },
-                            },
-                        },
-                    ]
-                }
             ),
         )
     )
@@ -782,7 +650,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = spans_consumer.get_spans(timeout=10.0, n=8)
+    spans = spans_consumer.get_spans(timeout=10.0, n=5)
 
     for span in spans:
         span.pop("received", None)
@@ -791,88 +659,6 @@ def test_span_ingestion(
     spans.sort(key=lambda msg: msg["span_id"])
 
     assert spans == [
-        {
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "downsampled_retention_days": 90,
-            "attributes": {
-                "browser.name": {"type": "string", "value": "Chrome"},
-                "client.address": {"type": "string", "value": "127.0.0.1"},
-                "sentry.browser.name": {"type": "string", "value": "Chrome"},
-                "sentry.category": {"type": "string", "value": "db"},
-                "sentry.description": {"type": "string", "value": "my 1st OTel span"},
-                "sentry.exclusive_time": {"type": "double", "value": 500.0},
-                "sentry.is_segment": {"type": "boolean", "value": True},
-                "sentry.name": {"type": "string", "value": "my 1st OTel span"},
-                "sentry.op": {"type": "string", "value": "default"},
-                "sentry.segment.id": {"type": "string", "value": "a342abb1214ca181"},
-                "sentry.status": {"type": "string", "value": "unknown"},
-                "user_agent.original": {
-                    "type": "string",
-                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
-                },
-            },
-            "end_timestamp": end.timestamp(),
-            "is_remote": False,
-            "links": [
-                {
-                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
-                    "span_id": "e342abb1214ca183",
-                    "sampled": False,
-                    "attributes": {
-                        "link_double_key": {"type": "double", "value": 1.23}
-                    },
-                }
-            ],
-            "name": "my 1st OTel span",
-            "span_id": "a342abb1214ca181",
-            "start_timestamp": start.timestamp(),
-            "status": "error",
-            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-        },
-        {
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "downsampled_retention_days": 90,
-            "attributes": {
-                "browser.name": {"type": "string", "value": "Chrome"},
-                "client.address": {"type": "string", "value": "127.0.0.1"},
-                "sentry.browser.name": {"type": "string", "value": "Chrome"},
-                "sentry.category": {"type": "string", "value": "db"},
-                "sentry.description": {"type": "string", "value": "my 1st V2 span"},
-                "sentry.exclusive_time": {"type": "double", "value": 500.0},
-                "sentry.is_segment": {"type": "boolean", "value": True},
-                "sentry.name": {"type": "string", "value": "my 1st V2 span"},
-                "sentry.op": {"type": "string", "value": "default"},
-                "sentry.segment.id": {"type": "string", "value": "a342abb1214ca182"},
-                "sentry.status": {"type": "string", "value": "unknown"},
-                "user_agent.original": {
-                    "type": "string",
-                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
-                },
-            },
-            "end_timestamp": end.timestamp(),
-            "is_remote": False,
-            "links": [
-                {
-                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
-                    "span_id": "e342abb1214ca183",
-                    "sampled": False,
-                    "attributes": {
-                        "link_double_key": {"type": "double", "value": 1.23}
-                    },
-                }
-            ],
-            "name": "my 1st V2 span",
-            "span_id": "a342abb1214ca182",
-            "start_timestamp": start.timestamp(),
-            "status": "error",
-            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-        },
         {
             "organization_id": 1,
             "project_id": 42,
@@ -894,7 +680,6 @@ def test_span_ingestion(
                 "sentry.file_extension": {"type": "string", "value": "js"},
                 "sentry.group": {"type": "string", "value": "8a97a9e43588e2bd"},
                 "sentry.is_segment": {"type": "boolean", "value": True},
-                "sentry.name": {"type": "string", "value": "resource.script"},
                 "sentry.normalized_description": {
                     "type": "string",
                     "value": "https://example.com/*/blah.js",
@@ -932,62 +717,12 @@ def test_span_ingestion(
                 "browser.name": {"type": "string", "value": "Chrome"},
                 "client.address": {"type": "string", "value": "127.0.0.1"},
                 "sentry.browser.name": {"type": "string", "value": "Chrome"},
-                "sentry.category": {"type": "string", "value": "resource"},
-                "sentry.description": {
-                    "type": "string",
-                    "value": "https://example.com/p/blah.js",
-                },
-                "sentry.domain": {"type": "string", "value": "example.com"},
-                "sentry.exclusive_time": {"type": "double", "value": 161.0},
-                "sentry.file_extension": {"type": "string", "value": "js"},
-                "sentry.group": {"type": "string", "value": "8a97a9e43588e2bd"},
-                "sentry.is_segment": {"type": "boolean", "value": True},
-                "sentry.name": {"type": "string", "value": "resource.script"},
-                "sentry.normalized_description": {
-                    "type": "string",
-                    "value": "https://example.com/*/blah.js",
-                },
-                "sentry.op": {"type": "string", "value": "resource.script"},
-                "sentry.segment.id": {"type": "string", "value": "b0429c44b67a3eb2"},
-                "sentry.status": {"type": "string", "value": "ok"},
-                "user_agent.original": {
-                    "type": "string",
-                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
-                },
-            },
-            "end_timestamp": end.timestamp() + 1,
-            "is_remote": False,
-            "links": [
-                {
-                    "trace_id": "99143b0763095bd9c9955e8175d1fb25",
-                    "span_id": "e342abb1214ca183",
-                    "sampled": True,
-                    "attributes": {"link_bool_key": {"type": "boolean", "value": True}},
-                }
-            ],
-            "name": "resource.script",
-            "span_id": "b0429c44b67a3eb2",
-            "start_timestamp": start.timestamp(),
-            "status": "ok",
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        },
-        {
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "downsampled_retention_days": 90,
-            "attributes": {
-                "browser.name": {"type": "string", "value": "Chrome"},
-                "client.address": {"type": "string", "value": "127.0.0.1"},
-                "sentry.browser.name": {"type": "string", "value": "Chrome"},
                 "sentry.description": {
                     "type": "string",
                     "value": 'test \\" with \\" escaped \\" chars',
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
                 "sentry.is_segment": {"type": "boolean", "value": False},
-                "sentry.name": {"type": "string", "value": "default"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
                 "user_agent.original": {
@@ -1016,10 +751,9 @@ def test_span_ingestion(
                 "sentry.description": {"type": "string", "value": "my 2nd OTel span"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.is_segment": {"type": "boolean", "value": True},
-                "sentry.name": {"type": "string", "value": "my 2nd OTel span"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
-                "sentry.status": {"type": "string", "value": "unknown"},
+                "sentry.status": {"type": "string", "value": "ok"},
                 "user_agent.original": {
                     "type": "string",
                     "value": "python-requests/2.32.4",
@@ -1039,7 +773,7 @@ def test_span_ingestion(
             "name": "my 2nd OTel span",
             "span_id": "d342abb1214ca182",
             "start_timestamp": start.timestamp(),
-            "status": "error",
+            "status": "ok",
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
         {
@@ -1054,7 +788,6 @@ def test_span_ingestion(
                 "sentry.browser.name": {"type": "string", "value": "Chrome"},
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
                 "sentry.is_segment": {"type": "boolean", "value": False},
-                "sentry.name": {"type": "string", "value": "default"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
                 "user_agent.original": {
@@ -1086,9 +819,8 @@ def test_span_ingestion(
                     "value": "my 3rd protobuf OTel span",
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
-                "sentry.name": {"type": "string", "value": "my 3rd protobuf OTel span"},
                 "sentry.op": {"type": "string", "value": "default"},
-                "sentry.status": {"type": "string", "value": "unknown"},
+                "sentry.status": {"type": "string", "value": "ok"},
                 "ui.component_name": {"type": "string", "value": "MyComponent"},
                 "user_agent.original": {
                     "type": "string",
@@ -1112,7 +844,7 @@ def test_span_ingestion(
             "parent_span_id": "f0f0f0abcdef1234",
             "span_id": "f0b809703e783d00",
             "start_timestamp": start.timestamp(),
-            "status": "error",
+            "status": "ok",
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
     ]
@@ -1139,7 +871,7 @@ def test_span_ingestion(
             "tags": {"decision": "keep", "target_project_id": "42"},
             "timestamp": expected_timestamp,
             "type": "c",
-            "value": 4.0,
+            "value": 2.0,
         },
         {
             "name": "c:spans/count_per_root_project@none",
@@ -1150,7 +882,7 @@ def test_span_ingestion(
             "tags": {"decision": "keep", "target_project_id": "42"},
             "timestamp": expected_timestamp + 1,
             "type": "c",
-            "value": 4.0,
+            "value": 3.0,
         },
         {
             "name": "c:spans/usage@none",
@@ -1160,7 +892,7 @@ def test_span_ingestion(
             "tags": {},
             "timestamp": expected_timestamp,
             "type": "c",
-            "value": 4.0,
+            "value": 2.0,
             "received_at": time_after(now_timestamp),
         },
         {
@@ -1171,7 +903,7 @@ def test_span_ingestion(
             "tags": {},
             "timestamp": expected_timestamp + 1,
             "type": "c",
-            "value": 4.0,
+            "value": 3.0,
             "received_at": time_after(now_timestamp),
         },
     ]
@@ -1181,112 +913,6 @@ def test_span_ingestion(
     assert len(span_metrics) == len(expected_span_metrics)
     for actual, expected in zip(span_metrics, expected_span_metrics):
         assert actual == expected
-
-    metrics_consumer.assert_empty()
-
-
-def test_standalone_span_ingestion_metric_extraction(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    metrics_consumer,
-):
-    relay = relay_with_processing(
-        options={
-            "aggregator": {
-                "bucket_interval": 1,
-                "initial_delay": 0,
-                "max_secs_in_past": 2**64 - 1,
-                "shift_key": "none",
-            }
-        }
-    )
-    metrics_consumer = metrics_consumer()
-
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
-
-    duration = timedelta(milliseconds=500)
-    now = datetime.now(timezone.utc)
-    end = now - timedelta(seconds=1)
-    start = end - duration
-
-    envelope = Envelope()
-
-    envelope.add_item(
-        Item(
-            type="span",
-            headers={"metrics_extracted": True, "item_count": 1},
-            content_type="application/vnd.sentry.items.span.v2+json",
-            payload=PayloadRef(
-                json={
-                    "items": [
-                        {
-                            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-                            "span_id": "a342abb1214ca182",
-                            "name": "SELECT from users",
-                            "start_timestamp": start.timestamp(),
-                            "end_timestamp": end.timestamp(),
-                            "attributes": {
-                                "db.system": {
-                                    "type": "string",
-                                    "value": "mysql",
-                                },
-                            },
-                        },
-                    ]
-                }
-            ),
-        )
-    )
-
-    relay.send_envelope(
-        project_id,
-        envelope,
-    )
-
-    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
-
-    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
-
-    for metric in metrics:
-        try:
-            metric["value"].sort()
-        except AttributeError:
-            pass
-
-    expected_timestamp = int(end.timestamp())
-    expected_received = time_after(int(now.timestamp()))
-
-    expected_metrics = [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": expected_received,
-            "retention_days": 90,
-            "tags": {"decision": "keep", "target_project_id": "42"},
-            "timestamp": expected_timestamp,
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": expected_received,
-            "retention_days": 90,
-            "tags": {},
-            "timestamp": expected_timestamp,
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
-
-    assert metrics == expected_metrics
 
     metrics_consumer.assert_empty()
 
@@ -1314,12 +940,7 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
         json=make_otel_span(start, end),
     )
 
-    outcomes = []
-    for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
-    outcomes.sort(key=lambda x: x["category"])
-
-    assert outcomes == [
+    assert mini_sentry.get_outcomes(2) == [
         {
             "org_id": 1,
             "key_id": 123,
@@ -1348,78 +969,6 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
 
     # No envelopes were received:
     assert mini_sentry.captured_events.empty()
-
-
-def test_span_reject_invalid_timestamps(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-):
-    spans_consumer = spans_consumer()
-
-    relay = relay_with_processing(
-        options={
-            "aggregator": {
-                "max_secs_in_past": 10,
-                "max_secs_in_future": 10,
-            }
-        }
-    )
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
-
-    duration = timedelta(milliseconds=500)
-    yesterday_delta = timedelta(days=1)
-
-    end_yesterday = datetime.now(timezone.utc) - yesterday_delta
-    start_yesterday = end_yesterday - duration
-
-    end_today = datetime.now(timezone.utc) - timedelta(seconds=1)
-    start_today = end_today - duration
-
-    envelope = Envelope()
-    envelope.add_item(
-        Item(
-            type="otel_span",
-            payload=PayloadRef(
-                bytes=json.dumps(
-                    {
-                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
-                        "spanId": "a342abb1214ca181",
-                        "name": "span with invalid timestamps",
-                        "startTimeUnixNano": str(
-                            int(start_yesterday.timestamp() * 1e9)
-                        ),
-                        "endTimeUnixNano": str(int(end_yesterday.timestamp() * 1e9)),
-                    },
-                ).encode()
-            ),
-        )
-    )
-    envelope.add_item(
-        Item(
-            type="otel_span",
-            payload=PayloadRef(
-                bytes=json.dumps(
-                    {
-                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
-                        "spanId": "a342abb1214ca181",
-                        "name": "span with valid timestamps",
-                        "startTimeUnixNano": str(int(start_today.timestamp() * 1e9)),
-                        "endTimeUnixNano": str(int(end_today.timestamp() * 1e9)),
-                    },
-                ).encode()
-            ),
-        )
-    )
-    relay.send_envelope(project_id, envelope)
-
-    spans = spans_consumer.get_spans(timeout=10.0, n=1)
-    assert len(spans) == 1
-    assert spans[0]["name"] == "span with valid timestamps"
 
 
 def test_span_ingestion_with_performance_scores(
@@ -1594,7 +1143,7 @@ def test_rate_limit_indexed_consistent(
     project_config["config"]["quotas"] = [
         {
             "categories": ["span_indexed"],
-            "limit": 6,
+            "limit": 5,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "indexed_exceeded",
@@ -1617,19 +1166,19 @@ def test_rate_limit_indexed_consistent(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(n=6, timeout=10)
-    assert len(spans) == 6
-    assert summarize_outcomes() == {(16, 0): 6}  # SpanIndexed, Accepted
+    spans = spans_consumer.get_spans(n=3, timeout=10)
+    assert len(spans) == 3
+    assert summarize_outcomes() == {(16, 0): 3}  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    assert summarize_outcomes() == {(16, 2): 6}  # SpanIndexed, RateLimited
+    assert summarize_outcomes() == {(16, 2): 3}  # SpanIndexed, RateLimited
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("category", ["span", "span_indexed"])
+@pytest.mark.parametrize("category", ["span"])
 def test_rate_limit_consistent_extracted(
     category,
     mini_sentry,
@@ -1742,7 +1291,7 @@ def test_rate_limit_spans_in_envelope(
     project_config["config"]["quotas"] = [
         {
             "categories": ["span"],
-            "limit": 3,
+            "limit": 2,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "total_exceeded",
@@ -1766,7 +1315,7 @@ def test_rate_limit_spans_in_envelope(
 
     relay.send_envelope(project_id, envelope)
 
-    assert summarize_outcomes() == {(12, 2): 6, (16, 2): 6}
+    assert summarize_outcomes() == {(12, 2): 3, (16, 2): 3}
 
     # We emit transaction metrics from spans for legacy reasons. These are not rate limited.
     # (could be a bug)
@@ -2045,14 +1594,14 @@ def test_dynamic_sampling(
         return counter
 
     if sample_rate == 1.0:
-        spans = spans_consumer.get_spans(timeout=10, n=6)
-        assert len(spans) == 6
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=6)
-        assert summarize_outcomes(outcomes) == {(16, 0): 6}  # SpanIndexed, Accepted
+        spans = spans_consumer.get_spans(timeout=10, n=3)
+        assert len(spans) == 3
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=3)
+        assert summarize_outcomes(outcomes) == {(16, 0): 3}  # SpanIndexed, Accepted
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
         assert summarize_outcomes(outcomes) == {
-            (16, 1): 6,  # SpanIndexed, Filtered
+            (16, 1): 3,  # SpanIndexed, Filtered
         }
         assert {o["reason"] for o in outcomes} == {
             "Sampled:3000",
@@ -2138,77 +1687,3 @@ def test_scrubs_ip_addresses(
         assert parent_span["attributes"]["sentry.user.ip"]["value"] == "127.0.0.1"
 
     spans_consumer.assert_empty()
-
-
-def test_spans_v2_multiple_containers_not_allowed(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    outcomes_consumer,
-):
-    spans_consumer = spans_consumer()
-    outcomes_consumer = outcomes_consumer()
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
-
-    relay = relay_with_processing(options=TEST_CONFIG)
-    start = datetime.now(timezone.utc)
-    envelope = Envelope()
-
-    payload = {
-        "start_timestamp": start.timestamp(),
-        "end_timestamp": start.timestamp() + 0.500,
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-        "span_id": "eee19b7ec3c1b175",
-        "name": "some op",
-    }
-    envelope.add_item(
-        Item(
-            type="span",
-            payload=PayloadRef(json={"items": [payload]}),
-            content_type="application/vnd.sentry.items.span.v2+json",
-            headers={"item_count": 1},
-        )
-    )
-    envelope.add_item(
-        Item(
-            type="span",
-            payload=PayloadRef(json={"items": [payload, payload]}),
-            content_type="application/vnd.sentry.items.span.v2+json",
-            headers={"item_count": 2},
-        )
-    )
-
-    relay.send_envelope(project_id, envelope)
-
-    spans_consumer.assert_empty()
-
-    outcomes = outcomes_consumer.get_outcomes()
-
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
-    assert outcomes == [
-        {
-            "category": DataCategory.SPAN.value,
-            "timestamp": time_within_delta(),
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 3,  # Invalid
-            "project_id": 42,
-            "quantity": 3,
-            "reason": "duplicate_item",
-        },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "timestamp": time_within_delta(),
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 3,  # Invalid
-            "project_id": 42,
-            "quantity": 3,
-            "reason": "duplicate_item",
-        },
-    ]

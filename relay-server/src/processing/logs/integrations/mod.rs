@@ -1,12 +1,12 @@
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_quotas::DataCategory;
-use zstd::zstd_safe::WriteBuf;
 
 use crate::envelope::{ContainerItems, Item, WithHeader};
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
 
 mod otel;
+mod vercel;
 
 /// Expands a list of [`Integration`] items into `result`.
 ///
@@ -41,10 +41,10 @@ pub fn expand_into(
         };
 
         let payload = item.payload();
-        let payload = payload.as_slice();
 
         let result = match integration {
-            LogsIntegration::OtelV1 { format } => otel::expand(format, payload, produce),
+            LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
+            LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
         };
 
         match result {

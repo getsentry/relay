@@ -1,15 +1,14 @@
 use std::num::NonZeroUsize;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 use lru::LruCache;
-use once_cell::sync::Lazy;
 use regex::bytes::Regex;
 
 use crate::core::{RelayBuf, RelayStr};
 
 /// LRU cache for [`Regex`]s in relation to the provided string pattern.
-static CODEOWNERS_CACHE: Lazy<Mutex<LruCache<String, Regex>>> =
-    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
+static CODEOWNERS_CACHE: LazyLock<Mutex<LruCache<String, Regex>>> =
+    LazyLock::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
 
 fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
     let mut regex = String::new();

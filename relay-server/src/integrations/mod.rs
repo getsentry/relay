@@ -42,6 +42,8 @@ define_integrations!(
     "application/vnd.sentry.integration.otel.logs+protobuf" => Integration::Logs(LogsIntegration::OtelV1 { format: OtelFormat::Protobuf }),
     "application/vnd.sentry.integration.otel.spans+json" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Json }),
     "application/vnd.sentry.integration.otel.spans+protobuf" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Protobuf }),
+    "application/vnd.sentry.integration.vercel.logs+json" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::Json }),
+    "application/vnd.sentry.integration.vercel.logs+ndjson" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::NdJson }),
 );
 
 /// An exhaustive list of all integrations supported by Relay.
@@ -74,6 +76,10 @@ pub enum LogsIntegration {
     ///
     /// Supports OTeL's [`LogsData`](opentelemetry_proto::tonic::logs::v1::LogsData).
     OtelV1 { format: OtelFormat },
+    /// The Vercel Log Drain integration.
+    ///
+    /// Supports the [`relay_ourlogs::VercelLog`] format.
+    VercelDrainLog { format: VercelLogDrainFormat },
 }
 
 /// All span integrations supported by Relay.
@@ -92,4 +98,12 @@ pub enum OtelFormat {
     Protobuf,
     /// OTeL data in a JSON container.
     Json,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum VercelLogDrainFormat {
+    // Vercel Log Drain data in a JSON array payload
+    Json,
+    // Vercel Log Drain data in a newline delimited JSON payload
+    NdJson,
 }

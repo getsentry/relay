@@ -238,6 +238,17 @@ impl<T> Annotated<T> {
     }
 }
 
+impl<T> Annotated<Option<T>> {
+    /// Transposes an `Annotated` of [`Option`] into a [`Option`] of `Annotated`.
+    pub fn transpose(self) -> Option<Annotated<T>> {
+        match self {
+            Annotated(Some(Some(value)), meta) => Some(Annotated(Some(value), meta)),
+            Annotated(Some(None), _) => None,
+            Annotated(None, meta) => Some(Annotated(None, meta)),
+        }
+    }
+}
+
 impl<T> Annotated<T>
 where
     T: AsRef<str>,
@@ -327,7 +338,7 @@ where
 
         if let Some(value) = self.value() {
             // NOTE: This is a hack and known to be instable use of serde.
-            use serde::__private::ser::FlatMapSerializer;
+            use serde::__private228::ser::FlatMapSerializer;
             IntoValue::serialize_payload(
                 value,
                 FlatMapSerializer(&mut map_ser),

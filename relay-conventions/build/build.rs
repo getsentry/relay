@@ -1,5 +1,5 @@
+mod attributes;
 mod name;
-mod raw;
 
 use std::env;
 use std::fs::File;
@@ -13,7 +13,21 @@ const NAME_DIR: &str = "sentry-conventions/model/name";
 
 fn main() {
     let crate_dir: PathBuf = env::var("CARGO_MANIFEST_DIR").unwrap().into();
-    let mut map = phf_codegen::Map::new();
+
+    write_attribute_rs(&crate_dir);
+    write_name_rs(&crate_dir);
+
+    // Ideally this would only run when compiling for tests, but #[cfg(test)] doesn't seem to work
+    // here.
+    write_test_name_rs();
+
+    println!("cargo::rerun-if-changed=.");
+}
+
+fn write_attribute_rs(crate_dir: &Path) {
+    use attributes::{Attribute, RawNode, format_attribute_info, parse_segments};
+
+    let mut root = RawNode::default();
 
     for file in WalkDir::new(crate_dir.join(ATTRIBUTE_DIR)) {
         let file = file.unwrap();
@@ -22,29 +36,30 @@ fn main() {
             && ext.to_str() == Some("json")
         {
             let contents = std::fs::read_to_string(file.path()).unwrap();
-            let attr: raw::Attribute = serde_json::from_str(&contents).unwrap();
-            let (key, value) = raw::format_attribute_info(attr);
-            map.entry(key, value);
+            let attr: Attribute = serde_json::from_str(&contents).unwrap();
+            let (key, value) = format_attribute_info(attr);
+
+            let mut node = &mut root;
+            let mut parts = parse_segments(&key).peekable();
+            while let Some(part) = parts.next() {
+                node = node
+                    .children
+                    .entry(part.to_owned())
+                    .or_insert_with(RawNode::default);
+                if parts.peek().is_none() {
+                    node.info = Some(value);
+                    break;
+                }
+            }
         }
     }
 
     let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_map.rs");
     let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
 
-    writeln!(
-        &mut out_file,
-        "static ATTRIBUTES: phf::Map<&'static str, AttributeInfo> = {};",
-        map.build()
-    )
-    .unwrap();
-
-    write_name_rs(&crate_dir);
-
-    // Ideally this would only run when compiling for tests, but #[cfg(test)] doesn't seem to work
-    // here.
-    write_test_name_rs();
-
-    println!("cargo::rerun-if-changed=.");
+    write!(&mut out_file, "static ATTRIBUTES: Node<AttributeInfo> = ",).unwrap();
+    root.build(&mut out_file).unwrap();
+    write!(&mut out_file, ";").unwrap();
 }
 
 fn write_name_rs(crate_dir: &Path) {

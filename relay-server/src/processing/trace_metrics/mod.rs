@@ -9,7 +9,7 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::Envelope;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
 use crate::envelope::{ContainerWriteError, ItemContainer};
-use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Rejected};
+use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 use smallvec::smallvec;
@@ -217,7 +217,7 @@ pub struct SerializedTraceMetrics {
 }
 
 impl Counted for SerializedTraceMetrics {
-    fn quantities(&self) -> smallvec::SmallVec<[(DataCategory, usize); 1]> {
+    fn quantities(&self) -> Quantities {
         smallvec![(DataCategory::TraceMetric, self.metrics.len())]
     }
 }
@@ -240,7 +240,7 @@ pub struct ExpandedTraceMetrics {
 }
 
 impl Counted for ExpandedTraceMetrics {
-    fn quantities(&self) -> smallvec::SmallVec<[(DataCategory, usize); 1]> {
+    fn quantities(&self) -> Quantities {
         smallvec![(DataCategory::TraceMetric, self.metrics.len())]
     }
 }

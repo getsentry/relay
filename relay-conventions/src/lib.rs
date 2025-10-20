@@ -52,20 +52,48 @@ pub struct AttributeInfo {
 
 /// Returns information about an attribute, as defined in `sentry-conventions`.
 pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
-    ATTRIBUTES.get(key)
+    ATTRIBUTES.find(key)
+}
+
+/// Special path segment in attribute keys that matches any value.
+const PLACEHOLDER_SEGMENT: &str = "<key>";
+
+struct Node<T: 'static> {
+    info: Option<T>,
+    children: phf::Map<&'static str, Node<T>>,
+}
+
+impl<T> Node<T> {
+    fn find(&self, key: &str) -> Option<&T> {
+        if key.is_empty() {
+            return self.info.as_ref();
+        }
+        let (prefix, suffix) = key.split_once('.').unwrap_or((key, ""));
+        for candidate in [prefix, PLACEHOLDER_SEGMENT] {
+            if let Some(info) = self
+                .children
+                .get(candidate)
+                .and_then(|child| child.find(suffix))
+            {
+                return Some(info);
+            }
+        }
+        None
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
+    use phf::phf_map;
     use relay_protocol::{Getter, Val};
 
     use super::*;
 
     #[test]
     fn test_http_response_content_length() {
-        let info = ATTRIBUTES.get("http.response_content_length").unwrap();
+        let info = attribute_info("http.response_content_length").unwrap();
 
         insta::assert_debug_snapshot!(info, @r###"
         AttributeInfo {
@@ -79,6 +107,46 @@ mod tests {
             ],
         }
         "###);
+    }
+
+    #[test]
+    fn test_url_path_parameter() {
+        // See https://github.com/getsentry/sentry-conventions/blob/d80504a40ba3a0a23eb746e2608425cf8d8e68bf/model/attributes/url/url__path__parameter__%5Bkey%5D.json.
+        let info = attribute_info("url.path.parameter.'id=123'").unwrap();
+
+        insta::assert_debug_snapshot!(info, @r###"
+        AttributeInfo {
+            write_behavior: CurrentName,
+            pii: Maybe,
+            aliases: [
+                "params.<key>",
+            ],
+        }
+        "###);
+    }
+
+    const ROOT: Node<u8> = Node {
+        info: None,
+        children: phf_map! {
+            "foo" => Node {
+                info: Some(1),
+                children: phf_map!{}
+            },
+            "<key>" =>  Node {
+                info: None,
+                children: phf_map!{
+                    "bar" => Node {
+                        info: Some(2),
+                        children: phf_map! {}
+                    }
+                }
+            }
+        },
+    };
+
+    #[test]
+    fn test_hypothetical() {
+        assert_eq!(ROOT.find("foo.bar"), Some(&2));
     }
 
     struct GetterMap<'a>(HashMap<&'a str, Val<'a>>);

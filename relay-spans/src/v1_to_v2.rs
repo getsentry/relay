@@ -6,6 +6,8 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 
+use crate::name::name_for_attributes;
+
 /// Converts a legacy span to the new Span V2 schema.
 ///
 /// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
@@ -99,14 +101,16 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         }
     }
 
+    let name = attributes
+        .remove("sentry.name")
+        .and_then(|name| name.map_value(|attr| attr.into_string()).transpose())
+        .unwrap_or_else(|| name_for_attributes(attributes).into());
+
     SpanV2 {
         trace_id,
         parent_span_id,
         span_id,
-        name: attributes
-            .get_value("sentry.name")
-            .and_then(|v| Some(v.as_str()?.to_owned()))
-            .into(),
+        name,
         status: Annotated::map_value(status, span_v1_status_to_span_v2_status)
             .or_else(|| SpanV2Status::Ok.into()),
         is_remote: is_remote.or_else(|| false.into()),
@@ -287,11 +291,12 @@ mod tests {
         let span_v2 = span_v1_to_span_v2(span_v1);
 
         let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r#"
         {
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
           "parent_span_id": "fa90fdead5f74051",
           "span_id": "fa90fdead5f74052",
+          "name": "operation",
           "status": "ok",
           "is_remote": true,
           "kind": "server",
@@ -410,7 +415,7 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]

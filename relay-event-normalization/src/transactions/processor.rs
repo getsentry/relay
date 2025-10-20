@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::events::EventType;
 use relay_event_schema::processor::{
@@ -348,11 +347,7 @@ pub(crate) fn scrub_identifiers(string: &mut Annotated<String>) {
     scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX, "*");
 }
 
-fn scrub_identifiers_with_regex(
-    string: &mut Annotated<String>,
-    pattern: &Lazy<Regex>,
-    replacer: &str,
-) {
+fn scrub_identifiers_with_regex(string: &mut Annotated<String>, pattern: &Regex, replacer: &str) {
     let capture_names = pattern.capture_names().flatten().collect::<Vec<_>>();
 
     let _ = processor::apply(string, |trans, meta| {
