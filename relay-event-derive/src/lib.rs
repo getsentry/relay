@@ -65,7 +65,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                     &__state
                 )?;
 
-                crate::processor::ProcessValue::process_value(
+                ::relay_event_schema::processor::ProcessValue::process_value(
                     #ident,
                     __meta,
                     __processor,
@@ -103,7 +103,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
             let field_attrs_tokens = field_attrs.as_tokens(&type_attrs, None);
 
             (quote! {
-                static #field_attrs_name: crate::processor::FieldAttrs = #field_attrs_tokens;
+                static #field_attrs_name: ::relay_event_schema::processor::FieldAttrs = #field_attrs_tokens;
             })
             .to_tokens(&mut body);
 
@@ -124,7 +124,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                     __state.enter_index(
                         #index,
                         Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)),
-                        crate::processor::ValueType::for_field(#ident),
+                        ::relay_event_schema::processor::ValueType::for_field(#ident),
                     )
                 }
             } else {
@@ -132,7 +132,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                     __state.enter_borrowed(
                         #field_name,
                         Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)),
-                        crate::processor::ValueType::for_field(#ident),
+                        ::relay_event_schema::processor::ValueType::for_field(#ident),
                     )
                 }
             };
@@ -144,7 +144,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                 .to_tokens(&mut body);
             } else if field_attrs.flatten {
                 (quote! {
-                    crate::processor::ProcessValue::process_child_values(
+                    ::relay_event_schema::processor::ProcessValue::process_child_values(
                         #ident,
                         __processor,
                        &#enter_state
@@ -153,7 +153,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                 .to_tokens(&mut body);
             } else {
                 (quote! {
-                    crate::processor::process_value(#ident, __processor, &#enter_state)?;
+                    ::relay_event_schema::processor::process_value(#ident, __processor, &#enter_state)?;
                 })
                 .to_tokens(&mut body);
             }
@@ -175,22 +175,22 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                 // directly, but we do actually use the macro
                 #[allow(deprecated)]
                 {
-                    enumset::enum_set!( #(crate::processor::ValueType::#value_names)|* )
+                    enumset::enum_set!( #(::relay_event_schema::processor::ValueType::#value_names)|* )
                 }
             }
         } else if is_newtype(variant) {
             let bi = &variant.bindings()[0];
             let ident = &bi.binding;
-            quote!(crate::processor::ProcessValue::value_type(#ident))
+            quote!(::relay_event_schema::processor::ProcessValue::value_type(#ident))
         } else {
-            quote!(enumset::EnumSet::empty())
+            quote!(::relay_event_schema::processor::EnumSet::empty())
         }
     });
 
     Ok(s.gen_impl(quote! {
         #[automatically_derived]
-        gen impl crate::processor::ProcessValue for @Self {
-            fn value_type(&self) -> enumset::EnumSet<crate::processor::ValueType> {
+        gen impl ::relay_event_schema::processor::ProcessValue for @Self {
+            fn value_type(&self) -> ::relay_event_schema::processor::EnumSet<::relay_event_schema::processor::ValueType> {
                 match *self {
                     #value_type_arms
                 }
@@ -200,10 +200,10 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                 &mut self,
                 __meta: &mut relay_protocol::Meta,
                 __processor: &mut P,
-                __state: &crate::processor::ProcessingState<'_>,
-            ) -> crate::processor::ProcessingResult
+                __state: &::relay_event_schema::processor::ProcessingState<'_>,
+            ) -> ::relay_event_schema::processor::ProcessingResult
             where
-                P: crate::processor::Processor,
+                P: ::relay_event_schema::processor::Processor,
             {
                 #process_func_call_tokens;
                 match *self {
@@ -217,10 +217,10 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
             fn process_child_values<P>(
                 &mut self,
                 __processor: &mut P,
-                __state: &crate::processor::ProcessingState<'_>
-            ) -> crate::processor::ProcessingResult
+                __state: &::relay_event_schema::processor::ProcessingState<'_>
+            ) -> ::relay_event_schema::processor::ProcessingResult
             where
-                P: crate::processor::Processor,
+                P: ::relay_event_schema::processor::Processor,
             {
                 match *self {
                     #process_child_values_arms
@@ -311,16 +311,16 @@ enum Pii {
 impl Pii {
     fn as_tokens(&self) -> TokenStream {
         match self {
-            Pii::True => quote!(crate::processor::PiiMode::Static(
-                crate::processor::Pii::True
+            Pii::True => quote!(::relay_event_schema::processor::PiiMode::Static(
+                ::relay_event_schema::processor::Pii::True
             )),
-            Pii::False => quote!(crate::processor::PiiMode::Static(
-                crate::processor::Pii::False
+            Pii::False => quote!(::relay_event_schema::processor::PiiMode::Static(
+                ::relay_event_schema::processor::Pii::False
             )),
-            Pii::Maybe => quote!(crate::processor::PiiMode::Static(
-                crate::processor::Pii::Maybe
+            Pii::Maybe => quote!(::relay_event_schema::processor::PiiMode::Static(
+                ::relay_event_schema::processor::Pii::Maybe
             )),
-            Pii::Dynamic(fun) => quote!(crate::processor::PiiMode::Dynamic(#fun)),
+            Pii::Dynamic(fun) => quote!(::relay_event_schema::processor::PiiMode::Dynamic(#fun)),
         }
     }
 }
@@ -386,8 +386,8 @@ impl FieldAttrs {
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.pii)
         } else {
-            quote!(crate::processor::PiiMode::Static(
-                crate::processor::Pii::False
+            quote!(::relay_event_schema::processor::PiiMode::Static(
+                ::relay_event_schema::processor::Pii::False
             ))
         };
 
@@ -442,7 +442,7 @@ impl FieldAttrs {
         };
 
         quote!({
-            crate::processor::FieldAttrs {
+            ::relay_event_schema::processor::FieldAttrs {
                 name: Some(#field_name),
                 required: #required,
                 nonempty: #nonempty,
@@ -588,7 +588,7 @@ fn parse_character_set(ident: &Ident, value: &str) -> TokenStream {
     let is_negative = ident == "deny_chars";
 
     quote! {
-        crate::processor::CharacterSet {
+        ::relay_event_schema::processor::CharacterSet {
             char_is_valid: |c: char| -> bool {
                 match c {
                     #((#ranges) => !#is_negative,)*

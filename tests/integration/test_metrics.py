@@ -1693,7 +1693,7 @@ def test_histogram_outliers(mini_sentry, relay):
 
     tags = {}
     for _ in range(3):
-        envelope = mini_sentry.captured_events.get()
+        envelope = mini_sentry.captured_events.get(timeout=5)
         for item in envelope:
             if item.type == "metric_buckets":
                 buckets = item.payload.json

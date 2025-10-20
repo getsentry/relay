@@ -153,7 +153,7 @@ fn attributes(
     result.insert(
         "sentry.metric_name".to_owned(),
         AnyValue {
-            value: Some(any_value::Value::StringValue(metric_name)),
+            value: Some(any_value::Value::StringValue(metric_name.clone())),
         },
     );
 
@@ -161,6 +161,20 @@ fn attributes(
         "sentry.metric_type".to_owned(),
         AnyValue {
             value: Some(any_value::Value::StringValue(metric_type.to_string())),
+        },
+    );
+
+    // Add key names matching metric name and type to workaround current co-occuring attributes limitations.
+    result.insert(
+        format!("sentry._internal.cooccuring.name.{metric_name}"),
+        AnyValue {
+            value: Some(any_value::Value::BoolValue(true)),
+        },
+    );
+    result.insert(
+        format!("sentry._internal.cooccuring.type.{metric_type}"),
+        AnyValue {
+            value: Some(any_value::Value::BoolValue(true)),
         },
     );
 

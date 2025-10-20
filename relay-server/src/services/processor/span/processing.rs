@@ -581,7 +581,7 @@ fn normalize(
 
     process_value(
         annotated_span,
-        &mut SchemaProcessor,
+        &mut SchemaProcessor::new(),
         ProcessingState::root(),
     )?;
 

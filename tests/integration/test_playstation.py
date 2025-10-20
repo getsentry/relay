@@ -279,7 +279,7 @@ def test_playstation_ignore_large_fields(
         PROJECT_ID, playstation_dump, video_content
     )
     assert response.ok
-    assert (mini_sentry.captured_outcomes.get()["outcomes"]) == [
+    assert (mini_sentry.captured_outcomes.get(timeout=5)["outcomes"]) == [
         {
             "timestamp": mock.ANY,
             "project_id": 42,
@@ -290,7 +290,8 @@ def test_playstation_ignore_large_fields(
         }
     ]
     assert [
-        item.headers["filename"] for item in mini_sentry.captured_events.get().items
+        item.headers["filename"]
+        for item in mini_sentry.captured_events.get(timeout=5).items
     ] == ["playstation.prosperodmp"]
 
 

@@ -226,7 +226,7 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
 
     if !is_renormalize {
         // Check for required and non-empty values
-        let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
+        let _ = schema::SchemaProcessor::new().process_event(event, meta, ProcessingState::root());
 
         normalize(event, meta, config);
     }
