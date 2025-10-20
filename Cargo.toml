@@ -205,8 +205,8 @@ sysinfo = "0.35.1"
 tempfile = "3.23.0"
 thiserror = "2.0.17"
 tikv-jemallocator = "0.6.0"
-# tokio = { git = "https://github.com/dav1dde/tokio", rev = "b5d827e709e097fb5a9a391e2327880fce2a7759", default-features = false }
-tokio = { version = "1.48.0", default-features = false }
+tokio = { git = "https://github.com/dav1dde/tokio", rev = "ecfbbb98e6bd8b81ba55234eaed81d3097386d88", default-features = false }
+# tokio = { version = "1.48.0", default-features = false }
 tokio-util = { version = "0.7.13", default-features = false }
 tower = { version = "0.5.2", default-features = false }
 tower-http = { version = "0.6.6", default-features = false }
@@ -225,4 +225,4 @@ zstd = { version = "0.13.3", features = ["experimental"] }
 # This prevents stack overflows in span description normalization.
 [patch.crates-io]
 sqlparser_derive = { git = "https://github.com/apache/datafusion-sqlparser-rs", rev = "ade40826563451cc14c130af9d689f4050dbdb15" }
-# tokio = { git = "https://github.com/dav1dde/tokio", rev = "b5d827e709e097fb5a9a391e2327880fce2a7759" }
+tokio = { git = "https://github.com/dav1dde/tokio", rev = "ecfbbb98e6bd8b81ba55234eaed81d3097386d88" }
