@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
+
 **Internal**:
 
 - Add internal attributes to aid searching trace metrics ([#5260](https://github.com/getsentry/relay/pull/5260))
