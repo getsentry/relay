@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
-use relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS, URL_PATH};
+use relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 use serde::{Deserialize, Deserializer};
@@ -243,7 +243,7 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
     add_optional_attribute!("vercel.build_id", build_id);
     add_optional_attribute!("vercel.entrypoint", entrypoint);
     add_optional_attribute!("vercel.destination", destination);
-    add_optional_attribute!(URL_PATH, path);
+    add_optional_attribute!("vercel.path", path);
     add_optional_attribute!("vercel.log_type", ty);
     add_optional_attribute!("vercel.status_code", status_code);
     add_optional_attribute!("vercel.request_id", request_id);
@@ -402,10 +402,6 @@ mod tests {
               "type": "string",
               "value": "my-app-abc123.vercel.app"
             },
-            "url.path": {
-              "type": "string",
-              "value": "/api/users"
-            },
             "vercel.branch": {
               "type": "string",
               "value": "main"
@@ -449,6 +445,10 @@ mod tests {
             "vercel.log_type": {
               "type": "string",
               "value": "stdout"
+            },
+            "vercel.path": {
+              "type": "string",
+              "value": "/api/users"
             },
             "vercel.project_id": {
               "type": "string",
@@ -614,10 +614,6 @@ mod tests {
               "type": "string",
               "value": "my-app-abc123.vercel.app"
             },
-            "url.path": {
-              "type": "string",
-              "value": "/api/users"
-            },
             "vercel.deployment_id": {
               "type": "string",
               "value": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
@@ -633,6 +629,10 @@ mod tests {
             "vercel.id": {
               "type": "string",
               "value": "1573817250283254651097202070"
+            },
+            "vercel.path": {
+              "type": "string",
+              "value": "/api/users"
             },
             "vercel.project_id": {
               "type": "string",
