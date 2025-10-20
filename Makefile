@@ -96,13 +96,18 @@ style-rust: ## check Rust code style
 
 # Linting
 
-lint: lint-rust ## run lint on Rust code
+lint: lint-rust lint-python ## run lint on Python and Rust code
 .PHONY: lint
 
 lint-rust: setup-git ## run lint on Rust code using clippy
 	@rustup component add clippy --toolchain stable 2> /dev/null
 	cargo +stable clippy --workspace --all-targets --all-features --no-deps -- -D warnings
 .PHONY: lint-rust
+
+lint-python: setup-venv-light ## run lint on Python code using flake8
+	.venv/bin/pre-commit run flake8 -a
+	.venv/bin/pre-commit run mypy -a
+.PHONY: lint-python
 
 lint-rust-beta: setup-git ## run lint on Rust using clippy and beta toolchain
 	@rustup toolchain install beta 2>/dev/null
@@ -112,13 +117,17 @@ lint-rust-beta: setup-git ## run lint on Rust using clippy and beta toolchain
 
 # Formatting
 
-format: format-rust  ## format all the Rust and Python code
+format: format-rust format-python ## format all the Rust and Python code
 .PHONY: format
 
 format-rust: ## format the Rust code
 	@rustup component add rustfmt --toolchain stable 2> /dev/null
 	cargo +stable fmt --all
 .PHONY: format-rust
+
+format-python: setup-venv-light ## format the Python code
+	.venv/bin/pre-commit run black -a
+.PHONY: format-python
 
 # Development
 
@@ -136,6 +145,10 @@ setup-venv: uv.lock ## create a Python virtual environment with development requ
 	devenv sync
 	RELAY_DEBUG=1 uv pip install -v -e py
 .PHONY: setup-venv
+
+setup-venv-light: uv.lock
+	devenv sync
+.PHONY: setup-venv-light
 
 clean-target-dir:
 	if [ "$$(du -s target/ | cut -f 1)" -gt 4000000 ]; then \
