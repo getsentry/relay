@@ -35,7 +35,7 @@ pub struct ProxyAddrs {
 }
 
 impl ProxyProcessorService {
-    /// Creates a multi-threaded proxy processor.
+    /// Creates a proxy processor.
     pub fn new(config: Arc<Config>, project_cache: ProjectCacheHandle, addrs: ProxyAddrs) -> Self {
         Self {
             project_cache,
