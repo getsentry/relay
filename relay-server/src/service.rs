@@ -73,7 +73,7 @@ pub struct Registry {
     pub upstream_relay: Addr<UpstreamRelay>,
     pub envelope_buffer: PartitionedEnvelopeBuffer,
     pub project_cache_handle: ProjectCacheHandle,
-    pub autoscaling: Addr<AutoscalingMetrics>,
+    pub autoscaling: Option<Addr<AutoscalingMetrics>>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -238,7 +238,18 @@ impl ServiceState {
             .as_ref()
             .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
 
-        let (processor_pool, aggregator_handle) = match config.relay_mode() {
+        let envelope_buffer = PartitionedEnvelopeBuffer::create(
+            config.spool_partitions(),
+            config.clone(),
+            memory_stat.clone(),
+            global_config_rx.clone(),
+            project_cache_handle.clone(),
+            processor.clone(),
+            outcome_aggregator.clone(),
+            services,
+        );
+
+        let (processor_pool, aggregator_handle, autoscaling) = match config.relay_mode() {
             relay_config::RelayMode::Proxy => {
                 services.start_with(
                     ProxyProcessorService::new(
@@ -251,7 +262,7 @@ impl ServiceState {
                     ),
                     processor_rx,
                 );
-                (None, None)
+                (None, None, None)
             }
             relay_config::RelayMode::Managed => {
                 let processor_pool = create_processor_pool(&config)?;
@@ -291,20 +302,21 @@ impl ServiceState {
                     ),
                     processor_rx,
                 );
-                (Some(processor_pool), Some(aggregator_handle))
+
+                let autoscaling = services.start(AutoscalingMetricService::new(
+                    memory_stat.clone(),
+                    envelope_buffer.clone(),
+                    handle.clone(),
+                    processor_pool.clone(),
+                ));
+
+                (
+                    Some(processor_pool),
+                    Some(aggregator_handle),
+                    Some(autoscaling),
+                )
             }
         };
-
-        let envelope_buffer = PartitionedEnvelopeBuffer::create(
-            config.spool_partitions(),
-            config.clone(),
-            memory_stat.clone(),
-            global_config_rx.clone(),
-            project_cache_handle.clone(),
-            processor.clone(),
-            outcome_aggregator.clone(),
-            services,
-        );
 
         let health_check = services.start(HealthCheckService::new(
             config.clone(),
@@ -312,13 +324,6 @@ impl ServiceState {
             aggregator_handle,
             upstream_relay.clone(),
             envelope_buffer.clone(),
-        ));
-
-        let autoscaling = services.start(AutoscalingMetricService::new(
-            memory_stat.clone(),
-            envelope_buffer.clone(),
-            handle.clone(),
-            processor_pool.clone(),
         ));
 
         services.start(RelayStats::new(
@@ -373,8 +378,8 @@ impl ServiceState {
         &self.inner.memory_checker
     }
 
-    pub fn autoscaling(&self) -> &Addr<AutoscalingMetrics> {
-        &self.inner.registry.autoscaling
+    pub fn autoscaling(&self) -> Option<&Addr<AutoscalingMetrics>> {
+        self.inner.registry.autoscaling.as_ref()
     }
 
     /// Returns the V2 envelope buffer, if present.
