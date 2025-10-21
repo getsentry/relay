@@ -8,7 +8,9 @@
 
 **Internal**:
 
-- Add internal attributes to aid searching trace metrics ([#5260](https://github.com/getsentry/relay/pull/5260))
+- Switch default allocator from jemalloc to mimalloc. ([#5239](https://github.com/getsentry/relay/pull/5239))
+- Add internal attributes to aid searching trace metrics. ([#5260](https://github.com/getsentry/relay/pull/5260))
+
 
 ## 25.10.0
 
