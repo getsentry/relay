@@ -30,7 +30,9 @@ pub struct ProxyProcessorService {
 
 /// Contains the addresses of services that the proxy-processor publishes to.
 pub struct ProxyAddrs {
+    /// Address of the service used for tracking outcomes.
     pub outcome_aggregator: Addr<TrackOutcome>,
+    /// Address of the service used for forwarding envelopes to the upstream.
     pub upstream_relay: Addr<UpstreamRelay>,
 }
 
