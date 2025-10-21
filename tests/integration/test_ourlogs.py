@@ -46,9 +46,6 @@ def timestamps(ts: datetime):
         "sentry.observed_timestamp_nanos": {
             "stringValue": time_within(ts, expect_resolution="ns")
         },
-        "sentry._internal.observed_timestamp_nanos": {
-            "stringValue": time_within(ts, expect_resolution="ns")
-        },
         "sentry.timestamp_nanos": {
             "stringValue": time_within_delta(
                 ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
@@ -358,10 +355,6 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
-                "type": "string",
-                "value": time_within(ts, expect_resolution="ns"),
-            },
-            "sentry._internal.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
