@@ -1736,8 +1736,6 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes only transactions and transaction-related items.
-    #[allow(unused_assignments)]
-    #[allow(clippy::too_many_arguments)]
     async fn process_transactions(
         &self,
         managed_envelope: &mut TypedEnvelope<TransactionGroup>,
@@ -1895,7 +1893,6 @@ impl EnvelopeProcessorService {
         // Unconditionally scrub to make sure PII is removed as early as possible.
         event::scrub(&mut event, ctx.project_info)?;
 
-        // TODO: remove once `relay.drop-transaction-attachments` has graduated.
         attachment::scrub(managed_envelope, ctx.project_info);
 
         if_processing!(self.inner.config, {
