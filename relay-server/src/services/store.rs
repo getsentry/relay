@@ -13,7 +13,6 @@ use futures::future::BoxFuture;
 use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::{Deserialize, Serialize};
-use serde_json::value::RawValue;
 use uuid::Uuid;
 
 use relay_base_schema::data_category::DataCategory;
@@ -33,7 +32,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::managed::{Counted, Managed, OutcomeError, Quantities, TypedEnvelope};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
@@ -277,8 +276,6 @@ impl StoreService {
         scoping: Scoping,
     ) -> Result<(), StoreError> {
         let retention = envelope.retention();
-        let downsampled_retention = envelope.downsampled_retention();
-
         let event_id = envelope.event_id();
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
@@ -315,7 +312,6 @@ impl StoreService {
         .is_keep();
 
         for item in envelope.items() {
-            let content_type = item.content_type();
             match item.ty() {
                 ItemType::Attachment => {
                     if let Some(attachment) = self.produce_attachment(
@@ -382,14 +378,6 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
-                    scoping,
-                    received_at,
-                    event_id,
-                    retention,
-                    downsampled_retention,
-                    item,
-                )?,
                 ty @ ItemType::Log => {
                     debug_assert!(
                         false,
@@ -627,7 +615,7 @@ impl StoreService {
 
         let result = message.try_accept(|span| {
             let item = Annotated::new(span.item);
-            let message = KafkaMessage::SpanV2 {
+            let message = KafkaMessage::Span {
                 routing_key: span.routing_key,
                 headers: BTreeMap::from([(
                     "project_id".to_owned(),
@@ -1081,74 +1069,6 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_span(
-        &self,
-        scoping: Scoping,
-        received_at: DateTime<Utc>,
-        event_id: Option<EventId>,
-        retention_days: u16,
-        downsampled_retention_days: u16,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        debug_assert_eq!(item.ty(), &ItemType::Span);
-        debug_assert_eq!(item.content_type(), Some(&ContentType::Json));
-
-        let Scoping {
-            organization_id,
-            project_id,
-            project_key: _,
-            key_id,
-        } = scoping;
-
-        let payload = item.payload();
-        let message = SpanKafkaMessageRaw {
-            meta: SpanMeta {
-                organization_id,
-                project_id,
-                key_id,
-                event_id,
-                retention_days,
-                downsampled_retention_days,
-                received: datetime_to_timestamp(received_at),
-            },
-            span: serde_json::from_slice(&payload)
-                .map_err(|e| StoreError::EncodingFailed(e.into()))?,
-        };
-
-        // Verify that this is a V2 span:
-        debug_assert!(message.span.contains_key("attributes"));
-        relay_statsd::metric!(
-            counter(RelayCounters::SpanV2Produced) += 1,
-            via = "envelope"
-        );
-
-        self.produce(
-            KafkaTopic::Spans,
-            KafkaMessage::SpanRaw {
-                routing_key: item.routing_hint(),
-                headers: BTreeMap::from([(
-                    "project_id".to_owned(),
-                    scoping.project_id.to_string(),
-                )]),
-                message,
-            },
-        )?;
-
-        // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
-        // or the segments consumer, depending on which will produce outcomes later.
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::SpanIndexed,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: 1,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
-
-        Ok(())
-    }
-
     fn produce_profile_chunk(
         &self,
         organization_id: OrganizationId,
@@ -1445,14 +1365,6 @@ struct CheckInKafkaMessage {
 }
 
 #[derive(Debug, Serialize)]
-struct SpanKafkaMessageRaw<'a> {
-    #[serde(flatten)]
-    meta: SpanMeta,
-    #[serde(flatten)]
-    span: BTreeMap<&'a str, &'a RawValue>,
-}
-
-#[derive(Debug, Serialize)]
 struct SpanKafkaMessage<'a> {
     #[serde(flatten)]
     meta: SpanMeta,
@@ -1508,15 +1420,7 @@ enum KafkaMessage<'a> {
         #[serde(skip)]
         message: TraceItem,
     },
-    SpanRaw {
-        #[serde(skip)]
-        routing_key: Option<Uuid>,
-        #[serde(skip)]
-        headers: BTreeMap<String, String>,
-        #[serde(flatten)]
-        message: SpanKafkaMessageRaw<'a>,
-    },
-    SpanV2 {
+    Span {
         #[serde(skip)]
         routing_key: Option<Uuid>,
         #[serde(skip)]
@@ -1548,7 +1452,7 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
             KafkaMessage::CheckIn(_) => "check_in",
-            KafkaMessage::SpanRaw { .. } | KafkaMessage::SpanV2 { .. } => "span",
+            KafkaMessage::Span { .. } => "span",
             KafkaMessage::Item { item_type, .. } => item_type.as_str_name(),
 
             KafkaMessage::Attachment(_) => "attachment",
@@ -1567,7 +1471,7 @@ impl Message for KafkaMessage<'_> {
         match self {
             Self::Event(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
-            Self::SpanRaw { routing_key, .. } | Self::SpanV2 { routing_key, .. } => *routing_key,
+            Self::Span { routing_key, .. } => *routing_key,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1593,8 +1497,7 @@ impl Message for KafkaMessage<'_> {
     fn headers(&self) -> Option<&BTreeMap<String, String>> {
         match &self {
             KafkaMessage::Metric { headers, .. }
-            | KafkaMessage::SpanRaw { headers, .. }
-            | KafkaMessage::SpanV2 { headers, .. }
+            | KafkaMessage::Span { headers, .. }
             | KafkaMessage::Item { headers, .. }
             | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) => Some(headers),
 
@@ -1613,8 +1516,7 @@ impl Message for KafkaMessage<'_> {
         match self {
             KafkaMessage::Metric { message, .. } => serialize_as_json(message),
             KafkaMessage::ReplayEvent(message) => serialize_as_json(message),
-            KafkaMessage::SpanRaw { message, .. } => serialize_as_json(message),
-            KafkaMessage::SpanV2 { message, .. } => serialize_as_json(message),
+            KafkaMessage::Span { message, .. } => serialize_as_json(message),
             KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();
                 match message.encode(&mut payload) {
