@@ -118,10 +118,10 @@
 <a href=#118 id=118 data-nosnippet>118</a>    </span><span class="kw">pub </span>path: String,
 <a href=#119 id=119 data-nosnippet>119</a>    <span class="doccomment">/// User agent strings of the request.
 <a href=#120 id=120 data-nosnippet>120</a>    </span><span class="kw">pub </span>user_agent: Vec&lt;String&gt;,
-<a href=#121 id=121 data-nosnippet>121</a>    <span class="doccomment">/// Referer of the request.
-<a href=#122 id=122 data-nosnippet>122</a>    </span><span class="kw">pub </span>referer: String,
-<a href=#123 id=123 data-nosnippet>123</a>    <span class="doccomment">/// Region where the request is processed.
-<a href=#124 id=124 data-nosnippet>124</a>    </span><span class="kw">pub </span>region: String,
+<a href=#121 id=121 data-nosnippet>121</a>    <span class="doccomment">/// Region where the request is processed.
+<a href=#122 id=122 data-nosnippet>122</a>    </span><span class="kw">pub </span>region: String,
+<a href=#123 id=123 data-nosnippet>123</a>    <span class="doccomment">/// Referer of the request.
+<a href=#124 id=124 data-nosnippet>124</a>    </span><span class="kw">pub </span>referer: <span class="prelude-ty">Option</span>&lt;String&gt;,
 <a href=#125 id=125 data-nosnippet>125</a>    <span class="doccomment">/// HTTP status code of the proxy request.
 <a href=#126 id=126 data-nosnippet>126</a>    </span><span class="kw">pub </span>status_code: <span class="prelude-ty">Option</span>&lt;i64&gt;,
 <a href=#127 id=127 data-nosnippet>127</a>    <span class="doccomment">/// Client IP address.
@@ -282,13 +282,13 @@
 <a href=#282 id=282 data-nosnippet>282</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.method"</span>, method);
 <a href=#283 id=283 data-nosnippet>283</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.host"</span>, host);
 <a href=#284 id=284 data-nosnippet>284</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.path"</span>, path);
-<a href=#285 id=285 data-nosnippet>285</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.referer"</span>, referer);
-<a href=#286 id=286 data-nosnippet>286</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.region"</span>, region);
-<a href=#287 id=287 data-nosnippet>287</a>
-<a href=#288 id=288 data-nosnippet>288</a>        <span class="kw">if let </span><span class="prelude-val">Ok</span>(user_agent_string) = serde_json::to_string(<span class="kw-2">&amp;</span>user_agent) {
-<a href=#289 id=289 data-nosnippet>289</a>            attributes.insert(<span class="string">"vercel.proxy.user_agent"</span>, user_agent_string);
-<a href=#290 id=290 data-nosnippet>290</a>        }
-<a href=#291 id=291 data-nosnippet>291</a>
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.region"</span>, region);
+<a href=#286 id=286 data-nosnippet>286</a>
+<a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">if let </span><span class="prelude-val">Ok</span>(user_agent_string) = serde_json::to_string(<span class="kw-2">&amp;</span>user_agent) {
+<a href=#288 id=288 data-nosnippet>288</a>            attributes.insert(<span class="string">"vercel.proxy.user_agent"</span>, user_agent_string);
+<a href=#289 id=289 data-nosnippet>289</a>        }
+<a href=#290 id=290 data-nosnippet>290</a>
+<a href=#291 id=291 data-nosnippet>291</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.referer"</span>, referer);
 <a href=#292 id=292 data-nosnippet>292</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.status_code"</span>, status_code);
 <a href=#293 id=293 data-nosnippet>293</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.client_ip"</span>, client_ip);
 <a href=#294 id=294 data-nosnippet>294</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.scheme"</span>, scheme);
@@ -363,8 +363,8 @@
 <a href=#363 id=363 data-nosnippet>363</a>                host: <span class="string">"my-app.vercel.app"</span>.to_owned(),
 <a href=#364 id=364 data-nosnippet>364</a>                path: <span class="string">"/api/users?page=1"</span>.to_owned(),
 <a href=#365 id=365 data-nosnippet>365</a>                user_agent: <span class="macro">vec!</span>[<span class="string">"Mozilla/5.0..."</span>.to_owned()],
-<a href=#366 id=366 data-nosnippet>366</a>                referer: <span class="string">"https://my-app.vercel.app"</span>.to_owned(),
-<a href=#367 id=367 data-nosnippet>367</a>                region: <span class="string">"sfo1"</span>.to_owned(),
+<a href=#366 id=366 data-nosnippet>366</a>                region: <span class="string">"sfo1"</span>.to_owned(),
+<a href=#367 id=367 data-nosnippet>367</a>                referer: <span class="prelude-val">Some</span>(<span class="string">"https://my-app.vercel.app"</span>.to_owned()),
 <a href=#368 id=368 data-nosnippet>368</a>                status_code: <span class="prelude-val">Some</span>(<span class="number">200</span>),
 <a href=#369 id=369 data-nosnippet>369</a>                client_ip: <span class="prelude-val">Some</span>(<span class="string">"120.75.16.101"</span>.to_owned()),
 <a href=#370 id=370 data-nosnippet>370</a>                scheme: <span class="prelude-val">Some</span>(<span class="string">"https"</span>.to_owned()),
