@@ -889,7 +889,7 @@ pub struct SpanData {
     pub profile_id: Annotated<Value>,
 
     /// Replay ID
-    #[metastructure(field = "sentry.replay.id", legacy_alias = "replay_id")]
+    #[metastructure(field = "sentry.replay_id", legacy_alias = "replay_id")]
     pub replay_id: Annotated<Value>,
 
     /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
