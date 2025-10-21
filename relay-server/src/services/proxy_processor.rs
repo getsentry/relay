@@ -49,17 +49,7 @@ impl ProxyProcessorService {
     fn handle_process_envelope(&self, message: ProcessEnvelope) {
         let wait_time = message.envelope.age();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
-
-        let scoping = message.envelope.scoping();
-        for (_, envelope) in ProcessingGroup::split_envelope(
-            *message.envelope.into_envelope(),
-            &message.project_info,
-        ) {
-            let mut envelope =
-                ManagedEnvelope::new(envelope, self.addrs.outcome_aggregator.clone());
-            envelope.scope(scoping);
-            self.submit_upstream(envelope);
-        }
+        self.submit_upstream(message.envelope);
     }
 
     fn handle_submit_client_reports(&self, message: SubmitClientReports) {

@@ -282,7 +282,7 @@ pub enum ProcessingGroup {
 
 impl ProcessingGroup {
     /// Splits provided envelope into list of tuples of groups with associated envelopes.
-    pub fn split_envelope(
+    fn split_envelope(
         mut envelope: Envelope,
         project_info: &ProjectInfo,
     ) -> SmallVec<[(Self, Box<Envelope>); 3]> {
