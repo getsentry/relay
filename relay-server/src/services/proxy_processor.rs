@@ -23,10 +23,6 @@ use crate::statsd::RelayTimers;
 /// Analog to [`crate::services::processor::EnvelopeProcessorService`] this service handles messages when Relay is run in
 /// proxy mode.
 pub struct ProxyProcessorService {
-    inner: InnerProxyProcessor,
-}
-
-struct InnerProxyProcessor {
     config: Arc<Config>,
     project_cache: ProjectCacheHandle,
     addrs: ProxyAddrs,
@@ -51,11 +47,9 @@ impl ProxyProcessorService {
     /// Creates a multi-threaded proxy processor.
     pub fn new(config: Arc<Config>, project_cache: ProjectCacheHandle, addrs: ProxyAddrs) -> Self {
         Self {
-            inner: InnerProxyProcessor {
-                project_cache,
-                addrs,
-                config,
-            },
+            project_cache,
+            addrs,
+            config,
         }
     }
 
@@ -69,7 +63,7 @@ impl ProxyProcessorService {
             &message.project_info,
         ) {
             let mut envelope =
-                ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
+                ManagedEnvelope::new(envelope, self.addrs.outcome_aggregator.clone());
             envelope.scope(scoping);
             self.submit_upstream(envelope);
         }
@@ -81,7 +75,7 @@ impl ProxyProcessorService {
             scoping,
         } = message;
 
-        let upstream = self.inner.config.upstream_descriptor();
+        let upstream = self.config.upstream_descriptor();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
@@ -91,7 +85,7 @@ impl ProxyProcessorService {
             envelope.add_item(item);
         }
 
-        let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
+        let envelope = ManagedEnvelope::new(envelope, self.addrs.outcome_aggregator.clone());
         self.submit_upstream(envelope);
     }
 
@@ -104,22 +98,19 @@ impl ProxyProcessorService {
         }
 
         relay_log::trace!("sending envelope to sentry endpoint");
-        let http_encoding = self.inner.config.http_encoding();
+        let http_encoding = self.config.http_encoding();
         let result = envelope.envelope().to_vec().and_then(|v| {
             encode_payload(&v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
         });
 
         match result {
             Ok(body) => {
-                self.inner
-                    .addrs
-                    .upstream_relay
-                    .send(SendRequest(SendEnvelope {
-                        envelope: envelope.into_processed(),
-                        body,
-                        http_encoding,
-                        project_cache: self.inner.project_cache.clone(),
-                    }));
+                self.addrs.upstream_relay.send(SendRequest(SendEnvelope {
+                    envelope: envelope.into_processed(),
+                    body,
+                    http_encoding,
+                    project_cache: self.project_cache.clone(),
+                }));
             }
             Err(error) => {
                 // Errors are only logged for what we consider an internal discard reason. These
