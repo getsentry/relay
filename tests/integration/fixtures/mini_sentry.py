@@ -1,3 +1,4 @@
+from collections import Counter
 import datetime
 import copy
 import zstandard
@@ -237,6 +238,25 @@ class Sentry(SentryLike):
             )
         outcomes.sort(key=lambda x: x["category"])
         return outcomes
+
+    def get_aggregated_outcomes(self, *, timeout=None):
+        aggregated = Counter()
+        try:
+            while True:
+                outcomes = self.captured_outcomes.get(
+                    timeout=timeout or self.timeout
+                ).get("outcomes")
+                timeout = 0.1  # only wait the first time
+                for outcome in outcomes:
+                    quantity = outcome.pop("quantity")
+                    aggregated[tuple(sorted(outcome.items()))] += quantity
+        except Empty:
+            outcomes = [
+                {**{k: v for (k, v) in fields}, "quantity": quantity}
+                for (fields, quantity) in aggregated.items()
+            ]
+            outcomes.sort(key=lambda x: x["category"])
+            return outcomes
 
 
 def _get_project_id(public_key, project_configs):
