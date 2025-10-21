@@ -182,7 +182,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
 
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.captured_outcomes.get(timeout=3).get("outcomes") == [
+    assert mini_sentry.captured_outcomes.get(timeout=5).get("outcomes") == [
         {
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
@@ -646,7 +646,7 @@ def test_spanv2_with_string_pii_scrubbing(
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=3)
+    envelope = mini_sentry.captured_events.get(timeout=5)
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
 
@@ -723,7 +723,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=3)
+    envelope = mini_sentry.captured_events.get(timeout=5)
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
     attributes = item["attributes"]
@@ -738,7 +738,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
     assert rem_info[0][0] == rule_type
 
 
-def test_spansv2_non_empty_span_id(mini_sentry, relay):
+def test_invalid_spans(mini_sentry, relay):
     """
     A test asserting proper outcomes are emitted for invalid spans missing required attributes.
     """
@@ -752,38 +752,74 @@ def test_spansv2_non_empty_span_id(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
-    envelope = envelope_with_spans(
-        {
-            "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.5,
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "name": "some op",
-        }
-    )
 
+    valid_span = {
+        "end_timestamp": ts.timestamp() + 0.5,
+        "is_remote": False,
+        "name": "some op",
+        "span_id": "eee19b7ec3c1b174",
+        "start_timestamp": ts.timestamp(),
+        "status": "ok",
+        "trace_id": "5b8ef" "ff798038103d269b633813fc60c",
+    }
+
+    required_keys = valid_span.keys()
+    nonempty_keys = {
+        "end_timestamp",
+        "is_remote",
+        "span_id",
+        "start_timestamp",
+        "trace_id",
+    }
+
+    invalid_spans = []
+    for key in required_keys:
+        invalid_span = valid_span.copy()
+        del invalid_span[key]
+        invalid_spans.append(invalid_span)
+
+    for key in required_keys:
+        invalid_span = valid_span.copy()
+        invalid_span[key] = None
+        invalid_spans.append(invalid_span)
+
+    for key in nonempty_keys:
+        invalid_span = valid_span.copy()
+        invalid_span[key] = ""
+        invalid_spans.append(invalid_span)
+
+    envelope = envelope_with_spans(*(invalid_spans + [valid_span]))
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.get_outcomes(2) == [
+    outcomes = mini_sentry.get_aggregated_outcomes(timeout=3)
+    assert outcomes == [
         {
-            "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
+            "category": 12,
             "key_id": 123,
+            "org_id": 1,
             "outcome": 3,
+            "project_id": 42,
             "reason": "no_data",
-            "category": DataCategory.SPAN,
-            "quantity": 1,
+            "timestamp": time_within_delta(),
+            "quantity": len(invalid_spans),
         },
         {
-            "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
+            "category": 16,
             "key_id": 123,
+            "org_id": 1,
             "outcome": 3,
+            "project_id": 42,
             "reason": "no_data",
-            "category": DataCategory.SPAN_INDEXED,
-            "quantity": 1,
+            "timestamp": time_within_delta(),
+            "quantity": len(invalid_spans),
         },
     ]
+
+    envelope = mini_sentry.captured_events.get(timeout=0.1)
+    spans = json.loads(envelope.items[0].payload.bytes.decode())["items"]
+
+    assert len(spans) == 1
+    spans[0].pop("attributes")  # irrelevant for this test
+    assert spans[0] == valid_span
 
     assert mini_sentry.captured_events.empty()
