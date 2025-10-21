@@ -34,15 +34,6 @@ pub struct ProxyAddrs {
     pub upstream_relay: Addr<UpstreamRelay>,
 }
 
-impl Default for ProxyAddrs {
-    fn default() -> Self {
-        ProxyAddrs {
-            outcome_aggregator: Addr::dummy(),
-            upstream_relay: Addr::dummy(),
-        }
-    }
-}
-
 impl ProxyProcessorService {
     /// Creates a multi-threaded proxy processor.
     pub fn new(config: Arc<Config>, project_cache: ProjectCacheHandle, addrs: ProxyAddrs) -> Self {
