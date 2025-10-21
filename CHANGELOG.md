@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Only apply non-destructive PII rules to log bodies by default. ([#5272](https://github.com/getsentry/relay/pull/5272))
+
 **Internal**:
 
 - Switch default allocator from jemalloc to mimalloc. ([#5239](https://github.com/getsentry/relay/pull/5239))
