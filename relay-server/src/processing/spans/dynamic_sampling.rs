@@ -4,6 +4,7 @@ use std::ops::ControlFlow;
 use chrono::Utc;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
+use relay_protocol::get_value;
 use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
@@ -13,7 +14,9 @@ use crate::envelope::Item;
 use crate::managed::{Counted, Managed, Quantities};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::Context;
-use crate::processing::spans::{ExpandedSpans, SampledSpans, SerializedSpans, outcome_count};
+use crate::processing::spans::{
+    Error, ExpandedSpans, Result, SampledSpans, SerializedSpans, outcome_count,
+};
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
@@ -46,6 +49,45 @@ pub fn validate_configs(ctx: Context<'_>) {
             "found unsupported dynamic sampling rules in a processing relay"
         );
     }
+}
+
+/// Validates the presence of a dynamic sampling context when processing Spans.
+///
+/// Each envelope received by Relay must contain a valid dynamic sampling context.
+/// This is not a technical requirement as a missing dynamic sampling context is treated as having
+/// a sample rate of 100%, but to ensure SDKs implement the protocol correctly it is validated.
+///
+/// An exception exists for our OTeL integration, which currently never sets a dynamic sampling
+/// context. In the future we may want to extract a DSC from the OTeL payload to allow dynamic
+/// sampling if the necessary attributes are present.
+pub fn validate_dsc_presence(spans: &SerializedSpans) -> Result<()> {
+    let dsc = spans.headers.dsc();
+
+    if !spans.spans.is_empty() && dsc.is_none() {
+        return Err(Error::MissingDynamicSamplingContext);
+    }
+
+    Ok(())
+}
+
+/// Validates the dynamic sampling context against the parsed spans.
+///
+/// The values of the dynamic sampling context must match the values provided in the spans.
+/// Currently this only validates the trace id.
+pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
+    let Some(dsc) = spans.headers.dsc() else {
+        return Ok(());
+    };
+
+    for span in &spans.spans {
+        let trace_id = get_value!(span.trace_id);
+
+        if trace_id != Some(&dsc.trace_id) {
+            return Err(Error::DynamicSamplingContextMismatch);
+        }
+    }
+
+    Ok(())
 }
 
 /// Computes the sampling decision for a batch of spans.
