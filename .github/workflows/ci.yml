@@ -89,7 +89,9 @@ jobs:
             # Run pre-commit to lint and format check files that were changed (but not deleted)
             xargs pre-commit run --files
 
-      - run: make style lint
+      # running lint-python will unnecessarily go through setup-venv via devenv
+      # we want to take advantage of cached action-setup-venv
+      - run: make style-rust lint-rust
 
       - name: Check Docs
         run: cargo doc --workspace --all-features --no-deps --document-private-items
