@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from typing import Any
 import pytest
 
 
@@ -59,3 +61,80 @@ def scrubbing_rule(request):
 )
 def secret_attribute(request):
     return request.param
+
+
+@dataclass
+class NonDestructive:
+    pii_config: Any
+    scrub_data: bool
+    scrub_defaults: bool
+    input_message: str
+    expected_output: str
+    additional_checks: Any
+
+    def install(self, project_config):
+        project_config["config"]["piiConfig"] = self.pii_config
+        project_config["config"]["datascrubbingSettings"] = {
+            "scrubData": self.scrub_data,
+            "scrubDefaults": self.scrub_defaults,
+        }
+
+    def scrubs(self):
+        return self.input_message != self.expected_output
+
+
+@pytest.fixture(
+    params=[
+        (
+            None,
+            True,
+            True,
+            "API request failed with Bearer ABC123XYZ789TOKEN and returned 401",
+            "API request failed with Bearer [token] and returned 401",
+            lambda formatted_value: (
+                "Bearer [token]" in formatted_value
+                and "ABC123XYZ789TOKEN" not in formatted_value
+                and "API request failed" in formatted_value
+                and "returned 401" in formatted_value
+            ),
+        ),
+        (
+            {},
+            False,
+            True,
+            "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
+            "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
+            None,
+        ),
+        (
+            {},
+            True,
+            True,
+            "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
+            "API failed with Bearer [token] for [email] using card [creditcard]",
+            None,
+        ),
+        (
+            None,
+            True,
+            True,
+            "User's password is 12345",
+            "User's password is 12345",
+            None,
+        ),
+    ],
+    ids=[
+        "bearer_token_scrubbing",
+        "no_scrubbing_when_disabled",
+        "all_scrubbing_when_enabled",
+        "password_not_scrubbed",
+    ],
+)
+def non_destructive(request):
+    """
+    A collection of non destructive PII rules.
+
+    The non-destructive rules are a custom set of rules applied to specific keys in payloads,
+    like the error message.
+    """
+    return NonDestructive(*request.param)
