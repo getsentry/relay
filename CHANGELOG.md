@@ -4,7 +4,7 @@
 
 **Breaking Changes**:
 
-- Simplify proxy mode to forward without processing ([#5165](https://github.com/getsentry/relay/pull/5165))
+- Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
 
 **Internal**:
 

@@ -80,9 +80,7 @@ impl ProxyProcessorService {
         self.submit_upstream(envelope);
     }
 
-    fn submit_upstream(&self, envelope: ManagedEnvelope) {
-        let mut envelope = envelope;
-
+    fn submit_upstream(&self, mut envelope: ManagedEnvelope) {
         if envelope.envelope_mut().is_empty() {
             envelope.accept();
             return;
