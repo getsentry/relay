@@ -177,6 +177,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "public_key": project_config["publicKeys"][0]["publicKey"],
+            "transaction": "tx_from_root",
         },
     )
 
@@ -199,7 +200,11 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
         {
             "metadata": mock.ANY,
             "name": "c:spans/count_per_root_project@none",
-            "tags": {"decision": "drop", "target_project_id": "42"},
+            "tags": {
+                "decision": "drop",
+                "target_project_id": "42",
+                "transaction": "tx_from_root",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
@@ -265,6 +270,7 @@ def test_spansv2_ds_sampled(
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "public_key": sampling_config["publicKeys"][0]["publicKey"],
+            "transaction": "tx_from_root",
         },
     )
 
@@ -281,7 +287,11 @@ def test_spansv2_ds_sampled(
             "project_id": 43,
             "received_at": time_within_delta(),
             "retention_days": 90,
-            "tags": {"decision": "keep", "target_project_id": "42"},
+            "tags": {
+                "decision": "keep",
+                "target_project_id": "42",
+                "transaction": "tx_from_root",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
