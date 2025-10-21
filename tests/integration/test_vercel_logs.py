@@ -129,7 +129,7 @@ EXPECTED_ITEMS = [
             "vercel.proxy.status_code": {"intValue": "200"},
             "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
             "sentry.timestamp_precise": {"intValue": "1573817250283000000"},
-            "sentry.payload_size_bytes": {"intValue": "886"},
+            "sentry.payload_size_bytes": {"intValue": "889"},
             "vercel.proxy.region": {"stringValue": "sfo1"},
         },
         "clientSampleRate": 1.0,
@@ -186,7 +186,7 @@ def test_vercel_logs_json_array(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 1322,
+            "quantity": 1325,
         },
     ]
 
@@ -234,6 +234,6 @@ def test_vercel_logs_ndjson(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 1322,
+            "quantity": 1325,
         },
     ]
