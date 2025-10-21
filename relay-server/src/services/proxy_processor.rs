@@ -10,8 +10,7 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::managed::ManagedEnvelope;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{
-    EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, SendEnvelope, SubmitClientReports,
-    encode_payload,
+    EnvelopeProcessor, ProcessEnvelope, SendEnvelope, SubmitClientReports, encode_payload,
 };
 
 use crate::services::projects::cache::ProjectCacheHandle;
