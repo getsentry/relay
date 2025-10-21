@@ -8,8 +8,8 @@ use std::fmt::Write;
 pub async fn handle(state: ServiceState) -> (StatusCode, String) {
     let Some(autoscaling) = state.autoscaling() else {
         return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            "Autoscaling metrics not available in Proxy mode".to_owned(),
+            StatusCode::NOT_FOUND,
+            "Autoscaling metrics not enabled".to_owned(),
         );
     };
 
