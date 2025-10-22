@@ -3358,7 +3358,7 @@
 <a href=#3358 id=3358 data-nosnippet>3358</a>    }
 <a href=#3359 id=3359 data-nosnippet>3359</a>}
 <a href=#3360 id=3360 data-nosnippet>3360</a>
-<a href=#3361 id=3361 data-nosnippet>3361</a><span class="kw">fn </span>encode_payload(body: <span class="kw-2">&amp;</span>Bytes, http_encoding: HttpEncoding) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, std::io::Error&gt; {
+<a href=#3361 id=3361 data-nosnippet>3361</a><span class="kw">pub fn </span>encode_payload(body: <span class="kw-2">&amp;</span>Bytes, http_encoding: HttpEncoding) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, std::io::Error&gt; {
 <a href=#3362 id=3362 data-nosnippet>3362</a>    <span class="kw">let </span>envelope_body: Vec&lt;u8&gt; = <span class="kw">match </span>http_encoding {
 <a href=#3363 id=3363 data-nosnippet>3363</a>        HttpEncoding::Identity =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(body.clone()),
 <a href=#3364 id=3364 data-nosnippet>3364</a>        HttpEncoding::Deflate =&gt; {
@@ -3392,10 +3392,10 @@
 <a href=#3392 id=3392 data-nosnippet>3392</a><span class="doccomment">/// An upstream request that submits an envelope via HTTP.
 <a href=#3393 id=3393 data-nosnippet>3393</a></span><span class="attr">#[derive(Debug)]
 <a href=#3394 id=3394 data-nosnippet>3394</a></span><span class="kw">pub struct </span>SendEnvelope {
-<a href=#3395 id=3395 data-nosnippet>3395</a>    envelope: TypedEnvelope&lt;Processed&gt;,
-<a href=#3396 id=3396 data-nosnippet>3396</a>    body: Bytes,
-<a href=#3397 id=3397 data-nosnippet>3397</a>    http_encoding: HttpEncoding,
-<a href=#3398 id=3398 data-nosnippet>3398</a>    project_cache: ProjectCacheHandle,
+<a href=#3395 id=3395 data-nosnippet>3395</a>    <span class="kw">pub </span>envelope: TypedEnvelope&lt;Processed&gt;,
+<a href=#3396 id=3396 data-nosnippet>3396</a>    <span class="kw">pub </span>body: Bytes,
+<a href=#3397 id=3397 data-nosnippet>3397</a>    <span class="kw">pub </span>http_encoding: HttpEncoding,
+<a href=#3398 id=3398 data-nosnippet>3398</a>    <span class="kw">pub </span>project_cache: ProjectCacheHandle,
 <a href=#3399 id=3399 data-nosnippet>3399</a>}
 <a href=#3400 id=3400 data-nosnippet>3400</a>
 <a href=#3401 id=3401 data-nosnippet>3401</a><span class="kw">impl </span>UpstreamRequest <span class="kw">for </span>SendEnvelope {

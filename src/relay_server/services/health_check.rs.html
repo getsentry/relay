@@ -84,7 +84,7 @@
 <a href=#84 id=84 data-nosnippet>84</a></span><span class="kw">pub struct </span>HealthCheckService {
 <a href=#85 id=85 data-nosnippet>85</a>    config: Arc&lt;Config&gt;,
 <a href=#86 id=86 data-nosnippet>86</a>    memory_checker: MemoryChecker,
-<a href=#87 id=87 data-nosnippet>87</a>    aggregator: RouterHandle,
+<a href=#87 id=87 data-nosnippet>87</a>    aggregator: <span class="prelude-ty">Option</span>&lt;RouterHandle&gt;,
 <a href=#88 id=88 data-nosnippet>88</a>    upstream_relay: Addr&lt;UpstreamRelay&gt;,
 <a href=#89 id=89 data-nosnippet>89</a>    envelope_buffer: PartitionedEnvelopeBuffer,
 <a href=#90 id=90 data-nosnippet>90</a>}
@@ -94,7 +94,7 @@
 <a href=#94 id=94 data-nosnippet>94</a>    </span><span class="kw">pub fn </span>new(
 <a href=#95 id=95 data-nosnippet>95</a>        config: Arc&lt;Config&gt;,
 <a href=#96 id=96 data-nosnippet>96</a>        memory_checker: MemoryChecker,
-<a href=#97 id=97 data-nosnippet>97</a>        aggregator: RouterHandle,
+<a href=#97 id=97 data-nosnippet>97</a>        aggregator: <span class="prelude-ty">Option</span>&lt;RouterHandle&gt;,
 <a href=#98 id=98 data-nosnippet>98</a>        upstream_relay: Addr&lt;UpstreamRelay&gt;,
 <a href=#99 id=99 data-nosnippet>99</a>        envelope_buffer: PartitionedEnvelopeBuffer,
 <a href=#100 id=100 data-nosnippet>100</a>    ) -&gt; <span class="self">Self </span>{
@@ -145,117 +145,120 @@
 <a href=#145 id=145 data-nosnippet>145</a>    }
 <a href=#146 id=146 data-nosnippet>146</a>
 <a href=#147 id=147 data-nosnippet>147</a>    <span class="kw">async fn </span>aggregator_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
-<a href=#148 id=148 data-nosnippet>148</a>        Status::from(<span class="self">self</span>.aggregator.can_accept_metrics())
-<a href=#149 id=149 data-nosnippet>149</a>    }
-<a href=#150 id=150 data-nosnippet>150</a>
-<a href=#151 id=151 data-nosnippet>151</a>    <span class="kw">async fn </span>spool_health_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
-<a href=#152 id=152 data-nosnippet>152</a>        <span class="kw">match </span><span class="self">self</span>.envelope_buffer.has_capacity() {
-<a href=#153 id=153 data-nosnippet>153</a>            <span class="bool-val">true </span>=&gt; Status::Healthy,
-<a href=#154 id=154 data-nosnippet>154</a>            <span class="bool-val">false </span>=&gt; Status::Unhealthy,
-<a href=#155 id=155 data-nosnippet>155</a>        }
-<a href=#156 id=156 data-nosnippet>156</a>    }
-<a href=#157 id=157 data-nosnippet>157</a>
-<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">async fn </span>probe(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, fut: <span class="kw">impl </span>Future&lt;Output = Status&gt;) -&gt; Status {
-<a href=#159 id=159 data-nosnippet>159</a>        <span class="kw">match </span>timeout(<span class="self">self</span>.config.health_probe_timeout(), fut).<span class="kw">await </span>{
-<a href=#160 id=160 data-nosnippet>160</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-<a href=#161 id=161 data-nosnippet>161</a>                <span class="macro">relay_log::error!</span>(<span class="string">"Health check probe '{name}' timed out"</span>);
-<a href=#162 id=162 data-nosnippet>162</a>                Status::Unhealthy
-<a href=#163 id=163 data-nosnippet>163</a>            }
-<a href=#164 id=164 data-nosnippet>164</a>            <span class="prelude-val">Ok</span>(Status::Unhealthy) =&gt; {
-<a href=#165 id=165 data-nosnippet>165</a>                <span class="macro">relay_log::error!</span>(<span class="string">"Health check probe '{name}' failed"</span>);
-<a href=#166 id=166 data-nosnippet>166</a>                Status::Unhealthy
-<a href=#167 id=167 data-nosnippet>167</a>            }
-<a href=#168 id=168 data-nosnippet>168</a>            <span class="prelude-val">Ok</span>(Status::Healthy) =&gt; Status::Healthy,
-<a href=#169 id=169 data-nosnippet>169</a>        }
-<a href=#170 id=170 data-nosnippet>170</a>    }
-<a href=#171 id=171 data-nosnippet>171</a>
-<a href=#172 id=172 data-nosnippet>172</a>    <span class="kw">async fn </span>check_readiness(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Status {
-<a href=#173 id=173 data-nosnippet>173</a>        <span class="comment">// System memory is sync and requires mutable access, but we still want to log errors.
-<a href=#174 id=174 data-nosnippet>174</a>        </span><span class="kw">let </span>sys_mem = <span class="self">self</span>.system_memory_probe();
-<a href=#175 id=175 data-nosnippet>175</a>
-<a href=#176 id=176 data-nosnippet>176</a>        <span class="kw">let </span>(sys_mem, auth, agg, proj) = <span class="macro">tokio::join!</span>(
-<a href=#177 id=177 data-nosnippet>177</a>            <span class="self">self</span>.probe(<span class="string">"system memory"</span>, <span class="kw">async </span>{ sys_mem }),
-<a href=#178 id=178 data-nosnippet>178</a>            <span class="self">self</span>.probe(<span class="string">"auth"</span>, <span class="self">self</span>.auth_probe()),
-<a href=#179 id=179 data-nosnippet>179</a>            <span class="self">self</span>.probe(<span class="string">"aggregator"</span>, <span class="self">self</span>.aggregator_probe()),
-<a href=#180 id=180 data-nosnippet>180</a>            <span class="self">self</span>.probe(<span class="string">"spool health"</span>, <span class="self">self</span>.spool_health_probe()),
-<a href=#181 id=181 data-nosnippet>181</a>        );
-<a href=#182 id=182 data-nosnippet>182</a>
-<a href=#183 id=183 data-nosnippet>183</a>        Status::from_iter([sys_mem, auth, agg, proj])
-<a href=#184 id=184 data-nosnippet>184</a>    }
-<a href=#185 id=185 data-nosnippet>185</a>}
-<a href=#186 id=186 data-nosnippet>186</a>
-<a href=#187 id=187 data-nosnippet>187</a><span class="kw">impl </span>Service <span class="kw">for </span>HealthCheckService {
-<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">type </span>Interface = HealthCheck;
+<a href=#148 id=148 data-nosnippet>148</a>        <span class="self">self</span>.aggregator
+<a href=#149 id=149 data-nosnippet>149</a>            .as_ref()
+<a href=#150 id=150 data-nosnippet>150</a>            .map(|agg| Status::from(agg.can_accept_metrics()))
+<a href=#151 id=151 data-nosnippet>151</a>            .unwrap_or(Status::Healthy)
+<a href=#152 id=152 data-nosnippet>152</a>    }
+<a href=#153 id=153 data-nosnippet>153</a>
+<a href=#154 id=154 data-nosnippet>154</a>    <span class="kw">async fn </span>spool_health_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
+<a href=#155 id=155 data-nosnippet>155</a>        <span class="kw">match </span><span class="self">self</span>.envelope_buffer.has_capacity() {
+<a href=#156 id=156 data-nosnippet>156</a>            <span class="bool-val">true </span>=&gt; Status::Healthy,
+<a href=#157 id=157 data-nosnippet>157</a>            <span class="bool-val">false </span>=&gt; Status::Unhealthy,
+<a href=#158 id=158 data-nosnippet>158</a>        }
+<a href=#159 id=159 data-nosnippet>159</a>    }
+<a href=#160 id=160 data-nosnippet>160</a>
+<a href=#161 id=161 data-nosnippet>161</a>    <span class="kw">async fn </span>probe(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, fut: <span class="kw">impl </span>Future&lt;Output = Status&gt;) -&gt; Status {
+<a href=#162 id=162 data-nosnippet>162</a>        <span class="kw">match </span>timeout(<span class="self">self</span>.config.health_probe_timeout(), fut).<span class="kw">await </span>{
+<a href=#163 id=163 data-nosnippet>163</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+<a href=#164 id=164 data-nosnippet>164</a>                <span class="macro">relay_log::error!</span>(<span class="string">"Health check probe '{name}' timed out"</span>);
+<a href=#165 id=165 data-nosnippet>165</a>                Status::Unhealthy
+<a href=#166 id=166 data-nosnippet>166</a>            }
+<a href=#167 id=167 data-nosnippet>167</a>            <span class="prelude-val">Ok</span>(Status::Unhealthy) =&gt; {
+<a href=#168 id=168 data-nosnippet>168</a>                <span class="macro">relay_log::error!</span>(<span class="string">"Health check probe '{name}' failed"</span>);
+<a href=#169 id=169 data-nosnippet>169</a>                Status::Unhealthy
+<a href=#170 id=170 data-nosnippet>170</a>            }
+<a href=#171 id=171 data-nosnippet>171</a>            <span class="prelude-val">Ok</span>(Status::Healthy) =&gt; Status::Healthy,
+<a href=#172 id=172 data-nosnippet>172</a>        }
+<a href=#173 id=173 data-nosnippet>173</a>    }
+<a href=#174 id=174 data-nosnippet>174</a>
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="kw">async fn </span>check_readiness(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Status {
+<a href=#176 id=176 data-nosnippet>176</a>        <span class="comment">// System memory is sync and requires mutable access, but we still want to log errors.
+<a href=#177 id=177 data-nosnippet>177</a>        </span><span class="kw">let </span>sys_mem = <span class="self">self</span>.system_memory_probe();
+<a href=#178 id=178 data-nosnippet>178</a>
+<a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">let </span>(sys_mem, auth, agg, proj) = <span class="macro">tokio::join!</span>(
+<a href=#180 id=180 data-nosnippet>180</a>            <span class="self">self</span>.probe(<span class="string">"system memory"</span>, <span class="kw">async </span>{ sys_mem }),
+<a href=#181 id=181 data-nosnippet>181</a>            <span class="self">self</span>.probe(<span class="string">"auth"</span>, <span class="self">self</span>.auth_probe()),
+<a href=#182 id=182 data-nosnippet>182</a>            <span class="self">self</span>.probe(<span class="string">"aggregator"</span>, <span class="self">self</span>.aggregator_probe()),
+<a href=#183 id=183 data-nosnippet>183</a>            <span class="self">self</span>.probe(<span class="string">"spool health"</span>, <span class="self">self</span>.spool_health_probe()),
+<a href=#184 id=184 data-nosnippet>184</a>        );
+<a href=#185 id=185 data-nosnippet>185</a>
+<a href=#186 id=186 data-nosnippet>186</a>        Status::from_iter([sys_mem, auth, agg, proj])
+<a href=#187 id=187 data-nosnippet>187</a>    }
+<a href=#188 id=188 data-nosnippet>188</a>}
 <a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a>    <span class="kw">async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-<a href=#191 id=191 data-nosnippet>191</a>        <span class="kw">let </span>(update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
-<a href=#192 id=192 data-nosnippet>192</a>        <span class="kw">let </span>check_interval = <span class="self">self</span>.config.health_refresh_interval();
-<a href=#193 id=193 data-nosnippet>193</a>        <span class="comment">// Add 10% buffer to the internal timeouts to avoid race conditions.
-<a href=#194 id=194 data-nosnippet>194</a>        </span><span class="kw">let </span>status_timeout = (check_interval + <span class="self">self</span>.config.health_probe_timeout()).mul_f64(<span class="number">1.1</span>);
-<a href=#195 id=195 data-nosnippet>195</a>
-<a href=#196 id=196 data-nosnippet>196</a>        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
-<a href=#197 id=197 data-nosnippet>197</a>            <span class="kw">let </span>shutdown = Controller::shutdown_handle();
+<a href=#190 id=190 data-nosnippet>190</a><span class="kw">impl </span>Service <span class="kw">for </span>HealthCheckService {
+<a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">type </span>Interface = HealthCheck;
+<a href=#192 id=192 data-nosnippet>192</a>
+<a href=#193 id=193 data-nosnippet>193</a>    <span class="kw">async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+<a href=#194 id=194 data-nosnippet>194</a>        <span class="kw">let </span>(update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
+<a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">let </span>check_interval = <span class="self">self</span>.config.health_refresh_interval();
+<a href=#196 id=196 data-nosnippet>196</a>        <span class="comment">// Add 10% buffer to the internal timeouts to avoid race conditions.
+<a href=#197 id=197 data-nosnippet>197</a>        </span><span class="kw">let </span>status_timeout = (check_interval + <span class="self">self</span>.config.health_probe_timeout()).mul_f64(<span class="number">1.1</span>);
 <a href=#198 id=198 data-nosnippet>198</a>
-<a href=#199 id=199 data-nosnippet>199</a>            <span class="kw">while </span>shutdown.get().is_none() {
-<a href=#200 id=200 data-nosnippet>200</a>                <span class="kw">let _ </span>= update_tx.send(StatusUpdate::new(<span class="macro">relay_statsd::metric!</span>(
-<a href=#201 id=201 data-nosnippet>201</a>                    timer(RelayTimers::HealthCheckDuration),
-<a href=#202 id=202 data-nosnippet>202</a>                    <span class="kw">type </span>= <span class="string">"readiness"</span>,
-<a href=#203 id=203 data-nosnippet>203</a>                    { <span class="self">self</span>.check_readiness().<span class="kw">await </span>}
-<a href=#204 id=204 data-nosnippet>204</a>                )));
-<a href=#205 id=205 data-nosnippet>205</a>
-<a href=#206 id=206 data-nosnippet>206</a>                tokio::time::sleep(check_interval).<span class="kw">await</span>;
-<a href=#207 id=207 data-nosnippet>207</a>            }
+<a href=#199 id=199 data-nosnippet>199</a>        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
+<a href=#200 id=200 data-nosnippet>200</a>            <span class="kw">let </span>shutdown = Controller::shutdown_handle();
+<a href=#201 id=201 data-nosnippet>201</a>
+<a href=#202 id=202 data-nosnippet>202</a>            <span class="kw">while </span>shutdown.get().is_none() {
+<a href=#203 id=203 data-nosnippet>203</a>                <span class="kw">let _ </span>= update_tx.send(StatusUpdate::new(<span class="macro">relay_statsd::metric!</span>(
+<a href=#204 id=204 data-nosnippet>204</a>                    timer(RelayTimers::HealthCheckDuration),
+<a href=#205 id=205 data-nosnippet>205</a>                    <span class="kw">type </span>= <span class="string">"readiness"</span>,
+<a href=#206 id=206 data-nosnippet>206</a>                    { <span class="self">self</span>.check_readiness().<span class="kw">await </span>}
+<a href=#207 id=207 data-nosnippet>207</a>                )));
 <a href=#208 id=208 data-nosnippet>208</a>
-<a href=#209 id=209 data-nosnippet>209</a>            <span class="comment">// Shutdown marks readiness health check as unhealthy.
-<a href=#210 id=210 data-nosnippet>210</a>            </span>update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
-<a href=#211 id=211 data-nosnippet>211</a>        });
-<a href=#212 id=212 data-nosnippet>212</a>
-<a href=#213 id=213 data-nosnippet>213</a>        <span class="kw">while let </span><span class="prelude-val">Some</span>(HealthCheck(message, sender)) = rx.recv().<span class="kw">await </span>{
-<a href=#214 id=214 data-nosnippet>214</a>            <span class="kw">let </span>update = update_rx.borrow();
+<a href=#209 id=209 data-nosnippet>209</a>                tokio::time::sleep(check_interval).<span class="kw">await</span>;
+<a href=#210 id=210 data-nosnippet>210</a>            }
+<a href=#211 id=211 data-nosnippet>211</a>
+<a href=#212 id=212 data-nosnippet>212</a>            <span class="comment">// Shutdown marks readiness health check as unhealthy.
+<a href=#213 id=213 data-nosnippet>213</a>            </span>update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
+<a href=#214 id=214 data-nosnippet>214</a>        });
 <a href=#215 id=215 data-nosnippet>215</a>
-<a href=#216 id=216 data-nosnippet>216</a>            sender.send(<span class="kw">if </span><span class="macro">matches!</span>(message, IsHealthy::Liveness) {
-<a href=#217 id=217 data-nosnippet>217</a>                Status::Healthy
-<a href=#218 id=218 data-nosnippet>218</a>            } <span class="kw">else if </span>update.instant.elapsed() &gt;= status_timeout {
-<a href=#219 id=219 data-nosnippet>219</a>                Status::Unhealthy
-<a href=#220 id=220 data-nosnippet>220</a>            } <span class="kw">else </span>{
-<a href=#221 id=221 data-nosnippet>221</a>                update.status
-<a href=#222 id=222 data-nosnippet>222</a>            });
-<a href=#223 id=223 data-nosnippet>223</a>        }
-<a href=#224 id=224 data-nosnippet>224</a>    }
-<a href=#225 id=225 data-nosnippet>225</a>}
-<a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a><span class="attr">#[cfg(test)]
-<a href=#228 id=228 data-nosnippet>228</a></span><span class="kw">mod </span>tests {
-<a href=#229 id=229 data-nosnippet>229</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#230 id=230 data-nosnippet>230</a>
-<a href=#231 id=231 data-nosnippet>231</a>    <span class="attr">#[test]
-<a href=#232 id=232 data-nosnippet>232</a>    </span><span class="kw">fn </span>test_status() {
-<a href=#233 id=233 data-nosnippet>233</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(Status::from(<span class="bool-val">true</span>), Status::Healthy));
-<a href=#234 id=234 data-nosnippet>234</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(Status::from(<span class="bool-val">false</span>), Status::Unhealthy));
-<a href=#235 id=235 data-nosnippet>235</a>
-<a href=#236 id=236 data-nosnippet>236</a>        <span class="kw">let </span>s = [Status::Unhealthy, Status::Unhealthy].into_iter().collect();
-<a href=#237 id=237 data-nosnippet>237</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Unhealthy));
+<a href=#216 id=216 data-nosnippet>216</a>        <span class="kw">while let </span><span class="prelude-val">Some</span>(HealthCheck(message, sender)) = rx.recv().<span class="kw">await </span>{
+<a href=#217 id=217 data-nosnippet>217</a>            <span class="kw">let </span>update = update_rx.borrow();
+<a href=#218 id=218 data-nosnippet>218</a>
+<a href=#219 id=219 data-nosnippet>219</a>            sender.send(<span class="kw">if </span><span class="macro">matches!</span>(message, IsHealthy::Liveness) {
+<a href=#220 id=220 data-nosnippet>220</a>                Status::Healthy
+<a href=#221 id=221 data-nosnippet>221</a>            } <span class="kw">else if </span>update.instant.elapsed() &gt;= status_timeout {
+<a href=#222 id=222 data-nosnippet>222</a>                Status::Unhealthy
+<a href=#223 id=223 data-nosnippet>223</a>            } <span class="kw">else </span>{
+<a href=#224 id=224 data-nosnippet>224</a>                update.status
+<a href=#225 id=225 data-nosnippet>225</a>            });
+<a href=#226 id=226 data-nosnippet>226</a>        }
+<a href=#227 id=227 data-nosnippet>227</a>    }
+<a href=#228 id=228 data-nosnippet>228</a>}
+<a href=#229 id=229 data-nosnippet>229</a>
+<a href=#230 id=230 data-nosnippet>230</a><span class="attr">#[cfg(test)]
+<a href=#231 id=231 data-nosnippet>231</a></span><span class="kw">mod </span>tests {
+<a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#233 id=233 data-nosnippet>233</a>
+<a href=#234 id=234 data-nosnippet>234</a>    <span class="attr">#[test]
+<a href=#235 id=235 data-nosnippet>235</a>    </span><span class="kw">fn </span>test_status() {
+<a href=#236 id=236 data-nosnippet>236</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(Status::from(<span class="bool-val">true</span>), Status::Healthy));
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(Status::from(<span class="bool-val">false</span>), Status::Unhealthy));
 <a href=#238 id=238 data-nosnippet>238</a>
-<a href=#239 id=239 data-nosnippet>239</a>        <span class="kw">let </span>s = [Status::Unhealthy, Status::Healthy].into_iter().collect();
+<a href=#239 id=239 data-nosnippet>239</a>        <span class="kw">let </span>s = [Status::Unhealthy, Status::Unhealthy].into_iter().collect();
 <a href=#240 id=240 data-nosnippet>240</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Unhealthy));
 <a href=#241 id=241 data-nosnippet>241</a>
-<a href=#242 id=242 data-nosnippet>242</a>        <span class="kw">let </span>s = [Status::Healthy, Status::Unhealthy].into_iter().collect();
+<a href=#242 id=242 data-nosnippet>242</a>        <span class="kw">let </span>s = [Status::Unhealthy, Status::Healthy].into_iter().collect();
 <a href=#243 id=243 data-nosnippet>243</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Unhealthy));
 <a href=#244 id=244 data-nosnippet>244</a>
-<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">let </span>s = [Status::Unhealthy].into_iter().collect();
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">let </span>s = [Status::Healthy, Status::Unhealthy].into_iter().collect();
 <a href=#246 id=246 data-nosnippet>246</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Unhealthy));
 <a href=#247 id=247 data-nosnippet>247</a>
-<a href=#248 id=248 data-nosnippet>248</a>        <span class="comment">// The iterator should short circuit.
-<a href=#249 id=249 data-nosnippet>249</a>        </span><span class="kw">let </span>s = std::iter::repeat(Status::Unhealthy).collect();
-<a href=#250 id=250 data-nosnippet>250</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Unhealthy));
-<a href=#251 id=251 data-nosnippet>251</a>
-<a href=#252 id=252 data-nosnippet>252</a>        <span class="kw">let </span>s = [Status::Healthy, Status::Healthy].into_iter().collect();
-<a href=#253 id=253 data-nosnippet>253</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Healthy));
+<a href=#248 id=248 data-nosnippet>248</a>        <span class="kw">let </span>s = [Status::Unhealthy].into_iter().collect();
+<a href=#249 id=249 data-nosnippet>249</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Unhealthy));
+<a href=#250 id=250 data-nosnippet>250</a>
+<a href=#251 id=251 data-nosnippet>251</a>        <span class="comment">// The iterator should short circuit.
+<a href=#252 id=252 data-nosnippet>252</a>        </span><span class="kw">let </span>s = std::iter::repeat(Status::Unhealthy).collect();
+<a href=#253 id=253 data-nosnippet>253</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Unhealthy));
 <a href=#254 id=254 data-nosnippet>254</a>
-<a href=#255 id=255 data-nosnippet>255</a>        <span class="kw">let </span>s = [Status::Healthy].into_iter().collect();
+<a href=#255 id=255 data-nosnippet>255</a>        <span class="kw">let </span>s = [Status::Healthy, Status::Healthy].into_iter().collect();
 <a href=#256 id=256 data-nosnippet>256</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Healthy));
 <a href=#257 id=257 data-nosnippet>257</a>
-<a href=#258 id=258 data-nosnippet>258</a>        <span class="kw">let </span>s = [].into_iter().collect();
+<a href=#258 id=258 data-nosnippet>258</a>        <span class="kw">let </span>s = [Status::Healthy].into_iter().collect();
 <a href=#259 id=259 data-nosnippet>259</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Healthy));
-<a href=#260 id=260 data-nosnippet>260</a>    }
-<a href=#261 id=261 data-nosnippet>261</a>}</code></pre></div></section></main></body></html>
+<a href=#260 id=260 data-nosnippet>260</a>
+<a href=#261 id=261 data-nosnippet>261</a>        <span class="kw">let </span>s = [].into_iter().collect();
+<a href=#262 id=262 data-nosnippet>262</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Healthy));
+<a href=#263 id=263 data-nosnippet>263</a>    }
+<a href=#264 id=264 data-nosnippet>264</a>}</code></pre></div></section></main></body></html>

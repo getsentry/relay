@@ -24,7 +24,7 @@
 <a href=#24 id=24 data-nosnippet>24</a>    upstream_relay: Addr&lt;UpstreamRelay&gt;,
 <a href=#25 id=25 data-nosnippet>25</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#26 id=26 data-nosnippet>26</a>    </span>redis_clients: <span class="prelude-ty">Option</span>&lt;RedisClients&gt;,
-<a href=#27 id=27 data-nosnippet>27</a>    processor_pool: EnvelopeProcessorServicePool,
+<a href=#27 id=27 data-nosnippet>27</a>    processor_pool: <span class="prelude-ty">Option</span>&lt;EnvelopeProcessorServicePool&gt;,
 <a href=#28 id=28 data-nosnippet>28</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#29 id=29 data-nosnippet>29</a>    </span>store_pool: StoreServicePool,
 <a href=#30 id=30 data-nosnippet>30</a>}
@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>        runtime: Handle,
 <a href=#36 id=36 data-nosnippet>36</a>        upstream_relay: Addr&lt;UpstreamRelay&gt;,
 <a href=#37 id=37 data-nosnippet>37</a>        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis_clients: <span class="prelude-ty">Option</span>&lt;RedisClients&gt;,
-<a href=#38 id=38 data-nosnippet>38</a>        processor_pool: EnvelopeProcessorServicePool,
+<a href=#38 id=38 data-nosnippet>38</a>        processor_pool: <span class="prelude-ty">Option</span>&lt;EnvelopeProcessorServicePool&gt;,
 <a href=#39 id=39 data-nosnippet>39</a>        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>store_pool: StoreServicePool,
 <a href=#40 id=40 data-nosnippet>40</a>    ) -&gt; <span class="self">Self </span>{
 <a href=#41 id=41 data-nosnippet>41</a>        <span class="self">Self </span>{
@@ -215,29 +215,31 @@
 <a href=#215 id=215 data-nosnippet>215</a>    }
 <a href=#216 id=216 data-nosnippet>216</a>
 <a href=#217 id=217 data-nosnippet>217</a>    <span class="kw">async fn </span>async_pools_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-<a href=#218 id=218 data-nosnippet>218</a>        <span class="self">Self</span>::emit_async_pool_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>.processor_pool);
-<a href=#219 id=219 data-nosnippet>219</a>        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#220 id=220 data-nosnippet>220</a>        </span><span class="self">Self</span>::emit_async_pool_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>.store_pool);
-<a href=#221 id=221 data-nosnippet>221</a>    }
-<a href=#222 id=222 data-nosnippet>222</a>}
-<a href=#223 id=223 data-nosnippet>223</a>
-<a href=#224 id=224 data-nosnippet>224</a><span class="kw">impl </span>Service <span class="kw">for </span>RelayStats {
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">type </span>Interface = ();
-<a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">async fn </span>run(<span class="self">self</span>, _rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-<a href=#228 id=228 data-nosnippet>228</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>ticker) = <span class="self">self</span>.config.metrics_periodic_interval().map(interval) <span class="kw">else </span>{
-<a href=#229 id=229 data-nosnippet>229</a>            <span class="kw">return</span>;
-<a href=#230 id=230 data-nosnippet>230</a>        };
-<a href=#231 id=231 data-nosnippet>231</a>
-<a href=#232 id=232 data-nosnippet>232</a>        <span class="kw">loop </span>{
-<a href=#233 id=233 data-nosnippet>233</a>            <span class="kw">let _ </span>= <span class="macro">tokio::join!</span>(
-<a href=#234 id=234 data-nosnippet>234</a>                <span class="self">self</span>.upstream_status(),
-<a href=#235 id=235 data-nosnippet>235</a>                <span class="self">self</span>.service_metrics(),
-<a href=#236 id=236 data-nosnippet>236</a>                <span class="self">self</span>.tokio_metrics(),
-<a href=#237 id=237 data-nosnippet>237</a>                <span class="self">self</span>.redis_clients(),
-<a href=#238 id=238 data-nosnippet>238</a>                <span class="self">self</span>.async_pools_metrics()
-<a href=#239 id=239 data-nosnippet>239</a>            );
-<a href=#240 id=240 data-nosnippet>240</a>            ticker.tick().<span class="kw">await</span>;
-<a href=#241 id=241 data-nosnippet>241</a>        }
-<a href=#242 id=242 data-nosnippet>242</a>    }
-<a href=#243 id=243 data-nosnippet>243</a>}</code></pre></div></section></main></body></html>
+<a href=#218 id=218 data-nosnippet>218</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(processor_pool) = <span class="kw-2">&amp;</span><span class="self">self</span>.processor_pool {
+<a href=#219 id=219 data-nosnippet>219</a>            <span class="self">Self</span>::emit_async_pool_metrics(processor_pool)
+<a href=#220 id=220 data-nosnippet>220</a>        }
+<a href=#221 id=221 data-nosnippet>221</a>        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#222 id=222 data-nosnippet>222</a>        </span><span class="self">Self</span>::emit_async_pool_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>.store_pool);
+<a href=#223 id=223 data-nosnippet>223</a>    }
+<a href=#224 id=224 data-nosnippet>224</a>}
+<a href=#225 id=225 data-nosnippet>225</a>
+<a href=#226 id=226 data-nosnippet>226</a><span class="kw">impl </span>Service <span class="kw">for </span>RelayStats {
+<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">type </span>Interface = ();
+<a href=#228 id=228 data-nosnippet>228</a>
+<a href=#229 id=229 data-nosnippet>229</a>    <span class="kw">async fn </span>run(<span class="self">self</span>, _rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+<a href=#230 id=230 data-nosnippet>230</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>ticker) = <span class="self">self</span>.config.metrics_periodic_interval().map(interval) <span class="kw">else </span>{
+<a href=#231 id=231 data-nosnippet>231</a>            <span class="kw">return</span>;
+<a href=#232 id=232 data-nosnippet>232</a>        };
+<a href=#233 id=233 data-nosnippet>233</a>
+<a href=#234 id=234 data-nosnippet>234</a>        <span class="kw">loop </span>{
+<a href=#235 id=235 data-nosnippet>235</a>            <span class="kw">let _ </span>= <span class="macro">tokio::join!</span>(
+<a href=#236 id=236 data-nosnippet>236</a>                <span class="self">self</span>.upstream_status(),
+<a href=#237 id=237 data-nosnippet>237</a>                <span class="self">self</span>.service_metrics(),
+<a href=#238 id=238 data-nosnippet>238</a>                <span class="self">self</span>.tokio_metrics(),
+<a href=#239 id=239 data-nosnippet>239</a>                <span class="self">self</span>.redis_clients(),
+<a href=#240 id=240 data-nosnippet>240</a>                <span class="self">self</span>.async_pools_metrics()
+<a href=#241 id=241 data-nosnippet>241</a>            );
+<a href=#242 id=242 data-nosnippet>242</a>            ticker.tick().<span class="kw">await</span>;
+<a href=#243 id=243 data-nosnippet>243</a>        }
+<a href=#244 id=244 data-nosnippet>244</a>    }
+<a href=#245 id=245 data-nosnippet>245</a>}</code></pre></div></section></main></body></html>
