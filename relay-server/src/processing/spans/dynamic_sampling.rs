@@ -5,9 +5,9 @@ use chrono::Utc;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
 use relay_quotas::{DataCategory, Scoping};
-use relay_sampling::SamplingConfig;
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
+use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::Item;
 use crate::managed::{Counted, Managed, Quantities};
@@ -74,7 +74,12 @@ pub async fn run(
 
     // At this point the decision is to drop the spans.
     let span_count = outcome_count(&spans.spans);
-    let metrics = create_metrics(spans.scoping(), span_count, SamplingDecision::Drop);
+    let metrics = create_metrics(
+        spans.scoping(),
+        span_count,
+        spans.headers.dsc(),
+        SamplingDecision::Drop,
+    );
     let (spans, metrics) = spans.split_once(|spans| (UnsampledSpans::from(spans), metrics));
 
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
@@ -98,6 +103,7 @@ pub fn create_indexed_metrics(
     let metrics = create_metrics(
         spans.scoping(),
         spans.spans.len() as u32,
+        spans.headers.dsc(),
         SamplingDecision::Keep,
     );
 
@@ -174,6 +180,7 @@ fn is_sampling_config_supported(project_info: &ProjectInfo) -> bool {
 fn create_metrics(
     scoping: Scoping,
     span_count: u32,
+    dsc: Option<&DynamicSamplingContext>,
     sampling_decision: SamplingDecision,
 ) -> ExtractedMetrics {
     let mut metrics = ExtractedMetrics::default();
@@ -195,13 +202,18 @@ fn create_metrics(
         width: 0,
         name: "c:spans/count_per_root_project@none".into(),
         value: BucketValue::counter(span_count.into()),
-        tags: BTreeMap::from([
-            ("decision".to_owned(), sampling_decision.to_string()),
-            (
+        tags: {
+            let mut tags = BTreeMap::new();
+            tags.insert("decision".to_owned(), sampling_decision.to_string());
+            tags.insert(
                 "target_project_id".to_owned(),
                 scoping.project_id.to_string(),
-            ),
-        ]),
+            );
+            if let Some(tx) = dsc.and_then(|dsc| dsc.transaction.clone()) {
+                tags.insert("transaction".to_owned(), tx);
+            }
+            tags
+        },
         metadata,
     });
     metrics.project_metrics.push(Bucket {
