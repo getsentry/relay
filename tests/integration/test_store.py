@@ -187,9 +187,10 @@ def test_store_proxy_config(mini_sentry, relay):
     relay = relay(mini_sentry, options=relay_options, prepare=configure_proxy)
     sleep(1)  # There is no upstream auth, so just wait for relay to initialize
 
-    relay.send_event(project_id)
+    raw_payload = {"message": "Hello, World!"}
+    relay.send_event(project_id, payload=raw_payload)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
+    assert event == raw_payload
 
 
 def test_store_with_low_memory(mini_sentry, relay):
@@ -1036,11 +1037,12 @@ def test_no_auth(relay, mini_sentry):
     relay_options = {"relay": {"mode": "proxy"}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
 
-    relay.send_event(project_id, {"message": "123"})
+    raw_payload = {"message": "123"}
+    relay.send_event(project_id, raw_payload)
 
     # sanity test that we got the event we sent
     event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event["logentry"] == {"formatted": "123"}
+    assert event == raw_payload
     # verify that no registration took place (the register flag is not set)
     assert not has_registered[0]
 

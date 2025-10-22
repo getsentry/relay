@@ -85,6 +85,11 @@ def test_store_via_ephemeral_relay(
         project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
         print(project_config["config"]["trustedRelays"])
 
-    relay.send_event(project_id)
+    raw_payload = {"message": "Hello, World!"}
+    relay.send_event(project_id, payload=raw_payload)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event["logentry"]["formatted"] == "Hello, World!"
+
+    if mode == "proxy":
+        assert event == raw_payload
+    else:
+        assert event["logentry"]["formatted"] == "Hello, World!"
