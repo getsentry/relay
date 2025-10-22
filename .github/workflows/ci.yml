@@ -692,7 +692,7 @@ jobs:
   test_integration:
     needs: build-setup
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
