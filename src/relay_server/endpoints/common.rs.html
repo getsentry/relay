@@ -374,7 +374,7 @@
 <a href=#374 id=374 data-nosnippet>374</a>}
 <a href=#375 id=375 data-nosnippet>375</a>
 <a href=#376 id=376 data-nosnippet>376</a><span class="kw">fn </span>emit_envelope_metrics(envelope: <span class="kw-2">&amp;</span>Envelope) {
-<a href=#377 id=377 data-nosnippet>377</a>    <span class="kw">let </span>client_name = envelope.meta().client_name().name();
+<a href=#377 id=377 data-nosnippet>377</a>    <span class="kw">let </span>client_name = utils::client_name_tag(envelope.meta().client_name());
 <a href=#378 id=378 data-nosnippet>378</a>    <span class="kw">for </span>item <span class="kw">in </span>envelope.items() {
 <a href=#379 id=379 data-nosnippet>379</a>        <span class="kw">let </span>item_type = item.ty().name();
 <a href=#380 id=380 data-nosnippet>380</a>        <span class="kw">let </span>is_container = <span class="kw">if </span>item.is_container() { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>};

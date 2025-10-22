@@ -3,7 +3,7 @@
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use </span>std::str::FromStr;
 <a href=#4 id=4 data-nosnippet>4</a>
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>chrono::{TimeZone, Utc};
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS, URL_PATH};
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS};
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>relay_protocol::{Annotated, Meta, Remark, RemarkType};
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>serde::{Deserialize, Deserializer};
@@ -243,7 +243,7 @@
 <a href=#243 id=243 data-nosnippet>243</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.build_id"</span>, build_id);
 <a href=#244 id=244 data-nosnippet>244</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.entrypoint"</span>, entrypoint);
 <a href=#245 id=245 data-nosnippet>245</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.destination"</span>, destination);
-<a href=#246 id=246 data-nosnippet>246</a>    <span class="macro">add_optional_attribute!</span>(URL_PATH, path);
+<a href=#246 id=246 data-nosnippet>246</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.path"</span>, path);
 <a href=#247 id=247 data-nosnippet>247</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.log_type"</span>, ty);
 <a href=#248 id=248 data-nosnippet>248</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.status_code"</span>, status_code);
 <a href=#249 id=249 data-nosnippet>249</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.request_id"</span>, request_id);
@@ -402,53 +402,53 @@
 <a href=#402 id=402 data-nosnippet>402</a>              "type": "string",
 <a href=#403 id=403 data-nosnippet>403</a>              "value": "my-app-abc123.vercel.app"
 <a href=#404 id=404 data-nosnippet>404</a>            },
-<a href=#405 id=405 data-nosnippet>405</a>            "url.path": {
+<a href=#405 id=405 data-nosnippet>405</a>            "vercel.branch": {
 <a href=#406 id=406 data-nosnippet>406</a>              "type": "string",
-<a href=#407 id=407 data-nosnippet>407</a>              "value": "/api/users"
+<a href=#407 id=407 data-nosnippet>407</a>              "value": "main"
 <a href=#408 id=408 data-nosnippet>408</a>            },
-<a href=#409 id=409 data-nosnippet>409</a>            "vercel.branch": {
+<a href=#409 id=409 data-nosnippet>409</a>            "vercel.build_id": {
 <a href=#410 id=410 data-nosnippet>410</a>              "type": "string",
-<a href=#411 id=411 data-nosnippet>411</a>              "value": "main"
+<a href=#411 id=411 data-nosnippet>411</a>              "value": "bld_cotnkcr76"
 <a href=#412 id=412 data-nosnippet>412</a>            },
-<a href=#413 id=413 data-nosnippet>413</a>            "vercel.build_id": {
+<a href=#413 id=413 data-nosnippet>413</a>            "vercel.deployment_id": {
 <a href=#414 id=414 data-nosnippet>414</a>              "type": "string",
-<a href=#415 id=415 data-nosnippet>415</a>              "value": "bld_cotnkcr76"
+<a href=#415 id=415 data-nosnippet>415</a>              "value": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
 <a href=#416 id=416 data-nosnippet>416</a>            },
-<a href=#417 id=417 data-nosnippet>417</a>            "vercel.deployment_id": {
+<a href=#417 id=417 data-nosnippet>417</a>            "vercel.destination": {
 <a href=#418 id=418 data-nosnippet>418</a>              "type": "string",
-<a href=#419 id=419 data-nosnippet>419</a>              "value": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
+<a href=#419 id=419 data-nosnippet>419</a>              "value": "https://api.example.com"
 <a href=#420 id=420 data-nosnippet>420</a>            },
-<a href=#421 id=421 data-nosnippet>421</a>            "vercel.destination": {
+<a href=#421 id=421 data-nosnippet>421</a>            "vercel.edge_type": {
 <a href=#422 id=422 data-nosnippet>422</a>              "type": "string",
-<a href=#423 id=423 data-nosnippet>423</a>              "value": "https://api.example.com"
+<a href=#423 id=423 data-nosnippet>423</a>              "value": "middleware"
 <a href=#424 id=424 data-nosnippet>424</a>            },
-<a href=#425 id=425 data-nosnippet>425</a>            "vercel.edge_type": {
+<a href=#425 id=425 data-nosnippet>425</a>            "vercel.entrypoint": {
 <a href=#426 id=426 data-nosnippet>426</a>              "type": "string",
-<a href=#427 id=427 data-nosnippet>427</a>              "value": "middleware"
+<a href=#427 id=427 data-nosnippet>427</a>              "value": "api/index.js"
 <a href=#428 id=428 data-nosnippet>428</a>            },
-<a href=#429 id=429 data-nosnippet>429</a>            "vercel.entrypoint": {
+<a href=#429 id=429 data-nosnippet>429</a>            "vercel.execution_region": {
 <a href=#430 id=430 data-nosnippet>430</a>              "type": "string",
-<a href=#431 id=431 data-nosnippet>431</a>              "value": "api/index.js"
+<a href=#431 id=431 data-nosnippet>431</a>              "value": "sfo1"
 <a href=#432 id=432 data-nosnippet>432</a>            },
-<a href=#433 id=433 data-nosnippet>433</a>            "vercel.execution_region": {
+<a href=#433 id=433 data-nosnippet>433</a>            "vercel.id": {
 <a href=#434 id=434 data-nosnippet>434</a>              "type": "string",
-<a href=#435 id=435 data-nosnippet>435</a>              "value": "sfo1"
+<a href=#435 id=435 data-nosnippet>435</a>              "value": "test-log-123"
 <a href=#436 id=436 data-nosnippet>436</a>            },
-<a href=#437 id=437 data-nosnippet>437</a>            "vercel.id": {
+<a href=#437 id=437 data-nosnippet>437</a>            "vercel.ja3_digest": {
 <a href=#438 id=438 data-nosnippet>438</a>              "type": "string",
-<a href=#439 id=439 data-nosnippet>439</a>              "value": "test-log-123"
+<a href=#439 id=439 data-nosnippet>439</a>              "value": "769,47-53-5-10-49161-49162-49171-49172-50-56-19-4,0-10-11,23-24-25,0"
 <a href=#440 id=440 data-nosnippet>440</a>            },
-<a href=#441 id=441 data-nosnippet>441</a>            "vercel.ja3_digest": {
+<a href=#441 id=441 data-nosnippet>441</a>            "vercel.ja4_digest": {
 <a href=#442 id=442 data-nosnippet>442</a>              "type": "string",
-<a href=#443 id=443 data-nosnippet>443</a>              "value": "769,47-53-5-10-49161-49162-49171-49172-50-56-19-4,0-10-11,23-24-25,0"
+<a href=#443 id=443 data-nosnippet>443</a>              "value": "t13d1516h2_8daaf6152771_02713d6af862"
 <a href=#444 id=444 data-nosnippet>444</a>            },
-<a href=#445 id=445 data-nosnippet>445</a>            "vercel.ja4_digest": {
+<a href=#445 id=445 data-nosnippet>445</a>            "vercel.log_type": {
 <a href=#446 id=446 data-nosnippet>446</a>              "type": "string",
-<a href=#447 id=447 data-nosnippet>447</a>              "value": "t13d1516h2_8daaf6152771_02713d6af862"
+<a href=#447 id=447 data-nosnippet>447</a>              "value": "stdout"
 <a href=#448 id=448 data-nosnippet>448</a>            },
-<a href=#449 id=449 data-nosnippet>449</a>            "vercel.log_type": {
+<a href=#449 id=449 data-nosnippet>449</a>            "vercel.path": {
 <a href=#450 id=450 data-nosnippet>450</a>              "type": "string",
-<a href=#451 id=451 data-nosnippet>451</a>              "value": "stdout"
+<a href=#451 id=451 data-nosnippet>451</a>              "value": "/api/users"
 <a href=#452 id=452 data-nosnippet>452</a>            },
 <a href=#453 id=453 data-nosnippet>453</a>            "vercel.project_id": {
 <a href=#454 id=454 data-nosnippet>454</a>              "type": "string",
@@ -614,25 +614,25 @@
 <a href=#614 id=614 data-nosnippet>614</a>              "type": "string",
 <a href=#615 id=615 data-nosnippet>615</a>              "value": "my-app-abc123.vercel.app"
 <a href=#616 id=616 data-nosnippet>616</a>            },
-<a href=#617 id=617 data-nosnippet>617</a>            "url.path": {
+<a href=#617 id=617 data-nosnippet>617</a>            "vercel.deployment_id": {
 <a href=#618 id=618 data-nosnippet>618</a>              "type": "string",
-<a href=#619 id=619 data-nosnippet>619</a>              "value": "/api/users"
+<a href=#619 id=619 data-nosnippet>619</a>              "value": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
 <a href=#620 id=620 data-nosnippet>620</a>            },
-<a href=#621 id=621 data-nosnippet>621</a>            "vercel.deployment_id": {
+<a href=#621 id=621 data-nosnippet>621</a>            "vercel.entrypoint": {
 <a href=#622 id=622 data-nosnippet>622</a>              "type": "string",
-<a href=#623 id=623 data-nosnippet>623</a>              "value": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
+<a href=#623 id=623 data-nosnippet>623</a>              "value": "api/index.js"
 <a href=#624 id=624 data-nosnippet>624</a>            },
-<a href=#625 id=625 data-nosnippet>625</a>            "vercel.entrypoint": {
+<a href=#625 id=625 data-nosnippet>625</a>            "vercel.execution_region": {
 <a href=#626 id=626 data-nosnippet>626</a>              "type": "string",
-<a href=#627 id=627 data-nosnippet>627</a>              "value": "api/index.js"
+<a href=#627 id=627 data-nosnippet>627</a>              "value": "sfo1"
 <a href=#628 id=628 data-nosnippet>628</a>            },
-<a href=#629 id=629 data-nosnippet>629</a>            "vercel.execution_region": {
+<a href=#629 id=629 data-nosnippet>629</a>            "vercel.id": {
 <a href=#630 id=630 data-nosnippet>630</a>              "type": "string",
-<a href=#631 id=631 data-nosnippet>631</a>              "value": "sfo1"
+<a href=#631 id=631 data-nosnippet>631</a>              "value": "1573817250283254651097202070"
 <a href=#632 id=632 data-nosnippet>632</a>            },
-<a href=#633 id=633 data-nosnippet>633</a>            "vercel.id": {
+<a href=#633 id=633 data-nosnippet>633</a>            "vercel.path": {
 <a href=#634 id=634 data-nosnippet>634</a>              "type": "string",
-<a href=#635 id=635 data-nosnippet>635</a>              "value": "1573817250283254651097202070"
+<a href=#635 id=635 data-nosnippet>635</a>              "value": "/api/users"
 <a href=#636 id=636 data-nosnippet>636</a>            },
 <a href=#637 id=637 data-nosnippet>637</a>            "vercel.project_id": {
 <a href=#638 id=638 data-nosnippet>638</a>              "type": "string",
