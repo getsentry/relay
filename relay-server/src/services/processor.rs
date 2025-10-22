@@ -1438,14 +1438,21 @@ impl EnvelopeProcessorService {
 
         let metrics = crate::metrics_extraction::event::extract_metrics(
             event,
-            combined_config,
-            sampling_decision,
-            project_id,
-            self.inner
-                .config
-                .aggregator_config_for(MetricNamespace::Spans)
-                .max_tag_value_length,
-            extract_spans,
+            crate::metrics_extraction::event::ExtractMetricsConfig {
+                config: combined_config,
+                sampling_decision,
+                target_project_id: project_id,
+                max_tag_value_size: self
+                    .inner
+                    .config
+                    .aggregator_config_for(MetricNamespace::Spans)
+                    .max_tag_value_length,
+                extract_spans,
+                transaction_from_dsc: managed_envelope
+                    .envelope()
+                    .dsc()
+                    .and_then(|dsc| dsc.transaction.as_deref()),
+            },
         );
 
         extracted_metrics.extend(metrics, Some(sampling_decision));
