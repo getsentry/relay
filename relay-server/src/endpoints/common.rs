@@ -43,6 +43,9 @@ pub enum BadStoreRequest {
     #[error("empty request body")]
     EmptyBody,
 
+    #[error("envelope contains internal items")]
+    InternalEnvelope,
+
     #[error("invalid request body")]
     InvalidBody(#[source] std::io::Error),
 
