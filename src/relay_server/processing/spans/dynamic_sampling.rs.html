@@ -5,9 +5,9 @@
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_quotas::{DataCategory, Scoping};
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>relay_sampling::SamplingConfig;
-<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>relay_sampling::config::RuleType;
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>relay_sampling::config::RuleType;
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
 <a href=#11 id=11 data-nosnippet>11</a>
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::envelope::Item;
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::managed::{Counted, Managed, Quantities};
@@ -74,165 +74,177 @@
 <a href=#74 id=74 data-nosnippet>74</a>
 <a href=#75 id=75 data-nosnippet>75</a>    <span class="comment">// At this point the decision is to drop the spans.
 <a href=#76 id=76 data-nosnippet>76</a>    </span><span class="kw">let </span>span_count = outcome_count(<span class="kw-2">&amp;</span>spans.spans);
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">let </span>metrics = create_metrics(spans.scoping(), span_count, SamplingDecision::Drop);
-<a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">let </span>(spans, metrics) = spans.split_once(|spans| (UnsampledSpans::from(spans), metrics));
-<a href=#79 id=79 data-nosnippet>79</a>
-<a href=#80 id=80 data-nosnippet>80</a>    <span class="kw">let </span>outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
-<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">let _ </span>= spans.reject_err(outcome);
-<a href=#82 id=82 data-nosnippet>82</a>
-<a href=#83 id=83 data-nosnippet>83</a>    <span class="prelude-val">Err</span>(metrics)
-<a href=#84 id=84 data-nosnippet>84</a>}
-<a href=#85 id=85 data-nosnippet>85</a>
-<a href=#86 id=86 data-nosnippet>86</a><span class="doccomment">/// Creates/extracts metrics for spans which have been determined to be kept by dynamic sampling.
-<a href=#87 id=87 data-nosnippet>87</a>///
-<a href=#88 id=88 data-nosnippet>88</a>/// Indexed metrics can only be extracted from the Relay making the final sampling decision,
-<a href=#89 id=89 data-nosnippet>89</a>/// if the current Relay is not the final Relay, the function returns `None`.
-<a href=#90 id=90 data-nosnippet>90</a></span><span class="kw">pub fn </span>create_indexed_metrics(
-<a href=#91 id=91 data-nosnippet>91</a>    spans: <span class="kw-2">&amp;</span>Managed&lt;ExpandedSpans&gt;,
-<a href=#92 id=92 data-nosnippet>92</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#93 id=93 data-nosnippet>93</a>) -&gt; <span class="prelude-ty">Option</span>&lt;Managed&lt;ExtractedMetrics&gt;&gt; {
-<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">if </span>!ctx.is_processing() {
-<a href=#95 id=95 data-nosnippet>95</a>        <span class="kw">return </span><span class="prelude-val">None</span>;
-<a href=#96 id=96 data-nosnippet>96</a>    }
-<a href=#97 id=97 data-nosnippet>97</a>
-<a href=#98 id=98 data-nosnippet>98</a>    <span class="kw">let </span>metrics = create_metrics(
-<a href=#99 id=99 data-nosnippet>99</a>        spans.scoping(),
-<a href=#100 id=100 data-nosnippet>100</a>        spans.spans.len() <span class="kw">as </span>u32,
-<a href=#101 id=101 data-nosnippet>101</a>        SamplingDecision::Keep,
-<a href=#102 id=102 data-nosnippet>102</a>    );
-<a href=#103 id=103 data-nosnippet>103</a>
-<a href=#104 id=104 data-nosnippet>104</a>    <span class="comment">// Metrics are extracted from indexed spans, they should not emit any span outcomes.
-<a href=#105 id=105 data-nosnippet>105</a>    </span><span class="macro">debug_assert!</span>(
-<a href=#106 id=106 data-nosnippet>106</a>        metrics
-<a href=#107 id=107 data-nosnippet>107</a>            .quantities()
-<a href=#108 id=108 data-nosnippet>108</a>            .into_iter()
-<a href=#109 id=109 data-nosnippet>109</a>            .all(|(c, <span class="kw">_</span>)| c == DataCategory::MetricBucket)
-<a href=#110 id=110 data-nosnippet>110</a>    );
-<a href=#111 id=111 data-nosnippet>111</a>
-<a href=#112 id=112 data-nosnippet>112</a>    <span class="prelude-val">Some</span>(spans.wrap(metrics))
-<a href=#113 id=113 data-nosnippet>113</a>}
-<a href=#114 id=114 data-nosnippet>114</a>
-<a href=#115 id=115 data-nosnippet>115</a><span class="kw">async fn </span>compute(spans: <span class="kw-2">&amp;</span>Managed&lt;SerializedSpans&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; SamplingResult {
-<a href=#116 id=116 data-nosnippet>116</a>    <span class="comment">// The DSC is always required, we need it to evaluate all rules, if it is missing,
-<a href=#117 id=117 data-nosnippet>117</a>    // no rules can be applied -&gt; we sample the item.
-<a href=#118 id=118 data-nosnippet>118</a>    </span><span class="kw">let </span><span class="prelude-val">Some</span>(dsc) = spans.headers.dsc() <span class="kw">else </span>{
-<a href=#119 id=119 data-nosnippet>119</a>        <span class="kw">return </span>SamplingResult::NoMatch;
-<a href=#120 id=120 data-nosnippet>120</a>    };
-<a href=#121 id=121 data-nosnippet>121</a>
-<a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">let </span>project_sampling_config = get_sampling_config(ctx.project_info);
-<a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">let </span>root_sampling_config = ctx
-<a href=#124 id=124 data-nosnippet>124</a>        .sampling_project_info
-<a href=#125 id=125 data-nosnippet>125</a>        <span class="comment">// Fallback to current project if there is no trace root project, this may happen,
-<a href=#126 id=126 data-nosnippet>126</a>        // if the trace root is from a different organization.
-<a href=#127 id=127 data-nosnippet>127</a>        </span>.or(<span class="prelude-val">Some</span>(ctx.project_info))
-<a href=#128 id=128 data-nosnippet>128</a>        .and_then(get_sampling_config);
-<a href=#129 id=129 data-nosnippet>129</a>
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="comment">// The root sampling config is always required for dynamic sampling. It determines the sample
-<a href=#131 id=131 data-nosnippet>131</a>    // rate which is applied to the item.
-<a href=#132 id=132 data-nosnippet>132</a>    </span><span class="kw">let </span><span class="prelude-val">Some</span>(root_sampling_config) = root_sampling_config <span class="kw">else </span>{
-<a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">return </span>SamplingResult::NoMatch;
-<a href=#134 id=134 data-nosnippet>134</a>    };
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">let </span>metrics = create_metrics(
+<a href=#78 id=78 data-nosnippet>78</a>        spans.scoping(),
+<a href=#79 id=79 data-nosnippet>79</a>        span_count,
+<a href=#80 id=80 data-nosnippet>80</a>        spans.headers.dsc(),
+<a href=#81 id=81 data-nosnippet>81</a>        SamplingDecision::Drop,
+<a href=#82 id=82 data-nosnippet>82</a>    );
+<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">let </span>(spans, metrics) = spans.split_once(|spans| (UnsampledSpans::from(spans), metrics));
+<a href=#84 id=84 data-nosnippet>84</a>
+<a href=#85 id=85 data-nosnippet>85</a>    <span class="kw">let </span>outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">let _ </span>= spans.reject_err(outcome);
+<a href=#87 id=87 data-nosnippet>87</a>
+<a href=#88 id=88 data-nosnippet>88</a>    <span class="prelude-val">Err</span>(metrics)
+<a href=#89 id=89 data-nosnippet>89</a>}
+<a href=#90 id=90 data-nosnippet>90</a>
+<a href=#91 id=91 data-nosnippet>91</a><span class="doccomment">/// Creates/extracts metrics for spans which have been determined to be kept by dynamic sampling.
+<a href=#92 id=92 data-nosnippet>92</a>///
+<a href=#93 id=93 data-nosnippet>93</a>/// Indexed metrics can only be extracted from the Relay making the final sampling decision,
+<a href=#94 id=94 data-nosnippet>94</a>/// if the current Relay is not the final Relay, the function returns `None`.
+<a href=#95 id=95 data-nosnippet>95</a></span><span class="kw">pub fn </span>create_indexed_metrics(
+<a href=#96 id=96 data-nosnippet>96</a>    spans: <span class="kw-2">&amp;</span>Managed&lt;ExpandedSpans&gt;,
+<a href=#97 id=97 data-nosnippet>97</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#98 id=98 data-nosnippet>98</a>) -&gt; <span class="prelude-ty">Option</span>&lt;Managed&lt;ExtractedMetrics&gt;&gt; {
+<a href=#99 id=99 data-nosnippet>99</a>    <span class="kw">if </span>!ctx.is_processing() {
+<a href=#100 id=100 data-nosnippet>100</a>        <span class="kw">return </span><span class="prelude-val">None</span>;
+<a href=#101 id=101 data-nosnippet>101</a>    }
+<a href=#102 id=102 data-nosnippet>102</a>
+<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">let </span>metrics = create_metrics(
+<a href=#104 id=104 data-nosnippet>104</a>        spans.scoping(),
+<a href=#105 id=105 data-nosnippet>105</a>        spans.spans.len() <span class="kw">as </span>u32,
+<a href=#106 id=106 data-nosnippet>106</a>        spans.headers.dsc(),
+<a href=#107 id=107 data-nosnippet>107</a>        SamplingDecision::Keep,
+<a href=#108 id=108 data-nosnippet>108</a>    );
+<a href=#109 id=109 data-nosnippet>109</a>
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="comment">// Metrics are extracted from indexed spans, they should not emit any span outcomes.
+<a href=#111 id=111 data-nosnippet>111</a>    </span><span class="macro">debug_assert!</span>(
+<a href=#112 id=112 data-nosnippet>112</a>        metrics
+<a href=#113 id=113 data-nosnippet>113</a>            .quantities()
+<a href=#114 id=114 data-nosnippet>114</a>            .into_iter()
+<a href=#115 id=115 data-nosnippet>115</a>            .all(|(c, <span class="kw">_</span>)| c == DataCategory::MetricBucket)
+<a href=#116 id=116 data-nosnippet>116</a>    );
+<a href=#117 id=117 data-nosnippet>117</a>
+<a href=#118 id=118 data-nosnippet>118</a>    <span class="prelude-val">Some</span>(spans.wrap(metrics))
+<a href=#119 id=119 data-nosnippet>119</a>}
+<a href=#120 id=120 data-nosnippet>120</a>
+<a href=#121 id=121 data-nosnippet>121</a><span class="kw">async fn </span>compute(spans: <span class="kw-2">&amp;</span>Managed&lt;SerializedSpans&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; SamplingResult {
+<a href=#122 id=122 data-nosnippet>122</a>    <span class="comment">// The DSC is always required, we need it to evaluate all rules, if it is missing,
+<a href=#123 id=123 data-nosnippet>123</a>    // no rules can be applied -&gt; we sample the item.
+<a href=#124 id=124 data-nosnippet>124</a>    </span><span class="kw">let </span><span class="prelude-val">Some</span>(dsc) = spans.headers.dsc() <span class="kw">else </span>{
+<a href=#125 id=125 data-nosnippet>125</a>        <span class="kw">return </span>SamplingResult::NoMatch;
+<a href=#126 id=126 data-nosnippet>126</a>    };
+<a href=#127 id=127 data-nosnippet>127</a>
+<a href=#128 id=128 data-nosnippet>128</a>    <span class="kw">let </span>project_sampling_config = get_sampling_config(ctx.project_info);
+<a href=#129 id=129 data-nosnippet>129</a>    <span class="kw">let </span>root_sampling_config = ctx
+<a href=#130 id=130 data-nosnippet>130</a>        .sampling_project_info
+<a href=#131 id=131 data-nosnippet>131</a>        <span class="comment">// Fallback to current project if there is no trace root project, this may happen,
+<a href=#132 id=132 data-nosnippet>132</a>        // if the trace root is from a different organization.
+<a href=#133 id=133 data-nosnippet>133</a>        </span>.or(<span class="prelude-val">Some</span>(ctx.project_info))
+<a href=#134 id=134 data-nosnippet>134</a>        .and_then(get_sampling_config);
 <a href=#135 id=135 data-nosnippet>135</a>
-<a href=#136 id=136 data-nosnippet>136</a>    <span class="comment">// TODO: reservoir sampling
-<a href=#137 id=137 data-nosnippet>137</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>evaluator = SamplingEvaluator::new(Utc::now());
-<a href=#138 id=138 data-nosnippet>138</a>
-<a href=#139 id=139 data-nosnippet>139</a>    <span class="comment">// Apply project rules before trace rules, to give projects a chance to override the trace root
-<a href=#140 id=140 data-nosnippet>140</a>    // sample rate.
-<a href=#141 id=141 data-nosnippet>141</a>    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_config) = project_sampling_config {
-<a href=#142 id=142 data-nosnippet>142</a>        <span class="kw">let </span>rules = sampling_config.filter_rules(RuleType::Project);
-<a href=#143 id=143 data-nosnippet>143</a>
-<a href=#144 id=144 data-nosnippet>144</a>        <span class="comment">// We need a segment consistent seed to make sure all spans of the same segment in this
-<a href=#145 id=145 data-nosnippet>145</a>        // project get a proper minimum sample rate applied.
-<a href=#146 id=146 data-nosnippet>146</a>        //
-<a href=#147 id=147 data-nosnippet>147</a>        // The trace id gives us this property and it will also have the upside of consistently
-<a href=#148 id=148 data-nosnippet>148</a>        // sampling multiple segments of the same trace.
-<a href=#149 id=149 data-nosnippet>149</a>        </span>evaluator = <span class="kw">match </span>evaluator.match_rules(<span class="kw-2">*</span>dsc.trace_id, dsc, rules).<span class="kw">await </span>{
-<a href=#150 id=150 data-nosnippet>150</a>            ControlFlow::Continue(evaluator) =&gt; evaluator,
-<a href=#151 id=151 data-nosnippet>151</a>            ControlFlow::Break(sampling_match) =&gt; <span class="kw">return </span>SamplingResult::Match(sampling_match),
-<a href=#152 id=152 data-nosnippet>152</a>        }
-<a href=#153 id=153 data-nosnippet>153</a>    }
-<a href=#154 id=154 data-nosnippet>154</a>
-<a href=#155 id=155 data-nosnippet>155</a>    <span class="kw">let </span>rules = root_sampling_config.filter_rules(RuleType::Trace);
-<a href=#156 id=156 data-nosnippet>156</a>    evaluator
-<a href=#157 id=157 data-nosnippet>157</a>        .match_rules(<span class="kw-2">*</span>dsc.trace_id, dsc, rules)
-<a href=#158 id=158 data-nosnippet>158</a>        .<span class="kw">await
-<a href=#159 id=159 data-nosnippet>159</a>        </span>.into()
-<a href=#160 id=160 data-nosnippet>160</a>}
-<a href=#161 id=161 data-nosnippet>161</a>
-<a href=#162 id=162 data-nosnippet>162</a><span class="kw">fn </span>get_sampling_config(info: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt; {
-<a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">let </span>config = info.config.sampling.as_ref()<span class="question-mark">?</span>.as_ref().ok()<span class="question-mark">?</span>;
-<a href=#164 id=164 data-nosnippet>164</a>    (!config.unsupported()).then_some(config)
-<a href=#165 id=165 data-nosnippet>165</a>}
-<a href=#166 id=166 data-nosnippet>166</a>
-<a href=#167 id=167 data-nosnippet>167</a><span class="kw">fn </span>is_sampling_config_supported(project_info: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool {
-<a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(config) = <span class="kw-2">&amp;</span>project_info.config.sampling <span class="kw">else </span>{
-<a href=#169 id=169 data-nosnippet>169</a>        <span class="kw">return </span><span class="bool-val">true</span>;
-<a href=#170 id=170 data-nosnippet>170</a>    };
-<a href=#171 id=171 data-nosnippet>171</a>    <span class="macro">matches!</span>(config, ErrorBoundary::Ok(config) <span class="kw">if </span>!config.unsupported())
-<a href=#172 id=172 data-nosnippet>172</a>}
-<a href=#173 id=173 data-nosnippet>173</a>
-<a href=#174 id=174 data-nosnippet>174</a><span class="kw">fn </span>create_metrics(
-<a href=#175 id=175 data-nosnippet>175</a>    scoping: Scoping,
-<a href=#176 id=176 data-nosnippet>176</a>    span_count: u32,
-<a href=#177 id=177 data-nosnippet>177</a>    sampling_decision: SamplingDecision,
-<a href=#178 id=178 data-nosnippet>178</a>) -&gt; ExtractedMetrics {
-<a href=#179 id=179 data-nosnippet>179</a>    <span class="kw">let </span><span class="kw-2">mut </span>metrics = ExtractedMetrics::default();
-<a href=#180 id=180 data-nosnippet>180</a>
-<a href=#181 id=181 data-nosnippet>181</a>    <span class="kw">if </span>span_count == <span class="number">0 </span>{
-<a href=#182 id=182 data-nosnippet>182</a>        <span class="kw">return </span>metrics;
-<a href=#183 id=183 data-nosnippet>183</a>    }
-<a href=#184 id=184 data-nosnippet>184</a>
-<a href=#185 id=185 data-nosnippet>185</a>    <span class="comment">// For extracted metrics, Relay has always used the moment when the metrics were extracted
-<a href=#186 id=186 data-nosnippet>186</a>    // as the received time, instead of the source item's received time.
-<a href=#187 id=187 data-nosnippet>187</a>    </span><span class="kw">let </span>timestamp = UnixTimestamp::now();
-<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">let </span><span class="kw-2">mut </span>metadata = BucketMetadata::new(timestamp);
-<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">if </span>sampling_decision.is_keep() {
-<a href=#190 id=190 data-nosnippet>190</a>        metadata.extracted_from_indexed = <span class="bool-val">true</span>;
-<a href=#191 id=191 data-nosnippet>191</a>    }
-<a href=#192 id=192 data-nosnippet>192</a>
-<a href=#193 id=193 data-nosnippet>193</a>    metrics.sampling_metrics.push(Bucket {
-<a href=#194 id=194 data-nosnippet>194</a>        timestamp,
-<a href=#195 id=195 data-nosnippet>195</a>        width: <span class="number">0</span>,
-<a href=#196 id=196 data-nosnippet>196</a>        name: <span class="string">"c:spans/count_per_root_project@none"</span>.into(),
-<a href=#197 id=197 data-nosnippet>197</a>        value: BucketValue::counter(span_count.into()),
-<a href=#198 id=198 data-nosnippet>198</a>        tags: BTreeMap::from([
-<a href=#199 id=199 data-nosnippet>199</a>            (<span class="string">"decision"</span>.to_owned(), sampling_decision.to_string()),
-<a href=#200 id=200 data-nosnippet>200</a>            (
-<a href=#201 id=201 data-nosnippet>201</a>                <span class="string">"target_project_id"</span>.to_owned(),
-<a href=#202 id=202 data-nosnippet>202</a>                scoping.project_id.to_string(),
-<a href=#203 id=203 data-nosnippet>203</a>            ),
-<a href=#204 id=204 data-nosnippet>204</a>        ]),
-<a href=#205 id=205 data-nosnippet>205</a>        metadata,
-<a href=#206 id=206 data-nosnippet>206</a>    });
-<a href=#207 id=207 data-nosnippet>207</a>    metrics.project_metrics.push(Bucket {
-<a href=#208 id=208 data-nosnippet>208</a>        timestamp,
-<a href=#209 id=209 data-nosnippet>209</a>        width: <span class="number">0</span>,
-<a href=#210 id=210 data-nosnippet>210</a>        name: <span class="string">"c:spans/usage@none"</span>.into(),
-<a href=#211 id=211 data-nosnippet>211</a>        value: BucketValue::counter(span_count.into()),
-<a href=#212 id=212 data-nosnippet>212</a>        tags: Default::default(),
-<a href=#213 id=213 data-nosnippet>213</a>        metadata,
-<a href=#214 id=214 data-nosnippet>214</a>    });
-<a href=#215 id=215 data-nosnippet>215</a>
-<a href=#216 id=216 data-nosnippet>216</a>    metrics
-<a href=#217 id=217 data-nosnippet>217</a>}
-<a href=#218 id=218 data-nosnippet>218</a>
-<a href=#219 id=219 data-nosnippet>219</a><span class="doccomment">/// Spans which have been rejected/dropped by dynamic sampling.
-<a href=#220 id=220 data-nosnippet>220</a>///
-<a href=#221 id=221 data-nosnippet>221</a>/// Contained spans will only count towards the [`DataCategory::SpanIndexed`] category,
-<a href=#222 id=222 data-nosnippet>222</a>/// as the total category is counted from now in in metrics.
-<a href=#223 id=223 data-nosnippet>223</a></span><span class="kw">struct </span>UnsampledSpans {
-<a href=#224 id=224 data-nosnippet>224</a>    spans: Vec&lt;Item&gt;,
-<a href=#225 id=225 data-nosnippet>225</a>}
-<a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a><span class="kw">impl </span>From&lt;SerializedSpans&gt; <span class="kw">for </span>UnsampledSpans {
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">fn </span>from(value: SerializedSpans) -&gt; <span class="self">Self </span>{
-<a href=#229 id=229 data-nosnippet>229</a>        <span class="self">Self </span>{ spans: value.spans }
-<a href=#230 id=230 data-nosnippet>230</a>    }
-<a href=#231 id=231 data-nosnippet>231</a>}
-<a href=#232 id=232 data-nosnippet>232</a>
-<a href=#233 id=233 data-nosnippet>233</a><span class="kw">impl </span>Counted <span class="kw">for </span>UnsampledSpans {
-<a href=#234 id=234 data-nosnippet>234</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
-<a href=#235 id=235 data-nosnippet>235</a>        <span class="kw">let </span>quantity = outcome_count(<span class="kw-2">&amp;</span><span class="self">self</span>.spans) <span class="kw">as </span>usize;
-<a href=#236 id=236 data-nosnippet>236</a>        <span class="macro">smallvec::smallvec!</span>[(DataCategory::SpanIndexed, quantity),]
-<a href=#237 id=237 data-nosnippet>237</a>    }
-<a href=#238 id=238 data-nosnippet>238</a>}</code></pre></div></section></main></body></html>
+<a href=#136 id=136 data-nosnippet>136</a>    <span class="comment">// The root sampling config is always required for dynamic sampling. It determines the sample
+<a href=#137 id=137 data-nosnippet>137</a>    // rate which is applied to the item.
+<a href=#138 id=138 data-nosnippet>138</a>    </span><span class="kw">let </span><span class="prelude-val">Some</span>(root_sampling_config) = root_sampling_config <span class="kw">else </span>{
+<a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">return </span>SamplingResult::NoMatch;
+<a href=#140 id=140 data-nosnippet>140</a>    };
+<a href=#141 id=141 data-nosnippet>141</a>
+<a href=#142 id=142 data-nosnippet>142</a>    <span class="comment">// TODO: reservoir sampling
+<a href=#143 id=143 data-nosnippet>143</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>evaluator = SamplingEvaluator::new(Utc::now());
+<a href=#144 id=144 data-nosnippet>144</a>
+<a href=#145 id=145 data-nosnippet>145</a>    <span class="comment">// Apply project rules before trace rules, to give projects a chance to override the trace root
+<a href=#146 id=146 data-nosnippet>146</a>    // sample rate.
+<a href=#147 id=147 data-nosnippet>147</a>    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_config) = project_sampling_config {
+<a href=#148 id=148 data-nosnippet>148</a>        <span class="kw">let </span>rules = sampling_config.filter_rules(RuleType::Project);
+<a href=#149 id=149 data-nosnippet>149</a>
+<a href=#150 id=150 data-nosnippet>150</a>        <span class="comment">// We need a segment consistent seed to make sure all spans of the same segment in this
+<a href=#151 id=151 data-nosnippet>151</a>        // project get a proper minimum sample rate applied.
+<a href=#152 id=152 data-nosnippet>152</a>        //
+<a href=#153 id=153 data-nosnippet>153</a>        // The trace id gives us this property and it will also have the upside of consistently
+<a href=#154 id=154 data-nosnippet>154</a>        // sampling multiple segments of the same trace.
+<a href=#155 id=155 data-nosnippet>155</a>        </span>evaluator = <span class="kw">match </span>evaluator.match_rules(<span class="kw-2">*</span>dsc.trace_id, dsc, rules).<span class="kw">await </span>{
+<a href=#156 id=156 data-nosnippet>156</a>            ControlFlow::Continue(evaluator) =&gt; evaluator,
+<a href=#157 id=157 data-nosnippet>157</a>            ControlFlow::Break(sampling_match) =&gt; <span class="kw">return </span>SamplingResult::Match(sampling_match),
+<a href=#158 id=158 data-nosnippet>158</a>        }
+<a href=#159 id=159 data-nosnippet>159</a>    }
+<a href=#160 id=160 data-nosnippet>160</a>
+<a href=#161 id=161 data-nosnippet>161</a>    <span class="kw">let </span>rules = root_sampling_config.filter_rules(RuleType::Trace);
+<a href=#162 id=162 data-nosnippet>162</a>    evaluator
+<a href=#163 id=163 data-nosnippet>163</a>        .match_rules(<span class="kw-2">*</span>dsc.trace_id, dsc, rules)
+<a href=#164 id=164 data-nosnippet>164</a>        .<span class="kw">await
+<a href=#165 id=165 data-nosnippet>165</a>        </span>.into()
+<a href=#166 id=166 data-nosnippet>166</a>}
+<a href=#167 id=167 data-nosnippet>167</a>
+<a href=#168 id=168 data-nosnippet>168</a><span class="kw">fn </span>get_sampling_config(info: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt; {
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">let </span>config = info.config.sampling.as_ref()<span class="question-mark">?</span>.as_ref().ok()<span class="question-mark">?</span>;
+<a href=#170 id=170 data-nosnippet>170</a>    (!config.unsupported()).then_some(config)
+<a href=#171 id=171 data-nosnippet>171</a>}
+<a href=#172 id=172 data-nosnippet>172</a>
+<a href=#173 id=173 data-nosnippet>173</a><span class="kw">fn </span>is_sampling_config_supported(project_info: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool {
+<a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(config) = <span class="kw-2">&amp;</span>project_info.config.sampling <span class="kw">else </span>{
+<a href=#175 id=175 data-nosnippet>175</a>        <span class="kw">return </span><span class="bool-val">true</span>;
+<a href=#176 id=176 data-nosnippet>176</a>    };
+<a href=#177 id=177 data-nosnippet>177</a>    <span class="macro">matches!</span>(config, ErrorBoundary::Ok(config) <span class="kw">if </span>!config.unsupported())
+<a href=#178 id=178 data-nosnippet>178</a>}
+<a href=#179 id=179 data-nosnippet>179</a>
+<a href=#180 id=180 data-nosnippet>180</a><span class="kw">fn </span>create_metrics(
+<a href=#181 id=181 data-nosnippet>181</a>    scoping: Scoping,
+<a href=#182 id=182 data-nosnippet>182</a>    span_count: u32,
+<a href=#183 id=183 data-nosnippet>183</a>    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
+<a href=#184 id=184 data-nosnippet>184</a>    sampling_decision: SamplingDecision,
+<a href=#185 id=185 data-nosnippet>185</a>) -&gt; ExtractedMetrics {
+<a href=#186 id=186 data-nosnippet>186</a>    <span class="kw">let </span><span class="kw-2">mut </span>metrics = ExtractedMetrics::default();
+<a href=#187 id=187 data-nosnippet>187</a>
+<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">if </span>span_count == <span class="number">0 </span>{
+<a href=#189 id=189 data-nosnippet>189</a>        <span class="kw">return </span>metrics;
+<a href=#190 id=190 data-nosnippet>190</a>    }
+<a href=#191 id=191 data-nosnippet>191</a>
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="comment">// For extracted metrics, Relay has always used the moment when the metrics were extracted
+<a href=#193 id=193 data-nosnippet>193</a>    // as the received time, instead of the source item's received time.
+<a href=#194 id=194 data-nosnippet>194</a>    </span><span class="kw">let </span>timestamp = UnixTimestamp::now();
+<a href=#195 id=195 data-nosnippet>195</a>    <span class="kw">let </span><span class="kw-2">mut </span>metadata = BucketMetadata::new(timestamp);
+<a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">if </span>sampling_decision.is_keep() {
+<a href=#197 id=197 data-nosnippet>197</a>        metadata.extracted_from_indexed = <span class="bool-val">true</span>;
+<a href=#198 id=198 data-nosnippet>198</a>    }
+<a href=#199 id=199 data-nosnippet>199</a>
+<a href=#200 id=200 data-nosnippet>200</a>    metrics.sampling_metrics.push(Bucket {
+<a href=#201 id=201 data-nosnippet>201</a>        timestamp,
+<a href=#202 id=202 data-nosnippet>202</a>        width: <span class="number">0</span>,
+<a href=#203 id=203 data-nosnippet>203</a>        name: <span class="string">"c:spans/count_per_root_project@none"</span>.into(),
+<a href=#204 id=204 data-nosnippet>204</a>        value: BucketValue::counter(span_count.into()),
+<a href=#205 id=205 data-nosnippet>205</a>        tags: {
+<a href=#206 id=206 data-nosnippet>206</a>            <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
+<a href=#207 id=207 data-nosnippet>207</a>            tags.insert(<span class="string">"decision"</span>.to_owned(), sampling_decision.to_string());
+<a href=#208 id=208 data-nosnippet>208</a>            tags.insert(
+<a href=#209 id=209 data-nosnippet>209</a>                <span class="string">"target_project_id"</span>.to_owned(),
+<a href=#210 id=210 data-nosnippet>210</a>                scoping.project_id.to_string(),
+<a href=#211 id=211 data-nosnippet>211</a>            );
+<a href=#212 id=212 data-nosnippet>212</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(tx) = dsc.and_then(|dsc| dsc.transaction.clone()) {
+<a href=#213 id=213 data-nosnippet>213</a>                tags.insert(<span class="string">"transaction"</span>.to_owned(), tx);
+<a href=#214 id=214 data-nosnippet>214</a>            }
+<a href=#215 id=215 data-nosnippet>215</a>            tags
+<a href=#216 id=216 data-nosnippet>216</a>        },
+<a href=#217 id=217 data-nosnippet>217</a>        metadata,
+<a href=#218 id=218 data-nosnippet>218</a>    });
+<a href=#219 id=219 data-nosnippet>219</a>    metrics.project_metrics.push(Bucket {
+<a href=#220 id=220 data-nosnippet>220</a>        timestamp,
+<a href=#221 id=221 data-nosnippet>221</a>        width: <span class="number">0</span>,
+<a href=#222 id=222 data-nosnippet>222</a>        name: <span class="string">"c:spans/usage@none"</span>.into(),
+<a href=#223 id=223 data-nosnippet>223</a>        value: BucketValue::counter(span_count.into()),
+<a href=#224 id=224 data-nosnippet>224</a>        tags: Default::default(),
+<a href=#225 id=225 data-nosnippet>225</a>        metadata,
+<a href=#226 id=226 data-nosnippet>226</a>    });
+<a href=#227 id=227 data-nosnippet>227</a>
+<a href=#228 id=228 data-nosnippet>228</a>    metrics
+<a href=#229 id=229 data-nosnippet>229</a>}
+<a href=#230 id=230 data-nosnippet>230</a>
+<a href=#231 id=231 data-nosnippet>231</a><span class="doccomment">/// Spans which have been rejected/dropped by dynamic sampling.
+<a href=#232 id=232 data-nosnippet>232</a>///
+<a href=#233 id=233 data-nosnippet>233</a>/// Contained spans will only count towards the [`DataCategory::SpanIndexed`] category,
+<a href=#234 id=234 data-nosnippet>234</a>/// as the total category is counted from now in in metrics.
+<a href=#235 id=235 data-nosnippet>235</a></span><span class="kw">struct </span>UnsampledSpans {
+<a href=#236 id=236 data-nosnippet>236</a>    spans: Vec&lt;Item&gt;,
+<a href=#237 id=237 data-nosnippet>237</a>}
+<a href=#238 id=238 data-nosnippet>238</a>
+<a href=#239 id=239 data-nosnippet>239</a><span class="kw">impl </span>From&lt;SerializedSpans&gt; <span class="kw">for </span>UnsampledSpans {
+<a href=#240 id=240 data-nosnippet>240</a>    <span class="kw">fn </span>from(value: SerializedSpans) -&gt; <span class="self">Self </span>{
+<a href=#241 id=241 data-nosnippet>241</a>        <span class="self">Self </span>{ spans: value.spans }
+<a href=#242 id=242 data-nosnippet>242</a>    }
+<a href=#243 id=243 data-nosnippet>243</a>}
+<a href=#244 id=244 data-nosnippet>244</a>
+<a href=#245 id=245 data-nosnippet>245</a><span class="kw">impl </span>Counted <span class="kw">for </span>UnsampledSpans {
+<a href=#246 id=246 data-nosnippet>246</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
+<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">let </span>quantity = outcome_count(<span class="kw-2">&amp;</span><span class="self">self</span>.spans) <span class="kw">as </span>usize;
+<a href=#248 id=248 data-nosnippet>248</a>        <span class="macro">smallvec::smallvec!</span>[(DataCategory::SpanIndexed, quantity),]
+<a href=#249 id=249 data-nosnippet>249</a>    }
+<a href=#250 id=250 data-nosnippet>250</a>}</code></pre></div></section></main></body></html>
