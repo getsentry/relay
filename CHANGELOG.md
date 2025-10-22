@@ -8,6 +8,7 @@
 
 **Bug Fixes**:
 
+- Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
 - Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
 
 **Internal**:
