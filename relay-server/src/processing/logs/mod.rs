@@ -165,7 +165,7 @@ impl Forward for LogOutput {
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         self.0.try_map(|logs, r| {
             r.lenient(DataCategory::LogByte);
-            logs.serialize()
+            logs.serialize_envelope()
                 .map_err(drop)
                 .with_outcome(Outcome::Invalid(DiscardReason::Internal))
         })
@@ -267,7 +267,7 @@ impl Counted for ExpandedLogs {
 }
 
 impl ExpandedLogs {
-    fn serialize(self) -> Result<Box<Envelope>, ContainerWriteError> {
+    fn serialize_envelope(self) -> Result<Box<Envelope>, ContainerWriteError> {
         let mut logs = Vec::new();
 
         if !self.logs.is_empty() {

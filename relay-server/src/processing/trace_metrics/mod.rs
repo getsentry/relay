@@ -144,7 +144,7 @@ impl Forward for TraceMetricOutput {
     ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
         self.0.try_map(|metrics, _| {
             metrics
-                .serialize()
+                .serialize_envelope()
                 .map_err(drop)
                 .with_outcome(Outcome::Invalid(DiscardReason::Internal))
         })
@@ -216,7 +216,7 @@ impl Counted for ExpandedTraceMetrics {
 }
 
 impl ExpandedTraceMetrics {
-    fn serialize(self) -> Result<Box<Envelope>, ContainerWriteError> {
+    fn serialize_envelope(self) -> Result<Box<Envelope>, ContainerWriteError> {
         let mut metrics = Vec::new();
 
         if !self.metrics.is_empty() {

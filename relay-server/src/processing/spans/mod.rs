@@ -166,7 +166,7 @@ impl Forward for SpanOutput {
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         self.0.try_map(|spans, _| {
             spans
-                .serialize()
+                .serialize_envelope()
                 .map_err(drop)
                 .with_outcome(Outcome::Invalid(DiscardReason::Internal))
         })
@@ -248,7 +248,7 @@ pub struct ExpandedSpans {
 }
 
 impl ExpandedSpans {
-    fn serialize(self) -> Result<Box<Envelope>, ContainerWriteError> {
+    fn serialize_envelope(self) -> Result<Box<Envelope>, ContainerWriteError> {
         let mut spans = Vec::new();
 
         if !self.spans.is_empty() {
