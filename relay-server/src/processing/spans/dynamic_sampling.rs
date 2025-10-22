@@ -10,7 +10,7 @@ use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::envelope::Item;
+use crate::envelope::{ClientName, Item};
 use crate::managed::{Counted, Managed, Quantities};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::Context;
@@ -63,7 +63,14 @@ pub fn validate_configs(ctx: Context<'_>) {
 pub fn validate_dsc_presence(spans: &SerializedSpans) -> Result<()> {
     let dsc = spans.headers.dsc();
 
-    if !spans.spans.is_empty() && dsc.is_none() {
+    // Envelopes created by Relay may not carry a DSC. This is currently the case for envelopes
+    // created through the OTeL integration.
+    //
+    // This validation is only best effort (not a hard requirement) to get SDKs to implement DSC
+    // correctly, so it is okay to be a bit more lenient here and trust ourselves.
+    let client_is_relay = spans.headers.meta().client_name() == ClientName::Relay;
+
+    if !client_is_relay && dsc.is_none() {
         return Err(Error::MissingDynamicSamplingContext);
     }
 
@@ -76,6 +83,9 @@ pub fn validate_dsc_presence(spans: &SerializedSpans) -> Result<()> {
 /// Currently this only validates the trace id.
 pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
     let Some(dsc) = spans.headers.dsc() else {
+        // It's okay if we don't have a DSC here. We may be in a processing path which has spans
+        // from mixed traces without a DSC (=100% sample rate).
+        // For example via the OTeL integration.
         return Ok(());
     };
 
