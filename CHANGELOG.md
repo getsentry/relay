@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
+
 **Bug Fixes**:
 
+- Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
 - Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
 - Tag spans' count per root metric with the trace root's transaction instead of the local transaction. ([#5281](https://github.com/getsentry/relay/pull/5281))
 

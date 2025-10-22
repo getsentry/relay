@@ -74,8 +74,6 @@ pub enum EnvelopeError {
     HeaderMismatch(&'static str),
     #[error("invalid item header")]
     InvalidItemHeader(#[source] serde_json::Error),
-    #[error("internal/reserved item type used")]
-    InternalItemType,
     #[error("failed to write header")]
     HeaderIoFailed(#[source] serde_json::Error),
     #[error("failed to write payload")]
@@ -301,6 +299,11 @@ impl Envelope {
     /// Returns `true` if this envelope does not contain any items.
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    /// Returns `true` if the envelope contains an [internal item](ItemType::is_internal).
+    pub fn is_internal(&self) -> bool {
+        self.items().any(|item| item.ty().is_internal())
     }
 
     /// Unique identifier of the event associated to this envelope.

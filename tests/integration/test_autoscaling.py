@@ -42,7 +42,7 @@ def test_sqlite_spooling_metrics(mini_sentry, relay):
 
     # Send SIGUSR1 to disable unspooling
     relay.send_signal(signal.SIGUSR1)
-    sleep(0.5)  # Give time for the signal to be processed
+    sleep(1)  # Give time for the signal to be processed
 
     # Send more events while unspooling is disabled
     for i in range(200):

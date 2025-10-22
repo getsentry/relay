@@ -113,6 +113,9 @@ async fn handle_post(
         envelope::CONTENT_TYPE => Envelope::parse_request(body, meta)?,
         _ => parse_event(body, meta, state.config())?,
     };
+    if envelope.is_internal() {
+        return Err(BadStoreRequest::InternalEnvelope);
+    }
 
     let id = common::handle_envelope(&state, envelope).await?;
     Ok(axum::Json(PostResponse { id }).into_response())

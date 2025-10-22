@@ -68,10 +68,6 @@ impl Item {
             Some(Ok(headers)) => headers,
         };
 
-        if headers.ty.is_internal() {
-            return Err(EnvelopeError::InternalItemType);
-        }
-
         // Each header is terminated by a UNIX newline.
         let headers_end = stream.byte_offset();
         super::require_termination(slice, headers_end)?;
@@ -973,16 +969,6 @@ mod tests {
         item.set_source_quantities(source_quantities);
 
         assert_eq!(item.source_quantities(), Some(source_quantities));
-    }
-
-    #[test]
-    fn test_internal_item_type_does_not_parse() {
-        let err = Item::parse(Bytes::from_static(
-            br#"{"type":"integration","content_type":"application/vnd.sentry.integration.otel.logs+json"}"#,
-        ))
-        .unwrap_err();
-
-        assert!(matches!(err, EnvelopeError::InternalItemType));
     }
 
     #[test]
