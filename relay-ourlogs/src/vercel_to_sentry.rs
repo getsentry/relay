@@ -118,10 +118,10 @@ pub struct VercelProxy {
     pub path: String,
     /// User agent strings of the request.
     pub user_agent: Vec<String>,
-    /// Referer of the request.
-    pub referer: String,
     /// Region where the request is processed.
     pub region: String,
+    /// Referer of the request.
+    pub referer: Option<String>,
     /// HTTP status code of the proxy request.
     pub status_code: Option<i64>,
     /// Client IP address.
@@ -282,13 +282,13 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
         add_attribute!("vercel.proxy.method", method);
         add_attribute!("vercel.proxy.host", host);
         add_attribute!("vercel.proxy.path", path);
-        add_attribute!("vercel.proxy.referer", referer);
         add_attribute!("vercel.proxy.region", region);
 
         if let Ok(user_agent_string) = serde_json::to_string(&user_agent) {
             attributes.insert("vercel.proxy.user_agent", user_agent_string);
         }
 
+        add_optional_attribute!("vercel.proxy.referer", referer);
         add_optional_attribute!("vercel.proxy.status_code", status_code);
         add_optional_attribute!("vercel.proxy.client_ip", client_ip);
         add_optional_attribute!("vercel.proxy.scheme", scheme);
@@ -363,8 +363,8 @@ mod tests {
                 host: "my-app.vercel.app".to_owned(),
                 path: "/api/users?page=1".to_owned(),
                 user_agent: vec!["Mozilla/5.0...".to_owned()],
-                referer: "https://my-app.vercel.app".to_owned(),
                 region: "sfo1".to_owned(),
+                referer: Some("https://my-app.vercel.app".to_owned()),
                 status_code: Some(200),
                 client_ip: Some("120.75.16.101".to_owned()),
                 scheme: Some("https".to_owned()),
