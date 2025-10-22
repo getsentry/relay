@@ -134,19 +134,10 @@ impl processing::Processor for LogsProcessor {
 
     async fn process(
         &self,
-        mut logs: Managed<Self::UnitOfWork>,
+        logs: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
         validate::container(&logs).reject(&logs)?;
-
-        if ctx.is_proxy() {
-            // If running in proxy mode, just apply cached rate limits and forward without
-            // processing.
-            //
-            // Static mode needs processing, as users can override project settings manually.
-            self.limiter.enforce_quotas(&mut logs, ctx).await?;
-            return Ok(Output::just(LogOutput::NotProcessed(logs)));
-        }
 
         // Fast filters, which do not need expanded logs.
         filter::feature_flag(ctx).reject(&logs)?;
@@ -159,36 +150,25 @@ impl processing::Processor for LogsProcessor {
 
         process::scrub(&mut logs, ctx);
 
-        Ok(Output::just(LogOutput::Processed(logs)))
+        Ok(Output::just(LogOutput(logs)))
     }
 }
 
 /// Output produced by [`LogsProcessor`].
 #[derive(Debug)]
-pub enum LogOutput {
-    NotProcessed(Managed<SerializedLogs>),
-    Processed(Managed<ExpandedLogs>),
-}
+pub struct LogOutput(Managed<ExpandedLogs>);
 
 impl Forward for LogOutput {
     fn serialize_envelope(
         self,
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        let logs = match self {
-            Self::NotProcessed(logs) => logs,
-            Self::Processed(logs) => logs.try_map(|logs, r| {
-                r.lenient(DataCategory::LogByte);
-                logs.serialize()
-                    .map_err(drop)
-                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
-            })?,
-        };
-
-        Ok(logs.map(|logs, r| {
+        self.0.try_map(|logs, r| {
             r.lenient(DataCategory::LogByte);
             logs.serialize_envelope()
-        }))
+                .map_err(drop)
+                .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+        })
     }
 
     #[cfg(feature = "processing")]
@@ -197,14 +177,7 @@ impl Forward for LogOutput {
         s: &relay_system::Addr<crate::services::store::Store>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let logs = match self {
-            LogOutput::NotProcessed(logs) => {
-                return Err(logs.internal_error(
-                    "logs must be processed before they can be forwarded to the store",
-                ));
-            }
-            LogOutput::Processed(logs) => logs,
-        };
+        let Self(logs) = self;
 
         let ctx = store::Context {
             scoping: logs.scoping(),
@@ -239,21 +212,6 @@ pub struct SerializedLogs {
 }
 
 impl SerializedLogs {
-    fn serialize_envelope(self) -> Box<Envelope> {
-        // `Items` can be constructed with zero cost from a Vec (cap > inline cap).
-        //
-        // We want to minimize the work necessary to copy/merge data.
-        // Both vectors can contain items, but very likely only one does.
-        // We can use the bigger one as a base to copy/allocate less data.
-        // This implicitly also assumes the capacity of the vectors follows the length.
-        let (mut long, short) = match self.logs.len() > self.integrations.len() {
-            true => (self.logs, self.integrations),
-            false => (self.integrations, self.logs),
-        };
-        long.extend(short);
-        Envelope::from_parts(self.headers, Items::from_vec(long))
-    }
-
     fn items(&self) -> impl Iterator<Item = &Item> {
         self.logs.iter().chain(self.integrations.iter())
     }
@@ -309,7 +267,7 @@ impl Counted for ExpandedLogs {
 }
 
 impl ExpandedLogs {
-    fn serialize(self) -> Result<SerializedLogs, ContainerWriteError> {
+    fn serialize_envelope(self) -> Result<Box<Envelope>, ContainerWriteError> {
         let mut logs = Vec::new();
 
         if !self.logs.is_empty() {
@@ -320,11 +278,7 @@ impl ExpandedLogs {
             logs.push(item);
         }
 
-        Ok(SerializedLogs {
-            headers: self.headers,
-            logs,
-            integrations: Vec::new(),
-        })
+        Ok(Envelope::from_parts(self.headers, Items::from_vec(logs)))
     }
 }
 
