@@ -65,7 +65,11 @@ impl EnvelopeParams {
             return Err(BadStoreRequest::EmptyBody);
         }
 
-        Ok(Envelope::parse_request(body, meta)?)
+        let envelope = Envelope::parse_request(body, meta)?;
+        if envelope.is_internal() {
+            return Err(BadStoreRequest::InternalEnvelope);
+        }
+        Ok(envelope)
     }
 }
 
