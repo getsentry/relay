@@ -54,11 +54,13 @@ mod attachment;
 mod container;
 mod content_type;
 mod item;
+mod meta;
 
 pub use self::attachment::*;
 pub use self::container::*;
 pub use self::content_type::*;
 pub use self::item::*;
+pub use self::meta::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EnvelopeError {
