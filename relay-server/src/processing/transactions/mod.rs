@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::SpanV2;
+use relay_event_schema::protocol::{Event, SpanV2};
 use relay_quotas::DataCategory;
+use sentry::protocol::Attachment;
 
-use crate::envelope::EnvelopeHeaders;
-use crate::managed::{Counted, Managed, Quantities, TypedEnvelope};
+use crate::envelope::{EnvelopeHeaders, Item};
+use crate::managed::{Counted, Managed, ManagedEnvelope, Quantities, TypedEnvelope};
 use crate::processing::{Forward, Processor, QuotaRateLimiter};
 use crate::services::processor::TransactionGroup;
 
@@ -29,7 +30,7 @@ impl Processor for TransactionProcessor {
 
     fn prepare_envelope(
         &self,
-        envelope: &mut crate::managed::ManagedEnvelope,
+        envelope: &mut ManagedEnvelope,
     ) -> Option<Managed<Self::UnitOfWork>> {
         todo!()
     }
@@ -47,7 +48,9 @@ impl Processor for TransactionProcessor {
 #[derive(Debug)]
 pub struct SerializedTransaction {
     headers: EnvelopeHeaders,
-    envelope: TypedEnvelope<TransactionGroup>,
+    transaction_item: Item,
+    attachment_items: Vec<Item>,
+    // TODO: Other dependents?
 }
 
 impl Counted for SerializedTransaction {
@@ -55,13 +58,19 @@ impl Counted for SerializedTransaction {
         smallvec::smallvec![
             (DataCategory::Transaction, 1),
             (DataCategory::TransactionIndexed, 1),
+            (DataCategory::AttachmentItem, self.attachment_items.len()),
+            (
+                DataCategory::Attachment,
+                self.attachment_items.iter().map(Item::len).sum()
+            ),
         ]
     }
 }
 
 pub struct ExpandedTransaction {
     headers: EnvelopeHeaders,
-    envelope: TypedEnvelope<TransactionGroup>,
+    transaction: Event,
+    attachment_items: Vec<Item>,
     #[cfg(feature = "processing")]
     extracted_spans: Vec<SpanV2>,
 }
@@ -71,6 +80,11 @@ impl Counted for ExpandedTransaction {
         smallvec::smallvec![
             (DataCategory::Transaction, 1),
             (DataCategory::TransactionIndexed, 1),
+            (DataCategory::AttachmentItem, self.attachment_items.len()),
+            (
+                DataCategory::Attachment,
+                self.attachment_items.iter().map(Item::len).sum()
+            ),
         ]
     }
 }
