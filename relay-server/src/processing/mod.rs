@@ -77,11 +77,6 @@ pub struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    /// Returns `true` if Relay is running in proxy mode.
-    pub fn is_proxy(&self) -> bool {
-        matches!(self.config.relay_mode(), relay_config::RelayMode::Proxy)
-    }
-
     /// Returns `true` if Relay has processing enabled.
     ///
     /// Processing indicates, this Relay is the final Relay processing this item.
