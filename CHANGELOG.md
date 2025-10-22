@@ -11,12 +11,12 @@
 - Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
 - Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
 - Tag spans' count per root metric with the trace root's transaction instead of the local transaction. ([#5281](https://github.com/getsentry/relay/pull/5281))
+- Use `vercel.path` instead of `url.path` for Vercel Log Drain Transform. ([#5274](https://github.com/getsentry/relay/pull/5274))
 
 **Internal**:
 
 - Switch default allocator from jemalloc to mimalloc. ([#5239](https://github.com/getsentry/relay/pull/5239))
 - Add internal attributes to aid searching trace metrics. ([#5260](https://github.com/getsentry/relay/pull/5260))
-
 
 ## 25.10.0
 

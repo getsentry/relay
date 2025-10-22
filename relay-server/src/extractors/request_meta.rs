@@ -22,9 +22,10 @@ use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::envelope::ClientName;
 use crate::extractors::{ForwardedFor, ReceivedAt, SignatureError};
 use crate::service::ServiceState;
-use crate::statsd::{ClientName, RelayCounters};
+use crate::statsd::RelayCounters;
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]

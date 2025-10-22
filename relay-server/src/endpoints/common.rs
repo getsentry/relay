@@ -374,7 +374,7 @@ pub async fn handle_envelope(
 }
 
 fn emit_envelope_metrics(envelope: &Envelope) {
-    let client_name = envelope.meta().client_name().name();
+    let client_name = utils::client_name_tag(envelope.meta().client_name());
     for item in envelope.items() {
         let item_type = item.ty().name();
         let is_container = if item.is_container() { "true" } else { "false" };

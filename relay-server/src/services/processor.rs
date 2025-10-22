@@ -2678,9 +2678,19 @@ impl EnvelopeProcessorService {
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         for client_report in client_reports {
-            let mut item = Item::new(ItemType::ClientReport);
-            item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
-            envelope.add_item(item);
+            match client_report.serialize() {
+                Ok(payload) => {
+                    let mut item = Item::new(ItemType::ClientReport);
+                    item.set_payload(ContentType::Json, payload);
+                    envelope.add_item(item);
+                }
+                Err(error) => {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "failed to serialize client report"
+                    );
+                }
+            }
         }
 
         let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
