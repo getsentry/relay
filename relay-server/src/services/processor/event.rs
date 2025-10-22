@@ -204,12 +204,13 @@ pub fn finalize<Group: EventProcessing>(
         inner_event._metrics = Annotated::new(metrics);
 
         if inner_event.ty.value() == Some(&EventType::Transaction) {
-            let platform = utils::PlatformTag::from(inner_event.platform.as_str());
+            let platform = utils::platform_tag(inner_event);
+            let client_name = utils::client_name_tag(envelope.meta().client_name());
 
             metric!(
                 counter(RelayCounters::EventTransaction) += 1,
                 source = utils::transaction_source_tag(inner_event),
-                platform = platform.name(),
+                platform = platform,
                 contains_slashes = if inner_event
                     .transaction
                     .as_str()
@@ -225,8 +226,8 @@ pub fn finalize<Group: EventProcessing>(
             let span_count = inner_event.spans.value().map(Vec::len).unwrap_or(0) as u64;
             metric!(
                 histogram(RelayHistograms::EventSpans) = span_count,
-                sdk = envelope.meta().client_name().name(),
-                platform = platform.name(),
+                sdk = client_name,
+                platform = platform,
             );
 
             let has_otel = inner_event
@@ -237,8 +238,8 @@ pub fn finalize<Group: EventProcessing>(
             if has_otel {
                 metric!(
                     counter(RelayCounters::OpenTelemetryEvent) += 1,
-                    sdk = envelope.meta().client_name().name(),
-                    platform = platform.name(),
+                    sdk = client_name,
+                    platform = platform,
                 );
             }
         }

@@ -25,9 +25,9 @@ pub enum ClientName<'a> {
     Other(&'a str),
 }
 
-impl ClientName<'_> {
-    /// Returns the client name for all well known clients, otherwise `other`.
-    pub fn name(&self) -> &'static str {
+impl<'a> ClientName<'a> {
+    /// Returns the client name as a string.
+    pub fn as_str(&self) -> &'a str {
         match self {
             Self::Relay => "sentry.relay",
             Self::Ruby => "sentry-ruby",
@@ -50,7 +50,7 @@ impl ClientName<'_> {
             Self::Symfony => "sentry.php.symfony",
             Self::Php => "sentry.php",
             Self::Python => "sentry.python",
-            Self::Other(_) => "other",
+            Self::Other(other) => other,
         }
     }
 }
@@ -93,6 +93,6 @@ mod tests {
         let name = crate::constants::CLIENT.split_once('/').unwrap().0;
 
         assert_eq!(ClientName::from(name), ClientName::Relay);
-        assert_eq!(ClientName::Relay.name(), name);
+        assert_eq!(ClientName::Relay.as_str(), name);
     }
 }

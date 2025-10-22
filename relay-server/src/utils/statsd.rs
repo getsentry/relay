@@ -3,7 +3,7 @@ use relay_event_normalization::utils::extract_http_status_code;
 use relay_event_schema::protocol::{Event, TransactionSource};
 use relay_protocol::{Annotated, RemarkType};
 
-use crate::statsd::RelayCounters;
+use crate::{envelope::ClientName, statsd::RelayCounters};
 
 /// Maps the event's transaction source to a low-cardinality statsd tag.
 pub fn transaction_source_tag(event: &Event) -> &str {
@@ -15,6 +15,39 @@ pub fn transaction_source_tag(event: &Event) -> &str {
         None => "none",
         Some(TransactionSource::Other(_)) => "other",
         Some(source) => source.as_str(),
+    }
+}
+
+/// Maps the event's platform to a low-cardinality statsd tag.
+pub fn platform_tag(event: &Event) -> &'static str {
+    let platform = event.platform.as_str();
+
+    match platform {
+        Some("cocoa") => "cocoa",
+        Some("csharp") => "csharp",
+        Some("edge") => "edge",
+        Some("go") => "go",
+        Some("java") => "java",
+        Some("javascript") => "javascript",
+        Some("julia") => "julia",
+        Some("native") => "native",
+        Some("node") => "node",
+        Some("objc") => "objc",
+        Some("perl") => "perl",
+        Some("php") => "php",
+        Some("python") => "python",
+        Some("ruby") => "ruby",
+        Some("swift") => "swift",
+        Some(_) => "other",
+        None => "missing",
+    }
+}
+
+/// Maps a client name to a low-cardinality statsd tag.
+pub fn client_name_tag(client_name: ClientName<'_>) -> &str {
+    match client_name {
+        ClientName::Other(_) => "other",
+        well_known => well_known.as_str(),
     }
 }
 
@@ -76,76 +109,4 @@ where
     );
 
     res
-}
-
-/// Low-cardinality platform that can be used as a statsd tag.
-pub enum PlatformTag {
-    Cocoa,
-    Csharp,
-    Edge,
-    Go,
-    Java,
-    Javascript,
-    Julia,
-    Native,
-    Node,
-    Objc,
-    Other,
-    Perl,
-    Php,
-    Python,
-    Ruby,
-    Swift,
-}
-
-impl PlatformTag {
-    pub fn name(&self) -> &str {
-        match self {
-            Self::Cocoa => "cocoa",
-            Self::Csharp => "csharp",
-            Self::Edge => "edge",
-            Self::Go => "go",
-            Self::Java => "java",
-            Self::Javascript => "javascript",
-            Self::Julia => "julia",
-            Self::Native => "native",
-            Self::Node => "node",
-            Self::Objc => "objc",
-            Self::Other => "other",
-            Self::Perl => "perl",
-            Self::Php => "php",
-            Self::Python => "python",
-            Self::Ruby => "ruby",
-            Self::Swift => "swift",
-        }
-    }
-}
-
-impl From<&str> for PlatformTag {
-    fn from(value: &str) -> Self {
-        match value {
-            "cocoa" => Self::Cocoa,
-            "csharp" => Self::Csharp,
-            "edge" => Self::Edge,
-            "go" => Self::Go,
-            "java" => Self::Java,
-            "javascript" => Self::Javascript,
-            "julia" => Self::Julia,
-            "native" => Self::Native,
-            "node" => Self::Node,
-            "objc" => Self::Objc,
-            "perl" => Self::Perl,
-            "php" => Self::Php,
-            "python" => Self::Python,
-            "ruby" => Self::Ruby,
-            "swift" => Self::Swift,
-            _ => Self::Other,
-        }
-    }
-}
-
-impl From<Option<&str>> for PlatformTag {
-    fn from(value: Option<&str>) -> Self {
-        value.map(Self::from).unwrap_or(PlatformTag::Other)
-    }
 }
