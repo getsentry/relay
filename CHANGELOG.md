@@ -6,6 +6,10 @@
 
 - Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
 
+**Bug Fixes**:
+
+- Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
+
 **Internal**:
 
 - Switch default allocator from jemalloc to mimalloc. ([#5239](https://github.com/getsentry/relay/pull/5239))
