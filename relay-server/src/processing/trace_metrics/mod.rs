@@ -113,17 +113,10 @@ impl processing::Processor for TraceMetricsProcessor {
 
     async fn process(
         &self,
-        mut metrics: Managed<Self::UnitOfWork>,
+        metrics: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
         validate::container(&metrics)?;
-
-        if ctx.is_proxy() {
-            // If running in proxy mode, just apply cached rate limits and forward without
-            // processing.
-            self.limiter.enforce_quotas(&mut metrics, ctx).await?;
-            return Ok(Output::just(TraceMetricOutput::NotProcessed(metrics)));
-        }
 
         // Fast filters, which do not need expanded trace metrics.
         filter::feature_flag(ctx).reject(&metrics)?;
@@ -136,41 +129,25 @@ impl processing::Processor for TraceMetricsProcessor {
 
         self.limiter.enforce_quotas(&mut metrics, ctx).await?;
 
-        Ok(Output::just(TraceMetricOutput::Processed(metrics)))
+        Ok(Output::just(TraceMetricOutput(metrics)))
     }
 }
 
 /// Output produced by [`TraceMetricsProcessor`].
 #[derive(Debug)]
-pub enum TraceMetricOutput {
-    NotProcessed(Managed<SerializedTraceMetrics>),
-    Processed(Managed<ExpandedTraceMetrics>),
-}
+pub struct TraceMetricOutput(Managed<ExpandedTraceMetrics>);
 
 impl Forward for TraceMetricOutput {
     fn serialize_envelope(
         self,
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
-        let metrics = match self {
-            Self::NotProcessed(metrics) => metrics,
-            Self::Processed(metrics) => {
-                let serialized = metrics.try_map(|metrics, _| {
-                    metrics
-                        .serialize()
-                        .map_err(|_| (Some(Outcome::Invalid(DiscardReason::Internal)), ()))
-                });
-                match serialized {
-                    Ok(s) => s,
-                    Err(rejected) => return Err(rejected.map(|_| ())),
-                }
-            }
-        };
-
-        Ok(metrics.map(|metrics, _| {
-            let SerializedTraceMetrics { headers, metrics } = metrics;
-            Envelope::from_parts(headers, Items::from_vec(metrics))
-        }))
+        self.0.try_map(|metrics, _| {
+            metrics
+                .serialize()
+                .map_err(drop)
+                .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+        })
     }
 
     #[cfg(feature = "processing")]
@@ -179,14 +156,7 @@ impl Forward for TraceMetricOutput {
         s: &relay_system::Addr<crate::services::store::Store>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let metrics = match self {
-            TraceMetricOutput::NotProcessed(metrics) => {
-                return Err(metrics.internal_error(
-                    "trace metrics must be processed before they can be forwarded to the store",
-                ));
-            }
-            TraceMetricOutput::Processed(metrics) => metrics,
-        };
+        let Self(metrics) = self;
 
         let ctx = store::Context {
             scoping: metrics.scoping(),
@@ -246,7 +216,7 @@ impl Counted for ExpandedTraceMetrics {
 }
 
 impl ExpandedTraceMetrics {
-    fn serialize(self) -> Result<SerializedTraceMetrics, ContainerWriteError> {
+    fn serialize(self) -> Result<Box<Envelope>, ContainerWriteError> {
         let mut metrics = Vec::new();
 
         if !self.metrics.is_empty() {
@@ -257,9 +227,6 @@ impl ExpandedTraceMetrics {
             metrics.push(item);
         }
 
-        Ok(SerializedTraceMetrics {
-            headers: self.headers,
-            metrics,
-        })
+        Ok(Envelope::from_parts(self.headers, Items::from_vec(metrics)))
     }
 }
