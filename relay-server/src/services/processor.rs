@@ -3358,7 +3358,7 @@ impl RateLimiter {
     }
 }
 
-fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
+pub fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
     let envelope_body: Vec<u8> = match http_encoding {
         HttpEncoding::Identity => return Ok(body.clone()),
         HttpEncoding::Deflate => {
@@ -3392,10 +3392,10 @@ fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, st
 /// An upstream request that submits an envelope via HTTP.
 #[derive(Debug)]
 pub struct SendEnvelope {
-    envelope: TypedEnvelope<Processed>,
-    body: Bytes,
-    http_encoding: HttpEncoding,
-    project_cache: ProjectCacheHandle,
+    pub envelope: TypedEnvelope<Processed>,
+    pub body: Bytes,
+    pub http_encoding: HttpEncoding,
+    pub project_cache: ProjectCacheHandle,
 }
 
 impl UpstreamRequest for SendEnvelope {
