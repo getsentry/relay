@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use relay_base_schema::events::EventType;
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::{Event, SpanV2};
+use relay_event_schema::protocol::{Event, Metrics, SpanV2};
 use relay_quotas::DataCategory;
+use relay_statsd::metric;
 use smallvec::SmallVec;
 
 use crate::Envelope;
@@ -11,6 +13,8 @@ use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer,
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult, Quantities, Rejected};
 use crate::processing::{Forward, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::ProcessingExtractedMetrics;
+use crate::statsd::RelayTimers;
 #[cfg(feature = "processing")]
 use crate::{processing::spans::store, services::store::StoreEnvelope};
 
@@ -60,9 +64,241 @@ impl Processor for TransactionProcessor {
         work: Managed<Self::UnitOfWork>,
         ctx: super::Context<'_>,
     ) -> Result<super::Output<Self::Output>, Rejected<Self::Error>> {
-        todo!();
+        let transaction_item = work.transaction_item;
+        debug_assert_eq!(transaction_item.ty(), &ItemType::Transaction);
+
+        let mut event_fully_normalized =
+            work.headers.meta().request_trust().is_trusted() && transaction_item.fully_normalized();
+
+        let mut event_metrics_extracted =
+            EventMetricsExtracted(transaction_item.metrics_extracted());
+        let mut spans_extracted = SpansExtracted(transaction_item.spans_extracted());
+        let mut metrics = Metrics::default();
+        let mut extracted_metrics = ProcessingExtractedMetrics::new();
+
+        let mut event = metric!(timer(RelayTimers::EventProcessingDeserialize), {
+            // Transaction items can only contain transaction events. Force the event type to
+            // hint to normalization that we're dealing with a transaction now.
+            event_from_json_payload(transaction_item, Some(EventType::Transaction))?
+        })?;
+
+        let profile_id = profile::filter(
+            managed_envelope,
+            &event,
+            ctx.config,
+            project_id,
+            ctx.project_info,
+        );
+        profile::transfer_id(&mut event, profile_id);
+
+        ctx.sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+            managed_envelope,
+            &mut event,
+            ctx.project_info,
+            ctx.sampling_project_info,
+        );
+
+        event::finalize(
+            managed_envelope,
+            &mut event,
+            &mut metrics,
+            &self.inner.config,
+        )?;
+
+        event_fully_normalized = self.normalize_event(
+            managed_envelope,
+            &mut event,
+            project_id,
+            ctx.project_info,
+            event_fully_normalized,
+        )?;
+
+        let filter_run = event::filter(
+            managed_envelope,
+            &mut event,
+            ctx.project_info,
+            ctx.global_config,
+        )?;
+
+        // Always run dynamic sampling on processing Relays,
+        // but delay decision until inbound filters have been fully processed.
+        let run_dynamic_sampling =
+            matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
+
+        let reservoir = self.new_reservoir_evaluator(
+            managed_envelope.scoping().organization_id,
+            reservoir_counters,
+        );
+
+        let sampling_result = match run_dynamic_sampling {
+            true => {
+                dynamic_sampling::run(
+                    managed_envelope,
+                    &mut event,
+                    ctx.config,
+                    ctx.project_info,
+                    ctx.sampling_project_info,
+                    &reservoir,
+                )
+                .await
+            }
+            false => SamplingResult::Pending,
+        };
+
+        relay_statsd::metric!(
+            counter(RelayCounters::SamplingDecision) += 1,
+            decision = sampling_result.decision().as_str(),
+            item = "transaction"
+        );
+
+        #[cfg(feature = "processing")]
+        let server_sample_rate = sampling_result.sample_rate();
+
+        if let Some(outcome) = sampling_result.into_dropped_outcome() {
+            // Process profiles before dropping the transaction, if necessary.
+            // Before metric extraction to make sure the profile count is reflected correctly.
+            profile::process(
+                managed_envelope,
+                &mut event,
+                ctx.global_config,
+                ctx.config,
+                ctx.project_info,
+            );
+            // Extract metrics here, we're about to drop the event/transaction.
+            event_metrics_extracted = self.extract_transaction_metrics(
+                managed_envelope,
+                &mut event,
+                &mut extracted_metrics,
+                project_id,
+                ctx.project_info,
+                SamplingDecision::Drop,
+                event_metrics_extracted,
+                spans_extracted,
+            )?;
+
+            dynamic_sampling::drop_unsampled_items(
+                managed_envelope,
+                event,
+                outcome,
+                spans_extracted,
+            );
+
+            // At this point we have:
+            //  - An empty envelope.
+            //  - An envelope containing only processed profiles.
+            // We need to make sure there are enough quotas for these profiles.
+            event = self
+                .enforce_quotas(
+                    managed_envelope,
+                    Annotated::empty(),
+                    &mut extracted_metrics,
+                    ctx,
+                )
+                .await?;
+
+            return Ok(Some(extracted_metrics));
+        }
+
+        let _post_ds = cogs.start_category("post_ds");
+
+        // Need to scrub the transaction before extracting spans.
+        //
+        // Unconditionally scrub to make sure PII is removed as early as possible.
+        event::scrub(&mut event, ctx.project_info)?;
+
+        attachment::scrub(managed_envelope, ctx.project_info);
+
+        if_processing!(self.inner.config, {
+            // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
+            let profile_id = profile::process(
+                managed_envelope,
+                &mut event,
+                ctx.global_config,
+                ctx.config,
+                ctx.project_info,
+            );
+            profile::transfer_id(&mut event, profile_id);
+            profile::scrub_profiler_id(&mut event);
+
+            // Always extract metrics in processing Relays for sampled items.
+            event_metrics_extracted = self.extract_transaction_metrics(
+                managed_envelope,
+                &mut event,
+                &mut extracted_metrics,
+                project_id,
+                ctx.project_info,
+                SamplingDecision::Keep,
+                event_metrics_extracted,
+                spans_extracted,
+            )?;
+
+            if ctx.project_info.has_feature(Feature::ExtractSpansFromEvent) {
+                spans_extracted = span::extract_from_event(
+                    managed_envelope,
+                    &event,
+                    ctx.global_config,
+                    ctx.config,
+                    server_sample_rate,
+                    event_metrics_extracted,
+                    spans_extracted,
+                );
+            }
+        });
+
+        event = self
+            .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)
+            .await?;
+
+        if_processing!(self.inner.config, {
+            event = span::maybe_discard_transaction(managed_envelope, event, ctx.project_info);
+        });
+
+        // Event may have been dropped because of a quota and the envelope can be empty.
+        if event.value().is_some() {
+            event::serialize(
+                managed_envelope,
+                &mut event,
+                event_fully_normalized,
+                event_metrics_extracted,
+                spans_extracted,
+            )?;
+        }
+
+        if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
+            relay_log::error!(
+                tags.project = %project_id,
+                tags.ty = event_type(&event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                "ingested event without normalizing"
+            );
+        };
+
+        Ok(Some(extracted_metrics))
     }
 }
+
+/// New type representing the normalization state of the event.
+#[derive(Copy, Clone)]
+struct EventFullyNormalized(bool);
+
+impl EventFullyNormalized {
+    /// Returns `true` if the event is fully normalized, `false` otherwise.
+    pub fn new(envelope: &Envelope) -> Self {
+        let event_fully_normalized = envelope.meta().request_trust().is_trusted()
+            && envelope
+                .items()
+                .any(|item| item.creates_event() && item.fully_normalized());
+
+        Self(event_fully_normalized)
+    }
+}
+
+/// New type representing whether metrics were extracted from transactions/spans.
+#[derive(Debug, Copy, Clone)]
+struct EventMetricsExtracted(bool);
+
+/// New type representing whether spans were extracted.
+#[derive(Debug, Copy, Clone)]
+struct SpansExtracted(bool);
 
 /// A transaction in its serialized state, as transported in an envelope.
 #[derive(Debug)]
@@ -70,7 +306,7 @@ pub struct SerializedTransaction {
     headers: EnvelopeHeaders,
     transaction_item: Item,
     attachment_items: SmallVec<[Item; 3]>,
-    // TODO: Other dependents?
+    profile_items: SmallVec<[Item; 3]>,
 }
 
 impl Counted for SerializedTransaction {
