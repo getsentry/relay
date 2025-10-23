@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from typing import Any
 import pytest
 
 
@@ -58,4 +60,81 @@ def scrubbing_rule(request):
     ids=["password", "secret_key", "api_key"],
 )
 def secret_attribute(request):
+    return request.param
+
+
+@dataclass
+class NonDestructive:
+    pii_config: Any
+    scrub_data: bool
+    scrub_defaults: bool
+    input_message: str
+    expected_output: str
+    additional_checks: Any
+
+    def install(self, project_config):
+        project_config["config"]["piiConfig"] = self.pii_config
+        project_config["config"]["datascrubbingSettings"] = {
+            "scrubData": self.scrub_data,
+            "scrubDefaults": self.scrub_defaults,
+        }
+
+    def scrubs(self):
+        return self.input_message != self.expected_output
+
+
+@pytest.fixture(
+    params=[
+        NonDestructive(
+            pii_config=None,
+            scrub_data=True,
+            scrub_defaults=True,
+            input_message="API request failed with Bearer ABC123XYZ789TOKEN and returned 401",
+            expected_output="API request failed with Bearer [token] and returned 401",
+            additional_checks=lambda formatted_value: (
+                "Bearer [token]" in formatted_value
+                and "ABC123XYZ789TOKEN" not in formatted_value
+                and "API request failed" in formatted_value
+                and "returned 401" in formatted_value
+            ),
+        ),
+        NonDestructive(
+            pii_config={},
+            scrub_data=False,
+            scrub_defaults=True,
+            input_message="API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
+            expected_output="API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
+            additional_checks=None,
+        ),
+        NonDestructive(
+            pii_config={},
+            scrub_data=True,
+            scrub_defaults=True,
+            input_message="API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
+            expected_output="API failed with Bearer [token] for [email] using card [creditcard]",
+            additional_checks=None,
+        ),
+        NonDestructive(
+            pii_config=None,
+            scrub_data=True,
+            scrub_defaults=True,
+            input_message="User's password is 12345",
+            expected_output="User's password is 12345",
+            additional_checks=None,
+        ),
+    ],
+    ids=[
+        "bearer_token_scrubbing",
+        "no_scrubbing_when_disabled",
+        "all_scrubbing_when_enabled",
+        "password_not_scrubbed",
+    ],
+)
+def non_destructive(request):
+    """
+    A collection of non destructive PII rules.
+
+    The non-destructive rules are a custom set of rules applied to specific keys in payloads,
+    like the error message.
+    """
     return request.param

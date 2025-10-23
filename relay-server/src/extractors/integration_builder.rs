@@ -59,7 +59,11 @@ impl<T> IntegrationBuilder<T> {
 
 impl IntegrationBuilder<HasType> {
     /// Returns the built integration envelope.
-    pub fn build(self) -> Box<Envelope> {
+    pub fn build(mut self) -> Box<Envelope> {
+        self.envelope
+            .meta_mut()
+            .set_client(crate::constants::CLIENT.to_owned());
+
         self.envelope
     }
 }

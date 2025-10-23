@@ -35,6 +35,10 @@ pub enum Error {
     /// Standalone spans filtered because of a missing feature flag.
     #[error("spans feature flag missing")]
     FilterFeatureFlag,
+    #[error("a dynamic sampling context is required")]
+    MissingDynamicSamplingContext,
+    #[error("the dynamic sampling context does not match the payload")]
+    DynamicSamplingContextMismatch,
     /// The spans are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
@@ -59,6 +63,12 @@ impl OutcomeError for Error {
         let outcome = match &self {
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::FilterFeatureFlag => None,
+            Self::MissingDynamicSamplingContext => Some(Outcome::Invalid(
+                DiscardReason::MissingDynamicSamplingContext,
+            )),
+            Self::DynamicSamplingContextMismatch => Some(Outcome::Invalid(
+                DiscardReason::InvalidDynamicSamplingContext,
+            )),
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
@@ -125,28 +135,23 @@ impl processing::Processor for SpansProcessor {
 
     async fn process(
         &self,
-        mut spans: Managed<Self::UnitOfWork>,
+        spans: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         filter::feature_flag(ctx).reject(&spans)?;
         validate::container(&spans).reject(&spans)?;
 
-        if ctx.is_proxy() {
-            // If running in proxy mode, just apply cached rate limits and forward without
-            // processing.
-            //
-            // Static mode needs processing, as users can override project settings manually.
-            self.limiter.enforce_quotas(&mut spans, ctx).await?;
-            return Ok(Output::just(SpanOutput::NotProcessed(spans)));
-        }
-
         dynamic_sampling::validate_configs(ctx);
+        dynamic_sampling::validate_dsc_presence(&spans).reject(&spans)?;
+
         let spans = match dynamic_sampling::run(spans, ctx).await {
             Ok(spans) => spans,
             Err(metrics) => return Ok(Output::metrics(metrics)),
         };
 
         let mut spans = process::expand(spans);
+
+        dynamic_sampling::validate_dsc(&spans).reject(&spans)?;
 
         process::normalize(&mut spans, &self.geo_lookup);
         filter::filter(&mut spans, ctx);
@@ -158,7 +163,7 @@ impl processing::Processor for SpansProcessor {
         let metrics = dynamic_sampling::create_indexed_metrics(&spans, ctx);
 
         Ok(Output {
-            main: Some(SpanOutput::Processed(spans)),
+            main: Some(SpanOutput(spans)),
             metrics,
         })
     }
@@ -166,27 +171,19 @@ impl processing::Processor for SpansProcessor {
 
 /// Output produced by the [`SpansProcessor`].
 #[derive(Debug)]
-pub enum SpanOutput {
-    NotProcessed(Managed<SerializedSpans>),
-    Processed(Managed<ExpandedSpans>),
-}
+pub struct SpanOutput(Managed<ExpandedSpans>);
 
 impl Forward for SpanOutput {
     fn serialize_envelope(
         self,
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        let spans = match self {
-            Self::NotProcessed(spans) => spans,
-            Self::Processed(spans) => spans.try_map(|spans, _| {
-                spans
-                    .serialize()
-                    .map_err(drop)
-                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
-            })?,
-        };
-
-        Ok(spans.map(|spans, _| spans.serialize_envelope()))
+        self.0.try_map(|spans, _| {
+            spans
+                .serialize_envelope()
+                .map_err(drop)
+                .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+        })
     }
 
     #[cfg(feature = "processing")]
@@ -195,14 +192,7 @@ impl Forward for SpanOutput {
         s: &relay_system::Addr<crate::services::store::Store>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let spans = match self {
-            SpanOutput::NotProcessed(spans) => {
-                return Err(spans.internal_error(
-                    "spans must be processed before they can be forwarded to the store",
-                ));
-            }
-            SpanOutput::Processed(spans) => spans,
-        };
+        let Self(spans) = self;
 
         let ctx = store::Context {
             server_sample_rate: spans.server_sample_rate,
@@ -241,10 +231,6 @@ impl SerializedSpans {
             server_sample_rate,
         }
     }
-
-    fn serialize_envelope(self) -> Box<Envelope> {
-        Envelope::from_parts(self.headers, Items::from_vec(self.spans))
-    }
 }
 
 impl Counted for SerializedSpans {
@@ -276,7 +262,7 @@ pub struct ExpandedSpans {
 }
 
 impl ExpandedSpans {
-    fn serialize(self) -> Result<SerializedSpans, ContainerWriteError> {
+    fn serialize_envelope(self) -> Result<Box<Envelope>, ContainerWriteError> {
         let mut spans = Vec::new();
 
         if !self.spans.is_empty() {
@@ -287,11 +273,7 @@ impl ExpandedSpans {
             spans.push(item);
         }
 
-        Ok(SerializedSpans {
-            headers: self.headers,
-            integrations: Vec::new(),
-            spans,
-        })
+        Ok(Envelope::from_parts(self.headers, Items::from_vec(spans)))
     }
 }
 

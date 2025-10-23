@@ -97,7 +97,7 @@ EXPECTED_ITEMS = [
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "timestamp": mock.ANY,
         "attributes": {
-            "url.path": {"stringValue": "/api/users"},
+            "vercel.path": {"stringValue": "/api/users"},
             "sentry.browser.version": {"stringValue": "2.32"},
             "vercel.proxy.scheme": {"stringValue": "https"},
             "vercel.entrypoint": {"stringValue": "api/index.js"},

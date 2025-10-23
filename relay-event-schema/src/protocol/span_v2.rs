@@ -11,14 +11,14 @@ use crate::protocol::{Attributes, OperationType, SpanId, SpanKind, Timestamp, Tr
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SpanV2 {
     /// The ID of the trace to which this span belongs.
-    #[metastructure(required = true, trim = false)]
+    #[metastructure(required = true, nonempty = true, trim = false)]
     pub trace_id: Annotated<TraceId>,
 
     /// The ID of the span enclosing this span.
     pub parent_span_id: Annotated<SpanId>,
 
     /// The Span ID.
-    #[metastructure(required = true, trim = false)]
+    #[metastructure(required = true, nonempty = true, trim = false)]
     pub span_id: Annotated<SpanId>,
 
     /// Span type (see `OperationType` docs).

@@ -4,16 +4,19 @@ use std::ops::ControlFlow;
 use chrono::Utc;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
+use relay_protocol::get_value;
 use relay_quotas::{DataCategory, Scoping};
-use relay_sampling::SamplingConfig;
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
+use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::envelope::Item;
+use crate::envelope::{ClientName, Item};
 use crate::managed::{Counted, Managed, Quantities};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::Context;
-use crate::processing::spans::{ExpandedSpans, SampledSpans, SerializedSpans, outcome_count};
+use crate::processing::spans::{
+    Error, ExpandedSpans, Result, SampledSpans, SerializedSpans, outcome_count,
+};
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
@@ -48,6 +51,55 @@ pub fn validate_configs(ctx: Context<'_>) {
     }
 }
 
+/// Validates the presence of a dynamic sampling context when processing Spans.
+///
+/// Each envelope received by Relay must contain a valid dynamic sampling context.
+/// This is not a technical requirement as a missing dynamic sampling context is treated as having
+/// a sample rate of 100%, but to ensure SDKs implement the protocol correctly it is validated.
+///
+/// An exception exists for our OTeL integration, which currently never sets a dynamic sampling
+/// context. In the future we may want to extract a DSC from the OTeL payload to allow dynamic
+/// sampling if the necessary attributes are present.
+pub fn validate_dsc_presence(spans: &SerializedSpans) -> Result<()> {
+    let dsc = spans.headers.dsc();
+
+    // Envelopes created by Relay may not carry a DSC. This is currently the case for envelopes
+    // created through the OTeL integration.
+    //
+    // This validation is only best effort (not a hard requirement) to get SDKs to implement DSC
+    // correctly, so it is okay to be a bit more lenient here and trust ourselves.
+    let client_is_relay = spans.headers.meta().client_name() == ClientName::Relay;
+
+    if !client_is_relay && dsc.is_none() {
+        return Err(Error::MissingDynamicSamplingContext);
+    }
+
+    Ok(())
+}
+
+/// Validates the dynamic sampling context against the parsed spans.
+///
+/// The values of the dynamic sampling context must match the values provided in the spans.
+/// Currently this only validates the trace id.
+pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
+    let Some(dsc) = spans.headers.dsc() else {
+        // It's okay if we don't have a DSC here. We may be in a processing path which has spans
+        // from mixed traces without a DSC (=100% sample rate).
+        // For example via the OTeL integration.
+        return Ok(());
+    };
+
+    for span in &spans.spans {
+        let trace_id = get_value!(span.trace_id);
+
+        if trace_id != Some(&dsc.trace_id) {
+            return Err(Error::DynamicSamplingContextMismatch);
+        }
+    }
+
+    Ok(())
+}
+
 /// Computes the sampling decision for a batch of spans.
 ///
 /// All spans are evaluated in one go as they are required by the protocol to share the same
@@ -74,7 +126,12 @@ pub async fn run(
 
     // At this point the decision is to drop the spans.
     let span_count = outcome_count(&spans.spans);
-    let metrics = create_metrics(spans.scoping(), span_count, SamplingDecision::Drop);
+    let metrics = create_metrics(
+        spans.scoping(),
+        span_count,
+        spans.headers.dsc(),
+        SamplingDecision::Drop,
+    );
     let (spans, metrics) = spans.split_once(|spans| (UnsampledSpans::from(spans), metrics));
 
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
@@ -98,6 +155,7 @@ pub fn create_indexed_metrics(
     let metrics = create_metrics(
         spans.scoping(),
         spans.spans.len() as u32,
+        spans.headers.dsc(),
         SamplingDecision::Keep,
     );
 
@@ -174,6 +232,7 @@ fn is_sampling_config_supported(project_info: &ProjectInfo) -> bool {
 fn create_metrics(
     scoping: Scoping,
     span_count: u32,
+    dsc: Option<&DynamicSamplingContext>,
     sampling_decision: SamplingDecision,
 ) -> ExtractedMetrics {
     let mut metrics = ExtractedMetrics::default();
@@ -195,13 +254,18 @@ fn create_metrics(
         width: 0,
         name: "c:spans/count_per_root_project@none".into(),
         value: BucketValue::counter(span_count.into()),
-        tags: BTreeMap::from([
-            ("decision".to_owned(), sampling_decision.to_string()),
-            (
+        tags: {
+            let mut tags = BTreeMap::new();
+            tags.insert("decision".to_owned(), sampling_decision.to_string());
+            tags.insert(
                 "target_project_id".to_owned(),
                 scoping.project_id.to_string(),
-            ),
-        ]),
+            );
+            if let Some(tx) = dsc.and_then(|dsc| dsc.transaction.clone()) {
+                tags.insert("transaction".to_owned(), tx);
+            }
+            tags
+        },
         metadata,
     });
     metrics.project_metrics.push(Bucket {

@@ -1438,14 +1438,21 @@ impl EnvelopeProcessorService {
 
         let metrics = crate::metrics_extraction::event::extract_metrics(
             event,
-            combined_config,
-            sampling_decision,
-            project_id,
-            self.inner
-                .config
-                .aggregator_config_for(MetricNamespace::Spans)
-                .max_tag_value_length,
-            extract_spans,
+            crate::metrics_extraction::event::ExtractMetricsConfig {
+                config: combined_config,
+                sampling_decision,
+                target_project_id: project_id,
+                max_tag_value_size: self
+                    .inner
+                    .config
+                    .aggregator_config_for(MetricNamespace::Spans)
+                    .max_tag_value_length,
+                extract_spans,
+                transaction_from_dsc: managed_envelope
+                    .envelope()
+                    .dsc()
+                    .and_then(|dsc| dsc.transaction.as_deref()),
+            },
         );
 
         extracted_metrics.extend(metrics, Some(sampling_decision));
@@ -2105,7 +2112,13 @@ impl EnvelopeProcessorService {
         processor
             .process(work, ctx)
             .await
-            .map_err(|_| ProcessingError::ProcessingFailure)
+            .map_err(|err| {
+                relay_log::debug!(
+                    error = &err as &dyn std::error::Error,
+                    "processing pipeline failed"
+                );
+                ProcessingError::ProcessingFailure
+            })
             .map(|o| o.map(Into::into))
             .map(ProcessingResult::Output)
     }
@@ -2671,9 +2684,19 @@ impl EnvelopeProcessorService {
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         for client_report in client_reports {
-            let mut item = Item::new(ItemType::ClientReport);
-            item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
-            envelope.add_item(item);
+            match client_report.serialize() {
+                Ok(payload) => {
+                    let mut item = Item::new(ItemType::ClientReport);
+                    item.set_payload(ContentType::Json, payload);
+                    envelope.add_item(item);
+                }
+                Err(error) => {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "failed to serialize client report"
+                    );
+                }
+            }
         }
 
         let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
@@ -3358,7 +3381,7 @@ impl RateLimiter {
     }
 }
 
-fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
+pub fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
     let envelope_body: Vec<u8> = match http_encoding {
         HttpEncoding::Identity => return Ok(body.clone()),
         HttpEncoding::Deflate => {
@@ -3392,10 +3415,10 @@ fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, st
 /// An upstream request that submits an envelope via HTTP.
 #[derive(Debug)]
 pub struct SendEnvelope {
-    envelope: TypedEnvelope<Processed>,
-    body: Bytes,
-    http_encoding: HttpEncoding,
-    project_cache: ProjectCacheHandle,
+    pub envelope: TypedEnvelope<Processed>,
+    pub body: Bytes,
+    pub http_encoding: HttpEncoding,
+    pub project_cache: ProjectCacheHandle,
 }
 
 impl UpstreamRequest for SendEnvelope {

@@ -376,7 +376,7 @@ def test_duplicate_performance_score(mini_sentry, relay):
 
     score_total_seen = 0
     for _ in range(3):  # 2 client reports and the actual item we're interested in
-        envelope = mini_sentry.captured_events.get()
+        envelope = mini_sentry.captured_events.get(timeout=5)
         for item in envelope.items:
             if item.type == "metric_buckets":
                 for metric in item.payload.json:
@@ -592,6 +592,12 @@ def test_span_ingestion(
 
     # 1 - Send OTel span and sentry span via envelope
     envelope = envelope_with_spans(start, end)
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": project_config["publicKeys"][0]["publicKey"],
+        "transaction": "tx_from_root",
+    }
+
     relay.send_envelope(
         project_id,
         envelope,
@@ -879,7 +885,11 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_after(now_timestamp),
             "retention_days": 90,
-            "tags": {"decision": "keep", "target_project_id": "42"},
+            "tags": {
+                "decision": "keep",
+                "target_project_id": "42",
+                "transaction": "tx_from_root",
+            },
             "timestamp": expected_timestamp + 1,
             "type": "c",
             "value": 3.0,

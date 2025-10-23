@@ -109,6 +109,10 @@ pub async fn process(
     let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &ctx.project_info.config.filter_settings;
     let sampling_decision = sampling_result.decision();
+    let transaction_from_dsc = managed_envelope
+        .envelope()
+        .dsc()
+        .and_then(|dsc| dsc.transaction.clone());
 
     let mut span_count = 0;
     managed_envelope.retain_items(|item| {
@@ -170,14 +174,9 @@ pub async fn process(
             extracted_metrics.extend_project_metrics(metrics, Some(sampling_decision));
 
             if ctx.project_info.config.features.produces_spans() {
-                let transaction = span
-                    .data
-                    .value()
-                    .and_then(|d| d.segment_name.value())
-                    .cloned();
                 let bucket = event::create_span_root_counter(
                     span,
-                    transaction,
+                    transaction_from_dsc.clone(),
                     1,
                     sampling_decision,
                     project_id,
@@ -581,7 +580,7 @@ fn normalize(
 
     process_value(
         annotated_span,
-        &mut SchemaProcessor,
+        &mut SchemaProcessor::new(),
         ProcessingState::root(),
     )?;
 
