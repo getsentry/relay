@@ -592,6 +592,12 @@ def test_span_ingestion(
 
     # 1 - Send OTel span and sentry span via envelope
     envelope = envelope_with_spans(start, end)
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": project_config["publicKeys"][0]["publicKey"],
+        "transaction": "tx_from_root",
+    }
+
     relay.send_envelope(
         project_id,
         envelope,
@@ -879,7 +885,11 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_after(now_timestamp),
             "retention_days": 90,
-            "tags": {"decision": "keep", "target_project_id": "42"},
+            "tags": {
+                "decision": "keep",
+                "target_project_id": "42",
+                "transaction": "tx_from_root",
+            },
             "timestamp": expected_timestamp + 1,
             "type": "c",
             "value": 3.0,

@@ -10,6 +10,7 @@
 
 - Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
 - Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
+- Tag spans' count per root metric with the trace root's transaction instead of the local transaction. ([#5281](https://github.com/getsentry/relay/pull/5281))
 - Use `vercel.path` instead of `url.path` for Vercel Log Drain Transform. ([#5274](https://github.com/getsentry/relay/pull/5274))
 
 **Internal**:
