@@ -2112,7 +2112,13 @@ impl EnvelopeProcessorService {
         processor
             .process(work, ctx)
             .await
-            .map_err(|_| ProcessingError::ProcessingFailure)
+            .map_err(|err| {
+                relay_log::debug!(
+                    error = &err as &dyn std::error::Error,
+                    "processing pipeline failed"
+                );
+                ProcessingError::ProcessingFailure
+            })
             .map(|o| o.map(Into::into))
             .map(ProcessingResult::Output)
     }

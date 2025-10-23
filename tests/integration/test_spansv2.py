@@ -28,8 +28,7 @@ def envelope_with_spans(*payloads: dict, trace_info=None) -> Envelope:
             headers={"item_count": len(payloads)},
         )
     )
-    if trace_info:
-        envelope.headers["trace"] = trace_info
+    envelope.headers["trace"] = trace_info
     return envelope
 
 
@@ -74,7 +73,11 @@ def test_spansv2_basic(
                 "foo": {"value": "bar", "type": "string"},
                 "invalid": {"value": True, "type": "string"},
             },
-        }
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
     )
 
     relay.send_envelope(project_id, envelope)
@@ -516,7 +519,11 @@ def test_spanv2_inbound_filters(
                 "sentry.release": {"value": "foobar@1.0", "type": "string"},
                 "sentry.segment.name": {"value": "/foo/healthz", "type": "string"},
             },
-        }
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
     )
 
     headers = None
@@ -621,6 +628,83 @@ def test_spans_v2_multiple_containers_not_allowed(
     assert mini_sentry.captured_outcomes.empty()
 
 
+@pytest.mark.parametrize("validation", ["missing_dsc", "invalid_dsc"])
+def test_spans_v2_dsc_validations(
+    mini_sentry,
+    relay,
+    validation,
+):
+    """
+    Test verifies envelopes with invalid or misconfigured DSCs
+    are rejected by Relay with an appropriate reason.
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
+            "name": "some op",
+            "status": "ok",
+        },
+        # Note: even this 'correct' span is rejected, as the entire envelope
+        # is considered invalid.
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "33333333333333333333333333333333",
+            "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
+            "name": "some op",
+            "status": "ok",
+        },
+        trace_info=(
+            None
+            if validation == "missing_dsc"
+            else {
+                "trace_id": "33333333333333333333333333333333",
+                "public_key": project_config["publicKeys"][0]["publicKey"],
+            }
+        ),
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_outcomes(2) == [
+        {
+            "category": DataCategory.SPAN.value,
+            "timestamp": time_within_delta(),
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 2,
+            "reason": validation,
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "timestamp": time_within_delta(),
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 2,
+            "reason": validation,
+        },
+    ]
+
+
 def test_spanv2_with_string_pii_scrubbing(
     mini_sentry,
     relay,
@@ -651,7 +735,11 @@ def test_spanv2_with_string_pii_scrubbing(
             "attributes": {
                 "test_pii": {"value": test_value, "type": "string"},
             },
-        }
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
     )
 
     relay.send_envelope(project_id, envelope)
@@ -728,7 +816,11 @@ def test_spanv2_default_pii_scrubbing_attributes(
             "attributes": {
                 attribute_key: {"value": attribute_value, "type": "string"},
             },
-        }
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
     )
 
     relay_instance.send_envelope(project_id, envelope)
@@ -770,17 +862,13 @@ def test_invalid_spans(mini_sentry, relay):
         "span_id": "eee19b7ec3c1b174",
         "start_timestamp": ts.timestamp(),
         "status": "ok",
-        "trace_id": "5b8ef" "ff798038103d269b633813fc60c",
+        "trace_id": "5b8efff798038103d269b633813fc60c",
     }
 
-    required_keys = valid_span.keys()
-    nonempty_keys = {
-        "end_timestamp",
-        "is_remote",
-        "span_id",
-        "start_timestamp",
-        "trace_id",
-    }
+    # Need to exclude the `trace_id`, since this one is fundamentally required
+    # for DSC validations. Envelopes with mismatching DSCs are entirely rejected.
+    required_keys = valid_span.keys() - {"trace_id"}
+    nonempty_keys = valid_span.keys() - {"trace_id", "name", "status"}
 
     invalid_spans = []
     for key in required_keys:
@@ -798,10 +886,16 @@ def test_invalid_spans(mini_sentry, relay):
         invalid_span[key] = ""
         invalid_spans.append(invalid_span)
 
-    envelope = envelope_with_spans(*(invalid_spans + [valid_span]))
+    envelope = envelope_with_spans(
+        *(invalid_spans + [valid_span]),
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
     relay.send_envelope(project_id, envelope)
 
-    outcomes = mini_sentry.get_aggregated_outcomes(timeout=3)
+    outcomes = mini_sentry.get_aggregated_outcomes(timeout=5)
     assert outcomes == [
         {
             "category": 12,

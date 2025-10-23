@@ -42,7 +42,7 @@ pub trait Processor {
     /// The result after processing a [`Self::UnitOfWork`].
     type Output: Forward;
     /// The error returned by [`Self::process`].
-    type Error: std::error::Error;
+    type Error: std::error::Error + 'static;
 
     /// Extracts a [`Self::UnitOfWork`] from a [`ManagedEnvelope`].
     ///

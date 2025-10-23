@@ -35,6 +35,10 @@ pub enum Error {
     /// Standalone spans filtered because of a missing feature flag.
     #[error("spans feature flag missing")]
     FilterFeatureFlag,
+    #[error("a dynamic sampling context is required")]
+    MissingDynamicSamplingContext,
+    #[error("the dynamic sampling context does not match the payload")]
+    DynamicSamplingContextMismatch,
     /// The spans are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
@@ -59,6 +63,12 @@ impl OutcomeError for Error {
         let outcome = match &self {
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::FilterFeatureFlag => None,
+            Self::MissingDynamicSamplingContext => Some(Outcome::Invalid(
+                DiscardReason::MissingDynamicSamplingContext,
+            )),
+            Self::DynamicSamplingContextMismatch => Some(Outcome::Invalid(
+                DiscardReason::InvalidDynamicSamplingContext,
+            )),
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
@@ -132,12 +142,16 @@ impl processing::Processor for SpansProcessor {
         validate::container(&spans).reject(&spans)?;
 
         dynamic_sampling::validate_configs(ctx);
+        dynamic_sampling::validate_dsc_presence(&spans).reject(&spans)?;
+
         let spans = match dynamic_sampling::run(spans, ctx).await {
             Ok(spans) => spans,
             Err(metrics) => return Ok(Output::metrics(metrics)),
         };
 
         let mut spans = process::expand(spans);
+
+        dynamic_sampling::validate_dsc(&spans).reject(&spans)?;
 
         process::normalize(&mut spans, &self.geo_lookup);
         filter::filter(&mut spans, ctx);
