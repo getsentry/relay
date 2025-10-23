@@ -131,7 +131,7 @@ fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> 
 #[cfg(test)]
 mod tests {
     use relay_pii::{DataScrubbingConfig, PiiConfig};
-    use relay_protocol::SerializableAnnotated;
+    use relay_protocol::assert_annotated_snapshot;
 
     use crate::services::projects::project::ProjectInfo;
 
@@ -177,19 +177,37 @@ mod tests {
 
         let mut data = Annotated::<OurLog>::from_json(json).unwrap();
 
-        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
-            "applications": {
-                "$string": ["@password:filter"],
-            }
-        }))
-        .unwrap();
-
         let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
         scrubbing_config.scrub_data = true;
+        scrubbing_config.scrub_defaults = true;
 
-        let ctx = make_context(scrubbing_config, Some(config));
+        let ctx = make_context(scrubbing_config, None);
         scrub_log(&mut data, ctx).unwrap();
-        insta::assert_json_snapshot!(SerializableAnnotated(&data));
+        assert_annotated_snapshot!(data, @r#"
+        {
+          "timestamp": 1544719860.0,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "span_id": "eee19b7ec3c1b174",
+          "level": "info",
+          "body": "Bearer [token]",
+          "attributes": {},
+          "_meta": {
+            "body": {
+              "": {
+                "rem": [
+                  [
+                    "@bearer:replace",
+                    "s",
+                    0,
+                    14
+                  ]
+                ],
+                "len": 43
+              }
+            }
+          }
+        }
+        "#);
     }
 
     #[test]
@@ -232,13 +250,13 @@ mod tests {
         let ctx = make_context(DataScrubbingConfig::default(), Some(deep_wildcard_config));
         scrub_log(&mut data, ctx).unwrap();
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "timestamp": 1544719860.0,
           "trace_id": "5b8efff798038103d269b633813fc60c",
           "span_id": "eee19b7ec3c1b174",
           "level": "info",
-          "body": "[REDACTED]",
+          "body": "normal_value",
           "attributes": {
             "normal_field": {
               "type": "string",
@@ -262,23 +280,10 @@ mod tests {
                   }
                 }
               }
-            },
-            "body": {
-              "": {
-                "rem": [
-                  [
-                    "remove_normal_field",
-                    "s",
-                    0,
-                    10
-                  ]
-                ],
-                "len": 12
-              }
             }
           }
         }
-        "###);
+        "#);
 
         // If a log specific negation is used, then log attributes appear again.
         data = Annotated::<OurLog>::from_json(json).unwrap();
@@ -302,7 +307,7 @@ mod tests {
         let ctx = make_context(DataScrubbingConfig::default(), Some(config));
         scrub_log(&mut data, ctx).unwrap();
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        assert_annotated_snapshot!(data, @r###"
         {
           "timestamp": 1544719860.0,
           "trace_id": "5b8efff798038103d269b633813fc60c",
@@ -358,13 +363,13 @@ mod tests {
         let ctx = make_context(DataScrubbingConfig::default(), Some(config));
         scrub_log(&mut data, ctx).unwrap();
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "timestamp": 1544719860.0,
           "trace_id": "5b8efff798038103d269b633813fc60c",
           "span_id": "eee19b7ec3c1b174",
           "level": "info",
-          "body": "[REDACTED]",
+          "body": "normal_value",
           "attributes": {
             "normal_field": {
               "type": "string",
@@ -388,22 +393,9 @@ mod tests {
                   }
                 }
               }
-            },
-            "body": {
-              "": {
-                "rem": [
-                  [
-                    "remove_normal_field",
-                    "s",
-                    0,
-                    10
-                  ]
-                ],
-                "len": 12
-              }
             }
           }
         }
-        "###);
+        "#);
     }
 }

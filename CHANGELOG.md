@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Only apply non-destructive PII rules to log bodies by default. ([#5272](https://github.com/getsentry/relay/pull/5272))
+
 **Breaking Changes**:
 
 - Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
