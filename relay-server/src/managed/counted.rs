@@ -31,6 +31,15 @@ impl Counted for () {
     }
 }
 
+impl<T: Counted> Counted for Option<T> {
+    fn quantities(&self) -> Quantities {
+        match self {
+            Some(inner) => inner.quantities(),
+            None => Quantities::new(),
+        }
+    }
+}
+
 impl Counted for Item {
     fn quantities(&self) -> Quantities {
         self.quantities()

@@ -476,7 +476,7 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
     }
 }
 
-pub fn event_from_json_payload(
+fn event_from_json_payload(
     item: Item,
     event_type: Option<EventType>,
 ) -> Result<ExtractedEvent, ProcessingError> {

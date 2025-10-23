@@ -3,6 +3,7 @@ use std::sync::Arc;
 use relay_base_schema::events::EventType;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics, SpanV2};
+use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use smallvec::SmallVec;
@@ -13,7 +14,7 @@ use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer,
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult, Quantities, Rejected};
 use crate::processing::{Forward, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::ProcessingExtractedMetrics;
+use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::statsd::RelayTimers;
 #[cfg(feature = "processing")]
 use crate::{processing::spans::store, services::store::StoreEnvelope};
@@ -21,7 +22,10 @@ use crate::{processing::spans::store, services::store::StoreEnvelope};
 mod process;
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {}
+pub enum Error {
+    #[error("invalid JSON")]
+    InvalidJson(#[from] serde_json::Error),
+}
 
 /// A processor for transactions.
 pub struct TransactionProcessor {
@@ -42,18 +46,35 @@ impl Processor for TransactionProcessor {
     ) -> Option<Managed<Self::UnitOfWork>> {
         let headers = envelope.envelope().headers().clone();
 
-        let transaction_item = envelope
+        // The envelope might contain only a profile as a leftover after dynamic sampling.
+        // In this case, `transaction` is `None`.
+        let transaction = envelope
             .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::Transaction))?;
+            .take_item_by(|item| matches!(*item.ty(), ItemType::Transaction));
 
-        let attachment_items = envelope
-            .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Attachment));
+        // Attachments are only allowed if a transaction exists.
+        let attachments = match transaction {
+            Some(_) => envelope
+                .envelope_mut()
+                .take_items_by(|item| matches!(*item.ty(), ItemType::Attachment)),
+            None => smallvec::smallvec![], // no attachments allowed.
+        };
+
+        // A profile is only allowed if a transaction exists, or if it is marked as not sampled,
+        // in which case it is a leftover from a transaction that was dropped by dynamic sampling.
+        let profile = envelope.envelope_mut().take_item_by(|item| {
+            matches!(*item.ty(), ItemType::Profile) && (transaction.is_some() || !item.sampled())
+        });
+
+        if transaction.is_none() && profile.is_none() && attachments.is_empty() {
+            return None;
+        }
 
         let work = SerializedTransaction {
             headers,
-            transaction_item,
-            attachment_items,
+            transaction,
+            attachments,
+            profile,
         };
 
         Some(Managed::from_envelope(envelope, work))
@@ -64,24 +85,38 @@ impl Processor for TransactionProcessor {
         work: Managed<Self::UnitOfWork>,
         ctx: super::Context<'_>,
     ) -> Result<super::Output<Self::Output>, Rejected<Self::Error>> {
-        let transaction_item = work.transaction_item;
-        debug_assert_eq!(transaction_item.ty(), &ItemType::Transaction);
-
-        let mut event_fully_normalized =
-            work.headers.meta().request_trust().is_trusted() && transaction_item.fully_normalized();
-
-        let mut event_metrics_extracted =
-            EventMetricsExtracted(transaction_item.metrics_extracted());
-        let mut spans_extracted = SpansExtracted(transaction_item.spans_extracted());
+        let mut event_fully_normalized = EventFullyNormalized(
+            work.headers.meta().request_trust().is_trusted()
+                && work
+                    .transaction
+                    .as_ref()
+                    .map_or(false, Item::fully_normalized),
+        );
+        let mut event_metrics_extracted = EventMetricsExtracted(false);
+        let mut spans_extracted = SpansExtracted(false);
         let mut metrics = Metrics::default();
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
-        let mut event = metric!(timer(RelayTimers::EventProcessingDeserialize), {
-            // Transaction items can only contain transaction events. Force the event type to
-            // hint to normalization that we're dealing with a transaction now.
-            event_from_json_payload(transaction_item, Some(EventType::Transaction))?
-        })?;
+        let mut event = Annotated::empty();
+        if let Some(transaction_item) = work.transaction {
+            let result = metric!(timer(RelayTimers::EventProcessingDeserialize), {
+                Annotated::<Event>::from_json_bytes(&transaction_item.payload())
+            });
+            event = result.reject(&work)?;
+            if let Some(event) = event.value_mut() {
+                event.ty = EventType::Transaction.into();
+            }
+        }
 
+        let (transaction, profile) = work.split_once(|w| {
+            let SerializedTransaction {
+                headers,
+                transaction,
+                attachments,
+                profile,
+            } = w;
+            (transaction, profile)
+        });
         let profile_id = profile::filter(
             managed_envelope,
             &event,
@@ -304,70 +339,117 @@ struct SpansExtracted(bool);
 #[derive(Debug)]
 pub struct SerializedTransaction {
     headers: EnvelopeHeaders,
-    transaction_item: Item,
-    attachment_items: SmallVec<[Item; 3]>,
-    profile_items: SmallVec<[Item; 3]>,
+    transaction: Option<Item>,
+    attachments: smallvec::SmallVec<[Item; 3]>,
+    profile: Option<Item>,
+}
+
+impl SerializedTransaction {
+    fn items(&self) -> impl Iterator<Item = &Item> {
+        let Self {
+            headers: _,
+            transaction,
+            attachments,
+            profile,
+        } = self;
+        transaction
+            .into_iter()
+            .chain(attachments.into_iter())
+            .chain(profile.into_iter())
+    }
 }
 
 impl Counted for SerializedTransaction {
     fn quantities(&self) -> Quantities {
-        smallvec::smallvec![
-            (DataCategory::Transaction, 1),
-            (DataCategory::TransactionIndexed, 1),
-            (DataCategory::AttachmentItem, self.attachment_items.len()),
-            (
-                DataCategory::Attachment,
-                self.attachment_items.iter().map(Item::len).sum()
-            ),
-        ]
+        let mut quantities = Quantities::new();
+        // IDEA: `#[derive(Counted)]`
+        for item in self.items() {
+            // NOTE: This assumes non-overlapping item quantities.
+            quantities.extend(item.quantities());
+        }
+        quantities
     }
 }
 
 #[derive(Debug)]
 pub struct ExpandedTransaction {
     headers: EnvelopeHeaders,
-    transaction: Event,
-    attachment_items: Vec<Item>,
-    #[cfg(feature = "processing")]
-    extracted_spans: ContainerItems<SpanV2>,
+    data: ExpandedData,
 }
 
 impl ExpandedTransaction {
     fn serialize_envelope(self) -> Result<Box<Envelope>, ContainerWriteError> {
-        let Self {
-            headers,
-            transaction,
-            attachment_items,
-            extracted_spans,
-        } = self;
+        let Self { headers, data } = self;
 
-        let mut envelope = Envelope::try_from_event(headers, transaction)?;
+        match data {
+            ExpandedData::Transaction {
+                transaction,
+                attachments,
+                profile,
+                extracted_spans,
+            } => {
+                let mut envelope = Envelope::try_from_event(headers, transaction)?;
 
-        if !extracted_spans.is_empty() {
-            let mut item = Item::new(ItemType::Span);
-            ItemContainer::from(extracted_spans).write_to(&mut item)?;
-            envelope.add_item(item);
+                if !extracted_spans.is_empty() {
+                    let mut item = Item::new(ItemType::Span);
+                    ItemContainer::from(extracted_spans).write_to(&mut item)?;
+                    envelope.add_item(item);
+                }
+
+                for item in attachment_items {
+                    envelope.add_item(item);
+                }
+                for item in profile_items {
+                    envelope.add_item(item);
+                }
+
+                Ok(envelope)
+            }
+            ExpandedData::Profile(item) => Ok(Envelope::from_parts(headers, [item].into())),
         }
-
-        for item in attachment_items {
-            envelope.add_item(item);
-        }
-
-        Ok(envelope)
     }
 }
 
 impl Counted for ExpandedTransaction {
     fn quantities(&self) -> Quantities {
-        smallvec::smallvec![
-            (DataCategory::Transaction, 1),
-            (DataCategory::TransactionIndexed, 1),
-            (DataCategory::AttachmentItem, self.attachment_items.len()),
-            (
-                DataCategory::Attachment,
-                self.attachment_items.iter().map(Item::len).sum()
-            ),
-        ]
+        let Self { headers: _, data } = self;
+        data.quantities()
+    }
+}
+
+enum ExpandedData {
+    /// A standard transaction item with optional profile & attachment(s).
+    Transaction {
+        transaction: Event,
+        attachments: SmallVec<[Item; 3]>,
+        profile: Option<Item>,
+        #[cfg(feature = "processing")]
+        extracted_spans: ContainerItems<SpanV2>,
+    },
+    /// A profile left over after the transaction has been dropped by dynamic sampling.
+    Profile(Item),
+}
+
+impl Counted for ExpandedData {
+    fn quantities(&self) -> Quantities {
+        match self {
+            Self::Transaction {
+                transaction,
+                attachments,
+                profile,
+                extracted_spans,
+            } => {
+                let mut quantities = Quantities::new();
+                quantities.extend(transaction.quantities());
+                quantities.extend(attachments.quantities());
+                if let Some(profile) = profile {
+                    quantities.extend(attachments.quantities());
+                }
+                quantities.extend(extracted_spans).quantities();
+                quantities
+            }
+            Self::Profile(item) => item.quantities(),
+        }
     }
 }
 
@@ -395,22 +477,28 @@ impl Forward for TransactionOutput {
     ) -> Result<(), Rejected<()>> {
         let Self(output) = self;
 
-        let (envelope, spans) = output.split_once(
-            |ExpandedTransaction {
-                 headers,
-                 transaction,
-                 attachment_items,
-                 extracted_spans,
-             }| {
-                let mut envelope = Envelope::try_from_event(headers, transaction)
-                    .map_err(|e| output.internal_error("failed to create envelope from event"))?;
-                for item in attachment_items {
-                    envelope.add_item(item);
-                }
+        let (envelope, spans) =
+            output.split_once(|ExpandedTransaction { headers, data }| match data {
+                ExpandedData::Transaction {
+                    transaction,
+                    attachments,
+                    profile,
+                    extracted_spans,
+                } => {
+                    let mut envelope =
+                        Envelope::try_from_event(headers, transaction).map_err(|e| {
+                            output.internal_error("failed to create envelope from event")
+                        })?;
+                    for item in attachment_items {
+                        envelope.add_item(item);
+                    }
 
-                (envelope, extracted_spans)
-            },
-        );
+                    (envelope, extracted_spans)
+                }
+                ExpandedData::Profile(item) => {
+                    (Envelope::from_parts(headers, [item].into()), vec![])
+                }
+            });
 
         // Send transaction & attachments in envelope:
         s.send(StoreEnvelope { envelope });
