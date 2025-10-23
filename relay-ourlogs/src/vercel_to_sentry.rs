@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
-use relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS, URL_PATH};
+use relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 use serde::{Deserialize, Deserializer};
@@ -118,10 +118,10 @@ pub struct VercelProxy {
     pub path: String,
     /// User agent strings of the request.
     pub user_agent: Vec<String>,
-    /// Referer of the request.
-    pub referer: String,
     /// Region where the request is processed.
     pub region: String,
+    /// Referer of the request.
+    pub referer: Option<String>,
     /// HTTP status code of the proxy request.
     pub status_code: Option<i64>,
     /// Client IP address.
@@ -243,7 +243,7 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
     add_optional_attribute!("vercel.build_id", build_id);
     add_optional_attribute!("vercel.entrypoint", entrypoint);
     add_optional_attribute!("vercel.destination", destination);
-    add_optional_attribute!(URL_PATH, path);
+    add_optional_attribute!("vercel.path", path);
     add_optional_attribute!("vercel.log_type", ty);
     add_optional_attribute!("vercel.status_code", status_code);
     add_optional_attribute!("vercel.request_id", request_id);
@@ -282,13 +282,13 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
         add_attribute!("vercel.proxy.method", method);
         add_attribute!("vercel.proxy.host", host);
         add_attribute!("vercel.proxy.path", path);
-        add_attribute!("vercel.proxy.referer", referer);
         add_attribute!("vercel.proxy.region", region);
 
         if let Ok(user_agent_string) = serde_json::to_string(&user_agent) {
             attributes.insert("vercel.proxy.user_agent", user_agent_string);
         }
 
+        add_optional_attribute!("vercel.proxy.referer", referer);
         add_optional_attribute!("vercel.proxy.status_code", status_code);
         add_optional_attribute!("vercel.proxy.client_ip", client_ip);
         add_optional_attribute!("vercel.proxy.scheme", scheme);
@@ -363,8 +363,8 @@ mod tests {
                 host: "my-app.vercel.app".to_owned(),
                 path: "/api/users?page=1".to_owned(),
                 user_agent: vec!["Mozilla/5.0...".to_owned()],
-                referer: "https://my-app.vercel.app".to_owned(),
                 region: "sfo1".to_owned(),
+                referer: Some("https://my-app.vercel.app".to_owned()),
                 status_code: Some(200),
                 client_ip: Some("120.75.16.101".to_owned()),
                 scheme: Some("https".to_owned()),
@@ -401,10 +401,6 @@ mod tests {
             "server.address": {
               "type": "string",
               "value": "my-app-abc123.vercel.app"
-            },
-            "url.path": {
-              "type": "string",
-              "value": "/api/users"
             },
             "vercel.branch": {
               "type": "string",
@@ -449,6 +445,10 @@ mod tests {
             "vercel.log_type": {
               "type": "string",
               "value": "stdout"
+            },
+            "vercel.path": {
+              "type": "string",
+              "value": "/api/users"
             },
             "vercel.project_id": {
               "type": "string",
@@ -614,10 +614,6 @@ mod tests {
               "type": "string",
               "value": "my-app-abc123.vercel.app"
             },
-            "url.path": {
-              "type": "string",
-              "value": "/api/users"
-            },
             "vercel.deployment_id": {
               "type": "string",
               "value": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"
@@ -633,6 +629,10 @@ mod tests {
             "vercel.id": {
               "type": "string",
               "value": "1573817250283254651097202070"
+            },
+            "vercel.path": {
+              "type": "string",
+              "value": "/api/users"
             },
             "vercel.project_id": {
               "type": "string",
