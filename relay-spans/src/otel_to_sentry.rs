@@ -131,7 +131,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span, Some(&resource), Some(&scope));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
@@ -154,6 +154,7 @@ mod tests {
             "instrumentation.version": "123.42",
             "plugin.name": "fastify -> @fastify/multipart",
             "resource.service.name": 42,
+            "sentry.origin": "auto.otlp.spans",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1,
             "sentry.status.message": "test"
@@ -161,7 +162,7 @@ mod tests {
           "links": [],
           "kind": "server"
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -186,7 +187,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
@@ -199,12 +200,13 @@ mod tests {
           "status": "ok",
           "description": "middleware - fastify -> @fastify/multipart",
           "data": {
-            "sentry.name": "middleware - fastify -> @fastify/multipart"
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
+            "sentry.origin": "auto.otlp.spans"
           },
           "links": [],
           "kind": "internal"
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -221,7 +223,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
@@ -234,12 +236,13 @@ mod tests {
           "status": "ok",
           "description": "middleware - fastify -> @fastify/multipart",
           "data": {
-            "sentry.name": "middleware - fastify -> @fastify/multipart"
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
+            "sentry.origin": "auto.otlp.spans"
           },
           "links": [],
           "kind": "internal"
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -282,7 +285,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
@@ -299,12 +302,13 @@ mod tests {
             "sentry.name": "database query",
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-            "db.type": "sql"
+            "db.type": "sql",
+            "sentry.origin": "auto.otlp.spans"
           },
           "links": [],
           "kind": "client"
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -347,7 +351,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
@@ -363,12 +367,13 @@ mod tests {
             "sentry.name": "database query",
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-            "db.type": "sql"
+            "db.type": "sql",
+            "sentry.origin": "auto.otlp.spans"
           },
           "links": [],
           "kind": "client"
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -399,7 +404,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
@@ -414,12 +419,13 @@ mod tests {
           "data": {
             "sentry.name": "http client request",
             "http.request.method": "GET",
+            "sentry.origin": "auto.otlp.spans",
             "url.path": "/api/search?q=foobar"
           },
           "links": [],
           "kind": "server"
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -468,7 +474,7 @@ mod tests {
         let event_span = otel_to_sentry_span(otel_span, None, None);
 
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -483,11 +489,12 @@ mod tests {
           "data": {
             "sentry.name": "cmd.run",
             "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]",
-            "process.info": "[41]"
+            "process.info": "[41]",
+            "sentry.origin": "auto.otlp.spans"
           },
           "links": []
         }
-        "#);
+        "###);
     }
 
     /// Intended to be synced with `relay-event-schema::protocol::span::convert::tests::roundtrip`.
@@ -623,7 +630,7 @@ mod tests {
         let event_span = otel_to_sentry_span(otel_span, None, None);
 
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -645,12 +652,13 @@ mod tests {
             "sentry.sdk.name": "sentry.php",
             "sentry.name": "myname",
             "sentry.metrics_summary.some_metric": "[]",
+            "sentry.origin": "auto.otlp.spans",
             "sentry.status.message": "foo"
           },
           "links": [],
           "platform": "php"
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -666,7 +674,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -677,10 +685,12 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "is_remote": true,
           "status": "ok",
-          "data": {},
+          "data": {
+            "sentry.origin": "auto.otlp.spans"
+          },
           "links": []
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -696,7 +706,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -707,10 +717,12 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "is_remote": false,
           "status": "ok",
-          "data": {},
+          "data": {
+            "sentry.origin": "auto.otlp.spans"
+          },
           "links": []
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -726,7 +738,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -737,11 +749,13 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "is_remote": false,
           "status": "ok",
-          "data": {},
+          "data": {
+            "sentry.origin": "auto.otlp.spans"
+          },
           "links": [],
           "kind": "client"
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -787,7 +801,7 @@ mod tests {
         let event_span: EventSpan = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 0.0,
           "start_timestamp": 0.0,
@@ -797,7 +811,9 @@ mod tests {
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "is_remote": false,
           "status": "ok",
-          "data": {},
+          "data": {
+            "sentry.origin": "auto.otlp.spans"
+          },
           "links": [
             {
               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -812,7 +828,7 @@ mod tests {
             }
           ]
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -828,7 +844,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 0.0,
           "start_timestamp": 0.0,
@@ -839,10 +855,11 @@ mod tests {
           "is_remote": false,
           "status": "internal_error",
           "data": {
+            "sentry.origin": "auto.otlp.spans",
             "sentry.status.message": "2 is the error status code"
           },
           "links": []
         }
-        "#);
+        "###);
     }
 }

@@ -3,6 +3,7 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
+use relay_conventions::ORIGIN;
 use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
 use relay_otel::otel_value_to_attribute;
@@ -63,6 +64,8 @@ pub fn otel_to_sentry_span(
     let mut sentry_attributes = Attributes::new();
 
     relay_otel::otel_scope_into_attributes(&mut sentry_attributes, resource, scope);
+
+    sentry_attributes.insert(ORIGIN, "auto.otlp.spans".to_owned());
 
     let mut name = if name.is_empty() { None } else { Some(name) };
     for (key, value) in attributes.into_iter().flat_map(|attribute| {
@@ -257,7 +260,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span, Some(&resource), Some(&scope));
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "parent_span_id": "0c7a7dea069bf5a6",
@@ -302,6 +305,10 @@ mod tests {
               "type": "double",
               "value": 1000.0
             },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            },
             "sentry.parentSampled": {
               "type": "boolean",
               "value": true
@@ -316,7 +323,7 @@ mod tests {
             }
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -341,7 +348,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "parent_span_id": "0c7a7dea069bf5a6",
@@ -357,10 +364,14 @@ mod tests {
             "sentry.exclusive_time": {
               "type": "double",
               "value": 3200.0
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
             }
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -397,7 +408,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "parent_span_id": "0c7a7dea069bf5a6",
@@ -421,10 +432,14 @@ mod tests {
             "db.type": {
               "type": "string",
               "value": "sql"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
             }
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -467,7 +482,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "parent_span_id": "0c7a7dea069bf5a6",
@@ -495,10 +510,14 @@ mod tests {
             "sentry.description": {
               "type": "string",
               "value": "index view query"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
             }
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -529,7 +548,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "parent_span_id": "0c7a7dea069bf5a6",
@@ -546,13 +565,17 @@ mod tests {
               "type": "string",
               "value": "GET"
             },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            },
             "url.path": {
               "type": "string",
               "value": "/api/search?q=foobar"
             }
           }
         }
-        "#);
+        "###);
     }
 
     /// Intended to be synced with `relay-event-schema::protocol::span::convert::tests::roundtrip`.
@@ -691,7 +714,7 @@ mod tests {
         let event_span = otel_to_sentry_span(otel_span, None, None);
 
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
           "parent_span_id": "fa90fdead5f74051",
@@ -723,6 +746,10 @@ mod tests {
               "type": "string",
               "value": "myop"
             },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            },
             "sentry.platform": {
               "type": "string",
               "value": "php"
@@ -753,7 +780,7 @@ mod tests {
             }
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -769,7 +796,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "parent_span_id": "0c7a7dea069bf5a6",
@@ -779,9 +806,14 @@ mod tests {
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
-          "attributes": {}
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -797,7 +829,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "parent_span_id": "0c7a7dea069bf5a6",
@@ -807,9 +839,14 @@ mod tests {
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
-          "attributes": {}
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -825,7 +862,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "parent_span_id": "0c7a7dea069bf5a6",
@@ -836,9 +873,14 @@ mod tests {
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
-          "attributes": {}
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -884,7 +926,7 @@ mod tests {
         let event_span = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "span_id": "e342abb1214ca181",
@@ -917,9 +959,14 @@ mod tests {
               }
             }
           ],
-          "attributes": {}
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -935,7 +982,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span, None, None);
         let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "span_id": "e342abb1214ca181",
@@ -945,12 +992,16 @@ mod tests {
           "end_timestamp": 0.0,
           "links": [],
           "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            },
             "sentry.status.message": {
               "type": "string",
               "value": "2 is the error status code"
             }
           }
         }
-        "#);
+        "###);
     }
 }

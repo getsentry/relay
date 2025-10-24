@@ -239,13 +239,14 @@ mod tests {
             .expect("converted span missing from envelope");
 
         let payload = serde_json::from_slice::<serde_json::Value>(&item.payload()).unwrap();
-        insta::assert_json_snapshot!(payload, @r#"
+        insta::assert_json_snapshot!(payload, @r###"
         {
           "data": {
             "instrumentation.name": "test_instrumentation",
             "instrumentation.scope_key": "scope_value",
             "instrumentation.version": "0.0.1",
             "resource.resource_key": "resource_value",
+            "sentry.origin": "auto.otlp.spans",
             "span_key": "span_value"
           },
           "exclusive_time": 0.0,
@@ -258,6 +259,6 @@ mod tests {
           "timestamp": 0.0,
           "trace_id": "89143b0763095bd9c9955e8175d1fb23"
         }
-        "#);
+        "###);
     }
 }
