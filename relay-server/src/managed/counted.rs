@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use relay_event_schema::protocol::{
     OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2, TraceMetric,
 };
@@ -26,6 +28,12 @@ pub trait Counted {
 impl Counted for () {
     fn quantities(&self) -> Quantities {
         Quantities::new()
+    }
+}
+
+impl Counted for (DataCategory, usize) {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![*self]
     }
 }
 
@@ -173,5 +181,21 @@ where
 {
     fn quantities(&self) -> Quantities {
         self.as_ref().quantities()
+    }
+}
+
+impl<T> Counted for Vec<T>
+where
+    T: Counted,
+{
+    fn quantities(&self) -> Quantities {
+        self.iter()
+            .flat_map(|c| c.quantities())
+            .fold(BTreeMap::new(), |mut acc, (category, quantity)| {
+                *acc.entry(category).or_default() += quantity;
+                acc
+            })
+            .into_iter()
+            .collect()
     }
 }
