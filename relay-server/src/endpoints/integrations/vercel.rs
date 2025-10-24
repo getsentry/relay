@@ -38,7 +38,9 @@ mod logs {
             .with_type(LogsIntegration::VercelDrainLog { format })
             .build();
 
-        common::handle_envelope(&state, envelope).await?;
+        common::handle_envelope(&state, envelope)
+            .await?
+            .ensure_rate_limits()?;
 
         Ok(StatusCode::ACCEPTED)
     }

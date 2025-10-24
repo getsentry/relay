@@ -47,6 +47,14 @@ impl OutcomeError for Outcome {
     }
 }
 
+impl OutcomeError for Option<Outcome> {
+    type Error = ();
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        (self, ()).consume()
+    }
+}
+
 impl<E> OutcomeError for (Outcome, E) {
     type Error = E;
 
@@ -120,6 +128,15 @@ where
     }
 }
 
+impl<T> axum::response::IntoResponse for Rejected<T>
+where
+    T: axum::response::IntoResponse,
+{
+    fn into_response(self) -> axum::response::Response {
+        self.0.into_response()
+    }
+}
+
 /// The [`Managed`] wrapper ensures outcomes are correctly emitted for the contained item.
 pub struct Managed<T: Counted> {
     value: T,
@@ -127,12 +144,30 @@ pub struct Managed<T: Counted> {
     done: AtomicBool,
 }
 
+impl Managed<()> {
+    /// Creates a managed instance from an unmanaged envelope.
+    pub fn from_envelope(
+        envelope: Box<Envelope>,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) -> Managed<Box<Envelope>> {
+        let meta = Arc::new(Meta {
+            outcome_aggregator,
+            received_at: envelope.received_at(),
+            scoping: envelope.meta().get_partial_scoping().into_scoping(),
+            event_id: envelope.event_id(),
+            remote_addr: envelope.meta().remote_addr(),
+        });
+
+        Managed::from_parts(envelope, meta)
+    }
+}
+
 impl<T: Counted> Managed<T> {
-    /// Creates a new managed instance with a `value` from a [`ManagedEnvelope`].
+    /// Derives a new managed instance with a `value` from a [`ManagedEnvelope`].
     ///
     /// The [`Managed`] instance, inherits all metadata from the passed [`ManagedEnvelope`],
     /// like received time or scoping.
-    pub fn from_envelope(envelope: &ManagedEnvelope, value: T) -> Self {
+    pub fn derive_from(envelope: &ManagedEnvelope, value: T) -> Self {
         Self::from_parts(
             value,
             Arc::new(Meta {
@@ -161,6 +196,20 @@ impl<T: Counted> Managed<T> {
     /// Scoping information stored in this context.
     pub fn scoping(&self) -> Scoping {
         self.meta.scoping
+    }
+
+    /// Updates the scoping stored in this context.
+    ///
+    /// Special care has to be taken when items contained in the managed instance also store a
+    /// scoping. Such a scoping will **not** be updated.
+    ///
+    /// Conversions between `Managed<Box<Envelope>>` and `ManagedEnvelope` transfer the scoping
+    /// correctly.
+    ///
+    /// See also: [`ManagedEnvelope::scope`].
+    pub fn scope(&mut self, scoping: Scoping) {
+        let meta = Arc::make_mut(&mut self.meta);
+        meta.scoping = scoping;
     }
 
     /// Splits [`Self`] into two other [`Managed`] items.
@@ -629,6 +678,7 @@ impl<T: Counted> std::ops::Deref for Managed<T> {
 }
 
 /// Internal metadata attached with a [`Managed`] instance.
+#[derive(Debug, Clone)]
 struct Meta {
     /// Outcome aggregator service.
     outcome_aggregator: Addr<TrackOutcome>,

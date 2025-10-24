@@ -10,7 +10,7 @@ use relay_quotas::{
 
 use crate::envelope::{AttachmentParentType, Envelope, Item, ItemType};
 use crate::integrations::Integration;
-use crate::managed::ManagedEnvelope;
+use crate::managed::{Managed, ManagedEnvelope};
 use crate::services::outcome::Outcome;
 
 /// Name of the rate limits header.
@@ -603,6 +603,26 @@ impl Enforcement {
         self.track_outcomes(envelope);
     }
 
+    /// Applies the [`Enforcement`] on the [`Envelope`] by removing all items that were rate limited
+    /// and emits outcomes for each rate limited category.
+    ///
+    /// Works exactly like [`Self::apply_with_outcomes`], but instead operates on [`Managed`]
+    /// instead of [`ManagedEnvelope`].
+    pub fn apply_to_managed(self, envelope: &mut Managed<Box<Envelope>>) {
+        envelope.modify(|envelope, records| {
+            envelope.retain_items(|item| self.retain_item(item));
+
+            // Sessions currently do not emit any outcomes, but may be dropped.
+            records.lenient(DataCategory::Session);
+            // This is an existing bug in how user reports handle rate limits and emit outcomes.
+            records.lenient(DataCategory::UserReportV2);
+
+            for (outcome, category, quantity) in self.get_outcomes() {
+                records.reject_err(outcome, (category, quantity))
+            }
+        });
+    }
+
     /// Returns `true` when an [`Item`] can be retained, `false` otherwise.
     fn retain_item(&self, item: &mut Item) -> bool {
         // Remove event items and all items that depend on this event
@@ -769,7 +789,7 @@ where
     ///   clients are allowed to continue sending them.
     pub async fn compute(
         mut self,
-        envelope: &mut Envelope,
+        envelope: &Envelope,
         scoping: &'a Scoping,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut summary = EnvelopeSummary::compute(envelope);
