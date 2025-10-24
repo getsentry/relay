@@ -502,6 +502,11 @@ pub enum DiscardReason {
 
     /// (Relay) The signature from a trusted Relay was missing but required.
     InvalidCheckIn,
+
+    /// (Relay) The dynamic sampling context is required but missing on the envelope.
+    MissingDynamicSamplingContext,
+    /// (Relay) The dynamic sampling context is invalid or does not match the payload.
+    InvalidDynamicSamplingContext,
 }
 
 impl DiscardReason {
@@ -554,6 +559,8 @@ impl DiscardReason {
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
             DiscardReason::TransactionAttachment => "transaction_attachment",
             DiscardReason::InvalidCheckIn => "invalid_check_in",
+            DiscardReason::MissingDynamicSamplingContext => "missing_dsc",
+            DiscardReason::InvalidDynamicSamplingContext => "invalid_dsc",
         }
     }
 }

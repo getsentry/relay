@@ -6,11 +6,14 @@ use std::fmt::Write;
 
 /// Returns internal metrics data for relay.
 pub async fn handle(state: ServiceState) -> (StatusCode, String) {
-    let data = match state
-        .autoscaling()
-        .send(AutoscalingMessageKind::Check)
-        .await
-    {
+    let Some(autoscaling) = state.autoscaling() else {
+        return (
+            StatusCode::NOT_FOUND,
+            "Autoscaling metrics not enabled".to_owned(),
+        );
+    };
+
+    let data = match autoscaling.send(AutoscalingMessageKind::Check).await {
         Ok(data) => data,
         Err(_) => {
             return (

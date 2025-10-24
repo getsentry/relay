@@ -21,6 +21,7 @@ from .fixtures.relay import (  # noqa
 from .fixtures.pii import (  # noqa
     scrubbing_rule,
     secret_attribute,
+    non_destructive,
 )
 from .fixtures.processing import (  # noqa
     kafka_consumer,

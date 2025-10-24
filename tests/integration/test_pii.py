@@ -117,83 +117,21 @@ def test_logentry_formatted_user_rules(mini_sentry, relay):
     assert event["logentry"]["formatted"] == "Auth failed with [secret]"
 
 
-@pytest.mark.parametrize(
-    [
-        "pii_config",
-        "scrub_data",
-        "scrub_defaults",
-        "input_message",
-        "expected_output",
-        "additional_checks",
-    ],
-    [
-        pytest.param(
-            None,
-            True,
-            True,
-            "API request failed with Bearer ABC123XYZ789TOKEN and returned 401",
-            "API request failed with Bearer [token] and returned 401",
-            lambda formatted_value: (
-                "Bearer [token]" in formatted_value
-                and "ABC123XYZ789TOKEN" not in formatted_value
-                and "API request failed" in formatted_value
-                and "returned 401" in formatted_value
-            ),
-            id="bearer_token_scrubbing",
-        ),
-        pytest.param(
-            {},
-            False,
-            True,
-            "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
-            "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
-            None,
-            id="no_scrubbing_when_disabled",
-        ),
-        pytest.param(
-            {},
-            True,
-            True,
-            "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
-            "API failed with Bearer [token] for [email] using card [creditcard]",
-            None,
-            id="all_scrubbing_when_enabled",
-        ),
-        pytest.param(
-            None,
-            True,
-            True,
-            "User's password is 12345",
-            "User's password is 12345",
-            None,
-            id="password_not_scrubbed",
-        ),
-    ],
-)
 def test_logentry_formatted_data_scrubbing_settings(
     mini_sentry,
     relay,
-    pii_config,
-    scrub_data,
-    scrub_defaults,
-    input_message,
-    expected_output,
-    additional_checks,
+    non_destructive,
 ):
     """Test logentry.formatted scrubbing with various data scrubbing settings"""
     project_id = 42
     relay = relay(mini_sentry)
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["piiConfig"] = pii_config
-    config["config"]["datascrubbingSettings"] = {
-        "scrubData": scrub_data,
-        "scrubDefaults": scrub_defaults,
-    }
+    non_destructive.install(config)
 
     relay.send_event(
         project_id,
         {
-            "logentry": {"formatted": input_message},
+            "logentry": {"formatted": non_destructive.input_message},
             "timestamp": "2024-01-01T00:00:00Z",
         },
     )
@@ -202,7 +140,7 @@ def test_logentry_formatted_data_scrubbing_settings(
     event = envelope.get_event()
     formatted_value = event["logentry"]["formatted"]
 
-    assert formatted_value == expected_output
+    assert formatted_value == non_destructive.expected_output
 
-    if additional_checks:
-        assert additional_checks(formatted_value)
+    if non_destructive.additional_checks:
+        assert non_destructive.additional_checks(formatted_value)

@@ -378,7 +378,6 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
 def test_ourlog_extraction_default_pii_scrubbing_attributes(
     mini_sentry,
     relay,
-    items_consumer,
     secret_attribute,
 ):
     attribute_key, attribute_value, expected_value, rule_type = secret_attribute
@@ -431,6 +430,56 @@ def test_ourlog_extraction_default_pii_scrubbing_attributes(
     rem_info = meta["rem"]
     assert len(rem_info) == 1
     assert rem_info[0][0] == rule_type
+
+
+def test_ourlog_default_pii_body(
+    mini_sentry,
+    relay,
+    non_destructive,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    non_destructive.install(project_config)
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": non_destructive.input_message,
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=5)
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    log = item_payload["items"][0]
+
+    assert log == {
+        **(
+            {"_meta": {"body": {"": {"len": mock.ANY, "rem": mock.ANY}}}}
+            if non_destructive.scrubs()
+            else {}
+        ),
+        "attributes": mock.ANY,
+        "body": non_destructive.expected_output,
+        "level": "info",
+        "span_id": "eee19b7ec3c1b174",
+        "timestamp": time_within(ts),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "__header": mock.ANY,
+    }
+
+    if non_destructive.additional_checks:
+        assert non_destructive.additional_checks(log["body"])
 
 
 def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attributes(
@@ -494,7 +543,7 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             },
             "sentry.browser.version": {"stringValue": "2.32"},
             "custom_field": {"stringValue": "[REDACTED]"},
-            "sentry.body": {"stringValue": "[REDACTED]"},
+            "sentry.body": {"stringValue": "Test log"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.observed_timestamp_nanos": {
                 "stringValue": time_within_delta(
@@ -507,9 +556,6 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
             "sentry.payload_size_bytes": mock.ANY,
             "sentry.browser.name": {"stringValue": "Python Requests"},
-            "sentry._meta.fields.body": {
-                "stringValue": '{"meta":{"":{"rem":[["remove_custom_field","s",0,10]],"len":8}}}'
-            },
             "sentry.timestamp_nanos": {
                 "stringValue": time_within_delta(
                     ts,

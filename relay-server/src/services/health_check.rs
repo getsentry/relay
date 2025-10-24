@@ -84,7 +84,7 @@ impl StatusUpdate {
 pub struct HealthCheckService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    aggregator: RouterHandle,
+    aggregator: Option<RouterHandle>,
     upstream_relay: Addr<UpstreamRelay>,
     envelope_buffer: PartitionedEnvelopeBuffer,
 }
@@ -94,7 +94,7 @@ impl HealthCheckService {
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
-        aggregator: RouterHandle,
+        aggregator: Option<RouterHandle>,
         upstream_relay: Addr<UpstreamRelay>,
         envelope_buffer: PartitionedEnvelopeBuffer,
     ) -> Self {
@@ -145,7 +145,10 @@ impl HealthCheckService {
     }
 
     async fn aggregator_probe(&self) -> Status {
-        Status::from(self.aggregator.can_accept_metrics())
+        self.aggregator
+            .as_ref()
+            .map(|agg| Status::from(agg.can_accept_metrics()))
+            .unwrap_or(Status::Healthy)
     }
 
     async fn spool_health_probe(&self) -> Status {
