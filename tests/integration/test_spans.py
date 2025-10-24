@@ -758,6 +758,7 @@ def test_span_ingestion(
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.is_segment": {"type": "boolean", "value": True},
                 "sentry.op": {"type": "string", "value": "default"},
+                "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "user_agent.original": {
@@ -826,6 +827,7 @@ def test_span_ingestion(
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.op": {"type": "string", "value": "default"},
+                "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "ui.component_name": {"type": "string", "value": "MyComponent"},
                 "user_agent.original": {
