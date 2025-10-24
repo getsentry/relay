@@ -1,6 +1,8 @@
 //! This module contains the trait for items that can be filtered by Inbound Filters, plus
 //! the implementation for [`Event`].
-use relay_conventions::{BROWSER_NAME, BROWSER_VERSION, RELEASE, SEGMENT_NAME};
+use relay_conventions::{
+    BROWSER_NAME, BROWSER_VERSION, RELEASE, SEGMENT_NAME, USER_AGENT_ORIGINAL,
+};
 use url::Url;
 
 use relay_event_schema::protocol::{
@@ -284,5 +286,10 @@ fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>
         })
     })();
 
-    UserAgent { raw: None, parsed }
+    let raw = attributes
+        .value()
+        .and_then(|attr| attr.get_value(USER_AGENT_ORIGINAL))
+        .and_then(|ua| ua.as_str());
+
+    UserAgent { raw, parsed }
 }
