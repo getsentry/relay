@@ -2,10 +2,10 @@ use relay_event_normalization::{
     GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
 };
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::SpanV2;
+use relay_event_schema::protocol::{Span, SpanV2};
 use relay_protocol::Annotated;
 
-use crate::envelope::{ContainerItems, Item, ItemContainer};
+use crate::envelope::{ContainerItems, Item, ItemContainer, WithHeader};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::processing::Context;
@@ -20,9 +20,16 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
         let mut all_spans = Vec::new();
 
         for item in &spans.inner.spans {
-            let expanded = expand_span(item);
+            let expanded = expand_span_container(item);
             let expanded = records.or_default(expanded, item);
             all_spans.extend(expanded);
+        }
+
+        for item in &spans.inner.legacy {
+            match expand_legacy_span(item) {
+                Ok(span) => all_spans.push(span),
+                Err(err) => drop(records.reject_err(err, item)),
+            }
         }
 
         spans::integrations::expand_into(&mut all_spans, records, spans.inner.integrations);
@@ -35,7 +42,7 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
     })
 }
 
-fn expand_span(item: &Item) -> Result<ContainerItems<SpanV2>> {
+fn expand_span_container(item: &Item) -> Result<ContainerItems<SpanV2>> {
     let spans = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse span container: {err}");
@@ -44,6 +51,19 @@ fn expand_span(item: &Item) -> Result<ContainerItems<SpanV2>> {
         .into_items();
 
     Ok(spans)
+}
+
+fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
+    let payload = item.payload();
+
+    let span = Annotated::<Span>::from_json_bytes(&payload)
+        .map_err(|err| {
+            relay_log::debug!("failed to parse span: {err}");
+            Error::Invalid(DiscardReason::InvalidJson)
+        })?
+        .map_value(relay_spans::span_v1_to_span_v2);
+
+    Ok(WithHeader::new(span))
 }
 
 /// Normalizes individual spans.

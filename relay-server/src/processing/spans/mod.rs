@@ -120,6 +120,11 @@ impl processing::Processor for SpansProcessor {
             .take_items_by(ItemContainer::<SpanV2>::is_container)
             .into_vec();
 
+        let legacy = envelope
+            .envelope_mut()
+            .take_items_by(|item| matches!(item.ty(), ItemType::Span))
+            .into_vec();
+
         let integrations = envelope
             .envelope_mut()
             .take_items_by(|item| matches!(item.integration(), Some(Integration::Spans(_))))
@@ -128,6 +133,7 @@ impl processing::Processor for SpansProcessor {
         let work = SerializedSpans {
             headers,
             spans,
+            legacy,
             integrations,
         };
         Some(Managed::from_envelope(envelope, work))
@@ -215,10 +221,11 @@ pub struct SerializedSpans {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
-    /// A list of spans waiting to be processed.
-    ///
-    /// All items contained here must be spans.
+    /// A list of span 'v2' item containers.
     spans: Vec<Item>,
+
+    /// A list of legacy span 'v1' items.
+    legacy: Vec<Item>,
 
     /// Spans which Relay received from arbitrary integrations.
     integrations: Vec<Item>,
@@ -235,7 +242,10 @@ impl SerializedSpans {
 
 impl Counted for SerializedSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = (outcome_count(&self.spans) + outcome_count(&self.integrations)) as usize;
+        let quantity = (outcome_count(&self.spans)
+            + outcome_count(&self.legacy)
+            + outcome_count(&self.integrations)) as usize;
+
         smallvec::smallvec![
             (DataCategory::Span, quantity),
             (DataCategory::SpanIndexed, quantity),
