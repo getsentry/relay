@@ -412,7 +412,7 @@
 <a href=#412 id=412 data-nosnippet>412</a>            |outcome, quantity| {
 <a href=#413 id=413 data-nosnippet>413</a>                outcome_aggregator.send(TrackOutcome {
 <a href=#414 id=414 data-nosnippet>414</a>                    timestamp: request_meta.received_at(),
-<a href=#415 id=415 data-nosnippet>415</a>                    scoping: request_meta.get_partial_scoping(),
+<a href=#415 id=415 data-nosnippet>415</a>                    scoping: request_meta.get_partial_scoping().into_scoping(),
 <a href=#416 id=416 data-nosnippet>416</a>                    outcome,
 <a href=#417 id=417 data-nosnippet>417</a>                    event_id: <span class="prelude-val">None</span>,
 <a href=#418 id=418 data-nosnippet>418</a>                    remote_addr: request_meta.remote_addr(),

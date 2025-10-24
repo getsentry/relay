@@ -168,7 +168,7 @@
 <a href=#168 id=168 data-nosnippet>168</a>    </span><span class="kw">pub fn </span>new(envelope: Box&lt;Envelope&gt;, outcome_aggregator: Addr&lt;TrackOutcome&gt;) -&gt; <span class="self">Self </span>{
 <a href=#169 id=169 data-nosnippet>169</a>        <span class="kw">let </span>meta = <span class="kw-2">&amp;</span>envelope.meta();
 <a href=#170 id=170 data-nosnippet>170</a>        <span class="kw">let </span>summary = EnvelopeSummary::compute(envelope.as_ref());
-<a href=#171 id=171 data-nosnippet>171</a>        <span class="kw">let </span>scoping = meta.get_partial_scoping();
+<a href=#171 id=171 data-nosnippet>171</a>        <span class="kw">let </span>scoping = meta.get_partial_scoping().into_scoping();
 <a href=#172 id=172 data-nosnippet>172</a>
 <a href=#173 id=173 data-nosnippet>173</a>        <span class="self">Self </span>{
 <a href=#174 id=174 data-nosnippet>174</a>            envelope,
