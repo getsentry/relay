@@ -412,7 +412,7 @@ impl UnconstrainedMultipart {
             |outcome, quantity| {
                 outcome_aggregator.send(TrackOutcome {
                     timestamp: request_meta.received_at(),
-                    scoping: request_meta.get_partial_scoping(),
+                    scoping: request_meta.get_partial_scoping().into_scoping(),
                     outcome,
                     event_id: None,
                     remote_addr: request_meta.remote_addr(),

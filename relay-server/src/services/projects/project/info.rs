@@ -228,21 +228,22 @@ impl ProjectInfo {
     /// The processor must fetch the full scoping before attempting to rate limit with partial
     /// scoping.
     pub fn scope_request(&self, meta: &RequestMeta) -> Scoping {
-        let mut scoping = meta.get_partial_scoping();
+        let partial = meta.get_partial_scoping();
 
         // The key configuration may be missing if the event has been queued for extended times and
         // project was refetched in between. In such a case, access to key quotas is not availabe,
         // but we can gracefully execute all other rate limiting.
-        scoping.key_id = self
+        let key_id = self
             .get_public_key_config()
             .and_then(|config| config.numeric_id);
 
         // The original project identifier is part of the DSN. If the DSN was moved to another
         // project, the actual project identifier is different and can be obtained from project
         // states. This is only possible when the project state has been loaded.
-        if let Some(project_id) = self.project_id {
-            scoping.project_id = project_id;
-        }
+        let project_id = self
+            .project_id
+            .or(partial.project_id)
+            .unwrap_or(ProjectId::new(0));
 
         // This is a hack covering three cases:
         //  1. Relay has not fetched the project state. In this case we have no way of knowing
@@ -255,9 +256,17 @@ impl ProjectInfo {
         //  3. An organization id is available and can be matched against rate limits. In this
         //     project, all organizations will match automatically, unless the organization id
         //     has changed since the last fetch.
-        scoping.organization_id = self.organization_id.unwrap_or(OrganizationId::new(0));
+        let organization_id = self
+            .organization_id
+            .or(partial.organization_id)
+            .unwrap_or(OrganizationId::new(0));
 
-        scoping
+        Scoping {
+            organization_id,
+            project_id,
+            project_key: partial.project_key,
+            key_id,
+        }
     }
 
     /// Returns quotas declared in this project state.
