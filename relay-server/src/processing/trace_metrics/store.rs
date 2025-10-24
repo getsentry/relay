@@ -191,12 +191,6 @@ fn attributes(
         .unwrap_or_default();
 
     result.insert(
-        "sentry.timestamp_nanos".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::StringValue(timestamp_nanos.to_string())),
-        },
-    );
-    result.insert(
         "sentry.timestamp_precise".to_owned(),
         AnyValue {
             value: Some(any_value::Value::IntValue(timestamp_nanos)),
