@@ -154,6 +154,7 @@ mod tests {
             "instrumentation.version": "123.42",
             "plugin.name": "fastify -> @fastify/multipart",
             "resource.service.name": 42,
+            "sentry.origin": "auto.otlp.spans",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1,
             "sentry.status.message": "test"
@@ -199,7 +200,8 @@ mod tests {
           "status": "ok",
           "description": "middleware - fastify -> @fastify/multipart",
           "data": {
-            "sentry.name": "middleware - fastify -> @fastify/multipart"
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
+            "sentry.origin": "auto.otlp.spans"
           },
           "links": [],
           "kind": "internal"
@@ -234,7 +236,8 @@ mod tests {
           "status": "ok",
           "description": "middleware - fastify -> @fastify/multipart",
           "data": {
-            "sentry.name": "middleware - fastify -> @fastify/multipart"
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
+            "sentry.origin": "auto.otlp.spans"
           },
           "links": [],
           "kind": "internal"
@@ -299,7 +302,8 @@ mod tests {
             "sentry.name": "database query",
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-            "db.type": "sql"
+            "db.type": "sql",
+            "sentry.origin": "auto.otlp.spans"
           },
           "links": [],
           "kind": "client"
@@ -363,7 +367,8 @@ mod tests {
             "sentry.name": "database query",
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-            "db.type": "sql"
+            "db.type": "sql",
+            "sentry.origin": "auto.otlp.spans"
           },
           "links": [],
           "kind": "client"
@@ -414,6 +419,7 @@ mod tests {
           "data": {
             "sentry.name": "http client request",
             "http.request.method": "GET",
+            "sentry.origin": "auto.otlp.spans",
             "url.path": "/api/search?q=foobar"
           },
           "links": [],
@@ -483,7 +489,8 @@ mod tests {
           "data": {
             "sentry.name": "cmd.run",
             "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]",
-            "process.info": "[41]"
+            "process.info": "[41]",
+            "sentry.origin": "auto.otlp.spans"
           },
           "links": []
         }
@@ -645,6 +652,7 @@ mod tests {
             "sentry.sdk.name": "sentry.php",
             "sentry.name": "myname",
             "sentry.metrics_summary.some_metric": "[]",
+            "sentry.origin": "auto.otlp.spans",
             "sentry.status.message": "foo"
           },
           "links": [],
@@ -677,7 +685,9 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "is_remote": true,
           "status": "ok",
-          "data": {},
+          "data": {
+            "sentry.origin": "auto.otlp.spans"
+          },
           "links": []
         }
         "#);
@@ -707,7 +717,9 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "is_remote": false,
           "status": "ok",
-          "data": {},
+          "data": {
+            "sentry.origin": "auto.otlp.spans"
+          },
           "links": []
         }
         "#);
@@ -737,7 +749,9 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "is_remote": false,
           "status": "ok",
-          "data": {},
+          "data": {
+            "sentry.origin": "auto.otlp.spans"
+          },
           "links": [],
           "kind": "client"
         }
@@ -797,7 +811,9 @@ mod tests {
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "is_remote": false,
           "status": "ok",
-          "data": {},
+          "data": {
+            "sentry.origin": "auto.otlp.spans"
+          },
           "links": [
             {
               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -839,6 +855,7 @@ mod tests {
           "is_remote": false,
           "status": "internal_error",
           "data": {
+            "sentry.origin": "auto.otlp.spans",
             "sentry.status.message": "2 is the error status code"
           },
           "links": []

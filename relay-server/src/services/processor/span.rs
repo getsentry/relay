@@ -246,6 +246,7 @@ mod tests {
             "instrumentation.scope_key": "scope_value",
             "instrumentation.version": "0.0.1",
             "resource.resource_key": "resource_value",
+            "sentry.origin": "auto.otlp.spans",
             "span_key": "span_value"
           },
           "exclusive_time": 0.0,
