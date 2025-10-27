@@ -13,6 +13,7 @@ static WEB_CRAWLERS: LazyLock<Regex> = LazyLock::new(|| {
         AdsBot-Google|
         Googlebot|
         FeedFetcher-Google|
+        Storebot-Google|
         BingBot|                    # Bing search
         BingPreview|
         Baiduspider|                # Baidu search
