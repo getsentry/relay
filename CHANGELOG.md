@@ -16,6 +16,7 @@
 - Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
 - Tag spans' count per root metric with the trace root's transaction instead of the local transaction. ([#5281](https://github.com/getsentry/relay/pull/5281))
 - Use `vercel.path` instead of `url.path` for Vercel Log Drain Transform. ([#5274](https://github.com/getsentry/relay/pull/5274))
+- Add Google Storebot to the crawler filter list. ([#5300](https://github.com/getsentry/relay/pull/5300))
 
 **Internal**:
 
