@@ -848,17 +848,6 @@ fn event_type(event: &Annotated<Event>) -> Option<EventType> {
         .map(|event| event.ty.value().copied().unwrap_or_default())
 }
 
-/// Function for on-off switches that filter specific item types (profiles, spans)
-/// based on a feature flag.
-///
-/// If the project config did not come from the upstream, we keep the items.
-fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
-    match config.relay_mode() {
-        RelayMode::Proxy => false,
-        RelayMode::Managed => !project_info.has_feature(feature),
-    }
-}
-
 /// New type representing the normalization state of the event.
 #[derive(Copy, Clone)]
 struct EventFullyNormalized(bool);

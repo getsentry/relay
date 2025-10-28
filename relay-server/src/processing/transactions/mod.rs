@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
+use relay_dynamic_config::Feature;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics, SpanV2};
 use relay_protocol::Annotated;
@@ -18,6 +19,7 @@ use crate::processing::{Forward, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::statsd::RelayTimers;
+use crate::utils::should_filter;
 #[cfg(feature = "processing")]
 use crate::{processing::spans::store, services::store::StoreEnvelope};
 
@@ -130,14 +132,35 @@ impl Processor for TransactionProcessor {
             } = w;
             (transaction, profile)
         });
-        let profile_id = profile::filter(
-            managed_envelope,
-            &event,
-            ctx.config,
-            project_id,
-            ctx.project_info,
-        );
-        profile::transfer_id(&mut event, profile_id);
+
+        let mut profile_id = None;
+        if let Some(profile_item) = profile.as_ref() {
+            let feature = Feature::Profiling;
+            if should_filter(ctx.config, ctx.project_info, feature) {
+                profile.reject_err(Outcome::Invalid(DiscardReason::FeatureDisabled(feature)));
+            } else if transaction.is_none() && profile_item.sampled() {
+                // A profile with `sampled=true` should never be without a transaction
+                profile.reject_err(Outcome::Invalid(DiscardReason::Profiling(
+                    "missing_transaction",
+                )));
+            } else {
+                match relay_profiling::parse_metadata(
+                    &profile_item.payload(),
+                    ctx.project_info.project_id.unwrap(), // FIXME
+                ) {
+                    Ok(id) => {
+                        profile_id = Some(id);
+                    }
+                    Err(err) => {
+                        profile.reject_err(Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(err),
+                        )));
+                    }
+                }
+            }
+        }
+
+        transfer_profile_id(&mut event, profile_id);
 
         ctx.sampling_project_info = dynamic_sampling::validate_and_set_dsc(
             managed_envelope,
@@ -321,6 +344,34 @@ impl Processor for TransactionProcessor {
         };
 
         Ok(Some(extracted_metrics))
+    }
+}
+
+/// Transfers the profile ID from the profile item to the transaction item.
+///
+/// The profile id may be `None` when the envelope does not contain a profile,
+/// in that case the profile context is removed.
+/// Some SDKs send transactions with profile ids but omit the profile in the envelope.
+fn transfer_profile_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) {
+    let Some(event) = event.value_mut() else {
+        return;
+    };
+
+    match profile_id {
+        Some(profile_id) => {
+            let contexts = event.contexts.get_or_insert_with(Contexts::new);
+            contexts.add(ProfileContext {
+                profile_id: Annotated::new(profile_id),
+                ..ProfileContext::default()
+            });
+        }
+        None => {
+            if let Some(contexts) = event.contexts.value_mut()
+                && let Some(profile_context) = contexts.get_mut::<ProfileContext>()
+            {
+                profile_context.profile_id = Annotated::empty();
+            }
+        }
     }
 }
 

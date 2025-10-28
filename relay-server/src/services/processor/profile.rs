@@ -65,34 +65,6 @@ pub fn filter<Group>(
     profile_id
 }
 
-/// Transfers the profile ID from the profile item to the transaction item.
-///
-/// The profile id may be `None` when the envelope does not contain a profile,
-/// in that case the profile context is removed.
-/// Some SDKs send transactions with profile ids but omit the profile in the envelope.
-pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) {
-    let Some(event) = event.value_mut() else {
-        return;
-    };
-
-    match profile_id {
-        Some(profile_id) => {
-            let contexts = event.contexts.get_or_insert_with(Contexts::new);
-            contexts.add(ProfileContext {
-                profile_id: Annotated::new(profile_id),
-                ..ProfileContext::default()
-            });
-        }
-        None => {
-            if let Some(contexts) = event.contexts.value_mut()
-                && let Some(profile_context) = contexts.get_mut::<ProfileContext>()
-            {
-                profile_context.profile_id = Annotated::empty();
-            }
-        }
-    }
-}
-
 /// Strip out the profiler_id from the transaction's profile context if the transaction lasts less than 20ms.
 ///
 /// This is necessary because if the transaction lasts less than 19.8ms, we know that the respective
