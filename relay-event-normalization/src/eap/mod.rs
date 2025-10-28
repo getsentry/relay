@@ -5,8 +5,8 @@
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::{
-    BROWSER_NAME, BROWSER_VERSION, OBSERVED_TIMESTAMP_NANOS, USER_GEO_CITY, USER_GEO_COUNTRY_CODE,
-    USER_GEO_REGION, USER_GEO_SUBDIVISION,
+    BROWSER_NAME, BROWSER_VERSION, OBSERVED_TIMESTAMP_NANOS, USER_AGENT_ORIGINAL, USER_GEO_CITY,
+    USER_GEO_COUNTRY_CODE, USER_GEO_REGION, USER_GEO_SUBDIVISION,
 };
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Value};
@@ -80,7 +80,7 @@ pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: Date
 /// to preserve original values.
 pub fn normalize_user_agent(
     attributes: &mut Annotated<Attributes>,
-    user_agent: Option<&str>,
+    client_user_agent: Option<&str>,
     client_hints: ClientHints<&str>,
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
@@ -88,6 +88,12 @@ pub fn normalize_user_agent(
     if attributes.contains_key(BROWSER_NAME) || attributes.contains_key(BROWSER_VERSION) {
         return;
     }
+
+    // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
+    let user_agent = attributes
+        .get_value(USER_AGENT_ORIGINAL)
+        .and_then(|v| v.as_str())
+        .or(client_user_agent);
 
     let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
         user_agent,
