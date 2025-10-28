@@ -97,6 +97,10 @@ def test_spansv2_basic(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry._internal.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
         },
         "_meta": {
             "attributes": {
@@ -759,6 +763,10 @@ def test_spanv2_with_string_pii_scrubbing(
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "sentry._internal.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },

@@ -74,6 +74,7 @@ EXPECTED_ITEMS = [
             "vercel.project_name": {"stringValue": "my-app"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
+            "sentry._internal.observed_timestamp_nanos": {"stringValue": mock.ANY},
             "sentry.timestamp_precise": {"intValue": "1573817187330000000"},
             "vercel.build_id": {"stringValue": "bld_cotnkcr76"},
             "sentry.payload_size_bytes": {"intValue": "496"},
@@ -128,8 +129,9 @@ EXPECTED_ITEMS = [
             "sentry.body": {"stringValue": "API request processed"},
             "vercel.proxy.status_code": {"intValue": "200"},
             "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
+            "sentry._internal.observed_timestamp_nanos": {"stringValue": mock.ANY},
             "sentry.timestamp_precise": {"intValue": "1573817250283000000"},
-            "sentry.payload_size_bytes": {"intValue": "946"},
+            "sentry.payload_size_bytes": {"intValue": "949"},
             "vercel.proxy.region": {"stringValue": "sfo1"},
         },
         "clientSampleRate": 1.0,
@@ -186,7 +188,7 @@ def test_vercel_logs_json_array(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 1442,
+            "quantity": 1445,
         },
     ]
 
@@ -234,6 +236,6 @@ def test_vercel_logs_ndjson(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 1442,
+            "quantity": 1445,
         },
     ]
