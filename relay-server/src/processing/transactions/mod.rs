@@ -11,7 +11,9 @@ use smallvec::SmallVec;
 use crate::Envelope;
 use crate::envelope::ContainerItems;
 use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType};
-use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult, Quantities, Rejected};
+use crate::managed::{
+    Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
+};
 use crate::processing::{Forward, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
@@ -25,6 +27,17 @@ mod process;
 pub enum Error {
     #[error("invalid JSON")]
     InvalidJson(#[from] serde_json::Error),
+}
+
+impl OutcomeError for Error {
+    type Error = Self;
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        let outcome = match &self {
+            Error::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
+        };
+        (Some(outcome), self)
+    }
 }
 
 /// A processor for transactions.
@@ -102,7 +115,7 @@ impl Processor for TransactionProcessor {
             let result = metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 Annotated::<Event>::from_json_bytes(&transaction_item.payload())
             });
-            event = result.reject(&work)?;
+            event = result.map_err(Error::from).reject(&work)?;
             if let Some(event) = event.value_mut() {
                 event.ty = EventType::Transaction.into();
             }
