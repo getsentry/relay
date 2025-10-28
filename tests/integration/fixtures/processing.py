@@ -327,6 +327,16 @@ class OutcomesConsumer(ConsumerBase):
             count = sum(outcome["quantity"] for outcome in outcomes)
             assert count == quantity, (count, quantity)
 
+        if isinstance(categories, dict):
+            aggregated = defaultdict(int)
+            for outcome in outcomes:
+                aggregated[DataCategory(outcome["category"])] += outcome["quantity"]
+            expected = dict(
+                (category_value(category), quantity)
+                for (category, quantity) in categories.items()
+            )
+            assert aggregated == expected, (dict(aggregated), expected)
+
 
 @pytest.fixture
 def consumer_fixture(kafka_consumer):

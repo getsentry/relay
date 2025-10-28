@@ -5,6 +5,7 @@
 **Features**:
 
 - Only apply non-destructive PII rules to log bodies by default. ([#5272](https://github.com/getsentry/relay/pull/5272))
+- Add `sentry.origin` attribute to OTLP spans. ([#5294](https://github.com/getsentry/relay/pull/5294))
 - Normalize deprecated attribute names according to `sentry-conventions` for logs and V2 spans. ([#5257](https://github.com/getsentry/relay/pull/5257))
 
 **Breaking Changes**:
@@ -15,8 +16,10 @@
 
 - Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
 - Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
+- Fix potentially missing attachment outcomes when rate limiting. ([#5301](https://github.com/getsentry/relay/pull/5301))
 - Tag spans' count per root metric with the trace root's transaction instead of the local transaction. ([#5281](https://github.com/getsentry/relay/pull/5281))
 - Use `vercel.path` instead of `url.path` for Vercel Log Drain Transform. ([#5274](https://github.com/getsentry/relay/pull/5274))
+- Add Google Storebot to the crawler filter list. ([#5300](https://github.com/getsentry/relay/pull/5300))
 
 **Internal**:
 

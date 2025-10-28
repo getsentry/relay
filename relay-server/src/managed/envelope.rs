@@ -168,7 +168,7 @@ impl ManagedEnvelope {
     pub fn new(envelope: Box<Envelope>, outcome_aggregator: Addr<TrackOutcome>) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
-        let scoping = meta.get_partial_scoping();
+        let scoping = meta.get_partial_scoping().into_scoping();
 
         Self {
             envelope,

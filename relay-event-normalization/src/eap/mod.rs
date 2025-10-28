@@ -6,8 +6,8 @@ use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::{
     AttributeInfo, BROWSER_NAME, BROWSER_VERSION, OBSERVED_TIMESTAMP_NANOS,
-    OBSERVED_TIMESTAMP_NANOS_INTERNAL, USER_GEO_CITY, USER_GEO_COUNTRY_CODE, USER_GEO_REGION,
-    USER_GEO_SUBDIVISION, WriteBehavior,
+    OBSERVED_TIMESTAMP_NANOS_INTERNAL, USER_AGENT_ORIGINAL, USER_GEO_CITY, USER_GEO_COUNTRY_CODE,
+    USER_GEO_REGION, USER_GEO_SUBDIVISION, WriteBehavior,
 };
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Remark, RemarkType, Value};
@@ -88,7 +88,7 @@ pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: Date
 /// to preserve original values.
 pub fn normalize_user_agent(
     attributes: &mut Annotated<Attributes>,
-    user_agent: Option<&str>,
+    client_user_agent: Option<&str>,
     client_hints: ClientHints<&str>,
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
@@ -96,6 +96,12 @@ pub fn normalize_user_agent(
     if attributes.contains_key(BROWSER_NAME) || attributes.contains_key(BROWSER_VERSION) {
         return;
     }
+
+    // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
+    let user_agent = attributes
+        .get_value(USER_AGENT_ORIGINAL)
+        .and_then(|v| v.as_str())
+        .or(client_user_agent);
 
     let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
         user_agent,
@@ -209,6 +215,10 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
+          "sentry._internal.observed_timestamp_nanos": {
+            "type": "string",
+            "value": "1234201337"
+          },
           "sentry.observed_timestamp_nanos": {
             "type": "string",
             "value": "1234201337"
@@ -221,6 +231,10 @@ mod tests {
     fn test_normalize_received_existing() {
         let mut attributes = Annotated::from_json(
             r#"{
+          "sentry._internal.observed_timestamp_nanos": {
+            "type": "string",
+            "value": "111222333"
+          },
           "sentry.observed_timestamp_nanos": {
             "type": "string",
             "value": "111222333"
@@ -234,14 +248,18 @@ mod tests {
             DateTime::from_timestamp_nanos(1_234_201_337),
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
         {
+          "sentry._internal.observed_timestamp_nanos": {
+            "type": "string",
+            "value": "111222333"
+          },
           "sentry.observed_timestamp_nanos": {
             "type": "string",
             "value": "111222333"
           }
         }
-        "#);
+        "###);
     }
 
     #[test]

@@ -415,13 +415,40 @@ impl RequestMeta {
 
     /// Returns scoping information from the request.
     ///
-    /// The scoping returned from this function is not complete since it lacks info from the Project
-    /// state. To fetch full scoping information, invoke the `GetScoping` message on `Project`.
-    pub fn get_partial_scoping(&self) -> Scoping {
-        Scoping {
-            organization_id: OrganizationId::new(0),
-            project_id: self.project_id().unwrap_or_else(|| ProjectId::new(0)),
+    /// The scoping returned from this function is not complete since it lacks info from the Project.
+    pub fn get_partial_scoping(&self) -> PartialScoping {
+        PartialScoping {
+            organization_id: None,
+            project_id: self.project_id(),
             project_key: self.public_key(),
+        }
+    }
+}
+
+/// A partial [`Scoping`].
+///
+/// The scoping may not be complete and missing information compared to a full scoping.
+#[derive(Debug, Copy, Clone)]
+pub struct PartialScoping {
+    /// The organization id.
+    pub organization_id: Option<OrganizationId>,
+    /// The project id.
+    pub project_id: Option<ProjectId>,
+    /// The project key or public key.
+    pub project_key: ProjectKey,
+}
+
+impl PartialScoping {
+    /// Creates a [`Scoping`] from this partial scoping, unknown information is filled with defaults.
+    ///
+    /// The scoping returned from this function is not complete since it lacks info from the Project state.
+    pub fn into_scoping(self) -> Scoping {
+        Scoping {
+            organization_id: self
+                .organization_id
+                .unwrap_or_else(|| OrganizationId::new(0)),
+            project_id: self.project_id.unwrap_or_else(|| ProjectId::new(0)),
+            project_key: self.project_key,
             key_id: None,
         }
     }

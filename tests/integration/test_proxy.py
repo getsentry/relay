@@ -164,7 +164,10 @@ ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
     RateLimitBehavior(
         "attachment",
         PayloadType.BINARY,
-        [{"category": "attachment", "quantity": 100, "reason": "generic"}],
+        [
+            {"category": "attachment", "quantity": 100, "reason": "generic"},
+            {"category": "attachment_item", "quantity": 1, "reason": "generic"},
+        ],
     ),
     RateLimitBehavior(
         "raw_security",
