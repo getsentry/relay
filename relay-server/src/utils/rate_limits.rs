@@ -728,6 +728,10 @@ where
                     summary.attachment_quantity,
                     attachment_byte_limits.longest(),
                 );
+                enforcement.attachment_items = enforcement.attachments.clone_for(
+                    DataCategory::AttachmentItem,
+                    summary.attachment_item_quantity,
+                );
                 attachment_limits.merge(attachment_byte_limits);
             }
             if !attachment_limits.is_limited() && summary.attachment_item_quantity > 0 {
@@ -743,6 +747,9 @@ where
                     summary.attachment_item_quantity,
                     attachment_item_limits.longest(),
                 );
+                enforcement.attachments = enforcement
+                    .attachment_items
+                    .clone_for(DataCategory::Attachment, summary.attachment_quantity);
                 attachment_limits.merge(attachment_item_limits);
             }
 
