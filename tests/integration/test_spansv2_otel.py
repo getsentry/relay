@@ -93,6 +93,10 @@ def test_span_ingestion(
             "resource.company": {"type": "string", "value": "Relay Corp"},
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry._internal.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
