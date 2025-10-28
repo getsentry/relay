@@ -110,6 +110,7 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
 fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
     if let Some(log) = log.value_mut() {
         eap::normalize_received(&mut log.attributes, meta.received_at());
+        eap::normalize_client_address(&mut log.attributes, meta.client_addr());
         eap::normalize_user_agent(&mut log.attributes, meta.user_agent(), meta.client_hints());
         eap::normalize_attribute_types(&mut log.attributes);
     }
