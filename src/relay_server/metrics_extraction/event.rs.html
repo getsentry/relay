@@ -1289,11 +1289,4 @@
 <a href=#1289 id=1289 data-nosnippet>1289</a>            <span class="string">"c:spans/count_per_root_project@none"
 <a href=#1290 id=1290 data-nosnippet>1290</a>        </span>);
 <a href=#1291 id=1291 data-nosnippet>1291</a>    }
-<a href=#1292 id=1292 data-nosnippet>1292</a>
-<a href=#1293 id=1293 data-nosnippet>1293</a>    <span class="attr">#[test]
-<a href=#1294 id=1294 data-nosnippet>1294</a>    </span><span class="kw">fn </span>only_indexed_spans_enabled() {
-<a href=#1295 id=1295 data-nosnippet>1295</a>        <span class="kw">let </span>metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]).project_metrics;
-<a href=#1296 id=1296 data-nosnippet>1296</a>        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">75</span>);
-<a href=#1297 id=1297 data-nosnippet>1297</a>        <span class="macro">assert!</span>(metrics.iter().all(|b| <span class="kw-2">&amp;</span>b.name == <span class="string">"c:spans/usage@none"</span>));
-<a href=#1298 id=1298 data-nosnippet>1298</a>    }
-<a href=#1299 id=1299 data-nosnippet>1299</a>}</code></pre></div></section></main></body></html>
+<a href=#1292 id=1292 data-nosnippet>1292</a>}</code></pre></div></section></main></body></html>
