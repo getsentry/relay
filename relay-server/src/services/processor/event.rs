@@ -267,23 +267,6 @@ pub fn serialize<Group: EventProcessing>(
     Ok(())
 }
 
-/// Checks if the Event includes unprintable fields.
-pub fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
-    fn is_unprintable(value: &&str) -> bool {
-        value.chars().any(|c| {
-            c == '\u{fffd}' // unicode replacement character
-                || (c.is_control() && !c.is_whitespace()) // non-whitespace control characters
-        })
-    }
-    if let Some(event) = event.value() {
-        let env = event.environment.as_str().filter(is_unprintable);
-        let release = event.release.as_str().filter(is_unprintable);
-        env.is_some() || release.is_some()
-    } else {
-        false
-    }
-}
-
 /// Computes and emits metrics for monitoring user feedback (UserReportV2) ingest
 pub fn emit_feedback_metrics(envelope: &Envelope) {
     let mut has_feedback = false;
@@ -699,40 +682,5 @@ mod tests {
 
         // regression test to ensure we don't fail parsing an empty file
         result.expect("event_from_attachments");
-    }
-
-    #[test]
-    #[cfg(feature = "processing")]
-    fn test_unprintable_fields() {
-        let event = Annotated::new(Event {
-            environment: Annotated::new(String::from(
-                "�9�~YY���)�����9�~YY���)�����9�~YY���)�����9�~YY���)�����",
-            )),
-            ..Default::default()
-        });
-        assert!(has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            release: Annotated::new(
-                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#")
-                    .into(),
-            ),
-            ..Default::default()
-        });
-        assert!(has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            environment: Annotated::new(String::from("production")),
-            ..Default::default()
-        });
-        assert!(!has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            release: Annotated::new(
-                String::from("release with\t some\n normal\r\nwhitespace").into(),
-            ),
-            ..Default::default()
-        });
-        assert!(!has_unprintable_fields(&event));
     }
 }
