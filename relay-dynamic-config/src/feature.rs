@@ -8,6 +8,7 @@ pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::UserReportV2Ingest,
     Feature::IngestUnsampledProfiles,
     Feature::ScrubMongoDbDescriptions,
+    Feature::DeprecatedExtractSpansFromEvent,
 ];
 
 /// Features exposed by project config.
@@ -90,11 +91,6 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling-beta-ingest`.
     #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
     ContinuousProfilingBetaIngest,
-    /// When enabled, spans will be extracted from a transaction.
-    ///
-    /// Serialized as `organizations:indexed-spans-extraction`.
-    #[serde(rename = "organizations:indexed-spans-extraction")]
-    ExtractSpansFromEvent,
     /// Enable log ingestion for our log product (this is not internal logging).
     ///
     /// Serialized as `organizations:ourlogs-ingestion`.
@@ -134,6 +130,10 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction-addons")]
     DeprecatedExtractAddonsSpanMetricsFromEvent,
+    /// This feature has been deprecated and is kept for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:indexed-spans-extraction")]
+    DeprecatedExtractSpansFromEvent,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
@@ -153,11 +153,6 @@ impl FeatureSet {
     /// Returns `true` if the given feature is in the set.
     pub fn has(&self, feature: Feature) -> bool {
         self.0.contains(&feature)
-    }
-
-    /// Returns `true` if any spans are produced for this project.
-    pub fn produces_spans(&self) -> bool {
-        self.has(Feature::ExtractSpansFromEvent) || self.has(Feature::StandaloneSpanIngestion)
     }
 }
 
