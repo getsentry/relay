@@ -239,7 +239,7 @@ mod tests {
             .expect("converted span missing from envelope");
 
         let payload = serde_json::from_slice::<serde_json::Value>(&item.payload()).unwrap();
-        insta::assert_json_snapshot!(payload, @r#"
+        insta::assert_json_snapshot!(payload, @r###"
         {
           "data": {
             "instrumentation.name": "test_instrumentation",
@@ -250,7 +250,6 @@ mod tests {
             "span_key": "span_value"
           },
           "exclusive_time": 0.0,
-          "is_remote": false,
           "links": [],
           "op": "default",
           "span_id": "e342abb1214ca181",
@@ -259,6 +258,6 @@ mod tests {
           "timestamp": 0.0,
           "trace_id": "89143b0763095bd9c9955e8175d1fb23"
         }
-        "#);
+        "###);
     }
 }

@@ -294,14 +294,14 @@ mod tests {
         let span_v2 = span_v1_to_span_v2(span_v1);
 
         let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r###"
         {
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
           "parent_span_id": "fa90fdead5f74051",
           "span_id": "fa90fdead5f74052",
           "name": "operation",
           "status": "ok",
-          "is_remote": true,
+          "is_segment": true,
           "kind": "server",
           "start_timestamp": -63158400.0,
           "end_timestamp": 0.0,
@@ -359,10 +359,6 @@ mod tests {
               "type": "double",
               "value": 1.23
             },
-            "sentry.is_segment": {
-              "type": "boolean",
-              "value": true
-            },
             "sentry.normalized_description": {
               "type": "string",
               "value": "normalized description"
@@ -418,7 +414,7 @@ mod tests {
             }
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
