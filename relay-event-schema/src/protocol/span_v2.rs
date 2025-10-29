@@ -34,7 +34,7 @@ pub struct SpanV2 {
     pub deprecated_is_remote: Annotated<bool>,
 
     /// Whether this span is the root span of a segment.
-    #[metastructure(field = "is_remote", required = true)]
+    #[metastructure(required = true)]
     pub is_segment: Annotated<bool>,
 
     /// Used to clarify the relationship between parents and children, or to distinguish between
