@@ -102,6 +102,7 @@ fn scrub_trace_metric(metric: &mut Annotated<TraceMetric>, ctx: Context<'_>) -> 
 fn normalize_trace_metric(metric: &mut Annotated<TraceMetric>, meta: &RequestMeta) -> Result<()> {
     if let Some(metric_value) = metric.value_mut() {
         eap::normalize_received(&mut metric_value.attributes, meta.received_at());
+        eap::normalize_client_address(&mut metric_value.attributes, meta.client_addr());
         eap::normalize_user_agent(
             &mut metric_value.attributes,
             meta.user_agent(),

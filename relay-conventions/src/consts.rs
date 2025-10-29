@@ -15,6 +15,7 @@ macro_rules! convention_attributes {
 convention_attributes!(
     BROWSER_NAME => "sentry.browser.name",
     BROWSER_VERSION => "sentry.browser.version",
+    CLIENT_ADDRESS => "client.address",
     DB_QUERY_TEXT => "db.query.text",
     DB_STATEMENT => "db.statement",
     DB_SYSTEM_NAME => "db.system.name",
