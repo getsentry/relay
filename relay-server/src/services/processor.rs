@@ -1503,12 +1503,12 @@ impl EnvelopeProcessorService {
             &mut metrics,
             &self.inner.config,
         )?;
-        event_fully_normalized = self.normalize_event(
-            managed_envelope,
+        event_fully_normalized = processing::normalize_event(
+            managed_envelope.envelope().headers(),
             &mut event,
-            project_id,
-            ctx.project_info,
             event_fully_normalized,
+            &ctx,
+            &self.inner.geoip_lookup,
         )?;
         let filter_run = event::filter(
             managed_envelope,
@@ -1620,12 +1620,12 @@ impl EnvelopeProcessorService {
             &self.inner.config,
         )?;
 
-        event_fully_normalized = self.normalize_event(
-            managed_envelope,
+        event_fully_normalized = processing::normalize_event(
+            managed_envelope.envelope().headers(),
             &mut event,
-            project_id,
-            ctx.project_info,
             event_fully_normalized,
+            &ctx,
+            &self.inner.geoip_lookup,
         )?;
 
         let filter_run = event::filter(
@@ -2000,6 +2000,7 @@ impl EnvelopeProcessorService {
     async fn process_envelope(
         &self,
         cogs: &mut Token,
+        project_id: ProjectId,
         message: ProcessEnvelopeGrouped<'_>,
     ) -> Result<ProcessingResult, ProcessingError> {
         let ProcessEnvelopeGrouped {
@@ -2039,7 +2040,7 @@ impl EnvelopeProcessorService {
         managed_envelope
             .envelope_mut()
             .meta_mut()
-            .set_project_id(ctx.project_id);
+            .set_project_id(project_id);
 
         macro_rules! run {
             ($fn_name:ident $(, $args:expr)*) => {
@@ -2066,15 +2067,21 @@ impl EnvelopeProcessorService {
         relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
-            ProcessingGroup::Error => run!(process_errors, ctx),
+            ProcessingGroup::Error => run!(process_errors, project_id, ctx),
             ProcessingGroup::Transaction => {
-                run!(process_transactions, cogs, ctx, reservoir_counters)
+                run!(
+                    process_transactions,
+                    cogs,
+                    project_id,
+                    ctx,
+                    reservoir_counters
+                )
             }
             ProcessingGroup::Session => {
                 self.process_with_processor(&self.inner.processing.sessions, managed_envelope, ctx)
                     .await
             }
-            ProcessingGroup::Standalone => run!(process_standalone, ctx),
+            ProcessingGroup::Standalone => run!(process_standalone, project_id, ctx),
             ProcessingGroup::ClientReport => run!(process_client_reports, ctx),
             ProcessingGroup::Replay => {
                 run!(process_replays, ctx)
@@ -2100,7 +2107,12 @@ impl EnvelopeProcessorService {
                 self.process_with_processor(&self.inner.processing.spans, managed_envelope, ctx)
                     .await
             }
-            ProcessingGroup::Span => run!(process_standalone_spans, ctx, reservoir_counters),
+            ProcessingGroup::Span => run!(
+                process_standalone_spans,
+                project_id,
+                ctx,
+                reservoir_counters
+            ),
             ProcessingGroup::ProfileChunk => {
                 run!(process_profile_chunks, ctx)
             }
@@ -2110,7 +2122,7 @@ impl EnvelopeProcessorService {
                 // This group shouldn't be used outside of proxy mode.
                 if self.inner.config.relay_mode() != RelayMode::Proxy {
                     relay_log::error!(
-                        tags.project = %ctx.project_id,
+                        tags.project = %project_id,
                         items = ?managed_envelope.envelope().items().next().map(Item::ty),
                         "received metrics in the process_state"
                     );
@@ -2123,7 +2135,7 @@ impl EnvelopeProcessorService {
             // Fallback to the legacy process_state implementation for Ungrouped events.
             ProcessingGroup::Ungrouped => {
                 relay_log::error!(
-                    tags.project = %ctx.project_id,
+                    tags.project = %project_id,
                     items = ?managed_envelope.envelope().items().next().map(Item::ty),
                     "could not identify the processing group based on the envelope's items"
                 );
@@ -3550,7 +3562,10 @@ mod tests {
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::ProjectConfig;
-    use relay_event_normalization::{RedactionRule, TransactionNameRule};
+    use relay_event_normalization::{
+        MeasurementsConfig, NormalizationConfig, RedactionRule, TransactionNameConfig,
+        TransactionNameRule,
+    };
     use relay_event_schema::protocol::TransactionSource;
     use relay_pii::DataScrubbingConfig;
     use similar_asserts::assert_eq;
@@ -3951,7 +3966,7 @@ mod tests {
                     },
                     ..Default::default()
                 };
-                normalize_event(event, &config)
+                relay_event_normalization::normalize_event(event, &config)
             });
         })
     }

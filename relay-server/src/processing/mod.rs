@@ -6,7 +6,6 @@
 //!
 //! The processor service, will then do its actual work using the processing logic defined here.
 
-use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_quotas::RateLimits;
@@ -69,8 +68,6 @@ pub struct Context<'a> {
     pub config: &'a Config,
     /// A view of the currently active global configuration.
     pub global_config: &'a GlobalConfig,
-    /// Non-optional project ID.
-    pub project_id: ProjectId,
     /// Project configuration associated with the unit of work.
     pub project_info: &'a ProjectInfo,
     /// Project configuration associated with the root of the trace of the unit of work.
