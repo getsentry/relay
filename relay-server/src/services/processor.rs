@@ -1748,17 +1748,15 @@ impl EnvelopeProcessorService {
                 spans_extracted,
             )?;
 
-            if ctx.project_info.has_feature(Feature::ExtractSpansFromEvent) {
-                spans_extracted = span::extract_from_event(
-                    managed_envelope,
-                    &event,
-                    ctx.global_config,
-                    ctx.config,
-                    server_sample_rate,
-                    event_metrics_extracted,
-                    spans_extracted,
-                );
-            }
+            spans_extracted = span::extract_from_event(
+                managed_envelope,
+                &event,
+                ctx.global_config,
+                ctx.config,
+                server_sample_rate,
+                event_metrics_extracted,
+                spans_extracted,
+            );
         });
 
         event = self

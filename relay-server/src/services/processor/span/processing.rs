@@ -173,16 +173,14 @@ pub async fn process(
 
             extracted_metrics.extend_project_metrics(metrics, Some(sampling_decision));
 
-            if ctx.project_info.config.features.produces_spans() {
-                let bucket = event::create_span_root_counter(
-                    span,
-                    transaction_from_dsc.clone(),
-                    1,
-                    sampling_decision,
-                    project_id,
-                );
-                extracted_metrics.extend_sampling_metrics(bucket, Some(sampling_decision));
-            }
+            let bucket = event::create_span_root_counter(
+                span,
+                transaction_from_dsc.clone(),
+                1,
+                sampling_decision,
+                project_id,
+            );
+            extracted_metrics.extend_sampling_metrics(bucket, Some(sampling_decision));
 
             item.set_metrics_extracted(true);
         }

@@ -276,7 +276,7 @@ pub fn normalize_event(
                 rules: &project_info.config.tx_name_rules,
             },
             device_class_synthesis_config: project_info.has_feature(Feature::DeviceClassSynthesis),
-            enrich_spans: project_info.has_feature(Feature::ExtractSpansFromEvent),
+            enrich_spans: true,
             max_tag_value_length: ctx
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
