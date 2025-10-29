@@ -69,10 +69,6 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                         "type": "string",
                         "value": time_within_delta(expect_resolution="ns"),
                     },
-                    "sentry._internal.observed_timestamp_nanos": {
-                        "type": "string",
-                        "value": time_within_delta(expect_resolution="ns"),
-                    },
                 },
                 "body": "The user agent successfully received a response, but it had a 500 status code",
                 "level": "warn",

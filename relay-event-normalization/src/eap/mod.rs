@@ -5,9 +5,8 @@
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::{
-    AttributeInfo, BROWSER_NAME, BROWSER_VERSION, OBSERVED_TIMESTAMP_NANOS,
-    OBSERVED_TIMESTAMP_NANOS_INTERNAL, USER_AGENT_ORIGINAL, USER_GEO_CITY, USER_GEO_COUNTRY_CODE,
-    USER_GEO_REGION, USER_GEO_SUBDIVISION, WriteBehavior,
+    AttributeInfo, BROWSER_NAME, BROWSER_VERSION, OBSERVED_TIMESTAMP_NANOS, USER_AGENT_ORIGINAL,
+    USER_GEO_CITY, USER_GEO_COUNTRY_CODE, USER_GEO_REGION, USER_GEO_SUBDIVISION, WriteBehavior,
 };
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Remark, RemarkType, Value};
@@ -65,21 +64,14 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
 
 /// Adds the `received` time to the attributes.
 pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: DateTime<Utc>) {
-    let attributes = attributes.get_or_insert_with(Default::default);
-
-    attributes.insert_if_missing(OBSERVED_TIMESTAMP_NANOS, || {
-        received
-            .timestamp_nanos_opt()
-            .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
-            .to_string()
-    });
-
-    attributes.insert_if_missing(OBSERVED_TIMESTAMP_NANOS_INTERNAL, || {
-        received
-            .timestamp_nanos_opt()
-            .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
-            .to_string()
-    });
+    attributes
+        .get_or_insert_with(Default::default)
+        .insert_if_missing(OBSERVED_TIMESTAMP_NANOS, || {
+            received
+                .timestamp_nanos_opt()
+                .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
+                .to_string()
+        });
 }
 
 /// Normalizes the user agent/client information into [`Attributes`].
@@ -215,10 +207,6 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
-          "sentry._internal.observed_timestamp_nanos": {
-            "type": "string",
-            "value": "1234201337"
-          },
           "sentry.observed_timestamp_nanos": {
             "type": "string",
             "value": "1234201337"
@@ -231,10 +219,6 @@ mod tests {
     fn test_normalize_received_existing() {
         let mut attributes = Annotated::from_json(
             r#"{
-          "sentry._internal.observed_timestamp_nanos": {
-            "type": "string",
-            "value": "111222333"
-          },
           "sentry.observed_timestamp_nanos": {
             "type": "string",
             "value": "111222333"
@@ -250,10 +234,6 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
         {
-          "sentry._internal.observed_timestamp_nanos": {
-            "type": "string",
-            "value": "111222333"
-          },
           "sentry.observed_timestamp_nanos": {
             "type": "string",
             "value": "111222333"

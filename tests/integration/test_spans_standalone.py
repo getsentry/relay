@@ -46,10 +46,6 @@ def lcp_cls_inp_differences(mode):
                 "type": "string",
                 "value": time_within_delta(expect_resolution="ns"),
             },
-            "sentry._internal.observed_timestamp_nanos": {
-                "type": "string",
-                "value": time_within_delta(expect_resolution="ns"),
-            },
             # Maybe should not exist. Segment information in legacy processing is removed.
             "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
         }

@@ -86,14 +86,6 @@ def test_trace_metric_extraction(
                     precision="us",
                 )
             },
-            "sentry._internal.observed_timestamp_nanos": {
-                "stringValue": time_within_delta(
-                    start,
-                    delta=timedelta(seconds=2),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             "sentry.browser.name": {"stringValue": mock.ANY},
             "sentry.browser.version": {"stringValue": mock.ANY},
@@ -225,14 +217,6 @@ def test_trace_metric_pii_scrubbing(
                 )
             },
             "sentry.observed_timestamp_nanos": {
-                "stringValue": time_within_delta(
-                    start,
-                    delta=timedelta(seconds=2),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
-            "sentry._internal.observed_timestamp_nanos": {
                 "stringValue": time_within_delta(
                     start,
                     delta=timedelta(seconds=2),

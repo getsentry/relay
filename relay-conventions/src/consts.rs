@@ -29,7 +29,6 @@ convention_attributes!(
     MESSAGING_SYSTEM => "messaging.system",
     ENVIRONMENT => "sentry.environment",
     OBSERVED_TIMESTAMP_NANOS => "sentry.observed_timestamp_nanos",
-    OBSERVED_TIMESTAMP_NANOS_INTERNAL => "sentry._internal.observed_timestamp_nanos",
     OP => "sentry.op",
     ORIGIN => "sentry.origin",
     PLATFORM => "sentry.platform",
