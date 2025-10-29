@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_dynamic_config::Feature;
 use relay_quotas::{CachedRateLimits, DataCategory, MetricNamespaceScoping, RateLimits};
 use relay_sampling::evaluation::ReservoirCounters;
 
