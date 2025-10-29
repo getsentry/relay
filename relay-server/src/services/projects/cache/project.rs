@@ -5,8 +5,9 @@ use relay_dynamic_config::Feature;
 use relay_quotas::{CachedRateLimits, DataCategory, MetricNamespaceScoping, RateLimits};
 use relay_sampling::evaluation::ReservoirCounters;
 
+use crate::Envelope;
 use crate::envelope::ItemType;
-use crate::managed::ManagedEnvelope;
+use crate::managed::{Managed, Rejected};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::projects::cache::state::SharedProject;
 use crate::services::projects::project::ProjectState;
@@ -48,17 +49,21 @@ impl<'a> Project<'a> {
     ///  - Validate origins and public keys
     ///  - Quotas with a limit of `0`
     ///  - Cached rate limits
+    ///
+    /// Removes rate limited items from the envelope and returns active rate limits.
     pub async fn check_envelope(
         &self,
-        mut envelope: ManagedEnvelope,
-    ) -> Result<CheckedEnvelope, DiscardReason> {
+        envelope: &mut Managed<Box<Envelope>>,
+    ) -> Result<RateLimits, Rejected<DiscardReason>> {
         let state = match self.state() {
             ProjectState::Enabled(state) => Some(Arc::clone(state)),
             ProjectState::Disabled => {
                 // TODO(jjbayer): We should refactor this function to either return a Result or
                 // handle envelope rejections internally, but not both.
-                envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
-                return Err(DiscardReason::ProjectId);
+                let err = envelope
+                    .reject_err(Outcome::Invalid(DiscardReason::ProjectId))
+                    .map(|_| DiscardReason::ProjectId);
+                return Err(err);
             }
             ProjectState::Pending => None,
         };
@@ -66,12 +71,13 @@ impl<'a> Project<'a> {
         let mut scoping = envelope.scoping();
 
         if let Some(ref state) = state {
-            scoping = state.scope_request(envelope.envelope().meta());
+            scoping = state.scope_request(envelope.meta());
             envelope.scope(scoping);
 
-            if let Err(reason) = state.check_envelope(envelope.envelope(), self.config) {
-                envelope.reject(Outcome::Invalid(reason));
-                return Err(reason);
+            if let Err(reason) = state.check_envelope(envelope, self.config) {
+                return Err(envelope
+                    .reject_err(Outcome::Invalid(reason))
+                    .map(|_| reason));
             }
         }
 
@@ -83,9 +89,8 @@ impl<'a> Project<'a> {
             async move { Ok(current_limits.check_with_quotas(quotas, item_scoping)) }
         });
 
-        let (mut enforcement, mut rate_limits) = envelope_limiter
-            .compute(envelope.envelope_mut(), &scoping)
-            .await?;
+        let (mut enforcement, mut rate_limits) =
+            envelope_limiter.compute(envelope, &scoping).await?;
 
         let check_nested_spans = state
             .as_ref()
@@ -95,46 +100,23 @@ impl<'a> Project<'a> {
         // spans to correctly emit negative outcomes in case the transaction itself is dropped.
         if check_nested_spans {
             relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
-                sync_spans_to_enforcement(&envelope, &mut enforcement);
+                sync_spans_to_enforcement(envelope, &mut enforcement);
             });
         }
 
-        enforcement.apply_with_outcomes(&mut envelope);
-
-        envelope.update();
+        enforcement.apply_to_managed(envelope);
 
         // Special case: Expose active rate limits for all metric namespaces if there is at least
         // one metrics item in the Envelope to communicate backoff to SDKs. This is necessary
         // because `EnvelopeLimiter` cannot not check metrics without parsing item contents.
-        if envelope.envelope().items().any(|i| i.ty().is_metrics()) {
+        if envelope.items().any(|i| i.ty().is_metrics()) {
             let mut metrics_scoping = scoping.item(DataCategory::MetricBucket);
             metrics_scoping.namespace = MetricNamespaceScoping::Any;
             rate_limits.merge(current_limits.check_with_quotas(quotas, metrics_scoping));
         }
 
-        let envelope = if envelope.envelope().is_empty() {
-            // Individual rate limits have already been issued above
-            envelope.reject(Outcome::RateLimited(None));
-            None
-        } else {
-            Some(envelope)
-        };
-
-        Ok(CheckedEnvelope {
-            envelope,
-            rate_limits,
-        })
+        Ok(rate_limits)
     }
-}
-
-/// A checked envelope and associated rate limits.
-///
-/// Items violating the rate limits have been removed from the envelope. If all items are removed
-/// from the envelope, `None` is returned in place of the envelope.
-#[derive(Debug)]
-pub struct CheckedEnvelope {
-    pub envelope: Option<ManagedEnvelope>,
-    pub rate_limits: RateLimits,
 }
 
 /// Adds category limits for the nested spans inside a transaction.
@@ -142,7 +124,7 @@ pub struct CheckedEnvelope {
 /// On the fast path of rate limiting, we do not have nested spans of a transaction extracted
 /// as top-level spans, thus if we limited a transaction, we want to count and emit negative
 /// outcomes for each of the spans nested inside that transaction.
-fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enforcement) {
+fn sync_spans_to_enforcement(envelope: &Envelope, enforcement: &mut Enforcement) {
     if !enforcement.is_event_active() {
         return;
     }
@@ -164,14 +146,13 @@ fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enfor
 }
 
 /// Counts the nested spans inside the first transaction envelope item inside the [`Envelope`](crate::envelope::Envelope).
-fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
+fn count_nested_spans(envelope: &Envelope) -> usize {
     #[derive(Debug, serde::Deserialize)]
     struct PartialEvent {
         spans: crate::utils::SeqCount,
     }
 
     envelope
-        .envelope()
         .items()
         .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())
         .and_then(|item| serde_json::from_slice::<PartialEvent>(&item.payload()).ok())
@@ -277,9 +258,9 @@ mod tests {
 
         let (outcome_aggregator, mut outcome_aggregator_rx) = relay_system::Addr::custom();
 
-        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator.clone());
+        let mut managed_envelope = Managed::from_envelope(envelope, outcome_aggregator.clone());
 
-        project.check_envelope(managed_envelope).await.unwrap();
+        project.check_envelope(&mut managed_envelope).await.unwrap();
         drop(outcome_aggregator);
 
         let expected = [

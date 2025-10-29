@@ -7,14 +7,13 @@
 //! See the server startup in [`HttpServer`](crate::services::server::HttpServer) for where these
 //! middlewares are registered.
 
+mod body_timing;
 mod cors;
 mod decompression;
 mod handle_panic;
 mod metrics;
 mod normalize_path;
 mod trace;
-
-mod body_timing;
 
 pub use self::body_timing::*;
 pub use self::cors::*;

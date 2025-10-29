@@ -40,7 +40,9 @@ mod logs {
             .with_required_feature(Feature::VercelLogDrainEndpoint)
             .build();
 
-        common::handle_envelope(&state, envelope).await?;
+        common::handle_envelope(&state, envelope)
+            .await?
+            .ignore_rate_limits();
 
         Ok(StatusCode::ACCEPTED)
     }

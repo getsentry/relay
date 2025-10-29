@@ -116,9 +116,11 @@ struct StoreResponse {
 async fn handle(
     state: ServiceState,
     params: EnvelopeParams,
-) -> Result<impl IntoResponse, BadStoreRequest> {
+) -> axum::response::Result<impl IntoResponse> {
     let envelope = params.extract_envelope()?;
-    let id = common::handle_envelope(&state, envelope).await?;
+    let id = common::handle_envelope(&state, envelope)
+        .await?
+        .ensure_rate_limits()?;
     Ok(Json(StoreResponse { id }))
 }
 
