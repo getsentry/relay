@@ -12,8 +12,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         .metric_extraction
         .get_or_insert_with(MetricExtractionConfig::empty);
 
-    let features = &project_config.features;
-
     if !config.is_supported() || config._span_metrics_extended {
         return;
     }
@@ -27,10 +25,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         condition: None,
         tags: vec![],
     });
-
-    if !features.produces_spans() {
-        return;
-    }
 
     config
         .global_groups

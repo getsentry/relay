@@ -504,7 +504,6 @@ def test_event_with_attachment(
     relay_with_processing,
     attachments_consumer,
     transactions_consumer,
-    outcomes_consumer,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
@@ -513,7 +512,6 @@ def test_event_with_attachment(
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
     transactions_consumer = transactions_consumer()
-    outcomes_consumer = outcomes_consumer()
 
     # event attachments are always sent as chunks, and added to events
     envelope = Envelope(headers=[["event_id", event_id]])

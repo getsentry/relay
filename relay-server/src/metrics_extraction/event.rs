@@ -1289,11 +1289,4 @@ mod tests {
             "c:spans/count_per_root_project@none"
         );
     }
-
-    #[test]
-    fn only_indexed_spans_enabled() {
-        let metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]).project_metrics;
-        assert_eq!(metrics.len(), 75);
-        assert!(metrics.iter().all(|b| &b.name == "c:spans/usage@none"));
-    }
 }
