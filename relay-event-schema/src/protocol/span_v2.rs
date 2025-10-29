@@ -29,7 +29,7 @@ pub struct SpanV2 {
     #[metastructure(required = true)]
     pub status: Annotated<SpanV2Status>,
 
-    /// [DEPRECATED] Indicates whether a span's parent is remote.
+    /// DEPRECATED - Indicates whether a span's parent is remote.
     #[metastructure(field = "is_remote", required = false, skip_serialization = "always")]
     pub deprecated_is_remote: Annotated<bool>,
 
@@ -67,7 +67,7 @@ pub struct SpanV2 {
 
 impl SpanV2 {
     /// If the span has is_remote=true, use if for is_segment.
-    pub fn transfer_is_remote(self: &mut Self) {
+    pub fn transfer_is_remote(&mut self) {
         let is_remote = std::mem::take(&mut self.deprecated_is_remote);
         if self.is_segment.value().is_none() && is_remote.value() == Some(&true) {
             self.is_segment = is_remote;
