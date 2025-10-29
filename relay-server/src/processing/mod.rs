@@ -15,10 +15,12 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
 mod common;
+mod events;
 mod forward;
 mod limits;
 
 pub use self::common::*;
+pub use self::events::finalize as finalize_event;
 pub use self::forward::*;
 pub use self::limits::*;
 

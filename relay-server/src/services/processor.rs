@@ -830,24 +830,6 @@ fn send_metrics(
     }
 }
 
-/// Returns the data category if there is an event.
-///
-/// The data category is computed from the event type. Both `Default` and `Error` events map to
-/// the `Error` data category. If there is no Event, `None` is returned.
-fn event_category(event: &Annotated<Event>) -> Option<DataCategory> {
-    event_type(event).map(DataCategory::from)
-}
-
-/// Returns the event type if there is an event.
-///
-/// If the event does not have a type, `Some(EventType::Default)` is assumed. If, in contrast, there
-/// is no event, `None` is returned.
-fn event_type(event: &Annotated<Event>) -> Option<EventType> {
-    event
-        .value()
-        .map(|event| event.ty.value().copied().unwrap_or_default())
-}
-
 /// New type representing the normalization state of the event.
 #[derive(Copy, Clone)]
 struct EventFullyNormalized(bool);
@@ -1665,11 +1647,15 @@ impl EnvelopeProcessorService {
             ctx.project_info,
             ctx.sampling_project_info,
         );
-        event::finalize(
-            managed_envelope,
+        processing::finalize_event(
+            managed_envelope.envelope().headers(),
+            managed_envelope
+                .envelope()
+                .items()
+                .filter(|i| i.ty() == &ItemType::Attachment),
             &mut event,
             &mut metrics,
-            &self.inner.config,
+            &ctx.config,
         )?;
         event_fully_normalized = self.normalize_event(
             managed_envelope,

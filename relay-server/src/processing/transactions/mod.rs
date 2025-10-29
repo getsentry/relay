@@ -5,7 +5,6 @@ use relay_dynamic_config::Feature;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics, SpanV2};
 use relay_protocol::Annotated;
-use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use smallvec::SmallVec;
 
@@ -15,9 +14,9 @@ use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer,
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
-use crate::processing::{Forward, Processor, QuotaRateLimiter, utils};
+use crate::processing::{Forward, Processor, QuotaRateLimiter, finalize_event, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
+use crate::services::processor::ProcessingExtractedMetrics;
 use crate::statsd::RelayTimers;
 use crate::utils::should_filter;
 #[cfg(feature = "processing")]
@@ -161,12 +160,13 @@ impl Processor for TransactionProcessor {
         transaction_part
             .modify(|w, r| utils::dsc::validate_and_set_dsc(&mut w.headers, &event, &mut ctx));
 
-        event::finalize(
-            managed_envelope,
+        finalize_event(
+            &transaction_part.headers,
+            transaction_part.attachments.iter(),
             &mut event,
             &mut metrics,
-            &self.inner.config,
-        )?;
+            &ctx.config,
+        );
 
         event_fully_normalized = self.normalize_event(
             managed_envelope,

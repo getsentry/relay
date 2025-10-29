@@ -179,6 +179,11 @@ impl<M> EnvelopeHeaders<M> {
         &self.meta
     }
 
+    /// Returns the envelope's event ID, if any.
+    pub fn event_id(&self) -> Option<EventId> {
+        self.event_id
+    }
+
     /// Returns the dynamic sampling context from envelope headers, if present.
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
         match &self.trace {
@@ -443,6 +448,16 @@ impl Envelope {
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
         self.headers.dsc()
     }
+
+    // /// Overrides the dynamic sampling context in envelope headers.
+    // pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
+    //     self.headers.set_dsc(dsc);
+    // }
+
+    // /// Removes the dynamic sampling context from envelope headers.
+    // pub fn remove_dsc(&mut self) {
+    //     self.headers.remove_dsc();
+    // }
 
     /// Features required to process this envelope.
     pub fn required_features(&self) -> &[Feature] {
@@ -1216,7 +1231,7 @@ mod tests {
             );
             *Envelope::parse_bytes(bytes).unwrap()
         };
-        envelope.set_dsc(dsc.clone());
+        envelope.headers.set_dsc(dsc.clone());
 
         assert_eq!(
             envelope.dsc().unwrap().transaction.as_ref().unwrap(),
