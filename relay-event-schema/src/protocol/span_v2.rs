@@ -30,7 +30,7 @@ pub struct SpanV2 {
     pub status: Annotated<SpanV2Status>,
 
     /// [DEPRECATED] Indicates whether a span's parent is remote.
-    #[metastructure(field = "is_remote", required = false)]
+    #[metastructure(field = "is_remote", required = false, skip_serialization = "always")]
     pub deprecated_is_remote: Annotated<bool>,
 
     /// Whether this span is the root span of a segment.
