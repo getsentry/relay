@@ -116,6 +116,8 @@ impl Context<'static> {
     pub fn for_test() -> Self {
         use std::sync::LazyLock;
 
+        use relay_base_schema::project::ProjectId;
+
         static CONFIG: LazyLock<Config> = LazyLock::new(Default::default);
         static GLOBAL_CONFIG: LazyLock<GlobalConfig> = LazyLock::new(Default::default);
         static PROJECT_INFO: LazyLock<ProjectInfo> = LazyLock::new(Default::default);

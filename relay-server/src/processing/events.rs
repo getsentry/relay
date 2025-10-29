@@ -176,7 +176,7 @@ pub fn finalize_event<'a>(
     Ok(())
 }
 
-/// TODO: docs
+/// Performs event normalization and surrounding bookkeeping.
 pub fn normalize_event(
     headers: &EnvelopeHeaders,
     event: &mut Annotated<Event>,
@@ -240,9 +240,12 @@ pub fn normalize_event(
             );
         }
 
+        // TODO: duplicated from `EnvelopeProcessorService::process`. We should pass project_id
+        // in the Context instead since it's already guaranteed to exist at this point.
         let project_id = ctx
             .project_info
             .project_id
+            .or_else(|| headers.meta().project_id())
             .ok_or(ProcessingError::MissingProjectId)?;
         let normalization_config = NormalizationConfig {
             project_id: Some(project_id.value()),
@@ -372,12 +375,12 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     }
 }
 
+#[cfg(feature = "processing")]
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    #[cfg(feature = "processing")]
     fn test_unprintable_fields() {
         let event = Annotated::new(Event {
             environment: Annotated::new(String::from(
