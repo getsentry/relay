@@ -191,6 +191,16 @@ impl<M> EnvelopeHeaders<M> {
         }
     }
 
+    /// Overrides the dynamic sampling context in envelope headers.
+    pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
+        self.trace = Some(ErrorBoundary::Ok(dsc));
+    }
+
+    /// Removes the dynamic sampling context from envelope headers.
+    pub fn remove_dsc(&mut self) {
+        self.trace = None;
+    }
+
     /// Returns the timestamp when the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.sent_at
@@ -432,16 +442,6 @@ impl Envelope {
     /// Returns the dynamic sampling context from envelope headers, if present.
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
         self.headers.dsc()
-    }
-
-    /// Overrides the dynamic sampling context in envelope headers.
-    pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
-        self.headers.trace = Some(ErrorBoundary::Ok(dsc));
-    }
-
-    /// Removes the dynamic sampling context from envelope headers.
-    pub fn remove_dsc(&mut self) {
-        self.headers.trace = None;
     }
 
     /// Features required to process this envelope.

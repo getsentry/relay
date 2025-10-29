@@ -15,7 +15,7 @@ use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer,
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
-use crate::processing::{Forward, Processor, QuotaRateLimiter};
+use crate::processing::{Forward, Processor, QuotaRateLimiter, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::statsd::RelayTimers;
@@ -123,14 +123,10 @@ impl Processor for TransactionProcessor {
             }
         }
 
-        let (transaction, profile) = work.split_once(|w| {
-            let SerializedTransaction {
-                headers,
-                transaction,
-                attachments,
-                profile,
-            } = w;
-            (transaction, profile)
+        let (transaction_part, profile) = work.split_once(|w| {
+            // TODO: transaction_part should be of a type without a profile field
+            let profile = w.profile.take();
+            (w, profile)
         });
 
         let mut profile_id = None;
@@ -138,7 +134,7 @@ impl Processor for TransactionProcessor {
             let feature = Feature::Profiling;
             if should_filter(ctx.config, ctx.project_info, feature) {
                 profile.reject_err(Outcome::Invalid(DiscardReason::FeatureDisabled(feature)));
-            } else if transaction.is_none() && profile_item.sampled() {
+            } else if transaction_part.transaction.is_none() && profile_item.sampled() {
                 // A profile with `sampled=true` should never be without a transaction
                 profile.reject_err(Outcome::Invalid(DiscardReason::Profiling(
                     "missing_transaction",
@@ -162,12 +158,8 @@ impl Processor for TransactionProcessor {
 
         transfer_profile_id(&mut event, profile_id);
 
-        ctx.sampling_project_info = dynamic_sampling::validate_and_set_dsc(
-            managed_envelope,
-            &mut event,
-            ctx.project_info,
-            ctx.sampling_project_info,
-        );
+        transaction_part
+            .modify(|w, r| utils::dsc::validate_and_set_dsc(&mut w.headers, &event, &mut ctx));
 
         event::finalize(
             managed_envelope,
