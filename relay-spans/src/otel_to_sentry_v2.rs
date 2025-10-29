@@ -106,7 +106,7 @@ pub fn otel_to_sentry_span(
         trace_id,
         span_id,
         parent_span_id,
-        is_remote: otel_flags_is_remote(flags).unwrap_or(false).into(),
+        is_segment: otel_flags_is_remote(flags).into(),
         start_timestamp: Timestamp(start_timestamp).into(),
         end_timestamp: Timestamp(end_timestamp).into(),
         status: status
