@@ -64,7 +64,6 @@ EXPECTED_ITEMS = [
         "attributes": {
             "vercel.id": {"stringValue": "1573817187330377061717300000"},
             "sentry.browser.version": {"stringValue": "2.32"},
-            "sentry.timestamp_nanos": {"stringValue": "1573817187330000000"},
             "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
             "server.address": {"stringValue": "my-app-abc123.vercel.app"},
             "vercel.source": {"stringValue": "build"},
@@ -122,7 +121,6 @@ EXPECTED_ITEMS = [
             "vercel.id": {"stringValue": "1573817250283254651097202070"},
             "sentry.environment": {"stringValue": "production"},
             "vercel.proxy.vercel_cache": {"stringValue": "MISS"},
-            "sentry.timestamp_nanos": {"stringValue": "1573817250283000000"},
             "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
             "vercel.source": {"stringValue": "lambda"},
             "vercel.proxy.timestamp": {"intValue": "1573817250172"},

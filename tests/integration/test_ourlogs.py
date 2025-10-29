@@ -49,11 +49,6 @@ def timestamps(ts: datetime):
         "sentry._internal.observed_timestamp_nanos": {
             "stringValue": time_within(ts, expect_resolution="ns")
         },
-        "sentry.timestamp_nanos": {
-            "stringValue": time_within_delta(
-                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
-            )
-        },
         "sentry.timestamp_precise": {
             "intValue": time_within_delta(
                 ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"

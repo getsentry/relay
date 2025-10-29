@@ -146,14 +146,6 @@ def test_otlp_logs_conversion(
                 "sentry.payload_size_bytes": {"intValue": "445"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-                "sentry.timestamp_nanos": {
-                    "stringValue": time_within_delta(
-                        ts,
-                        delta=timedelta(seconds=0),
-                        expect_resolution="ns",
-                        precision="us",
-                    )
-                },
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(
                         ts,
@@ -269,14 +261,6 @@ def test_otlp_logs_multiple_records(
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-                "sentry.timestamp_nanos": {
-                    "stringValue": time_within_delta(
-                        ts,
-                        delta=timedelta(seconds=0),
-                        expect_resolution="ns",
-                        precision="us",
-                    )
-                },
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(
                         ts,
@@ -313,14 +297,6 @@ def test_otlp_logs_multiple_records(
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
                 "sentry.severity_text": {"stringValue": "debug"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
-                "sentry.timestamp_nanos": {
-                    "stringValue": time_within_delta(
-                        ts,
-                        delta=timedelta(seconds=0),
-                        expect_resolution="ns",
-                        precision="us",
-                    )
-                },
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(
                         ts,
