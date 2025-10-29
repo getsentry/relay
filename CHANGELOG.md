@@ -25,7 +25,7 @@
 - Switch default allocator from jemalloc to mimalloc. ([#5239](https://github.com/getsentry/relay/pull/5239))
 - Add internal attributes to aid searching trace metrics. ([#5260](https://github.com/getsentry/relay/pull/5260))
 - Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
-- Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5295))
+- Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5308))
 
 ## 25.10.0
 
