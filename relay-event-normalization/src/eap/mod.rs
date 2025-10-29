@@ -12,7 +12,7 @@ use relay_conventions::{
     USER_GEO_SUBDIVISION, WriteBehavior,
 };
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
-use relay_protocol::{Annotated, ErrorKind, Remark, RemarkType, Value};
+use relay_protocol::{Annotated, ErrorKind, Meta, Remark, RemarkType, Value};
 
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
@@ -196,11 +196,10 @@ fn normalize_attribute_names_inner(
                     continue;
                 };
 
-                let new_attribute = old_attribute.clone();
-                old_attribute.set_value(None);
-                old_attribute
-                    .meta_mut()
-                    .add_remark(Remark::new(RemarkType::Removed, "attribute.deprecated"));
+                let mut meta = Meta::default();
+                // TODO: Possibly add a new RemarkType for "renamed/moved"
+                meta.add_remark(Remark::new(RemarkType::Removed, "attribute.deprecated"));
+                let new_attribute = std::mem::replace(old_attribute, Annotated(None, meta));
 
                 if !attributes.contains_key(new_name) {
                     attributes.insert_raw(new_name.to_owned(), new_attribute);
