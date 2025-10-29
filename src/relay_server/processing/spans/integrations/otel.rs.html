@@ -6,14 +6,14 @@
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::processing::spans::{Error, <span class="prelude-ty">Result</span>};
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
 <a href=#8 id=8 data-nosnippet>8</a>
-<a href=#9 id=9 data-nosnippet>9</a><span class="doccomment">/// Expands OTeL logs into the [`SpanV2`] format.
+<a href=#9 id=9 data-nosnippet>9</a><span class="doccomment">/// Expands OTeL traces into the [`SpanV2`] format.
 <a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">pub fn </span>expand&lt;F&gt;(format: OtelFormat, payload: <span class="kw-2">&amp;</span>[u8], <span class="kw-2">mut </span>produce: F) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">where
 <a href=#12 id=12 data-nosnippet>12</a>    </span>F: FnMut(SpanV2),
 <a href=#13 id=13 data-nosnippet>13</a>{
-<a href=#14 id=14 data-nosnippet>14</a>    <span class="kw">let </span>logs = parse_traces_data(format, payload)<span class="question-mark">?</span>;
+<a href=#14 id=14 data-nosnippet>14</a>    <span class="kw">let </span>traces = parse_traces_data(format, payload)<span class="question-mark">?</span>;
 <a href=#15 id=15 data-nosnippet>15</a>
-<a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">for </span>resource_spans <span class="kw">in </span>logs.resource_spans {
+<a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">for </span>resource_spans <span class="kw">in </span>traces.resource_spans {
 <a href=#17 id=17 data-nosnippet>17</a>        <span class="kw">let </span>resource = resource_spans.resource.as_ref();
 <a href=#18 id=18 data-nosnippet>18</a>        <span class="kw">for </span>scope_spans <span class="kw">in </span>resource_spans.scope_spans {
 <a href=#19 id=19 data-nosnippet>19</a>            <span class="kw">let </span>scope = scope_spans.scope.as_ref();
