@@ -101,12 +101,19 @@ pub fn otel_to_sentry_span(
         sentry_attributes.insert(STATUS_MESSAGE.to_owned(), status_message);
     }
 
+    // A remote span is a segment span, but not every segment span is remote:
+    let is_segment = match otel_flags_is_remote(flags) {
+        Some(true) => Some(true),
+        _ => None,
+    }
+    .into();
+
     SentrySpanV2 {
         name: name.into(),
         trace_id,
         span_id,
         parent_span_id,
-        is_segment: otel_flags_is_remote(flags).into(),
+        is_segment,
         start_timestamp: Timestamp(start_timestamp).into(),
         end_timestamp: Timestamp(end_timestamp).into(),
         status: status

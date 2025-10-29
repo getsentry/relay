@@ -65,6 +65,16 @@ pub struct SpanV2 {
     pub other: Object<Value>,
 }
 
+impl SpanV2 {
+    /// If the span has is_remote=true, use if for is_segment.
+    pub fn transfer_is_remote(self: &mut Self) {
+        let is_remote = std::mem::take(&mut self.deprecated_is_remote);
+        if self.is_segment.value().is_none() && is_remote.value() == Some(&true) {
+            self.is_segment = is_remote;
+        }
+    }
+}
+
 impl Getter for SpanV2 {
     fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
         Some(match path.strip_prefix("span.")? {
