@@ -28,7 +28,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
-    ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError, SpanV2,
+    ClientReport, Event, EventId, IpAddr, Metrics, NetworkReportError, SpanV2,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
@@ -43,7 +43,9 @@ use smallvec::{SmallVec, smallvec};
 use zstd::stream::Encoder as ZstdEncoder;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
-use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType};
+use crate::envelope::{
+    self, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType,
+};
 use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::integrations::{Integration, SpansIntegration};
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
@@ -55,7 +57,10 @@ use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
-use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
+use crate::processing::{
+    EventFullyNormalized, EventMetricsExtracted, Forward as _, Output, Outputs, QuotaRateLimiter,
+    SpansExtracted, event_category, event_type,
+};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -830,24 +835,6 @@ fn send_metrics(
     }
 }
 
-/// Returns the data category if there is an event.
-///
-/// The data category is computed from the event type. Both `Default` and `Error` events map to
-/// the `Error` data category. If there is no Event, `None` is returned.
-fn event_category(event: &Annotated<Event>) -> Option<DataCategory> {
-    event_type(event).map(DataCategory::from)
-}
-
-/// Returns the event type if there is an event.
-///
-/// If the event does not have a type, `Some(EventType::Default)` is assumed. If, in contrast, there
-/// is no event, `None` is returned.
-fn event_type(event: &Annotated<Event>) -> Option<EventType> {
-    event
-        .value()
-        .map(|event| event.ty.value().copied().unwrap_or_default())
-}
-
 /// Function for on-off switches that filter specific item types (profiles, spans)
 /// based on a feature flag.
 ///
@@ -858,30 +845,6 @@ fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) 
         RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
-
-/// New type representing the normalization state of the event.
-#[derive(Copy, Clone)]
-struct EventFullyNormalized(bool);
-
-impl EventFullyNormalized {
-    /// Returns `true` if the event is fully normalized, `false` otherwise.
-    pub fn new(envelope: &Envelope) -> Self {
-        let event_fully_normalized = envelope.meta().request_trust().is_trusted()
-            && envelope
-                .items()
-                .any(|item| item.creates_event() && item.fully_normalized());
-
-        Self(event_fully_normalized)
-    }
-}
-
-/// New type representing whether metrics were extracted from transactions/spans.
-#[derive(Debug, Copy, Clone)]
-struct EventMetricsExtracted(bool);
-
-/// New type representing whether spans were extracted.
-#[derive(Debug, Copy, Clone)]
-struct SpansExtracted(bool);
 
 /// The result of the envelope processing containing the processed envelope along with the partial
 /// result.
@@ -1676,9 +1639,15 @@ impl EnvelopeProcessorService {
             ctx.project_info,
             ctx.sampling_project_info,
         );
-        event::finalize(
-            managed_envelope,
+
+        let attachments = managed_envelope
+            .envelope()
+            .items()
+            .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment));
+        processing::finalize_event(
+            managed_envelope.envelope().headers(),
             &mut event,
+            attachments,
             &mut metrics,
             &self.inner.config,
         )?;
@@ -1787,9 +1756,14 @@ impl EnvelopeProcessorService {
             ctx.sampling_project_info,
         );
 
-        event::finalize(
-            managed_envelope,
+        let attachments = managed_envelope
+            .envelope()
+            .items()
+            .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment));
+        processing::finalize_event(
+            managed_envelope.envelope().headers(),
             &mut event,
+            attachments,
             &mut metrics,
             &self.inner.config,
         )?;

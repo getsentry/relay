@@ -1,22 +1,17 @@
 //! Event processor related code.
 
 use std::error::Error;
-use std::sync::OnceLock;
 
-use chrono::Duration as SignedDuration;
-use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
-use relay_event_normalization::ClockDriftProcessor;
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
-    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics, OtelContext,
-    RelayInfo, SecurityReportType, Values,
+    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
+    SecurityReportType, Values,
 };
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
-use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
 
@@ -25,11 +20,11 @@ use crate::extractors::RequestMeta;
 use crate::managed::TypedEnvelope;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent,
-    MINIMUM_CLOCK_DRIFT, ProcessingError, SpansExtracted, event_category, event_type,
+    EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent, ProcessingError,
+    SpansExtracted, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
 /// Result of the extraction of the primary event payload from an envelope.
@@ -145,133 +140,6 @@ pub fn extract<Group: EventProcessing>(
         event_metrics_extracted,
         spans_extracted,
     })
-}
-
-pub fn finalize<Group: EventProcessing>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    event: &mut Annotated<Event>,
-    metrics: &mut Metrics,
-    config: &Config,
-) -> Result<(), ProcessingError> {
-    let envelope = managed_envelope.envelope_mut();
-
-    let inner_event = match event.value_mut() {
-        Some(event) => event,
-        None if !config.processing_enabled() => return Ok(()),
-        None => return Err(ProcessingError::NoEventPayload),
-    };
-
-    if !config.processing_enabled() {
-        static MY_VERSION_STRING: OnceLock<String> = OnceLock::new();
-        let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
-
-        inner_event
-            .ingest_path
-            .get_or_insert_with(Default::default)
-            .push(Annotated::new(RelayInfo {
-                version: Annotated::new(my_version.clone()),
-                public_key: config
-                    .public_key()
-                    .map_or(Annotated::empty(), |pk| Annotated::new(pk.to_string())),
-                other: Default::default(),
-            }));
-    }
-
-    // Event id is set statically in the ingest path.
-    let event_id = envelope.event_id().unwrap_or_default();
-    debug_assert!(!event_id.is_nil());
-
-    // Ensure that the event id in the payload is consistent with the envelope. If an event
-    // id was ingested, this will already be the case. Otherwise, this will insert a new
-    // event id. To be defensive, we always overwrite to ensure consistency.
-    inner_event.id = Annotated::new(event_id);
-
-    // In processing mode, also write metrics into the event. Most metrics have already been
-    // collected at this state, except for the combined size of all attachments.
-    if config.processing_enabled() {
-        let mut metrics = std::mem::take(metrics);
-
-        let attachment_size = envelope
-            .items()
-            .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment))
-            .map(|item| item.len() as u64)
-            .sum::<u64>();
-
-        if attachment_size > 0 {
-            metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
-        }
-
-        inner_event._metrics = Annotated::new(metrics);
-
-        if inner_event.ty.value() == Some(&EventType::Transaction) {
-            let platform = utils::platform_tag(inner_event);
-            let client_name = utils::client_name_tag(envelope.meta().client_name());
-
-            metric!(
-                counter(RelayCounters::EventTransaction) += 1,
-                source = utils::transaction_source_tag(inner_event),
-                platform = platform,
-                contains_slashes = if inner_event
-                    .transaction
-                    .as_str()
-                    .unwrap_or_default()
-                    .contains('/')
-                {
-                    "true"
-                } else {
-                    "false"
-                }
-            );
-
-            let span_count = inner_event.spans.value().map(Vec::len).unwrap_or(0) as u64;
-            metric!(
-                histogram(RelayHistograms::EventSpans) = span_count,
-                sdk = client_name,
-                platform = platform,
-            );
-
-            let has_otel = inner_event
-                .contexts
-                .value()
-                .is_some_and(|contexts| contexts.contains::<OtelContext>());
-
-            if has_otel {
-                metric!(
-                    counter(RelayCounters::OpenTelemetryEvent) += 1,
-                    sdk = client_name,
-                    platform = platform,
-                );
-            }
-        }
-
-        if let Some(dsc) = envelope.dsc()
-            && let Ok(Some(value)) = relay_protocol::to_value(dsc)
-        {
-            inner_event._dsc = Annotated::new(value);
-        }
-    }
-
-    let mut processor =
-        ClockDriftProcessor::new(envelope.sent_at(), managed_envelope.received_at())
-            .at_least(MINIMUM_CLOCK_DRIFT);
-    processor::process_value(event, &mut processor, ProcessingState::root())
-        .map_err(|_| ProcessingError::InvalidTransaction)?;
-
-    // Log timestamp delays for all events after clock drift correction. This happens before
-    // store processing, which could modify the timestamp if it exceeds a threshold. We are
-    // interested in the actual delay before this correction.
-    if let Some(timestamp) = event.value().and_then(|e| e.timestamp.value()) {
-        let event_delay = managed_envelope.received_at() - timestamp.into_inner();
-        if event_delay > SignedDuration::minutes(1) {
-            let category = event_category(event).unwrap_or(DataCategory::Unknown);
-            metric!(
-                timer(RelayTimers::TimestampDelay) = event_delay.to_std().unwrap(),
-                category = category.name(),
-            );
-        }
-    }
-
-    Ok(())
 }
 
 /// Status for applying some filters that don't drop the event.
