@@ -55,6 +55,7 @@ def test_span_extraction(
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
+    project_config["config"].setdefault("features", [])
     if discard_transaction:
         project_config["config"]["features"].append("projects:discard-transaction")
     if performance_issues_spans:
