@@ -130,7 +130,7 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction-addons")]
     DeprecatedExtractAddonsSpanMetricsFromEvent,
-    /// This feature has been deprecated and is kept for external Relays.
+    /// This feature has graduated and is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "organizations:indexed-spans-extraction")]
     DeprecatedExtractSpansFromEvent,
