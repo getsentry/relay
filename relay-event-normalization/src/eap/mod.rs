@@ -2,11 +2,13 @@
 //!
 //! A central place for all modifications/normalizations for attributes.
 
+use std::net::IpAddr;
+
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::{
-    BROWSER_NAME, BROWSER_VERSION, OBSERVED_TIMESTAMP_NANOS, USER_AGENT_ORIGINAL, USER_GEO_CITY,
-    USER_GEO_COUNTRY_CODE, USER_GEO_REGION, USER_GEO_SUBDIVISION,
+    BROWSER_NAME, BROWSER_VERSION, CLIENT_ADDRESS, OBSERVED_TIMESTAMP_NANOS, USER_AGENT_ORIGINAL,
+    USER_GEO_CITY, USER_GEO_COUNTRY_CODE, USER_GEO_REGION, USER_GEO_SUBDIVISION,
 };
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Value};
@@ -104,6 +106,30 @@ pub fn normalize_user_agent(
 
     attributes.insert_if_missing(BROWSER_NAME, || context.name);
     attributes.insert_if_missing(BROWSER_VERSION, || context.version);
+}
+
+/// Normalizes the client address into [`Attributes`].
+///
+/// Infers the client ip from the client information which was provided to Relay, if the SDK
+/// indicates the client ip should be inferred by setting it to `{{auto}}`.
+///
+/// This requires cooperation from SDKs as inferring a client ip only works in non-server
+/// environments, where the user/client device is also the device sending the item.
+pub fn normalize_client_address(attributes: &mut Annotated<Attributes>, client_ip: Option<IpAddr>) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+    let Some(client_ip) = client_ip else {
+        return;
+    };
+
+    let client_address = attributes
+        .get_value(CLIENT_ADDRESS)
+        .and_then(|v| v.as_str());
+
+    if client_address == Some("{{auto}}") {
+        attributes.insert(CLIENT_ADDRESS, client_ip.to_string());
+    }
 }
 
 /// Normalizes the user's geographical information into [`Attributes`].
