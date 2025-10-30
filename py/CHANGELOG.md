@@ -1,6 +1,6 @@
 # Changelog
 
-# Unreleased
+## Unreleased
 
 - Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077))
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
