@@ -91,11 +91,11 @@ impl PartitionedEnvelopeBuffer {
         project_cache_handle: ProjectCacheHandle,
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
-        services: &dyn ServiceSpawn,
+        spawn: &dyn ServiceSpawn,
     ) -> Self {
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
-            let (envelope_buffer, metrics) = EnvelopeBufferService::new(
+            let obserable = EnvelopeBufferService::start(
                 partition_id,
                 config.clone(),
                 memory_stat.clone(),
@@ -105,9 +105,9 @@ impl PartitionedEnvelopeBuffer {
                     envelope_processor: envelope_processor.clone(),
                     outcome_aggregator: outcome_aggregator.clone(),
                 },
+                spawn,
             );
-            let addr = services.start(envelope_buffer);
-            envelope_buffers.push(ObservableEnvelopeBuffer { addr, metrics });
+            envelope_buffers.push(obserable);
         }
 
         Self {
@@ -255,13 +255,34 @@ const DEFAULT_SLEEP: Duration = Duration::from_secs(1);
 
 impl EnvelopeBufferService {
     /// Creates a memory or disk based [`EnvelopeBufferService`], depending on the given config.
-    pub fn new(
+    pub fn start(
         partition_id: u8,
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
-    ) -> (Self, tokio::sync::watch::Receiver<EnvelopeBufferMetrics>) {
+        spawn: &dyn ServiceSpawn,
+    ) -> ObservableEnvelopeBuffer {
+        let (service, metrics) = Self::new(
+            partition_id,
+            config,
+            memory_stat,
+            global_config_rx,
+            services,
+        );
+        ObservableEnvelopeBuffer {
+            addr: spawn.start(service),
+            metrics,
+        }
+    }
+
+    fn new(
+        partition_id: u8,
+        config: Arc<Config>,
+        memory_stat: MemoryStat,
+        global_config_rx: watch::Receiver<global_config::Status>,
+        services: Services,
+    ) -> (Self, watch::Receiver<EnvelopeBufferMetrics>) {
         let (tx, rx) = tokio::sync::watch::channel(EnvelopeBufferMetrics::new());
         (
             Self {
@@ -893,7 +914,7 @@ mod tests {
             project_cache_handle: _project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             global_tx: _global_tx,
-            metrics_rx: mut metrics_rx,
+            mut metrics_rx,
         } = envelope_buffer_service(
             Some(serde_json::json!({
                 "spool": {
@@ -909,14 +930,13 @@ mod tests {
 
         assert_eq!(metrics_rx.borrow().item_count, 0);
 
-        for _ in 0..10 {
+        for i in 0..10 {
             let envelope = new_managed_envelope(false, "foo");
             addr.send(EnvelopeBuffer::Push(envelope));
+            metrics_rx.changed().await.unwrap();
+
+            assert_eq!(metrics_rx.borrow().item_count, i + 1);
         }
-
-        metrics_rx.changed().await.unwrap();
-
-        assert_eq!(metrics_rx.borrow().item_count, 10);
     }
 
     #[tokio::test(start_paused = true)]
