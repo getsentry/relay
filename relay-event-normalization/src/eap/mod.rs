@@ -181,7 +181,10 @@ fn normalize_attribute_names_inner(
     attributes: &mut Annotated<Attributes>,
     attribute_info: fn(&str) -> Option<&'static AttributeInfo>,
 ) {
-    let attributes = attributes.get_or_insert_with(Default::default);
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
     let attribute_names: Vec<_> = attributes.keys().cloned().collect();
 
     for name in attribute_names {
