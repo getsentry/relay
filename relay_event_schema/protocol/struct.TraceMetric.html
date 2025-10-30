@@ -4,7 +4,7 @@
     pub span_id: Annotated&lt;<a class="struct" href="struct.SpanId.html" title="struct relay_event_schema::protocol::SpanId">SpanId</a>&gt;,
     pub name: Annotated&lt;<a class="struct" href="https://doc.rust-lang.org/1.90.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;,
     pub ty: Annotated&lt;<a class="enum" href="enum.MetricType.html" title="enum relay_event_schema::protocol::MetricType">MetricType</a>&gt;,
-    pub unit: Annotated&lt;MetricUnit&gt;,
+    pub unit: Annotated&lt;<a class="enum" href="../../relay_base_schema/metrics/units/enum.MetricUnit.html" title="enum relay_base_schema::metrics::units::MetricUnit">MetricUnit</a>&gt;,
     pub value: Annotated&lt;Value&gt;,
     pub attributes: Annotated&lt;<a class="struct" href="struct.Attributes.html" title="struct relay_event_schema::protocol::Attributes">Attributes</a>&gt;,
     pub other: Object&lt;Value&gt;,
@@ -13,7 +13,7 @@
 </div><span id="structfield.span_id" class="structfield section-header"><a href="#structfield.span_id" class="anchor field">§</a><code>span_id: Annotated&lt;<a class="struct" href="struct.SpanId.html" title="struct relay_event_schema::protocol::SpanId">SpanId</a>&gt;</code></span><div class="docblock"><p>The Span this metric belongs to.</p>
 </div><span id="structfield.name" class="structfield section-header"><a href="#structfield.name" class="anchor field">§</a><code>name: Annotated&lt;<a class="struct" href="https://doc.rust-lang.org/1.90.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code></span><div class="docblock"><p>The metric name.</p>
 </div><span id="structfield.ty" class="structfield section-header"><a href="#structfield.ty" class="anchor field">§</a><code>ty: Annotated&lt;<a class="enum" href="enum.MetricType.html" title="enum relay_event_schema::protocol::MetricType">MetricType</a>&gt;</code></span><div class="docblock"><p>The metric type.</p>
-</div><span id="structfield.unit" class="structfield section-header"><a href="#structfield.unit" class="anchor field">§</a><code>unit: Annotated&lt;MetricUnit&gt;</code></span><div class="docblock"><p>The metric unit.</p>
+</div><span id="structfield.unit" class="structfield section-header"><a href="#structfield.unit" class="anchor field">§</a><code>unit: Annotated&lt;<a class="enum" href="../../relay_base_schema/metrics/units/enum.MetricUnit.html" title="enum relay_base_schema::metrics::units::MetricUnit">MetricUnit</a>&gt;</code></span><div class="docblock"><p>The metric unit.</p>
 </div><span id="structfield.value" class="structfield section-header"><a href="#structfield.value" class="anchor field">§</a><code>value: Annotated&lt;Value&gt;</code></span><div class="docblock"><p>The metric value.</p>
 <p>Should be constrained to a number.</p>
 </div><span id="structfield.attributes" class="structfield section-header"><a href="#structfield.attributes" class="anchor field">§</a><code>attributes: Annotated&lt;<a class="struct" href="struct.Attributes.html" title="struct relay_event_schema::protocol::Attributes">Attributes</a>&gt;</code></span><div class="docblock"><p>Arbitrary attributes on a metric.</p>
