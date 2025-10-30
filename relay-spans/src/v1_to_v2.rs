@@ -78,12 +78,12 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     if let Some(tags) = tags.into_value() {
         for (key, value) in tags {
             if !attributes.contains_key(&key) {
-                attributes.insert_raw(
+                attributes.0.insert(
                     key,
                     value
                         .map_value(|JsonLenientString(s)| AttributeValue::from(s))
                         .and_then(Attribute::from),
-                )
+                );
             }
         }
     }
@@ -96,7 +96,9 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
                 other => Cow::Owned(format!("sentry.{}", other)),
             };
             if !value.is_empty() && !attributes.contains_key(key.as_ref()) {
-                attributes.insert_raw(key.into_owned(), attribute_from_value(value));
+                attributes
+                    .0
+                    .insert(key.into_owned(), attribute_from_value(value));
             }
         }
     }

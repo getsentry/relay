@@ -284,11 +284,11 @@ mod tests {
                 .add_error(MetaError::expected("something in the body"));
 
             let attributes = get_mut!(log.attributes);
-            attributes.insert_raw(
+            attributes.0.insert(
                 "attr_meta".to_owned(),
                 Annotated(None, Meta::from_error(MetaError::expected("meow"))),
             );
-            attributes.insert_raw(
+            attributes.0.insert(
                 "value_meta".to_owned(),
                 Annotated::new(Attribute {
                     value: AttributeValue {

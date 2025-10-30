@@ -107,7 +107,7 @@ pub fn otel_scope_into_attributes(
             .and_then(otel_value_to_attribute)
         {
             let key = format!("resource.{}", attribute.key);
-            attributes.insert_raw(key, Annotated::new(attr));
+            attributes.0.insert(key, Annotated::new(attr));
         }
     }
 
@@ -119,7 +119,7 @@ pub fn otel_scope_into_attributes(
             .and_then(otel_value_to_attribute)
         {
             let key = format!("instrumentation.{}", attribute.key);
-            attributes.insert_raw(key, Annotated::new(attr));
+            attributes.0.insert(key, Annotated::new(attr));
         }
     }
 
