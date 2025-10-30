@@ -14,6 +14,7 @@ use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes};
 use crate::processing::{Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
+use relay_conventions::CLIENT_SAMPLE_RATE;
 
 macro_rules! required {
     ($value:expr) => {{
@@ -56,6 +57,8 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         span_id: metric.span_id.into_value(),
     };
 
+    let client_sample_rate = extract_client_sample_rate(&attrs).unwrap_or(1.0);
+
     let trace_item = TraceItem {
         item_type: TraceItemType::Metric.into(),
         organization_id: ctx.scoping.organization_id.value(),
@@ -67,7 +70,7 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         trace_id: required!(metric.trace_id).to_string(),
         item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
         attributes: attributes(meta, attrs, fields),
-        client_sample_rate: 1.0,
+        client_sample_rate,
         server_sample_rate: 1.0,
     };
 
@@ -99,6 +102,13 @@ fn extract_numeric_value(value: Value) -> Result<f64> {
         Value::U64(v) => Ok(v as f64),
         _ => Err(Error::Invalid(DiscardReason::InvalidTraceMetric)),
     }
+}
+
+fn extract_client_sample_rate(attributes: &Attributes) -> Option<f64> {
+    attributes
+        .get_value(CLIENT_SAMPLE_RATE)
+        .and_then(|value| value.as_f64())
+        .filter(|v| (0.0..=1.0).contains(v))
 }
 
 fn attributes(
@@ -277,5 +287,45 @@ mod tests {
         assert!(attributes.contains_key("sentry.value"));
         assert!(attributes.contains_key("http.method"));
         assert!(attributes.contains_key("http.status_code"));
+    }
+
+    #[test]
+    fn test_extract_client_sample_rate_function() {
+        use relay_event_schema::protocol::{Attribute, AttributeType, AttributeValue};
+        use relay_protocol::Object;
+        use std::collections::BTreeMap;
+
+        let mut attrs_map = BTreeMap::new();
+        let attr = Attribute {
+            value: AttributeValue {
+                ty: Annotated::new(AttributeType::Double),
+                value: Annotated::new(Value::F64(0.5)),
+            },
+            other: Object::new(),
+        };
+        attrs_map.insert("sentry.client_sample_rate".to_owned(), Annotated::new(attr));
+        let attrs = Attributes(attrs_map);
+
+        let sample_rate = extract_client_sample_rate(&attrs);
+        assert_eq!(sample_rate, Some(0.5));
+
+        // Without sample rate attribute
+        let empty_attrs = Attributes(BTreeMap::new());
+        let default_rate = extract_client_sample_rate(&empty_attrs);
+        assert_eq!(default_rate, None);
+
+        // Invalid sample rate
+        let invalid_attrs = Attributes(BTreeMap::from([(
+            "sentry.client_sample_rate".to_owned(),
+            Annotated::new(Attribute {
+                value: AttributeValue {
+                    ty: Annotated::new(AttributeType::Double),
+                    value: Annotated::new(Value::F64(2.0)),
+                },
+                other: Object::new(),
+            }),
+        )]));
+        let invalid_rate = extract_client_sample_rate(&invalid_attrs);
+        assert_eq!(invalid_rate, None);
     }
 }

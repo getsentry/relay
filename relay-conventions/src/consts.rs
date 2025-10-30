@@ -47,6 +47,7 @@ convention_attributes!(
     USER_GEO_REGION => "user.geo.region",
     USER_GEO_SUBDIVISION => "user.geo.subdivision",
     USER_AGENT_ORIGINAL => "user_agent.original",
+    CLIENT_SAMPLE_RATE => "sentry.client_sample_rate",
 );
 
 /// Attributes which are in use by Relay but are not yet defined in the Sentry conventions.

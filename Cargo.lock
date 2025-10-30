@@ -4364,6 +4364,7 @@ dependencies = [
  "relay-cogs",
  "relay-common",
  "relay-config",
+ "relay-conventions",
  "relay-dynamic-config",
  "relay-event-normalization",
  "relay-event-schema",
