@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - release-library/**
+      - test-release-library/** # Used to test the library workflow
 
 env:
   CARGO_TERM_COLOR: always
@@ -40,9 +41,9 @@ jobs:
         with:
           name: artifact-linux-${{ matrix.build-arch }}
           path: py/dist/*
-          if-no-files-found: 'error'
+          if-no-files-found: "error"
           # since this artifact will be merged, compression is not necessary
-          compression-level: '0'
+          compression-level: "0"
 
   macos:
     strategy:
@@ -71,7 +72,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
         with:
-          version: '0.8.2'
+          version: "0.8.2"
           # we just cache the venv-dir directly in action-setup-venv
           enable-cache: false
 
@@ -93,9 +94,9 @@ jobs:
         with:
           name: artifact-macos-${{ matrix.py-platform }}
           path: py/dist/*
-          if-no-files-found: 'error'
+          if-no-files-found: "error"
           # since this artifact will be merged, compression is not necessary
-          compression-level: '0'
+          compression-level: "0"
 
   sdist:
     name: Python sdist
@@ -108,7 +109,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
         with:
-          version: '0.8.2'
+          version: "0.8.2"
           # we just cache the venv-dir directly in action-setup-venv
           enable-cache: false
 
@@ -126,9 +127,9 @@ jobs:
         with:
           name: artifact-sdist
           path: py/dist/*
-          if-no-files-found: 'error'
+          if-no-files-found: "error"
           # since this artifact will be merged, compression is not necessary
-          compression-level: '0'
+          compression-level: "0"
 
   merge:
     name: Create Release Artifact
