@@ -6,7 +6,6 @@ import shutil
 import zipfile
 import tempfile
 import subprocess
-from contextlib import contextmanager
 from setuptools import setup, find_packages
 from distutils.command.sdist import sdist
 
@@ -44,15 +43,6 @@ class CustomSDist(sdist):
         vendor_rust_deps()
         write_version()
         sdist.run(self)
-
-
-@contextmanager
-def ignore_pyproject(*args, **kwargs):
-    shutil.move("pyproject.toml", "pyproject.toml-bkp")
-    try:
-        yield
-    finally:
-        shutil.move("pyproject.toml-bkp", "pyproject.toml")
 
 
 def build_native(spec):
@@ -109,29 +99,28 @@ def build_native(spec):
     )
 
 
-with ignore_pyproject():
-    setup(
-        name="sentry-relay",
-        version=version,
-        packages=find_packages(),
-        author="Sentry",
-        license="FSL-1.0-Apache-2.0",
-        author_email="hello@sentry.io",
-        description="A python library to access sentry relay functionality.",
-        long_description=readme,
-        long_description_content_type="text/markdown",
-        include_package_data=True,
-        package_data={"sentry_relay": ["py.typed", "_lowlevel.pyi"]},
-        zip_safe=False,
-        platforms="any",
-        python_requires=">=3.10",
-        install_requires=["milksnake>=0.1.6"],
-        # Specify transitive dependencies manually that are required for the build because
-        # they are not resolved properly since upgrading to python 3.11 in manylinux.
-        # milksnake -> cffi -> pycparser
-        # milksnake specifies cffi>=1.6.0 as dependency while cffi does not specify a
-        # minimum version for pycparser
-        setup_requires=["milksnake>=0.1.6", "cffi>=1.6.0", "pycparser"],
-        milksnake_tasks=[build_native],
-        cmdclass={"sdist": CustomSDist},  # type: ignore
-    )
+setup(
+    name="sentry-relay",
+    version=version,
+    packages=find_packages(),
+    author="Sentry",
+    license="FSL-1.0-Apache-2.0",
+    author_email="hello@sentry.io",
+    description="A python library to access sentry relay functionality.",
+    long_description=readme,
+    long_description_content_type="text/markdown",
+    include_package_data=True,
+    package_data={"sentry_relay": ["py.typed", "_lowlevel.pyi"]},
+    zip_safe=False,
+    platforms="any",
+    python_requires=">=3.10",
+    install_requires=["milksnake>=0.1.6"],
+    # Specify transitive dependencies manually that are required for the build because
+    # they are not resolved properly since upgrading to python 3.11 in manylinux.
+    # milksnake -> cffi -> pycparser
+    # milksnake specifies cffi>=1.6.0 as dependency while cffi does not specify a
+    # minimum version for pycparser
+    setup_requires=["milksnake>=0.1.6", "cffi>=1.6.0", "pycparser"],
+    milksnake_tasks=[build_native],
+    cmdclass={"sdist": CustomSDist},  # type: ignore
+)
