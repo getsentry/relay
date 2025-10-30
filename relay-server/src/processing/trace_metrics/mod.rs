@@ -60,7 +60,10 @@ impl crate::managed::OutcomeError for Error {
             Self::FilterFeatureFlag => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
-            Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::ProcessingFailed(_) => {
+                relay_log::error!("internal error: trace metric processing failed");
+                Some(Outcome::Invalid(DiscardReason::Internal))
+            }
             Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
