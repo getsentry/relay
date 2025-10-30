@@ -108,7 +108,8 @@ fn extract_client_sample_rate(attributes: &Attributes) -> Option<f64> {
     attributes
         .get_value(CLIENT_SAMPLE_RATE)
         .and_then(|value| value.as_f64())
-        .filter(|v| (0.0..=1.0).contains(v))
+        .filter(|v| v > 0.0)
+        .filter(|v| v <= 1.0)        
 }
 
 fn attributes(
