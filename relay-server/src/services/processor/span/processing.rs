@@ -5,7 +5,7 @@ use std::error::Error;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
 use crate::metrics_extraction::{event, generic};
-use crate::processing::extract_transaction_span;
+use crate::processing::utils::event::extract_transaction_span;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{
     EventMetricsExtracted, ProcessingError, ProcessingExtractedMetrics, SpanGroup, SpansExtracted,

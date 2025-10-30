@@ -52,10 +52,10 @@ use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
-use crate::processing::{
-    EventFullyNormalized, EventMetricsExtracted, Forward as _, Output, Outputs, QuotaRateLimiter,
-    SpansExtracted, event_category, event_type,
+use crate::processing::utils::event::{
+    EventFullyNormalized, EventMetricsExtracted, SpansExtracted, event_category, event_type,
 };
+use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -1496,14 +1496,14 @@ impl EnvelopeProcessorService {
             .envelope()
             .items()
             .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment));
-        processing::finalize_event(
+        processing::utils::event::finalize(
             managed_envelope.envelope().headers(),
             &mut event,
             attachments,
             &mut metrics,
             &self.inner.config,
         )?;
-        event_fully_normalized = processing::normalize_event(
+        event_fully_normalized = processing::utils::event::normalize(
             managed_envelope.envelope().headers(),
             &mut event,
             event_fully_normalized,
@@ -1612,7 +1612,7 @@ impl EnvelopeProcessorService {
             .envelope()
             .items()
             .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment));
-        processing::finalize_event(
+        processing::utils::event::finalize(
             managed_envelope.envelope().headers(),
             &mut event,
             attachments,
@@ -1620,7 +1620,7 @@ impl EnvelopeProcessorService {
             &self.inner.config,
         )?;
 
-        event_fully_normalized = processing::normalize_event(
+        event_fully_normalized = processing::utils::event::normalize(
             managed_envelope.envelope().headers(),
             &mut event,
             event_fully_normalized,

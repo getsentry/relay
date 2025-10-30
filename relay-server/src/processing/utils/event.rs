@@ -55,7 +55,7 @@ pub fn event_type(event: &Annotated<Event>) -> Option<EventType> {
         .map(|event| event.ty.value().copied().unwrap_or_default())
 }
 
-pub fn finalize_event<'a>(
+pub fn finalize<'a>(
     headers: &EnvelopeHeaders,
     event: &mut Annotated<Event>,
     attachments: impl Iterator<Item = &'a Item>,
@@ -177,7 +177,7 @@ pub fn finalize_event<'a>(
 }
 
 /// Performs event normalization and surrounding bookkeeping.
-pub fn normalize_event(
+pub fn normalize(
     headers: &EnvelopeHeaders,
     event: &mut Annotated<Event>,
     mut event_fully_normalized: EventFullyNormalized,
