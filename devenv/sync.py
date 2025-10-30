@@ -53,7 +53,7 @@ def main(context: dict[str, str]) -> int:
             "--frozen",
             "--quiet",
             "--active",
-            "--no-install-workspace",
+            "--inexact",  # don't uninstall sentry_relay
         ),
     )
 
