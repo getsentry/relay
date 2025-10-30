@@ -25,7 +25,7 @@
 <a href=#25 id=25 data-nosnippet>25</a>        <span class="kw">return</span>;
 <a href=#26 id=26 data-nosnippet>26</a>    };
 <a href=#27 id=27 data-nosnippet>27</a>
-<a href=#28 id=28 data-nosnippet>28</a>    <span class="kw">let </span>attributes = attributes.iter_mut().map(|(<span class="kw">_</span>, attr)| attr);
+<a href=#28 id=28 data-nosnippet>28</a>    <span class="kw">let </span>attributes = attributes.<span class="number">0</span>.values_mut();
 <a href=#29 id=29 data-nosnippet>29</a>    <span class="kw">for </span>attribute <span class="kw">in </span>attributes {
 <a href=#30 id=30 data-nosnippet>30</a>        <span class="kw">use </span>AttributeType::<span class="kw-2">*</span>;
 <a href=#31 id=31 data-nosnippet>31</a>
@@ -185,7 +185,7 @@
 <a href=#185 id=185 data-nosnippet>185</a>        <span class="kw">return</span>;
 <a href=#186 id=186 data-nosnippet>186</a>    };
 <a href=#187 id=187 data-nosnippet>187</a>
-<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">let </span>attribute_names: Vec&lt;<span class="kw">_</span>&gt; = attributes.keys().cloned().collect();
+<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">let </span>attribute_names: Vec&lt;<span class="kw">_</span>&gt; = attributes.<span class="number">0</span>.keys().cloned().collect();
 <a href=#189 id=189 data-nosnippet>189</a>
 <a href=#190 id=190 data-nosnippet>190</a>    <span class="kw">for </span>name <span class="kw">in </span>attribute_names {
 <a href=#191 id=191 data-nosnippet>191</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(attribute_info) = attribute_info(<span class="kw-2">&amp;</span>name) <span class="kw">else </span>{
@@ -195,7 +195,7 @@
 <a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">match </span>attribute_info.write_behavior {
 <a href=#196 id=196 data-nosnippet>196</a>            WriteBehavior::CurrentName =&gt; <span class="kw">continue</span>,
 <a href=#197 id=197 data-nosnippet>197</a>            WriteBehavior::NewName(new_name) =&gt; {
-<a href=#198 id=198 data-nosnippet>198</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(old_attribute) = attributes.get_raw_mut(<span class="kw-2">&amp;</span>name) <span class="kw">else </span>{
+<a href=#198 id=198 data-nosnippet>198</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(old_attribute) = attributes.<span class="number">0</span>.get_mut(<span class="kw-2">&amp;</span>name) <span class="kw">else </span>{
 <a href=#199 id=199 data-nosnippet>199</a>                    <span class="kw">continue</span>;
 <a href=#200 id=200 data-nosnippet>200</a>                };
 <a href=#201 id=201 data-nosnippet>201</a>
@@ -205,14 +205,14 @@
 <a href=#205 id=205 data-nosnippet>205</a>                <span class="kw">let </span>new_attribute = std::mem::replace(old_attribute, Annotated(<span class="prelude-val">None</span>, meta));
 <a href=#206 id=206 data-nosnippet>206</a>
 <a href=#207 id=207 data-nosnippet>207</a>                <span class="kw">if </span>!attributes.contains_key(new_name) {
-<a href=#208 id=208 data-nosnippet>208</a>                    attributes.insert_raw(new_name.to_owned(), new_attribute);
+<a href=#208 id=208 data-nosnippet>208</a>                    attributes.<span class="number">0</span>.insert(new_name.to_owned(), new_attribute);
 <a href=#209 id=209 data-nosnippet>209</a>                }
 <a href=#210 id=210 data-nosnippet>210</a>            }
 <a href=#211 id=211 data-nosnippet>211</a>            WriteBehavior::BothNames(new_name) =&gt; {
 <a href=#212 id=212 data-nosnippet>212</a>                <span class="kw">if </span>!attributes.contains_key(new_name)
-<a href=#213 id=213 data-nosnippet>213</a>                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(current_attribute) = attributes.get_raw(<span class="kw-2">&amp;</span>name).cloned()
+<a href=#213 id=213 data-nosnippet>213</a>                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(current_attribute) = attributes.<span class="number">0</span>.get(<span class="kw-2">&amp;</span>name).cloned()
 <a href=#214 id=214 data-nosnippet>214</a>                {
-<a href=#215 id=215 data-nosnippet>215</a>                    attributes.insert_raw(new_name.to_owned(), current_attribute);
+<a href=#215 id=215 data-nosnippet>215</a>                    attributes.<span class="number">0</span>.insert(new_name.to_owned(), current_attribute);
 <a href=#216 id=216 data-nosnippet>216</a>                }
 <a href=#217 id=217 data-nosnippet>217</a>            }
 <a href=#218 id=218 data-nosnippet>218</a>        }
