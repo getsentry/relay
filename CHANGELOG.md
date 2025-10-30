@@ -9,6 +9,7 @@
 - Increase the default size limit for attachments to 200MiB. ([#5310](https://github.com/getsentry/relay/pull/5310))
 - Add `sentry.origin` attribute to OTLP spans. ([#5294](https://github.com/getsentry/relay/pull/5294))
 - Normalize deprecated attribute names according to `sentry-conventions` for logs and V2 spans. ([#5257](https://github.com/getsentry/relay/pull/5257))
+- Allow sample rate per trace metric ([#5317](https://github.com/getsentry/relay/pull/5317))
 
 **Breaking Changes**:
 
