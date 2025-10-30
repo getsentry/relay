@@ -236,24 +236,6 @@ impl Attributes {
         Some(&self.0.get(key)?.value()?.value.value)
     }
 
-    /// Returns the annotated attribute with the given key.
-    pub fn get_raw<Q>(&self, key: &Q) -> Option<&Annotated<Attribute>>
-    where
-        String: Borrow<Q>,
-        Q: Ord + ?Sized,
-    {
-        self.0.get(key)
-    }
-
-    /// Mutably returns the annotated attribute with the given key.
-    pub fn get_raw_mut<Q>(&mut self, key: &Q) -> Option<&mut Annotated<Attribute>>
-    where
-        String: Borrow<Q>,
-        Q: Ord + ?Sized,
-    {
-        self.0.get_mut(key)
-    }
-
     /// Inserts an attribute with the given value into this collection.
     pub fn insert<K: Into<String>, V: Into<AttributeValue>>(&mut self, key: K, value: V) {
         fn inner(slf: &mut Attributes, key: String, value: AttributeValue) {
@@ -261,7 +243,7 @@ impl Attributes {
                 value,
                 other: Default::default(),
             });
-            slf.insert_raw(key, attribute);
+            slf.0.insert(key, attribute);
         }
         let value = value.into();
         if !value.value.is_empty() {
@@ -280,11 +262,6 @@ impl Attributes {
         }
     }
 
-    /// Inserts an annotated attribute into this collection.
-    pub fn insert_raw(&mut self, key: String, attribute: Annotated<Attribute>) {
-        self.0.insert(key, attribute);
-    }
-
     /// Checks whether this collection contains an attribute with the given key.
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
@@ -301,31 +278,6 @@ impl Attributes {
         Q: Ord + ?Sized,
     {
         self.0.remove(key)
-    }
-
-    /// Iterates over this collection's attribute keys and values.
-    pub fn iter(&self) -> std::collections::btree_map::Iter<'_, String, Annotated<Attribute>> {
-        self.0.iter()
-    }
-
-    /// Iterates mutably over this collection's attribute keys and values.
-    pub fn iter_mut(
-        &mut self,
-    ) -> std::collections::btree_map::IterMut<'_, String, Annotated<Attribute>> {
-        self.0.iter_mut()
-    }
-
-    /// Returns an iterator over the keys in this collection.
-    pub fn keys(&self) -> std::collections::btree_map::Keys<'_, String, Annotated<Attribute>> {
-        self.0.keys()
-    }
-
-    /// Provides mutable access to an entry in this collection.
-    pub fn entry(
-        &mut self,
-        key: String,
-    ) -> std::collections::btree_map::Entry<'_, String, Annotated<Attribute>> {
-        self.0.entry(key)
     }
 }
 

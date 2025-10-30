@@ -25,7 +25,7 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
         return;
     };
 
-    let attributes = attributes.iter_mut().map(|(_, attr)| attr);
+    let attributes = attributes.0.values_mut();
     for attribute in attributes {
         use AttributeType::*;
 
@@ -185,7 +185,7 @@ fn normalize_attribute_names_inner(
         return;
     };
 
-    let attribute_names: Vec<_> = attributes.keys().cloned().collect();
+    let attribute_names: Vec<_> = attributes.0.keys().cloned().collect();
 
     for name in attribute_names {
         let Some(attribute_info) = attribute_info(&name) else {
@@ -195,7 +195,7 @@ fn normalize_attribute_names_inner(
         match attribute_info.write_behavior {
             WriteBehavior::CurrentName => continue,
             WriteBehavior::NewName(new_name) => {
-                let Some(old_attribute) = attributes.get_raw_mut(&name) else {
+                let Some(old_attribute) = attributes.0.get_mut(&name) else {
                     continue;
                 };
 
@@ -205,14 +205,14 @@ fn normalize_attribute_names_inner(
                 let new_attribute = std::mem::replace(old_attribute, Annotated(None, meta));
 
                 if !attributes.contains_key(new_name) {
-                    attributes.insert_raw(new_name.to_owned(), new_attribute);
+                    attributes.0.insert(new_name.to_owned(), new_attribute);
                 }
             }
             WriteBehavior::BothNames(new_name) => {
                 if !attributes.contains_key(new_name)
-                    && let Some(current_attribute) = attributes.get_raw(&name).cloned()
+                    && let Some(current_attribute) = attributes.0.get(&name).cloned()
                 {
-                    attributes.insert_raw(new_name.to_owned(), current_attribute);
+                    attributes.0.insert(new_name.to_owned(), current_attribute);
                 }
             }
         }

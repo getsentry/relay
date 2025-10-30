@@ -88,7 +88,7 @@ pub fn otel_to_sentry_span(
         }
 
         if let Some(v) = otel_value_to_attribute(value) {
-            sentry_attributes.insert_raw(key, Annotated::new(v));
+            sentry_attributes.0.insert(key, Annotated::new(v));
         }
     }
 
