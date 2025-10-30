@@ -3,8 +3,8 @@
 use std::error::Error;
 use std::num::NonZeroU8;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::time::Duration;
 
 use ahash::RandomState;
@@ -95,7 +95,7 @@ impl PartitionedEnvelopeBuffer {
     ) -> Self {
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
-            let envelope_buffer = EnvelopeBufferService::new(
+            let (envelope_buffer, metrics) = EnvelopeBufferService::new(
                 partition_id,
                 config.clone(),
                 memory_stat.clone(),
@@ -105,10 +105,9 @@ impl PartitionedEnvelopeBuffer {
                     envelope_processor: envelope_processor.clone(),
                     outcome_aggregator: outcome_aggregator.clone(),
                 },
-            )
-            .start_in(services);
-
-            envelope_buffers.push(envelope_buffer);
+            );
+            let addr = services.start(envelope_buffer);
+            envelope_buffers.push(ObservableEnvelopeBuffer { addr, metrics });
         }
 
         Self {
@@ -166,9 +165,19 @@ impl PartitionedEnvelopeBuffer {
 
 #[derive(Debug)]
 pub struct EnvelopeBufferMetrics {
-    has_capacity: AtomicBool,
-    item_count: AtomicU64,
-    storage_size: AtomicU64,
+    has_capacity: bool,
+    item_count: u64,
+    storage_size: u64,
+}
+
+impl EnvelopeBufferMetrics {
+    fn new() -> Self {
+        Self {
+            has_capacity: true,
+            item_count: 0,
+            storage_size: 0,
+        }
+    }
 }
 
 /// Contains the services [`Addr`] and a watch channel to observe its state.
@@ -180,7 +189,7 @@ pub struct EnvelopeBufferMetrics {
 #[derive(Debug, Clone)]
 pub struct ObservableEnvelopeBuffer {
     addr: Addr<EnvelopeBuffer>,
-    metrics: Arc<EnvelopeBufferMetrics>,
+    metrics: tokio::sync::watch::Receiver<EnvelopeBufferMetrics>,
 }
 
 impl ObservableEnvelopeBuffer {
@@ -204,15 +213,15 @@ impl ObservableEnvelopeBuffer {
 
     /// Returns `true` if the buffer has the capacity to accept more elements.
     pub fn has_capacity(&self) -> bool {
-        self.metrics.has_capacity.load(Ordering::Relaxed)
+        self.metrics.borrow().has_capacity
     }
 
     pub fn item_count(&self) -> u64 {
-        self.metrics.item_count.load(Ordering::Relaxed)
+        self.metrics.borrow().item_count
     }
 
     pub fn storage_size(&self) -> u64 {
-        self.metrics.storage_size.load(Ordering::Relaxed)
+        self.metrics.borrow().storage_size
     }
 }
 
@@ -234,7 +243,7 @@ pub struct EnvelopeBufferService {
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
     services: Services,
-    metrics: Arc<EnvelopeBufferMetrics>,
+    metrics: tokio::sync::watch::Sender<EnvelopeBufferMetrics>,
     sleep: Duration,
 }
 
@@ -252,29 +261,20 @@ impl EnvelopeBufferService {
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
-    ) -> Self {
-        Self {
-            partition_id,
-            config,
-            memory_stat,
-            global_config_rx,
-            services,
-            metrics: Arc::new(EnvelopeBufferMetrics {
-                has_capacity: AtomicBool::new(true),
-                item_count: AtomicU64::new(0),
-                storage_size: AtomicU64::new(0),
-            }),
-            sleep: Duration::ZERO,
-        }
-    }
-
-    /// Returns both the [`Addr`] to this service, and references to spooler metrics.
-    pub fn start_in(self, services: &dyn ServiceSpawn) -> ObservableEnvelopeBuffer {
-        let metrics = self.metrics.clone();
-
-        let addr = services.start(self);
-
-        ObservableEnvelopeBuffer { addr, metrics }
+    ) -> (Self, tokio::sync::watch::Receiver<EnvelopeBufferMetrics>) {
+        let (tx, rx) = tokio::sync::watch::channel(EnvelopeBufferMetrics::new());
+        (
+            Self {
+                partition_id,
+                config,
+                memory_stat,
+                global_config_rx,
+                services,
+                metrics: tx,
+                sleep: Duration::ZERO,
+            },
+            rx,
+        )
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
@@ -555,14 +555,12 @@ impl EnvelopeBufferService {
 
     fn update_observable_state(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
         self.metrics
-            .has_capacity
-            .store(buffer.has_capacity(), Ordering::Relaxed);
-        self.metrics
-            .storage_size
-            .store(buffer.total_size().unwrap_or(0), Ordering::Relaxed);
-        self.metrics
-            .item_count
-            .store(buffer.item_count(), Ordering::Relaxed);
+            .send(EnvelopeBufferMetrics {
+                has_capacity: buffer.has_capacity(),
+                item_count: buffer.item_count(),
+                storage_size: buffer.total_size().unwrap_or(0),
+            })
+            .ok();
     }
 }
 
@@ -706,6 +704,7 @@ mod tests {
         envelope_processor_rx: mpsc::UnboundedReceiver<EnvelopeProcessor>,
         project_cache_handle: ProjectCacheHandle,
         outcome_aggregator_rx: mpsc::UnboundedReceiver<TrackOutcome>,
+        metrics_rx: watch::Receiver<EnvelopeBufferMetrics>,
     }
 
     fn envelope_buffer_service(
@@ -724,7 +723,7 @@ mod tests {
         let project_cache_handle = ProjectCacheHandle::for_test();
         let (envelope_processor, envelope_processor_rx) = Addr::custom();
 
-        let envelope_buffer_service = EnvelopeBufferService::new(
+        let (envelope_buffer_service, metrics_rx) = EnvelopeBufferService::new(
             0,
             config,
             memory_stat,
@@ -742,6 +741,7 @@ mod tests {
             envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx,
+            metrics_rx,
         }
     }
 
@@ -753,12 +753,13 @@ mod tests {
             envelope_processor_rx: _envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
+            metrics_rx,
         } = envelope_buffer_service(None, global_config::Status::Pending);
 
-        service.metrics.has_capacity.store(false, Ordering::Relaxed);
+        service.metrics.send_modify(|x| x.has_capacity = false);
 
-        let ObservableEnvelopeBuffer { metrics, .. } = service.start_in(&TokioServiceSpawn);
-        assert!(!metrics.has_capacity.load(Ordering::Relaxed));
+        let _addr = TokioServiceSpawn.start(service);
+        assert!(!metrics_rx.borrow().has_capacity);
 
         tokio::time::advance(Duration::from_millis(100)).await;
 
@@ -767,7 +768,7 @@ mod tests {
 
         tokio::time::advance(Duration::from_millis(100)).await;
 
-        assert!(metrics.has_capacity.load(Ordering::Relaxed));
+        assert!(metrics_rx.borrow().has_capacity);
     }
 
     #[tokio::test(start_paused = true)]
@@ -892,6 +893,7 @@ mod tests {
             project_cache_handle: _project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             global_tx: _global_tx,
+            metrics_rx: mut metrics_rx,
         } = envelope_buffer_service(
             Some(serde_json::json!({
                 "spool": {
@@ -903,19 +905,18 @@ mod tests {
             global_config::Status::Pending,
         );
 
-        let addr = service.start_in(&TokioServiceSpawn);
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        let addr = TokioServiceSpawn.start(service);
 
-        assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 0);
+        assert_eq!(metrics_rx.borrow().item_count, 0);
 
         for _ in 0..10 {
             let envelope = new_managed_envelope(false, "foo");
-            addr.addr().send(EnvelopeBuffer::Push(envelope));
+            addr.send(EnvelopeBuffer::Push(envelope));
         }
 
-        tokio::time::sleep(Duration::from_millis(1100)).await;
+        metrics_rx.changed().await.unwrap();
 
-        assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 10);
+        assert_eq!(metrics_rx.borrow().item_count, 10);
     }
 
     #[tokio::test(start_paused = true)]
@@ -926,6 +927,7 @@ mod tests {
             project_cache_handle: _project_cache_handle,
             mut outcome_aggregator_rx,
             global_tx: _global_tx,
+            metrics_rx: _metrics_rx,
         } = envelope_buffer_service(
             Some(serde_json::json!({
                 "spool": {
@@ -977,7 +979,7 @@ mod tests {
         // Create two buffer services
         let config = Arc::new(Config::default());
 
-        let buffer1 = EnvelopeBufferService::new(
+        let (buffer1, metrics1) = EnvelopeBufferService::new(
             0,
             config.clone(),
             MemoryStat::default(),
@@ -985,7 +987,7 @@ mod tests {
             services.clone(),
         );
 
-        let buffer2 = EnvelopeBufferService::new(
+        let (buffer2, metrics2) = EnvelopeBufferService::new(
             1,
             config.clone(),
             MemoryStat::default(),
@@ -994,11 +996,20 @@ mod tests {
         );
 
         // Start both services and create partitioned buffer
-        let observable1 = buffer1.start_in(&TokioServiceSpawn);
-        let observable2 = buffer2.start_in(&TokioServiceSpawn);
-
+        let spawn = TokioServiceSpawn;
+        let addr1 = spawn.start(buffer1);
+        let addr2 = spawn.start(buffer2);
         let partitioned = PartitionedEnvelopeBuffer {
-            buffers: Arc::new(vec![observable1, observable2]),
+            buffers: Arc::new(vec![
+                ObservableEnvelopeBuffer {
+                    addr: addr1,
+                    metrics: metrics1,
+                },
+                ObservableEnvelopeBuffer {
+                    addr: addr2,
+                    metrics: metrics2,
+                },
+            ]),
             hasher: PartitionedEnvelopeBuffer::build_hasher(),
         };
 
