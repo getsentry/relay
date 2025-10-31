@@ -261,10 +261,10 @@ jobs:
         with:
           python-version: 3.11.9
           cache-dependency-path: uv.lock
-          install-cmd: uv sync --frozen --active
+          install-cmd: uv sync --frozen --only-dev --active
 
       - name: Build and Install Library
-        run: uv pip install py/
+        run: uv sync --frozen --verbose --active
         env:
           RELAY_DEBUG: 1
 

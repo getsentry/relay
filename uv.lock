@@ -8,6 +8,12 @@ supported-markers = [
     "sys_platform == 'darwin' or sys_platform == 'linux'",
 ]
 
+[manifest]
+members = [
+    "relay",
+    "sentry-relay",
+]
+
 [[package]]
 name = "async-timeout"
 version = "4.0.3"
@@ -551,6 +557,9 @@ wheels = [
 name = "relay"
 version = "0.0.0"
 source = { virtual = "." }
+dependencies = [
+    { name = "sentry-relay", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -588,6 +597,7 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "sentry-relay", editable = "py" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -662,6 +672,17 @@ dependencies = [
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/sentry_protos-0.4.1-py3-none-any.whl", hash = "sha256:b8daa540b3cbe3a68de3b446f90cf9224c1e11fe8c2259e39d79e5836e2cda19" },
 ]
+
+[[package]]
+name = "sentry-relay"
+version = "0.0.0"
+source = { editable = "py" }
+dependencies = [
+    { name = "milksnake", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "milksnake", specifier = ">=0.1.6" }]
 
 [[package]]
 name = "sentry-sdk"
