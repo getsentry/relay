@@ -14,7 +14,10 @@ use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer,
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
-use crate::processing::{Forward, Processor, QuotaRateLimiter, finalize_event, utils};
+use crate::processing::utils::event::{
+    EventFullyNormalized, EventMetricsExtracted, SpansExtracted,
+};
+use crate::processing::{Forward, Processor, QuotaRateLimiter, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::ProcessingExtractedMetrics;
 use crate::statsd::RelayTimers;
@@ -160,20 +163,20 @@ impl Processor for TransactionProcessor {
         transaction_part
             .modify(|w, r| utils::dsc::validate_and_set_dsc(&mut w.headers, &event, &mut ctx));
 
-        finalize_event(
+        utils::event::finalize(
             &transaction_part.headers,
-            transaction_part.attachments.iter(),
             &mut event,
+            transaction_part.attachments.iter(),
             &mut metrics,
             &ctx.config,
         );
 
-        event_fully_normalized = self.normalize_event(
-            managed_envelope,
+        event_fully_normalized = utils::event::normalize(
+            &transaction_part.headers,
             &mut event,
-            project_id,
-            ctx.project_info,
             event_fully_normalized,
+            &ctx,
+            &self.inner.geoip_lookup,
         )?;
 
         let filter_run = event::filter(
@@ -366,30 +369,6 @@ fn transfer_profile_id(event: &mut Annotated<Event>, profile_id: Option<ProfileI
         }
     }
 }
-
-/// New type representing the normalization state of the event.
-#[derive(Copy, Clone)]
-struct EventFullyNormalized(bool);
-
-impl EventFullyNormalized {
-    /// Returns `true` if the event is fully normalized, `false` otherwise.
-    pub fn new(envelope: &Envelope) -> Self {
-        let event_fully_normalized = envelope.meta().request_trust().is_trusted()
-            && envelope
-                .items()
-                .any(|item| item.creates_event() && item.fully_normalized());
-
-        Self(event_fully_normalized)
-    }
-}
-
-/// New type representing whether metrics were extracted from transactions/spans.
-#[derive(Debug, Copy, Clone)]
-struct EventMetricsExtracted(bool);
-
-/// New type representing whether spans were extracted.
-#[derive(Debug, Copy, Clone)]
-struct SpansExtracted(bool);
 
 /// A transaction in its serialized state, as transported in an envelope.
 #[derive(Debug)]
