@@ -5,19 +5,15 @@ use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::{Contexts, Event, TraceContext};
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
-use relay_sampling::config::RuleType;
-use relay_sampling::evaluation::ReservoirEvaluator;
-use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ItemType;
 use crate::managed::TypedEnvelope;
-use crate::processing::Context;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    EventProcessing, Sampling, SpansExtracted, TransactionGroup, event_category,
+    EventProcessing, SpansExtracted, TransactionGroup, event_category,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::{self, SamplingResult};
+use crate::utils::{self};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -179,160 +175,25 @@ pub async fn tag_error_with_sampling_decision<Group: EventProcessing>(
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::sync::Arc;
 
-    use bytes::Bytes;
-    use relay_base_schema::events::EventType;
     use relay_base_schema::project::ProjectKey;
     use relay_cogs::Token;
-    use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
-    use relay_event_schema::protocol::{EventId, LenientString};
+    use relay_event_schema::protocol::EventId;
     use relay_protocol::RuleCondition;
-    use relay_sampling::config::{
-        DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
-    };
-    use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision, SamplingMatch};
+    use relay_sampling::config::{RuleId, RuleType, SamplingRule, SamplingValue};
+    use relay_sampling::evaluation::ReservoirCounters;
+    use relay_sampling::{DynamicSamplingContext, SamplingConfig};
     use relay_system::Addr;
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
     use crate::processing;
-    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, SpanGroup, Submit};
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
     use crate::services::projects::project::ProjectInfo;
-    use crate::testutils::{create_test_processor, new_envelope, state_with_rule_and_condition};
+    use crate::testutils::create_test_processor;
 
     use super::*;
-
-    fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
-        Event {
-            id: Annotated::new(EventId::new()),
-            ty: Annotated::new(event_type),
-            transaction: Annotated::new(transaction.to_owned()),
-            release: Annotated::new(LenientString(release.to_owned())),
-            ..Event::default()
-        }
-    }
-
-    fn dummy_reservoir() -> ReservoirEvaluator<'static> {
-        ReservoirEvaluator::new(ReservoirCounters::default())
-    }
-
-    fn test_dsc() -> DynamicSamplingContext {
-        DynamicSamplingContext {
-            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_owned()),
-            user: Default::default(),
-            replay_id: None,
-            environment: None,
-            transaction: Some("transaction1".into()),
-            sample_rate: Some(0.5),
-            sampled: Some(true),
-            other: BTreeMap::new(),
-        }
-    }
-
-    // Helper to extract the sampling match from SamplingResult if thats the variant.
-    fn get_sampling_match(sampling_result: SamplingResult) -> SamplingMatch {
-        if let SamplingResult::Match(sampling_match) = sampling_result {
-            sampling_match
-        } else {
-            panic!()
-        }
-    }
-
-    #[tokio::test]
-    async fn test_dsc_respects_metrics_extracted() {
-        relay_test::setup();
-        let outcome_aggregator = Addr::dummy();
-
-        let config = Arc::new(
-            Config::from_json_value(serde_json::json!({
-                "processing": {
-                    "enabled": true,
-                    "kafka_config": [],
-                }
-            }))
-            .unwrap(),
-        );
-
-        let get_test_params = |version: Option<u16>| {
-            let event = Event {
-                id: Annotated::new(EventId::new()),
-                ty: Annotated::new(EventType::Transaction),
-                transaction: Annotated::new("testing".to_owned()),
-                ..Event::default()
-            };
-
-            let mut project_info = state_with_rule_and_condition(
-                Some(0.0),
-                RuleType::Transaction,
-                RuleCondition::all(),
-            );
-
-            if let Some(version) = version {
-                project_info.config.transaction_metrics =
-                    ErrorBoundary::Ok(relay_dynamic_config::TransactionMetricsConfig {
-                        version,
-                        ..Default::default()
-                    })
-                    .into();
-            }
-
-            let envelope = new_envelope(false, "foo");
-            let managed_envelope: TypedEnvelope<TransactionGroup> = (
-                ManagedEnvelope::new(envelope, outcome_aggregator.clone()),
-                ProcessingGroup::Transaction,
-            )
-                .try_into()
-                .unwrap();
-
-            let event = Annotated::from(event);
-            (managed_envelope, event, project_info)
-        };
-
-        let reservoir = dummy_reservoir();
-
-        // None represents no TransactionMetricsConfig, DS will not be run
-        let (mut managed_envelope, mut event, project_info) = get_test_params(None);
-        let sampling_result = run(
-            &mut managed_envelope,
-            &mut event,
-            &config,
-            &project_info,
-            None,
-            &reservoir,
-        )
-        .await;
-        assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
-
-        // Current version is 3, so it won't run DS if it's outdated
-        let (mut managed_envelope, mut event, project_info) = get_test_params(Some(2));
-        let sampling_result = run(
-            &mut managed_envelope,
-            &mut event,
-            &config,
-            &project_info,
-            None,
-            &reservoir,
-        )
-        .await;
-        assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
-
-        // Dynamic sampling is run, as the transaction metrics version is up to date.
-        let (mut managed_envelope, mut event, project_info) = get_test_params(Some(3));
-        let sampling_result = run(
-            &mut managed_envelope,
-            &mut event,
-            &config,
-            &project_info,
-            None,
-            &reservoir,
-        )
-        .await;
-        assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
-    }
 
     /// Always sets the processing item type to event.
     async fn process_envelope_with_root_project_state(
@@ -429,6 +290,21 @@ mod tests {
         sampling_project_state
     }
 
+    fn mock_dsc() -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_owned()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: Some(0.5),
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        }
+    }
+
     #[tokio::test]
     async fn test_error_is_tagged_correctly_if_trace_sampling_result_is_some() {
         let event_id = EventId::new();
@@ -437,7 +313,7 @@ mod tests {
             .unwrap();
         let request_meta = RequestMeta::new(dsn);
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-        envelope.set_dsc(test_dsc());
+        envelope.set_dsc(mock_dsc());
         envelope.add_item(mocked_error_item());
 
         // We test with sample rate equal to 100%.

@@ -28,7 +28,6 @@ use relay_metrics::MetricNamespace;
 use relay_protocol::Annotated;
 use relay_protocol::Empty;
 use relay_quotas::DataCategory;
-use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;

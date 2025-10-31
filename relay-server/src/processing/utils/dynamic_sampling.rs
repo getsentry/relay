@@ -2,11 +2,9 @@
 use std::ops::ControlFlow;
 
 use chrono::Utc;
-use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
-use relay_event_schema::protocol::{Contexts, Event, TraceContext};
-use relay_protocol::{Annotated, Empty};
-use relay_quotas::DataCategory;
+use relay_event_schema::protocol::Event;
+use relay_protocol::Annotated;
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
@@ -117,13 +115,9 @@ mod tests {
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };
-    use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision, SamplingMatch};
+    use relay_sampling::evaluation::SamplingMatch;
 
     use super::*;
-
-    fn dummy_reservoir() -> ReservoirEvaluator<'static> {
-        ReservoirEvaluator::new(ReservoirCounters::default())
-    }
 
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
         Event {
