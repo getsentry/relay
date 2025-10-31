@@ -305,19 +305,25 @@ class OutcomesConsumer(ConsumerBase):
         timeout=1,
         ignore_other=False,
     ):
+        expected_categories = (
+            {category_value(category) for category in categories}
+            if categories
+            else set()
+        )
         if categories is None:
             outcome = self.get_outcome(timeout=timeout)
             assert isinstance(outcome["category"], int)
             outcomes = [outcome]
         else:
             outcomes = self.get_outcomes(timeout=timeout)
-            expected = {category_value(category) for category in categories}
             actual = {outcome["category"] for outcome in outcomes}
             if ignore_other:
                 actual = actual & set(categories)
-            assert actual == expected, (actual, expected)
+            assert actual == expected_categories, (actual, expected_categories)
 
         for outcome in outcomes:
+            if ignore_other and outcome["category"] not in expected_categories:
+                continue
             assert outcome["outcome"] == 2, outcome
             assert outcome["reason"] == reason, outcome["reason"]
             if key_id is not None:

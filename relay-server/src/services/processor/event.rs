@@ -1,5 +1,7 @@
 //! Event processor related code.
 
+use std::error::Error;
+
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
@@ -12,7 +14,6 @@ use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
-use std::error::Error;
 
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
@@ -20,7 +21,7 @@ use crate::managed::TypedEnvelope;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent, ProcessingError,
-    SpansExtracted,
+    SpansExtracted, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
@@ -264,23 +265,6 @@ pub fn serialize<Group: EventProcessing>(
     managed_envelope.envelope_mut().add_item(event_item);
 
     Ok(())
-}
-
-/// Checks if the Event includes unprintable fields.
-pub fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
-    fn is_unprintable(value: &&str) -> bool {
-        value.chars().any(|c| {
-            c == '\u{fffd}' // unicode replacement character
-                || (c.is_control() && !c.is_whitespace()) // non-whitespace control characters
-        })
-    }
-    if let Some(event) = event.value() {
-        let env = event.environment.as_str().filter(is_unprintable);
-        let release = event.release.as_str().filter(is_unprintable);
-        env.is_some() || release.is_some()
-    } else {
-        false
-    }
 }
 
 /// Computes and emits metrics for monitoring user feedback (UserReportV2) ingest
@@ -698,40 +682,5 @@ mod tests {
 
         // regression test to ensure we don't fail parsing an empty file
         result.expect("event_from_attachments");
-    }
-
-    #[test]
-    #[cfg(feature = "processing")]
-    fn test_unprintable_fields() {
-        let event = Annotated::new(Event {
-            environment: Annotated::new(String::from(
-                "�9�~YY���)�����9�~YY���)�����9�~YY���)�����9�~YY���)�����",
-            )),
-            ..Default::default()
-        });
-        assert!(has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            release: Annotated::new(
-                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#")
-                    .into(),
-            ),
-            ..Default::default()
-        });
-        assert!(has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            environment: Annotated::new(String::from("production")),
-            ..Default::default()
-        });
-        assert!(!has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            release: Annotated::new(
-                String::from("release with\t some\n normal\r\nwhitespace").into(),
-            ),
-            ..Default::default()
-        });
-        assert!(!has_unprintable_fields(&event));
     }
 }

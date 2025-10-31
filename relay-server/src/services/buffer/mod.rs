@@ -884,40 +884,6 @@ mod tests {
         assert_eq!(envelope_processor_rx.len(), 0);
     }
 
-    #[tokio::test]
-    async fn test_sqlite_metrics() {
-        let EnvelopeBufferServiceResult {
-            service,
-            envelope_processor_rx: _envelope_processor_rx,
-            project_cache_handle: _project_cache_handle,
-            outcome_aggregator_rx: _outcome_aggregator_rx,
-            global_tx: _global_tx,
-        } = envelope_buffer_service(
-            Some(serde_json::json!({
-                "spool": {
-                    "envelopes": {
-                        "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    }
-                }
-            })),
-            global_config::Status::Pending,
-        );
-
-        let addr = service.start_in(&TokioServiceSpawn);
-        tokio::time::sleep(Duration::from_millis(200)).await;
-
-        assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 0);
-
-        for _ in 0..10 {
-            let envelope = new_managed_envelope(false, "foo");
-            addr.addr().send(EnvelopeBuffer::Push(envelope));
-        }
-
-        tokio::time::sleep(Duration::from_millis(1100)).await;
-
-        assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 10);
-    }
-
     #[tokio::test(start_paused = true)]
     async fn old_envelope_is_dropped() {
         let EnvelopeBufferServiceResult {

@@ -51,7 +51,7 @@
 //! ```
 //!
 //! If your machine already has `cbindgen` installed, check the header of
-//! [`include/relay.h`] for the minimum version required. This can be verified by
+//! `include/relay.h` for the minimum version required. This can be verified by
 //! running `cbindgen --version`. It is generally advisable to keep `cbindgen`
 //! updated to its latest version, and always check in cbindgen updates separate
 //! from changes to the public interface.

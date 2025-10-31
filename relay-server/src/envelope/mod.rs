@@ -179,7 +179,7 @@ impl<M> EnvelopeHeaders<M> {
         &self.meta
     }
 
-    /// Returns the envelope's event ID, if any.
+    /// Returns the event ID of the envelope, if any.
     pub fn event_id(&self) -> Option<EventId> {
         self.event_id
     }

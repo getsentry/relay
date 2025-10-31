@@ -243,7 +243,7 @@ impl Attributes {
                 value,
                 other: Default::default(),
             });
-            slf.insert_raw(key, attribute);
+            slf.0.insert(key, attribute);
         }
         let value = value.into();
         if !value.value.is_empty() {
@@ -262,11 +262,6 @@ impl Attributes {
         }
     }
 
-    /// Inserts an annotated attribute into this collection.
-    pub fn insert_raw(&mut self, key: String, attribute: Annotated<Attribute>) {
-        self.0.insert(key, attribute);
-    }
-
     /// Checks whether this collection contains an attribute with the given key.
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
@@ -283,18 +278,6 @@ impl Attributes {
         Q: Ord + ?Sized,
     {
         self.0.remove(key)
-    }
-
-    /// Iterates over this collection's attribute keys and values.
-    pub fn iter(&self) -> std::collections::btree_map::Iter<'_, String, Annotated<Attribute>> {
-        self.0.iter()
-    }
-
-    /// Iterates mutably over this collection's attribute keys and values.
-    pub fn iter_mut(
-        &mut self,
-    ) -> std::collections::btree_map::IterMut<'_, String, Annotated<Attribute>> {
-        self.0.iter_mut()
     }
 }
 

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_dynamic_config::Feature;
 use relay_quotas::{CachedRateLimits, DataCategory, MetricNamespaceScoping, RateLimits};
 use relay_sampling::evaluation::ReservoirCounters;
 
@@ -87,17 +86,11 @@ impl<'a> Project<'a> {
             .compute(envelope.envelope_mut(), &scoping)
             .await?;
 
-        let check_nested_spans = state
-            .as_ref()
-            .is_some_and(|s| s.has_feature(Feature::ExtractSpansFromEvent));
-
         // If we can extract spans from the event, we want to try and count the number of nested
         // spans to correctly emit negative outcomes in case the transaction itself is dropped.
-        if check_nested_spans {
-            relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
-                sync_spans_to_enforcement(&envelope, &mut enforcement);
-            });
-        }
+        relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
+            sync_spans_to_enforcement(&envelope, &mut enforcement);
+        });
 
         enforcement.apply_with_outcomes(&mut envelope);
 
@@ -226,9 +219,6 @@ mod tests {
         let project = create_project(
             &config,
             Some(json!({
-                "features": [
-                    "organizations:indexed-spans-extraction"
-                ],
                 "quotas": [{
                    "id": "foo",
                    "categories": ["transaction"],
