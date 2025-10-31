@@ -105,7 +105,9 @@ jobs:
           python-version: "3.13"
 
       - name: Build sdist
-        run: python setup.py sdist
+        run: |
+          pip install setuptools wheel
+          python setup.py sdist
         working-directory: py
 
       - uses: actions/upload-artifact@v5
