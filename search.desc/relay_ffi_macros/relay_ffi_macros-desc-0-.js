@@ -1,1 +1,0 @@
-searchState.loadedDescShard("relay_ffi_macros", 0, "Macros for <code>relay-ffi</code>.\nCaptures errors and panics in a thread-local on <code>unsafe</code> …")

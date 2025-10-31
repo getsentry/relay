@@ -1,1 +1,0 @@
-searchState.loadedDescShard("relay_otel", 0, "OpenTelemetry to Sentry transformation utilities.\nApplies Otel scopes into Sentry <code>Attributes</code>.\nConverts an OpenTelemetry AnyValue to a Sentry attribute.")
