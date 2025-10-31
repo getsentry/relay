@@ -361,7 +361,7 @@ pub fn filter(
             filter_settings,
             ctx.global_config.filters(),
         )
-        .map_err(|err| ProcessingError::EventFiltered(err))
+        .map_err(ProcessingError::EventFiltered)
     })?;
 
     // Don't extract metrics if relay can't apply generic filters.  A filter
