@@ -106,7 +106,7 @@ jobs:
 
       - name: Build sdist
         run: |
-          pip install setuptools wheel
+          pip install setuptools
           python setup.py sdist
         working-directory: py
 
