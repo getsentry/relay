@@ -53,14 +53,14 @@ use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::utils::event::{
-    EventFullyNormalized, EventMetricsExtracted, SpansExtracted, event_category, event_type,
+    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_category,
+    event_type,
 };
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::event::FiltersStatus;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::upstream::{
@@ -1510,11 +1510,10 @@ impl EnvelopeProcessorService {
             &ctx,
             &self.inner.geoip_lookup,
         )?;
-        let filter_run = event::filter(
-            managed_envelope,
+        let filter_run = processing::utils::event::filter(
+            managed_envelope.envelope().headers(),
             &mut event,
-            ctx.project_info,
-            &self.inner.global_config.current(),
+            &ctx,
         )?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
@@ -1628,11 +1627,10 @@ impl EnvelopeProcessorService {
             &self.inner.geoip_lookup,
         )?;
 
-        let filter_run = event::filter(
-            managed_envelope,
+        let filter_run = processing::utils::event::filter(
+            managed_envelope.envelope().headers(),
             &mut event,
-            ctx.project_info,
-            ctx.global_config,
+            &ctx,
         )?;
 
         // Always run dynamic sampling on processing Relays,

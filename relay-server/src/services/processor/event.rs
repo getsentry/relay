@@ -142,67 +142,6 @@ pub fn extract<Group: EventProcessing>(
     })
 }
 
-/// Status for applying some filters that don't drop the event.
-///
-/// The enum represents either the success of running all filters and keeping
-/// the event, [`FiltersStatus::Ok`], or not running all the filters because
-/// some are unsupported, [`FiltersStatus::Unsupported`].
-///
-/// If there are unsuppported filters, Relay should forward the event upstream
-/// so that a more up-to-date Relay can apply filters appropriately. Actions
-/// that depend on the outcome of event filtering, such as metric extraction,
-/// should be postponed until a filtering decision is made.
-#[must_use]
-pub enum FiltersStatus {
-    /// All filters have been applied and the event should be kept.
-    Ok,
-    /// Some filters are not supported and were not applied.
-    ///
-    /// Relay should forward events upstream for a more up-to-date Relay to apply these filters.
-    /// Supported filters were applied and they don't reject the event.
-    Unsupported,
-}
-
-pub fn filter<Group: EventProcessing>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    event: &mut Annotated<Event>,
-    project_info: &ProjectInfo,
-    global_config: &GlobalConfig,
-) -> Result<FiltersStatus, ProcessingError> {
-    let event = match event.value_mut() {
-        Some(event) => event,
-        // Some events are created by processing relays (e.g. unreal), so they do not yet
-        // exist at this point in non-processing relays.
-        None => return Ok(FiltersStatus::Ok),
-    };
-
-    let client_ip = managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &project_info.config.filter_settings;
-
-    metric!(timer(RelayTimers::EventProcessingFiltering), {
-        relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
-            .map_err(|err| {
-                managed_envelope.reject(Outcome::Filtered(err.clone()));
-                ProcessingError::EventFiltered(err)
-            })
-    })?;
-
-    // Don't extract metrics if relay can't apply generic filters.  A filter
-    // applied in another up-to-date relay in chain may need to drop the event,
-    // and there should not be metrics from dropped events.
-    // In processing relays, always extract metrics to avoid losing them.
-    let supported_generic_filters = global_config.filters.is_ok()
-        && relay_filter::are_generic_filters_supported(
-            global_config.filters().map(|f| f.version),
-            project_info.config.filter_settings.generic.version,
-        );
-    if supported_generic_filters {
-        Ok(FiltersStatus::Ok)
-    } else {
-        Ok(FiltersStatus::Unsupported)
-    }
-}
-
 /// Apply data privacy rules to the event payload.
 ///
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
