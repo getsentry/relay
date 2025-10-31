@@ -1604,9 +1604,9 @@ impl EnvelopeProcessorService {
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
         // Also, we require transaction metrics to be enabled before sampling.
-        let run_dynamic_sampling = matches!(filter_run, FiltersStatus::Ok)
-            || self.inner.config.processing_enabled()
-                && matches!(&ctx.project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
+        let run_dynamic_sampling = (matches!(filter_run, FiltersStatus::Ok)
+            || self.inner.config.processing_enabled())
+            && matches!(&ctx.project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
 
         let sampling_result = match run_dynamic_sampling {
             true => {
