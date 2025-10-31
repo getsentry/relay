@@ -23,6 +23,8 @@ module = [
     "confluent_kafka.*",
     "msgpack.*",
     "pytest_localserver.*",
-    "opentelemetry.*"
+    "opentelemetry.*",
+    "sentry_relay._lowlevel",
+    "_cffi_backend",
 ]
 ignore_missing_imports = true
