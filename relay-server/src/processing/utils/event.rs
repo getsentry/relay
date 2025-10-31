@@ -24,6 +24,7 @@ use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::IpAddr;
 use relay_event_schema::protocol::Span;
 use relay_event_schema::protocol::{Event, Metrics, OtelContext, RelayInfo};
+use relay_filter::FilterStatKey;
 use relay_metrics::MetricNamespace;
 use relay_protocol::Annotated;
 use relay_protocol::Empty;
@@ -343,7 +344,7 @@ pub fn filter(
     headers: &EnvelopeHeaders,
     event: &mut Annotated<Event>,
     ctx: &Context,
-) -> Result<FiltersStatus, ProcessingError> {
+) -> Result<FiltersStatus, FilterStatKey> {
     let event = match event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
@@ -361,7 +362,6 @@ pub fn filter(
             filter_settings,
             ctx.global_config.filters(),
         )
-        .map_err(ProcessingError::EventFiltered)
     })?;
 
     // Don't extract metrics if relay can't apply generic filters.  A filter

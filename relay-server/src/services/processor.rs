@@ -1482,7 +1482,11 @@ impl EnvelopeProcessorService {
             managed_envelope.envelope().headers(),
             &mut event,
             &ctx,
-        )?;
+        )
+        .map_err(|err| {
+            managed_envelope.reject(Outcome::Filtered(err.clone()));
+            ProcessingError::EventFiltered(err)
+        })?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             dynamic_sampling::tag_error_with_sampling_decision(
@@ -1599,7 +1603,11 @@ impl EnvelopeProcessorService {
             managed_envelope.envelope().headers(),
             &mut event,
             &ctx,
-        )?;
+        )
+        .map_err(|err| {
+            managed_envelope.reject(Outcome::Filtered(err.clone()));
+            ProcessingError::EventFiltered(err)
+        })?;
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
