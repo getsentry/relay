@@ -1610,6 +1610,7 @@ impl EnvelopeProcessorService {
 
         let sampling_result = match run_dynamic_sampling {
             true => {
+                #[allow(unused_mut)]
                 let mut reservoir = ReservoirEvaluator::new(Arc::clone(reservoir_counters));
                 #[cfg(feature = "processing")]
                 if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
