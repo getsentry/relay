@@ -24,6 +24,7 @@ use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::IpAddr;
 use relay_event_schema::protocol::Span;
 use relay_event_schema::protocol::{Event, Metrics, OtelContext, RelayInfo};
+use relay_filter::FilterStatKey;
 use relay_metrics::MetricNamespace;
 use relay_protocol::Annotated;
 use relay_protocol::Empty;
@@ -316,6 +317,67 @@ pub fn normalize(
     event_fully_normalized.0 |= full_normalization;
 
     Ok(event_fully_normalized)
+}
+
+/// Status for applying some filters that don't drop the event.
+///
+/// The enum represents either the success of running all filters and keeping
+/// the event, [`FiltersStatus::Ok`], or not running all the filters because
+/// some are unsupported, [`FiltersStatus::Unsupported`].
+///
+/// If there are unsuppported filters, Relay should forward the event upstream
+/// so that a more up-to-date Relay can apply filters appropriately. Actions
+/// that depend on the outcome of event filtering, such as metric extraction,
+/// should be postponed until a filtering decision is made.
+#[must_use]
+pub enum FiltersStatus {
+    /// All filters have been applied and the event should be kept.
+    Ok,
+    /// Some filters are not supported and were not applied.
+    ///
+    /// Relay should forward events upstream for a more up-to-date Relay to apply these filters.
+    /// Supported filters were applied and they don't reject the event.
+    Unsupported,
+}
+
+pub fn filter(
+    headers: &EnvelopeHeaders,
+    event: &mut Annotated<Event>,
+    ctx: &Context,
+) -> Result<FiltersStatus, FilterStatKey> {
+    let event = match event.value_mut() {
+        Some(event) => event,
+        // Some events are created by processing relays (e.g. unreal), so they do not yet
+        // exist at this point in non-processing relays.
+        None => return Ok(FiltersStatus::Ok),
+    };
+
+    let client_ip = headers.meta().client_addr();
+    let filter_settings = &ctx.project_info.config.filter_settings;
+
+    metric!(timer(RelayTimers::EventProcessingFiltering), {
+        relay_filter::should_filter(
+            event,
+            client_ip,
+            filter_settings,
+            ctx.global_config.filters(),
+        )
+    })?;
+
+    // Don't extract metrics if relay can't apply generic filters.  A filter
+    // applied in another up-to-date relay in chain may need to drop the event,
+    // and there should not be metrics from dropped events.
+    // In processing relays, always extract metrics to avoid losing them.
+    let supported_generic_filters = ctx.global_config.filters.is_ok()
+        && relay_filter::are_generic_filters_supported(
+            ctx.global_config.filters().map(|f| f.version),
+            ctx.project_info.config.filter_settings.generic.version,
+        );
+    if supported_generic_filters {
+        Ok(FiltersStatus::Ok)
+    } else {
+        Ok(FiltersStatus::Unsupported)
+    }
 }
 
 /// New type representing the normalization state of the event.

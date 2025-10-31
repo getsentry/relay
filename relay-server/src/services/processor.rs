@@ -53,14 +53,14 @@ use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::utils::event::{
-    EventFullyNormalized, EventMetricsExtracted, SpansExtracted, event_category, event_type,
+    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_category,
+    event_type,
 };
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::event::FiltersStatus;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::upstream::{
@@ -69,7 +69,6 @@ use crate::services::upstream::{
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, CheckLimits, EnvelopeLimiter, SamplingResult};
 use crate::{http, processing};
-use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
@@ -178,28 +177,8 @@ macro_rules! processing_group {
 /// Should be used only with groups which are responsible for processing envelopes with events.
 pub trait EventProcessing {}
 
-/// A trait for processing groups that can be dynamically sampled.
-pub trait Sampling {
-    /// Whether dynamic sampling should run under the given project's conditions.
-    fn supports_sampling(project_info: &ProjectInfo) -> bool;
-
-    /// Whether reservoir sampling applies to this processing group (a.k.a. data type).
-    fn supports_reservoir_sampling() -> bool;
-}
-
 processing_group!(TransactionGroup, Transaction);
 impl EventProcessing for TransactionGroup {}
-
-impl Sampling for TransactionGroup {
-    fn supports_sampling(project_info: &ProjectInfo) -> bool {
-        // For transactions, we require transaction metrics to be enabled before sampling.
-        matches!(&project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled())
-    }
-
-    fn supports_reservoir_sampling() -> bool {
-        true
-    }
-}
 
 processing_group!(ErrorGroup, Error);
 impl EventProcessing for ErrorGroup {}
@@ -212,17 +191,6 @@ processing_group!(CheckInGroup, CheckIn);
 processing_group!(LogGroup, Log, Nel);
 processing_group!(TraceMetricGroup, TraceMetric);
 processing_group!(SpanGroup, Span);
-
-impl Sampling for SpanGroup {
-    fn supports_sampling(project_info: &ProjectInfo) -> bool {
-        // If no metrics could be extracted, do not sample anything.
-        matches!(&project_info.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported())
-    }
-
-    fn supports_reservoir_sampling() -> bool {
-        false
-    }
-}
 
 processing_group!(ProfileChunkGroup, ProfileChunk);
 processing_group!(MetricsGroup, Metrics);
@@ -1510,12 +1478,15 @@ impl EnvelopeProcessorService {
             &ctx,
             &self.inner.geoip_lookup,
         )?;
-        let filter_run = event::filter(
-            managed_envelope,
+        let filter_run = processing::utils::event::filter(
+            managed_envelope.envelope().headers(),
             &mut event,
-            ctx.project_info,
-            &self.inner.global_config.current(),
-        )?;
+            &ctx,
+        )
+        .map_err(|err| {
+            managed_envelope.reject(Outcome::Filtered(err.clone()));
+            ProcessingError::EventFiltered(err)
+        })?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             dynamic_sampling::tag_error_with_sampling_decision(
@@ -1628,32 +1599,36 @@ impl EnvelopeProcessorService {
             &self.inner.geoip_lookup,
         )?;
 
-        let filter_run = event::filter(
-            managed_envelope,
+        let filter_run = processing::utils::event::filter(
+            managed_envelope.envelope().headers(),
             &mut event,
-            ctx.project_info,
-            ctx.global_config,
-        )?;
+            &ctx,
+        )
+        .map_err(|err| {
+            managed_envelope.reject(Outcome::Filtered(err.clone()));
+            ProcessingError::EventFiltered(err)
+        })?;
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
-        let run_dynamic_sampling =
-            matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
-
-        let reservoir = self.new_reservoir_evaluator(
-            managed_envelope.scoping().organization_id,
-            reservoir_counters,
-        );
+        // Also, we require transaction metrics to be enabled before sampling.
+        let run_dynamic_sampling = (matches!(filter_run, FiltersStatus::Ok)
+            || self.inner.config.processing_enabled())
+            && matches!(&ctx.project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
 
         let sampling_result = match run_dynamic_sampling {
             true => {
-                dynamic_sampling::run(
-                    managed_envelope,
+                #[allow(unused_mut)]
+                let mut reservoir = ReservoirEvaluator::new(Arc::clone(reservoir_counters));
+                #[cfg(feature = "processing")]
+                if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
+                    reservoir.set_redis(managed_envelope.scoping().organization_id, quotas_client);
+                }
+                processing::utils::dynamic_sampling::run(
+                    managed_envelope.envelope().headers().dsc(),
                     &mut event,
-                    ctx.config,
-                    ctx.project_info,
-                    ctx.sampling_project_info,
-                    &reservoir,
+                    &ctx,
+                    Some(&reservoir),
                 )
                 .await
             }
@@ -1721,7 +1696,6 @@ impl EnvelopeProcessorService {
         // Unconditionally scrub to make sure PII is removed as early as possible.
         event::scrub(&mut event, ctx.project_info)?;
 
-        // TODO: remove once `relay.drop-transaction-attachments` has graduated.
         attachment::scrub(managed_envelope, ctx.project_info);
 
         if_processing!(self.inner.config, {
@@ -1953,13 +1927,11 @@ impl EnvelopeProcessorService {
     /// Processes standalone spans.
     ///
     /// This function does *not* run for spans extracted from transactions.
-    #[allow(clippy::too_many_arguments)]
     async fn process_standalone_spans(
         &self,
         managed_envelope: &mut TypedEnvelope<SpanGroup>,
         _project_id: ProjectId,
         ctx: processing::Context<'_>,
-        _reservoir_counters: &ReservoirCounters,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
@@ -1967,11 +1939,6 @@ impl EnvelopeProcessorService {
         span::convert_otel_traces_data(managed_envelope);
 
         if_processing!(self.inner.config, {
-            let reservoir = self.new_reservoir_evaluator(
-                managed_envelope.scoping().organization_id,
-                _reservoir_counters,
-            );
-
             span::process(
                 managed_envelope,
                 &mut Annotated::empty(),
@@ -1979,7 +1946,6 @@ impl EnvelopeProcessorService {
                 _project_id,
                 ctx,
                 &self.inner.geoip_lookup,
-                &reservoir,
             )
             .await;
         });
@@ -2105,12 +2071,7 @@ impl EnvelopeProcessorService {
                 self.process_with_processor(&self.inner.processing.spans, managed_envelope, ctx)
                     .await
             }
-            ProcessingGroup::Span => run!(
-                process_standalone_spans,
-                project_id,
-                ctx,
-                reservoir_counters
-            ),
+            ProcessingGroup::Span => run!(process_standalone_spans, project_id, ctx),
             ProcessingGroup::ProfileChunk => {
                 run!(process_profile_chunks, ctx)
             }
@@ -3071,22 +3032,6 @@ impl EnvelopeProcessorService {
                 .fold(FeatureWeights::none(), FeatureWeights::merge),
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
         }
-    }
-
-    fn new_reservoir_evaluator(
-        &self,
-        _organization_id: OrganizationId,
-        reservoir_counters: &ReservoirCounters,
-    ) -> ReservoirEvaluator<'_> {
-        #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
-        let mut reservoir = ReservoirEvaluator::new(Arc::clone(reservoir_counters));
-
-        #[cfg(feature = "processing")]
-        if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
-            reservoir.set_redis(_organization_id, quotas_client);
-        }
-
-        reservoir
     }
 }
 
