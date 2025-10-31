@@ -3,8 +3,8 @@ use std::fmt;
 
 use relay_base_schema::project::ProjectKey;
 
-use crate::MetricNamespace;
 use crate::aggregator::AggregateMetricsError;
+use crate::MetricNamespace;
 use hashbrown::HashMap;
 
 /// Estimates the number of bytes needed to encode the tags.
