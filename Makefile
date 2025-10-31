@@ -1,4 +1,5 @@
 SHELL=/bin/bash
+export RELAY_PYTHON_VERSION := python3
 export RELAY_FEATURES :=
 RELAY_CARGO_ARGS ?= ${CARGO_ARGS}
 
@@ -86,7 +87,7 @@ doc-rust: setup-git ## generate API docs for Rust code
 
 # Style checking
 
-style: style-rust ## check code style
+style: style-rust style-python ## check code style
 .PHONY: style
 
 style-rust: ## check Rust code style
@@ -94,9 +95,13 @@ style-rust: ## check Rust code style
 	cargo +stable fmt --all -- --check
 .PHONY: style-rust
 
+style-python: setup-venv ## check Python code style
+	.venv/bin/black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
+.PHONY: style-python
+
 # Linting
 
-lint: lint-rust lint-python ## run lint on Python and Rust code
+lint: lint-rust lint-python ## runt lint on Python and Rust code
 .PHONY: lint
 
 lint-rust: setup-git ## run lint on Rust code using clippy
@@ -104,9 +109,9 @@ lint-rust: setup-git ## run lint on Rust code using clippy
 	cargo +stable clippy --workspace --all-targets --all-features --no-deps -- -D warnings
 .PHONY: lint-rust
 
-lint-python: ## run lint on Python code using flake8
-	.venv/bin/pre-commit run flake8 -a
-	.venv/bin/pre-commit run mypy -a
+lint-python: setup-venv ## run lint on Python code using flake8
+	.venv/bin/flake8 py tests
+	.venv/bin/mypy py tests
 .PHONY: lint-python
 
 lint-rust-beta: setup-git ## run lint on Rust using clippy and beta toolchain
@@ -125,8 +130,8 @@ format-rust: ## format the Rust code
 	cargo +stable fmt --all
 .PHONY: format-rust
 
-format-python: ## format the Python code
-	.venv/bin/pre-commit run black -a
+format-python: setup-venv ## format the Python code
+	.venv/bin/black py tests scripts --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: format-python
 
 # Development
@@ -138,12 +143,10 @@ init-submodules:
 	@git submodule update --init --recursive
 .PHONY: init-submodules
 
-setup-git: init-submodules ## make sure all git configured and all the submodules are fetched
+setup-git: .git/hooks/pre-commit init-submodules ## make sure all git configured and all the submodules are fetched
 .PHONY: setup-git
 
-setup-venv: uv.lock ## create a Python virtual environment with development requirements installed
-	devenv sync
-	RELAY_DEBUG=1 uv pip install -v -e py
+setup-venv: .venv/bin/python .venv/python-requirements-stamp ## create a Python virtual environment with development requirements installed
 .PHONY: setup-venv
 
 clean-target-dir:
@@ -151,6 +154,27 @@ clean-target-dir:
 		rm -rf target/; \
 	fi
 .PHONY: clean-target-dir
+
+# Dependencies
+
+.venv/bin/python: Makefile
+	rm -rf .venv
+
+	@# --copies is necessary because OS X make checks the mtime of the symlink
+	@# target (/usr/local/bin/python), which is always much older than the
+	@# Makefile, and then proceeds to unconditionally rebuild the venv.
+	$$RELAY_PYTHON_VERSION -m venv --copies .venv
+	.venv/bin/pip install -U pip wheel
+
+.venv/python-requirements-stamp: requirements-dev.txt
+	.venv/bin/pip install -U -r requirements-dev.txt
+	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
+	# Bump the mtime of an empty file.
+	# Make will re-run 'pip install' if the mtime on requirements-dev.txt is higher again.
+	touch .venv/python-requirements-stamp
+
+.git/hooks/pre-commit:
+	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook pre-commit
 
 help: ## this help
 	@ awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-10s\033[0m\t%s\n", $$1, $$2 }' $(MAKEFILE_LIST) | column -s$$'\t' -t
