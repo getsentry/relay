@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
+use relay_conventions::CLIENT_SAMPLE_RATE;
 use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
 use relay_protocol::{Annotated, IntoValue, Value};
 use relay_quotas::Scoping;
@@ -14,7 +15,6 @@ use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes};
 use crate::processing::{Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
-use relay_conventions::CLIENT_SAMPLE_RATE;
 
 macro_rules! required {
     ($value:expr) => {{
@@ -108,8 +108,8 @@ fn extract_client_sample_rate(attributes: &Attributes) -> Option<f64> {
     attributes
         .get_value(CLIENT_SAMPLE_RATE)
         .and_then(|value| value.as_f64())
-        .filter(|v| v > 0.0)
-        .filter(|v| v <= 1.0)        
+        .filter(|v| *v > 0.0)
+        .filter(|v| *v <= 1.0)
 }
 
 fn attributes(
