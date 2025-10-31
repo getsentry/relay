@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - release-library/**
+      - test-release-library/** # For testing the release build
 
 env:
   CARGO_TERM_COLOR: always
@@ -75,7 +76,7 @@ jobs:
 
       - name: Build Wheel
         run: |
-          pip install wheel
+          pip install setuptools wheel
           python setup.py bdist_wheel -p ${{ matrix.py-platform }}
         working-directory: py
         env:
