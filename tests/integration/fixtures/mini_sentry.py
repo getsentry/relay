@@ -1,3 +1,4 @@
+from collections import Counter
 import datetime
 import copy
 import zstandard
@@ -48,6 +49,8 @@ class Sentry(SentryLike):
         self.request_log = []
         self.project_config_simulate_pending = False
         self.project_config_ignore_revision = False
+
+        self.timeout = 5
 
     @property
     def internal_error_dsn(self):
@@ -201,7 +204,7 @@ class Sentry(SentryLike):
         self.global_config["options"][option_name] = value
 
     def get_client_report(self, timeout=None):
-        envelope = self.captured_events.get(timeout=timeout)
+        envelope = self.captured_events.get(timeout=timeout or self.timeout)
         items = envelope.items
         assert len(items) == 1
         item = items[0]
@@ -210,7 +213,7 @@ class Sentry(SentryLike):
         return json.loads(item.payload.bytes)
 
     def get_metrics(self, timeout=None):
-        envelope = self.captured_events.get(timeout=timeout)
+        envelope = self.captured_events.get(timeout=timeout or self.timeout)
         items = envelope.items
         assert len(items) == 1
         item = items[0]
@@ -224,6 +227,36 @@ class Sentry(SentryLike):
                 m["timestamp"],
             ),
         )
+
+    def get_outcomes(self, n, *, timeout=None):
+        outcomes = []
+        for _ in range(n):
+            outcomes.extend(
+                self.captured_outcomes.get(timeout=timeout or self.timeout).get(
+                    "outcomes"
+                )
+            )
+        outcomes.sort(key=lambda x: x["category"])
+        return outcomes
+
+    def get_aggregated_outcomes(self, *, timeout=None):
+        aggregated = Counter()
+        try:
+            while True:
+                outcomes = self.captured_outcomes.get(
+                    timeout=timeout or self.timeout
+                ).get("outcomes")
+                timeout = 0.1  # only wait the first time
+                for outcome in outcomes:
+                    quantity = outcome.pop("quantity")
+                    aggregated[tuple(sorted(outcome.items()))] += quantity
+        except Empty:
+            outcomes = [
+                {**{k: v for (k, v) in fields}, "quantity": quantity}
+                for (fields, quantity) in aggregated.items()
+            ]
+            outcomes.sort(key=lambda x: x["category"])
+            return outcomes
 
 
 def _get_project_id(public_key, project_configs):
@@ -531,5 +564,8 @@ GLOBAL_CONFIG = {
         "maxCustomMeasurements": 10,
     },
     "filters": {"version": 1, "filters": []},
-    "options": {"relay.span-usage-metric": True},
+    "options": {
+        "relay.span-usage-metric": True,
+        "relay.session.processing.rollout": 1.0,
+    },
 }

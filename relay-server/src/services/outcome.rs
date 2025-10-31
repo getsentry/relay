@@ -482,6 +482,9 @@ pub enum DiscardReason {
     /// (Relay) A log that is not valid after normalization.
     InvalidLog,
 
+    /// (Relay) A trace metric that is not valid after normalization.
+    InvalidTraceMetric,
+
     /// (Relay) A span is not valid after normalization.
     InvalidSpan,
 
@@ -496,6 +499,14 @@ pub enum DiscardReason {
 
     /// (Relay) The signature from a trusted Relay was missing but required.
     MissingSignature,
+
+    /// (Relay) The signature from a trusted Relay was missing but required.
+    InvalidCheckIn,
+
+    /// (Relay) The dynamic sampling context is required but missing on the envelope.
+    MissingDynamicSamplingContext,
+    /// (Relay) The dynamic sampling context is invalid or does not match the payload.
+    InvalidDynamicSamplingContext,
 }
 
 impl DiscardReason {
@@ -543,9 +554,13 @@ impl DiscardReason {
             DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
             DiscardReason::Profiling(reason) => reason,
             DiscardReason::InvalidLog => "invalid_log",
+            DiscardReason::InvalidTraceMetric => "invalid_trace_metric",
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
             DiscardReason::TransactionAttachment => "transaction_attachment",
+            DiscardReason::InvalidCheckIn => "invalid_check_in",
+            DiscardReason::MissingDynamicSamplingContext => "missing_dsc",
+            DiscardReason::InvalidDynamicSamplingContext => "invalid_dsc",
         }
     }
 }
@@ -602,16 +617,16 @@ pub enum DiscardItemType {
     CheckIn,
     /// A log for the log product, not internal logs.
     Log,
+    /// A trace metric item.
+    TraceMetric,
     /// A standalone span.
     Span,
-    /// A standalone OpenTelemetry span serialized as JSON.
-    OtelSpan,
-    /// An OTLP TracesData container.
-    OtelTracesData,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
     ProfileChunk,
+    /// An integration item.
+    Integration,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -659,11 +674,11 @@ impl DiscardItemType {
             Self::ReplayVideo => "replay_video",
             Self::CheckIn => "check_in",
             Self::Log => "log",
+            Self::TraceMetric => "trace_metric",
             Self::Span => "span",
-            Self::OtelSpan => "otel_span",
-            Self::OtelTracesData => "otel_traces_data",
             Self::UserReportV2 => "user_report_v2",
             Self::ProfileChunk => "profile_chunk",
+            Self::Integration => "integration",
         }
     }
 }
@@ -691,11 +706,11 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::ReplayVideo => Self::ReplayVideo,
             ItemType::CheckIn => Self::CheckIn,
             ItemType::Log => Self::Log,
+            ItemType::TraceMetric => Self::TraceMetric,
             ItemType::Span => Self::Span,
-            ItemType::OtelSpan => Self::OtelSpan,
-            ItemType::OtelTracesData => Self::OtelTracesData,
             ItemType::UserReportV2 => Self::UserReportV2,
             ItemType::ProfileChunk => Self::ProfileChunk,
+            ItemType::Integration => Self::Integration,
             ItemType::Unknown(_) => Self::Unknown,
         }
     }

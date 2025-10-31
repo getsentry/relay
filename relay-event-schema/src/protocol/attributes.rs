@@ -30,6 +30,11 @@ impl Attribute {
             other: Object::new(),
         }
     }
+
+    /// Returns the string value of this attribute.
+    pub fn into_string(self) -> Option<String> {
+        self.value.value.into_value()?.into_string()
+    }
 }
 
 impl fmt::Debug for Attribute {
@@ -39,6 +44,19 @@ impl fmt::Debug for Attribute {
             .field("type", &self.value.ty)
             .field("other", &self.other)
             .finish()
+    }
+}
+
+impl<T> From<T> for Attribute
+where
+    AttributeValue: From<T>,
+{
+    fn from(value: T) -> Self {
+        let value = value.into();
+        Self {
+            value,
+            other: Default::default(),
+        }
     }
 }
 
@@ -197,7 +215,7 @@ impl Attributes {
         String: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        self.get_attribute(key)?.value.value.value()
+        self.get_annotated_value(key)?.value()
     }
 
     /// Returns the attribute with the given key.
@@ -209,18 +227,27 @@ impl Attributes {
         self.0.get(key)?.value()
     }
 
+    /// Returns the attribute value as annotated.
+    pub fn get_annotated_value<Q>(&self, key: &Q) -> Option<&Annotated<Value>>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        Some(&self.0.get(key)?.value()?.value.value)
+    }
+
     /// Inserts an attribute with the given value into this collection.
-    pub fn insert<V: Into<AttributeValue>>(&mut self, key: String, value: V) {
+    pub fn insert<K: Into<String>, V: Into<AttributeValue>>(&mut self, key: K, value: V) {
         fn inner(slf: &mut Attributes, key: String, value: AttributeValue) {
             let attribute = Annotated::new(Attribute {
                 value,
                 other: Default::default(),
             });
-            slf.insert_raw(key, attribute);
+            slf.0.insert(key, attribute);
         }
         let value = value.into();
         if !value.value.is_empty() {
-            inner(self, key, value);
+            inner(self, key.into(), value);
         }
     }
 
@@ -235,11 +262,6 @@ impl Attributes {
         }
     }
 
-    /// Inserts an annotated attribute into this collection.
-    pub fn insert_raw(&mut self, key: String, attribute: Annotated<Attribute>) {
-        self.0.insert(key, attribute);
-    }
-
     /// Checks whether this collection contains an attribute with the given key.
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
@@ -249,16 +271,13 @@ impl Attributes {
         self.0.contains_key(key)
     }
 
-    /// Iterates over this collection's attribute keys and values.
-    pub fn iter(&self) -> std::collections::btree_map::Iter<'_, String, Annotated<Attribute>> {
-        self.0.iter()
-    }
-
-    /// Iterates mutably over this collection's attribute keys and values.
-    pub fn iter_mut(
-        &mut self,
-    ) -> std::collections::btree_map::IterMut<'_, String, Annotated<Attribute>> {
-        self.0.iter_mut()
+    /// Removes an attribute from this collection.
+    pub fn remove<Q>(&mut self, key: &Q) -> Option<Annotated<Attribute>>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.0.remove(key)
     }
 }
 
@@ -275,6 +294,12 @@ impl IntoIterator for Attributes {
 impl FromIterator<(String, Annotated<Attribute>)> for Attributes {
     fn from_iter<T: IntoIterator<Item = (String, Annotated<Attribute>)>>(iter: T) -> Self {
         Self(Object::from_iter(iter))
+    }
+}
+
+impl<const N: usize> From<[(String, Annotated<Attribute>); N]> for Attributes {
+    fn from(value: [(String, Annotated<Attribute>); N]) -> Self {
+        value.into_iter().collect()
     }
 }
 

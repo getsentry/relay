@@ -105,6 +105,10 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
         "iPhone17,3" => Some(DeviceClass::HIGH),
         "iPhone17,4" => Some(DeviceClass::HIGH),
         "iPhone17,5" => Some(DeviceClass::HIGH),
+        "iPhone18,1" => Some(DeviceClass::HIGH),
+        "iPhone18,2" => Some(DeviceClass::HIGH),
+        "iPhone18,3" => Some(DeviceClass::HIGH),
+        "iPhone18,4" => Some(DeviceClass::HIGH),
 
         // iPads
         "iPad1,1" => Some(DeviceClass::LOW),

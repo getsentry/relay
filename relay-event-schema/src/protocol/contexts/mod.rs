@@ -5,6 +5,7 @@ mod cloud_resource;
 mod device;
 mod flags;
 mod gpu;
+mod memory_info;
 mod monitor;
 mod nel;
 mod os;
@@ -17,7 +18,9 @@ mod reprocessing;
 mod response;
 mod runtime;
 mod spring;
+mod threadpool_info;
 mod trace;
+mod unity;
 mod user_report_v2;
 pub use app::*;
 pub use browser::*;
@@ -25,6 +28,7 @@ pub use chromium_stability_report::*;
 pub use cloud_resource::*;
 pub use device::*;
 pub use gpu::*;
+pub use memory_info::*;
 pub use monitor::*;
 pub use nel::*;
 pub use os::*;
@@ -37,7 +41,9 @@ pub use reprocessing::*;
 pub use response::*;
 pub use runtime::*;
 pub use spring::*;
+pub use threadpool_info::*;
 pub use trace::*;
+pub use unity::*;
 pub use user_report_v2::*;
 
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
@@ -81,6 +87,9 @@ pub enum Context {
     /// Information related to User Report V2. TODO:(jferg): rename to UserFeedbackContext
     #[metastructure(tag = "feedback")]
     UserReportV2(Box<UserReportV2Context>),
+    /// Information related to Memory usage and garbage collection metrics.
+    #[metastructure(tag = "memory_info")]
+    MemoryInfo(Box<MemoryInfoContext>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),
     /// Auxilliary information for reprocessing.
@@ -98,10 +107,15 @@ pub enum Context {
     PerformanceScore(Box<PerformanceScoreContext>),
     /// Spring / Spring Boot information.
     Spring(Box<SpringContext>),
+    /// Thread pool information.
+    #[metastructure(tag = "threadpool_info")]
+    ThreadPoolInfo(Box<ThreadPoolInfoContext>),
     /// OTA Updates information.
     OTAUpdates(Box<OTAUpdatesContext>),
     /// Chromium Stability Report from minidump.
     ChromiumStabilityReport(Box<StabilityReportContext>),
+    /// Unity information.
+    Unity(Box<UnityContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),

@@ -46,8 +46,6 @@ pub fn execute() -> Result<()> {
         }
     } else if let Some(matches) = matches.subcommand_matches("generate-completions") {
         return generate_completions(matches);
-    } else if let Some(matches) = matches.subcommand_matches("healthcheck") {
-        return healthcheck(matches);
     }
 
     // Commands that need a loaded config:
@@ -66,6 +64,8 @@ pub fn execute() -> Result<()> {
         manage_config(&config, matches)
     } else if let Some(matches) = matches.subcommand_matches("credentials") {
         manage_credentials(config, matches)
+    } else if let Some(matches) = matches.subcommand_matches("healthcheck") {
+        healthcheck(&config, matches)
     } else if let Some(matches) = matches.subcommand_matches("run") {
         // override config with run command args
         let arg_config = extract_config_args(matches);

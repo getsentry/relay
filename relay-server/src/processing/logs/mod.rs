@@ -10,6 +10,7 @@ use crate::Envelope;
 use crate::envelope::{
     ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
 };
+use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
 };
@@ -19,6 +20,7 @@ use crate::processing::{
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod filter;
+mod integrations;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
@@ -112,93 +114,78 @@ impl processing::Processor for LogsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::Log))
             .into_vec();
 
-        let work = SerializedLogs { headers, logs };
+        // TODO: there might be a better way to extract an item and its integration type type safe.
+        // So later we don't have a fallible conversion for the integration.
+        //
+        // Maybe a 2 phase thing where we take items, then grab the integration again and debug
+        // assert + return if the impossible happens.
+        let integrations = envelope
+            .envelope_mut()
+            .take_items_by(|item| matches!(item.integration(), Some(Integration::Logs(_))))
+            .into_vec();
+
+        let work = SerializedLogs {
+            headers,
+            logs,
+            integrations,
+        };
         Some(Managed::from_envelope(envelope, work))
     }
 
     async fn process(
         &self,
-        mut logs: Managed<Self::UnitOfWork>,
+        logs: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
-        validate::container(&logs)?;
-
-        if ctx.is_proxy() {
-            // If running in proxy mode, just apply cached rate limits and forward without
-            // processing.
-            //
-            // Static mode needs processing, as users can override project settings manually.
-            self.limiter.enforce_quotas(&mut logs, ctx).await?;
-            return Ok(Output::just(LogOutput::NotProcessed(logs)));
-        }
+        validate::container(&logs).reject(&logs)?;
 
         // Fast filters, which do not need expanded logs.
         filter::feature_flag(ctx).reject(&logs)?;
 
-        let mut logs = process::expand(logs, ctx);
+        let mut logs = process::expand(logs);
         process::normalize(&mut logs);
         filter::filter(&mut logs, ctx);
-        process::scrub(&mut logs, ctx);
 
         self.limiter.enforce_quotas(&mut logs, ctx).await?;
 
-        Ok(Output::just(LogOutput::Processed(logs)))
+        process::scrub(&mut logs, ctx);
+
+        Ok(Output::just(LogOutput(logs)))
     }
 }
 
 /// Output produced by [`LogsProcessor`].
 #[derive(Debug)]
-pub enum LogOutput {
-    NotProcessed(Managed<SerializedLogs>),
-    Processed(Managed<ExpandedLogs>),
-}
+pub struct LogOutput(Managed<ExpandedLogs>);
 
 impl Forward for LogOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        let logs = match self {
-            Self::NotProcessed(logs) => logs,
-            Self::Processed(logs) => logs.try_map(|logs, r| {
-                r.lenient(DataCategory::LogByte);
-                logs.serialize()
-                    .map_err(drop)
-                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
-            })?,
-        };
-
-        Ok(logs.map(|logs, r| {
+    fn serialize_envelope(
+        self,
+        _: processing::ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+        self.0.try_map(|logs, r| {
             r.lenient(DataCategory::LogByte);
             logs.serialize_envelope()
-        }))
+                .map_err(drop)
+                .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+        })
     }
 
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
+        ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let logs = match self {
-            LogOutput::NotProcessed(logs) => {
-                return Err(logs.internal_error(
-                    "logs must be processed before they can be forwarded to the store",
-                ));
-            }
-            LogOutput::Processed(logs) => logs,
-        };
+        let Self(logs) = self;
 
-        let scoping = logs.scoping();
-        let received_at = logs.received_at();
-
-        let (logs, retentions) = logs
-            .split_with_context(|logs| (logs.logs, (logs.retention, logs.downsampled_retention)));
         let ctx = store::Context {
-            scoping,
-            received_at,
-            // Hard-code retentions until we have a per data category retention
-            retention: retentions.0,
-            downsampled_retention: retentions.1,
+            scoping: logs.scoping(),
+            received_at: logs.received_at(),
+            retention: ctx.retention(|r| r.log.as_ref()),
         };
 
-        for log in logs {
+        for log in logs.split(|logs| logs.logs) {
             if let Ok(log) = log.try_map(|log, _| store::convert(log, &ctx)) {
                 s.send(log)
             };
@@ -219,11 +206,14 @@ pub struct SerializedLogs {
     ///
     /// But at this point this has not yet been validated.
     logs: Vec<Item>,
+
+    /// Logs which Relay received from arbitrary integrations.
+    integrations: Vec<Item>,
 }
 
 impl SerializedLogs {
-    fn serialize_envelope(self) -> Box<Envelope> {
-        Envelope::from_parts(self.headers, Items::from_vec(self.logs))
+    fn items(&self) -> impl Iterator<Item = &Item> {
+        self.logs.iter().chain(self.integrations.iter())
     }
 
     /// Returns the total count of all logs contained.
@@ -231,15 +221,14 @@ impl SerializedLogs {
     /// This contains all logical log items, not just envelope items and is safe
     /// to use for rate limiting.
     fn count(&self) -> usize {
-        self.logs
-            .iter()
+        self.items()
             .map(|item| item.item_count().unwrap_or(1) as usize)
             .sum()
     }
 
     /// Returns the sum of bytes of all logs contained.
     fn bytes(&self) -> usize {
-        self.logs.iter().map(|item| item.len()).sum()
+        self.items().map(|item| item.len()).sum()
     }
 }
 
@@ -263,16 +252,6 @@ pub struct ExpandedLogs {
     headers: EnvelopeHeaders,
     /// Expanded and parsed logs.
     logs: ContainerItems<OurLog>,
-
-    // These fields are currently necessary as we don't pass any project config context to the
-    // store serialization. The plan is to get rid of them by giving the serialization context,
-    // including the project info, where these are pulled from: #4878.
-    /// Retention in days.
-    #[cfg(feature = "processing")]
-    retention: Option<u16>,
-    /// Downsampled retention in days.
-    #[cfg(feature = "processing")]
-    downsampled_retention: Option<u16>,
 }
 
 impl Counted for ExpandedLogs {
@@ -288,7 +267,7 @@ impl Counted for ExpandedLogs {
 }
 
 impl ExpandedLogs {
-    fn serialize(self) -> Result<SerializedLogs, ContainerWriteError> {
+    fn serialize_envelope(self) -> Result<Box<Envelope>, ContainerWriteError> {
         let mut logs = Vec::new();
 
         if !self.logs.is_empty() {
@@ -299,10 +278,7 @@ impl ExpandedLogs {
             logs.push(item);
         }
 
-        Ok(SerializedLogs {
-            headers: self.headers,
-            logs,
-        })
+        Ok(Envelope::from_parts(self.headers, Items::from_vec(logs)))
     }
 }
 

@@ -2,25 +2,27 @@
 mod parser;
 
 use std::borrow::Cow;
+use std::sync::LazyLock;
 use std::time::Instant;
 
 use crate::statsd::Timers;
-use once_cell::sync::Lazy;
 use parser::normalize_parsed_queries;
 use regex::Regex;
 
 /// Removes SQL comments starting with "--" or "#".
-static COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n|$)").unwrap());
+static COMMENTS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n|$)").unwrap());
 
 /// Removes MySQL inline comments.
-static INLINE_COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\*(?:.|\n)*?\*/").unwrap());
+static INLINE_COMMENTS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"/\*(?:.|\n)*?\*/").unwrap());
 
 /// Regex with multiple capture groups for SQL tokens we should scrub.
 ///
 /// Slightly modified from
 /// <https://github.com/getsentry/sentry/blob/65fb6fdaa0080b824ab71559ce025a9ec6818b3e/src/sentry/spans/grouping/strategy/base.py#L170>
 /// <https://github.com/getsentry/sentry/blob/17af7efe869007f85c5322e48aa9f80a8515bde4/src/sentry/spans/grouping/strategy/base.py#L163>
-static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+static NORMALIZER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?xi)
         # Capture `SAVEPOINT` savepoints.
@@ -45,7 +47,7 @@ static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// For MySQL, also look for double quoted strings.
-static DOUBLE_QUOTED_STRING_REGEX: Lazy<Regex> = Lazy::new(|| {
+static DOUBLE_QUOTED_STRING_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?xi)
         # Capture double-quoted strings, including the remaining substring if `\'` is found.
@@ -56,22 +58,22 @@ static DOUBLE_QUOTED_STRING_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Removes extra whitespace and newlines.
-static WHITESPACE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\s*\n\s*)|(\s\s+)").unwrap());
+static WHITESPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\s*\n\s*)|(\s\s+)").unwrap());
 
 /// Removes whitespace around parentheses.
-static PARENS: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"((?P<pre>\()\s+)|(\s+(?P<post>\)))").unwrap());
+static PARENS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"((?P<pre>\()\s+)|(\s+(?P<post>\)))").unwrap());
 
-static STRIP_QUOTES: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"["`](?P<entity_name>\w+)($|["`])"#).unwrap());
+static STRIP_QUOTES: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"["`](?P<entity_name>\w+)($|["`])"#).unwrap());
 
 /// Regex to shorten table or column references, e.g. `"table1"."col1"` -> `col1`.
-static COLLAPSE_ENTITIES: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?:\w+\.)+(?P<entity_name>\w+)").unwrap());
+static COLLAPSE_ENTITIES: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:\w+\.)+(?P<entity_name>\w+)").unwrap());
 
 /// Regex to make multiple placeholders collapse into one.
 /// This can be used as a second pass after [`NORMALIZER_REGEX`].
-static COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
+static COLLAPSE_PLACEHOLDERS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?xi)
         (?P<pre>(?:VALUES|IN) \s+\() (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) (?P<post>\s*\)?)
@@ -86,7 +88,7 @@ static COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
 ///   SELECT "a.b" AS a__b, "a.c" AS a__c FROM x -> SELECT .. FROM x
 ///
 /// Assumes that column names have already been normalized.
-static COLLAPSE_COLUMNS: Lazy<Regex> = Lazy::new(|| {
+static COLLAPSE_COLUMNS: LazyLock<Regex> = LazyLock::new(|| {
     let col = r"\w+(\s+AS\s+\w+)?";
     Regex::new(
         format!(
@@ -105,7 +107,8 @@ static COLLAPSE_COLUMNS: Lazy<Regex> = Lazy::new(|| {
 ///
 /// Looks for `?`, `$1` or `%s` identifiers, commonly used identifiers in
 /// Python, Ruby on Rails and PHP platforms.
-static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1|%s").unwrap());
+static ALREADY_NORMALIZED_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"/\?|\$1|%s").unwrap());
 
 /// Normalizes the given SQL-query-like string.
 pub fn scrub_queries(db_system: Option<&str>, string: &str) -> (Option<String>, Mode) {
@@ -245,7 +248,7 @@ mod tests {
         unparameterized_ins_odbc_escape_sequence,
         // See https://learn.microsoft.com/en-us/sql/odbc/reference/appendixes/date-time-and-timestamp-escape-sequences
         "INSERT INTO a VALUES (123, {ts '2023-12-31 23:59:59.123'}, 'foo', N'bar')",
-        "INSERT INTO a VALUES (%s)"
+        "INSERT INTO a (..) VALUES (%s)"
     );
 
     scrub_sql_test!(
@@ -427,7 +430,7 @@ mod tests {
     scrub_sql_test!(
         fetch_cursor,
         "FETCH LAST FROM curs3 INTO x",
-        "FETCH LAST IN %s INTO %s"
+        "FETCH LAST FROM %s INTO %s"
     );
 
     scrub_sql_test!(close_cursor, "CLOSE curs1", "CLOSE %s");
@@ -699,7 +702,7 @@ mod tests {
             ) srpe
             inner join foo on foo.id = foo_id
         ",
-        "SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe JOIN foo ON id = foo_id"
+        "SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe INNER JOIN foo ON id = foo_id"
     );
 
     scrub_sql_test!(
@@ -978,7 +981,7 @@ mod tests {
     scrub_sql_test!(
         fallback_hex,
         r#"SELECT {ts '2023-12-24 23:59'}, 0x123456789AbCdEf"#,
-        "SELECT %s, %s"
+        "SELECT {ts %s}, %s"
     );
 
     scrub_sql_test_with_dialect!(
@@ -997,7 +1000,7 @@ mod tests {
     scrub_sql_test!(
         create_index_hex,
         "CREATE INDEX name_0123456789abcdef0123456789abcdef ON table_0123456789abcdef0123456789abcdef USING gist (geometry)",
-        "CREATE INDEX name_{%s} ON table_{%s} USING gist (geometry)"
+        "CREATE INDEX name_{%s} ON table_{%s} USING GIST (geometry)"
     );
 
     scrub_sql_test!(

@@ -18,6 +18,11 @@ from .fixtures.relay import (  # noqa
     get_relay_binary,
     latest_relay_version,
 )
+from .fixtures.pii import (  # noqa
+    scrubbing_rule,
+    secret_attribute,
+    non_destructive,
+)
 from .fixtures.processing import (  # noqa
     kafka_consumer,
     get_topic_name,
@@ -239,7 +244,8 @@ def json_fixture_provider():
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item):
-    """This handles the extra_failure_checks mark to perform further assertions.
+    """
+    This handles the extra_failure_checks mark to perform further assertions.
 
     The mark can be added e.g. by a fixture that wants to run
     something that can raise pytest.fail.Exception after the test has
@@ -253,6 +259,15 @@ def pytest_runtest_call(item):
     for marker in item.iter_markers("extra_failure_checks"):
         for check_func in marker.kwargs.get("checks", []):
             check_func()
+
+
+def pytest_collection_modifyitems(items):
+    """
+    This hook adds a timeout marker to all tests which do not already have a timeout.
+    """
+    for item in items:
+        if item.get_closest_marker("timeout") is None:
+            item.add_marker(pytest.mark.timeout(60))
 
 
 @pytest.fixture

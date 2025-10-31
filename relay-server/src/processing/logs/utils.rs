@@ -4,7 +4,7 @@ use crate::envelope::WithHeader;
 
 /// Returns the calculated size of a [`OurLog`].
 ///
-/// Unlike [`relay_ourlogs::calculate_size`], this access the already manifested byte size
+/// Unlike [`relay_ourlogs::calculate_size`], this accesses the already manifested byte size
 /// of the log, instead of calculating it.
 ///
 /// When compiled with debug assertion the function asserts the presence of a manifested byte size.

@@ -46,11 +46,6 @@ def timestamps(ts: datetime):
         "sentry.observed_timestamp_nanos": {
             "stringValue": time_within(ts, expect_resolution="ns")
         },
-        "sentry.timestamp_nanos": {
-            "stringValue": time_within_delta(
-                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
-            )
-        },
         "sentry.timestamp_precise": {
             "intValue": time_within_delta(
                 ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
@@ -73,6 +68,9 @@ def test_ourlog_multiple_containers_not_allowed(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
     start = datetime.now(timezone.utc)
@@ -127,16 +125,16 @@ def test_ourlog_multiple_containers_not_allowed(
 @pytest.mark.parametrize(
     "external_mode,expected_byte_size",
     [
-        # 260 here is a billing relevant metric, do not arbitrarily change it,
+        # 296 here is a billing relevant metric, do not arbitrarily change it,
         # this value is supposed to be static and purely based on data received,
         # independent of any normalization.
-        (None, 260),
+        (None, 296),
         # Same applies as above, a proxy Relay does not need to run normalization.
-        ("proxy", 260),
+        ("proxy", 296),
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 454),
+        ("managed", 521),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -156,6 +154,9 @@ def test_ourlog_extraction_with_sentry_logs(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
@@ -194,6 +195,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 "string.attribute": {"value": "some string", "type": "string"},
                 "pii": {"value": "4242 4242 4242 4242", "type": "string"},
                 "sentry.severity_text": {"value": "info", "type": "string"},
+                "http.response_content_length": {"value": 17, "type": "integer"},
                 "unknown_type": {"value": "info", "type": "unknown"},
                 "broken_type": {"value": "info", "type": "not_a_real_type"},
                 "mismatched_type": {"value": "some string", "type": "boolean"},
@@ -226,6 +228,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "projectId": "42",
             "received": time_within_delta(),
             "retentionDays": 30,
+            "downsampledRetentionDays": 390,
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(
                 ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -256,6 +259,8 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "http.response_content_length": {"intValue": "17"},
+                "http.response.body.size": {"intValue": "17"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "string.attribute": {"stringValue": "some string"},
                 "valid_string_with_other": {"stringValue": "test"},
@@ -268,6 +273,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "projectId": "42",
             "received": time_within_delta(),
             "retentionDays": 30,
+            "downsampledRetentionDays": 390,
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(
                 ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -297,46 +303,17 @@ def test_ourlog_extraction_with_sentry_logs(
     ]
 
 
-@pytest.mark.parametrize(
-    "rule_type,test_value,expected_scrubbed",
-    [
-        ("@ip", "127.0.0.1", "[ip]"),
-        ("@email", "test@example.com", "[email]"),
-        ("@creditcard", "4242424242424242", "[creditcard]"),
-        ("@iban", "DE89370400440532013000", "[iban]"),
-        ("@mac", "4a:00:04:10:9b:50", "*****************"),
-        (
-            "@uuid",
-            "ceee0822-ed8f-4622-b2a3-789e73e75cd1",
-            "************************************",
-        ),
-        ("@imei", "356938035643809", "[imei]"),
-        (
-            "@pemkey",
-            "-----BEGIN EC PRIVATE KEY-----\nMIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL\n-----END EC PRIVATE KEY-----",
-            "-----BEGIN EC PRIVATE KEY-----\n[pemkey]\n-----END EC PRIVATE KEY-----",
-        ),
-        (
-            "@urlauth",
-            "https://username:password@example.com/",
-            "https://[auth]@example.com/",
-        ),
-        ("@usssn", "078-05-1120", "***********"),
-        ("@userpath", "/Users/john/Documents", "/Users/[user]/Documents"),
-        ("@password", "my_password_123", ""),
-        ("@bearer", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "Bearer [token]"),
-    ],
-)
 def test_ourlog_extraction_with_string_pii_scrubbing(
     mini_sentry,
     relay,
-    items_consumer,
-    rule_type,
-    test_value,
-    expected_scrubbed,
+    scrubbing_rule,
 ):
+    rule_type, test_value, expected_scrubbed = scrubbing_rule
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
@@ -361,44 +338,56 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get()
+    envelope = mini_sentry.captured_events.get(timeout=5)
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
-    attributes = item["attributes"]
 
-    assert "test_pii" in attributes
-    assert attributes["test_pii"]["value"] == expected_scrubbed
-    assert "_meta" in item
-    meta = item["_meta"]["attributes"]["test_pii"]["value"][""]
-    assert "rem" in meta
+    assert item == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b174",
+        "attributes": {
+            "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": mock.ANY},
+        "_meta": {
+            "attributes": {
+                "test_pii": {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                        }
+                    }
+                }
+            },
+        },
+        "body": "Test log",
+        "level": "info",
+        "timestamp": time_within(ts),
+    }
 
-    # Check that the rule type is mentioned in the metadata
-    rem_info = meta["rem"][0]
-    assert rule_type in rem_info[0]
 
-
-@pytest.mark.parametrize(
-    "attribute_key,attribute_value,expected_value,rule_type",
-    [
-        ("password", "my_password_123", "[Filtered]", "@password:filter"),
-        ("secret_key", "my_secret_key_123", "[Filtered]", "@password:filter"),
-        ("api_key", "my_api_key_123", "[Filtered]", "@password:filter"),
-    ],
-)
 def test_ourlog_extraction_default_pii_scrubbing_attributes(
     mini_sentry,
     relay,
-    items_consumer,
-    attribute_key,
-    attribute_value,
-    expected_value,
-    rule_type,
+    secret_attribute,
 ):
+    attribute_key, attribute_value, expected_value, rule_type = secret_attribute
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
     project_config["config"].setdefault(
         "datascrubbingSettings",
         {
@@ -426,7 +415,7 @@ def test_ourlog_extraction_default_pii_scrubbing_attributes(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get()
+    envelope = mini_sentry.captured_events.get(timeout=5)
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
     attributes = item["attributes"]
@@ -441,6 +430,56 @@ def test_ourlog_extraction_default_pii_scrubbing_attributes(
     assert rem_info[0][0] == rule_type
 
 
+def test_ourlog_default_pii_body(
+    mini_sentry,
+    relay,
+    non_destructive,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    non_destructive.install(project_config)
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": non_destructive.input_message,
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=5)
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    log = item_payload["items"][0]
+
+    assert log == {
+        **(
+            {"_meta": {"body": {"": {"len": mock.ANY, "rem": mock.ANY}}}}
+            if non_destructive.scrubs()
+            else {}
+        ),
+        "attributes": mock.ANY,
+        "body": non_destructive.expected_output,
+        "level": "info",
+        "span_id": "eee19b7ec3c1b174",
+        "timestamp": time_within(ts),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "__header": mock.ANY,
+    }
+
+    if non_destructive.additional_checks:
+        assert non_destructive.additional_checks(log["body"])
+
+
 def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attributes(
     mini_sentry,
     relay_with_processing,
@@ -449,6 +488,10 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
     items_consumer = items_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
@@ -491,49 +534,19 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
     relay.send_envelope(project_id, envelope)
 
     item = items_consumer.get_item()
-    # Some of the following should not be redacted, but currently they are inside the `Attributes` object which
-    # treats every PII field as 'true' (default field), thus it's targetable by rules like '**'.
     assert item == {
         "attributes": {
-            "sentry._meta.fields.attributes.sentry.browser.version": {
-                "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":4}}}}'
-            },
             "sentry._meta.fields.attributes.custom_field": {
                 "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":12}}}}'
             },
-            "sentry.browser.version": {"stringValue": "[REDACTED]"},
-            "sentry._meta.fields.attributes.sentry.observed_timestamp_nanos": {
-                "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":19}}}}'
-            },
+            "sentry.browser.version": {"stringValue": "2.32"},
             "custom_field": {"stringValue": "[REDACTED]"},
-            "sentry.body": {"stringValue": "[REDACTED]"},
-            "sentry._meta.fields.attributes.sentry.browser.name": {
-                "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":15}}}}'
-            },
+            "sentry.body": {"stringValue": "Test log"},
             "sentry.severity_text": {"stringValue": "info"},
-            "sentry.observed_timestamp_nanos": {"stringValue": "[REDACTED]"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
             "sentry.payload_size_bytes": mock.ANY,
-            "sentry.browser.name": {"stringValue": "[REDACTED]"},
-            "sentry._meta.fields.body": {
-                "stringValue": '{"meta":{"":{"rem":[["remove_custom_field","s",0,10]],"len":8}}}'
-            },
-            "sentry.timestamp_nanos": {
-                "stringValue": time_within_delta(
-                    ts,
-                    delta=timedelta(seconds=0),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
-            "sentry.timestamp_precise": {
-                "intValue": time_within_delta(
-                    ts,
-                    delta=timedelta(seconds=0),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
+            "sentry.browser.name": {"stringValue": "Python Requests"},
+            **timestamps(ts),
         },
         "clientSampleRate": 1.0,
         "itemId": mock.ANY,
@@ -542,6 +555,7 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
         "projectId": "42",
         "received": time_within_delta(),
         "retentionDays": 30,
+        "downsampledRetentionDays": 390,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -558,6 +572,10 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     items_consumer = items_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
@@ -599,6 +617,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
         "projectId": "42",
         "received": time_within_delta(),
         "retentionDays": 30,
+        "downsampledRetentionDays": 390,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -616,6 +635,10 @@ def test_ourlog_extraction_is_disabled_without_feature(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
+
     project_config["config"]["features"] = []
 
     envelope = envelope_with_sentry_logs(
@@ -702,6 +725,9 @@ def test_browser_name_version_extraction(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
     relay = relay(relay_with_processing(options=TEST_CONFIG))
     ts = datetime.now(timezone.utc)
 
@@ -734,6 +760,7 @@ def test_browser_name_version_extraction(
         "projectId": "42",
         "received": time_within_delta(),
         "retentionDays": 30,
+        "downsampledRetentionDays": 390,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -798,6 +825,9 @@ def test_filters_are_applied_to_logs(
 ):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 30, "downsampled": 13 * 30},
+    }
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
@@ -842,12 +872,7 @@ def test_filters_are_applied_to_logs(
 
     relay.send_envelope(project_id, envelope, headers=headers)
 
-    outcomes = []
-    for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=5).get("outcomes"))
-    outcomes.sort(key=lambda x: x["category"])
-
-    assert outcomes == [
+    assert mini_sentry.get_outcomes(2) == [
         {
             "category": DataCategory.LOG_ITEM.value,
             "org_id": 1,

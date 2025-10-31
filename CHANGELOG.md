@@ -2,6 +2,77 @@
 
 ## Unreleased
 
+**Features**:
+
+- Only apply non-destructive PII rules to log bodies by default. ([#5272](https://github.com/getsentry/relay/pull/5272))
+- Infer the client ip when set to `{{auto}}` for EAP items. ([#5304](https://github.com/getsentry/relay/pull/5304))
+- Increase the default size limit for attachments to 200MiB. ([#5310](https://github.com/getsentry/relay/pull/5310))
+- Add `sentry.origin` attribute to OTLP spans. ([#5294](https://github.com/getsentry/relay/pull/5294))
+- Normalize deprecated attribute names according to `sentry-conventions` for logs and V2 spans. ([#5257](https://github.com/getsentry/relay/pull/5257))
+
+**Breaking Changes**:
+
+- Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
+
+**Bug Fixes**:
+
+- Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
+- Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
+- Fix potentially missing attachment outcomes when rate limiting. ([#5301](https://github.com/getsentry/relay/pull/5301))
+- Tag spans' count per root metric with the trace root's transaction instead of the local transaction. ([#5281](https://github.com/getsentry/relay/pull/5281))
+- Use `vercel.path` instead of `url.path` for Vercel Log Drain Transform. ([#5274](https://github.com/getsentry/relay/pull/5274))
+- Add Google Storebot to the crawler filter list. ([#5300](https://github.com/getsentry/relay/pull/5300))
+
+**Internal**:
+
+- Switch default allocator from jemalloc to mimalloc. ([#5239](https://github.com/getsentry/relay/pull/5239))
+- Add internal attributes to aid searching trace metrics. ([#5260](https://github.com/getsentry/relay/pull/5260))
+- Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
+- Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5308))
+
+## 25.10.0
+
+**Features**:
+
+- Enables more PII rules for MCP attributes. ([#5219](https://github.com/getsentry/relay/pull/5219)
+- Enables more PII rules for AI attributes. ([#5166](https://github.com/getsentry/relay/pull/5166)
+- Add Memory Info context to event schema. ([#5154](https://github.com/getsentry/relay/pull/5154))
+- Add Thread Pool Info context to event schema. ([#5153](https://github.com/getsentry/relay/pull/5153))
+- Add Unity Info context to event schema. ([#5155](https://github.com/getsentry/relay/pull/5155))
+- Generate `sentry.name` attributes for spans without names. ([#5143](https://github.com/getsentry/relay/pull/5143))
+- Add integration endpoints for OTLP. ([#5176](https://github.com/getsentry/relay/pull/5176))
+- Emit a metric to record keep/drop decisions in Dynamic Sampling. ([#5164](https://github.com/getsentry/relay/pull/5164), [#5204](https://github.com/getsentry/relay/pull/5204))
+- Trim event tag keys & values to 200 chars instead of dropping them. ([#5198](https://github.com/getsentry/relay/pull/5198))
+- Add trace metric protocol. ([#5207](https://github.com/getsentry/relay/pull/5207))
+- Add `sentry.origin` attribute to OTLP logs. ([#5190](https://github.com/getsentry/relay/pull/5190))
+- Add new iPhone 17 devices. ([#5203](https://github.com/getsentry/relay/pull/5203))
+- Upgrade sqlparser and improve SQL parsing for span grouping. ([#5211](https://github.com/getsentry/relay/pull/5211))
+- Maps `unknown_error` span status to `internal_error`. ([#5202](https://github.com/getsentry/relay/pull/5202))
+- Add `otp` and `two[-_]factor` to default scrubbing rules. ([#5250](https://github.com/getsentry/relay/pull/5250))
+- Add event merging logic for Playstation crashes. ([#5228](https://github.com/getsentry/relay/pull/5228))
+- Implement PII scrubbing for V2 spans. ([#5168](https://github.com/getsentry/relay/pull/5168))
+- Add vercel log drain endpoint. ([#5212](https://github.com/getsentry/relay/pull/5212))
+
+**Bug Fixes**:
+
+- Emit monitor outcomes when dropping/rejecting an envelope. ([#5177](https://github.com/getsentry/relay/pull/5177))
+- Apply span name generation to spans extracted from transaction events. ([#5191](https://github.com/getsentry/relay/pull/5191))
+
+**Internal**:
+
+- Update most dependencies to semver compatible versions. ([#5245](https://github.com/getsentry/relay/pull/5245))
+- No longer writes Spans as trace items. ([#5152](https://github.com/getsentry/relay/pull/5152))
+- Removes support for the `otel_span` envelope item type. ([#5238](https://github.com/getsentry/relay/pull/5238))
+- Produce spans to `ingest-spans` by default. ([#5163](https://github.com/getsentry/relay/pull/5163))
+- Add `retentions` to the project configuration and use them for logs. ([#5135](https://github.com/getsentry/relay/pull/5135))
+- Produce Span V2 Kafka messages. ([#5151](https://github.com/getsentry/relay/pull/5151), [#5173](https://github.com/getsentry/relay/pull/5173), [#5199](https://github.com/getsentry/relay/pull/5199), [#5216](https://github.com/getsentry/relay/pull/5216))
+- Extract additional `user.geo.*` attributes on spans. ([#5194](https://github.com/getsentry/relay/pull/5194))
+- Modernize session processing and move to Relay's new processing framework. ([#5201](https://github.com/getsentry/relay/pull/5201))
+- Add TraceMetric data category. ([#5206](https://github.com/getsentry/relay/pull/5206))
+- Match placeholder segments in sentry conventions attributes. ([#5237](https://github.com/getsentry/relay/pull/5237))
+
+## 25.9.0
+
 **Breaking Changes**:
 
 - Removes support for the deprecated and early alpha only otel log item type. ([#5082](https://github.com/getsentry/relay/pull/5082))
@@ -12,6 +83,7 @@
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
 - Add dynamic PII derivation to `metastructure`. ([#5107](https://github.com/getsentry/relay/pull/5107))
 - Detect PII status of attributes based on `sentry-conventions`. ([#5113](https://github.com/getsentry/relay/pull/5113))
+- Add support for an OTLP `/v1/logs` endpoint. This endpoint is gated behind the `organizations:relay-otel-logs-endpoint` feature flag. ([#5130](https://github.com/getsentry/relay/pull/5130))
 
 **Internal**:
 
@@ -24,6 +96,7 @@
 - Add option gating Snuba publishing to ingest-replay-events for Replays. ([#5088](https://github.com/getsentry/relay/pull/5088), [#5115](https://github.com/getsentry/relay/pull/5115))
 - Add gen_ai_cost_total_tokens attribute and double write total tokens cost. ([#5121](https://github.com/getsentry/relay/pull/5121))
 - Change mapping of incoming OTLP spans with `ERROR` status to Sentry's `internal_error` status. ([#5127](https://github.com/getsentry/relay/pull/5127))
+- Change the feature flag for the alpha OTLP trace endpoint from `projects:relay-otel-endpoint` to `organizations:relay-otlp-trace-endpoint`. ([#5133](https://github.com/getsentry/relay/pull/5133))
 - Add `ai_operation_type_map` to global config. ([#5125](https://github.com/getsentry/relay/pull/5125))
 - Infer `gen_ai.operation.type` from `span.op`. ([#5129](https://github.com/getsentry/relay/pull/5129))
 

@@ -1,25 +1,24 @@
-use relay_protocol::{Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Object, Value};
 
 use std::fmt;
-use std::str::FromStr;
 
 use serde::Serialize;
 
 use crate::processor::ProcessValue;
-use crate::protocol::{Attributes, OperationType, SpanId, Timestamp, TraceId};
+use crate::protocol::{Attributes, OperationType, SpanId, SpanKind, Timestamp, TraceId};
 
 /// A version 2 (transactionless) span.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SpanV2 {
     /// The ID of the trace to which this span belongs.
-    #[metastructure(required = true, trim = false)]
+    #[metastructure(required = true, nonempty = true, trim = false)]
     pub trace_id: Annotated<TraceId>,
 
     /// The ID of the span enclosing this span.
     pub parent_span_id: Annotated<SpanId>,
 
     /// The Span ID.
-    #[metastructure(required = true, trim = false)]
+    #[metastructure(required = true, nonempty = true, trim = false)]
     pub span_id: Annotated<SpanId>,
 
     /// Span type (see `OperationType` docs).
@@ -46,7 +45,7 @@ pub struct SpanV2 {
     ///
     /// See <https://opentelemetry.io/docs/specs/otel/trace/api/#spankind>
     #[metastructure(skip_serialization = "empty", trim = false)]
-    pub kind: Annotated<SpanV2Kind>,
+    pub kind: Annotated<SpanKind>,
 
     /// Timestamp when the span started.
     #[metastructure(required = true)]
@@ -162,116 +161,6 @@ impl IntoValue for SpanV2Status {
             SpanV2Status::Other(s) => s,
             _ => self.to_string(),
         })
-    }
-
-    fn serialize_payload<S>(
-        &self,
-        s: S,
-        _behavior: relay_protocol::SkipSerialization,
-    ) -> Result<S::Ok, S::Error>
-    where
-        Self: Sized,
-        S: serde::Serializer,
-    {
-        s.serialize_str(self.as_str())
-    }
-}
-
-/// The kind of a V2 span.
-///
-/// This corresponds to OTEL's kind enum, plus a
-/// catchall variant for forward compatibility.
-#[derive(Clone, Debug, PartialEq, ProcessValue)]
-pub enum SpanV2Kind {
-    /// An operation internal to an application.
-    Internal,
-    /// Server-side processing requested by a client.
-    Server,
-    /// A request from a client to a server.
-    Client,
-    /// Scheduling of an operation.
-    Producer,
-    /// Processing of a scheduled operation.
-    Consumer,
-}
-
-impl SpanV2Kind {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Internal => "internal",
-            Self::Server => "server",
-            Self::Client => "client",
-            Self::Producer => "producer",
-            Self::Consumer => "consumer",
-        }
-    }
-}
-
-impl Empty for SpanV2Kind {
-    fn is_empty(&self) -> bool {
-        false
-    }
-}
-
-impl Default for SpanV2Kind {
-    fn default() -> Self {
-        Self::Internal
-    }
-}
-
-impl fmt::Display for SpanV2Kind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ParseSpanV2KindError;
-
-impl fmt::Display for ParseSpanV2KindError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid span kind")
-    }
-}
-
-impl FromStr for SpanV2Kind {
-    type Err = ParseSpanV2KindError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let kind = match s {
-            "internal" => Self::Internal,
-            "server" => Self::Server,
-            "client" => Self::Client,
-            "producer" => Self::Producer,
-            "consumer" => Self::Consumer,
-            _ => return Err(ParseSpanV2KindError),
-        };
-        Ok(kind)
-    }
-}
-
-impl FromValue for SpanV2Kind {
-    fn from_value(Annotated(value, meta): Annotated<Value>) -> Annotated<Self>
-    where
-        Self: Sized,
-    {
-        match &value {
-            Some(Value::String(s)) => match s.parse() {
-                Ok(kind) => Annotated(Some(kind), meta),
-                Err(_) => Annotated::from_error(Error::expected("a span kind"), value),
-            },
-            Some(_) => Annotated::from_error(Error::expected("a span kind"), value),
-            None => Annotated::empty(),
-        }
-    }
-}
-
-impl IntoValue for SpanV2Kind {
-    fn into_value(self) -> Value
-    where
-        Self: Sized,
-    {
-        Value::String(self.to_string())
     }
 
     fn serialize_payload<S>(
@@ -428,7 +317,7 @@ mod tests {
             span_id: Annotated::new("438f40bd3b4a41ee".parse().unwrap()),
             parent_span_id: Annotated::empty(),
             status: Annotated::new(SpanV2Status::Ok),
-            kind: Annotated::new(SpanV2Kind::Server),
+            kind: Annotated::new(SpanKind::Server),
             is_remote: Annotated::new(true),
             links: Annotated::new(links),
             attributes: Annotated::new(attributes),

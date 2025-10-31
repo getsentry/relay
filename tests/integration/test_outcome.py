@@ -754,7 +754,7 @@ def _get_span_payload():
     "category,outcome_categories",
     [
         ("session", []),
-        ("transaction", ["transaction", "transaction_indexed"]),
+        ("transaction", ["transaction", "transaction_indexed", "span", "span_indexed"]),
         ("user_report_v2", ["user_report_v2"]),
     ],
 )
@@ -868,7 +868,6 @@ def test_outcome_to_client_report(relay, mini_sentry):
         mini_sentry.captured_outcomes.get(timeout=3.2),
     ]
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
-    assert mini_sentry.captured_events.qsize() == 0
 
     outcomes = list(
         itertools.chain.from_iterable(o.get("outcomes") for o in outcomes_batches)
@@ -1037,7 +1036,6 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         mini_sentry.captured_outcomes.get(timeout=1.2),
     ]
     assert mini_sentry.captured_outcomes.qsize() == 0
-    assert mini_sentry.captured_events.qsize() == 0
 
     outcomes = list(
         itertools.chain.from_iterable(o.get("outcomes") for o in outcomes_batches)
@@ -1332,6 +1330,15 @@ def test_profile_outcomes(
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 2,
+            "source": "processing-relay",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
             "outcome": 1,  # Filtered
             "project_id": 42,
             "quantity": 2,
@@ -1408,11 +1415,6 @@ def test_profile_outcomes_invalid(
                 "bucket_interval": 1,
                 "flush_interval": 1,
             },
-            "source": "pop-relay",
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
         },
     }
 
@@ -1442,17 +1444,34 @@ def test_profile_outcomes_invalid(
 
     assert outcomes == [
         {
-            "category": category,
+            "category": DataCategory.PROFILE.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
             "reason": expected_outcome,
-            "source": "pop-relay",
             "timestamp": time_within_delta(),
-        }
-        for category in [DataCategory.PROFILE.value, DataCategory.PROFILE_INDEXED.value]
+        },
+        {
+            "category": DataCategory.PROFILE_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": expected_outcome,
+            "timestamp": time_within_delta(),
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 2,
+            "timestamp": time_within_delta(),
+        },
     ]
 
     # Make sure the profile will not be counted as accepted:
@@ -1490,11 +1509,6 @@ def test_profile_outcomes_too_many(
                 "bucket_interval": 1,
                 "flush_interval": 1,
             },
-            "source": "pop-relay",
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
         },
     }
 
@@ -1529,17 +1543,34 @@ def test_profile_outcomes_too_many(
 
     assert outcomes == [
         {
-            "category": category,
+            "category": DataCategory.PROFILE.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_too_many_profiles",
-            "source": "pop-relay",
             "timestamp": time_within_delta(),
-        }
-        for category in [6, 11]  # Profile, ProfileIndexed
+        },
+        {
+            "category": DataCategory.PROFILE_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiling_too_many_profiles",
+            "timestamp": time_within_delta(),
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 2,
+            "timestamp": time_within_delta(),
+        },
     ]
 
     # One profile was accepted
@@ -1579,12 +1610,8 @@ def test_profile_outcomes_rate_limited(
             "batch_interval": 1,
             "aggregator": {
                 "bucket_interval": 1,
-                "flush_interval": 0,
+                "flush_interval": 1,
             },
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
         },
     }
 
@@ -1612,15 +1639,17 @@ def test_profile_outcomes_rate_limited(
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_categories = [
-        DataCategory.PROFILE,
-        DataCategory.PROFILE_INDEXED,
-    ]  # Profile, ProfileIndexed
+        (DataCategory.PROFILE, 1),
+        (DataCategory.PROFILE_INDEXED, 1),
+    ]
     if quota_category == "transaction":
         # Transaction got rate limited as well:
         expected_categories += [
-            DataCategory.TRANSACTION,
-            DataCategory.TRANSACTION_INDEXED,
-        ]  # Transaction, TransactionIndexed
+            (DataCategory.TRANSACTION, 1),
+            (DataCategory.TRANSACTION_INDEXED, 1),
+            (DataCategory.SPAN, 2),
+            (DataCategory.SPAN_INDEXED, 2),
+        ]
     expected_categories.sort()
 
     expected_outcomes = [
@@ -1630,12 +1659,25 @@ def test_profile_outcomes_rate_limited(
             "org_id": 1,
             "outcome": 2,  # RateLimited
             "project_id": 42,
-            "quantity": 1,
+            "quantity": quantity,
             "reason": "profiles_exceeded",
             "timestamp": time_within_delta(),
         }
-        for category in expected_categories
+        for (category, quantity) in expected_categories
     ]
+
+    if quota_category == "profile":
+        expected_outcomes.append(
+            {
+                "category": DataCategory.SPAN_INDEXED,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 2,
+                "timestamp": time_within_delta(),
+            }
+        )
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1808,12 +1850,6 @@ def test_span_outcomes(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-
-    project_config.setdefault("features", []).extend(
-        [
-            "organizations:indexed-spans-extraction",
-        ]
-    )
     project_config["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }

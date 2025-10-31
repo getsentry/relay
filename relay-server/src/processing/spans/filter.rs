@@ -17,13 +17,10 @@ pub fn feature_flag(ctx: Context<'_>) -> Result<()> {
 
 /// Applies inbound filters to individual spans.
 pub fn filter(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
-    spans.modify(|spans, records| {
-        let meta = spans.headers.meta();
-        spans.spans.retain_mut(|span| {
-            let r = filter_span(span, meta, ctx);
-            records.or_default(r.map(|_| true), &*span)
-        })
-    });
+    spans.retain_with_context(
+        |spans| (&mut spans.spans, spans.headers.meta()),
+        |span, meta, _| filter_span(span, meta, ctx),
+    );
 }
 
 fn filter_span(span: &Annotated<SpanV2>, meta: &RequestMeta, ctx: Context<'_>) -> Result<()> {

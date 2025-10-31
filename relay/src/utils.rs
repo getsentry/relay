@@ -1,12 +1,12 @@
 use std::fmt::Display;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use anyhow::Result;
 use dialoguer::Input;
 use dialoguer::theme::{ColorfulTheme, Theme};
-use once_cell::sync::Lazy;
 
-static THEME: Lazy<ColorfulTheme> = Lazy::new(ColorfulTheme::default);
+static THEME: LazyLock<ColorfulTheme> = LazyLock::new(ColorfulTheme::default);
 
 /// Returns the theme to use.
 pub fn get_theme() -> &'static dyn Theme {

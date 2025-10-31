@@ -38,7 +38,7 @@
 //!  - [`relay-cogs`]: Break down the cost of Relay by its features.
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
-//!  - [`relay-conventions`]: Attribute definitions extracted from [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
+//!  - `relay-conventions`: Attribute definitions extracted from [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
 //!  - [`relay-crash`]: Crash reporting for the Relay server.
 //!  - [`relay-dynamic-config`]: Dynamic configuration passed from Sentry.
 //!  - [`relay-event-derive`]: Derive for visitor traits on the Event schema.
@@ -64,7 +64,6 @@
 //!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-system`]: Foundational system components for Relay's services.
 //!  - [`relay-test`]: Helpers for testing the web server and services.
-//!  - [`relay-threading`]: Threading code that is used by Relay.
 //!  - [`relay-ua`]: User agent parser with built-in rules.
 //!
 //! # Tools
@@ -134,9 +133,8 @@ use std::process;
 
 use relay_log::Hub;
 
-#[cfg(target_os = "linux")]
 #[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 pub fn main() {
     let exit_code = match cli::execute() {

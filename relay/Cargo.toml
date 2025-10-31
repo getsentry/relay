@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "The Relay binary, a proxy server for Sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.8.0"
+version = "25.10.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -24,7 +24,6 @@ clap = { workspace = true, features = ["env", "wrap_help"] }
 clap_complete = { workspace = true }
 dialoguer = { workspace = true }
 hostname = { workspace = true }
-once_cell = { workspace = true }
 relay-config = { workspace = true }
 relay-log = { workspace = true, features = ["init"] }
 relay-server = { workspace = true }
@@ -32,6 +31,4 @@ relay-statsd = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
 uuid = { workspace = true }
 reqwest = { workspace = true, features = ["gzip", "native-tls-vendored"] }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-tikv-jemallocator = { workspace = true, features = ["background_threads"] }
+mimalloc = { workspace = true, features = ["v3", "override", "debug_in_debug"] }

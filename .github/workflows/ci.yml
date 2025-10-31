@@ -35,19 +35,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
+
+      - name: Get changed files
+        id: changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          list-files: json
+          filters: |
+            all:
+              - added|modified: '**/*'
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
 
       - name: Install Rust Toolchain
         run: |
@@ -58,7 +63,35 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - run: make style lint
+      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
+        with:
+          version: '0.8.2'
+          # we just cache the venv-dir directly in action-setup-venv
+          enable-cache: false
+
+      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
+        with:
+          python-version: 3.11.9
+          cache-dependency-path: uv.lock
+          install-cmd: uv sync --frozen --only-dev --active
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pre-commit
+          key: cache-epoch-1|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml', 'uv.lock') }}
+
+      - name: Setup pre-commit
+        run: pre-commit install-hooks
+
+      - name: Run pre-commit
+        run: |
+          jq '.[]' --raw-output <<< '${{steps.changes.outputs.all_files}}' |
+            # Run pre-commit to lint and format check files that were changed (but not deleted)
+            xargs pre-commit run --files
+
+      # running lint-python will unnecessarily go through setup-venv via devenv
+      # we want to take advantage of cached action-setup-venv
+      - run: make style-rust lint-rust
 
       - name: Check Docs
         run: cargo doc --workspace --all-features --no-deps --document-private-items
@@ -75,7 +108,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
 
@@ -125,7 +158,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
 
@@ -179,7 +212,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
 
@@ -207,26 +240,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.10"
-
-      - name: Install Dependencies
-        run: pip install -U pytest
-
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
+      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
+        with:
+          version: '0.8.2'
+          # we just cache the venv-dir directly in action-setup-venv
+          enable-cache: false
+
+      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
+        with:
+          python-version: 3.11.9
+          cache-dependency-path: uv.lock
+          install-cmd: uv sync --frozen --only-dev --active
+
       - name: Build and Install Library
-        run: pip install -v --editable py
+        run: uv sync --frozen --verbose --active
         env:
           RELAY_DEBUG: 1
 
@@ -318,7 +356,7 @@ jobs:
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
 
@@ -346,7 +384,7 @@ jobs:
           cp "${RELAY_BIN}"{,-debug.zip,.src.zip} "artifacts/${DOCKER_PLATFORM}"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           retention-days: 1
           name: ${{ matrix.image_name }}@${{ matrix.target }}
@@ -394,7 +432,7 @@ jobs:
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
 
@@ -432,7 +470,7 @@ jobs:
           done
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           retention-days: 1
           name: internal-${{ matrix.image_name }}@${{ matrix.target }}
@@ -459,7 +497,7 @@ jobs:
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -471,7 +509,7 @@ jobs:
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
+        uses: getsentry/action-build-and-push-images@b172ab61a5f7eabd58bd42ce231b517e79947c01
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -484,7 +522,7 @@ jobs:
 
       - name: Build and publish docker artifact
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
+        uses: getsentry/action-build-and-push-images@b172ab61a5f7eabd58bd42ce231b517e79947c01
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -496,7 +534,7 @@ jobs:
 
       - name: Upload docker image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           retention-days: 1
           name: ${{ matrix.image_name }}-docker-image
@@ -525,7 +563,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -559,7 +597,7 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
+        uses: getsentry/action-build-and-push-images@b172ab61a5f7eabd58bd42ce231b517e79947c01
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -732,7 +770,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
 
@@ -749,9 +787,17 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
-      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
         with:
-          python-version: "3.11"
+          version: '0.8.2'
+          # we just cache the venv-dir directly in action-setup-venv
+          enable-cache: false
+
+      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
+        with:
+          python-version: 3.11.9
+          cache-dependency-path: uv.lock
+          install-cmd: uv sync --frozen --only-dev --active
 
       - run: make test-integration
         env:
@@ -765,6 +811,7 @@ jobs:
     needs: build-docker
     env:
       USE_NEW_DEVSERVICES: 1
+      RELAY_TEST_KEEP_CONTAINER: true
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -772,7 +819,7 @@ jobs:
     steps:
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@v5
+        uses: actions/checkout@v5.0.0
         with:
           repository: getsentry/sentry
           path: sentry
@@ -838,13 +885,22 @@ jobs:
           docker compose logs
 
   validate-devservices-config:
-      runs-on: ubuntu-24.04
-      needs: devservices-files-changed
-      if: needs.devservices-files-changed.outputs.devservices-files-changed == 'true'
-      steps:
-      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.1.7
-        name: Checkout repository
-      - uses: getsentry/action-validate-devservices-config@02a078d1280293e6598cabfbd318a01609c12c83
-        name: Validate devservices config
-        with:
-          requirements-file-path: requirements-dev.txt
+    runs-on: ubuntu-24.04
+    needs: devservices-files-changed
+    if: needs.devservices-files-changed.outputs.devservices-files-changed == 'true'
+    steps:
+    - uses: actions/checkout@v5.0.0
+      name: Checkout repository
+
+    - name: Get devservices version
+      id: get-devservices-version
+      run: |
+        awk -F'"' '
+          /name/ { pkg = $2 }
+          /version/ { if (pkg == "devservices") print "version="$2 }
+        ' uv.lock >> $GITHUB_OUTPUT
+
+    - uses: getsentry/action-validate-devservices-config@711ae7221998ddf81211f25f5e3873ecffd22387
+      name: Validate devservices config
+      with:
+        devservices-version: ${{ steps.get-devservices-version.outputs.version }}

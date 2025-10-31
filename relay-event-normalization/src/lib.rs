@@ -33,7 +33,7 @@ pub use event::{
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use remove_other::RemoveOtherProcessor;
-pub use schema::SchemaProcessor;
+pub use schema::{RequiredMode, SchemaProcessor};
 pub use timestamp::TimestampProcessor;
 pub use transactions::*;
 pub use trimming::TrimmingProcessor;
@@ -49,8 +49,6 @@ pub use sentry_release_parser::{validate_environment, validate_release};
 /// Must be aligned with the `max_chars` field in the metastructure of the
 /// payload's attribute.
 enum MaxChars {
-    TagKey,
-    TagValue,
     Distribution,
     Logger,
 }
@@ -58,8 +56,6 @@ enum MaxChars {
 impl MaxChars {
     pub fn limit(self) -> usize {
         match self {
-            Self::TagKey => 200,
-            Self::TagValue => 200,
             Self::Distribution => 64,
             Self::Logger => 64,
         }

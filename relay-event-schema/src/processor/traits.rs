@@ -110,6 +110,7 @@ pub trait Processor: Sized {
     process_method!(process_template_info, crate::protocol::TemplateInfo);
     process_method!(process_header_name, crate::protocol::HeaderName);
     process_method!(process_ourlog, crate::protocol::OurLog);
+    process_method!(process_trace_metric, crate::protocol::TraceMetric);
     process_method!(process_span, crate::protocol::Span);
     process_method!(process_trace_context, crate::protocol::TraceContext);
     process_method!(process_native_image_path, crate::protocol::NativeImagePath);
@@ -141,7 +142,7 @@ pub trait Processor: Sized {
 pub use enumset::{EnumSet, enum_set};
 
 /// A recursively processable value.
-pub trait ProcessValue: FromValue + IntoValue + Debug + Clone {
+pub trait ProcessValue: FromValue + IntoValue + Debug + Clone + std::fmt::Debug {
     /// Returns the type of the value.
     #[inline]
     fn value_type(&self) -> EnumSet<ValueType> {

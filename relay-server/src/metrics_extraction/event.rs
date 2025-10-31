@@ -9,9 +9,8 @@ use relay_quotas::DataCategory;
 use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::generic::{self, Extractable};
-use crate::metrics_extraction::transactions;
 use crate::metrics_extraction::transactions::ExtractedMetrics;
-use crate::services::processor::extract_transaction_span;
+use crate::processing::utils::event::extract_transaction_span;
 use crate::statsd::RelayTimers;
 
 impl Extractable for Event {
@@ -43,6 +42,17 @@ impl Extractable for Span {
     }
 }
 
+/// Configuration for [`extract_metrics`].
+#[derive(Debug, Copy, Clone)]
+pub struct ExtractMetricsConfig<'a> {
+    pub config: CombinedMetricExtractionConfig<'a>,
+    pub sampling_decision: SamplingDecision,
+    pub target_project_id: ProjectId,
+    pub max_tag_value_size: usize,
+    pub extract_spans: bool,
+    pub transaction_from_dsc: Option<&'a str>,
+}
+
 /// Extracts metrics from an [`Event`].
 ///
 /// The event must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
@@ -50,28 +60,14 @@ impl Extractable for Span {
 /// valid timestamps.
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
-pub fn extract_metrics(
-    event: &mut Event,
-    config: CombinedMetricExtractionConfig<'_>,
-    sampling_decision: SamplingDecision,
-    target_project_id: ProjectId,
-    max_tag_value_size: usize,
-    extract_spans: bool,
-) -> ExtractedMetrics {
+pub fn extract_metrics(event: &mut Event, config: ExtractMetricsConfig) -> ExtractedMetrics {
     let mut metrics = ExtractedMetrics {
-        project_metrics: generic::extract_metrics(event, config),
+        project_metrics: generic::extract_metrics(event, config.config),
         sampling_metrics: Vec::new(),
     };
 
-    if extract_spans {
-        extract_span_metrics_for_event(
-            event,
-            config,
-            sampling_decision,
-            target_project_id,
-            max_tag_value_size,
-            &mut metrics,
-        );
+    if config.extract_spans {
+        extract_span_metrics_for_event(event, config, &mut metrics);
     }
 
     metrics
@@ -79,17 +75,16 @@ pub fn extract_metrics(
 
 fn extract_span_metrics_for_event(
     event: &mut Event,
-    config: CombinedMetricExtractionConfig<'_>,
-    sampling_decision: SamplingDecision,
-    target_project_id: ProjectId,
-    max_tag_value_size: usize,
+    config: ExtractMetricsConfig<'_>,
     output: &mut ExtractedMetrics,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         let mut span_count = 0;
 
-        if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size, &[]) {
-            let metrics = generic::extract_metrics(&transaction_span, config);
+        if let Some(transaction_span) =
+            extract_transaction_span(event, config.max_tag_value_size, &[])
+        {
+            let metrics = generic::extract_metrics(&transaction_span, config.config);
             output.project_metrics.extend(metrics);
             span_count += 1;
         }
@@ -97,7 +92,7 @@ fn extract_span_metrics_for_event(
         if let Some(spans) = event.spans.value_mut() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value_mut() {
-                    let metrics = generic::extract_metrics(span, config);
+                    let metrics = generic::extract_metrics(span, config.config);
                     output.project_metrics.extend(metrics);
                     span_count += 1;
                 }
@@ -107,13 +102,12 @@ fn extract_span_metrics_for_event(
         // We unconditionally run metric extraction for spans. The count per root, is technically
         // only required for configurations which do have dynamic sampling enabled. But for the
         // sake of simplicity we always add it here.
-        let transaction = transactions::get_transaction_name(event);
         let bucket = create_span_root_counter(
             event,
-            transaction,
+            config.transaction_from_dsc.map(|tx| tx.to_owned()),
             span_count,
-            sampling_decision,
-            target_project_id,
+            config.sampling_decision,
+            config.target_project_id,
         );
         output.sampling_metrics.extend(bucket);
     });
@@ -1266,11 +1260,14 @@ mod tests {
 
         extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            combined_config(features, None).combined(),
-            SamplingDecision::Keep,
-            ProjectId::new(4711),
-            200,
-            true,
+            ExtractMetricsConfig {
+                config: combined_config(features, None).combined(),
+                sampling_decision: SamplingDecision::Keep,
+                target_project_id: ProjectId::new(4711),
+                max_tag_value_size: 200,
+                extract_spans: true,
+                transaction_from_dsc: Some("root_tx_name"),
+            },
         )
     }
 
@@ -1291,12 +1288,5 @@ mod tests {
             metrics.sampling_metrics[0].name.as_ref(),
             "c:spans/count_per_root_project@none"
         );
-    }
-
-    #[test]
-    fn only_indexed_spans_enabled() {
-        let metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]).project_metrics;
-        assert_eq!(metrics.len(), 75);
-        assert!(metrics.iter().all(|b| &b.name == "c:spans/usage@none"));
     }
 }

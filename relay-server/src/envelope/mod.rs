@@ -54,11 +54,13 @@ mod attachment;
 mod container;
 mod content_type;
 mod item;
+mod meta;
 
 pub use self::attachment::*;
 pub use self::container::*;
 pub use self::content_type::*;
 pub use self::item::*;
+pub use self::meta::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EnvelopeError {
@@ -177,6 +179,11 @@ impl<M> EnvelopeHeaders<M> {
         &self.meta
     }
 
+    /// Returns the event ID of the envelope, if any.
+    pub fn event_id(&self) -> Option<EventId> {
+        self.event_id
+    }
+
     /// Returns the dynamic sampling context from envelope headers, if present.
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
         match &self.trace {
@@ -187,6 +194,11 @@ impl<M> EnvelopeHeaders<M> {
             }
             Some(ErrorBoundary::Ok(t)) => Some(t),
         }
+    }
+
+    /// Returns the timestamp when the event has been sent, according to the SDK.
+    pub fn sent_at(&self) -> Option<DateTime<Utc>> {
+        self.sent_at
     }
 }
 
@@ -294,6 +306,11 @@ impl Envelope {
     /// Returns `true` if this envelope does not contain any items.
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    /// Returns `true` if the envelope contains an [internal item](ItemType::is_internal).
+    pub fn is_internal(&self) -> bool {
+        self.items().any(|item| item.ty().is_internal())
     }
 
     /// Unique identifier of the event associated to this envelope.

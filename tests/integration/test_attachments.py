@@ -135,13 +135,17 @@ def test_attachments_ratelimit(
     # First attachment returns 200 but is rate limited in processing
     relay.send_attachments(project_id, event_id, attachments)
 
-    outcomes_consumer.assert_rate_limited("static_disabled_quota")
+    outcomes_consumer.assert_rate_limited(
+        "static_disabled_quota", categories=["attachment", "attachment_item"]
+    )
 
     # Second attachment returns 429 in endpoint
     with pytest.raises(HTTPError) as excinfo:
         relay.send_attachments(project_id, event_id, attachments)
     assert excinfo.value.response.status_code == 429
-    outcomes_consumer.assert_rate_limited("static_disabled_quota")
+    outcomes_consumer.assert_rate_limited(
+        "static_disabled_quota", categories=["attachment", "attachment_item"]
+    )
 
 
 def test_attachments_pii(mini_sentry, relay):
@@ -168,7 +172,8 @@ def test_attachments_pii(mini_sentry, relay):
         relay.send_attachments(project_id, event_id, [attachment])
 
     payloads = {
-        mini_sentry.captured_events.get().items[0].payload.bytes for _ in range(2)
+        mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
+        for _ in range(2)
     }
     assert payloads == {
         b"here's an IP that should get masked -> ********* <-",
@@ -212,7 +217,9 @@ def test_view_hierarchy_scrubbing(mini_sentry, relay, feature_flags, expected):
     relay.send_envelope(project_id, envelope)
 
     relay.send_envelope(project_id, envelope)
-    payload = json.loads(mini_sentry.captured_events.get().items[0].payload.bytes)
+    payload = json.loads(
+        mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
+    )
     assert payload == {"rendering_system": "UIKIT", "identifier": expected}
 
 
@@ -263,7 +270,7 @@ def test_attachment_scrubbing_with_fallback(
 
     relay.send_envelope(project_id, envelope)
 
-    payload = mini_sentry.captured_events.get().items[0].payload.bytes
+    payload = mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
     assert payload == expected
 
 
@@ -287,7 +294,9 @@ def test_view_hierarchy_not_scrubbed_without_config(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    payload = json.loads(mini_sentry.captured_events.get().items[0].payload.bytes)
+    payload = json.loads(
+        mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
+    )
     assert payload == json_payload
 
 
@@ -321,7 +330,7 @@ password=mysupersecretpassword123"""
 
     relay.send_envelope(project_id, envelope)
 
-    scrubbed_payload = mini_sentry.captured_events.get().items[0].payload.bytes
+    scrubbed_payload = mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
 
     assert (
         scrubbed_payload
@@ -375,7 +384,8 @@ def test_attachments_quotas(
     relay.send_attachments(project_id, event_id, attachments)
 
     outcomes_consumer.assert_rate_limited(
-        "attachments_exceeded", quantity=len(attachment_body)
+        "attachments_exceeded",
+        categories={"attachment": len(attachment_body), "attachment_item": 1},
     )
 
     # Second attachment returns 429 in endpoint
@@ -383,7 +393,8 @@ def test_attachments_quotas(
         relay.send_attachments(42, event_id, attachments)
     assert excinfo.value.response.status_code == 429
     outcomes_consumer.assert_rate_limited(
-        "attachments_exceeded", quantity=len(attachment_body)
+        "attachments_exceeded",
+        categories={"attachment": len(attachment_body), "attachment_item": 1},
     )
 
 
@@ -425,7 +436,8 @@ def test_attachments_quotas_items(
     relay.send_attachments(project_id, event_id, attachments)
 
     outcomes_consumer.assert_rate_limited(
-        "attachments_exceeded", categories=["attachment_item"], quantity=1
+        "attachments_exceeded",
+        categories={"attachment": len(attachment_body), "attachment_item": 1},
     )
 
     # Second attachment returns 429 in endpoint
@@ -434,7 +446,8 @@ def test_attachments_quotas_items(
     assert excinfo.value.response.status_code == 429
 
     outcomes_consumer.assert_rate_limited(
-        "attachments_exceeded", categories=["attachment_item"], quantity=1
+        "attachments_exceeded",
+        categories={"attachment": len(attachment_body), "attachment_item": 1},
     )
 
 
@@ -491,7 +504,6 @@ def test_event_with_attachment(
     relay_with_processing,
     attachments_consumer,
     transactions_consumer,
-    outcomes_consumer,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
@@ -500,7 +512,6 @@ def test_event_with_attachment(
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
     transactions_consumer = transactions_consumer()
-    outcomes_consumer = outcomes_consumer()
 
     # event attachments are always sent as chunks, and added to events
     envelope = Envelope(headers=[["event_id", event_id]])

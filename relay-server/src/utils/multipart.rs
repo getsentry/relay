@@ -412,7 +412,7 @@ impl UnconstrainedMultipart {
             |outcome, quantity| {
                 outcome_aggregator.send(TrackOutcome {
                     timestamp: request_meta.received_at(),
-                    scoping: request_meta.get_partial_scoping(),
+                    scoping: request_meta.get_partial_scoping().into_scoping(),
                     outcome,
                     event_id: None,
                     remote_addr: request_meta.remote_addr(),
@@ -505,21 +505,19 @@ mod tests {
 
     /// Regression test for multipart payloads without a trailing newline.
     #[tokio::test]
-    async fn missing_trailing_newline() -> anyhow::Result<()> {
+    async fn missing_trailing_newline() {
         let data = "--X-BOUNDARY\r\nContent-Disposition: form-data; \
         name=\"my_text_field\"\r\n\r\nabcd\r\n--X-BOUNDARY--"; // No trailing newline
 
         let stream = futures::stream::once(async { Ok::<_, Infallible>(data) });
         let mut multipart = Multipart::new(stream, "X-BOUNDARY");
 
-        assert!(multipart.next_field().await?.is_some());
-        assert!(multipart.next_field().await?.is_none());
-
-        Ok(())
+        assert!(multipart.next_field().await.unwrap().is_some());
+        assert!(multipart.next_field().await.unwrap().is_none());
     }
 
     #[tokio::test]
-    async fn test_individual_size_limit_exceeded() -> anyhow::Result<()> {
+    async fn test_individual_size_limit_exceeded() {
         let data = "--X-BOUNDARY\r\n\
               Content-Disposition: form-data; name=\"file\"; filename=\"large.txt\"\r\n\
               Content-Type: text/plain\r\n\
@@ -539,7 +537,8 @@ mod tests {
             "limits": {
                 "max_attachment_size": 5
             }
-        }))?;
+        }))
+        .unwrap();
 
         let mut mock_outcomes = vec![];
         let items = multipart_items(
@@ -549,7 +548,8 @@ mod tests {
             &config,
             true,
         )
-        .await?;
+        .await
+        .unwrap();
 
         // The large field is skipped so only the small one should make it through.
         assert_eq!(items.len(), 1);
@@ -557,12 +557,10 @@ mod tests {
         assert_eq!(item.filename(), Some("small.txt"));
         assert_eq!(item.payload(), Bytes::from("ok"));
         assert_eq!(mock_outcomes, vec![27]);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_collective_size_limit_exceeded() -> anyhow::Result<()> {
+    async fn test_collective_size_limit_exceeded() {
         let data = "--X-BOUNDARY\r\n\
               Content-Disposition: form-data; name=\"file\"; filename=\"large.txt\"\r\n\
               Content-Type: text/plain\r\n\
@@ -581,7 +579,8 @@ mod tests {
             "limits": {
                 "max_attachments_size": 5
             }
-        }))?;
+        }))
+        .unwrap();
 
         let multipart = Multipart::new(stream, "X-BOUNDARY");
 
@@ -599,7 +598,5 @@ mod tests {
 
         // Should be warned if the overall stream limit is being breached.
         assert!(result.is_err_and(|x| matches!(x, multer::Error::StreamSizeExceeded { limit: _ })));
-
-        Ok(())
     }
 }

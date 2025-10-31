@@ -20,3 +20,9 @@ jobs:
           docker buildx imagetools create --tag \
            ghcr.io/getsentry/relay:${{ github.ref_name }} \
            ghcr.io/getsentry/relay:${{ github.sha }}
+
+      - name: Tag latest version
+        run: |
+          docker buildx imagetools create --tag \
+           ghcr.io/getsentry/relay:latest \
+           ghcr.io/getsentry/relay:${{ github.sha }}

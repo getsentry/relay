@@ -8,6 +8,7 @@ pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::UserReportV2Ingest,
     Feature::IngestUnsampledProfiles,
     Feature::ScrubMongoDbDescriptions,
+    Feature::DeprecatedExtractSpansFromEvent,
 ];
 
 /// Features exposed by project config.
@@ -52,14 +53,19 @@ pub enum Feature {
     StandaloneSpanIngestion,
     /// Enable standalone span ingestion via the `/traces/` OTel endpoint.
     ///
-    /// Serialized as `projects:relay-otel-endpoint`.
-    #[serde(rename = "projects:relay-otel-endpoint")]
-    OtelEndpoint,
+    /// Serialized as `organizations:relay-otlp-traces-endpoint`.
+    #[serde(rename = "organizations:relay-otlp-traces-endpoint")]
+    OtelTracesEndpoint,
     /// Enable logs ingestion via the `/logs/` OTel endpoint.
     ///
     /// Serialized as `organizations:relay-otel-logs-endpoint`.
     #[serde(rename = "organizations:relay-otel-logs-endpoint")]
     OtelLogsEndpoint,
+    /// Enable logs ingestion via the Vercel Log Drain endpoint.
+    ///
+    /// Serialized as `organizations:relay-vercel-log-drain-endpoint`.
+    #[serde(rename = "organizations:relay-vercel-log-drain-endpoint")]
+    VercelLogDrainEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.
@@ -85,16 +91,16 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling-beta-ingest`.
     #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
     ContinuousProfilingBetaIngest,
-    /// When enabled, spans will be extracted from a transaction.
-    ///
-    /// Serialized as `organizations:indexed-spans-extraction`.
-    #[serde(rename = "organizations:indexed-spans-extraction")]
-    ExtractSpansFromEvent,
     /// Enable log ingestion for our log product (this is not internal logging).
     ///
     /// Serialized as `organizations:ourlogs-ingestion`.
     #[serde(rename = "organizations:ourlogs-ingestion")]
     OurLogsIngestion,
+    /// Enable trace metric ingestion for our trace metric product.
+    ///
+    /// Serialized as `organizations:tracemetrics-ingestion`.
+    #[serde(rename = "organizations:tracemetrics-ingestion")]
+    TraceMetricsIngestion,
     /// This feature has graduated ant is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
@@ -124,6 +130,10 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction-addons")]
     DeprecatedExtractAddonsSpanMetricsFromEvent,
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:indexed-spans-extraction")]
+    DeprecatedExtractSpansFromEvent,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
@@ -143,11 +153,6 @@ impl FeatureSet {
     /// Returns `true` if the given feature is in the set.
     pub fn has(&self, feature: Feature) -> bool {
         self.0.contains(&feature)
-    }
-
-    /// Returns `true` if any spans are produced for this project.
-    pub fn produces_spans(&self) -> bool {
-        self.has(Feature::ExtractSpansFromEvent) || self.has(Feature::StandaloneSpanIngestion)
     }
 }
 

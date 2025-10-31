@@ -17,7 +17,7 @@ impl From<&Event> for Span {
 
             measurements,
             _metrics,
-            _performance_issues_spans,
+            performance_issues_spans,
             ..
         } = event;
 
@@ -72,7 +72,7 @@ impl From<&Event> for Span {
             platform: platform.clone(),
             was_transaction: true.into(),
             kind: Default::default(),
-            _performance_issues_spans: _performance_issues_spans.clone(),
+            performance_issues_spans: performance_issues_spans.clone(),
             other: Default::default(),
         }
     }
@@ -134,7 +134,7 @@ mod tests {
         .unwrap();
 
         let span_from_event = Span::from(&event);
-        insta::assert_debug_snapshot!(span_from_event, @r#"
+        insta::assert_debug_snapshot!(span_from_event, @r###"
         Span {
             timestamp: ~,
             start_timestamp: ~,
@@ -160,8 +160,12 @@ mod tests {
                 gen_ai_usage_total_tokens: ~,
                 gen_ai_usage_input_tokens: ~,
                 gen_ai_usage_input_tokens_cached: ~,
+                gen_ai_usage_input_tokens_cache_write: ~,
+                gen_ai_usage_input_tokens_cache_miss: ~,
                 gen_ai_usage_output_tokens: ~,
                 gen_ai_usage_output_tokens_reasoning: ~,
+                gen_ai_usage_output_tokens_prediction_accepted: ~,
+                gen_ai_usage_output_tokens_prediction_rejected: ~,
                 gen_ai_response_model: ~,
                 gen_ai_request_model: ~,
                 gen_ai_usage_total_cost: ~,
@@ -190,6 +194,8 @@ mod tests {
                 gen_ai_tool_name: ~,
                 gen_ai_operation_name: ~,
                 gen_ai_operation_type: ~,
+                mcp_prompt_result: ~,
+                mcp_tool_result_content: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,
@@ -253,6 +259,7 @@ mod tests {
                 lcp_size: ~,
                 lcp_id: ~,
                 lcp_url: ~,
+                span_name: ~,
                 other: {
                     "custom_attribute": I64(
                         42,
@@ -287,9 +294,9 @@ mod tests {
             platform: "php",
             was_transaction: true,
             kind: ~,
-            _performance_issues_spans: ~,
+            performance_issues_spans: ~,
             other: {},
         }
-        "#);
+        "###);
     }
 }

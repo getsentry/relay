@@ -1,6 +1,5 @@
 //! Dynamic sampling processor related code.
 use std::ops::ControlFlow;
-use std::sync::Arc;
 
 use chrono::Utc;
 use relay_config::Config;
@@ -45,12 +44,12 @@ use crate::utils::{self, SamplingResult};
 /// The function will return the sampling project information of the root project for the event. If
 /// no sampling project information is specified, the project information of the event’s project
 /// will be returned.
-pub fn validate_and_set_dsc<T>(
+pub fn validate_and_set_dsc<'a, T>(
     managed_envelope: &mut TypedEnvelope<T>,
     event: &mut Annotated<Event>,
-    project_info: Arc<ProjectInfo>,
-    sampling_project_info: Option<Arc<ProjectInfo>>,
-) -> Option<Arc<ProjectInfo>> {
+    project_info: &'a ProjectInfo,
+    sampling_project_info: Option<&'a ProjectInfo>,
+) -> Option<&'a ProjectInfo> {
     let original_dsc = managed_envelope.envelope().dsc();
     if original_dsc.is_some() && sampling_project_info.is_some() {
         return sampling_project_info;
@@ -68,7 +67,7 @@ pub fn validate_and_set_dsc<T>(
         dsc.sample_rate = dsc.sample_rate.or(original_sample_rate);
 
         managed_envelope.envelope_mut().set_dsc(dsc);
-        return Some(project_info.clone());
+        return Some(project_info);
     }
 
     // If we cannot compute a new DSC but the old one is incorrect, we need to remove it.
@@ -80,15 +79,15 @@ pub fn validate_and_set_dsc<T>(
 pub async fn run<Group>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
-    config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
-    sampling_project_info: Option<Arc<ProjectInfo>>,
+    config: &Config,
+    project_info: &ProjectInfo,
+    sampling_project_info: Option<&ProjectInfo>,
     reservoir: &ReservoirEvaluator<'_>,
 ) -> SamplingResult
 where
     Group: Sampling,
 {
-    if !Group::supports_sampling(&project_info) {
+    if !Group::supports_sampling(project_info) {
         return SamplingResult::Pending;
     }
 
@@ -132,12 +131,12 @@ pub fn drop_unsampled_items(
 
     for item in dropped_items {
         for (category, quantity) in item.quantities() {
-            // Dynamic sampling only drops indexed items. Upgrade the category to the index
-            // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
-            // but attachments are still emitted as attachments.
-            let category = category.index_category().unwrap_or(category);
-
-            managed_envelope.track_outcome(outcome.clone(), category, quantity);
+            // Dynamic sampling only drops indexed items.
+            //
+            // Only emit the base category, if the item does not have an indexed category.
+            if category.index_category().is_none() {
+                managed_envelope.track_outcome(outcome.clone(), category, quantity);
+            }
         }
     }
 
@@ -241,7 +240,7 @@ async fn compute_sampling_decision(
 pub async fn tag_error_with_sampling_decision<Group: EventProcessing>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
-    sampling_project_info: Option<Arc<ProjectInfo>>,
+    sampling_project_info: Option<&ProjectInfo>,
     config: &Config,
 ) {
     let (Some(dsc), Some(event)) = (managed_envelope.envelope().dsc(), event.value_mut()) else {
@@ -302,6 +301,7 @@ mod tests {
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
+    use crate::processing;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, SpanGroup, Submit};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{create_test_processor, new_envelope, state_with_rule_and_condition};
@@ -349,7 +349,7 @@ mod tests {
     /// Always sets the processing item type to event.
     async fn process_envelope_with_root_project_state(
         envelope: Box<Envelope>,
-        sampling_project_info: Option<Arc<ProjectInfo>>,
+        sampling_project_info: Option<&ProjectInfo>,
     ) -> Envelope {
         let processor = create_test_processor(Default::default()).await;
         let outcome_aggregator = Addr::dummy();
@@ -361,10 +361,11 @@ mod tests {
         let message = ProcessEnvelopeGrouped {
             group,
             envelope: ManagedEnvelope::new(envelope, outcome_aggregator),
-            project_info: Arc::new(ProjectInfo::default()),
-            rate_limits: Default::default(),
-            sampling_project_info,
-            reservoir_counters: ReservoirCounters::default(),
+            ctx: processing::Context {
+                sampling_project_info,
+                ..processing::Context::for_test()
+            },
+            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(envelope))) =
@@ -507,9 +508,6 @@ mod tests {
                 .unwrap();
 
             let event = Annotated::from(event);
-
-            let project_info = Arc::new(project_info);
-
             (managed_envelope, event, project_info)
         };
 
@@ -520,8 +518,8 @@ mod tests {
         let sampling_result = run(
             &mut managed_envelope,
             &mut event,
-            config.clone(),
-            project_info,
+            &config,
+            &project_info,
             None,
             &reservoir,
         )
@@ -533,8 +531,8 @@ mod tests {
         let sampling_result = run(
             &mut managed_envelope,
             &mut event,
-            config.clone(),
-            project_info,
+            &config,
+            &project_info,
             None,
             &reservoir,
         )
@@ -546,8 +544,8 @@ mod tests {
         let sampling_result = run(
             &mut managed_envelope,
             &mut event,
-            config.clone(),
-            project_info,
+            &config,
+            &project_info,
             None,
             &reservoir,
         )
@@ -588,7 +586,7 @@ mod tests {
         let sampling_project_state = project_state_with_single_rule(1.0);
         let new_envelope = process_envelope_with_root_project_state(
             envelope.clone(),
-            Some(Arc::new(sampling_project_state)),
+            Some(&sampling_project_state),
         )
         .await;
         let event = extract_first_event_from_envelope(new_envelope);
@@ -597,11 +595,8 @@ mod tests {
 
         // We test with sample rate equal to 0%.
         let sampling_project_state = project_state_with_single_rule(0.0);
-        let new_envelope = process_envelope_with_root_project_state(
-            envelope,
-            Some(Arc::new(sampling_project_state)),
-        )
-        .await;
+        let new_envelope =
+            process_envelope_with_root_project_state(envelope, Some(&sampling_project_state)).await;
         let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event.context::<TraceContext>().unwrap();
         assert!(!trace_context.sampled.value().unwrap());
@@ -642,11 +637,8 @@ mod tests {
         );
         envelope.add_item(item);
         let sampling_project_state = project_state_with_single_rule(0.0);
-        let new_envelope = process_envelope_with_root_project_state(
-            envelope,
-            Some(Arc::new(sampling_project_state)),
-        )
-        .await;
+        let new_envelope =
+            process_envelope_with_root_project_state(envelope, Some(&sampling_project_state)).await;
         let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event.context::<TraceContext>().unwrap();
         assert!(trace_context.sampled.value().unwrap());
@@ -764,14 +756,14 @@ mod tests {
                 version: 1,
                 ..Default::default()
             }));
-            Arc::new(info)
+            info
         };
 
         let bytes = Bytes::from(
             r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b"}}"#,
         );
         let envelope = Envelope::parse_bytes(bytes).unwrap();
-        let config = Arc::new(Config::default());
+        let config = Config::default();
 
         let mut managed_envelope: TypedEnvelope<Group> = (
             ManagedEnvelope::new(envelope, Addr::dummy()),
@@ -809,16 +801,16 @@ mod tests {
                 ],
                 rules_v2: vec![],
             }));
-            Some(Arc::new(state))
+            Some(state)
         };
 
         let reservoir = dummy_reservoir();
         run::<Group>(
             &mut managed_envelope,
             &mut event,
-            config,
-            project_info,
-            sampling_project_info,
+            &config,
+            &project_info,
+            sampling_project_info.as_ref(),
             &reservoir,
         )
         .await

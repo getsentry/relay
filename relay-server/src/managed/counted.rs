@@ -1,4 +1,6 @@
-use relay_event_schema::protocol::{OurLog, Span, SpanV2};
+use relay_event_schema::protocol::{
+    OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2, TraceMetric,
+};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use smallvec::SmallVec;
@@ -9,7 +11,7 @@ use crate::utils::EnvelopeSummary;
 use crate::{Envelope, metrics, processing};
 
 /// A list of data categories and amounts.
-pub type Quantities = SmallVec<[(DataCategory, usize); 1]>;
+pub type Quantities = SmallVec<[(DataCategory, usize); 2]>;
 
 /// A counted item.
 ///
@@ -63,8 +65,11 @@ impl Counted for Box<Envelope> {
                 DataCategory::ProfileChunkUi,
                 summary.profile_chunk_ui_quantity,
             ),
+            (DataCategory::TraceMetric, summary.trace_metric_quantity),
             (DataCategory::LogItem, summary.log_item_quantity),
             (DataCategory::LogByte, summary.log_byte_quantity),
+            (DataCategory::Monitor, summary.monitor_quantity),
+            (DataCategory::Session, summary.session_quantity),
         ];
 
         for (category, quantity) in data {
@@ -89,7 +94,19 @@ impl Counted for WithHeader<OurLog> {
     }
 }
 
+impl Counted for WithHeader<TraceMetric> {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::TraceMetric, 1)]
+    }
+}
+
 impl Counted for WithHeader<SpanV2> {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
+    }
+}
+
+impl Counted for SpanV2 {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
     }
@@ -124,11 +141,37 @@ impl Counted for ExtractedMetrics {
     }
 }
 
+impl Counted for SessionUpdate {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Session, 1)]
+    }
+}
+
+impl Counted for SessionAggregates {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Session, self.aggregates.len())]
+    }
+}
+impl Counted for SessionAggregateItem {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Session, 1)]
+    }
+}
+
 impl<T> Counted for &T
 where
     T: Counted,
 {
     fn quantities(&self) -> Quantities {
         (*self).quantities()
+    }
+}
+
+impl<T> Counted for Box<T>
+where
+    T: Counted,
+{
+    fn quantities(&self) -> Quantities {
+        self.as_ref().quantities()
     }
 }

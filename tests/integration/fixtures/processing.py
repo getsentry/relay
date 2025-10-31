@@ -78,12 +78,6 @@ def processing_config(get_topic_name):
                 f"relay-test-relayconfig-{uuid.uuid4()}"
             )
 
-        if processing.get("span_producers") is None:
-            processing["span_producers"] = {
-                "produce_json": True,
-                "produce_protobuf": False,
-            }
-
         return options
 
     return inner
@@ -311,19 +305,25 @@ class OutcomesConsumer(ConsumerBase):
         timeout=1,
         ignore_other=False,
     ):
+        expected_categories = (
+            {category_value(category) for category in categories}
+            if categories
+            else set()
+        )
         if categories is None:
             outcome = self.get_outcome(timeout=timeout)
             assert isinstance(outcome["category"], int)
             outcomes = [outcome]
         else:
             outcomes = self.get_outcomes(timeout=timeout)
-            expected = {category_value(category) for category in categories}
             actual = {outcome["category"] for outcome in outcomes}
             if ignore_other:
                 actual = actual & set(categories)
-            assert actual == expected, (actual, expected)
+            assert actual == expected_categories, (actual, expected_categories)
 
         for outcome in outcomes:
+            if ignore_other and outcome["category"] not in expected_categories:
+                continue
             assert outcome["outcome"] == 2, outcome
             assert outcome["reason"] == reason, outcome["reason"]
             if key_id is not None:
@@ -332,6 +332,16 @@ class OutcomesConsumer(ConsumerBase):
         if quantity is not None:
             count = sum(outcome["quantity"] for outcome in outcomes)
             assert count == quantity, (count, quantity)
+
+        if isinstance(categories, dict):
+            aggregated = defaultdict(int)
+            for outcome in outcomes:
+                aggregated[DataCategory(outcome["category"])] += outcome["quantity"]
+            expected = dict(
+                (category_value(category), quantity)
+                for (category, quantity) in categories.items()
+            )
+            assert aggregated == expected, (dict(aggregated), expected)
 
 
 @pytest.fixture
@@ -581,14 +591,18 @@ class SpansConsumer(ConsumerBase):
         assert message is not None
         assert message.error() is None
 
-        return json.loads(message.value())
+        span = json.loads(message.value())
+        assert message.key() == bytes.fromhex(span["trace_id"])
+        return span
 
-    def get_spans(self, timeout=None, n=None):
+    def get_spans(self, *, timeout=None, n=None):
         spans = []
 
         for message in self.poll_many(timeout=timeout, n=n):
             assert message.error() is None
-            spans.append(json.loads(message.value()))
+            span = json.loads(message.value())
+            assert message.key() == bytes.fromhex(span["trace_id"])
+            spans.append(span)
 
         return spans
 

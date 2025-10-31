@@ -591,8 +591,6 @@ pub enum RelayTimers {
     BodyReadDuration,
     /// Timing in milliseconds to count spans in a serialized transaction payload.
     CheckNestedSpans,
-    /// The time in milliseconds it takes to expand a Span V2 container into Spans V1.
-    SpanV2Expansion,
     /// The time it needs to create a signature. Includes both the signature used for
     /// trusted relays and for register challenges.
     SignatureCreationDuration,
@@ -649,7 +647,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
             RelayTimers::BodyReadDuration => "requests.body_read.duration",
             RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
-            RelayTimers::SpanV2Expansion => "envelope.span_v2_expansion",
             RelayTimers::SignatureCreationDuration => "signature.create.duration",
         }
     }
@@ -804,6 +801,9 @@ pub enum RelayCounters {
     ///  - `session`: A release health session update, sent to `ingest-sessions`.
     #[cfg(feature = "processing")]
     ProcessingMessageProduced,
+    /// Number of spans produced in the new format.
+    #[cfg(feature = "processing")]
+    SpanV2Produced,
     /// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,
     /// Minidump, Unreal.
     ///
@@ -918,6 +918,8 @@ pub enum RelayCounters {
     /// The amount of times PlayStation processing was attempted.
     #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
+    /// The number of times a sampling decision was made.
+    SamplingDecision,
 }
 
 impl CounterMetric for RelayCounters {
@@ -945,6 +947,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
+            #[cfg(feature = "processing")]
+            RelayCounters::SpanV2Produced => "store.produced.span_v2",
             RelayCounters::EventProtocol => "event.protocol",
             RelayCounters::EventTransaction => "event.transaction",
             RelayCounters::TransactionNameChanges => "event.transaction_name_changes",
@@ -969,153 +973,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelayCount => "metrics.delay.count",
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
-        }
-    }
-}
-
-/// Low-cardinality platform that can be used as a statsd tag.
-pub enum PlatformTag {
-    Cocoa,
-    Csharp,
-    Edge,
-    Go,
-    Java,
-    Javascript,
-    Julia,
-    Native,
-    Node,
-    Objc,
-    Other,
-    Perl,
-    Php,
-    Python,
-    Ruby,
-    Swift,
-}
-
-impl PlatformTag {
-    pub fn name(&self) -> &str {
-        match self {
-            Self::Cocoa => "cocoa",
-            Self::Csharp => "csharp",
-            Self::Edge => "edge",
-            Self::Go => "go",
-            Self::Java => "java",
-            Self::Javascript => "javascript",
-            Self::Julia => "julia",
-            Self::Native => "native",
-            Self::Node => "node",
-            Self::Objc => "objc",
-            Self::Other => "other",
-            Self::Perl => "perl",
-            Self::Php => "php",
-            Self::Python => "python",
-            Self::Ruby => "ruby",
-            Self::Swift => "swift",
-        }
-    }
-}
-
-impl<S: AsRef<str>> From<S> for PlatformTag {
-    fn from(value: S) -> Self {
-        match value.as_ref() {
-            "cocoa" => Self::Cocoa,
-            "csharp" => Self::Csharp,
-            "edge" => Self::Edge,
-            "go" => Self::Go,
-            "java" => Self::Java,
-            "javascript" => Self::Javascript,
-            "julia" => Self::Julia,
-            "native" => Self::Native,
-            "node" => Self::Node,
-            "objc" => Self::Objc,
-            "perl" => Self::Perl,
-            "php" => Self::Php,
-            "python" => Self::Python,
-            "ruby" => Self::Ruby,
-            "swift" => Self::Swift,
-            _ => Self::Other,
-        }
-    }
-}
-
-/// Low-cardinality SDK name that can be used as a statsd tag.
-pub enum ClientName<'a> {
-    Ruby,
-    CocoaFlutter,
-    CocoaReactNative,
-    Cocoa,
-    Dotnet,
-    AndroidReactNative,
-    AndroidJava,
-    SpringBoot,
-    JavascriptBrowser,
-    Electron,
-    NestJs,
-    NextJs,
-    Node,
-    React,
-    Vue,
-    Native,
-    Laravel,
-    Symfony,
-    Php,
-    Python,
-    Other(&'a str),
-}
-
-impl ClientName<'_> {
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::Ruby => "sentry-ruby",
-            Self::CocoaFlutter => "sentry.cocoa.flutter",
-            Self::CocoaReactNative => "sentry.cocoa.react-native",
-            Self::Cocoa => "sentry.cocoa",
-            Self::Dotnet => "sentry.dotnet",
-            Self::AndroidReactNative => "sentry.java.android.react-native",
-            Self::AndroidJava => "sentry.java.android",
-            Self::SpringBoot => "sentry.java.spring-boot.jakarta",
-            Self::JavascriptBrowser => "sentry.javascript.browser",
-            Self::Electron => "sentry.javascript.electron",
-            Self::NestJs => "sentry.javascript.nestjs",
-            Self::NextJs => "sentry.javascript.nextjs",
-            Self::Node => "sentry.javascript.node",
-            Self::React => "sentry.javascript.react",
-            Self::Vue => "sentry.javascript.vue",
-            Self::Native => "sentry.native",
-            Self::Laravel => "sentry.php.laravel",
-            Self::Symfony => "sentry.php.symfony",
-            Self::Php => "sentry.php",
-            Self::Python => "sentry.python",
-            Self::Other(_) => "other",
-        }
-    }
-}
-
-impl<'a> From<&'a str> for ClientName<'a> {
-    fn from(value: &'a str) -> Self {
-        match value {
-            "sentry-ruby" => Self::Ruby,
-            "sentry.cocoa.flutter" => Self::CocoaFlutter,
-            "sentry.cocoa.react-native" => Self::CocoaReactNative,
-            "sentry.cocoa" => Self::Cocoa,
-            "sentry.dotnet" => Self::Dotnet,
-            "sentry.java.android.react-native" => Self::AndroidReactNative,
-            "sentry.java.android" => Self::AndroidJava,
-            "sentry.java.spring-boot.jakarta" => Self::SpringBoot,
-            "sentry.javascript.browser" => Self::JavascriptBrowser,
-            "sentry.javascript.electron" => Self::Electron,
-            "sentry.javascript.nestjs" => Self::NestJs,
-            "sentry.javascript.nextjs" => Self::NextJs,
-            "sentry.javascript.node" => Self::Node,
-            "sentry.javascript.react" => Self::React,
-            "sentry.javascript.vue" => Self::Vue,
-            "sentry.native" => Self::Native,
-            "sentry.php.laravel" => Self::Laravel,
-            "sentry.php.symfony" => Self::Symfony,
-            "sentry.php" => Self::Php,
-            "sentry.python" => Self::Python,
-            other => Self::Other(other),
+            RelayCounters::SamplingDecision => "sampling.decision",
         }
     }
 }

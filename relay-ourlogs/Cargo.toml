@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Log normalization and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.8.0"
+version = "25.10.0"
 edition = "2024"
 license-file = "../LICENSE"
 publish = false
@@ -15,16 +15,17 @@ workspace = true
 [dependencies]
 chrono = { workspace = true }
 hex = { workspace = true }
-once_cell = { workspace = true }
 opentelemetry-proto = { workspace = true, features = [
     "gen-tonic",
     "with-serde",
     "logs",
 ] }
+relay-conventions = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-otel = { workspace = true }
 relay-protocol = { workspace = true }
 relay-common = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]

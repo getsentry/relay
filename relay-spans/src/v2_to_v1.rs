@@ -1,11 +1,17 @@
 use std::str::FromStr;
 
+use relay_conventions::{
+    DB_QUERY_TEXT, DB_STATEMENT, DB_SYSTEM_NAME, DESCRIPTION, FAAS_TRIGGER, GEN_AI_SYSTEM,
+    GRAPHQL_OPERATION, HTTP_PREFETCH, HTTP_REQUEST_METHOD, HTTP_RESPONSE_STATUS_CODE, HTTP_ROUTE,
+    HTTP_TARGET, MESSAGING_SYSTEM, OP, PLATFORM, PROFILE_ID, RPC_GRPC_STATUS_CODE, RPC_SERVICE,
+    SEGMENT_ID, URL_FULL, URL_PATH,
+};
 use relay_event_schema::protocol::{SpanKind, SpanV2Link};
 
 use crate::status_codes;
 use relay_event_schema::protocol::{
     Attributes, EventId, Span as SpanV1, SpanData, SpanId, SpanLink, SpanStatus, SpanV2,
-    SpanV2Kind, SpanV2Status,
+    SpanV2Status,
 };
 use relay_protocol::{Annotated, FromValue, Object, Value};
 use url::Url;
@@ -17,10 +23,8 @@ use url::Url;
 ///   inferred from other attributes if the `sentry.op` attribute is not set.
 /// * The V1 span's `description` field will be set based on the V2 span's `sentry.description`
 ///   attribute, or inferred from other attributes if the `sentry.description` attribute is not set.
-/// * The V1 span's `description` field is set based on the V2 span's `sentry.description` attribute.
 /// * The V1 span's `status` field is set based on the V2 span's `status` field and
 ///   `http.status_code` and `rpc.grpc.status_code` attributes.
-/// * The V1 span's `exclusive_time` field is set based on the V2 span's `exclusive_time_nano`
 ///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 /// * The V1 span's `platform` field is set based on the V2 span's `sentry.platform` attribute.
 /// * The V1 span's `profile_id` field is set based on the V2 span's `sentry.profile_id` attribute.
@@ -66,37 +70,37 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         })
     }) {
         match key.as_str() {
-            "sentry.description" => {
+            DESCRIPTION => {
                 description = String::from_value(value);
             }
-            "sentry.op" => {
+            OP => {
                 op = String::from_value(value);
             }
-            key if key.contains("exclusive_time_nano") => {
-                let value = match value.value() {
+            key if key.contains("exclusive_time") => {
+                exclusive_time_ms = match value.value() {
                     Some(Value::I64(v)) => *v as f64,
                     Some(Value::U64(v)) => *v as f64,
                     Some(Value::F64(v)) => *v,
                     Some(Value::String(v)) => v.parse::<f64>().unwrap_or_default(),
                     _ => 0f64,
                 };
-                exclusive_time_ms = value / 1e6f64;
             }
-            "http.status_code" => {
+            // TODO: `http.status_code` is deprecated. This should probably be taken care of during normalization.
+            HTTP_RESPONSE_STATUS_CODE | "http.status_code" => {
                 http_status_code = i64::from_value(value.clone());
                 data.insert(key.to_owned(), value);
             }
-            "rpc.grpc.status_code" => {
+            RPC_GRPC_STATUS_CODE => {
                 grpc_status_code = i64::from_value(value.clone());
                 data.insert(key.to_owned(), value);
             }
-            "sentry.platform" => {
+            PLATFORM => {
                 platform = String::from_value(value);
             }
-            "sentry.segment.id" => {
+            SEGMENT_ID => {
                 segment_id = SpanId::from_value(value);
             }
-            "sentry.profile_id" => {
+            PROFILE_ID => {
                 profile_id = EventId::from_value(value);
             }
             _ => {
@@ -151,7 +155,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         timestamp: end_timestamp,
         trace_id,
         platform,
-        kind: kind.map_value(span_v2_kind_to_span_v1_kind),
+        kind,
         links,
         ..Default::default()
     }
@@ -186,17 +190,6 @@ fn span_v2_status_to_span_v1_status(
         })
         .or_else(|| Annotated::new(SpanStatus::Unknown))
 }
-
-fn span_v2_kind_to_span_v1_kind(kind: SpanV2Kind) -> SpanKind {
-    match kind {
-        SpanV2Kind::Internal => SpanKind::Internal,
-        SpanV2Kind::Server => SpanKind::Server,
-        SpanV2Kind::Client => SpanKind::Client,
-        SpanV2Kind::Producer => SpanKind::Producer,
-        SpanV2Kind::Consumer => SpanKind::Consumer,
-    }
-}
-
 fn span_v2_link_to_span_v1_link(link: SpanV2Link) -> SpanLink {
     let SpanV2Link {
         trace_id,
@@ -240,12 +233,13 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
         return op;
     };
 
-    if attributes.contains_key("http.request.method") || attributes.contains_key("http.method") {
+    // TODO: `http.method` is deprecated. This should probably be taken care of during normalization.
+    if attributes.contains_key(HTTP_REQUEST_METHOD) || attributes.contains_key("http.method") {
         return match span.kind.value() {
-            Some(SpanV2Kind::Client) => String::from("http.client"),
-            Some(SpanV2Kind::Server) => String::from("http.server"),
+            Some(SpanKind::Client) => String::from("http.client"),
+            Some(SpanKind::Server) => String::from("http.server"),
             _ => {
-                if attributes.contains_key("sentry.http.prefetch") {
+                if attributes.contains_key(HTTP_PREFETCH) {
                     String::from("http.prefetch")
                 } else {
                     String::from("http")
@@ -254,26 +248,24 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
         };
     }
 
-    if attributes.contains_key("db.system") || attributes.contains_key("db.system.name") {
+    // TODO: `db.system` is deprecated. This should probably be taken care of during normalization.
+    if attributes.contains_key(DB_SYSTEM_NAME) || attributes.contains_key("db.system") {
         return String::from("db");
     }
 
-    if attributes.contains_key("gen_ai.system") {
+    if attributes.contains_key(GEN_AI_SYSTEM) {
         return String::from("gen_ai");
     }
 
-    if attributes.contains_key("rpc.service") {
+    if attributes.contains_key(RPC_SERVICE) {
         return String::from("rpc");
     }
 
-    if attributes.contains_key("messaging.system") {
+    if attributes.contains_key(MESSAGING_SYSTEM) {
         return String::from("message");
     }
 
-    if let Some(faas_trigger) = attributes
-        .get_value("faas.trigger")
-        .and_then(|v| v.as_str())
-    {
+    if let Some(faas_trigger) = attributes.get_value(FAAS_TRIGGER).and_then(|v| v.as_str()) {
         return faas_trigger.to_owned();
     }
 
@@ -304,10 +296,11 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
     description
 }
 
-fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanV2Kind>) -> Option<String> {
+fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanKind>) -> Option<String> {
     // Get HTTP method
     let http_method = attributes
-        .get_value("http.request.method")
+        .get_value(HTTP_REQUEST_METHOD)
+        // TODO: `http.method` is deprecated. This should probably be taken care of during normalization.
         .or_else(|| attributes.get_value("http.method"))
         .and_then(|v| v.as_str())?;
 
@@ -315,8 +308,8 @@ fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanV2Kind>) 
 
     // Get URL path information
     let url_path = match kind {
-        Some(SpanV2Kind::Server) => get_server_url_path(attributes),
-        Some(SpanV2Kind::Client) => get_client_url_path(attributes),
+        Some(SpanKind::Server) => get_server_url_path(attributes),
+        Some(SpanKind::Client) => get_client_url_path(attributes),
         _ => None,
     };
 
@@ -327,7 +320,7 @@ fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanV2Kind>) 
 
     // Check for GraphQL operations
     if let Some(graphql_ops) = attributes
-        .get_value("sentry.graphql.operation")
+        .get_value(GRAPHQL_OPERATION)
         .and_then(|v| v.as_str())
     {
         return Some(format!("{base_description} ({graphql_ops})"));
@@ -341,7 +334,7 @@ fn derive_db_description(attributes: &Attributes) -> Option<String> {
     // operations, since they have a `db.system` attribute, but should be treated differently, since
     // we don't want their statements to end up in description for now.
     if attributes
-        .get_value("sentry.op")
+        .get_value(OP)
         .and_then(|v| v.as_str())
         .is_some_and(|op| op.starts_with("cache."))
     {
@@ -351,24 +344,19 @@ fn derive_db_description(attributes: &Attributes) -> Option<String> {
     // Check the `db.system` attribute. It's mandatory, so if it's missing, return `None` right
     // away, since there's not much point trying to derive a description.
     attributes
-        .get_value("db.system")
-        .or_else(|| attributes.get_value("db.system.name"))
+        .get_value(DB_SYSTEM_NAME)
+        // TODO: `db.system` is deprecated. This should probably be taken care of during normalization.
+        .or_else(|| attributes.get_value("db.system"))
         .and_then(|v| v.as_str())?;
 
     // `db.query.text` is a recommended attribute, and it contains the full query text if available.
     // This is the ideal description.
-    if let Some(query_text) = attributes
-        .get_value("db.query.text")
-        .and_then(|v| v.as_str())
-    {
+    if let Some(query_text) = attributes.get_value(DB_QUERY_TEXT).and_then(|v| v.as_str()) {
         return Some(query_text.to_owned());
     }
 
     // Other SDKs check for `db.statement`, it's a legacy OTel attribute, useful as a fallback in some cases.
-    if let Some(statement) = attributes
-        .get_value("db.statement")
-        .and_then(|v| v.as_str())
-    {
+    if let Some(statement) = attributes.get_value(DB_STATEMENT).and_then(|v| v.as_str()) {
         return Some(statement.to_owned());
     }
 
@@ -378,17 +366,17 @@ fn derive_db_description(attributes: &Attributes) -> Option<String> {
 fn get_server_url_path(attributes: &Attributes) -> Option<String> {
     // `http.route` takes precedence. If available, this is the matched route of the server
     // framework for server spans. Not always available, even for server spans.
-    if let Some(route) = attributes.get_value("http.route").and_then(|v| v.as_str()) {
+    if let Some(route) = attributes.get_value(HTTP_ROUTE).and_then(|v| v.as_str()) {
         return Some(route.to_owned());
     }
 
     // `url.path` is the path of the HTTP request for server spans. This is required for server spans.
-    if let Some(path) = attributes.get_value("url.path").and_then(|v| v.as_str()) {
+    if let Some(path) = attributes.get_value(URL_PATH).and_then(|v| v.as_str()) {
         return Some(path.to_owned());
     }
 
     // `http.target` is deprecated, but might be present in older data. Here as a fallback
-    if let Some(target) = attributes.get_value("http.target").and_then(|v| v.as_str()) {
+    if let Some(target) = attributes.get_value(HTTP_TARGET).and_then(|v| v.as_str()) {
         return Some(strip_url_query_and_fragment(target));
     }
 
@@ -401,7 +389,8 @@ fn strip_url_query_and_fragment(url: &str) -> String {
 
 fn get_client_url_path(attributes: &Attributes) -> Option<String> {
     let url = attributes
-        .get_value("url.full")
+        .get_value(URL_FULL)
+        // TODO: `http.url` is deprecated. This should probably be taken care of during normalization.
         .or_else(|| attributes.get_value("http.url"))?
         .as_str()?;
 
@@ -456,8 +445,8 @@ mod tests {
                     "value": true,
                     "type": "boolean"
                 },
-                "sentry.exclusive_time_nano": {
-                    "value": "1000000000",
+                "sentry.exclusive_time": {
+                    "value": "1000.",
                     "type": "u64"
                 }
             },
@@ -480,10 +469,10 @@ mod tests {
           "description": "middleware - fastify -> @fastify/multipart",
           "data": {
             "sentry.environment": "test",
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "fastify.type": "middleware",
             "hook.name": "onResponse",
             "plugin.name": "fastify -> @fastify/multipart",
-            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
           },
@@ -494,7 +483,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_with_exclusive_time_nano_attribute() {
+    fn parse_span_with_exclusive_time_attribute() {
         let json = r#"{
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
             "span_id": "e342abb1214ca181",
@@ -505,9 +494,9 @@ mod tests {
             "end_timestamp": "2023-10-18T09:14:14.980078800Z",
             "links": [],
             "attributes": {
-                "sentry.exclusive_time_nano": {
-                    "value": 3200000000,
-                    "type": "u64"
+                "sentry.exclusive_time": {
+                    "value": 3200.0,
+                    "type": "f64"
                 }
             }
         }"#;
@@ -535,7 +524,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_no_exclusive_time_nano_attribute() {
+    fn parse_span_no_exclusive_time_attribute() {
         let json = r#"{
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
             "span_id": "e342abb1214ca181",
@@ -975,8 +964,8 @@ mod tests {
           "description": "CACHE HIT",
           "data": {
             "db.system": "redis",
-            "db.statement": "GET s:user:123",
-            "sentry.name": "CACHE HIT"
+            "sentry.name": "CACHE HIT",
+            "db.statement": "GET s:user:123"
           },
           "kind": "client"
         }
@@ -1225,8 +1214,8 @@ mod tests {
           "status": "unknown",
           "description": "FAAS",
           "data": {
-            "faas.trigger": "http",
-            "sentry.name": "FAAS"
+            "sentry.name": "FAAS",
+            "faas.trigger": "http"
           }
         }
         "###);
@@ -1269,8 +1258,8 @@ mod tests {
           "description": "GET /api/users",
           "data": {
             "http.request_method": "GET",
-            "http.route": "/api/users",
-            "sentry.name": "GET /api/users"
+            "sentry.name": "GET /api/users",
+            "http.route": "/api/users"
           },
           "kind": "server"
         }
@@ -1314,8 +1303,8 @@ mod tests {
           "description": "SELECT * FROM users WHERE id = $1",
           "data": {
             "db.system": "postgres",
-            "db.statement": "SELECT * FROM users WHERE id = $1",
-            "sentry.name": "SELECT users"
+            "sentry.name": "SELECT users",
+            "db.statement": "SELECT * FROM users WHERE id = $1"
           },
           "kind": "client"
         }
@@ -1363,9 +1352,9 @@ mod tests {
           "description": "POST /graphql (getUserById)",
           "data": {
             "http.request_method": "POST",
+            "sentry.name": "POST /graphql",
             "http.route": "/graphql",
-            "sentry.graphql.operation": "getUserById",
-            "sentry.name": "POST /graphql"
+            "sentry.graphql.operation": "getUserById"
           },
           "kind": "server"
         }

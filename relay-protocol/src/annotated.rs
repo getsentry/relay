@@ -61,6 +61,7 @@ pub type MetaMap = Map<String, MetaTree>;
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
 /// An utility to serialize annotated objects with payload.
+#[derive(Debug)]
 pub struct SerializableAnnotated<'a, T>(pub &'a Annotated<T>);
 
 impl<T: IntoValue> Serialize for SerializableAnnotated<'_, T> {
@@ -237,6 +238,17 @@ impl<T> Annotated<T> {
     }
 }
 
+impl<T> Annotated<Option<T>> {
+    /// Transposes an `Annotated` of [`Option`] into a [`Option`] of `Annotated`.
+    pub fn transpose(self) -> Option<Annotated<T>> {
+        match self {
+            Annotated(Some(Some(value)), meta) => Some(Annotated(Some(value), meta)),
+            Annotated(Some(None), _) => None,
+            Annotated(None, meta) => Some(Annotated(None, meta)),
+        }
+    }
+}
+
 impl<T> Annotated<T>
 where
     T: AsRef<str>,
@@ -326,7 +338,7 @@ where
 
         if let Some(value) = self.value() {
             // NOTE: This is a hack and known to be instable use of serde.
-            use serde::__private::ser::FlatMapSerializer;
+            use serde::__private228::ser::FlatMapSerializer;
             IntoValue::serialize_payload(
                 value,
                 FlatMapSerializer(&mut map_ser),
@@ -417,6 +429,12 @@ impl<T> From<T> for Annotated<T> {
 impl<T> From<Option<T>> for Annotated<T> {
     fn from(option: Option<T>) -> Self {
         Annotated(option, Meta::default())
+    }
+}
+
+impl<T> From<Result<T, Error>> for Annotated<T> {
+    fn from(t: Result<T, Error>) -> Self {
+        t.map_or_else(|err| Annotated::from_error(err, None), Annotated::new)
     }
 }
 

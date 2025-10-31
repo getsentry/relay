@@ -151,9 +151,9 @@ impl FromStr for SpanStatus {
             "invalid_argument" => SpanStatus::InvalidArgument,
             "unimplemented" => SpanStatus::Unimplemented,
             "unavailable" => SpanStatus::Unavailable,
-            "internal_error" => SpanStatus::InternalError,
+            "internal_error" | "unknown_error" => SpanStatus::InternalError,
             "failure" => SpanStatus::InternalError, // Backwards compat with initial schema
-            "unknown" | "unknown_error" => SpanStatus::Unknown,
+            "unknown" => SpanStatus::Unknown,
             "cancelled" => SpanStatus::Cancelled,
             "already_exists" => SpanStatus::AlreadyExists,
             "failed_precondition" => SpanStatus::FailedPrecondition,

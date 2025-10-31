@@ -737,8 +737,6 @@ def test_transaction_metrics(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
 
-    config.setdefault("features", []).append("organizations:indexed-spans-extraction")
-
     timestamp = datetime.now(tz=timezone.utc)
 
     if extract_metrics:
@@ -1693,7 +1691,7 @@ def test_histogram_outliers(mini_sentry, relay):
 
     tags = {}
     for _ in range(3):
-        envelope = mini_sentry.captured_events.get()
+        envelope = mini_sentry.captured_events.get(timeout=5)
         for item in envelope:
             if item.type == "metric_buckets":
                 buckets = item.payload.json
