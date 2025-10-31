@@ -49,7 +49,6 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     attributes.insert("sentry.op", op);
 
     attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string()));
-    attributes.insert("sentry.is_segment", is_segment);
     attributes.insert("sentry.description", description);
     attributes.insert("sentry.origin", origin);
     attributes.insert("sentry.profile_id", profile_id.map_value(|v| v.to_string()));
@@ -108,21 +107,25 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         .and_then(|name| name.map_value(|attr| attr.into_string()).transpose())
         .unwrap_or_else(|| name_for_attributes(attributes).into());
 
-    SpanV2 {
+    let mut span_v2 = SpanV2 {
         trace_id,
         parent_span_id,
         span_id,
         name,
         status: Annotated::map_value(status, span_v1_status_to_span_v2_status)
             .or_else(|| SpanV2Status::Ok.into()),
-        is_remote: is_remote.or_else(|| false.into()),
+        is_segment,
+        deprecated_is_remote: is_remote,
         kind,
         start_timestamp,
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
         attributes: annotated_attributes,
         other,
-    }
+    };
+
+    span_v2.transfer_is_remote();
+    span_v2
 }
 
 fn span_v1_status_to_span_v2_status(status: SpanV1Status) -> SpanV2Status {
@@ -293,14 +296,14 @@ mod tests {
         let span_v2 = span_v1_to_span_v2(span_v1);
 
         let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r###"
         {
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
           "parent_span_id": "fa90fdead5f74051",
           "span_id": "fa90fdead5f74052",
           "name": "operation",
           "status": "ok",
-          "is_remote": true,
+          "is_segment": true,
           "kind": "server",
           "start_timestamp": -63158400.0,
           "end_timestamp": 0.0,
@@ -358,10 +361,6 @@ mod tests {
               "type": "double",
               "value": 1.23
             },
-            "sentry.is_segment": {
-              "type": "boolean",
-              "value": true
-            },
             "sentry.normalized_description": {
               "type": "string",
               "value": "normalized description"
@@ -417,7 +416,7 @@ mod tests {
             }
           }
         }
-        "#);
+        "###);
     }
 
     #[test]

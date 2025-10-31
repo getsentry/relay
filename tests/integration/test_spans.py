@@ -173,7 +173,7 @@ def test_span_extraction(
         "downsampled_retention_days": 90,
         "end_timestamp": end.timestamp(),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "is_remote": False,
+        "is_segment": False,
         "links": [
             {
                 "trace_id": "0f62a8b040f340bda5d830223def1d82",
@@ -244,7 +244,7 @@ def test_span_extraction(
         "downsampled_retention_days": 90,
         "end_timestamp": end_timestamp.timestamp(),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "is_remote": True,
+        "is_segment": True,
         "links": [
             {
                 "trace_id": "1f62a8b040f340bda5d830223def1d83",
@@ -690,7 +690,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp() + 1,
-            "is_remote": False,
+            "is_segment": False,
             "links": [
                 {
                     "trace_id": "99143b0763095bd9c9955e8175d1fb25",
@@ -729,7 +729,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp() + 1,
-            "is_remote": False,
+            "is_segment": False,
             "name": "default",
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp": start.timestamp(),
@@ -759,7 +759,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp(),
-            "is_remote": False,
+            "is_segment": False,
             "kind": "producer",
             "links": [
                 {
@@ -795,7 +795,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp() + 1,
-            "is_remote": False,
+            "is_segment": False,
             "name": "default",
             "span_id": "ed429c44b67a3eb1",
             "start_timestamp": start.timestamp(),
@@ -828,7 +828,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp(),
-            "is_remote": False,
+            "is_segment": False,
             "kind": "consumer",
             "links": [
                 {
