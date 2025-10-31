@@ -58,6 +58,7 @@ def test_trace_metric_extraction(
         "attributes": {
             "http.method": {"value": "GET", "type": "string"},
             "http.status_code": {"value": 200, "type": "integer"},
+            "sentry.client_sample_rate": {"value": 0.25, "type": "double"},
         },
     }
 
@@ -87,6 +88,7 @@ def test_trace_metric_extraction(
                 )
             },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+            "sentry.client_sample_rate": {"doubleValue": 0.25},
             "sentry.browser.name": {"stringValue": mock.ANY},
             "sentry.browser.version": {"stringValue": mock.ANY},
             "http.method": {"stringValue": "GET"},
@@ -96,7 +98,7 @@ def test_trace_metric_extraction(
             },
             "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
         },
-        "clientSampleRate": 1.0,
+        "clientSampleRate": 0.25,
         "downsampledRetentionDays": 390,
         "itemId": mock.ANY,
         "itemType": "TRACE_ITEM_TYPE_METRIC",
