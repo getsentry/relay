@@ -66,7 +66,7 @@ def test_spansv2_basic(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
-            "is_remote": False,
+            "is_segment": False,
             "name": "some op",
             "status": "ok",
             "attributes": {
@@ -112,7 +112,7 @@ def test_spansv2_basic(
         "received": time_within(ts),
         "start_timestamp": time_within(ts),
         "end_timestamp": time_within(ts.timestamp() + 0.5),
-        "is_remote": False,
+        "is_segment": False,
         "status": "ok",
         "retention_days": 42,
         "downsampled_retention_days": 1337,
@@ -176,7 +176,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
-            "is_remote": False,
+            "is_segment": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
@@ -268,7 +268,7 @@ def test_spansv2_ds_sampled(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
-            "is_remote": False,
+            "is_segment": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
             "status": "ok",
@@ -370,7 +370,7 @@ def test_spansv2_ds_root_in_different_org(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
-            "is_remote": False,
+            "is_segment": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
@@ -514,7 +514,7 @@ def test_spanv2_inbound_filters(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
-            "is_remote": False,
+            "is_segment": False,
             "name": "some op",
             "status": "ok",
             "attributes": {
@@ -582,7 +582,7 @@ def test_spans_v2_multiple_containers_not_allowed(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
         "name": "some op",
-        "is_remote": False,
+        "is_segment": False,
         "status": "ok",
     }
     envelope.add_item(
@@ -657,7 +657,7 @@ def test_spans_v2_dsc_validations(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
-            "is_remote": False,
+            "is_segment": False,
             "name": "some op",
             "status": "ok",
         },
@@ -668,7 +668,7 @@ def test_spans_v2_dsc_validations(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "33333333333333333333333333333333",
             "span_id": "eee19b7ec3c1b175",
-            "is_remote": False,
+            "is_segment": False,
             "name": "some op",
             "status": "ok",
         },
@@ -734,7 +734,7 @@ def test_spanv2_with_string_pii_scrubbing(
             "span_id": "eee19b7ec3c1b174",
             "name": "Test span",
             "status": "ok",
-            "is_remote": False,
+            "is_segment": False,
             "attributes": {
                 "test_pii": {"value": test_value, "type": "string"},
             },
@@ -778,7 +778,7 @@ def test_spanv2_with_string_pii_scrubbing(
         "name": "Test span",
         "start_timestamp": time_within(ts),
         "end_timestamp": time_within(ts.timestamp() + 0.5),
-        "is_remote": False,
+        "is_segment": False,
         "status": "ok",
     }
 
@@ -815,7 +815,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
             "span_id": "eee19b7ec3c1b174",
             "name": "Test span",
             "status": "ok",
-            "is_remote": False,
+            "is_segment": False,
             "attributes": {
                 attribute_key: {"value": attribute_value, "type": "string"},
             },
@@ -860,7 +860,7 @@ def test_invalid_spans(mini_sentry, relay):
 
     valid_span = {
         "end_timestamp": ts.timestamp() + 0.5,
-        "is_remote": False,
+        "is_segment": False,
         "name": "some op",
         "span_id": "eee19b7ec3c1b174",
         "start_timestamp": ts.timestamp(),
