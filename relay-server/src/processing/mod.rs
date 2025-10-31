@@ -27,6 +27,7 @@ pub mod logs;
 pub mod sessions;
 pub mod spans;
 pub mod trace_metrics;
+pub mod transactions;
 pub mod utils;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
@@ -47,7 +48,9 @@ pub trait Processor {
     /// Extracts a [`Self::UnitOfWork`] from a [`ManagedEnvelope`].
     ///
     /// This is infallible, if a processor wants to report an error,
-    /// it should return a [`Self::UnitOfWork`] which later, can produce an error when being
+    /// it should return a [`Self::UnitOfWork`] which later, can produce an error when being processed.
+    ///
+    /// Returns `None` if nothing in the envelope concerns this processor.
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope)
     -> Option<Managed<Self::UnitOfWork>>;
 

@@ -12,6 +12,7 @@ mod split_off;
 mod statsd;
 mod thread_pool;
 
+mod feature;
 mod memory;
 #[cfg(feature = "processing")]
 mod native;
@@ -38,3 +39,4 @@ pub use self::statsd::*;
 pub use self::thread_pool::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;
+pub use feature::*;
