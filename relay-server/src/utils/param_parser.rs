@@ -84,7 +84,7 @@ fn get_indexes(full_string: &str) -> Result<Vec<&str>, ()> {
     Ok(ret_vals)
 }
 
-/// Extracts indexes from a param of the form 'sentry[XXX][...]'
+/// Extracts indexes from a param of the form `sentry[XXX][...]`.
 pub fn get_sentry_entry_indexes(param_name: &str) -> Option<Vec<&str>> {
     if param_name.starts_with("sentry[") {
         get_indexes(param_name).ok()
