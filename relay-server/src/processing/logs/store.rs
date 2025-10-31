@@ -187,12 +187,6 @@ fn attributes(
         .unwrap_or_default();
 
     result.insert(
-        "sentry.timestamp_nanos".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::StringValue(timestamp_nanos.to_string())),
-        },
-    );
-    result.insert(
         "sentry.timestamp_precise".to_owned(),
         AnyValue {
             value: Some(any_value::Value::IntValue(timestamp_nanos)),
@@ -290,11 +284,11 @@ mod tests {
                 .add_error(MetaError::expected("something in the body"));
 
             let attributes = get_mut!(log.attributes);
-            attributes.insert_raw(
+            attributes.0.insert(
                 "attr_meta".to_owned(),
                 Annotated(None, Meta::from_error(MetaError::expected("meow"))),
             );
-            attributes.insert_raw(
+            attributes.0.insert(
                 "value_meta".to_owned(),
                 Annotated::new(Attribute {
                     value: AttributeValue {
@@ -371,13 +365,6 @@ mod tests {
                 value: Some(
                     StringValue(
                         "eee19b7ec3c1b174",
-                    ),
-                ),
-            },
-            "sentry.timestamp_nanos": AnyValue {
-                value: Some(
-                    StringValue(
-                        "946684800000000000",
                     ),
                 ),
             },

@@ -9,7 +9,7 @@ use axum::http::request::Parts;
 pub struct ForwardedFor(String);
 
 impl ForwardedFor {
-    /// The defacto standard header for identifying the originating IP address of a client, [`X-Forwarded-For`].
+    /// The defacto standard header for identifying the originating IP address of a client, `X-Forwarded-For`.
     ///
     /// [`X-Forwarded-For`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For)
     const FORWARDED_HEADER: &'static str = "X-Forwarded-For";
@@ -20,11 +20,11 @@ impl ForwardedFor {
     ///
     /// The Sentry SaaS infrastructure sets this header.
     const SENTRY_FORWARDED_HEADER: &'static str = "X-Sentry-Forwarded-For";
-    /// Vercel forwards the client ip in its own [`X-Vercel-Forwarded-For`] header.
+    /// Vercel forwards the client ip in its own `X-Vercel-Forwarded-For` header.
     ///
     /// [`X-Vercel-Forwarded-For`](https://vercel.com/docs/concepts/edge-network/headers#x-vercel-forwarded-for)
     const VERCEL_FORWARDED_HEADER: &'static str = "X-Vercel-Forwarded-For";
-    /// Cloudflare forwards the client ip in its own [`CF-Connecting-IP`] header.
+    /// Cloudflare forwards the client ip in its own `CF-Connecting-IP` header.
     ///
     /// [`CF-Connecting-IP`](https://developers.cloudflare.com/fundamentals/reference/http-request-headers/#cf-connecting-ip)
     const CLOUDFLARE_FORWARDED_HEADER: &'static str = "CF-Connecting-IP";

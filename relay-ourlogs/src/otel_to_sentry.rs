@@ -85,7 +85,7 @@ pub fn otel_to_sentry_log(
             .and_then(|v| v.value)
             .and_then(otel_value_to_attribute)
         {
-            attribute_data.insert_raw(attribute.key, Annotated::new(attr));
+            attribute_data.0.insert(attribute.key, Annotated::new(attr));
         }
     }
 

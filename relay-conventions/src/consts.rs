@@ -15,6 +15,7 @@ macro_rules! convention_attributes {
 convention_attributes!(
     BROWSER_NAME => "sentry.browser.name",
     BROWSER_VERSION => "sentry.browser.version",
+    CLIENT_ADDRESS => "client.address",
     DB_QUERY_TEXT => "db.query.text",
     DB_STATEMENT => "db.statement",
     DB_SYSTEM_NAME => "db.system.name",
@@ -45,6 +46,7 @@ convention_attributes!(
     USER_GEO_COUNTRY_CODE => "user.geo.country_code",
     USER_GEO_REGION => "user.geo.region",
     USER_GEO_SUBDIVISION => "user.geo.subdivision",
+    USER_AGENT_ORIGINAL => "user_agent.original",
 );
 
 /// Attributes which are in use by Relay but are not yet defined in the Sentry conventions.

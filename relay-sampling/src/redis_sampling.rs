@@ -18,7 +18,7 @@ impl ReservoirRuleKey {
 
 /// Increments the reservoir count for a given rule in redis.
 ///
-/// - INCR docs: [`https://redis.io/commands/incr/`]
+/// - INCR docs: <https://redis.io/commands/incr/>.
 /// - If the counter doesn't exist in redis, a new one will be inserted.
 pub async fn increment_redis_reservoir_count(
     connection: &mut AsyncRedisConnection,

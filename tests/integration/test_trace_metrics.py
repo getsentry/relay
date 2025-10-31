@@ -42,7 +42,7 @@ def test_trace_metric_extraction(
         "organizations:tracemetrics-ingestion",
     ]
     project_config["config"]["retentions"] = {
-        "trace_metric": {"standard": 30, "downsampled": 13 * 30},
+        "traceMetric": {"standard": 30, "downsampled": 13 * 30},
     }
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
@@ -70,14 +70,6 @@ def test_trace_metric_extraction(
             "sentry.metric_name": {"stringValue": "http.request.duration"},
             "sentry.metric_type": {"stringValue": "distribution"},
             "sentry.value": {"doubleValue": 123.45},
-            "sentry.timestamp_nanos": {
-                "stringValue": time_within_delta(
-                    start,
-                    delta=timedelta(seconds=0),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
             "sentry.timestamp_precise": {
                 "intValue": time_within_delta(
                     start,
@@ -216,14 +208,6 @@ def test_trace_metric_pii_scrubbing(
             "sentry.metric_name": {"stringValue": "test.metric"},
             "sentry.metric_type": {"stringValue": "counter"},
             "sentry.value": {"doubleValue": 1.0},
-            "sentry.timestamp_nanos": {
-                "stringValue": time_within_delta(
-                    start,
-                    delta=timedelta(seconds=0),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
             "sentry.timestamp_precise": {
                 "intValue": time_within_delta(
                     start,

@@ -737,8 +737,6 @@ def test_transaction_metrics(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
 
-    config.setdefault("features", []).append("organizations:indexed-spans-extraction")
-
     timestamp = datetime.now(tz=timezone.utc)
 
     if extract_metrics:

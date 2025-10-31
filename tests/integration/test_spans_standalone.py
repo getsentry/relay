@@ -29,8 +29,6 @@ def lcp_cls_inp_differences(mode):
     if mode == "legacy":
         attributes = {
             "browser.name": {"type": "string", "value": "Chrome"},
-            "client.address": {"type": "string", "value": "127.0.0.1"},
-            "sentry.browser.name": {"type": "string", "value": "Chrome"},
             # Legacy behaviour, new field is `sentry.segment.name`
             # Maybe this shouldn't exist since parent and segment information is also removed
             "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
@@ -38,11 +36,8 @@ def lcp_cls_inp_differences(mode):
         fields = {}
     else:
         attributes = {
-            # Not implemented
-            "client.address": {"type": "string", "value": "{{auto}}"},
-            # Uses wrong user agent
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            # We additionally extract the browser version for EAP items
+            "sentry.browser.version": {"type": "string", "value": "141.0.0"},
             # New for EAP items
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -129,6 +124,7 @@ def test_lcp_span(
 
     assert spans_consumer.get_span() == {
         "attributes": {
+            "client.address": {"type": "string", "value": "127.0.0.1"},
             "lcp": {"type": "double", "value": 548.0},
             "lcp.loadTime": {"type": "double", "value": 527.5},
             "lcp.renderTime": {"type": "integer", "value": 548},
@@ -137,6 +133,7 @@ def test_lcp_span(
                 "type": "string",
                 "value": "https://s1.sentry-cdn.com/../sentry-loader.svg",
             },
+            "sentry.browser.name": {"type": "string", "value": "Chrome"},
             "sentry.description": {"type": "string", "value": "<unknown>"},
             "sentry.environment": {"type": "string", "value": "prod"},
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
@@ -298,6 +295,7 @@ def test_cls_span(
 
     assert spans_consumer.get_span() == {
         "attributes": {
+            "client.address": {"type": "string", "value": "127.0.0.1"},
             "cls": {"type": "double", "value": 0.1},
             "cls.source.1": {
                 "type": "string",
@@ -308,6 +306,7 @@ def test_cls_span(
                 "value": "div.app-1azrk9k.etjky0h0 > AppContainer > BodyContainer > BaseFooter",
             },
             "cls.source.3": {"type": "string", "value": "<unknown>"},
+            "sentry.browser.name": {"type": "string", "value": "Chrome"},
             "sentry.description": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
@@ -467,7 +466,9 @@ def test_inp_span(
 
     assert spans_consumer.get_span() == {
         "attributes": {
+            "client.address": {"type": "string", "value": "127.0.0.1"},
             "inp": {"type": "double", "value": 104.0},
+            "sentry.browser.name": {"type": "string", "value": "Chrome"},
             "sentry.description": {
                 "type": "string",
                 "value": "<unknown>",

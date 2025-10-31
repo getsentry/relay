@@ -6,14 +6,14 @@ use crate::integrations::OtelFormat;
 use crate::processing::spans::{Error, Result};
 use crate::services::outcome::DiscardReason;
 
-/// Expands OTeL logs into the [`SpanV2`] format.
+/// Expands OTeL traces into the [`SpanV2`] format.
 pub fn expand<F>(format: OtelFormat, payload: &[u8], mut produce: F) -> Result<()>
 where
     F: FnMut(SpanV2),
 {
-    let logs = parse_traces_data(format, payload)?;
+    let traces = parse_traces_data(format, payload)?;
 
-    for resource_spans in logs.resource_spans {
+    for resource_spans in traces.resource_spans {
         let resource = resource_spans.resource.as_ref();
         for scope_spans in resource_spans.scope_spans {
             let scope = scope_spans.scope.as_ref();

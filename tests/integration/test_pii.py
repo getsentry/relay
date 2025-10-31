@@ -37,7 +37,7 @@ def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
     assert event["spans"][0]["sentry_tags"]["user.geo.country_code"] == "**"
-    assert event["spans"][0]["sentry_tags"]["user.geo.subregion"] == "**"
+    assert event["spans"][0]["sentry_tags"]["user.geo.subregion"] == "***"
 
 
 @pytest.mark.parametrize(

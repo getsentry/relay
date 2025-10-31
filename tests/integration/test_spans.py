@@ -51,13 +51,11 @@ def test_span_extraction(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
+    project_config["config"].setdefault("features", [])
     if discard_transaction:
         project_config["config"]["features"].append("projects:discard-transaction")
     if performance_issues_spans:
@@ -295,9 +293,6 @@ def test_span_extraction_with_sampling(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
@@ -339,9 +334,6 @@ def test_duplicate_performance_score(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
@@ -758,6 +750,7 @@ def test_span_ingestion(
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.is_segment": {"type": "boolean", "value": True},
                 "sentry.op": {"type": "string", "value": "default"},
+                "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "user_agent.original": {
@@ -826,6 +819,7 @@ def test_span_ingestion(
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.op": {"type": "string", "value": "default"},
+                "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "ui.component_name": {"type": "string", "value": "MyComponent"},
                 "user_agent.original": {
@@ -1206,9 +1200,6 @@ def test_rate_limit_consistent_extracted(
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
     }
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
     project_config["config"]["quotas"] = [
         {
             "categories": [category],
@@ -1354,7 +1345,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["quotas"] = [
         {
@@ -1634,9 +1624,6 @@ def test_scrubs_ip_addresses(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
     project_config["config"].setdefault("datascrubbingSettings", {})[
         "scrubIpAddresses"
     ] = scrub_ip_addresses

@@ -46,11 +46,6 @@ def timestamps(ts: datetime):
         "sentry.observed_timestamp_nanos": {
             "stringValue": time_within(ts, expect_resolution="ns")
         },
-        "sentry.timestamp_nanos": {
-            "stringValue": time_within_delta(
-                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
-            )
-        },
         "sentry.timestamp_precise": {
             "intValue": time_within_delta(
                 ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
@@ -130,16 +125,16 @@ def test_ourlog_multiple_containers_not_allowed(
 @pytest.mark.parametrize(
     "external_mode,expected_byte_size",
     [
-        # 260 here is a billing relevant metric, do not arbitrarily change it,
+        # 296 here is a billing relevant metric, do not arbitrarily change it,
         # this value is supposed to be static and purely based on data received,
         # independent of any normalization.
-        (None, 260),
+        (None, 296),
         # Same applies as above, a proxy Relay does not need to run normalization.
-        ("proxy", 260),
+        ("proxy", 296),
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 454),
+        ("managed", 521),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -200,6 +195,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 "string.attribute": {"value": "some string", "type": "string"},
                 "pii": {"value": "4242 4242 4242 4242", "type": "string"},
                 "sentry.severity_text": {"value": "info", "type": "string"},
+                "http.response_content_length": {"value": 17, "type": "integer"},
                 "unknown_type": {"value": "info", "type": "unknown"},
                 "broken_type": {"value": "info", "type": "not_a_real_type"},
                 "mismatched_type": {"value": "some string", "type": "boolean"},
@@ -263,6 +259,8 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "http.response_content_length": {"intValue": "17"},
+                "http.response.body.size": {"intValue": "17"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "string.attribute": {"stringValue": "some string"},
                 "valid_string_with_other": {"stringValue": "test"},
@@ -545,33 +543,10 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "custom_field": {"stringValue": "[REDACTED]"},
             "sentry.body": {"stringValue": "Test log"},
             "sentry.severity_text": {"stringValue": "info"},
-            "sentry.observed_timestamp_nanos": {
-                "stringValue": time_within_delta(
-                    ts,
-                    delta=timedelta(seconds=1),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
             "sentry.payload_size_bytes": mock.ANY,
             "sentry.browser.name": {"stringValue": "Python Requests"},
-            "sentry.timestamp_nanos": {
-                "stringValue": time_within_delta(
-                    ts,
-                    delta=timedelta(seconds=0),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
-            "sentry.timestamp_precise": {
-                "intValue": time_within_delta(
-                    ts,
-                    delta=timedelta(seconds=0),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
+            **timestamps(ts),
         },
         "clientSampleRate": 1.0,
         "itemId": mock.ANY,

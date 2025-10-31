@@ -3,6 +3,7 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
+use relay_conventions::ORIGIN;
 use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
 use relay_otel::otel_value_to_attribute;
@@ -64,6 +65,8 @@ pub fn otel_to_sentry_span(
 
     relay_otel::otel_scope_into_attributes(&mut sentry_attributes, resource, scope);
 
+    sentry_attributes.insert(ORIGIN, "auto.otlp.spans".to_owned());
+
     let mut name = if name.is_empty() { None } else { Some(name) };
     for (key, value) in attributes.into_iter().flat_map(|attribute| {
         let value = attribute.value?.value?;
@@ -85,7 +88,7 @@ pub fn otel_to_sentry_span(
         }
 
         if let Some(v) = otel_value_to_attribute(value) {
-            sentry_attributes.insert_raw(key, Annotated::new(v));
+            sentry_attributes.0.insert(key, Annotated::new(v));
         }
     }
 
@@ -302,6 +305,10 @@ mod tests {
               "type": "double",
               "value": 1000.0
             },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            },
             "sentry.parentSampled": {
               "type": "boolean",
               "value": true
@@ -357,6 +364,10 @@ mod tests {
             "sentry.exclusive_time": {
               "type": "double",
               "value": 3200.0
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
             }
           }
         }
@@ -421,6 +432,10 @@ mod tests {
             "db.type": {
               "type": "string",
               "value": "sql"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
             }
           }
         }
@@ -495,6 +510,10 @@ mod tests {
             "sentry.description": {
               "type": "string",
               "value": "index view query"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
             }
           }
         }
@@ -545,6 +564,10 @@ mod tests {
             "http.request.method": {
               "type": "string",
               "value": "GET"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
             },
             "url.path": {
               "type": "string",
@@ -723,6 +746,10 @@ mod tests {
               "type": "string",
               "value": "myop"
             },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            },
             "sentry.platform": {
               "type": "string",
               "value": "php"
@@ -779,7 +806,12 @@ mod tests {
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
-          "attributes": {}
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
         }
         "#);
     }
@@ -807,7 +839,12 @@ mod tests {
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
-          "attributes": {}
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
         }
         "#);
     }
@@ -836,7 +873,12 @@ mod tests {
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
-          "attributes": {}
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
         }
         "#);
     }
@@ -917,7 +959,12 @@ mod tests {
               }
             }
           ],
-          "attributes": {}
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
         }
         "#);
     }
@@ -945,6 +992,10 @@ mod tests {
           "end_timestamp": 0.0,
           "links": [],
           "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            },
             "sentry.status.message": {
               "type": "string",
               "value": "2 is the error status code"
