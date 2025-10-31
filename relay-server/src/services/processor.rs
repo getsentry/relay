@@ -1645,7 +1645,7 @@ impl EnvelopeProcessorService {
 
         let sampling_result = match run_dynamic_sampling {
             true => {
-                dynamic_sampling::run(
+                processing::utils::run(
                     managed_envelope,
                     &mut event,
                     ctx.config,

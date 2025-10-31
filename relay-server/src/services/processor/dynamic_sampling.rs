@@ -233,6 +233,15 @@ mod tests {
         }
     }
 
+    // Helper to extract the sampling match from SamplingResult if thats the variant.
+    fn get_sampling_match(sampling_result: SamplingResult) -> SamplingMatch {
+        if let SamplingResult::Match(sampling_match) = sampling_result {
+            sampling_match
+        } else {
+            panic!()
+        }
+    }
+
     #[tokio::test]
     async fn test_dsc_respects_metrics_extracted() {
         relay_test::setup();
