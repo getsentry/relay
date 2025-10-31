@@ -226,7 +226,9 @@ mod tests {
 
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::ProjectId;
+    use relay_event_schema::protocol::{Attribute, AttributeType, AttributeValue};
     use relay_protocol::FromValue;
+    use relay_protocol::Object;
 
     use super::*;
 
@@ -292,10 +294,6 @@ mod tests {
 
     #[test]
     fn test_extract_client_sample_rate_function() {
-        use relay_event_schema::protocol::{Attribute, AttributeType, AttributeValue};
-        use relay_protocol::Object;
-        use std::collections::BTreeMap;
-
         let mut attrs_map = BTreeMap::new();
         let attr = Attribute {
             value: AttributeValue {
