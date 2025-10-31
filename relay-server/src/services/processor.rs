@@ -69,7 +69,6 @@ use crate::services::upstream::{
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, CheckLimits, EnvelopeLimiter, SamplingResult};
 use crate::{http, processing};
-use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
@@ -1638,10 +1637,11 @@ impl EnvelopeProcessorService {
         let run_dynamic_sampling =
             matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
 
-        let reservoir = self.new_reservoir_evaluator(
-            managed_envelope.scoping().organization_id,
-            reservoir_counters,
-        );
+        let mut reservoir = ReservoirEvaluator::new(Arc::clone(reservoir_counters));
+        #[cfg(feature = "processing")]
+        if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
+            reservoir.set_redis(managed_envelope.scoping().organization_id, quotas_client);
+        }
 
         let sampling_result = match run_dynamic_sampling {
             true => {
@@ -1951,13 +1951,12 @@ impl EnvelopeProcessorService {
     /// Processes standalone spans.
     ///
     /// This function does *not* run for spans extracted from transactions.
-    #[allow(clippy::too_many_arguments)]
     async fn process_standalone_spans(
         &self,
         managed_envelope: &mut TypedEnvelope<SpanGroup>,
         _project_id: ProjectId,
         ctx: processing::Context<'_>,
-        _reservoir_counters: &ReservoirCounters,
+        #[cfg(feature = "processing")] reservoir_counters: &ReservoirCounters,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
@@ -1965,10 +1964,10 @@ impl EnvelopeProcessorService {
         span::convert_otel_traces_data(managed_envelope);
 
         if_processing!(self.inner.config, {
-            let reservoir = self.new_reservoir_evaluator(
-                managed_envelope.scoping().organization_id,
-                _reservoir_counters,
-            );
+            let mut reservoir = ReservoirEvaluator::new(Arc::clone(reservoir_counters));
+            if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
+                reservoir.set_redis(managed_envelope.scoping().organization_id, quotas_client);
+            }
 
             span::process(
                 managed_envelope,
@@ -2107,6 +2106,7 @@ impl EnvelopeProcessorService {
                 process_standalone_spans,
                 project_id,
                 ctx,
+                #[cfg(feature = "processing")]
                 reservoir_counters
             ),
             ProcessingGroup::ProfileChunk => {
@@ -3071,21 +3071,21 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn new_reservoir_evaluator(
-        &self,
-        _organization_id: OrganizationId,
-        reservoir_counters: &ReservoirCounters,
-    ) -> ReservoirEvaluator<'_> {
-        #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
-        let mut reservoir = ReservoirEvaluator::new(Arc::clone(reservoir_counters));
+    // fn new_reservoir_evaluator(
+    //     &self,
+    //     organization_id: OrganizationId,
+    //     reservoir_counters: &ReservoirCounters,
+    // ) -> ReservoirEvaluator<'_> {
+    //     #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
+    //     let mut reservoir = ReservoirEvaluator::new(Arc::clone(reservoir_counters));
 
-        #[cfg(feature = "processing")]
-        if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
-            reservoir.set_redis(_organization_id, quotas_client);
-        }
+    //     #[cfg(feature = "processing")]
+    //     if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
+    //         reservoir.set_redis(organization_id, quotas_client);
+    //     }
 
-        reservoir
-    }
+    //     reservoir
+    // }
 }
 
 impl Service for EnvelopeProcessorService {

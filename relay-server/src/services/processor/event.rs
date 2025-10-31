@@ -4,7 +4,6 @@ use std::error::Error;
 
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::GlobalConfig;
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
@@ -18,7 +17,6 @@ use serde_json::Value as SerdeValue;
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::TypedEnvelope;
-use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent, ProcessingError,
     SpansExtracted, event_type,
