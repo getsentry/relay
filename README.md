@@ -42,8 +42,8 @@ workspace with multiple features, so when running building or running tests
 always make sure to pass the `--all` and `--all-features` flags.
 The `processing` feature additionally requires a C compiler and CMake.
 
-To install the development environment, run `devenv sync`.
-([Install devenv](https://github.com/getsentry/devenv/?tab=readme-ov-file#install) if you haven't already.)
+To install the development environment, librdkafka must be installed and on the
+path. On macOS, we require to install it with `brew install librdkafka`, as the installation script uses `brew --prefix` to determine the correct location.
 
 We use VSCode for development. This repository contains settings files
 configuring code style, linters, and useful features. When opening the project
@@ -204,17 +204,11 @@ is active and install the package, which builds the native library. There are
 two ways to install this:
 
 ```bash
-# Install dependencies:
-devenv sync
-
 # Install the release build, recommended:
-.devenv/bin/uv pip install -v -e py
-
-# note: use `direnv allow` to put .devenv/bin on PATH, or alternatively
-#       you can install uv yourself
+pip install --editable ./py
 
 # Install the debug build, faster installation but much slower runtime:
-RELAY_DEBUG=1 uv pip install -v -e py
+RELAY_DEBUG=1 pip install --editable ./py
 ```
 
 For testing, we use ubiquitous `pytest`. Again, ensure that your virtualenv is

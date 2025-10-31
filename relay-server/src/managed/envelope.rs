@@ -337,6 +337,7 @@ impl ManagedEnvelope {
                     tags.has_span_metrics = summary.secondary_span_quantity > 0,
                     tags.has_replays = summary.replay_quantity > 0,
                     tags.has_user_reports = summary.user_report_quantity > 0,
+                    tags.has_trace_metrics = summary.trace_metric_quantity > 0,
                     tags.has_checkins = summary.monitor_quantity > 0,
                     tags.event_category = ?summary.event_category,
                     cached_summary = ?summary,

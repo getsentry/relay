@@ -89,9 +89,11 @@ fn normalize_span(
 
     if let Some(span) = span.value_mut() {
         span.transfer_is_remote();
-        eap::normalize_received(&mut span.attributes, meta.received_at());
-        eap::normalize_user_agent(&mut span.attributes, meta.user_agent(), meta.client_hints());
         eap::normalize_attribute_types(&mut span.attributes);
+        eap::normalize_attribute_names(&mut span.attributes);
+        eap::normalize_received(&mut span.attributes, meta.received_at());
+        eap::normalize_client_address(&mut span.attributes, meta.client_addr());
+        eap::normalize_user_agent(&mut span.attributes, meta.user_agent(), meta.client_hints());
         eap::normalize_user_geo(&mut span.attributes, || {
             meta.client_addr().and_then(|ip| geo_lookup.lookup(ip))
         });

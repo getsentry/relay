@@ -2,14 +2,17 @@
 //!
 //! A central place for all modifications/normalizations for attributes.
 
+use std::net::IpAddr;
+
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::{
-    BROWSER_NAME, BROWSER_VERSION, OBSERVED_TIMESTAMP_NANOS, USER_AGENT_ORIGINAL, USER_GEO_CITY,
-    USER_GEO_COUNTRY_CODE, USER_GEO_REGION, USER_GEO_SUBDIVISION,
+    AttributeInfo, BROWSER_NAME, BROWSER_VERSION, CLIENT_ADDRESS, OBSERVED_TIMESTAMP_NANOS,
+    USER_AGENT_ORIGINAL, USER_GEO_CITY, USER_GEO_COUNTRY_CODE, USER_GEO_REGION,
+    USER_GEO_SUBDIVISION, WriteBehavior,
 };
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
-use relay_protocol::{Annotated, ErrorKind, Value};
+use relay_protocol::{Annotated, ErrorKind, Meta, Remark, RemarkType, Value};
 
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
@@ -22,7 +25,7 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
         return;
     };
 
-    let attributes = attributes.iter_mut().map(|(_, attr)| attr);
+    let attributes = attributes.0.values_mut();
     for attribute in attributes {
         use AttributeType::*;
 
@@ -106,6 +109,30 @@ pub fn normalize_user_agent(
     attributes.insert_if_missing(BROWSER_VERSION, || context.version);
 }
 
+/// Normalizes the client address into [`Attributes`].
+///
+/// Infers the client ip from the client information which was provided to Relay, if the SDK
+/// indicates the client ip should be inferred by setting it to `{{auto}}`.
+///
+/// This requires cooperation from SDKs as inferring a client ip only works in non-server
+/// environments, where the user/client device is also the device sending the item.
+pub fn normalize_client_address(attributes: &mut Annotated<Attributes>, client_ip: Option<IpAddr>) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+    let Some(client_ip) = client_ip else {
+        return;
+    };
+
+    let client_address = attributes
+        .get_value(CLIENT_ADDRESS)
+        .and_then(|v| v.as_str());
+
+    if client_address == Some("{{auto}}") {
+        attributes.insert(CLIENT_ADDRESS, client_ip.to_string());
+    }
+}
+
 /// Normalizes the user's geographical information into [`Attributes`].
 ///
 /// Does not modify the attributes if there is already user geo information present,
@@ -136,6 +163,60 @@ pub fn normalize_user_geo(
     attributes.insert_if_missing(USER_GEO_CITY, || geo.city);
     attributes.insert_if_missing(USER_GEO_SUBDIVISION, || geo.subdivision);
     attributes.insert_if_missing(USER_GEO_REGION, || geo.region);
+}
+
+/// Normalizes deprecated attributes according to `sentry-conventions`.
+///
+/// Attributes with a status of `"normalize"` will be moved to their replacement name.
+/// If there is already a value present under the replacement name, it will be left alone,
+/// but the deprecated attribute is removed anyway.
+///
+/// Attributes with a status of `"backfill"` will be copied to their replacement name if the
+/// replacement name is not present. In any case, the original name is left alone.
+pub fn normalize_attribute_names(attributes: &mut Annotated<Attributes>) {
+    normalize_attribute_names_inner(attributes, relay_conventions::attribute_info)
+}
+
+fn normalize_attribute_names_inner(
+    attributes: &mut Annotated<Attributes>,
+    attribute_info: fn(&str) -> Option<&'static AttributeInfo>,
+) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    let attribute_names: Vec<_> = attributes.0.keys().cloned().collect();
+
+    for name in attribute_names {
+        let Some(attribute_info) = attribute_info(&name) else {
+            continue;
+        };
+
+        match attribute_info.write_behavior {
+            WriteBehavior::CurrentName => continue,
+            WriteBehavior::NewName(new_name) => {
+                let Some(old_attribute) = attributes.0.get_mut(&name) else {
+                    continue;
+                };
+
+                let mut meta = Meta::default();
+                // TODO: Possibly add a new RemarkType for "renamed/moved"
+                meta.add_remark(Remark::new(RemarkType::Removed, "attribute.deprecated"));
+                let new_attribute = std::mem::replace(old_attribute, Annotated(None, meta));
+
+                if !attributes.contains_key(new_name) {
+                    attributes.0.insert(new_name.to_owned(), new_attribute);
+                }
+            }
+            WriteBehavior::BothNames(new_name) => {
+                if !attributes.contains_key(new_name)
+                    && let Some(current_attribute) = attributes.0.get(&name).cloned()
+                {
+                    attributes.0.insert(new_name.to_owned(), current_attribute);
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -180,14 +261,14 @@ mod tests {
             DateTime::from_timestamp_nanos(1_234_201_337),
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
         {
           "sentry.observed_timestamp_nanos": {
             "type": "string",
             "value": "111222333"
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -469,5 +550,118 @@ mod tests {
         }
         "#,
         );
+    }
+
+    #[test]
+    fn test_normalize_attributes() {
+        fn mock_attribute_info(name: &str) -> Option<&'static AttributeInfo> {
+            use relay_conventions::Pii;
+
+            match name {
+                "replace.empty" => Some(&AttributeInfo {
+                    write_behavior: WriteBehavior::NewName("replaced"),
+                    pii: Pii::Maybe,
+                    aliases: &["replaced"],
+                }),
+                "replace.existing" => Some(&AttributeInfo {
+                    write_behavior: WriteBehavior::NewName("not.replaced"),
+                    pii: Pii::Maybe,
+                    aliases: &["not.replaced"],
+                }),
+                "backfill.empty" => Some(&AttributeInfo {
+                    write_behavior: WriteBehavior::BothNames("backfilled"),
+                    pii: Pii::Maybe,
+                    aliases: &["backfilled"],
+                }),
+                "backfill.existing" => Some(&AttributeInfo {
+                    write_behavior: WriteBehavior::BothNames("not.backfilled"),
+                    pii: Pii::Maybe,
+                    aliases: &["not.backfilled"],
+                }),
+                _ => None,
+            }
+        }
+
+        let mut attributes = Annotated::new(Attributes::from([
+            (
+                "replace.empty".to_owned(),
+                Annotated::new("Should be moved".to_owned().into()),
+            ),
+            (
+                "replace.existing".to_owned(),
+                Annotated::new("Should be removed".to_owned().into()),
+            ),
+            (
+                "not.replaced".to_owned(),
+                Annotated::new("Should be left alone".to_owned().into()),
+            ),
+            (
+                "backfill.empty".to_owned(),
+                Annotated::new("Should be copied".to_owned().into()),
+            ),
+            (
+                "backfill.existing".to_owned(),
+                Annotated::new("Should be left alone".to_owned().into()),
+            ),
+            (
+                "not.backfilled".to_owned(),
+                Annotated::new("Should be left alone".to_owned().into()),
+            ),
+        ]));
+
+        normalize_attribute_names_inner(&mut attributes, mock_attribute_info);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
+        {
+          "backfill.empty": {
+            "type": "string",
+            "value": "Should be copied"
+          },
+          "backfill.existing": {
+            "type": "string",
+            "value": "Should be left alone"
+          },
+          "backfilled": {
+            "type": "string",
+            "value": "Should be copied"
+          },
+          "not.backfilled": {
+            "type": "string",
+            "value": "Should be left alone"
+          },
+          "not.replaced": {
+            "type": "string",
+            "value": "Should be left alone"
+          },
+          "replace.empty": null,
+          "replace.existing": null,
+          "replaced": {
+            "type": "string",
+            "value": "Should be moved"
+          },
+          "_meta": {
+            "replace.empty": {
+              "": {
+                "rem": [
+                  [
+                    "attribute.deprecated",
+                    "x"
+                  ]
+                ]
+              }
+            },
+            "replace.existing": {
+              "": {
+                "rem": [
+                  [
+                    "attribute.deprecated",
+                    "x"
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "###);
     }
 }

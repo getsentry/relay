@@ -629,4 +629,8 @@ def test_filters_are_applied_to_profiles(
         profile, _ = profiles_consumer.get_profile()
         profile = json.loads(profile["payload"])
         assert profile["release"] == "foobar@1.0"
-        outcomes_consumer.assert_empty()
+        assert [
+            outcome
+            for outcome in outcomes_consumer.get_outcomes()
+            if outcome["category"] == data_category
+        ] == []

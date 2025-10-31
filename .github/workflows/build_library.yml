@@ -27,7 +27,7 @@ jobs:
       }')[matrix.build-arch] }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
 
@@ -36,7 +36,7 @@ jobs:
         env:
           TARGET: ${{ matrix.build-arch }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: artifact-linux-${{ matrix.build-arch }}
           path: py/dist/*
@@ -58,7 +58,7 @@ jobs:
     runs-on: macos-14
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
 
@@ -69,27 +69,20 @@ jobs:
           rustup override set stable
           rustup target add --toolchain stable ${{ matrix.target }}
 
-      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
+      - uses: actions/setup-python@v6
         with:
-          version: '0.8.2'
-          # we just cache the venv-dir directly in action-setup-venv
-          enable-cache: false
-
-      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
-        with:
-          python-version: 3.11.9
-          cache-dependency-path: uv.lock
-          install-cmd: uv sync --frozen --only-dev --active
+          python-version: "3.10"
 
       - name: Build Wheel
         run: |
+          pip install wheel
           python setup.py bdist_wheel -p ${{ matrix.py-platform }}
         working-directory: py
         env:
           # consumed by cargo and setup.py to obtain the target dir
           CARGO_BUILD_TARGET: ${{ matrix.target }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: artifact-macos-${{ matrix.py-platform }}
           path: py/dist/*
@@ -102,27 +95,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           submodules: recursive
 
-      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
+      - uses: actions/setup-python@v6
         with:
-          version: '0.8.2'
-          # we just cache the venv-dir directly in action-setup-venv
-          enable-cache: false
-
-      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
-        with:
-          python-version: 3.11.9
-          cache-dependency-path: uv.lock
-          install-cmd: uv sync --frozen --only-dev --active
+          python-version: "3.10"
 
       - name: Build sdist
         run: python setup.py sdist
         working-directory: py
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: artifact-sdist
           path: py/dist/*
@@ -139,7 +124,7 @@ jobs:
       # there cannot be mutliple upload-artifacts with the same name, in a sha's workflow runs.
       # However in this case it is fine because this only runs on release-library/** branches,
       # and the other runs on release/** branches.
-      - uses: actions/upload-artifact/merge@v4
+      - uses: actions/upload-artifact/merge@v5
         with:
           # Craft expects release assets to be a single artifact named after the sha.
           name: ${{ github.sha }}

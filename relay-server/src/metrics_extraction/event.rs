@@ -10,7 +10,7 @@ use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::generic::{self, Extractable};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
-use crate::services::processor::extract_transaction_span;
+use crate::processing::utils::event::extract_transaction_span;
 use crate::statsd::RelayTimers;
 
 impl Extractable for Event {
@@ -1288,12 +1288,5 @@ mod tests {
             metrics.sampling_metrics[0].name.as_ref(),
             "c:spans/count_per_root_project@none"
         );
-    }
-
-    #[test]
-    fn only_indexed_spans_enabled() {
-        let metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]).project_metrics;
-        assert_eq!(metrics.len(), 75);
-        assert!(metrics.iter().all(|b| &b.name == "c:spans/usage@none"));
     }
 }

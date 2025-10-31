@@ -179,6 +179,11 @@ impl<M> EnvelopeHeaders<M> {
         &self.meta
     }
 
+    /// Returns the event ID of the envelope, if any.
+    pub fn event_id(&self) -> Option<EventId> {
+        self.event_id
+    }
+
     /// Returns the dynamic sampling context from envelope headers, if present.
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
         match &self.trace {
