@@ -1687,7 +1687,6 @@ impl EnvelopeProcessorService {
         // Unconditionally scrub to make sure PII is removed as early as possible.
         event::scrub(&mut event, ctx.project_info)?;
 
-        // TODO: remove once `relay.drop-transaction-attachments` has graduated.
         attachment::scrub(managed_envelope, ctx.project_info);
 
         if_processing!(self.inner.config, {
@@ -3025,22 +3024,6 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
         }
     }
-
-    // fn new_reservoir_evaluator(
-    //     &self,
-    //     organization_id: OrganizationId,
-    //     reservoir_counters: &ReservoirCounters,
-    // ) -> ReservoirEvaluator<'_> {
-    //     #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
-    //     let mut reservoir = ReservoirEvaluator::new(Arc::clone(reservoir_counters));
-
-    //     #[cfg(feature = "processing")]
-    //     if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
-    //         reservoir.set_redis(organization_id, quotas_client);
-    //     }
-
-    //     reservoir
-    // }
 }
 
 impl Service for EnvelopeProcessorService {
