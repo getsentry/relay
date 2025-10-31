@@ -1,8 +1,5 @@
 [project]
 name = "sentry_relay"
-# see setup.py for versioning; we only have this here to make uv happy
-# which we intend to use for dependency management, not packaging
-version = "0.0.0"
 
 # note: we're using legacy setup.py for building, but the mere presence
 # of this file will have setuptools trying to use it
@@ -12,4 +9,5 @@ dynamic = [
     "description",
     "license",
     "requires-python",
+    "version",
 ]
