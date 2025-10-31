@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - release-library/**
+      - test-release-library/** # For testing the release build
 
 env:
   CARGO_TERM_COLOR: always
@@ -75,7 +76,7 @@ jobs:
 
       - name: Build Wheel
         run: |
-          pip install wheel
+          pip install setuptools wheel
           python setup.py bdist_wheel -p ${{ matrix.py-platform }}
         working-directory: py
         env:
@@ -104,7 +105,9 @@ jobs:
           python-version: "3.13"
 
       - name: Build sdist
-        run: python setup.py sdist
+        run: |
+          pip install setuptools
+          python setup.py sdist
         working-directory: py
 
       - uses: actions/upload-artifact@v5
