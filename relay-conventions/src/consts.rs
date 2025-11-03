@@ -48,6 +48,13 @@ convention_attributes!(
     USER_GEO_SUBDIVISION => "user.geo.subdivision",
     USER_AGENT_ORIGINAL => "user_agent.original",
     CLIENT_SAMPLE_RATE => "sentry.client_sample_rate",
+    DSC_TRACE_ID => "sentry.dsc.trace_id",
+    DSC_PUBLIC_KEY => "sentry.dsc.public_key",
+    DSC_RELEASE => "sentry.dsc.release",
+    DSC_ENVIRONMENT => "sentry.dsc.environment",
+    DSC_TRANSACTION => "sentry.dsc.transaction",
+    DSC_SAMPLE_RATE => "sentry.dsc.sample_rate",
+    DSC_SAMPLED => "sentry.dsc.sampled",
 );
 
 /// Attributes which are in use by Relay but are not yet defined in the Sentry conventions.

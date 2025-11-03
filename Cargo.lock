@@ -3946,6 +3946,7 @@ dependencies = [
  "relay-log",
  "relay-pattern",
  "relay-protocol",
+ "relay-sampling",
  "relay-spans",
  "relay-statsd",
  "relay-ua",
