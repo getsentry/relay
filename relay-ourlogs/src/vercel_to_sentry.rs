@@ -159,20 +159,28 @@ fn map_vercel_level_to_sentry(level: VercelLogLevel) -> OurLogLevel {
     }
 }
 
-fn get_trace_id(trace_id: Option<String>) -> Annotated<TraceId> {
+fn get_trace_id(trace_id: Option<String>, request_id: Option<String>) -> Annotated<TraceId> {
     match trace_id {
-        Some(s) if !s.is_empty() => match TraceId::from_str(&s) {
+        Some(s) if !s.is_empty() => match s.parse::<TraceId>() {
             Ok(id) => Annotated::new(id),
-            Err(_) => {
-                let mut meta = Meta::default();
+            Err(_) => Annotated::new_with_meta(TraceId::random(), |meta| {
                 meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.invalid"));
-                Annotated(Some(TraceId::random()), meta)
-            }
+            }),
         },
         _ => {
-            let mut meta = Meta::default();
-            meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
-            Annotated(Some(TraceId::random()), meta)
+            if let Some(request_id_string) = request_id {
+                if let Ok(id) = request_id_string.parse::<TraceId>() {
+                    Annotated::new_with_meta(id, |meta| {
+                        meta.add_remark(Remark::new(
+                            RemarkType::Substituted,
+                            "trace_id.replaced_with_request_id",
+                        ));
+                    });
+                }
+            }
+            Annotated::new_with_meta(TraceId::random(), |meta| {
+                meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
+            });
         }
     }
 }
@@ -314,7 +322,7 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
 
     OurLog {
         timestamp,
-        trace_id: get_trace_id(trace_id),
+        trace_id: get_trace_id(trace_id, request_id),
         span_id: get_span_id(span_id),
         level: Annotated::new(map_vercel_level_to_sentry(level)),
         body: Annotated::new(message.unwrap_or_default()),
@@ -727,6 +735,30 @@ mod tests {
         assert_eq!(
             our_log.span_id.value().map(|s| s.to_string()),
             Some("f24e8631bd11faa7".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_trace_id_from_request_id_when_trace_id_missing() {
+        let json_without_trace_id = r#"{
+            "id": "test-123",
+            "deploymentId": "dpl_test",
+            "source": "lambda",
+            "host": "test.vercel.app",
+            "timestamp": 1573817250283,
+            "projectId": "prj_test",
+            "level": "info",
+            "message": "Test message",
+            "requestId": "643af4e3-975a-4cc7-9e7a-1eda11539d90"
+        }"#;
+
+        let vercel_log: VercelLog = serde_json::from_str(json_without_trace_id)
+            .expect("Failed to parse JSON without trace_id");
+        let our_log = vercel_log_to_sentry_log(vercel_log);
+
+        assert_eq!(
+            our_log.trace_id.value().map(|t| t.to_string()),
+            Some("643af4e3975a4cc79e7a1eda11539d90".to_owned())
         );
     }
 }
