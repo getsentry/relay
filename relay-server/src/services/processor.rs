@@ -5,7 +5,7 @@ use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
-use std::sync::{Arc, Once};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -20,7 +20,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, RelayMode};
-use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
@@ -45,8 +45,8 @@ use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::integrations::{Integration, SpansIntegration};
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
+use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
-use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
@@ -81,7 +81,7 @@ use {
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
         RedisSetLimiterOptions,
     },
-    relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
+    relay_dynamic_config::CardinalityLimiterMode,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::{AsyncRedisClient, RedisClients},
     std::time::Instant,
@@ -1284,127 +1284,6 @@ impl EnvelopeProcessorService {
         } else { Ok(cached_result.event) })
     }
 
-    /// Extract transaction metrics.
-    #[allow(clippy::too_many_arguments)]
-    fn extract_transaction_metrics(
-        &self,
-        managed_envelope: &mut TypedEnvelope<TransactionGroup>,
-        event: &mut Annotated<Event>,
-        extracted_metrics: &mut ProcessingExtractedMetrics,
-        project_id: ProjectId,
-        project_info: &ProjectInfo,
-        sampling_decision: SamplingDecision,
-        event_metrics_extracted: EventMetricsExtracted,
-        spans_extracted: SpansExtracted,
-    ) -> Result<EventMetricsExtracted, ProcessingError> {
-        if event_metrics_extracted.0 {
-            return Ok(event_metrics_extracted);
-        }
-        let Some(event) = event.value_mut() else {
-            return Ok(event_metrics_extracted);
-        };
-
-        // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
-        // will upsert this configuration from transaction and conditional tagging fields, even if
-        // it is not present in the actual project config payload.
-        let global = self.inner.global_config.current();
-        let combined_config = {
-            let config = match &project_info.config.metric_extraction {
-                ErrorBoundary::Ok(config) if config.is_supported() => config,
-                _ => return Ok(event_metrics_extracted),
-            };
-            let global_config = match &global.metric_extraction {
-                ErrorBoundary::Ok(global_config) => global_config,
-                #[allow(unused_variables)]
-                ErrorBoundary::Err(e) => {
-                    if_processing!(self.inner.config, {
-                        // Config is invalid, but we will try to extract what we can with just the
-                        // project config.
-                        relay_log::error!("Failed to parse global extraction config {e}");
-                        MetricExtractionGroups::EMPTY
-                    } else {
-                        // If there's an error with global metrics extraction, it is safe to assume that this
-                        // Relay instance is not up-to-date, and we should skip extraction.
-                        relay_log::debug!("Failed to parse global extraction config: {e}");
-                        return Ok(event_metrics_extracted);
-                    })
-                }
-            };
-            CombinedMetricExtractionConfig::new(global_config, config)
-        };
-
-        // Require a valid transaction metrics config.
-        let tx_config = match &project_info.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(tx_config)) => tx_config,
-            Some(ErrorBoundary::Err(e)) => {
-                relay_log::debug!("Failed to parse legacy transaction metrics config: {e}");
-                return Ok(event_metrics_extracted);
-            }
-            None => {
-                relay_log::debug!("Legacy transaction metrics config is missing");
-                return Ok(event_metrics_extracted);
-            }
-        };
-
-        if !tx_config.is_enabled() {
-            static TX_CONFIG_ERROR: Once = Once::new();
-            TX_CONFIG_ERROR.call_once(|| {
-                if self.inner.config.processing_enabled() {
-                    relay_log::error!(
-                        "Processing Relay outdated, received tx config in version {}, which is not supported",
-                        tx_config.version
-                    );
-                }
-            });
-
-            return Ok(event_metrics_extracted);
-        }
-
-        // If spans were already extracted for an event, we rely on span processing to extract metrics.
-        let extract_spans = !spans_extracted.0
-            && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0)).is_keep();
-
-        let metrics = crate::metrics_extraction::event::extract_metrics(
-            event,
-            crate::metrics_extraction::event::ExtractMetricsConfig {
-                config: combined_config,
-                sampling_decision,
-                target_project_id: project_id,
-                max_tag_value_size: self
-                    .inner
-                    .config
-                    .aggregator_config_for(MetricNamespace::Spans)
-                    .max_tag_value_length,
-                extract_spans,
-                transaction_from_dsc: managed_envelope
-                    .envelope()
-                    .dsc()
-                    .and_then(|dsc| dsc.transaction.as_deref()),
-            },
-        );
-
-        extracted_metrics.extend(metrics, Some(sampling_decision));
-
-        if !project_info.has_feature(Feature::DiscardTransaction) {
-            let transaction_from_dsc = managed_envelope
-                .envelope()
-                .dsc()
-                .and_then(|dsc| dsc.transaction.as_deref());
-
-            let extractor = TransactionExtractor {
-                config: tx_config,
-                generic_config: Some(combined_config),
-                transaction_from_dsc,
-                sampling_decision,
-                target_project_id: project_id,
-            };
-
-            extracted_metrics.extend(extractor.extract(event)?, Some(sampling_decision));
-        }
-
-        Ok(EventMetricsExtracted(true))
-    }
-
     /// Processes the general errors, and the items which require or create the events.
     async fn process_errors(
         &self,
@@ -1655,12 +1534,12 @@ impl EnvelopeProcessorService {
                 ctx.project_info,
             );
             // Extract metrics here, we're about to drop the event/transaction.
-            event_metrics_extracted = self.extract_transaction_metrics(
-                managed_envelope,
+            event_metrics_extracted = processing::utils::transaction::extract_metrics(
+                managed_envelope.envelope().dsc(),
                 &mut event,
                 &mut extracted_metrics,
                 project_id,
-                ctx.project_info,
+                &ctx,
                 SamplingDecision::Drop,
                 event_metrics_extracted,
                 spans_extracted,
@@ -1711,12 +1590,12 @@ impl EnvelopeProcessorService {
             profile::scrub_profiler_id(&mut event);
 
             // Always extract metrics in processing Relays for sampled items.
-            event_metrics_extracted = self.extract_transaction_metrics(
-                managed_envelope,
+            event_metrics_extracted = processing::utils::transaction::extract_metrics(
+                managed_envelope.envelope().dsc(),
                 &mut event,
                 &mut extracted_metrics,
                 project_id,
-                ctx.project_info,
+                &ctx,
                 SamplingDecision::Keep,
                 event_metrics_extracted,
                 spans_extracted,
