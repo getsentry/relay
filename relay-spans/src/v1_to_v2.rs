@@ -108,7 +108,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         .unwrap_or_else(|| name_for_attributes(attributes).into());
 
     if let Some(is_remote) = is_remote.value() {
-        attributes.insert("sentry.is_remote", *is_remote);
+        attributes.insert(IS_REMOTE, *is_remote);
     }
 
     let is_segment = match (is_segment.value(), is_remote.value()) {
