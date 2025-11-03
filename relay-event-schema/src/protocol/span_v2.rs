@@ -30,7 +30,6 @@ pub struct SpanV2 {
     pub status: Annotated<SpanV2Status>,
 
     /// Whether this span is the root span of a segment.
-    #[metastructure(required = true)]
     pub is_segment: Annotated<bool>,
 
     /// Used to clarify the relationship between parents and children, or to distinguish between

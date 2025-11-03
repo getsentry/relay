@@ -167,7 +167,7 @@ def test_span_extraction(
                 "type": "string",
                 "value": "GET /api/0/organizations/?member=1",
             },
-            "sentry.is_segment": {"type": "boolean", "value": False},
+            "sentry.is_remote": {"type": "boolean", "value": False},
             "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
         },
         "downsampled_retention_days": 90,
@@ -219,7 +219,7 @@ def test_span_extraction(
         "attributes": {
             "sentry.description": {"type": "string", "value": "hi"},
             "sentry.exclusive_time": {"type": "double", "value": 1500.0},
-            "sentry.is_segment": {"type": "boolean", "value": True},
+            "sentry.is_remote": {"type": "boolean", "value": True},
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
