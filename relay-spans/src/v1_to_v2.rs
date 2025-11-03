@@ -366,6 +366,10 @@ mod tests {
               "type": "double",
               "value": 1.23
             },
+            "sentry.is_remote": {
+              "type": "boolean",
+              "value": true
+            },
             "sentry.normalized_description": {
               "type": "string",
               "value": "normalized description"

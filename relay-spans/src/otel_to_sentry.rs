@@ -678,6 +678,7 @@ mod tests {
           "is_segment": true,
           "status": "ok",
           "data": {
+            "sentry.is_remote": true,
             "sentry.origin": "auto.otlp.spans"
           },
           "links": []
@@ -709,6 +710,7 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "ok",
           "data": {
+            "sentry.is_remote": false,
             "sentry.origin": "auto.otlp.spans"
           },
           "links": []

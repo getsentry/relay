@@ -812,6 +812,10 @@ mod tests {
           "end_timestamp": 123.5,
           "links": [],
           "attributes": {
+            "sentry.is_remote": {
+              "type": "boolean",
+              "value": true
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
@@ -844,6 +848,10 @@ mod tests {
           "end_timestamp": 123.5,
           "links": [],
           "attributes": {
+            "sentry.is_remote": {
+              "type": "boolean",
+              "value": false
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"

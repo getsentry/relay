@@ -645,68 +645,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_is_remote() {
-        let json = r#"{
-            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-            "span_id": "e342abb1214ca181",
-            "parent_span_id": "0c7a7dea069bf5a6",
-            "start_timestamp": 123,
-            "end_timestamp": 123.5,
-            "is_remote": true,
-            "links": []
-        }"#;
-        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
-        {
-          "timestamp": 123.5,
-          "start_timestamp": 123.0,
-          "exclusive_time": 500.0,
-          "op": "default",
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
-          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": true,
-          "status": "unknown",
-          "data": {},
-          "links": []
-        }
-        "###);
-    }
-
-    #[test]
-    fn parse_span_is_not_remote() {
-        let json = r#"{
-            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-            "span_id": "e342abb1214ca181",
-            "parent_span_id": "0c7a7dea069bf5a6",
-            "start_timestamp": 123,
-            "end_timestamp": 123.5,
-            "is_remote": false,
-            "links": []
-        }"#;
-        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
-        {
-          "timestamp": 123.5,
-          "start_timestamp": 123.0,
-          "exclusive_time": 500.0,
-          "op": "default",
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
-          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": false,
-          "status": "unknown",
-          "data": {},
-          "links": []
-        }
-        "###);
-    }
-
-    #[test]
     fn parse_http_client_span_only_method() {
         let json = r#"{
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
