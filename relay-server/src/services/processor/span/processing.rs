@@ -9,10 +9,11 @@ use crate::processing::utils::event::extract_transaction_span;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{
     EventMetricsExtracted, ProcessingError, ProcessingExtractedMetrics, SpanGroup, SpansExtracted,
-    TransactionGroup, dynamic_sampling, event_type,
+    TransactionGroup, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
+use crate::utils::SamplingResult;
 use crate::{processing, utils};
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
@@ -39,7 +40,6 @@ use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
-use relay_sampling::evaluation::ReservoirEvaluator;
 
 #[derive(thiserror::Error, Debug)]
 enum ValidationError {
@@ -59,7 +59,6 @@ enum ValidationError {
     MissingExclusiveTime,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn process(
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
     event: &mut Annotated<Event>,
@@ -67,21 +66,25 @@ pub async fn process(
     project_id: ProjectId,
     ctx: processing::Context<'_>,
     geo_lookup: &GeoIpLookup,
-    reservoir_counters: &ReservoirEvaluator<'_>,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
-    // We only implement trace-based sampling rules for now, which can be computed
-    // once for all spans in the envelope.
-    let sampling_result = dynamic_sampling::run(
-        managed_envelope,
-        event,
-        ctx.config,
-        ctx.project_info,
-        ctx.sampling_project_info,
-        reservoir_counters,
-    )
-    .await;
+    // If no metrics could be extracted, do not sample anything.
+    let should_sample = matches!(&ctx.project_info.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported());
+    let sampling_result = match should_sample {
+        true => {
+            // We only implement trace-based sampling rules for now, which can be computed
+            // once for all spans in the envelope.
+            processing::utils::dynamic_sampling::run(
+                managed_envelope.envelope().headers().dsc(),
+                event,
+                &ctx,
+                None,
+            )
+            .await
+        }
+        false => SamplingResult::Pending,
+    };
 
     relay_statsd::metric!(
         counter(RelayCounters::SamplingDecision) += 1,
