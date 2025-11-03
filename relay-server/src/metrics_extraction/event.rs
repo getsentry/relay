@@ -10,7 +10,7 @@ use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::generic::{self, Extractable};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
-use crate::processing::utils::event::extract_transaction_span;
+use crate::processing::utils::transaction::extract_segment_span;
 use crate::statsd::RelayTimers;
 
 impl Extractable for Event {
@@ -81,8 +81,7 @@ fn extract_span_metrics_for_event(
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         let mut span_count = 0;
 
-        if let Some(transaction_span) =
-            extract_transaction_span(event, config.max_tag_value_size, &[])
+        if let Some(transaction_span) = extract_segment_span(event, config.max_tag_value_size, &[])
         {
             let metrics = generic::extract_metrics(&transaction_span, config.config);
             output.project_metrics.extend(metrics);
