@@ -385,7 +385,7 @@ impl VisitorMut for NormalizeVisitor {
                         && left_op == op
                         && left_right == right
                     {
-                        *left = Box::new(take_expr(left_left));
+                        **left = take_expr(left_left);
                     }
                 }
             }
