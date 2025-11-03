@@ -191,7 +191,7 @@ async fn compute(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> Sampling
         return SamplingResult::NoMatch;
     };
 
-    // TODO: reservoir sampling
+    // Currently there is no support planned for reservoir sampling.
     let mut evaluator = SamplingEvaluator::new(Utc::now());
 
     // Apply project rules before trace rules, to give projects a chance to override the trace root

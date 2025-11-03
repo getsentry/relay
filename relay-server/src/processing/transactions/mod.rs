@@ -4,6 +4,7 @@ use relay_base_schema::events::EventType;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics, SpanV2};
+use relay_filter::FilterStatKey;
 use relay_protocol::Annotated;
 use relay_statsd::metric;
 use smallvec::SmallVec;
@@ -19,7 +20,7 @@ use crate::processing::utils::event::{
 };
 use crate::processing::{Forward, Processor, QuotaRateLimiter, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::ProcessingExtractedMetrics;
+use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::statsd::RelayTimers;
 use crate::utils::should_filter;
 #[cfg(feature = "processing")]
@@ -31,6 +32,10 @@ mod process;
 pub enum Error {
     #[error("invalid JSON")]
     InvalidJson(#[from] serde_json::Error),
+    #[error("envelope processor failed")]
+    ProcessingFailed(#[from] ProcessingError),
+    #[error("event filtered")]
+    Filtered(#[from] FilterStatKey),
 }
 
 impl OutcomeError for Error {
@@ -39,6 +44,18 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Error::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
+            Error::ProcessingFailed(e) => match e {
+                ProcessingError::InvalidTransaction => {
+                    Outcome::Invalid(DiscardReason::InvalidTransaction)
+                }
+                _other => {
+                    relay_log::error!(
+                        error = &self as &dyn std::error::Error,
+                        "internal error: trace metric processing failed"
+                    );
+                    Outcome::Invalid(DiscardReason::Internal)
+                }
+            },
         };
         (Some(outcome), self)
     }
@@ -47,7 +64,7 @@ impl OutcomeError for Error {
 /// A processor for transactions.
 pub struct TransactionProcessor {
     limiter: Arc<QuotaRateLimiter>,
-    geo_lookup: GeoIpLookup,
+    geoip_lookup: GeoIpLookup,
 }
 
 impl Processor for TransactionProcessor {
@@ -176,15 +193,10 @@ impl Processor for TransactionProcessor {
             &mut event,
             event_fully_normalized,
             &ctx,
-            &self.inner.geoip_lookup,
+            &self.geoip_lookup,
         )?;
 
-        let filter_run = event::filter(
-            managed_envelope,
-            &mut event,
-            ctx.project_info,
-            ctx.global_config,
-        )?;
+        let filter_run = utils::event::filter(&transaction_part.headers, &mut event, &ctx)?;
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.

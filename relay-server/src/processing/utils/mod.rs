@@ -1,4 +1,6 @@
 pub mod dsc;
+pub mod dynamic_sampling;
 pub mod event;
 #[cfg(feature = "processing")]
 pub mod store;
+pub mod transaction;

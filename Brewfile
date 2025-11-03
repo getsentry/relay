@@ -1,3 +1,0 @@
-brew 'librdkafka'
-
-brew 'rustup'

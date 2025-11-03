@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - release-library/**
+      - test-release-library/** # For testing the release build
 
 env:
   CARGO_TERM_COLOR: always
@@ -40,9 +41,9 @@ jobs:
         with:
           name: artifact-linux-${{ matrix.build-arch }}
           path: py/dist/*
-          if-no-files-found: 'error'
+          if-no-files-found: "error"
           # since this artifact will be merged, compression is not necessary
-          compression-level: '0'
+          compression-level: "0"
 
   macos:
     strategy:
@@ -69,20 +70,13 @@ jobs:
           rustup override set stable
           rustup target add --toolchain stable ${{ matrix.target }}
 
-      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
+      - uses: actions/setup-python@v6
         with:
-          version: '0.8.2'
-          # we just cache the venv-dir directly in action-setup-venv
-          enable-cache: false
-
-      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
-        with:
-          python-version: 3.11.9
-          cache-dependency-path: uv.lock
-          install-cmd: uv sync --frozen --only-dev --active
+          python-version: "3.13"
 
       - name: Build Wheel
         run: |
+          pip install setuptools wheel
           python setup.py bdist_wheel -p ${{ matrix.py-platform }}
         working-directory: py
         env:
@@ -93,9 +87,9 @@ jobs:
         with:
           name: artifact-macos-${{ matrix.py-platform }}
           path: py/dist/*
-          if-no-files-found: 'error'
+          if-no-files-found: "error"
           # since this artifact will be merged, compression is not necessary
-          compression-level: '0'
+          compression-level: "0"
 
   sdist:
     name: Python sdist
@@ -106,29 +100,23 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
+      - uses: actions/setup-python@v6
         with:
-          version: '0.8.2'
-          # we just cache the venv-dir directly in action-setup-venv
-          enable-cache: false
-
-      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
-        with:
-          python-version: 3.11.9
-          cache-dependency-path: uv.lock
-          install-cmd: uv sync --frozen --only-dev --active
+          python-version: "3.13"
 
       - name: Build sdist
-        run: python setup.py sdist
+        run: |
+          pip install setuptools
+          python setup.py sdist
         working-directory: py
 
       - uses: actions/upload-artifact@v5
         with:
           name: artifact-sdist
           path: py/dist/*
-          if-no-files-found: 'error'
+          if-no-files-found: "error"
           # since this artifact will be merged, compression is not necessary
-          compression-level: '0'
+          compression-level: "0"
 
   merge:
     name: Create Release Artifact

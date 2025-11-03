@@ -1,12 +1,23 @@
 # Changelog
 
-## Unreleased
+# Unreleased
 
 - Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077))
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
 - Add `retentions` to the project configuration. ([#5135](https://github.com/getsentry/relay/pull/5135))
 - Normalization: Trim event tag keys & values to 200 chars instead of dropping them. ([#5198](https://github.com/getsentry/relay/pull/5198))
 - Add TraceMetric data category. ([#5206](https://github.com/getsentry/relay/pull/5206))
+
+## 0.9.19
+
+### Various fixes & improvements
+
+- build(py): Upgrade python to 3.13 (#5323) by @jjbayer
+- build(py): Revert `uv`, `devenv`, `pre-commit` (#5321) by @jjbayer
+- build(py): Remove py/pyproject.toml altogether (#5314) by @jjbayer
+- build(py): Revert dynamic version, ignore pyproject.toml instead (#5313) by @jjbayer
+- build(py): Use dynamic version (#5311) by @jjbayer
+- feat(dev): Add devenv, uv, pre-commit (take 2) (#5248) by @joshuarli
 
 ## 0.9.17
 

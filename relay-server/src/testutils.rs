@@ -3,12 +3,9 @@ use std::sync::Arc;
 use bytes::Bytes;
 use relay_cogs::Cogs;
 use relay_config::Config;
-use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
-use relay_protocol::RuleCondition;
-use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
 
-use relay_sampling::{DynamicSamplingContext, SamplingConfig};
+use relay_sampling::DynamicSamplingContext;
 use relay_system::Addr;
 #[cfg(feature = "processing")]
 use relay_system::Service;
@@ -24,33 +21,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::global_rate_limits::GlobalRateLimitsService;
 use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcessorServicePool};
 use crate::services::projects::cache::ProjectCacheHandle;
-use crate::services::projects::project::ProjectInfo;
 use crate::utils::ThreadPoolBuilder;
-
-pub fn state_with_rule_and_condition(
-    sample_rate: Option<f64>,
-    rule_type: RuleType,
-    condition: RuleCondition,
-) -> ProjectInfo {
-    let rules = match sample_rate {
-        Some(sample_rate) => vec![SamplingRule {
-            condition,
-            sampling_value: SamplingValue::SampleRate { value: sample_rate },
-            ty: rule_type,
-            id: RuleId(1),
-            time_range: Default::default(),
-            decaying_fn: DecayingFunction::Constant,
-        }],
-        None => Vec::new(),
-    };
-
-    let mut state = ProjectInfo::default();
-    state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
-        rules,
-        ..SamplingConfig::new()
-    }));
-    state
-}
 
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
     DynamicSamplingContext {
