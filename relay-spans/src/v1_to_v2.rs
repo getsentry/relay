@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use relay_conventions::IS_REMOTE;
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
     SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,

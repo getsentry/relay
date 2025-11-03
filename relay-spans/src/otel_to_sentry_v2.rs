@@ -3,6 +3,7 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
+use relay_conventions::IS_REMOTE;
 use relay_conventions::ORIGIN;
 use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
