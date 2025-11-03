@@ -101,8 +101,12 @@ pub fn otel_to_sentry_span(
         sentry_attributes.insert(STATUS_MESSAGE.to_owned(), status_message);
     }
 
+    let is_remote = otel_flags_is_remote(flags);
+    if let Some(is_remote) = is_remote {
+        sentry_attributes.insert("sentry.is_remote".to_owned(), is_remote);
+    }
     // A remote span is a segment span, but not every segment span is remote:
-    let is_segment = match otel_flags_is_remote(flags) {
+    let is_segment = match is_remote {
         Some(true) => Some(true),
         _ => None,
     }

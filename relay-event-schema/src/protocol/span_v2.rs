@@ -29,10 +29,6 @@ pub struct SpanV2 {
     #[metastructure(required = true)]
     pub status: Annotated<SpanV2Status>,
 
-    /// DEPRECATED - Indicates whether a span's parent is remote.
-    #[metastructure(field = "is_remote", required = false, skip_serialization = "always")]
-    pub deprecated_is_remote: Annotated<bool>,
-
     /// Whether this span is the root span of a segment.
     #[metastructure(required = true)]
     pub is_segment: Annotated<bool>,
@@ -63,16 +59,6 @@ pub struct SpanV2 {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
-}
-
-impl SpanV2 {
-    /// If the span has is_remote=true, use if for is_segment.
-    pub fn transfer_is_remote(&mut self) {
-        let is_remote = std::mem::take(&mut self.deprecated_is_remote);
-        if self.is_segment.value().is_none() && is_remote.value() == Some(&true) {
-            self.is_segment = is_remote;
-        }
-    }
 }
 
 impl Getter for SpanV2 {

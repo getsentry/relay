@@ -88,7 +88,6 @@ fn normalize_span(
     // TODO: `validate_span()` (start/end timestamps)
 
     if let Some(span) = span.value_mut() {
-        span.transfer_is_remote();
         eap::normalize_attribute_types(&mut span.attributes);
         eap::normalize_attribute_names(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());

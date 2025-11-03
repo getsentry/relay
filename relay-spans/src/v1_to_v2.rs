@@ -107,7 +107,16 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         .and_then(|name| name.map_value(|attr| attr.into_string()).transpose())
         .unwrap_or_else(|| name_for_attributes(attributes).into());
 
-    let mut span_v2 = SpanV2 {
+    if let Some(is_remote) = is_remote.value() {
+        attributes.insert("sentry.is_remote", *is_remote);
+    }
+
+    let is_segment = match (is_segment.value(), is_remote.value()) {
+        (None, Some(true)) => is_remote,
+        _ => is_segment,
+    };
+
+    SpanV2 {
         trace_id,
         parent_span_id,
         span_id,
@@ -115,17 +124,13 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         status: Annotated::map_value(status, span_v1_status_to_span_v2_status)
             .or_else(|| SpanV2Status::Ok.into()),
         is_segment,
-        deprecated_is_remote: is_remote,
         kind,
         start_timestamp,
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
         attributes: annotated_attributes,
         other,
-    };
-
-    span_v2.transfer_is_remote();
-    span_v2
+    }
 }
 
 fn span_v1_status_to_span_v2_status(status: SpanV1Status) -> SpanV2Status {

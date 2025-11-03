@@ -44,9 +44,6 @@ pub enum SkipSerialization {
     /// Serialize all values. Missing values will be serialized as `null`.
     Never,
 
-    /// Do not serialize anything.
-    Always,
-
     /// Do not serialize `null` values but keep empty collections.
     ///
     /// If the `bool` flag is set to `true`, this applies to all descendants recursively; if it is

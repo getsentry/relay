@@ -52,7 +52,6 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         attributes,
         status,
         is_segment,
-        deprecated_is_remote,
         other: _other,
     } = span_v2;
 
@@ -150,7 +149,6 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         segment_id,
         span_id,
         is_segment,
-        is_remote: deprecated_is_remote,
         profile_id,
         start_timestamp,
         status,

@@ -662,7 +662,6 @@ struct FieldAttrs {
 enum SkipSerialization {
     #[default]
     Never,
-    Always,
     Null(bool),
     Empty(bool),
 }
@@ -671,7 +670,6 @@ impl SkipSerialization {
     fn as_tokens(self) -> TokenStream {
         match self {
             SkipSerialization::Never => quote!(::relay_protocol::SkipSerialization::Never),
-            SkipSerialization::Always => quote!(::relay_protocol::SkipSerialization::Always),
             SkipSerialization::Null(deep) => {
                 quote!(::relay_protocol::SkipSerialization::Null(#deep))
             }
@@ -688,7 +686,6 @@ impl FromStr for SkipSerialization {
     fn from_str(s: &str) -> Result<Self, ()> {
         Ok(match s {
             "never" => SkipSerialization::Never,
-            "always" => SkipSerialization::Always,
             "null" => SkipSerialization::Null(false),
             "null_deep" => SkipSerialization::Null(true),
             "empty" => SkipSerialization::Empty(false),
