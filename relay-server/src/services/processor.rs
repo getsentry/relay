@@ -56,6 +56,7 @@ use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_category,
     event_type,
 };
+use crate::processing::utils::transaction::ExtractMetricsContext;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -1535,14 +1536,16 @@ impl EnvelopeProcessorService {
             );
             // Extract metrics here, we're about to drop the event/transaction.
             event_metrics_extracted = processing::utils::transaction::extract_metrics(
-                managed_envelope.envelope().dsc(),
                 &mut event,
                 &mut extracted_metrics,
-                project_id,
-                &ctx,
-                SamplingDecision::Drop,
-                event_metrics_extracted,
-                spans_extracted,
+                ExtractMetricsContext {
+                    dsc: managed_envelope.envelope().dsc(),
+                    project_id,
+                    ctx: &ctx,
+                    sampling_decision: SamplingDecision::Drop,
+                    event_metrics_extracted,
+                    spans_extracted,
+                },
             )?;
 
             dynamic_sampling::drop_unsampled_items(
@@ -1591,14 +1594,16 @@ impl EnvelopeProcessorService {
 
             // Always extract metrics in processing Relays for sampled items.
             event_metrics_extracted = processing::utils::transaction::extract_metrics(
-                managed_envelope.envelope().dsc(),
                 &mut event,
                 &mut extracted_metrics,
-                project_id,
-                &ctx,
-                SamplingDecision::Keep,
-                event_metrics_extracted,
-                spans_extracted,
+                ExtractMetricsContext {
+                    dsc: managed_envelope.envelope().dsc(),
+                    project_id,
+                    ctx: &ctx,
+                    sampling_decision: SamplingDecision::Keep,
+                    event_metrics_extracted,
+                    spans_extracted,
+                },
             )?;
 
             spans_extracted = span::extract_from_event(

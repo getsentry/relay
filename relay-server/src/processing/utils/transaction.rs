@@ -32,17 +32,31 @@ pub fn extract_segment_span(
     spans.into_iter().next().and_then(Annotated::into_value)
 }
 
+/// Input arguments for [`extract_metrics`].
+pub struct ExtractMetricsContext<'a> {
+    pub dsc: Option<&'a DynamicSamplingContext>,
+    pub project_id: ProjectId,
+    pub ctx: &'a Context<'a>,
+    pub sampling_decision: SamplingDecision,
+    pub event_metrics_extracted: EventMetricsExtracted,
+    pub spans_extracted: SpansExtracted,
+}
+
 /// Extract transaction metrics.
 pub fn extract_metrics(
-    dsc: Option<&DynamicSamplingContext>,
     event: &mut Annotated<Event>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
-    project_id: ProjectId,
-    ctx: &Context,
-    sampling_decision: SamplingDecision,
-    event_metrics_extracted: EventMetricsExtracted,
-    spans_extracted: SpansExtracted,
+    ctx: ExtractMetricsContext,
 ) -> Result<EventMetricsExtracted, ProcessingError> {
+    let ExtractMetricsContext {
+        dsc,
+        project_id,
+        ctx,
+        sampling_decision,
+        event_metrics_extracted,
+        spans_extracted,
+    } = ctx;
+
     if event_metrics_extracted.0 {
         return Ok(event_metrics_extracted);
     }
