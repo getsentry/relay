@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
-use relay_dynamic_config::Feature;
+use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics, SpanV2};
 use relay_filter::FilterStatKey;
 use relay_protocol::Annotated;
+#[cfg(feature = "processing")]
+use relay_redis::AsyncRedisClient;
+use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
 use smallvec::SmallVec;
 
@@ -16,13 +19,13 @@ use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::utils::event::{
-    EventFullyNormalized, EventMetricsExtracted, SpansExtracted,
+    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
 };
 use crate::processing::{Forward, Processor, QuotaRateLimiter, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
-use crate::statsd::RelayTimers;
-use crate::utils::should_filter;
+use crate::statsd::{RelayCounters, RelayTimers};
+use crate::utils::{SamplingResult, should_filter};
 #[cfg(feature = "processing")]
 use crate::{processing::spans::store, services::store::StoreEnvelope};
 
@@ -34,8 +37,6 @@ pub enum Error {
     InvalidJson(#[from] serde_json::Error),
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingError),
-    #[error("event filtered")]
-    Filtered(#[from] FilterStatKey),
 }
 
 impl OutcomeError for Error {
@@ -48,6 +49,7 @@ impl OutcomeError for Error {
                 ProcessingError::InvalidTransaction => {
                     Outcome::Invalid(DiscardReason::InvalidTransaction)
                 }
+                ProcessingError::EventFiltered(key) => Outcome::Filtered(key.clone()),
                 _other => {
                     relay_log::error!(
                         error = &self as &dyn std::error::Error,
@@ -65,6 +67,10 @@ impl OutcomeError for Error {
 pub struct TransactionProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: GeoIpLookup,
+    #[cfg(feature = "processing")]
+    quotas_client: Option<AsyncRedisClient>,
+    #[cfg(feature = "processing")]
+    reservoir_counters: ReservoirCounters,
 }
 
 impl Processor for TransactionProcessor {
@@ -177,6 +183,8 @@ impl Processor for TransactionProcessor {
 
         transfer_profile_id(&mut event, profile_id);
 
+        // FIXME: Merge profile back so it gets rejected with `transaction_part`.
+
         transaction_part
             .modify(|w, r| utils::dsc::validate_and_set_dsc(&mut w.headers, &event, &mut ctx));
 
@@ -194,29 +202,34 @@ impl Processor for TransactionProcessor {
             event_fully_normalized,
             &ctx,
             &self.geoip_lookup,
-        )?;
+        )
+        .map_err(Error::from)
+        .reject(&transaction_part)?; // FIXME
 
-        let filter_run = utils::event::filter(&transaction_part.headers, &mut event, &ctx)?;
+        let filter_run = utils::event::filter(&transaction_part.headers, &mut event, &ctx)
+            .map_err(|e| ProcessingError::EventFiltered(e).into())
+            .reject(&transaction_part)?; // FIXME
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
-        let run_dynamic_sampling =
-            matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
-
-        let reservoir = self.new_reservoir_evaluator(
-            managed_envelope.scoping().organization_id,
-            reservoir_counters,
-        );
+        // Also, we require transaction metrics to be enabled before sampling.
+        let run_dynamic_sampling = (matches!(filter_run, FiltersStatus::Ok)
+            || ctx.config.processing_enabled())
+            && matches!(&ctx.project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
 
         let sampling_result = match run_dynamic_sampling {
             true => {
-                dynamic_sampling::run(
-                    managed_envelope,
+                #[allow(unused_mut)]
+                let mut reservoir = ReservoirEvaluator::new(Arc::clone(&self.reservoir_counters));
+                #[cfg(feature = "processing")]
+                if let Some(quotas_client) = self.quotas_client.as_ref() {
+                    reservoir.set_redis(transaction_part.headers.organization_id, quotas_client);
+                }
+                utils::dynamic_sampling::run(
+                    transaction_part.headers.dsc(),
                     &mut event,
-                    ctx.config,
-                    ctx.project_info,
-                    ctx.sampling_project_info,
-                    &reservoir,
+                    &ctx,
+                    Some(&reservoir),
                 )
                 .await
             }
