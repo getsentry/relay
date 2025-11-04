@@ -39,6 +39,10 @@ pub struct PartialRedisConfigOptions {
     /// blocking when the pool is exhausted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wait_timeout: Option<u64>,
+    /// Sets the maximum time in seconds to wait for a result when sending a Redis command.
+    ///
+    /// If a command exceeds this timeout, the connection will be recycled.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub response_timeout: Option<u64>,
     /// Sets the number of times after which the connection will check whether it is active when
     /// being recycled.
