@@ -58,5 +58,7 @@ mod not_yet_defined {
     // It was introduced in `a1f1e89` (https://github.com/getsentry/relay/pull/4876)
     // to absorb the `status.message` field from OTEL.
     pub const STATUS_MESSAGE: &str = "sentry.status.message";
+
+    pub const IS_REMOTE: &str = "sentry.is_remote";
 }
 pub use self::not_yet_defined::*;
