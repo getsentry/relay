@@ -39,7 +39,6 @@ pub struct PartialRedisConfigOptions {
     /// blocking when the pool is exhausted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wait_timeout: Option<u64>,
-    pub connection_timeout: Option<u64>,
     pub response_timeout: Option<u64>,
     /// Sets the number of times after which the connection will check whether it is active when
     /// being recycled.
@@ -57,7 +56,6 @@ impl Default for PartialRedisConfigOptions {
             create_timeout: Some(3),
             recycle_timeout: Some(2),
             wait_timeout: None,
-            connection_timeout: Some(3),
             response_timeout: Some(6),
             recycle_check_frequency: 100,
         }
@@ -228,7 +226,6 @@ fn build_redis_config_options(
         create_timeout: options.create_timeout,
         recycle_timeout: options.recycle_timeout,
         wait_timeout: options.wait_timeout,
-        connection_timeout: options.connection_timeout,
         response_timeout: options.response_timeout,
         recycle_check_frequency: options.recycle_check_frequency,
     }

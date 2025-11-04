@@ -159,9 +159,6 @@ impl CustomClusterManager {
         if read_from_replicas {
             client = client.read_from_replicas();
         }
-        if let Some(connection_timeout) = options.connection_timeout {
-            client = client.connection_timeout(Duration::from_secs(connection_timeout));
-        }
         if let Some(response_timeout) = options.response_timeout {
             client = client.response_timeout(Duration::from_secs(response_timeout));
         }
@@ -271,10 +268,6 @@ impl CustomSingleManager {
     /// instance, handling connection lifecycle and health checks.
     pub fn new<T: IntoConnectionInfo>(params: T, options: RedisConfigOptions) -> RedisResult<Self> {
         let mut connection_config = AsyncConnectionConfig::new();
-        if let Some(connection_timeout) = options.connection_timeout {
-            connection_config =
-                connection_config.set_connection_timeout(Duration::from_secs(connection_timeout));
-        }
         if let Some(response_timeout) = options.response_timeout {
             connection_config =
                 connection_config.set_response_timeout(Duration::from_secs(response_timeout));

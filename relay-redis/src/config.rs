@@ -27,7 +27,6 @@ pub struct RedisConfigOptions {
     /// will fail with a timeout error. This setting helps prevent indefinite
     /// blocking when the pool is exhausted.
     pub wait_timeout: Option<u64>,
-    pub connection_timeout: Option<u64>,
     pub response_timeout: Option<u64>,
     /// Sets the number of times after which the connection will check whether it is active when
     /// being recycled.
@@ -45,7 +44,6 @@ impl Default for RedisConfigOptions {
             create_timeout: Some(3),
             recycle_timeout: Some(2),
             wait_timeout: None,
-            connection_timeout: Some(3),
             response_timeout: Some(6),
             recycle_check_frequency: 100,
         }
