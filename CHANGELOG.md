@@ -11,6 +11,7 @@
 - Normalize deprecated attribute names according to `sentry-conventions` for logs and V2 spans. ([#5257](https://github.com/getsentry/relay/pull/5257))
 - Allow sample rate per trace metric. ([#5317](https://github.com/getsentry/relay/pull/5317))
 - Replace `is_remote` with `is_segment` on the Span V2 schema. ([#5306](https://github.com/getsentry/relay/pull/5306))
+- Add `response_timeout` config setting for Redis. ([#5329](https://github.com/getsentry/relay/pull/5329))
 
 **Breaking Changes**:
 
