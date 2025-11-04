@@ -23,6 +23,7 @@ pub use self::forward::*;
 pub use self::limits::*;
 
 pub mod check_ins;
+pub mod client_reports;
 pub mod logs;
 pub mod sessions;
 pub mod spans;
