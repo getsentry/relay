@@ -926,7 +926,7 @@ pub enum RelayCounters {
     /// The number of times a sampling decision was made.
     ///
     /// This metric is tagged with:
-    /// - `item`: What item the decision is taken for (transaction vs span)/
+    /// - `item`: what item the decision is taken for (transaction vs span).
     SamplingDecision,
     /// The number of times an upload of an attachment fails.
     ///

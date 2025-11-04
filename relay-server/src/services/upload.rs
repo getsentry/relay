@@ -106,7 +106,7 @@ impl OutcomeError for Error {
 pub struct UploadService {
     inflight: FuturesUnordered<BoxFuture<'static, UploadResult>>,
     max_inflight: usize,
-    timeout: std::time::Duration,
+    timeout: Duration,
 }
 
 impl UploadService {
@@ -118,7 +118,7 @@ impl UploadService {
         Self {
             inflight: FuturesUnordered::new(),
             max_inflight: *max_inflight,
-            timeout: *timeout,
+            timeout: Duration::from_secs(*timeout),
         }
     }
 }
@@ -139,7 +139,7 @@ impl Service for UploadService {
                 }
                 Some(message) = rx.recv() => {
                     let Upload { attachment, respond_to } = message;
-                    if self.inflight.len() > self.max_inflight {
+                    if self.inflight.len() >= self.max_inflight {
                         // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
                         // We might want to have a less aggressive mechanism in the future.
                         drop(attachment.reject_err(Error::LoadShed));

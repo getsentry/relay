@@ -1245,19 +1245,20 @@ impl Default for OutcomeAggregatorConfig {
 
 /// Configuration values for attachment uploads.
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct UploadServiceConfig {
     /// Maximum concurrency of uploads.
     pub max_inflight: usize,
 
-    /// Maximum duration of an attachment upload. Uploads that take longer are discarded.
-    pub timeout: std::time::Duration,
+    /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
+    pub timeout: u64,
 }
 
 impl Default for UploadServiceConfig {
     fn default() -> Self {
         Self {
             max_inflight: 100,
-            timeout: Duration::from_secs(60),
+            timeout: 60,
         }
     }
 }
