@@ -93,8 +93,8 @@ impl Service for UploadService {
                 biased;
 
                 Some(result) = self.inflight.next() => {
-                    if let Some(uploaded_attachment) = result {
-                        // TODO: respond to
+                    if let Some((uploaded_attachment, respond_to)) = result {
+                        respond_to.send(uploaded_attachment);
                     }
                 }
                 Some(message) = rx.recv() => {
@@ -102,7 +102,7 @@ impl Service for UploadService {
                     if self.inflight.len() > self.max_inflight {
                         // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
                         // We might want to have a less aggressive mechanism in the future.
-                        attachment.reject_err(Error::LoadShed);
+                        drop(attachment.reject_err(Error::LoadShed));
                         continue;
                     }
 
@@ -118,31 +118,38 @@ type UploadResult = Option<(
     Recipient<Managed<UploadedAttachment>, NoResponse>,
 )>;
 
+/// Spend a limited time trying to upload an attachment, and emit outcomes if this fails.
+///
+/// Returns an [`UploadedAttachment`] if the upload was successful.
 async fn managed_upload(
     timeout: Duration,
     attachment: Managed<Attachment>,
     respond_to: Recipient<Managed<UploadedAttachment>, NoResponse>,
 ) -> UploadResult {
-    let result = tokio::time::timeout(timeout, async {
+    let timeout = tokio::time::timeout(timeout, async {
         let key = attachment.meta.attachment_id.as_ref().map(Uuid::to_string);
         upload(key.as_deref(), &attachment.payload).await
     })
     .await;
 
-    match result {
-        Ok(Ok(_key)) => {
-            return Some((
-                attachment.map(|Attachment { meta, payload }, _| UploadedAttachment {
-                    meta,
-                    uploaded_bytes: payload.len(),
-                }),
-                respond_to,
-            ));
-        }
-        Ok(Err(())) => attachment.reject_err(Error::UploadFailed),
-        Err(_timeout) => attachment.reject_err(Error::Timeout),
+    let Ok(result) = timeout else {
+        drop(attachment.reject_err(Error::Timeout));
+        return None;
     };
-    None
+
+    match result {
+        Ok(_key) => Some((
+            attachment.map(|Attachment { meta, payload }, _| UploadedAttachment {
+                meta,
+                uploaded_bytes: payload.len(),
+            }),
+            respond_to,
+        )),
+        Err(()) => {
+            drop(attachment.reject_err(Error::UploadFailed));
+            None
+        }
+    }
 }
 
 /// Returns the key of the objectstore upload.
