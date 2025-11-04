@@ -146,6 +146,7 @@ fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::project::ProjectId;
     use relay_pii::{DataScrubbingConfig, PiiConfig};
     use relay_protocol::SerializableAnnotated;
 
@@ -172,6 +173,7 @@ mod tests {
         Context {
             config,
             global_config,
+            project_id: ProjectId::new(1),
             project_info,
             rate_limits,
             sampling_project_info: None,

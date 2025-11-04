@@ -132,6 +132,7 @@ fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> 
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::project::ProjectId;
     use relay_pii::{DataScrubbingConfig, PiiConfig};
     use relay_protocol::assert_annotated_snapshot;
 
@@ -158,6 +159,7 @@ mod tests {
         Context {
             config,
             global_config,
+            project_id: ProjectId::new(1),
             project_info,
             rate_limits,
             sampling_project_info: None,

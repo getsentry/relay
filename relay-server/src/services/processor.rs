@@ -2012,21 +2012,6 @@ impl EnvelopeProcessorService {
             ..
         } = message;
 
-        // Prefer the project's project ID, and fall back to the stated project id from the
-        // envelope. The project ID is available in all modes, other than in proxy mode, where
-        // envelopes for unknown projects are forwarded blindly.
-        //
-        // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
-        // since we cannot process an envelope without project ID, so drop it.
-        let Some(project_id) = ctx
-            .project_info
-            .project_id
-            .or_else(|| envelope.envelope().meta().project_id())
-        else {
-            envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-            return Err(ProcessingError::MissingProjectId);
-        };
-
         let client = envelope.envelope().meta().client().map(str::to_owned);
         let user_agent = envelope.envelope().meta().user_agent().map(str::to_owned);
         let project_key = envelope.envelope().meta().public_key();
@@ -2041,7 +2026,7 @@ impl EnvelopeProcessorService {
         // We set additional information on the scope, which will be removed after processing the
         // envelope.
         relay_log::configure_scope(|scope| {
-            scope.set_tag("project", project_id);
+            scope.set_tag("project", ctx.project_id);
             if let Some(client) = client {
                 scope.set_tag("sdk", client);
             }
@@ -2050,7 +2035,7 @@ impl EnvelopeProcessorService {
             }
         });
 
-        let result = match self.process_envelope(cogs, project_id, message).await {
+        let result = match self.process_envelope(cogs, ctx.project_id, message).await {
             Ok(ProcessingResult::Envelope {
                 mut managed_envelope,
                 extracted_metrics,
@@ -2134,9 +2119,25 @@ impl EnvelopeProcessorService {
 
             let global_config = self.inner.global_config.current();
 
+            // Prefer the project's project ID, and fall back to the stated project id from the
+            // envelope. The project ID is available in all modes, other than in proxy mode, where
+            // envelopes for unknown projects are forwarded blindly.
+            //
+            // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
+            // since we cannot process an envelope without project ID, so drop it.
+            let Some(project_id) = message
+                .project_info
+                .project_id
+                .or_else(|| envelope.envelope().meta().project_id())
+            else {
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+                return;
+            };
+
             let ctx = processing::Context {
                 config: &self.inner.config,
                 global_config: &global_config,
+                project_id,
                 project_info: &message.project_info,
                 sampling_project_info: message.sampling_project_info.as_deref(),
                 rate_limits: &message.rate_limits,
