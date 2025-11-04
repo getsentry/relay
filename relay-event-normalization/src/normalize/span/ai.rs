@@ -28,7 +28,7 @@ impl UsedTokens {
         self.input_tokens > 0.0 || self.output_tokens > 0.0
     }
 
-    /// Calculates the total amount of uncached tokens.
+    /// Calculates the total amount of uncached input tokens.
     ///
     /// Subtracts cached tokens from the total token count.
     pub fn raw_input_tokens(&self) -> f64 {
