@@ -1173,7 +1173,7 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
-    ///
+    /// Configuration for attachment uploads.
     pub upload: UploadServiceConfig,
 }
 
