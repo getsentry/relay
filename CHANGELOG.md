@@ -18,6 +18,7 @@
 
 **Bug Fixes**:
 
+- Fix array attributes not being applied to standalone spans. ([#5337](https://github.com/getsentry/relay/pull/5337))
 - Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
 - Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
 - Fix potentially missing attachment outcomes when rate limiting. ([#5301](https://github.com/getsentry/relay/pull/5301))

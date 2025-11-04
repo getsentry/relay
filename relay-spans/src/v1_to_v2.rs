@@ -207,7 +207,7 @@ fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
         Value::F64(v) => AttributeValue::from(v),
         Value::String(v) => AttributeValue::from(v),
         Value::Array(_) | Value::Object(_) => {
-            return match Annotated::new(value).to_json() {
+            return match serde_json::to_string(&NoMeta(&value)) {
                 Ok(s) => Annotated(
                     Some(AttributeValue {
                         ty: AttributeType::String.into(),
@@ -223,6 +223,21 @@ fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
         }
     }
     .into()
+}
+
+/// A wrapper for [`IntoValue`] types which allows serde serialization and discards metadata.
+struct NoMeta<'a, T>(&'a T);
+
+impl<T> serde::Serialize for NoMeta<'_, T>
+where
+    T: IntoValue,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize_payload(serializer, Default::default())
+    }
 }
 
 #[cfg(test)]
@@ -271,6 +286,7 @@ mod tests {
           },
           "data": {
             "my.data.field": "my.data.value",
+            "my.array": ["str", 123],
             "my.nested": {
               "numbers": [
                 1,
@@ -343,6 +359,10 @@ mod tests {
               "type": "double",
               "value": 9001.0
             },
+            "my.array": {
+              "type": "string",
+              "value": "[\"str\",123]"
+            },
             "my.data.field": {
               "type": "string",
               "value": "my.data.value"
@@ -411,6 +431,18 @@ mod tests {
           "additional_field": "additional field value",
           "_meta": {
             "attributes": {
+              "my.array": {
+                "": {
+                  "err": [
+                    [
+                      "invalid_data",
+                      {
+                        "reason": "expected scalar attribute"
+                      }
+                    ]
+                  ]
+                }
+              },
               "my.nested": {
                 "": {
                   "err": [
