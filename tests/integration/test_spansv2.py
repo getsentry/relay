@@ -66,7 +66,7 @@ def test_spansv2_basic(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
-            "is_segment": False,
+            "is_segment": True,
             "name": "some op",
             "status": "ok",
             "attributes": {
@@ -78,6 +78,9 @@ def test_spansv2_basic(
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "public_key": project_config["publicKeys"][0]["publicKey"],
+            "release": "foo@1.0",
+            "environment": "prod",
+            "transaction": "/my/fancy/endpoint",
         },
     )
 
@@ -93,6 +96,17 @@ def test_spansv2_basic(
             "invalid": None,
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.dsc.environment": {"type": "string", "value": "prod"},
+            "sentry.dsc.public_key": {
+                "type": "string",
+                "value": project_config["publicKeys"][0]["publicKey"],
+            },
+            "sentry.dsc.release": {"type": "string", "value": "foo@1.0"},
+            "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "5b8efff798038103d269b633813fc60c",
+            },
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -112,7 +126,7 @@ def test_spansv2_basic(
         "received": time_within(ts),
         "start_timestamp": time_within(ts),
         "end_timestamp": time_within(ts.timestamp() + 0.5),
-        "is_segment": False,
+        "is_segment": True,
         "status": "ok",
         "retention_days": 42,
         "downsampled_retention_days": 1337,
@@ -128,7 +142,11 @@ def test_spansv2_basic(
             "project_id": 42,
             "received_at": time_within_delta(),
             "retention_days": 90,
-            "tags": {"decision": "keep", "target_project_id": "42"},
+            "tags": {
+                "decision": "keep",
+                "target_project_id": "42",
+                "transaction": "/my/fancy/endpoint",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
