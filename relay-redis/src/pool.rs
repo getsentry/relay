@@ -44,9 +44,9 @@ impl<C> TrackedConnection<C> {
     /// from the pool.
     ///
     /// An `Ok` result never leads to the connection being detached.
-    /// A [`RedisError`] leads to the connection being detached if it is unrecoverable.
+    /// A [`RedisError`] leads to the connection being detached if it is either unrecoverable or a timeout.
     fn should_be_detached<T>(result: Result<T, &RedisError>) -> bool {
-        result.is_err_and(|error| error.is_unrecoverable_error())
+        result.is_err_and(|error| error.is_unrecoverable_error() || error.is_timeout())
     }
 }
 
