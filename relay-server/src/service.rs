@@ -25,6 +25,8 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
+#[cfg(feature = "processing")]
+use crate::services::upload::UploadService;
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
 #[cfg(feature = "processing")]
@@ -232,6 +234,11 @@ impl ServiceState {
                 .map(|s| services.start(s))
             })
             .transpose()?;
+
+        #[cfg(feature = "processing")]
+        let _upload = config
+            .processing_enabled()
+            .then(|| services.start(UploadService::new(config.upload())));
 
         #[cfg(feature = "processing")]
         let global_rate_limits = redis_clients

@@ -1,11 +1,11 @@
 //! Service that uploads attachments.
-
 use std::time::Duration;
 
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
+use relay_config::UploadServiceConfig;
 use relay_quotas::DataCategory;
 use relay_system::{Interface, NoResponse, Receiver, Recipient, Service};
 use smallvec::smallvec;
@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::managed::{Counted, Managed, OutcomeError, Quantities};
 use crate::services::outcome::DiscardReason;
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayGauges};
 
 use super::outcome::Outcome;
 
@@ -94,6 +94,20 @@ pub struct UploadService {
     timeout: std::time::Duration,
 }
 
+impl UploadService {
+    pub fn new(config: &UploadServiceConfig) -> Self {
+        let UploadServiceConfig {
+            max_inflight,
+            timeout,
+        } = config;
+        Self {
+            inflight: FuturesUnordered::new(),
+            max_inflight: *max_inflight,
+            timeout: *timeout,
+        }
+    }
+}
+
 impl Service for UploadService {
     type Interface = Upload;
 
@@ -103,6 +117,7 @@ impl Service for UploadService {
                 biased;
 
                 Some(result) = self.inflight.next() => {
+                    relay_statsd::metric!(gauge(RelayGauges::AttachmentUploadsInFlight) = self.inflight.len() as u64);
                     if let Some((uploaded_attachment, respond_to)) = result {
                         respond_to.send(uploaded_attachment);
                     }
@@ -117,6 +132,7 @@ impl Service for UploadService {
                     }
 
                     self.inflight.push(managed_upload(self.timeout, attachment, respond_to).boxed());
+                    relay_statsd::metric!(gauge(RelayGauges::AttachmentUploadsInFlight) = self.inflight.len() as u64);
                 }
             }
         }

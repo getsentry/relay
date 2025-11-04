@@ -1173,6 +1173,8 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
+    ///
+    pub upload: UploadServiceConfig,
 }
 
 impl Default for Processing {
@@ -1191,6 +1193,7 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
+            upload: UploadServiceConfig::default(),
         }
     }
 }
@@ -1235,6 +1238,25 @@ impl Default for OutcomeAggregatorConfig {
         Self {
             bucket_interval: 60,
             flush_interval: 120,
+        }
+    }
+}
+
+/// Configuration values for attachment uploads.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct UploadServiceConfig {
+    /// Maximum concurrency of uploads.
+    pub max_inflight: usize,
+
+    /// Maximum duration of an attachment upload. Uploads that take longer are discarded.
+    pub timeout: std::time::Duration,
+}
+
+impl Default for UploadServiceConfig {
+    fn default() -> Self {
+        Self {
+            max_inflight: 100,
+            timeout: Duration::from_secs(60),
         }
     }
 }
@@ -2491,6 +2513,11 @@ impl Config {
     /// All unused but configured topic assignments.
     pub fn unused_topic_assignments(&self) -> &relay_kafka::Unused {
         &self.values.processing.topics.unused
+    }
+
+    /// Configuration of the attachment upload service.
+    pub fn upload(&self) -> &UploadServiceConfig {
+        &self.values.processing.upload
     }
 
     /// Redis servers to connect to for project configs, cardinality limits,

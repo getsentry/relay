@@ -46,5 +46,6 @@ pub mod stats;
 #[cfg(feature = "processing")]
 pub mod store;
 #[cfg(feature = "processing")]
+#[allow(unused)]
 pub mod upload;
 pub mod upstream;
