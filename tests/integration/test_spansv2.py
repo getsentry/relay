@@ -860,7 +860,6 @@ def test_invalid_spans(mini_sentry, relay):
 
     valid_span = {
         "end_timestamp": ts.timestamp() + 0.5,
-        "is_segment": False,
         "name": "some op",
         "span_id": "eee19b7ec3c1b174",
         "start_timestamp": ts.timestamp(),

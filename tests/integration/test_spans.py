@@ -677,7 +677,6 @@ def test_span_ingestion(
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
                 "sentry.file_extension": {"type": "string", "value": "js"},
                 "sentry.group": {"type": "string", "value": "8a97a9e43588e2bd"},
-                "sentry.is_segment": {"type": "boolean", "value": True},
                 "sentry.normalized_description": {
                     "type": "string",
                     "value": "https://example.com/*/blah.js",
@@ -690,7 +689,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp() + 1,
-            "is_segment": False,
+            "is_segment": True,
             "links": [
                 {
                     "trace_id": "99143b0763095bd9c9955e8175d1fb25",
@@ -720,7 +719,6 @@ def test_span_ingestion(
                     "value": 'test \\" with \\" escaped \\" chars',
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
-                "sentry.is_segment": {"type": "boolean", "value": False},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
                 "user_agent.original": {
@@ -748,7 +746,6 @@ def test_span_ingestion(
                 "sentry.browser.name": {"type": "string", "value": "Python Requests"},
                 "sentry.description": {"type": "string", "value": "my 2nd OTel span"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
-                "sentry.is_segment": {"type": "boolean", "value": True},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
@@ -759,7 +756,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp(),
-            "is_segment": False,
+            "is_segment": True,
             "kind": "producer",
             "links": [
                 {
@@ -786,7 +783,6 @@ def test_span_ingestion(
                 "client.address": {"type": "string", "value": "127.0.0.1"},
                 "sentry.browser.name": {"type": "string", "value": "Chrome"},
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
-                "sentry.is_segment": {"type": "boolean", "value": False},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
                 "user_agent.original": {
@@ -828,7 +824,6 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp(),
-            "is_segment": False,
             "kind": "consumer",
             "links": [
                 {

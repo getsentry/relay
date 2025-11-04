@@ -102,7 +102,6 @@ def test_span_ingestion(
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts.timestamp() - 0.5),
-        "is_segment": False,
         "key_id": 123,
         "kind": "server",
         "links": [
