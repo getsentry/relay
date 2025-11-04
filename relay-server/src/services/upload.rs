@@ -21,14 +21,20 @@ use super::outcome::Outcome;
 ///
 /// This might become an enum in the future once we support multiple upload types.
 pub struct Upload {
-    attachment: Managed<Attachment>,
-    respond_to: Recipient<Managed<UploadedAttachment>, NoResponse>,
+    /// The attachment to be uploaded.
+    pub attachment: Managed<Attachment>,
+
+    /// The return address in case of a successful upload.
+    pub respond_to: Recipient<Managed<UploadedAttachment>, NoResponse>,
 }
 
 impl Interface for Upload {}
 
+/// The attachment to upload.
 pub struct Attachment {
-    meta: AttachmentMeta,
+    /// Attachment metadata.
+    pub meta: AttachmentMeta,
+    /// The attachment body.
     payload: Bytes,
 }
 
@@ -41,6 +47,10 @@ impl Counted for Attachment {
     }
 }
 
+/// The result of a successful attachment upload.
+///
+/// This is tracked so that the recipient of the success message can emit outcomes for the
+/// attachment.
 pub struct UploadedAttachment {
     meta: AttachmentMeta,
     uploaded_bytes: usize,
@@ -55,11 +65,13 @@ impl Counted for UploadedAttachment {
     }
 }
 
+/// Metadata of the attachment (stub).
 pub struct AttachmentMeta {
     attachment_id: Option<Uuid>,
     // TODO: more fields
 }
 
+/// Errors that can occur when trying to upload an attachment.
 pub enum Error {
     LoadShed,
     Timeout,
@@ -88,6 +100,9 @@ impl OutcomeError for Error {
     }
 }
 
+/// The service that uploads the attachments.
+///
+/// Accepts upload requests and maintains a list of concurrent uploads.
 pub struct UploadService {
     inflight: FuturesUnordered<BoxFuture<'static, UploadResult>>,
     max_inflight: usize,
