@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::managed::{Counted, Managed, OutcomeError, Quantities};
 use crate::services::outcome::DiscardReason;
+use crate::statsd::RelayCounters;
 
 use super::outcome::Outcome;
 
@@ -65,16 +66,25 @@ pub enum Error {
     UploadFailed,
 }
 
+impl Error {
+    fn as_str(&self) -> &str {
+        match self {
+            Error::LoadShed => "load_shed",
+            Error::Timeout => "timeout",
+            Error::UploadFailed => "upload_failed",
+        }
+    }
+}
+
 impl OutcomeError for Error {
     type Error = Self;
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
-        let outcome = match self {
-            Error::LoadShed => Outcome::Invalid(DiscardReason::Internal),
-            Error::UploadFailed => Outcome::Invalid(DiscardReason::Internal),
-            Error::Timeout => Outcome::Invalid(DiscardReason::Internal),
-        };
-        (Some(outcome), self)
+        relay_statsd::metric!(
+            counter(RelayCounters::AttachmentUploadFailed) += 1,
+            reason = self.as_str()
+        );
+        (Some(Outcome::Invalid(DiscardReason::Internal)), self)
     }
 }
 

@@ -77,6 +77,9 @@ pub enum RelayGauges {
     /// - `service`: the service name.
     /// - `instance_id`: a for the service name unique identifier for the running service
     ServiceUtilization,
+    /// Number of attachment uploads currently in flight.
+    #[cfg(feature = "processing")]
+    AttachmentUploadsInFlight,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -106,6 +109,8 @@ impl GaugeMetric for RelayGauges {
             #[cfg(feature = "processing")]
             RelayGauges::MetricDelayMax => "metrics.delay.max",
             RelayGauges::ServiceUtilization => "service.utilization",
+            #[cfg(feature = "processing")]
+            RelayGauges::AttachmentUploadsInFlight => "attachment.upload.inflight",
         }
     }
 }
@@ -919,7 +924,16 @@ pub enum RelayCounters {
     #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
     /// The number of times a sampling decision was made.
+    ///
+    /// This metric is tagged with:
+    /// - `item`: What item the decision is taken for (transaction vs span)/
     SamplingDecision,
+    /// The number of times an upload of an attachment fails.
+    ///
+    /// This metric is tagged with:
+    /// - `reason`: the reason why the upload failed.
+    #[cfg(feature = "processing")]
+    AttachmentUploadFailed,
 }
 
 impl CounterMetric for RelayCounters {
@@ -974,6 +988,8 @@ impl CounterMetric for RelayCounters {
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
             RelayCounters::SamplingDecision => "sampling.decision",
+            #[cfg(feature = "processing")]
+            RelayCounters::AttachmentUploadFailed => "attachment.upload.failed",
         }
     }
 }
