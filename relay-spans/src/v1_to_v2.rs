@@ -302,7 +302,7 @@ mod tests {
         let span_v2 = span_v1_to_span_v2(span_v1);
 
         let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r#"
         {
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
           "parent_span_id": "fa90fdead5f74051",
@@ -426,7 +426,7 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
