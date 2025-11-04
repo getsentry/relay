@@ -42,6 +42,7 @@ pub mod proxy_processor;
 pub mod relays;
 pub mod server;
 pub mod stats;
+pub mod upload;
 pub mod upstream;
 
 pub mod autoscaling;
