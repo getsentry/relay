@@ -1174,6 +1174,7 @@ pub struct Processing {
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
     /// Configuration for attachment uploads.
+    #[serde(default)]
     pub upload: UploadServiceConfig,
 }
 
