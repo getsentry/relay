@@ -55,6 +55,7 @@ def test_trace_metric_extraction(
         "name": "http.request.duration",
         "type": "distribution",
         "value": 123.45,
+        "unit": "millisecond",
         "attributes": {
             "http.method": {"value": "GET", "type": "string"},
             "http.status_code": {"value": 200, "type": "integer"},
@@ -70,6 +71,7 @@ def test_trace_metric_extraction(
         "attributes": {
             "sentry.metric_name": {"stringValue": "http.request.duration"},
             "sentry.metric_type": {"stringValue": "distribution"},
+            "sentry.metric_unit": {"stringValue": "millisecond"},
             "sentry.value": {"doubleValue": 123.45},
             "sentry.timestamp_precise": {
                 "intValue": time_within_delta(
@@ -97,6 +99,7 @@ def test_trace_metric_extraction(
                 "boolValue": True
             },
             "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
+            "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
         },
         "clientSampleRate": 0.25,
         "downsampledRetentionDays": 390,
