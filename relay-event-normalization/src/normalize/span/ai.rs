@@ -23,6 +23,22 @@ pub struct UsedTokens {
 }
 
 impl UsedTokens {
+    /// Extracts [`UsedTokens`] from [`SpanData`] attributes.
+    pub fn from_span_data(data: &SpanData) -> Self {
+        macro_rules! get_value {
+            ($e:expr) => {
+                $e.value().and_then(Value::as_f64).unwrap_or(0.0)
+            };
+        }
+
+        Self {
+            input_tokens: get_value!(data.gen_ai_usage_input_tokens),
+            output_tokens: get_value!(data.gen_ai_usage_output_tokens),
+            output_reasoning_tokens: get_value!(data.gen_ai_usage_output_tokens_reasoning),
+            input_cached_tokens: get_value!(data.gen_ai_usage_input_tokens_cached),
+        }
+    }
+
     /// Returns `true` if any tokens were used.
     pub fn has_usage(&self) -> bool {
         self.input_tokens > 0.0 || self.output_tokens > 0.0
@@ -40,23 +56,6 @@ impl UsedTokens {
     /// Subtracts reasoning tokens from the total token count.
     pub fn raw_output_tokens(&self) -> f64 {
         self.output_tokens - self.output_reasoning_tokens
-    }
-}
-
-impl From<&SpanData> for UsedTokens {
-    fn from(value: &SpanData) -> Self {
-        macro_rules! get_value {
-            ($e:expr) => {
-                $e.value().and_then(Value::as_f64).unwrap_or(0.0)
-            };
-        }
-
-        Self {
-            input_tokens: get_value!(value.gen_ai_usage_input_tokens),
-            output_tokens: get_value!(value.gen_ai_usage_output_tokens),
-            output_reasoning_tokens: get_value!(value.gen_ai_usage_output_tokens_reasoning),
-            input_cached_tokens: get_value!(value.gen_ai_usage_input_tokens_cached),
-        }
     }
 }
 
@@ -105,7 +104,7 @@ pub fn calculate_costs(model_cost: &ModelCostV2, tokens: UsedTokens) -> Option<C
 fn extract_ai_model_cost_data(model_cost: Option<&ModelCostV2>, data: &mut SpanData) {
     let Some(model_cost) = model_cost else { return };
 
-    let used_tokens = UsedTokens::from(&*data);
+    let used_tokens = UsedTokens::from_span_data(&*data);
     let Some(costs) = calculate_costs(model_cost, used_tokens) else {
         return;
     };
@@ -273,7 +272,7 @@ mod tests {
                 output_reasoning_per_token: 1.0,
                 input_cached_per_token: 1.0,
             },
-            UsedTokens::from(&SpanData::default()),
+            UsedTokens::from_span_data(&SpanData::default()),
         );
         assert!(cost.is_none());
     }
