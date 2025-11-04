@@ -1355,6 +1355,7 @@ impl EnvelopeProcessorService {
             managed_envelope.envelope().headers(),
             &mut event,
             event_fully_normalized,
+            project_id,
             &ctx,
             &self.inner.geoip_lookup,
         )?;
@@ -1473,6 +1474,7 @@ impl EnvelopeProcessorService {
             managed_envelope.envelope().headers(),
             &mut event,
             event_fully_normalized,
+            project_id,
             &ctx,
             &self.inner.geoip_lookup,
         )?;

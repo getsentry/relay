@@ -125,6 +125,7 @@ impl Processor for TransactionProcessor {
         work: Managed<Self::UnitOfWork>,
         ctx: super::Context<'_>,
     ) -> Result<super::Output<Self::Output>, Rejected<Self::Error>> {
+        let project_id = work.scoping().project_id;
         let mut event_fully_normalized = EventFullyNormalized(
             work.headers.meta().request_trust().is_trusted()
                 && work
@@ -165,10 +166,7 @@ impl Processor for TransactionProcessor {
                     "missing_transaction",
                 )));
             } else {
-                match relay_profiling::parse_metadata(
-                    &profile_item.payload(),
-                    ctx.project_info.project_id.unwrap(), // FIXME
-                ) {
+                match relay_profiling::parse_metadata(&profile_item.payload(), project_id) {
                     Ok(id) => {
                         profile_id = Some(id);
                     }
@@ -200,6 +198,7 @@ impl Processor for TransactionProcessor {
             &transaction_part.headers,
             &mut event,
             event_fully_normalized,
+            project_id,
             &ctx,
             &self.geoip_lookup,
         )
@@ -223,7 +222,7 @@ impl Processor for TransactionProcessor {
                 let mut reservoir = ReservoirEvaluator::new(Arc::clone(&self.reservoir_counters));
                 #[cfg(feature = "processing")]
                 if let Some(quotas_client) = self.quotas_client.as_ref() {
-                    reservoir.set_redis(transaction_part.headers.organization_id, quotas_client);
+                    reservoir.set_redis(transaction_part.scoping().organization_id, quotas_client);
                 }
                 utils::dynamic_sampling::run(
                     transaction_part.headers.dsc(),

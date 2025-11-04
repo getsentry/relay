@@ -180,6 +180,7 @@ pub fn normalize(
     headers: &EnvelopeHeaders,
     event: &mut Annotated<Event>,
     mut event_fully_normalized: EventFullyNormalized,
+    project_id: ProjectId,
     ctx: &Context,
     geoip_lookup: &GeoIpLookup,
 ) -> Result<EventFullyNormalized, ProcessingError> {
@@ -239,13 +240,6 @@ pub fn normalize(
             );
         }
 
-        // TODO: duplicated from `EnvelopeProcessorService::process`. We should pass project_id
-        // in the Context instead since it's already guaranteed to exist at this point.
-        let project_id = ctx
-            .project_info
-            .project_id
-            .or_else(|| headers.meta().project_id())
-            .ok_or(ProcessingError::MissingProjectId)?;
         let normalization_config = NormalizationConfig {
             project_id: Some(project_id.value()),
             client: request_meta.client().map(str::to_owned),
