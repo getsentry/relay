@@ -45,8 +45,8 @@ impl Default for RedisConfigOptions {
             create_timeout: Some(3),
             recycle_timeout: Some(2),
             wait_timeout: None,
-            connection_timeout: todo!(),
-            response_timeout: todo!(),
+            connection_timeout: Some(3),
+            response_timeout: Some(5),
             recycle_check_frequency: 100,
         }
     }
