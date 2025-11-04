@@ -78,12 +78,21 @@ impl Value {
         }
     }
 
-    /// Returns a f64 if the value can be converted to it, otherwise `None`.
+    /// Returns a `f64` if the value can be converted to it, otherwise `None`.
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Value::F64(f) => Some(*f),
             Value::I64(i) => Some(*i as f64),
             Value::U64(u) => Some(*u as f64),
+            _ => None,
+        }
+    }
+
+    /// Returns a `u64` if the value can be converted to it, otherwise `None`.
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            Value::I64(i) => u64::try_from(*i).ok(),
+            Value::U64(u) => Some(*u),
             _ => None,
         }
     }
