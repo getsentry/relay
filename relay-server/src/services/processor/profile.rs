@@ -8,8 +8,8 @@ use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
-use relay_profiling::{ProfileError, ProfileId};
-use relay_protocol::Annotated;
+use relay_profiling::{ProfileError, ProfileId, ProfileType};
+use relay_protocol::{Annotated, Empty};
 #[cfg(feature = "processing")]
 use relay_protocol::{Getter, Remark, RemarkType};
 
@@ -129,13 +129,30 @@ pub fn remove_context_if_rate_limited(
         return;
     }
 
+    // There is always only either a transaction profile or a continuous profile, never both.
+    //
+    // If the `profiler_id` is set on the context, it is for a continuous profile, the case we want
+    // to handle here.
+    // If it is empty -> do nothing.
+    let profile_ctx = event.context::<ProfileContext>();
+    if profile_ctx.is_some_and(|pctx| pctx.profiler_id.is_empty()) {
+        return;
+    }
+
+    // Continuous profiling has two separate categories based on the platform, infer the correct
+    // category to check for rate limits.
+    let category = match event.platform.as_str().map(ProfileType::from_platform) {
+        Some(ProfileType::Ui) => DataCategory::ProfileChunkUi,
+        Some(ProfileType::Backend) => DataCategory::ProfileChunk,
+        _ => return,
+    };
+
     // This is a 'best effort' approach, which is why it is enough to check against cached rate
     // limits here.
     let scoping = envelope.scoping();
-    let limits = ctx.rate_limits.check_with_quotas(
-        ctx.project_info.get_quotas(),
-        scoping.item(DataCategory::ProfileChunk),
-    );
+    let limits = ctx
+        .rate_limits
+        .check_with_quotas(ctx.project_info.get_quotas(), scoping.item(category));
 
     if limits.is_limited()
         && let Some(contexts) = event.contexts.value_mut()

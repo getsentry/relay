@@ -3,6 +3,7 @@ from copy import deepcopy
 from pathlib import Path
 from datetime import datetime, timezone
 
+from _pytest.config import filter_traceback_for_conftest_import_failure
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
@@ -314,9 +315,21 @@ def test_profile_chunk_outcomes_rate_limited_fast(
         assert mini_sentry.captured_events.empty()
 
 
+@pytest.mark.parametrize(
+    "platform, category, filter_context",
+    [
+        ("cocoa", "profile_chunk_ui", True),
+        ("cocoa", "profile_chunk", False),
+        ("node", "profile_chunk", True),
+        ("node", "profile_chunk_ui", False),
+    ],
+)
 def test_profile_chunk_limited_transaction_context_removed(
     mini_sentry,
     relay,
+    platform, 
+    category,
+    filter_context,
 ):
     """
     Test asserts that Relay removes the profile context if profile chunks are rate limited.
@@ -332,8 +345,8 @@ def test_profile_chunk_limited_transaction_context_removed(
 
     project_config["config"]["quotas"] = [
         {
-            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
-            "categories": ["profile_chunk"],
+            "id": f"test_rate_limiting",
+            "categories": [category],
             "limit": 0,
             "reasonCode": "profile_chunks_exceeded",
         }
@@ -349,10 +362,10 @@ def test_profile_chunk_limited_transaction_context_removed(
             "type": "transaction",
             "timestamp": ts.timestamp(),
             "start_timestamp": ts.timestamp() - 2.0,
+            "platform": platform,
             "spans": [],
             "contexts": {
                 "profile": {
-                    "profile_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                     "profiler_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
                 },
                 "trace": {
@@ -366,4 +379,7 @@ def test_profile_chunk_limited_transaction_context_removed(
     )
 
     event = mini_sentry.captured_events.get(timeout=5).get_transaction_event()
-    assert "profile" not in event["contexts"]
+    if filter_context:
+        assert "profile" not in event["contexts"]
+    else:
+        assert "profile" in event["contexts"]
