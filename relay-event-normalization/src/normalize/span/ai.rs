@@ -144,6 +144,10 @@ fn map_ai_measurements_to_data(span: &mut Span) {
         &mut data.gen_ai_usage_output_tokens,
         "ai_completion_tokens_used",
     );
+}
+
+fn set_total_tokens(span: &mut Span) {
+    let data = span.data.get_or_insert_with(SpanData::default);
 
     // It might be that 'total_tokens' is not set in which case we need to calculate it
     if data.gen_ai_usage_total_tokens.value().is_none() {
@@ -214,6 +218,8 @@ pub fn enrich_ai_span_data(
     }
 
     map_ai_measurements_to_data(span);
+    set_total_tokens(span);
+
     if let Some(model_costs) = model_costs {
         extract_ai_data(span, model_costs);
     }

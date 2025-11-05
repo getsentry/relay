@@ -14,6 +14,10 @@ use relay_sampling::DynamicSamplingContext;
 
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
+mod ai;
+
+pub use self::ai::normalize_ai;
+
 /// Normalizes/validates all attribute types.
 ///
 /// Removes and marks all attributes with an error for which the specified [`AttributeType`]
