@@ -113,22 +113,6 @@ pub fn remove_context_if_rate_limited(
         return;
     };
 
-    let contains_profile = envelope
-        .envelope()
-        .items()
-        .any(|item| matches!(*item.ty(), ItemType::ProfileChunk | ItemType::Profile));
-
-    // If the envelope for any reason does still contain a profile, we keep the context alive.
-    //
-    // In most cases this should not happen and a profile is already dropped as the passed limits
-    // have already been enforced.
-    //
-    // It's still possible that we have a rate limit in the `profile_chunk` category but not in the
-    // `profile` category, in which case we definitely want to keep the context.
-    if contains_profile {
-        return;
-    }
-
     // There is always only either a transaction profile or a continuous profile, never both.
     //
     // If the `profiler_id` is set on the context, it is for a continuous profile, the case we want
