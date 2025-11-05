@@ -45,19 +45,6 @@ impl<C> TrackedConnection<C> {
     fn should_be_detached<T>(result: Result<T, &RedisError>) -> bool {
         result.is_err_and(|error| error.is_unrecoverable_error())
     }
-
-    fn emit_metrics<T>(result: Result<T, &RedisError>) {
-        let result = match result {
-            Ok(_) => "ok",
-            Err(e) if e.is_timeout() => "timeout",
-            Err(_) => "error",
-        };
-
-        metric!(
-            counter(RedisCounters::CommandExecuted) += 1,
-            result = result,
-        );
-    }
 }
 
 impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for TrackedConnection<C> {
@@ -66,7 +53,7 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
             let result = self.connection.req_packed_command(cmd).await;
 
             self.detach |= Self::should_be_detached(result.as_ref());
-            Self::emit_metrics(result.as_ref());
+            emit_metrics(result.as_ref());
 
             result
         }
@@ -86,7 +73,7 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
                 .await;
 
             self.detach |= Self::should_be_detached(result.as_ref());
-            Self::emit_metrics(result.as_ref());
+            emit_metrics(result.as_ref());
 
             result
         }
@@ -300,4 +287,17 @@ impl From<Object<CustomSingleManager>> for CustomSingleConnection {
     fn from(conn: Object<CustomSingleManager>) -> Self {
         Self(conn)
     }
+}
+
+fn emit_metrics<T>(result: Result<T, &RedisError>) {
+    let result = match result {
+        Ok(_) => "ok",
+        Err(e) if e.is_timeout() => "timeout",
+        Err(_) => "error",
+    };
+
+    metric!(
+        counter(RedisCounters::CommandExecuted) += 1,
+        result = result,
+    );
 }
