@@ -119,7 +119,7 @@ pub fn remove_context_if_rate_limited(
     // to handle here.
     // If it is empty -> do nothing.
     let profile_ctx = event.context::<ProfileContext>();
-    if profile_ctx.is_some_and(|pctx| pctx.profiler_id.is_empty()) {
+    if profile_ctx.is_none_or(|pctx| pctx.profiler_id.is_empty() || !pctx.profile_id.is_empty()) {
         return;
     }
 
