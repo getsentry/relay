@@ -278,6 +278,6 @@ mod tests {
         uploaded.accept(|_| {});
 
         drop(upload_service);
-        assert!(matches!(rx.recv().await, None));
+        assert!(rx.recv().await.is_none());
     }
 }
