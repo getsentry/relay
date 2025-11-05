@@ -156,8 +156,8 @@ fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
 
 fn span_duration(span: &SpanV2) -> Option<Duration> {
     let start_timestamp = *span.start_timestamp.value()?;
-    let timestamp = *span.end_timestamp.value()?;
-    (timestamp - start_timestamp).to_std().ok()
+    let end_timestamp = *span.end_timestamp.value()?;
+    (end_timestamp - start_timestamp).to_std().ok()
 }
 
 #[cfg(test)]
