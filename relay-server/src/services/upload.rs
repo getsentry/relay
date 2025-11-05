@@ -245,11 +245,10 @@ mod tests {
             attachment,
             respond_to: Recipient::<_, NoResponse>::new(tx),
         });
-
-        let uploaded = rx.blocking_recv().unwrap();
+        let uploaded = rx.recv().await.unwrap();
         uploaded.accept(|_| {});
 
         drop(upload_service);
-        assert!(matches!(rx.blocking_recv(), None));
+        assert!(matches!(rx.recv().await, None));
     }
 }
