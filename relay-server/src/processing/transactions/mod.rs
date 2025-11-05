@@ -31,6 +31,7 @@ use crate::utils::{SamplingResult, should_filter};
 use crate::{processing::spans::store, services::store::StoreEnvelope};
 
 mod process;
+mod profile;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
