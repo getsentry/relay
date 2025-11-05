@@ -8,7 +8,7 @@ use relay_filter::FilterStatKey;
 use relay_protocol::Annotated;
 #[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
-use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
+use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use smallvec::SmallVec;
 
@@ -21,6 +21,7 @@ use crate::managed::{
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
 };
+use crate::processing::utils::transaction::ExtractMetricsContext;
 use crate::processing::{Forward, Processor, QuotaRateLimiter, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
@@ -181,21 +182,23 @@ impl Processor for TransactionProcessor {
 
         transfer_profile_id(&mut event, profile_id);
 
-        // FIXME: Merge profile back so it gets rejected with `transaction_part`.
+        let work = transaction_part.merge(profile).map(|(mut t, p), _| {
+            t.profile = p;
+            t
+        });
 
-        transaction_part
-            .modify(|w, r| utils::dsc::validate_and_set_dsc(&mut w.headers, &event, &mut ctx));
+        work.modify(|w, r| utils::dsc::validate_and_set_dsc(&mut w.headers, &event, &mut ctx));
 
         utils::event::finalize(
-            &transaction_part.headers,
+            &work.headers,
             &mut event,
-            transaction_part.attachments.iter(),
+            work.attachments.iter(),
             &mut metrics,
             &ctx.config,
         );
 
         event_fully_normalized = utils::event::normalize(
-            &transaction_part.headers,
+            &work.headers,
             &mut event,
             event_fully_normalized,
             project_id,
@@ -203,11 +206,11 @@ impl Processor for TransactionProcessor {
             &self.geoip_lookup,
         )
         .map_err(Error::from)
-        .reject(&transaction_part)?; // FIXME
+        .reject(&work)?;
 
-        let filter_run = utils::event::filter(&transaction_part.headers, &mut event, &ctx)
+        let filter_run = utils::event::filter(&work.headers, &mut event, &ctx)
             .map_err(|e| ProcessingError::EventFiltered(e).into())
-            .reject(&transaction_part)?; // FIXME
+            .reject(&work)?;
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
@@ -222,7 +225,7 @@ impl Processor for TransactionProcessor {
                 let mut reservoir = ReservoirEvaluator::new(Arc::clone(&self.reservoir_counters));
                 #[cfg(feature = "processing")]
                 if let Some(quotas_client) = self.quotas_client.as_ref() {
-                    reservoir.set_redis(transaction_part.scoping().organization_id, quotas_client);
+                    reservoir.set_redis(work.scoping().organization_id, quotas_client);
                 }
                 utils::dynamic_sampling::run(
                     transaction_part.headers.dsc(),
@@ -255,16 +258,20 @@ impl Processor for TransactionProcessor {
                 ctx.project_info,
             );
             // Extract metrics here, we're about to drop the event/transaction.
-            event_metrics_extracted = self.extract_transaction_metrics(
-                managed_envelope,
+            event_metrics_extracted = utils::transaction::extract_metrics(
                 &mut event,
                 &mut extracted_metrics,
-                project_id,
-                ctx.project_info,
-                SamplingDecision::Drop,
-                event_metrics_extracted,
-                spans_extracted,
-            )?;
+                ExtractMetricsContext {
+                    dsc: work.headers.dsc(),
+                    project_id,
+                    ctx: &ctx,
+                    sampling_decision: SamplingDecision::Drop,
+                    event_metrics_extracted,
+                    spans_extracted,
+                },
+            )
+            .map_err(Error::ProcessingFailed)
+            .reject(&work)?;
 
             dynamic_sampling::drop_unsampled_items(
                 managed_envelope,

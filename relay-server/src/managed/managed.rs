@@ -152,6 +152,21 @@ impl<T: Counted> Managed<T> {
         Managed::from_parts(other, Arc::clone(&self.meta))
     }
 
+    /// Merge the current managed item with another managed item.
+    ///
+    /// The merged tuple uses the meta of `self`. It is the responsibility of the caller to make sure
+    /// that this matches the `meta` of `other`.
+    pub fn merge<S>(self, other: Managed<S>) -> Managed<(T, S)>
+    where
+        S: Counted,
+    {
+        let (this, meta) = self.destructure();
+        let (other, other_meta) = other.destructure();
+        debug_assert!(Arc::ptr_eq(&meta, &other_meta));
+
+        Managed::from_parts((this, other), meta)
+    }
+
     /// Original received timestamp.
     pub fn received_at(&self) -> DateTime<Utc> {
         self.meta.received_at
