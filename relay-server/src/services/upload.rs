@@ -9,6 +9,7 @@ use relay_config::UploadServiceConfig;
 use relay_quotas::DataCategory;
 use relay_system::{FromMessage, Interface, NoResponse, Receiver, Recipient, Service};
 use smallvec::smallvec;
+use tokio::sync::Notify;
 use uuid::Uuid;
 
 use crate::managed::{Counted, Managed, OutcomeError, Quantities, Rejected};
@@ -82,6 +83,7 @@ pub struct AttachmentMeta {
 }
 
 /// Errors that can occur when trying to upload an attachment.
+#[derive(Debug)]
 pub enum Error {
     LoadShed,
     Timeout,
@@ -113,6 +115,7 @@ impl OutcomeError for Error {
 /// Accepts upload requests and maintains a list of concurrent uploads.
 pub struct UploadService {
     pending_requests: FuturesUnordered<BoxFuture<'static, Result<(), Rejected<Error>>>>,
+    notify: tokio::sync::Notify,
     max_concurrent_requests: usize,
     timeout: Duration,
 }
@@ -125,6 +128,7 @@ impl UploadService {
         } = config;
         Self {
             pending_requests: FuturesUnordered::new(),
+            notify: Notify::new(),
             max_concurrent_requests: *max_concurrent_requests,
             timeout: Duration::from_secs(*timeout),
         }
@@ -144,6 +148,7 @@ impl UploadService {
 
         self.pending_requests
             .push(managed_upload(self.timeout, attachment, respond_to).boxed());
+        self.notify.notify_one();
     }
 }
 
@@ -151,14 +156,17 @@ impl Service for UploadService {
     type Interface = Upload;
 
     async fn run(mut self, mut rx: Receiver<Self::Interface>) {
+        relay_log::info!("Upload service started");
         loop {
             relay_log::trace!("Upload loop iteration");
             tokio::select! {
                 //Bias towards handling responses so that there's space for new incoming requests.
                 biased;
 
-                Some(result) = self.pending_requests.next() => {
-                    count_upload(result);
+                _ = self.notify.notified() => {
+                    while let Some(Some(result)) = self.pending_requests.next().now_or_never() {
+                        count_upload(result);
+                    }
                 }
                 Some(message) = rx.recv() => self.handle_message(message),
 
