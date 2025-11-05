@@ -127,6 +127,22 @@ impl UploadService {
             timeout: Duration::from_secs(*timeout),
         }
     }
+
+    fn handle_message(&mut self, message: Upload) {
+        let Upload::Attachment(UploadAttachment {
+            attachment,
+            respond_to,
+        }) = message;
+        if self.concurrent_requests.len() >= self.max_concurrent_requests {
+            // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
+            // We might want to have a less aggressive mechanism in the future.
+            count_upload(Err(attachment.reject_err(Error::LoadShed)));
+            return;
+        }
+
+        self.concurrent_requests
+            .push(managed_upload(self.timeout, attachment, respond_to).boxed());
+    }
 }
 
 impl Service for UploadService {
@@ -140,39 +156,30 @@ impl Service for UploadService {
                 biased;
 
                 Some(result) = self.concurrent_requests.next() => {
-                    relay_statsd::metric!(gauge(RelayGauges::ConcurrentAttachmentUploads) = self.concurrent_requests.len() as u64);
-
-                    let result_msg = match result {
-                        Ok(()) => "success",
-                        Err(e) => e.into_inner().as_str()
-                    };
-                    relay_statsd::metric!(
-                        counter(RelayCounters::AttachmentUpload) += 1,
-                        result = result_msg
-                    );
+                    count_upload(result);
                 }
-                Some(message) = rx.recv() => {
-                    let Upload::Attachment(UploadAttachment { attachment, respond_to }) = message;
-                    if self.concurrent_requests.len() >= self.max_concurrent_requests {
-                        // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
-                        // We might want to have a less aggressive mechanism in the future.
-                        drop(attachment.reject_err(Error::LoadShed));
-                        relay_statsd::metric!(
-                            counter(RelayCounters::AttachmentUpload) += 1,
-                            result = "load_shed"
-                        );
-                        continue;
-                    }
-
-                    self.concurrent_requests.push(managed_upload(self.timeout, attachment, respond_to).boxed());
-                    relay_statsd::metric!(gauge(RelayGauges::ConcurrentAttachmentUploads) = self.concurrent_requests.len() as u64);
-                }
+                Some(message) = rx.recv() => self.handle_message(message),
 
                 else => break,
             }
+            relay_statsd::metric!(
+                gauge(RelayGauges::ConcurrentAttachmentUploads) =
+                    self.concurrent_requests.len() as u64
+            );
         }
         relay_log::info!("Upload service stopped");
     }
+}
+
+fn count_upload(result: Result<(), Rejected<Error>>) {
+    let result_msg = match result {
+        Ok(()) => "success",
+        Err(e) => e.into_inner().as_str(),
+    };
+    relay_statsd::metric!(
+        counter(RelayCounters::AttachmentUpload) += 1,
+        result = result_msg
+    );
 }
 
 /// Spend a limited time trying to upload an attachment, and emit outcomes if this fails.
