@@ -19,7 +19,7 @@ use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::utils::event::{
-    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
+    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
 use crate::processing::utils::transaction::ExtractMetricsContext;
 use crate::processing::{Forward, Processor, QuotaRateLimiter, utils};
@@ -256,12 +256,19 @@ impl Processor for TransactionProcessor {
                 let profile = w.profile.take();
                 (w, profile)
             });
-            profile::process(
-                profile,
-                &transaction_part.headers.meta().client_addr(),
-                event.value(),
-                &ctx,
-            );
+
+            let profile = profile.transpose();
+            if let Some(profile) = profile {
+                profile.modify(|p, _| {
+                    p.set_sampled(false);
+                });
+                profile::process(
+                    &mut profile,
+                    work.headers.meta().client_addr(),
+                    event.value(),
+                    &ctx,
+                );
+            }
 
             // Extract metrics here, we're about to drop the event/transaction.
             event_metrics_extracted = utils::transaction::extract_metrics(
@@ -279,103 +286,103 @@ impl Processor for TransactionProcessor {
             .map_err(Error::ProcessingFailed)
             .reject(&work)?;
 
-            dynamic_sampling::drop_unsampled_items(
-                managed_envelope,
-                event,
-                outcome,
-                spans_extracted,
-            );
+            // FIXME: track non-extracted spans as well.
+            // -> Type TransactionWithEmbeddedSpans
 
             // At this point we have:
             //  - An empty envelope.
             //  - An envelope containing only processed profiles.
             // We need to make sure there are enough quotas for these profiles.
-            event = self
-                .enforce_quotas(
-                    managed_envelope,
-                    Annotated::empty(),
-                    &mut extracted_metrics,
-                    ctx,
-                )
-                .await?;
 
-            return Ok(Some(extracted_metrics));
+            // event = self
+            //     .enforce_quotas(
+            //         managed_envelope,
+            //         Annotated::empty(),
+            //         &mut extracted_metrics,
+            //         ctx,
+            //     )
+            //     .await?;
+
+            // return Ok(Some(extracted_metrics));
         }
 
-        let _post_ds = cogs.start_category("post_ds");
+        // let _post_ds = cogs.start_category("post_ds");
 
-        // Need to scrub the transaction before extracting spans.
-        //
-        // Unconditionally scrub to make sure PII is removed as early as possible.
-        event::scrub(&mut event, ctx.project_info)?;
+        // // Need to scrub the transaction before extracting spans.
+        // //
+        // // Unconditionally scrub to make sure PII is removed as early as possible.
+        // event::scrub(&mut event, ctx.project_info)?;
 
-        attachment::scrub(managed_envelope, ctx.project_info);
+        // attachment::scrub(managed_envelope, ctx.project_info);
 
-        if_processing!(self.inner.config, {
-            // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            let profile_id = profile::process(
-                managed_envelope,
-                &mut event,
-                ctx.global_config,
-                ctx.config,
-                ctx.project_info,
-            );
-            profile::transfer_id(&mut event, profile_id);
-            profile::scrub_profiler_id(&mut event);
+        // if_processing!(self.inner.config, {
+        //     // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
+        //     let profile_id = profile::process(
+        //         managed_envelope,
+        //         &mut event,
+        //         ctx.global_config,
+        //         ctx.config,
+        //         ctx.project_info,
+        //     );
+        //     profile::transfer_id(&mut event, profile_id);
+        //     profile::scrub_profiler_id(&mut event);
 
-            // Always extract metrics in processing Relays for sampled items.
-            event_metrics_extracted = self.extract_transaction_metrics(
-                managed_envelope,
-                &mut event,
-                &mut extracted_metrics,
-                project_id,
-                ctx.project_info,
-                SamplingDecision::Keep,
-                event_metrics_extracted,
-                spans_extracted,
-            )?;
+        //     // Always extract metrics in processing Relays for sampled items.
+        //     event_metrics_extracted = self.extract_transaction_metrics(
+        //         managed_envelope,
+        //         &mut event,
+        //         &mut extracted_metrics,
+        //         project_id,
+        //         ctx.project_info,
+        //         SamplingDecision::Keep,
+        //         event_metrics_extracted,
+        //         spans_extracted,
+        //     )?;
 
-            if ctx.project_info.has_feature(Feature::ExtractSpansFromEvent) {
-                spans_extracted = span::extract_from_event(
-                    managed_envelope,
-                    &event,
-                    ctx.global_config,
-                    ctx.config,
-                    server_sample_rate,
-                    event_metrics_extracted,
-                    spans_extracted,
-                );
-            }
-        });
+        //     if ctx.project_info.has_feature(Feature::ExtractSpansFromEvent) {
+        //         spans_extracted = span::extract_from_event(
+        //             managed_envelope,
+        //             &event,
+        //             ctx.global_config,
+        //             ctx.config,
+        //             server_sample_rate,
+        //             event_metrics_extracted,
+        //             spans_extracted,
+        //         );
+        //     }
+        // });
 
-        event = self
-            .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)
-            .await?;
+        // event = self
+        //     .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)
+        //     .await?;
 
-        if_processing!(self.inner.config, {
-            event = span::maybe_discard_transaction(managed_envelope, event, ctx.project_info);
-        });
+        // if_processing!(self.inner.config, {
+        //     event = span::maybe_discard_transaction(managed_envelope, event, ctx.project_info);
+        // });
 
-        // Event may have been dropped because of a quota and the envelope can be empty.
-        if event.value().is_some() {
-            event::serialize(
-                managed_envelope,
-                &mut event,
-                event_fully_normalized,
-                event_metrics_extracted,
-                spans_extracted,
-            )?;
-        }
+        // // Event may have been dropped because of a quota and the envelope can be empty.
+        // if event.value().is_some() {
+        //     event::serialize(
+        //         managed_envelope,
+        //         &mut event,
+        //         event_fully_normalized,
+        //         event_metrics_extracted,
+        //         spans_extracted,
+        //     )?;
+        // }
 
-        if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
-            relay_log::error!(
-                tags.project = %project_id,
-                tags.ty = event_type(&event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
-                "ingested event without normalizing"
-            );
-        };
+        // if ctx.config.processing_enabled() && !event_fully_normalized.0 {
+        //     relay_log::error!(
+        //         tags.project = %project_id,
+        //         tags.ty = event_type(&event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+        //         "ingested event without normalizing"
+        //     );
+        // };
 
-        Ok(Some(extracted_metrics))
+        Ok(crate::processing::Output {
+            main: Some(work),
+            metrics: Some(extracted_metrics),
+        })
     }
 }
 

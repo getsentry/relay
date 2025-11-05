@@ -13,7 +13,7 @@ use relay_protocol::Annotated;
 use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::managed::{ItemAction, Managed, Rejected, TypedEnvelope};
+use crate::managed::{ItemAction, Managed, ManagedResult, Rejected, TypedEnvelope};
 use crate::processing::Context;
 use crate::processing::transactions::{Error, SerializedTransaction};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -22,11 +22,12 @@ use crate::services::projects::project::ProjectInfo;
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 pub fn process(
-    profile: &mut Managed<Option<Item>>,
+    profile: &mut Managed<Item>,
     client_ip: Option<IpAddr>,
     event: Option<&Event>,
     ctx: &Context,
 ) -> Result<ProfileId, Rejected<()>> {
+    debug_assert_eq!(profile.ty(), &ItemType::Profile);
     let filter_settings = &ctx.project_info.config.filter_settings;
     let profiling_enabled = ctx.project_info.has_feature(Feature::Profiling);
 
@@ -43,17 +44,17 @@ pub fn process(
     };
 
     let mut profile_id;
-    profile.try_modify(|profile| {
-        profile_id = Some(expand_profile(
+    let result = profile.try_modify(|profile, _| {
+        profile_id = expand_profile(
             profile,
             event,
             ctx.config,
             client_ip,
             filter_settings,
             ctx.global_config,
-        )?);
+        );
     });
-    Ok(profile_id)
+    profile_id
 }
 
 /// Transfers transaction metadata to profile and check its size.
