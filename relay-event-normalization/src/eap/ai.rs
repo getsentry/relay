@@ -97,6 +97,7 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
         return;
     };
 
+    // Overwrite all values, the attributes should reflect the values we used to calculate the total.
     attributes.insert(GEN_AI_COST_INPUT_TOKENS, costs.input);
     attributes.insert(GEN_AI_COST_OUTPUT_TOKENS, costs.output);
     attributes.insert(GEN_AI_COST_TOTAL_TOKENS, costs.total());
@@ -294,7 +295,61 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_ai_does_not_override() {
+    fn test_normalize_ai_does_not_overwrite() {
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.usage.input_tokens" => 1000,
+            "gen_ai.usage.output_tokens" => 2000,
+            "gen_ai.request.model" => "gpt4-21-04".to_owned(),
+
+            "gen_ai.cost.input_tokens" => 999.0,
+        });
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_millis(500)),
+            Some(&model_costs()),
+        );
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "gen_ai.cost.input_tokens": {
+            "type": "double",
+            "value": 90.0
+          },
+          "gen_ai.cost.output_tokens": {
+            "type": "double",
+            "value": 100.0
+          },
+          "gen_ai.cost.total_tokens": {
+            "type": "double",
+            "value": 190.0
+          },
+          "gen_ai.request.model": {
+            "type": "string",
+            "value": "gpt4-21-04"
+          },
+          "gen_ai.response.tokens_per_second": {
+            "type": "double",
+            "value": 4000.0
+          },
+          "gen_ai.usage.input_tokens": {
+            "type": "integer",
+            "value": 1000
+          },
+          "gen_ai.usage.output_tokens": {
+            "type": "integer",
+            "value": 2000
+          },
+          "gen_ai.usage.total_tokens": {
+            "type": "double",
+            "value": 3000.0
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_ai_overwrite_individual_cost_if_not_total() {
         let mut attributes = Annotated::new(attributes! {
             "gen_ai.usage.input_tokens" => 1000,
             "gen_ai.usage.output_tokens" => 2000,
