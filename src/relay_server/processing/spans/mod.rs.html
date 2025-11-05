@@ -159,7 +159,7 @@
 <a href=#159 id=159 data-nosnippet>159</a>
 <a href=#160 id=160 data-nosnippet>160</a>        dynamic_sampling::validate_dsc(<span class="kw-2">&amp;</span>spans).reject(<span class="kw-2">&amp;</span>spans)<span class="question-mark">?</span>;
 <a href=#161 id=161 data-nosnippet>161</a>
-<a href=#162 id=162 data-nosnippet>162</a>        process::normalize(<span class="kw-2">&amp;mut </span>spans, <span class="kw-2">&amp;</span><span class="self">self</span>.geo_lookup);
+<a href=#162 id=162 data-nosnippet>162</a>        process::normalize(<span class="kw-2">&amp;mut </span>spans, <span class="kw-2">&amp;</span><span class="self">self</span>.geo_lookup, ctx);
 <a href=#163 id=163 data-nosnippet>163</a>        filter::filter(<span class="kw-2">&amp;mut </span>spans, ctx);
 <a href=#164 id=164 data-nosnippet>164</a>
 <a href=#165 id=165 data-nosnippet>165</a>        <span class="self">self</span>.limiter.enforce_quotas(<span class="kw-2">&amp;mut </span>spans, ctx).<span class="kw">await</span><span class="question-mark">?</span>;
