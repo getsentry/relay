@@ -1,4 +1,5 @@
 //! Service that uploads attachments.
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -118,7 +119,7 @@ impl OutcomeError for Error {
 /// Accepts upload requests and maintains a list of concurrent uploads.
 pub struct UploadService {
     pending_requests: FuturesUnordered<BoxFuture<'static, Result<(), Rejected<Error>>>>,
-    notify: tokio::sync::Notify,
+    notify: Arc<Notify>,
     max_concurrent_requests: usize,
     timeout: Duration,
 }
@@ -131,7 +132,7 @@ impl UploadService {
         } = config;
         Self {
             pending_requests: FuturesUnordered::new(),
-            notify: Notify::new(),
+            notify: Arc::new(Notify::new()),
             max_concurrent_requests: *max_concurrent_requests,
             timeout: Duration::from_secs(*timeout),
         }
@@ -149,16 +150,15 @@ impl UploadService {
             return;
         }
 
-        self.pending_requests
-            .push(managed_upload(self.timeout, attachment, respond_to).boxed());
-        self.notify.notify_one();
-    }
-
-    fn handle_notify(mut self) {
-        relay_log::trace!("Notified");
-        while let Some(Some(result)) = self.pending_requests.next().now_or_never() {
-            count_upload(result);
-        }
+        self.pending_requests.push(
+            handle_upload(
+                self.timeout,
+                attachment,
+                respond_to,
+                Arc::clone(&self.notify),
+            )
+            .boxed(),
+        );
     }
 }
 
@@ -173,7 +173,11 @@ impl Service for UploadService {
                 //Bias towards handling responses so that there's space for new incoming requests.
                 biased;
 
-                _ = self.notify.notified() => self.handle_notify(),
+                _ = self.notify.notified() => {},
+                Some(result) = self.pending_requests.next() => {
+                    relay_log::trace!("One upload has finished");
+                    count_upload(result);
+                }
                 Some(message) = rx.recv() => self.handle_message(message),
 
                 else => break,
@@ -201,11 +205,13 @@ fn count_upload(result: Result<(), Rejected<Error>>) {
 /// Spend a limited time trying to upload an attachment, and emit outcomes if this fails.
 ///
 /// Returns an [`UploadedAttachment`] if the upload was successful.
-async fn managed_upload(
+async fn handle_upload(
     timeout: Duration,
     attachment: Managed<Attachment>,
     respond_to: Recipient<Managed<UploadedAttachment>, NoResponse>,
+    notify: Arc<Notify>,
 ) -> Result<(), Rejected<Error>> {
+    relay_log::trace!("Starting upload");
     let key = attachment.meta.attachment_id.as_deref();
     let new_key = tokio::time::timeout(timeout, async { upload(key, &attachment.payload).await })
         .await
@@ -225,6 +231,8 @@ async fn managed_upload(
     });
 
     respond_to.send(uploaded_attachment);
+    notify.notify_one();
+    relay_log::trace!("Finished upload");
     Ok(())
 }
 
