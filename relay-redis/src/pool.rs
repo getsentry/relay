@@ -211,9 +211,7 @@ impl Manager for CustomClusterManager {
         if n == ping_number {
             Ok(())
         } else {
-            Err(deadpool::managed::RecycleError::message(
-                "Invalid PING response",
-            ))
+            Err(RecycleError::message("Invalid PING response"))
         }
     }
 }
@@ -327,9 +325,7 @@ impl Manager for CustomSingleManager {
         if n == ping_number {
             Ok(())
         } else {
-            Err(deadpool::managed::RecycleError::message(
-                "Invalid PING response",
-            ))
+            Err(RecycleError::message("Invalid PING response"))
         }
     }
 }
