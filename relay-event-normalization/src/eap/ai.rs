@@ -107,7 +107,7 @@ mod tests {
     use std::collections::HashMap;
 
     use relay_pattern::Pattern;
-    use relay_protocol::assert_annotated_snapshot;
+    use relay_protocol::{Empty, assert_annotated_snapshot};
 
     use crate::ModelCostV2;
 
@@ -351,5 +351,40 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_normalize_ai_no_ai_attributes() {
+        let mut attributes = Annotated::new(attributes! {
+            "foo" => 123,
+        });
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_millis(500)),
+            Some(&model_costs()),
+        );
+
+        assert_annotated_snapshot!(&mut attributes, @r#"
+        {
+          "foo": {
+            "type": "integer",
+            "value": 123
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_ai_empty() {
+        let mut attributes = Annotated::empty();
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_millis(500)),
+            Some(&model_costs()),
+        );
+
+        assert!(attributes.is_empty());
     }
 }
