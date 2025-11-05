@@ -77,7 +77,7 @@ impl Counted for UploadedAttachment {
 
 /// Metadata of the attachment (stub).
 pub struct AttachmentMeta {
-    attachment_id: Option<Uuid>,
+    attachment_id: Option<String>,
     // TODO: more fields
 }
 
@@ -86,6 +86,7 @@ pub enum Error {
     LoadShed,
     Timeout,
     UploadFailed,
+    KeyMismatch,
 }
 
 impl Error {
@@ -94,6 +95,7 @@ impl Error {
             Error::LoadShed => "load_shed",
             Error::Timeout => "timeout",
             Error::UploadFailed => "upload_failed",
+            Error::KeyMismatch => "key_mismatch",
         }
     }
 }
@@ -110,7 +112,7 @@ impl OutcomeError for Error {
 ///
 /// Accepts upload requests and maintains a list of concurrent uploads.
 pub struct UploadService {
-    concurrent_requests: FuturesUnordered<BoxFuture<'static, Result<(), Rejected<Error>>>>,
+    pending_requests: FuturesUnordered<BoxFuture<'static, Result<(), Rejected<Error>>>>,
     max_concurrent_requests: usize,
     timeout: Duration,
 }
@@ -122,7 +124,7 @@ impl UploadService {
             timeout,
         } = config;
         Self {
-            concurrent_requests: FuturesUnordered::new(),
+            pending_requests: FuturesUnordered::new(),
             max_concurrent_requests: *max_concurrent_requests,
             timeout: Duration::from_secs(*timeout),
         }
@@ -133,14 +135,14 @@ impl UploadService {
             attachment,
             respond_to,
         }) = message;
-        if self.concurrent_requests.len() >= self.max_concurrent_requests {
+        if self.pending_requests.len() >= self.max_concurrent_requests {
             // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
             // We might want to have a less aggressive mechanism in the future.
             count_upload(Err(attachment.reject_err(Error::LoadShed)));
             return;
         }
 
-        self.concurrent_requests
+        self.pending_requests
             .push(managed_upload(self.timeout, attachment, respond_to).boxed());
     }
 }
@@ -155,7 +157,7 @@ impl Service for UploadService {
                 //Bias towards handling responses so that there's space for new incoming requests.
                 biased;
 
-                Some(result) = self.concurrent_requests.next() => {
+                Some(result) = self.pending_requests.next() => {
                     count_upload(result);
                 }
                 Some(message) = rx.recv() => self.handle_message(message),
@@ -164,7 +166,7 @@ impl Service for UploadService {
             }
             relay_statsd::metric!(
                 gauge(RelayGauges::ConcurrentAttachmentUploads) =
-                    self.concurrent_requests.len() as u64
+                    self.pending_requests.len() as u64
             );
         }
         relay_log::info!("Upload service stopped");
@@ -190,19 +192,23 @@ async fn managed_upload(
     attachment: Managed<Attachment>,
     respond_to: Recipient<Managed<UploadedAttachment>, NoResponse>,
 ) -> Result<(), Rejected<Error>> {
-    let key = attachment.meta.attachment_id.as_ref().map(Uuid::to_string);
-    let result = tokio::time::timeout(timeout, async {
-        upload(key.as_deref(), &attachment.payload).await
-    })
-    .await
-    .map_err(|_elapsed| attachment.reject_err(Error::Timeout))?
-    .map_err(|_error| attachment.reject_err(Error::UploadFailed))?;
+    let key = attachment.meta.attachment_id.as_deref();
+    let new_key = tokio::time::timeout(timeout, async { upload(key, &attachment.payload).await })
+        .await
+        .map_err(|_elapsed| attachment.reject_err(Error::Timeout))?
+        .map_err(|_error| attachment.reject_err(Error::UploadFailed))?;
 
-    let uploaded_attachment =
-        attachment.map(|Attachment { meta, payload }, _| UploadedAttachment {
+    if key.is_some_and(|key| key != new_key) {
+        return Err(attachment.reject_err(Error::KeyMismatch));
+    }
+
+    let uploaded_attachment = attachment.map(|Attachment { mut meta, payload }, _| {
+        meta.attachment_id = Some(new_key);
+        UploadedAttachment {
             meta,
             uploaded_bytes: payload.len(),
-        });
+        }
+    });
 
     respond_to.send(uploaded_attachment);
     Ok(())
@@ -213,7 +219,7 @@ async fn managed_upload(
 /// If `key` is not `None`, write to object store with the given key.
 async fn upload(key: Option<&str>, payload: &[u8]) -> Result<String, ()> {
     // TODO: call objectstore
-    Ok(String::new())
+    Ok(key.unwrap_or_default().to_owned())
 }
 
 #[cfg(test)]
@@ -235,7 +241,7 @@ mod tests {
 
         let (attachment, mut managed_handle) = Managed::for_test(Attachment {
             meta: AttachmentMeta {
-                attachment_id: Some(Uuid::now_v7()),
+                attachment_id: Some("my_key".to_owned()),
             },
             payload: Bytes::from("hello world"),
         })
@@ -246,6 +252,7 @@ mod tests {
             respond_to: Recipient::<_, NoResponse>::new(tx),
         });
         let uploaded = rx.recv().await.unwrap();
+        assert_eq!(uploaded.meta.attachment_id.as_deref(), Some("my_key"));
         uploaded.accept(|_| {});
 
         drop(upload_service);
