@@ -30,20 +30,18 @@ fn normalize_total_tokens(attributes: &mut Attributes) {
 
     let input_tokens = attributes
         .get_value(GEN_AI_USAGE_INPUT_TOKENS)
-        .and_then(|v| v.as_u64());
+        .and_then(|v| v.as_f64());
 
     let output_tokens = attributes
         .get_value(GEN_AI_USAGE_OUTPUT_TOKENS)
-        .and_then(|v| v.as_u64());
+        .and_then(|v| v.as_f64());
 
     if input_tokens.is_none() && output_tokens.is_none() {
         return;
     }
 
-    let total_tokens = input_tokens.unwrap_or(0) + output_tokens.unwrap_or(0);
-    if let Ok(total_tokens) = i64::try_from(total_tokens) {
-        attributes.insert(GEN_AI_USAGE_TOTAL_TOKENS, total_tokens);
-    }
+    let total_tokens = input_tokens.unwrap_or(0.0) + output_tokens.unwrap_or(0.0);
+    attributes.insert(GEN_AI_USAGE_TOTAL_TOKENS, total_tokens);
 }
 
 /// Calculates the [`GEN_AI_RESPONSE_TPS`] attribute.
@@ -204,8 +202,8 @@ mod tests {
             "value": 1000
           },
           "gen_ai.usage.total_tokens": {
-            "type": "integer",
-            "value": 3000
+            "type": "double",
+            "value": 3000.0
           }
         }
         "#);
@@ -256,8 +254,8 @@ mod tests {
             "value": 2000
           },
           "gen_ai.usage.total_tokens": {
-            "type": "integer",
-            "value": 3000
+            "type": "double",
+            "value": 3000.0
           }
         }
         "#);
@@ -288,8 +286,8 @@ mod tests {
             "value": 2000
           },
           "gen_ai.usage.total_tokens": {
-            "type": "integer",
-            "value": 3000
+            "type": "double",
+            "value": 3000.0
           }
         }
         "#);
