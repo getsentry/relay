@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["enrich_ai_event_data","enrich_ai_span_data"]};
+window.SIDEBAR_ITEMS = {"fn":["calculate_costs","enrich_ai_event_data","enrich_ai_span_data"],"struct":["CalculatedCost","UsedTokens"]};
