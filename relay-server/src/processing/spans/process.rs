@@ -87,11 +87,13 @@ fn normalize_span(
 ) -> Result<()> {
     process_value(span, &mut TimestampProcessor, ProcessingState::root())?;
 
-    // TODO: `validate_span()` (start/end timestamps)
-
     if let Some(span) = span.value_mut() {
         let meta = headers.meta();
         let dsc = headers.dsc();
+        let duration = span_duration(span);
+        let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
+
+        validate_timestamps(span)?;
 
         eap::normalize_attribute_types(&mut span.attributes);
         eap::normalize_attribute_names(&mut span.attributes);
@@ -104,9 +106,6 @@ fn normalize_span(
         if matches!(span.is_segment.value(), Some(true)) {
             eap::normalize_dsc(&mut span.attributes, dsc);
         }
-
-        let duration = span_duration(span);
-        let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
         eap::normalize_ai(&mut span.attributes, duration, model_costs);
     };
 
@@ -123,6 +122,16 @@ fn normalize_span(
     }
 
     Ok(())
+}
+
+/// Validates the start and end timestamps of a span.
+///
+/// The start timestamp must not be after the end timestamp.
+fn validate_timestamps(span: &SpanV2) -> Result<()> {
+    match (span.start_timestamp.value(), span.end_timestamp.value()) {
+        (Some(start), Some(end)) if start <= end => Ok(()),
+        _ => Err(Error::Invalid(DiscardReason::Timestamp)),
+    }
 }
 
 /// Applies PII scrubbing to individual spans.
@@ -162,6 +171,7 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::DateTime;
     use relay_pii::{DataScrubbingConfig, PiiConfig};
     use relay_protocol::SerializableAnnotated;
 
@@ -595,5 +605,65 @@ mod tests {
           }
         }
         "###);
+    }
+
+    #[test]
+    fn test_validate_timestamp_start_before_end() {
+        validate_timestamps(&SpanV2 {
+            start_timestamp: Annotated::new(DateTime::from_timestamp_nanos(100).into()),
+            end_timestamp: Annotated::new(DateTime::from_timestamp_nanos(200).into()),
+            ..Default::default()
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn test_validate_timestamp_start_is_end() {
+        validate_timestamps(&SpanV2 {
+            start_timestamp: Annotated::new(DateTime::from_timestamp_nanos(100).into()),
+            end_timestamp: Annotated::new(DateTime::from_timestamp_nanos(100).into()),
+            ..Default::default()
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn test_validate_timestamp_start_after_end() {
+        let r = validate_timestamps(&SpanV2 {
+            start_timestamp: Annotated::new(DateTime::from_timestamp_nanos(101).into()),
+            end_timestamp: Annotated::new(DateTime::from_timestamp_nanos(100).into()),
+            ..Default::default()
+        });
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_validate_timestamp_no_start() {
+        let r = validate_timestamps(&SpanV2 {
+            start_timestamp: Annotated::empty(),
+            end_timestamp: Annotated::new(DateTime::from_timestamp_nanos(100).into()),
+            ..Default::default()
+        });
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_validate_timestamp_no_end() {
+        let r = validate_timestamps(&SpanV2 {
+            start_timestamp: Annotated::new(DateTime::from_timestamp_nanos(100).into()),
+            end_timestamp: Annotated::empty(),
+            ..Default::default()
+        });
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_validate_timestamp_no_timestamp() {
+        let r = validate_timestamps(&SpanV2 {
+            start_timestamp: Annotated::empty(),
+            end_timestamp: Annotated::empty(),
+            ..Default::default()
+        });
+        assert!(r.is_err());
     }
 }
