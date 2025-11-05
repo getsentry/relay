@@ -42,6 +42,7 @@ impl FromMessage<UploadAttachment> for Upload {
 }
 
 /// The attachment to upload.
+#[derive(Clone, Debug)]
 pub struct Attachment {
     /// Attachment metadata.
     pub meta: AttachmentMeta,
@@ -62,6 +63,7 @@ impl Counted for Attachment {
 ///
 /// This is tracked so that the recipient of the success message can emit outcomes for the
 /// attachment.
+#[derive(Clone, Debug)]
 pub struct UploadedAttachment {
     meta: AttachmentMeta,
     uploaded_bytes: usize,
@@ -77,6 +79,7 @@ impl Counted for UploadedAttachment {
 }
 
 /// Metadata of the attachment (stub).
+#[derive(Clone, Debug)]
 pub struct AttachmentMeta {
     attachment_id: Option<String>,
     // TODO: more fields
@@ -150,6 +153,13 @@ impl UploadService {
             .push(managed_upload(self.timeout, attachment, respond_to).boxed());
         self.notify.notify_one();
     }
+
+    fn handle_notify(mut self) {
+        relay_log::trace!("Notified");
+        while let Some(Some(result)) = self.pending_requests.next().now_or_never() {
+            count_upload(result);
+        }
+    }
 }
 
 impl Service for UploadService {
@@ -163,11 +173,7 @@ impl Service for UploadService {
                 //Bias towards handling responses so that there's space for new incoming requests.
                 biased;
 
-                _ = self.notify.notified() => {
-                    while let Some(Some(result)) = self.pending_requests.next().now_or_never() {
-                        count_upload(result);
-                    }
-                }
+                _ = self.notify.notified() => self.handle_notify(),
                 Some(message) = rx.recv() => self.handle_message(message),
 
                 else => break,
