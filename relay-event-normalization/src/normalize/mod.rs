@@ -295,6 +295,7 @@ pub struct ModelCostV2 {
     /// The cost per input cached token
     pub input_cached_per_token: f64,
 }
+
 /// A mapping of AI operation types from span.op to gen_ai.operation.type.
 ///
 /// This struct uses a dictionary-based mapping structure with pattern-based span operation keys

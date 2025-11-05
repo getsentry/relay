@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use relay_event_normalization::{
     GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
 };
@@ -5,8 +7,7 @@ use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanV2};
 use relay_protocol::Annotated;
 
-use crate::envelope::{ContainerItems, Item, ItemContainer, WithHeader};
-use crate::extractors::RequestMeta;
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, WithHeader};
 use crate::managed::Managed;
 use crate::processing::Context;
 use crate::processing::spans::{self, Error, ExpandedSpans, Result, SampledSpans};
@@ -67,11 +68,11 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
 }
 
 /// Normalizes individual spans.
-pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup) {
+pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
     spans.retain_with_context(
-        |spans| (&mut spans.spans, spans.headers.meta()),
-        |span, meta, _| {
-            normalize_span(span, meta, geo_lookup).inspect_err(|err| {
+        |spans| (&mut spans.spans, &spans.headers),
+        |span, headers, _| {
+            normalize_span(span, headers, geo_lookup, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize span: {err}");
             })
         },
@@ -80,14 +81,18 @@ pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup) {
 
 fn normalize_span(
     span: &mut Annotated<SpanV2>,
-    meta: &RequestMeta,
+    headers: &EnvelopeHeaders,
     geo_lookup: &GeoIpLookup,
+    ctx: Context<'_>,
 ) -> Result<()> {
     process_value(span, &mut TimestampProcessor, ProcessingState::root())?;
 
     // TODO: `validate_span()` (start/end timestamps)
 
     if let Some(span) = span.value_mut() {
+        let meta = headers.meta();
+        let dsc = headers.dsc();
+
         eap::normalize_attribute_types(&mut span.attributes);
         eap::normalize_attribute_names(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());
@@ -96,8 +101,13 @@ fn normalize_span(
         eap::normalize_user_geo(&mut span.attributes, || {
             meta.client_addr().and_then(|ip| geo_lookup.lookup(ip))
         });
+        if matches!(span.is_segment.value(), Some(true)) {
+            eap::normalize_dsc(&mut span.attributes, dsc);
+        }
 
-        // TODO: ai model costs
+        let duration = span_duration(span);
+        let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
+        eap::normalize_ai(&mut span.attributes, duration, model_costs);
     };
 
     process_value(span, &mut TrimmingProcessor::new(), ProcessingState::root())?;
@@ -142,6 +152,12 @@ fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
     )?;
 
     Ok(())
+}
+
+fn span_duration(span: &SpanV2) -> Option<Duration> {
+    let start_timestamp = *span.start_timestamp.value()?;
+    let end_timestamp = *span.end_timestamp.value()?;
+    (end_timestamp - start_timestamp).to_std().ok()
 }
 
 #[cfg(test)]

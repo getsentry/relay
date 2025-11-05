@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use relay_conventions::IS_REMOTE;
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
     SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
@@ -49,7 +50,6 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     attributes.insert("sentry.op", op);
 
     attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string()));
-    attributes.insert("sentry.is_segment", is_segment);
     attributes.insert("sentry.description", description);
     attributes.insert("sentry.origin", origin);
     attributes.insert("sentry.profile_id", profile_id.map_value(|v| v.to_string()));
@@ -108,6 +108,15 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         .and_then(|name| name.map_value(|attr| attr.into_string()).transpose())
         .unwrap_or_else(|| name_for_attributes(attributes).into());
 
+    if let Some(is_remote) = is_remote.value() {
+        attributes.insert(IS_REMOTE, *is_remote);
+    }
+
+    let is_segment = match (is_segment.value(), is_remote.value()) {
+        (None, Some(true)) => is_remote,
+        _ => is_segment,
+    };
+
     SpanV2 {
         trace_id,
         parent_span_id,
@@ -115,7 +124,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         name,
         status: Annotated::map_value(status, span_v1_status_to_span_v2_status)
             .or_else(|| SpanV2Status::Ok.into()),
-        is_remote: is_remote.or_else(|| false.into()),
+        is_segment,
         kind,
         start_timestamp,
         end_timestamp: timestamp,
@@ -198,7 +207,7 @@ fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
         Value::F64(v) => AttributeValue::from(v),
         Value::String(v) => AttributeValue::from(v),
         Value::Array(_) | Value::Object(_) => {
-            return match Annotated::new(value).to_json() {
+            return match serde_json::to_string(&NoMeta(&value)) {
                 Ok(s) => Annotated(
                     Some(AttributeValue {
                         ty: AttributeType::String.into(),
@@ -214,6 +223,21 @@ fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
         }
     }
     .into()
+}
+
+/// A wrapper for [`IntoValue`] types which allows serde serialization and discards metadata.
+struct NoMeta<'a, T>(&'a T);
+
+impl<T> serde::Serialize for NoMeta<'_, T>
+where
+    T: IntoValue,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize_payload(serializer, Default::default())
+    }
 }
 
 #[cfg(test)]
@@ -262,6 +286,7 @@ mod tests {
           },
           "data": {
             "my.data.field": "my.data.value",
+            "my.array": ["str", 123],
             "my.nested": {
               "numbers": [
                 1,
@@ -300,7 +325,7 @@ mod tests {
           "span_id": "fa90fdead5f74052",
           "name": "operation",
           "status": "ok",
-          "is_remote": true,
+          "is_segment": true,
           "kind": "server",
           "start_timestamp": -63158400.0,
           "end_timestamp": 0.0,
@@ -334,6 +359,10 @@ mod tests {
               "type": "double",
               "value": 9001.0
             },
+            "my.array": {
+              "type": "string",
+              "value": "[\"str\",123]"
+            },
             "my.data.field": {
               "type": "string",
               "value": "my.data.value"
@@ -358,7 +387,7 @@ mod tests {
               "type": "double",
               "value": 1.23
             },
-            "sentry.is_segment": {
+            "sentry.is_remote": {
               "type": "boolean",
               "value": true
             },
@@ -402,6 +431,18 @@ mod tests {
           "additional_field": "additional field value",
           "_meta": {
             "attributes": {
+              "my.array": {
+                "": {
+                  "err": [
+                    [
+                      "invalid_data",
+                      {
+                        "reason": "expected scalar attribute"
+                      }
+                    ]
+                  ]
+                }
+              },
               "my.nested": {
                 "": {
                   "err": [

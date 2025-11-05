@@ -1,35 +1,16 @@
 # Changelog
 
-# Unreleased
-
-- Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077))
-- Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
-- Add `retentions` to the project configuration. ([#5135](https://github.com/getsentry/relay/pull/5135))
-- Normalization: Trim event tag keys & values to 200 chars instead of dropping them. ([#5198](https://github.com/getsentry/relay/pull/5198))
-- Add TraceMetric data category. ([#5206](https://github.com/getsentry/relay/pull/5206))
-
 ## 0.9.19
 
 ### Various fixes & improvements
 
-- build(py): Upgrade python to 3.13 (#5323) by @jjbayer
-- build(py): Revert `uv`, `devenv`, `pre-commit` (#5321) by @jjbayer
-- build(py): Remove py/pyproject.toml altogether (#5314) by @jjbayer
-- build(py): Revert dynamic version, ignore pyproject.toml instead (#5313) by @jjbayer
-- build(py): Use dynamic version (#5311) by @jjbayer
-- feat(dev): Add devenv, uv, pre-commit (take 2) (#5248) by @joshuarli
+- fix(billing): Use camel case for retentions config #5303 by @jjbayer
 
 ## 0.9.17
 
 ### Various fixes & improvements
 
-- Revert "feat(dev): Add devenv, uv, pre-commit" (#5232) by @Dav1dde
-- feat(dev): Add devenv, uv, pre-commit (#5070) by @joshuarli
-- feat(spans): Map span.status unknown_error to internal_error (#5202) by @obostjancic
 - feat(billing): Add TraceMetric datacategory (#5206) by @k-fish
-- feat(normalization): Trim tag keys & values (#5198) by @jjbayer
-- release: 0.9.16 (4b63e713) by @getsentry-bot
-- feat(billing): Add retentions to project configs (#5135) by @vbro
 
 ## 0.9.16
 

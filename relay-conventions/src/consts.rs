@@ -21,7 +21,18 @@ convention_attributes!(
     DB_SYSTEM_NAME => "db.system.name",
     DESCRIPTION => "sentry.description",
     FAAS_TRIGGER => "faas.trigger",
+    GEN_AI_COST_INPUT_TOKENS => "gen_ai.cost.input_tokens",
+    GEN_AI_COST_OUTPUT_TOKENS => "gen_ai.cost.output_tokens",
+    GEN_AI_COST_TOTAL_TOKENS => "gen_ai.cost.total_tokens",
+    GEN_AI_REQUEST_MODEL => "gen_ai.request.model",
+    GEN_AI_RESPONSE_MODEL => "gen_ai.response.model",
+    GEN_AI_RESPONSE_TPS => "gen_ai.response.tokens_per_second",
     GEN_AI_SYSTEM => "gen_ai.system",
+    GEN_AI_USAGE_INPUT_CACHED_TOKENS => "gen_ai.usage.input_tokens.cached",
+    GEN_AI_USAGE_INPUT_TOKENS => "gen_ai.usage.input_tokens",
+    GEN_AI_USAGE_OUTPUT_REASONING_TOKENS => "gen_ai.usage.output_tokens.reasoning",
+    GEN_AI_USAGE_OUTPUT_TOKENS => "gen_ai.usage.output_tokens",
+    GEN_AI_USAGE_TOTAL_TOKENS => "gen_ai.usage.total_tokens",
     HTTP_PREFETCH => "sentry.http.prefetch",
     HTTP_REQUEST_METHOD => "http.request.method",
     HTTP_RESPONSE_STATUS_CODE => "http.response.status_code",
@@ -48,6 +59,13 @@ convention_attributes!(
     USER_GEO_SUBDIVISION => "user.geo.subdivision",
     USER_AGENT_ORIGINAL => "user_agent.original",
     CLIENT_SAMPLE_RATE => "sentry.client_sample_rate",
+    DSC_TRACE_ID => "sentry.dsc.trace_id",
+    DSC_PUBLIC_KEY => "sentry.dsc.public_key",
+    DSC_RELEASE => "sentry.dsc.release",
+    DSC_ENVIRONMENT => "sentry.dsc.environment",
+    DSC_TRANSACTION => "sentry.dsc.transaction",
+    DSC_SAMPLE_RATE => "sentry.dsc.sample_rate",
+    DSC_SAMPLED => "sentry.dsc.sampled",
 );
 
 /// Attributes which are in use by Relay but are not yet defined in the Sentry conventions.
@@ -58,5 +76,7 @@ mod not_yet_defined {
     // It was introduced in `a1f1e89` (https://github.com/getsentry/relay/pull/4876)
     // to absorb the `status.message` field from OTEL.
     pub const STATUS_MESSAGE: &str = "sentry.status.message";
+
+    pub const IS_REMOTE: &str = "sentry.is_remote";
 }
 pub use self::not_yet_defined::*;

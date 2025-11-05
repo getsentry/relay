@@ -140,7 +140,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": false,
           "status": "ok",
           "description": "GET /home",
           "data": {
@@ -196,7 +195,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": false,
           "status": "ok",
           "description": "middleware - fastify -> @fastify/multipart",
           "data": {
@@ -232,7 +230,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": false,
           "status": "ok",
           "description": "middleware - fastify -> @fastify/multipart",
           "data": {
@@ -294,7 +291,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": false,
           "status": "ok",
           "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
           "data": {
@@ -360,7 +356,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": false,
           "status": "ok",
           "description": "index view query",
           "data": {
@@ -413,7 +408,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": false,
           "status": "ok",
           "description": "GET /api/search?q=foobar",
           "data": {
@@ -483,7 +477,6 @@ mod tests {
           "span_id": "fa90fdead5f74052",
           "parent_span_id": "fa90fdead5f74051",
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-          "is_remote": false,
           "status": "ok",
           "description": "cmd.run",
           "data": {
@@ -640,7 +633,6 @@ mod tests {
           "parent_span_id": "fa90fdead5f74051",
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
           "segment_id": "fa90fdead5f74052",
-          "is_remote": false,
           "status": "ok",
           "description": "mydescription",
           "profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
@@ -683,9 +675,10 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": true,
+          "is_segment": true,
           "status": "ok",
           "data": {
+            "sentry.is_remote": true,
             "sentry.origin": "auto.otlp.spans"
           },
           "links": []
@@ -715,9 +708,9 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": false,
           "status": "ok",
           "data": {
+            "sentry.is_remote": false,
             "sentry.origin": "auto.otlp.spans"
           },
           "links": []
@@ -747,7 +740,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": false,
           "status": "ok",
           "data": {
             "sentry.origin": "auto.otlp.spans"
@@ -809,7 +801,6 @@ mod tests {
           "op": "default",
           "span_id": "e342abb1214ca181",
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
-          "is_remote": false,
           "status": "ok",
           "data": {
             "sentry.origin": "auto.otlp.spans"
@@ -852,7 +843,6 @@ mod tests {
           "op": "default",
           "span_id": "e342abb1214ca181",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "is_remote": false,
           "status": "internal_error",
           "data": {
             "sentry.origin": "auto.otlp.spans",

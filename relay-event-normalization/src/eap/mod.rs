@@ -6,15 +6,17 @@ use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
-use relay_conventions::{
-    AttributeInfo, BROWSER_NAME, BROWSER_VERSION, CLIENT_ADDRESS, OBSERVED_TIMESTAMP_NANOS,
-    USER_AGENT_ORIGINAL, USER_GEO_CITY, USER_GEO_COUNTRY_CODE, USER_GEO_REGION,
-    USER_GEO_SUBDIVISION, WriteBehavior,
-};
+use relay_conventions::consts::*;
+use relay_conventions::{AttributeInfo, WriteBehavior};
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Meta, Remark, RemarkType, Value};
+use relay_sampling::DynamicSamplingContext;
 
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
+
+mod ai;
+
+pub use self::ai::normalize_ai;
 
 /// Normalizes/validates all attribute types.
 ///
@@ -120,9 +122,7 @@ pub fn normalize_client_address(attributes: &mut Annotated<Attributes>, client_i
     let Some(attributes) = attributes.value_mut() else {
         return;
     };
-    let Some(client_ip) = client_ip else {
-        return;
-    };
+    let Some(client_ip) = client_ip else { return };
 
     let client_address = attributes
         .get_value(CLIENT_ADDRESS)
@@ -163,6 +163,36 @@ pub fn normalize_user_geo(
     attributes.insert_if_missing(USER_GEO_CITY, || geo.city);
     attributes.insert_if_missing(USER_GEO_SUBDIVISION, || geo.subdivision);
     attributes.insert_if_missing(USER_GEO_REGION, || geo.region);
+}
+
+/// Normalizes the [DSC](DynamicSamplingContext) into [`Attributes`].
+pub fn normalize_dsc(attributes: &mut Annotated<Attributes>, dsc: Option<&DynamicSamplingContext>) {
+    let Some(dsc) = dsc else { return };
+
+    let attributes = attributes.get_or_insert_with(Default::default);
+
+    // Check if DSC attributes are already set, the trace id is always required and must always be set.
+    if attributes.contains_key(DSC_TRACE_ID) {
+        return;
+    }
+
+    attributes.insert(DSC_TRACE_ID, dsc.trace_id.to_string());
+    attributes.insert(DSC_PUBLIC_KEY, dsc.public_key.to_string());
+    if let Some(release) = &dsc.release {
+        attributes.insert(DSC_RELEASE, release.clone());
+    }
+    if let Some(environment) = &dsc.environment {
+        attributes.insert(DSC_ENVIRONMENT, environment.clone());
+    }
+    if let Some(transaction) = &dsc.transaction {
+        attributes.insert(DSC_TRANSACTION, transaction.clone());
+    }
+    if let Some(sample_rate) = dsc.sample_rate {
+        attributes.insert(DSC_SAMPLE_RATE, sample_rate);
+    }
+    if let Some(sampled) = dsc.sampled {
+        attributes.insert(DSC_SAMPLED, sampled);
+    }
 }
 
 /// Normalizes deprecated attributes according to `sentry-conventions`.

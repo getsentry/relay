@@ -10,6 +10,7 @@
 - Add `sentry.origin` attribute to OTLP spans. ([#5294](https://github.com/getsentry/relay/pull/5294))
 - Normalize deprecated attribute names according to `sentry-conventions` for logs and V2 spans. ([#5257](https://github.com/getsentry/relay/pull/5257))
 - Allow sample rate per trace metric. ([#5317](https://github.com/getsentry/relay/pull/5317))
+- Replace `is_remote` with `is_segment` on the Span V2 schema. ([#5306](https://github.com/getsentry/relay/pull/5306))
 
 **Breaking Changes**:
 
@@ -17,6 +18,7 @@
 
 **Bug Fixes**:
 
+- Fix array attributes not being applied to standalone spans. ([#5337](https://github.com/getsentry/relay/pull/5337))
 - Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
 - Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
 - Fix potentially missing attachment outcomes when rate limiting. ([#5301](https://github.com/getsentry/relay/pull/5301))

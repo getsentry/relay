@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
+use relay_base_schema::metrics::MetricUnit;
 use relay_conventions::CLIENT_SAMPLE_RATE;
 use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
 use relay_protocol::{Annotated, IntoValue, Value};
@@ -52,6 +53,7 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
     let fields = FieldAttributes {
         metric_name: required!(metric.name),
         metric_type: required!(metric.ty),
+        metric_unit: metric.unit.into_value(),
         value: extract_numeric_value(required!(metric.value))?,
         timestamp,
         span_id: metric.span_id.into_value(),
@@ -90,6 +92,7 @@ fn ts(dt: DateTime<Utc>) -> Timestamp {
 struct FieldAttributes {
     metric_name: String,
     metric_type: MetricType,
+    metric_unit: Option<MetricUnit>,
     value: f64,
     timestamp: relay_event_schema::protocol::Timestamp,
     span_id: Option<SpanId>,
@@ -156,6 +159,7 @@ fn attributes(
     let FieldAttributes {
         metric_name,
         metric_type,
+        metric_unit,
         value,
         timestamp,
         span_id,
@@ -188,6 +192,22 @@ fn attributes(
             value: Some(any_value::Value::BoolValue(true)),
         },
     );
+
+    if let Some(metric_unit) = metric_unit {
+        result.insert(
+            "sentry.metric_unit".to_owned(),
+            AnyValue {
+                value: Some(any_value::Value::StringValue(metric_unit.to_string())),
+            },
+        );
+
+        result.insert(
+            format!("sentry._internal.cooccuring.unit.{metric_unit}"),
+            AnyValue {
+                value: Some(any_value::Value::BoolValue(true)),
+            },
+        );
+    }
 
     result.insert(
         "sentry.value".to_owned(),
