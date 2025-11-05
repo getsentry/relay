@@ -255,7 +255,7 @@ class Sentry(SentryLike):
                 {**{k: v for (k, v) in fields}, "quantity": quantity}
                 for (fields, quantity) in aggregated.items()
             ]
-            outcomes.sort(key=lambda x: x["category"])
+            outcomes.sort(key=lambda o: sorted(o.items()))
             return outcomes
 
 
