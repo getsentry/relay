@@ -1,5 +1,6 @@
 //! Profiles related processor code.
 use relay_dynamic_config::{Feature, GlobalConfig};
+use relay_quotas::DataCategory;
 use std::net::IpAddr;
 
 use relay_base_schema::events::EventType;
@@ -13,7 +14,8 @@ use relay_protocol::Annotated;
 use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::managed::{ItemAction, TypedEnvelope};
+use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
+use crate::processing::Context;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{TransactionGroup, event_type, should_filter};
 use crate::services::projects::project::ProjectInfo;
@@ -92,6 +94,53 @@ pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) 
                 profile_context.profile_id = Annotated::empty();
             }
         }
+    }
+}
+
+/// Removes the profile context from the transaction item if there is an active rate limit.
+///
+/// With continuous profiling profile chunks are ingested separately to transactions,
+/// in the case where these profiles are rate limited the link on the associated transaction(s)
+/// should also be removed.
+///
+/// See also: <https://github.com/getsentry/relay/issues/5071>.
+pub fn remove_context_if_rate_limited(
+    event: &mut Annotated<Event>,
+    envelope: &ManagedEnvelope,
+    ctx: Context<'_>,
+) {
+    let Some(event) = event.value_mut() else {
+        return;
+    };
+
+    let contains_profile = envelope
+        .envelope()
+        .items()
+        .any(|item| matches!(*item.ty(), ItemType::ProfileChunk | ItemType::Profile));
+
+    // If the envelope for any reason does still contain a profile, we keep the context alive.
+    //
+    // In most cases this should not happen and a profile is already dropped as the passed limits
+    // have already been enforced.
+    //
+    // It's still possible that we have a rate limit in the `profile_chunk` category but not in the
+    // `profile` category, in which case we definitely want to keep the context.
+    if contains_profile {
+        return;
+    }
+
+    // This is a 'best effort' approach, which is why it is enough to check against cached rate
+    // limits here.
+    let scoping = envelope.scoping();
+    let limits = ctx.rate_limits.check_with_quotas(
+        ctx.project_info.get_quotas(),
+        scoping.item(DataCategory::ProfileChunk),
+    );
+
+    if limits.is_limited()
+        && let Some(contexts) = event.contexts.value_mut()
+    {
+        let _ = contexts.remove::<ProfileContext>();
     }
 }
 

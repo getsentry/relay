@@ -1,6 +1,7 @@
 import uuid
 from copy import deepcopy
 from pathlib import Path
+from datetime import datetime, timezone
 
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -311,3 +312,58 @@ def test_profile_chunk_outcomes_rate_limited_fast(
             {"category": category, "quantity": 1, "reason": "profile_chunks_exceeded"}
         ]
         assert mini_sentry.captured_events.empty()
+
+
+def test_profile_chunk_limited_transaction_context_removed(
+    mini_sentry,
+    relay,
+):
+    """
+    Test asserts that Relay removes the profile context if profile chunks are rate limited.
+
+    See also: <https://github.com/getsentry/relay/issues/5071>.
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+
+    project_config["config"].setdefault("features", []).append(
+        "organizations:continuous-profiling"
+    )
+
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": ["profile_chunk"],
+            "limit": 0,
+            "reasonCode": "profile_chunks_exceeded",
+        }
+    ]
+
+    relay = relay(mini_sentry)
+
+    ts = datetime.now(timezone.utc)
+
+    relay.send_transaction(
+        project_id,
+        {
+            "type": "transaction",
+            "timestamp": ts.timestamp(),
+            "start_timestamp": ts.timestamp() - 2.0,
+            "spans": [],
+            "contexts": {
+                "profile": {
+                    "profile_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "profiler_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                },
+                "trace": {
+                    "trace_id": "5b8efff798038103d269b633813fc60c",
+                    "span_id": "aaaaaaaaaaaaaaaa",
+                    "type": "trace",
+                },
+            },
+            "transaction": "/hello",
+        },
+    )
+
+    event = mini_sentry.captured_events.get(timeout=5).get_transaction_event()
+    assert "profile" not in event["contexts"]

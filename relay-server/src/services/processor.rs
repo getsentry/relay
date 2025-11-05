@@ -1451,6 +1451,7 @@ impl EnvelopeProcessorService {
             ctx.project_info,
         );
         profile::transfer_id(&mut event, profile_id);
+        profile::remove_context_if_rate_limited(&mut event, managed_envelope, ctx);
 
         ctx.sampling_project_info = dynamic_sampling::validate_and_set_dsc(
             managed_envelope,

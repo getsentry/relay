@@ -10,6 +10,7 @@
 - Add `sentry.origin` attribute to OTLP spans. ([#5294](https://github.com/getsentry/relay/pull/5294))
 - Normalize deprecated attribute names according to `sentry-conventions` for logs and V2 spans. ([#5257](https://github.com/getsentry/relay/pull/5257))
 - Allow sample rate per trace metric. ([#5317](https://github.com/getsentry/relay/pull/5317))
+- Remove the profile context from transactions if profiles are currently rate limited. ([#5346](https://github.com/getsentry/relay/pull/5346))
 - Replace `is_remote` with `is_segment` on the Span V2 schema. ([#5306](https://github.com/getsentry/relay/pull/5306))
 
 **Breaking Changes**:
