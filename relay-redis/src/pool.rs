@@ -5,7 +5,6 @@ use futures::FutureExt;
 use std::ops::{Deref, DerefMut};
 
 use crate::redis;
-use crate::redis;
 use crate::redis::aio::MultiplexedConnection;
 use crate::redis::cluster_async::ClusterConnection;
 use crate::redis::{
