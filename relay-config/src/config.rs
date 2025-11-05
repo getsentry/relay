@@ -1248,7 +1248,7 @@ impl Default for OutcomeAggregatorConfig {
 #[serde(default)]
 pub struct UploadServiceConfig {
     /// Maximum concurrency of uploads.
-    pub max_inflight: usize,
+    pub max_concurrent_requests: usize,
 
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
     pub timeout: u64,
@@ -1257,7 +1257,7 @@ pub struct UploadServiceConfig {
 impl Default for UploadServiceConfig {
     fn default() -> Self {
         Self {
-            max_inflight: 100,
+            max_concurrent_requests: 100,
             timeout: 60,
         }
     }

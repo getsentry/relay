@@ -79,7 +79,7 @@ pub enum RelayGauges {
     ServiceUtilization,
     /// Number of attachment uploads currently in flight.
     #[cfg(feature = "processing")]
-    AttachmentUploadsInFlight,
+    ConcurrentAttachmentUploads,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -110,7 +110,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::MetricDelayMax => "metrics.delay.max",
             RelayGauges::ServiceUtilization => "service.utilization",
             #[cfg(feature = "processing")]
-            RelayGauges::AttachmentUploadsInFlight => "attachment.upload.inflight",
+            RelayGauges::ConcurrentAttachmentUploads => "attachment.upload.concurrent",
         }
     }
 }
@@ -928,12 +928,12 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `item`: what item the decision is taken for (transaction vs span).
     SamplingDecision,
-    /// The number of times an upload of an attachment fails.
+    /// The number of times an upload of an attachment occurs.
     ///
     /// This metric is tagged with:
-    /// - `reason`: the reason why the upload failed.
+    /// - `result`: `success` or the failure reason.
     #[cfg(feature = "processing")]
-    AttachmentUploadFailed,
+    AttachmentUpload,
 }
 
 impl CounterMetric for RelayCounters {
@@ -989,7 +989,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::PlaystationProcessing => "processing.playstation",
             RelayCounters::SamplingDecision => "sampling.decision",
             #[cfg(feature = "processing")]
-            RelayCounters::AttachmentUploadFailed => "attachment.upload.failed",
+            RelayCounters::AttachmentUpload => "attachment.upload",
         }
     }
 }

@@ -7,20 +7,18 @@ use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 use relay_config::UploadServiceConfig;
 use relay_quotas::DataCategory;
-use relay_system::{Interface, NoResponse, Receiver, Recipient, Service};
+use relay_system::{FromMessage, Interface, NoResponse, Receiver, Recipient, Service};
 use smallvec::smallvec;
 use uuid::Uuid;
 
-use crate::managed::{Counted, Managed, OutcomeError, Quantities};
+use crate::managed::{Counted, Managed, OutcomeError, Quantities, Rejected};
 use crate::services::outcome::DiscardReason;
 use crate::statsd::{RelayCounters, RelayGauges};
 
 use super::outcome::Outcome;
 
 /// Message that requests an attachment upload.
-///
-/// This might become an enum in the future once we support multiple upload types.
-pub struct Upload {
+pub struct UploadAttachment {
     /// The attachment to be uploaded.
     pub attachment: Managed<Attachment>,
 
@@ -28,7 +26,19 @@ pub struct Upload {
     pub respond_to: Recipient<Managed<UploadedAttachment>, NoResponse>,
 }
 
+pub enum Upload {
+    Attachment(UploadAttachment),
+}
+
 impl Interface for Upload {}
+
+impl FromMessage<UploadAttachment> for Upload {
+    type Response = NoResponse;
+
+    fn from_message(message: UploadAttachment, sender: ()) -> Self {
+        Self::Attachment(message)
+    }
+}
 
 /// The attachment to upload.
 pub struct Attachment {
@@ -79,7 +89,7 @@ pub enum Error {
 }
 
 impl Error {
-    fn as_str(&self) -> &str {
+    fn as_str(&self) -> &'static str {
         match self {
             Error::LoadShed => "load_shed",
             Error::Timeout => "timeout",
@@ -92,10 +102,6 @@ impl OutcomeError for Error {
     type Error = Self;
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
-        relay_statsd::metric!(
-            counter(RelayCounters::AttachmentUploadFailed) += 1,
-            reason = self.as_str()
-        );
         (Some(Outcome::Invalid(DiscardReason::Internal)), self)
     }
 }
@@ -104,20 +110,20 @@ impl OutcomeError for Error {
 ///
 /// Accepts upload requests and maintains a list of concurrent uploads.
 pub struct UploadService {
-    inflight: FuturesUnordered<BoxFuture<'static, UploadResult>>,
-    max_inflight: usize,
+    concurrent_requests: FuturesUnordered<BoxFuture<'static, Result<(), Rejected<Error>>>>,
+    max_concurrent_requests: usize,
     timeout: Duration,
 }
 
 impl UploadService {
     pub fn new(config: &UploadServiceConfig) -> Self {
         let UploadServiceConfig {
-            max_inflight,
+            max_concurrent_requests,
             timeout,
         } = config;
         Self {
-            inflight: FuturesUnordered::new(),
-            max_inflight: *max_inflight,
+            concurrent_requests: FuturesUnordered::new(),
+            max_concurrent_requests: *max_concurrent_requests,
             timeout: Duration::from_secs(*timeout),
         }
     }
@@ -128,36 +134,46 @@ impl Service for UploadService {
 
     async fn run(mut self, mut rx: Receiver<Self::Interface>) {
         loop {
+            relay_log::trace!("Upload loop iteration");
             tokio::select! {
+                //Bias towards handling responses so that there's space for new incoming requests.
                 biased;
 
-                Some(result) = self.inflight.next() => {
-                    relay_statsd::metric!(gauge(RelayGauges::AttachmentUploadsInFlight) = self.inflight.len() as u64);
-                    if let Some((uploaded_attachment, respond_to)) = result {
-                        respond_to.send(uploaded_attachment);
-                    }
+                Some(result) = self.concurrent_requests.next() => {
+                    relay_statsd::metric!(gauge(RelayGauges::ConcurrentAttachmentUploads) = self.concurrent_requests.len() as u64);
+
+                    let result_msg = match result {
+                        Ok(()) => "success",
+                        Err(e) => e.into_inner().as_str()
+                    };
+                    relay_statsd::metric!(
+                        counter(RelayCounters::AttachmentUpload) += 1,
+                        result = result_msg
+                    );
                 }
                 Some(message) = rx.recv() => {
-                    let Upload { attachment, respond_to } = message;
-                    if self.inflight.len() >= self.max_inflight {
+                    let Upload::Attachment(UploadAttachment { attachment, respond_to }) = message;
+                    if self.concurrent_requests.len() >= self.max_concurrent_requests {
                         // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
                         // We might want to have a less aggressive mechanism in the future.
                         drop(attachment.reject_err(Error::LoadShed));
+                        relay_statsd::metric!(
+                            counter(RelayCounters::AttachmentUpload) += 1,
+                            result = "load_shed"
+                        );
                         continue;
                     }
 
-                    self.inflight.push(managed_upload(self.timeout, attachment, respond_to).boxed());
-                    relay_statsd::metric!(gauge(RelayGauges::AttachmentUploadsInFlight) = self.inflight.len() as u64);
+                    self.concurrent_requests.push(managed_upload(self.timeout, attachment, respond_to).boxed());
+                    relay_statsd::metric!(gauge(RelayGauges::ConcurrentAttachmentUploads) = self.concurrent_requests.len() as u64);
                 }
+
+                else => break,
             }
         }
+        relay_log::info!("Upload service stopped");
     }
 }
-
-type UploadResult = Option<(
-    Managed<UploadedAttachment>,
-    Recipient<Managed<UploadedAttachment>, NoResponse>,
-)>;
 
 /// Spend a limited time trying to upload an attachment, and emit outcomes if this fails.
 ///
@@ -166,31 +182,23 @@ async fn managed_upload(
     timeout: Duration,
     attachment: Managed<Attachment>,
     respond_to: Recipient<Managed<UploadedAttachment>, NoResponse>,
-) -> UploadResult {
-    let timeout = tokio::time::timeout(timeout, async {
-        let key = attachment.meta.attachment_id.as_ref().map(Uuid::to_string);
+) -> Result<(), Rejected<Error>> {
+    let key = attachment.meta.attachment_id.as_ref().map(Uuid::to_string);
+    let result = tokio::time::timeout(timeout, async {
         upload(key.as_deref(), &attachment.payload).await
     })
-    .await;
+    .await
+    .map_err(|_elapsed| attachment.reject_err(Error::Timeout))?
+    .map_err(|_error| attachment.reject_err(Error::UploadFailed))?;
 
-    let Ok(result) = timeout else {
-        drop(attachment.reject_err(Error::Timeout));
-        return None;
-    };
+    let uploaded_attachment =
+        attachment.map(|Attachment { meta, payload }, _| UploadedAttachment {
+            meta,
+            uploaded_bytes: payload.len(),
+        });
 
-    match result {
-        Ok(_key) => Some((
-            attachment.map(|Attachment { meta, payload }, _| UploadedAttachment {
-                meta,
-                uploaded_bytes: payload.len(),
-            }),
-            respond_to,
-        )),
-        Err(()) => {
-            drop(attachment.reject_err(Error::UploadFailed));
-            None
-        }
-    }
+    respond_to.send(uploaded_attachment);
+    Ok(())
 }
 
 /// Returns the key of the objectstore upload.
@@ -199,4 +207,42 @@ async fn managed_upload(
 async fn upload(key: Option<&str>, payload: &[u8]) -> Result<String, ()> {
     // TODO: call objectstore
     Ok(String::new())
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_redis::redis::FromRedisValue;
+    use relay_system::Addr;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_basic() {
+        let upload_service = UploadService::new(&UploadServiceConfig {
+            max_concurrent_requests: 2,
+            timeout: 1,
+        })
+        .start_detached();
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let (attachment, mut managed_handle) = Managed::for_test(Attachment {
+            meta: AttachmentMeta {
+                attachment_id: Some(Uuid::now_v7()),
+            },
+            payload: Bytes::from("hello world"),
+        })
+        .build();
+
+        upload_service.send(UploadAttachment {
+            attachment,
+            respond_to: Recipient::<_, NoResponse>::new(tx),
+        });
+
+        let uploaded = rx.blocking_recv().unwrap();
+        uploaded.accept(|_| {});
+
+        drop(upload_service);
+        assert!(matches!(rx.blocking_recv(), None));
+    }
 }
