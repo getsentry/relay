@@ -251,13 +251,18 @@ impl Processor for TransactionProcessor {
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
+            let (transaction_part, profile) = work.split_once(|w| {
+                // TODO: transaction_part should be of a type without a profile field
+                let profile = w.profile.take();
+                (w, profile)
+            });
             profile::process(
-                managed_envelope,
-                &mut event,
-                ctx.global_config,
-                ctx.config,
-                ctx.project_info,
+                profile,
+                &transaction_part.headers.meta().client_addr(),
+                event.value(),
+                &ctx,
             );
+
             // Extract metrics here, we're about to drop the event/transaction.
             event_metrics_extracted = utils::transaction::extract_metrics(
                 &mut event,

@@ -13,51 +13,80 @@ use relay_protocol::Annotated;
 use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::managed::{ItemAction, TypedEnvelope};
+use crate::managed::{ItemAction, Managed, Rejected, TypedEnvelope};
+use crate::processing::Context;
+use crate::processing::transactions::{Error, SerializedTransaction};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::TransactionGroup;
 use crate::services::projects::project::ProjectInfo;
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 pub fn process(
+    profile: &mut Managed<Option<Item>>,
     client_ip: Option<IpAddr>,
-    event: &mut Annotated<Event>,
+    event: Option<&Event>,
     ctx: &Context,
-) -> Option<ProfileId> {
+) -> Result<ProfileId, Rejected<()>> {
     let filter_settings = &ctx.project_info.config.filter_settings;
-
     let profiling_enabled = ctx.project_info.has_feature(Feature::Profiling);
-    let mut profile_id = None;
 
-    managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::Profile => {
-            if !profiling_enabled {
-                return ItemAction::DropSilently;
-            }
+    if !profiling_enabled {
+        return Err(
+            profile.reject_err(Outcome::Invalid(DiscardReason::FeatureDisabled(
+                Feature::Profiling,
+            ))),
+        );
+    }
 
-            // There should always be an event/transaction available at this stage.
-            // It is required to expand the profile. If it's missing, drop the item.
-            let Some(event) = event.value() else {
-                return ItemAction::DropSilently;
-            };
+    let Some(event) = event else {
+        return Err(profile.reject_err(Outcome::Invalid(DiscardReason::NoEventPayload)));
+    };
 
-            match expand_profile(
-                item,
-                event,
-                config,
-                client_ip,
-                filter_settings,
-                global_config,
-            ) {
-                Ok(id) => {
-                    profile_id = Some(id);
-                    ItemAction::Keep
-                }
-                Err(outcome) => ItemAction::Drop(outcome),
+    let mut profile_id;
+    profile.try_modify(|profile| {
+        profile_id = Some(expand_profile(
+            profile,
+            event,
+            ctx.config,
+            client_ip,
+            filter_settings,
+            ctx.global_config,
+        )?);
+    });
+    Ok(profile_id)
+}
+
+/// Transfers transaction metadata to profile and check its size.
+fn expand_profile(
+    item: &mut Item,
+    event: &Event,
+    config: &Config,
+    client_ip: Option<IpAddr>,
+    filter_settings: &ProjectFiltersConfig,
+    global_config: &GlobalConfig,
+) -> Result<ProfileId, Outcome> {
+    match relay_profiling::expand_profile(
+        &item.payload(),
+        event,
+        client_ip,
+        filter_settings,
+        global_config,
+    ) {
+        Ok((id, payload)) => {
+            if payload.len() <= config.max_profile_size() {
+                item.set_payload(ContentType::Json, payload);
+                Ok(id)
+            } else {
+                Err(Outcome::Invalid(DiscardReason::Profiling(
+                    relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
+                )))
             }
         }
-        _ => ItemAction::Keep,
-    });
-
-    profile_id
+        Err(relay_profiling::ProfileError::Filtered(filter_stat_key)) => {
+            Err(Outcome::Filtered(filter_stat_key))
+        }
+        Err(err) => Err(Outcome::Invalid(DiscardReason::Profiling(
+            relay_profiling::discard_reason(err),
+        ))),
+    }
 }
