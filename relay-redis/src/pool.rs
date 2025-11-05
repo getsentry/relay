@@ -5,11 +5,15 @@ use futures::FutureExt;
 use std::ops::{Deref, DerefMut};
 
 use crate::redis;
+use crate::redis;
 use crate::redis::aio::MultiplexedConnection;
 use crate::redis::cluster_async::ClusterConnection;
 use crate::redis::{
     Cmd, IntoConnectionInfo, Pipeline, RedisError, RedisFuture, RedisResult, Value,
 };
+use crate::statsd::RedisCounters;
+
+use relay_statsd::metric;
 
 /// A connection pool for Redis cluster deployments.
 pub type CustomClusterPool = Pool<CustomClusterManager, CustomClusterConnection>;
@@ -34,12 +38,26 @@ impl<C> TrackedConnection<C> {
         }
     }
 
-    /// Returns `true` when a [`RedisError`] should lead to the [`TrackedConnection`] being detached
+    /// Returns `true` when the result of a Redis call should lead to the [`TrackedConnection`] being detached
     /// from the pool.
     ///
-    /// An error leads to the connection being detached if it is unrecoverable.
-    fn should_be_detached(error: &RedisError) -> bool {
-        error.is_unrecoverable_error()
+    /// An `Ok` result never leads to the connection being detached.
+    /// A [`RedisError`] leads to the connection being detached if it is unrecoverable.
+    fn should_be_detached<T>(result: Result<T, &RedisError>) -> bool {
+        result.is_err_and(|error| error.is_unrecoverable_error())
+    }
+
+    fn emit_metrics<T>(result: Result<T, &RedisError>) {
+        let result = match result {
+            Ok(_) => "ok",
+            Err(e) if e.is_timeout() => "timeout",
+            Err(_) => "error",
+        };
+
+        metric!(
+            counter(RedisCounters::CommandExecuted) += 1,
+            result = result,
+        );
     }
 }
 
@@ -48,9 +66,8 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
         async move {
             let result = self.connection.req_packed_command(cmd).await;
 
-            if let Err(error) = &result {
-                self.detach = self.detach || Self::should_be_detached(error);
-            }
+            self.detach |= Self::should_be_detached(result.as_ref());
+            Self::emit_metrics(result.as_ref());
 
             result
         }
@@ -69,9 +86,8 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
                 .req_packed_commands(cmd, offset, count)
                 .await;
 
-            if let Err(error) = &result {
-                self.detach = self.detach || Self::should_be_detached(error);
-            }
+            self.detach |= Self::should_be_detached(result.as_ref());
+            Self::emit_metrics(result.as_ref());
 
             result
         }

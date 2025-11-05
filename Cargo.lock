@@ -4275,6 +4275,7 @@ dependencies = [
  "deadpool-redis",
  "futures",
  "redis",
+ "relay-statsd",
  "relay-system",
  "serde",
  "thiserror 2.0.17",
