@@ -45,6 +45,7 @@ impl<C> TrackedConnection<C> {
     ///
     /// An `Ok` result never leads to the connection being detached.
     /// A [`RedisError`] leads to the connection being detached if it is either unrecoverable or a timeout.
+    /// In case of timeout, we would rather close a potentially dead connection and establish a new one.
     fn should_be_detached<T>(result: Result<T, &RedisError>) -> bool {
         result.is_err_and(|error| error.is_unrecoverable_error() || error.is_timeout())
     }
