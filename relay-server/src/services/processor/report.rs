@@ -75,6 +75,7 @@ mod tests {
 
     use super::*;
 
+    // FIXME: Ask if moving the tests over is worth the changes to ProcessEnvelopeGrouped and Submit or if they should just stay here (hard to find).
     #[tokio::test]
     async fn test_client_report_removal() {
         relay_test::setup();
@@ -359,108 +360,6 @@ mod tests {
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
     }
-
-    // FIXME: Move these and all the other test over.
-    // #[test]
-    // fn test_from_outcome_type_sampled() {
-    //     assert!(outcome_from_parts(ClientReportField::FilteredSampling, "adsf").is_err());
-
-    //     assert!(outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:").is_err());
-
-    //     assert!(outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:foo").is_err());
-
-    //     assert!(matches!(
-    //         outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
-    //         Err(())
-    //     ));
-
-    //     assert!(matches!(
-    //         outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:;"),
-    //         Err(())
-    //     ));
-
-    //     assert!(matches!(
-    //         outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:ab;12"),
-    //         Err(())
-    //     ));
-
-    //     assert_eq!(
-    //         outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123,456"),
-    //         Ok(Outcome::FilteredSampling(RuleCategories(
-    //             [RuleCategory::Other].into()
-    //         )))
-    //     );
-
-    //     assert_eq!(
-    //         outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
-    //         Ok(Outcome::FilteredSampling(RuleCategories(
-    //             [RuleCategory::Other].into()
-    //         )))
-    //     );
-
-    //     assert_eq!(
-    //         outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
-    //         Ok(Outcome::FilteredSampling(RuleCategories(
-    //             [RuleCategory::Other].into()
-    //         )))
-    //     );
-
-    //     assert_eq!(
-    //         outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:1001"),
-    //         Ok(Outcome::FilteredSampling(RuleCategories(
-    //             [RuleCategory::BoostEnvironments].into()
-    //         )))
-    //     );
-
-    //     assert_eq!(
-    //         outcome_from_parts(
-    //             ClientReportField::FilteredSampling,
-    //             "Sampled:1001,1456,1567,3333,4444"
-    //         ),
-    //         Ok(Outcome::FilteredSampling(RuleCategories(
-    //             [
-    //                 RuleCategory::BoostEnvironments,
-    //                 RuleCategory::BoostLowVolumeTransactions,
-    //                 RuleCategory::BoostLatestReleases,
-    //                 RuleCategory::Custom
-    //             ]
-    //             .into()
-    //         )))
-    //     );
-    // }
-
-    // #[test]
-    // fn test_from_outcome_type_filtered() {
-    //     assert!(matches!(
-    //         outcome_from_parts(ClientReportField::Filtered, "error-message"),
-    //         Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
-    //     ));
-
-    //     assert!(matches!(
-    //         outcome_from_parts(ClientReportField::Filtered, "hydration-error"),
-    //         Ok(Outcome::Filtered(FilterStatKey::GenericFilter(_)))
-    //     ));
-    // }
-
-    // #[test]
-    // fn test_from_outcome_type_client_discard() {
-    //     assert_eq!(
-    //         outcome_from_parts(ClientReportField::ClientDiscard, "foo_reason").unwrap(),
-    //         Outcome::ClientDiscard("foo_reason".into())
-    //     );
-    // }
-
-    // #[test]
-    // fn test_from_outcome_type_rate_limited() {
-    //     assert!(matches!(
-    //         outcome_from_parts(ClientReportField::RateLimited, ""),
-    //         Ok(Outcome::RateLimited(None))
-    //     ));
-    //     assert_eq!(
-    //         outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
-    //         Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
-    //     );
-    // }
 
     #[test]
     fn test_trim_whitespaces() {
