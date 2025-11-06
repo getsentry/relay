@@ -453,82 +453,31 @@ impl Counted for SerializedTransaction {
 #[derive(Debug)]
 pub struct ExpandedTransaction {
     headers: EnvelopeHeaders,
-    data: ExpandedData,
-}
-
-impl ExpandedTransaction {
-    fn serialize_envelope(self) -> Result<Box<Envelope>, ContainerWriteError> {
-        let Self { headers, data } = self;
-
-        match data {
-            ExpandedData::Transaction {
-                transaction,
-                attachments,
-                profile,
-                extracted_spans,
-            } => {
-                let mut envelope = Envelope::try_from_event(headers, transaction)?;
-
-                if !extracted_spans.is_empty() {
-                    let mut item = Item::new(ItemType::Span);
-                    ItemContainer::from(extracted_spans).write_to(&mut item)?;
-                    envelope.add_item(item);
-                }
-
-                for item in attachment_items {
-                    envelope.add_item(item);
-                }
-                for item in profile_items {
-                    envelope.add_item(item);
-                }
-
-                Ok(envelope)
-            }
-            ExpandedData::Profile(item) => Ok(Envelope::from_parts(headers, [item].into())),
-        }
-    }
+    transaction: Annotated<Event>, // might be empty
+    attachments: smallvec::SmallVec<[Item; 3]>,
+    profile: Option<Item>,
 }
 
 impl Counted for ExpandedTransaction {
     fn quantities(&self) -> Quantities {
-        let Self { headers: _, data } = self;
-        data.quantities()
+        let mut quantities = Quantities::new();
+
+        if let Some(event) = self.transaction.value() {
+            // TODO: count events and transactions here.
+        }
+        quantities.extend(self.attachments.quantities());
+        quantities.extend(self.profile.quantities());
+
+        quantities
     }
 }
 
-enum ExpandedData {
-    /// A standard transaction item with optional profile & attachment(s).
-    Transaction {
-        transaction: Event,
-        attachments: SmallVec<[Item; 3]>,
-        profile: Option<Item>,
-        #[cfg(feature = "processing")]
-        extracted_spans: ContainerItems<SpanV2>,
-    },
-    /// A profile left over after the transaction has been dropped by dynamic sampling.
-    Profile(Item),
-}
+pub struct CountSpans<'a>(&'a Event);
 
-impl Counted for ExpandedData {
+impl Counted for CountSpans<'_> {
     fn quantities(&self) -> Quantities {
-        match self {
-            Self::Transaction {
-                transaction,
-                attachments,
-                profile,
-                extracted_spans,
-            } => {
-                let mut quantities = Quantities::new();
-                quantities.extend(transaction.quantities());
-                quantities.extend(attachments.quantities());
-                if let Some(profile) = profile {
-                    quantities.extend(attachments.quantities());
-                }
-                quantities.extend(extracted_spans).quantities();
-                quantities
-            }
-            Self::Profile(item) => item.quantities(),
-        }
+        let mut quantities = self.0.quantities();
+        quantities.extend(self.0.spans.quantities());
     }
 }
 
