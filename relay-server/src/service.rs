@@ -25,6 +25,8 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
+#[cfg(feature = "processing")]
+use crate::services::upload::UploadService;
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
 #[cfg(feature = "processing")]
@@ -222,12 +224,14 @@ impl ServiceState {
         let store = config
             .processing_enabled()
             .then(|| {
+                let upload = services.start(UploadService::new(config.upload()));
                 StoreService::create(
                     store_pool.clone(),
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),
                     metric_outcomes.clone(),
+                    upload,
                 )
                 .map(|s| services.start(s))
             })
