@@ -90,6 +90,7 @@ impl AsyncRedisClient {
     /// The client uses a custom cluster manager that implements a specific connection recycling
     /// strategy, ensuring optimal performance and reliability in cluster environments.
     pub fn cluster<'a>(
+        name: &'static str,
         servers: impl IntoIterator<Item = &'a str>,
         opts: &RedisConfigOptions,
     ) -> Result<Self, RedisError> {
@@ -100,7 +101,7 @@ impl AsyncRedisClient {
 
         // We use our custom cluster manager which performs recycling in a different way from the
         // default manager.
-        let manager = pool::CustomClusterManager::new(servers, false, opts.clone())
+        let manager = pool::CustomClusterManager::new(name, servers, false, opts.clone())
             .map_err(RedisError::Redis)?;
 
         let pool = Self::build_pool(manager, opts)?;
@@ -115,11 +116,15 @@ impl AsyncRedisClient {
     ///
     /// The client uses a custom single manager that implements a specific connection recycling
     /// strategy, ensuring optimal performance and reliability in single-instance environments.
-    pub fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
+    pub fn single(
+        name: &'static str,
+        server: &str,
+        opts: &RedisConfigOptions,
+    ) -> Result<Self, RedisError> {
         // We use our custom single manager which performs recycling in a different way from the
         // default manager.
-        let manager =
-            pool::CustomSingleManager::new(server, opts.clone()).map_err(RedisError::Redis)?;
+        let manager = pool::CustomSingleManager::new(name, server, opts.clone())
+            .map_err(RedisError::Redis)?;
 
         let pool = Self::build_pool(manager, opts)?;
 

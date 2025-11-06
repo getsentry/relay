@@ -226,7 +226,7 @@ mod tests {
             max_connections: 1,
             ..Default::default()
         };
-        AsyncRedisClient::single(&url, &opts).unwrap()
+        AsyncRedisClient::single("test", &url, &opts).unwrap()
     }
 
     fn keys(prefix: Uuid, keys: &[&str]) -> impl Iterator<Item = String> {

@@ -5,6 +5,7 @@ pub enum RedisCounters {
     ///
     /// This metric is tagged with:
     /// - `result`: The outcome (`ok`, `error`, `timeout`).
+    /// - `client`: The name of the Redis client sending the command.
     CommandExecuted,
 }
 
