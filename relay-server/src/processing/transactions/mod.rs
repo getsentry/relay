@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
+use relay_cogs::Token;
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
@@ -34,6 +35,7 @@ use crate::{processing::spans::store, services::store::StoreEnvelope};
 mod process;
 pub mod profile;
 mod spans;
+mod types;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -165,42 +167,40 @@ impl Processor for TransactionProcessor {
             }
         }
 
-        let (transaction_part, profile) = work.split_once(|mut w| {
-            // TODO: transaction_part should be of a type without a profile field
-            let profile = w.profile.take();
-            (w, profile)
-        });
-
         let mut profile_id = None;
-        if let Some(profile_item) = profile.as_ref() {
-            let feature = Feature::Profiling;
-            if should_filter(ctx.config, ctx.project_info, feature) {
-                profile.reject_err(Outcome::Invalid(DiscardReason::FeatureDisabled(feature)));
-            } else if transaction_part.transaction.is_none() && profile_item.sampled() {
-                // A profile with `sampled=true` should never be without a transaction
-                profile.reject_err(Outcome::Invalid(DiscardReason::Profiling(
-                    "missing_transaction",
-                )));
-            } else {
-                match relay_profiling::parse_metadata(&profile_item.payload(), project_id) {
-                    Ok(id) => {
-                        profile_id = Some(id);
-                    }
-                    Err(err) => {
-                        profile.reject_err(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        )));
+        work.modify(|work, record_keeper| {
+            if let Some(profile_item) = work.profile.as_mut() {
+                let feature = Feature::Profiling;
+                if should_filter(ctx.config, ctx.project_info, feature) {
+                    record_keeper.reject_err(
+                        Outcome::Invalid(DiscardReason::FeatureDisabled(feature)),
+                        work.profile.take(),
+                    );
+                } else if work.transaction.is_none() && profile_item.sampled() {
+                    // A profile with `sampled=true` should never be without a transaction
+                    record_keeper.reject_err(
+                        Outcome::Invalid(DiscardReason::Profiling("missing_transaction")),
+                        work.profile.take(),
+                    );
+                } else {
+                    match relay_profiling::parse_metadata(&profile_item.payload(), project_id) {
+                        Ok(id) => {
+                            profile_id = Some(id);
+                        }
+                        Err(err) => {
+                            record_keeper.reject_err(
+                                Outcome::Invalid(DiscardReason::Profiling(
+                                    relay_profiling::discard_reason(err),
+                                )),
+                                work.profile.take(),
+                            );
+                        }
                     }
                 }
             }
-        }
+        });
 
         profile::transfer_id(&mut event, profile_id);
-
-        let mut work = transaction_part.merge(profile).map(|(mut t, p), _| {
-            t.profile = p;
-            t
-        });
 
         work.modify(|w, r| utils::dsc::validate_and_set_dsc(&mut w.headers, &event, &mut ctx));
 
@@ -401,13 +401,7 @@ impl Processor for TransactionProcessor {
             });
         }
 
-        // event = self
-        //     .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)
-        //     .await?;
-
-        // if_processing!(self.inner.config, {
-        //     event = span::maybe_discard_transaction(managed_envelope, event, ctx.project_info);
-        // });
+        self.limiter.enforce_quotas(&mut work, ctx).await?;
 
         // // Event may have been dropped because of a quota and the envelope can be empty.
         // if event.value().is_some() {

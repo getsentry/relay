@@ -236,21 +236,6 @@ pub async fn process(
     }
 }
 
-/// Removes the transaction in case the project has made the transition to spans-only.
-pub fn maybe_discard_transaction(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
-    event: Annotated<Event>,
-    project_info: &ProjectInfo,
-) -> Annotated<Event> {
-    if event_type(&event) == Some(EventType::Transaction)
-        && project_info.has_feature(Feature::DiscardTransaction)
-    {
-        managed_envelope.update();
-        return Annotated::empty();
-    }
-
-    event
-}
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
 struct NormalizeSpanConfig<'a> {
