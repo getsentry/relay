@@ -125,22 +125,26 @@ pub fn remove_context_if_rate_limited(
 
     // Continuous profiling has two separate categories based on the platform, infer the correct
     // category to check for rate limits.
-    let category = match event.platform.as_str().map(ProfileType::from_platform) {
-        Some(ProfileType::Ui) => DataCategory::ProfileChunkUi,
-        Some(ProfileType::Backend) => DataCategory::ProfileChunk,
+    let scoping = envelope.scoping();
+    let categories = match event.platform.as_str().map(ProfileType::from_platform) {
+        Some(ProfileType::Ui) => &[
+            scoping.item(DataCategory::ProfileChunkUi),
+            scoping.item(DataCategory::ProfileDurationUi),
+        ],
+        Some(ProfileType::Backend) => &[
+            scoping.item(DataCategory::ProfileChunk),
+            scoping.item(DataCategory::ProfileDuration),
+        ],
         _ => return,
     };
 
     // This is a 'best effort' approach, which is why it is enough to check against cached rate
     // limits here.
-    let scoping = envelope.scoping();
-    let limits = ctx
+    let is_limited = ctx
         .rate_limits
-        .check_with_quotas(ctx.project_info.get_quotas(), scoping.item(category));
+        .is_any_limited_with_quotas(ctx.project_info.get_quotas(), categories);
 
-    if limits.is_limited()
-        && let Some(contexts) = event.contexts.value_mut()
-    {
+    if is_limited && let Some(contexts) = event.contexts.value_mut() {
         let _ = contexts.remove::<ProfileContext>();
     }
 }

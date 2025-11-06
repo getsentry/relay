@@ -319,15 +319,19 @@ def test_profile_chunk_outcomes_rate_limited_fast(
     "platform, category, filter_context",
     [
         ("cocoa", "profile_chunk_ui", True),
+        ("cocoa", "profile_duration_ui", True),
         ("cocoa", "profile_chunk", False),
+        ("cocoa", "profile_duration", False),
         ("node", "profile_chunk", True),
+        ("node", "profile_duration", True),
         ("node", "profile_chunk_ui", False),
+        ("node", "profile_duration_ui", False),
     ],
 )
 def test_profile_chunk_limited_transaction_context_removed(
     mini_sentry,
     relay,
-    platform, 
+    platform,
     category,
     filter_context,
 ):
