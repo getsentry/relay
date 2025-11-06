@@ -1249,17 +1249,17 @@ impl EnvelopeProcessorService {
         event: Annotated<Event>,
         extracted_metrics: &mut ProcessingExtractedMetrics,
         ctx: processing::Context<'_>,
-    ) -> Result<Annotated<Event>, ProcessingError> {
+    ) -> Annotated<Event> {
         // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
         // applied in the fast path, all cached quotas can be applied here.
         let cached_result = RateLimiter::Cached
             .enforce(managed_envelope, event, extracted_metrics, ctx)
-            .await?;
+            .await;
 
         if_processing!(self.inner.config, {
             let rate_limiter = match self.inner.rate_limiter.clone() {
                 Some(rate_limiter) => rate_limiter,
-                None => return Ok(cached_result.event),
+                None => return cached_result.event,
             };
 
             // Enforce all quotas consistently with Redis.
@@ -1270,7 +1270,7 @@ impl EnvelopeProcessorService {
                     extracted_metrics,
                     ctx
                 )
-                .await?;
+                .await;
 
             // Update cached rate limits with the freshly computed ones.
             if !consistent_result.rate_limits.is_empty() {
@@ -1281,8 +1281,8 @@ impl EnvelopeProcessorService {
                     .merge(consistent_result.rate_limits);
             }
 
-            Ok(consistent_result.event)
-        } else { Ok(cached_result.event) })
+            consistent_result.event
+        } else { cached_result.event })
     }
 
     /// Processes the general errors, and the items which require or create the events.
@@ -1380,7 +1380,7 @@ impl EnvelopeProcessorService {
 
         event = self
             .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)
-            .await?;
+            .await;
 
         if event.value().is_some() {
             event::scrub(&mut event, ctx.project_info)?;
@@ -1567,7 +1567,7 @@ impl EnvelopeProcessorService {
                     &mut extracted_metrics,
                     ctx,
                 )
-                .await?;
+                .await;
 
             return Ok(Some(extracted_metrics));
         }
@@ -1620,7 +1620,7 @@ impl EnvelopeProcessorService {
 
         event = self
             .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)
-            .await?;
+            .await;
 
         if_processing!(self.inner.config, {
             event = span::maybe_discard_transaction(managed_envelope, event, ctx.project_info);
@@ -1670,7 +1670,7 @@ impl EnvelopeProcessorService {
             &mut ProcessingExtractedMetrics::new(),
             ctx,
         )
-        .await?;
+        .await;
 
         Ok(None)
     }
@@ -1700,7 +1700,7 @@ impl EnvelopeProcessorService {
             &mut extracted_metrics,
             ctx,
         )
-        .await?;
+        .await;
 
         report::process_user_reports(managed_envelope);
         attachment::scrub(managed_envelope, ctx.project_info);
@@ -1722,7 +1722,7 @@ impl EnvelopeProcessorService {
             &mut extracted_metrics,
             ctx,
         )
-        .await?;
+        .await;
 
         report::process_client_reports(
             managed_envelope,
@@ -1756,7 +1756,7 @@ impl EnvelopeProcessorService {
             &mut extracted_metrics,
             ctx,
         )
-        .await?;
+        .await;
 
         Ok(Some(extracted_metrics))
     }
@@ -1841,7 +1841,7 @@ impl EnvelopeProcessorService {
             &mut extracted_metrics,
             ctx,
         )
-        .await?;
+        .await;
 
         Ok(Some(extracted_metrics))
     }
@@ -2970,14 +2970,14 @@ impl RateLimiter {
         event: Annotated<Event>,
         _extracted_metrics: &mut ProcessingExtractedMetrics,
         ctx: processing::Context<'_>,
-    ) -> Result<EnforcementResult, ProcessingError> {
+    ) -> EnforcementResult {
         if managed_envelope.envelope().is_empty() && event.value().is_none() {
-            return Ok(EnforcementResult::new(event, RateLimits::default()));
+            return EnforcementResult::new(event, RateLimits::default());
         }
 
         let quotas = CombinedQuotas::new(ctx.global_config, ctx.project_info.get_quotas());
         if quotas.is_empty() {
-            return Ok(EnforcementResult::new(event, RateLimits::default()));
+            return EnforcementResult::new(event, RateLimits::default());
         }
 
         let event_category = event_category(&event);
@@ -2995,14 +2995,21 @@ impl RateLimiter {
                 async move {
                     match this {
                         #[cfg(feature = "processing")]
-                        RateLimiter::Consistent(rate_limiter) => Ok::<_, ProcessingError>(
-                            rate_limiter
-                                .is_rate_limited(quotas, item_scope, _quantity, false)
-                                .await?,
-                        ),
-                        _ => Ok::<_, ProcessingError>(
-                            ctx.rate_limits.check_with_quotas(quotas, item_scope),
-                        ),
+                        RateLimiter::Consistent(rate_limiter) => Ok(rate_limiter
+                            .is_rate_limited(quotas, item_scope, _quantity, false)
+                            .await
+                            .unwrap_or_else(|err| {
+                                // Fallback to cached rate limits when the Redis rate limiter fails.
+                                //
+                                // This ensures 0 quotas are still enforced, but otherwise we
+                                // fail open.
+                                relay_log::error!(
+                                    error = &err as &dyn std::error::Error,
+                                    "rate limiting failed"
+                                );
+                                ctx.rate_limits.check_with_quotas(quotas, item_scope)
+                            })),
+                        _ => Ok(ctx.rate_limits.check_with_quotas(quotas, item_scope)),
                     }
                 }
             });
@@ -3014,12 +3021,14 @@ impl RateLimiter {
         }
 
         let scoping = managed_envelope.scoping();
+
         let (enforcement, rate_limits) =
             metric!(timer(RelayTimers::EventProcessingRateLimiting), {
                 envelope_limiter
                     .compute(managed_envelope.envelope_mut(), &scoping)
                     .await
-            })?;
+                    .unwrap_or_else(|err: std::convert::Infallible| match err {})
+            });
         let event_active = enforcement.is_event_active();
 
         // Use the same rate limits as used for the envelope on the metrics.
@@ -3031,10 +3040,10 @@ impl RateLimiter {
 
         if event_active {
             debug_assert!(managed_envelope.envelope().is_empty());
-            return Ok(EnforcementResult::new(Annotated::empty(), rate_limits));
+            return EnforcementResult::new(Annotated::empty(), rate_limits);
         }
 
-        Ok(EnforcementResult::new(event, rate_limits))
+        EnforcementResult::new(event, rate_limits)
     }
 }
 
