@@ -238,7 +238,6 @@ impl ServiceState {
             .transpose()?;
 
         #[cfg(feature = "processing")]
-        #[cfg(feature = "processing")]
         let global_rate_limits = redis_clients
             .as_ref()
             .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
