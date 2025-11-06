@@ -224,9 +224,10 @@ async fn handle_upload(
     Ok(())
 }
 
-/// Returns the key of the objectstore upload.
+/// Uploads the payload to the objectstore and returns the key under which it is stored.
 ///
-/// If `key` is not `None`, write to object store with the given key.
+/// - If `key` is `None`, the objectstore will assign a key.
+/// - If `key` is not `None`, write to objectstore with the given key.
 async fn upload(key: Option<&str>, payload: &[u8]) -> Result<String, ()> {
     // TODO: call objectstore
     Ok(key.unwrap_or_default().to_owned())
