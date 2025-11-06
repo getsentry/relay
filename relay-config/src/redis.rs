@@ -60,7 +60,7 @@ impl Default for PartialRedisConfigOptions {
             create_timeout: Some(3),
             recycle_timeout: Some(2),
             wait_timeout: None,
-            response_timeout: Some(6),
+            response_timeout: Some(30),
             recycle_check_frequency: 100,
         }
     }
