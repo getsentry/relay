@@ -30,13 +30,15 @@ pub type CustomSinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
 pub struct TrackedConnection<C> {
     connection: C,
     detach: bool,
+    client_name: &'static str,
 }
 
 impl<C> TrackedConnection<C> {
-    fn new(connection: C) -> Self {
+    fn new(client_name: &'static str, connection: C) -> Self {
         Self {
             connection,
             detach: false,
+            client_name,
         }
     }
 
@@ -57,7 +59,7 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
             let result = self.connection.req_packed_command(cmd).await;
 
             self.detach |= Self::should_be_detached(result.as_ref());
-            emit_metrics(result.as_ref());
+            emit_metrics(self.client_name, result.as_ref());
 
             result
         }
@@ -77,7 +79,7 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
                 .await;
 
             self.detach |= Self::should_be_detached(result.as_ref());
-            emit_metrics(result.as_ref());
+            emit_metrics(self.client_name, result.as_ref());
 
             result
         }
@@ -86,12 +88,6 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
 
     fn get_db(&self) -> i64 {
         self.connection.get_db()
-    }
-}
-
-impl<C> From<C> for TrackedConnection<C> {
-    fn from(value: C) -> Self {
-        Self::new(value)
     }
 }
 
@@ -140,6 +136,7 @@ impl redis::aio::ConnectionLike for CustomClusterConnection {
 /// ensuring proper connection health through periodic PING checks. It supports both
 /// primary and replica nodes, with optional read-from-replicas functionality.
 pub struct CustomClusterManager {
+    name: &'static str,
     client: redis::cluster::ClusterClient,
     ping_number: AtomicUsize,
     recycle_check_frequency: usize,
@@ -151,6 +148,7 @@ impl CustomClusterManager {
     /// The manager will attempt to connect to each node in the provided list and
     /// maintain connections to the Redis cluster.
     pub fn new<T: IntoConnectionInfo>(
+        name: &'static str,
         params: Vec<T>,
         read_from_replicas: bool,
         options: RedisConfigOptions,
@@ -165,6 +163,7 @@ impl CustomClusterManager {
         }
 
         Ok(Self {
+            name,
             client: client.build()?,
             ping_number: AtomicUsize::new(0),
             recycle_check_frequency: options.recycle_check_frequency,
@@ -177,8 +176,10 @@ impl Manager for CustomClusterManager {
     type Error = RedisError;
 
     async fn create(&self) -> Result<TrackedConnection<ClusterConnection>, RedisError> {
-        let conn = self.client.get_async_connection().await?;
-        Ok(TrackedConnection::new(conn))
+        self.client
+            .get_async_connection()
+            .await
+            .map(|c| TrackedConnection::new(self.name, c))
     }
 
     async fn recycle(
@@ -254,6 +255,7 @@ impl redis::aio::ConnectionLike for CustomSingleConnection {
 /// ensuring proper connection health through periodic PING checks. It supports
 /// multiplexed connections for efficient handling of multiple operations.
 pub struct CustomSingleManager {
+    name: &'static str,
     client: redis::Client,
     ping_number: AtomicUsize,
     connection_config: AsyncConnectionConfig,
@@ -265,13 +267,18 @@ impl CustomSingleManager {
     ///
     /// The manager will establish and maintain connections to the specified Redis
     /// instance, handling connection lifecycle and health checks.
-    pub fn new<T: IntoConnectionInfo>(params: T, options: RedisConfigOptions) -> RedisResult<Self> {
+    pub fn new<T: IntoConnectionInfo>(
+        name: &'static str,
+        params: T,
+        options: RedisConfigOptions,
+    ) -> RedisResult<Self> {
         let mut connection_config = AsyncConnectionConfig::new();
         if let Some(response_timeout) = options.response_timeout {
             connection_config =
                 connection_config.set_response_timeout(Duration::from_secs(response_timeout));
         }
         Ok(Self {
+            name,
             client: redis::Client::open(params)?,
             ping_number: AtomicUsize::new(0),
             connection_config,
@@ -288,7 +295,7 @@ impl Manager for CustomSingleManager {
         self.client
             .get_multiplexed_async_connection_with_config(&self.connection_config)
             .await
-            .map(TrackedConnection::from)
+            .map(|c| TrackedConnection::new(self.name, c))
     }
 
     async fn recycle(
@@ -337,7 +344,7 @@ impl From<Object<CustomSingleManager>> for CustomSingleConnection {
     }
 }
 
-fn emit_metrics<T>(result: Result<T, &RedisError>) {
+fn emit_metrics<T>(client: &str, result: Result<T, &RedisError>) {
     let result = match result {
         Ok(_) => "ok",
         Err(e) if e.is_timeout() => "timeout",
@@ -347,5 +354,6 @@ fn emit_metrics<T>(result: Result<T, &RedisError>) {
     metric!(
         counter(RedisCounters::CommandExecuted) += 1,
         result = result,
+        client = client,
     );
 }
