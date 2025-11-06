@@ -12,6 +12,7 @@
 - Allow sample rate per trace metric. ([#5317](https://github.com/getsentry/relay/pull/5317))
 - Remove the profile context from transactions if profiles are currently rate limited. ([#5346](https://github.com/getsentry/relay/pull/5346))
 - Replace `is_remote` with `is_segment` on the Span V2 schema. ([#5306](https://github.com/getsentry/relay/pull/5306))
+- Add `response_timeout` config setting for Redis. ([#5329](https://github.com/getsentry/relay/pull/5329))
 
 **Breaking Changes**:
 

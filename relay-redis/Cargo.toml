@@ -13,8 +13,7 @@ publish = false
 workspace = true
 
 [dependencies]
-deadpool = { workspace = true, optional = true }
-deadpool-redis = { workspace = true, optional = true, features = ["rt_tokio_1", "cluster", "script"] }
+deadpool = { workspace = true, optional = true, features = ["rt_tokio_1"] }
 futures = { workspace = true }
 redis = { workspace = true, optional = true, features = [
     "cluster",
@@ -35,4 +34,4 @@ relay-system = { workspace = true }
 
 [features]
 default = []
-impl = ["dep:deadpool", "dep:deadpool-redis", "dep:relay-statsd", "dep:redis"]
+impl = ["dep:deadpool", "dep:relay-statsd", "dep:redis"]

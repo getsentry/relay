@@ -1,9 +1,12 @@
 use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleError, RecycleResult};
-use deadpool_redis::Manager as SingleManager;
-use deadpool_redis::cluster::Manager as ClusterManager;
 use futures::FutureExt;
+use redis::AsyncConnectionConfig;
+use redis::cluster::ClusterClientBuilder;
 use std::ops::{Deref, DerefMut};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
+use crate::RedisConfigOptions;
 use crate::redis;
 use crate::redis::aio::MultiplexedConnection;
 use crate::redis::cluster_async::ClusterConnection;
@@ -41,9 +44,10 @@ impl<C> TrackedConnection<C> {
     /// from the pool.
     ///
     /// An `Ok` result never leads to the connection being detached.
-    /// A [`RedisError`] leads to the connection being detached if it is unrecoverable.
+    /// A [`RedisError`] leads to the connection being detached if it is either unrecoverable or a timeout.
+    /// In case of timeout, we would rather close a potentially dead connection and establish a new one.
     fn should_be_detached<T>(result: Result<T, &RedisError>) -> bool {
-        result.is_err_and(|error| error.is_unrecoverable_error())
+        result.is_err_and(|error| error.is_unrecoverable_error() || error.is_timeout())
     }
 }
 
@@ -135,9 +139,9 @@ impl redis::aio::ConnectionLike for CustomClusterConnection {
 /// This manager handles the creation and recycling of Redis cluster connections,
 /// ensuring proper connection health through periodic PING checks. It supports both
 /// primary and replica nodes, with optional read-from-replicas functionality.
-#[derive(Debug)]
 pub struct CustomClusterManager {
-    manager: ClusterManager,
+    client: redis::cluster::ClusterClient,
+    ping_number: AtomicUsize,
     recycle_check_frequency: usize,
 }
 
@@ -149,11 +153,21 @@ impl CustomClusterManager {
     pub fn new<T: IntoConnectionInfo>(
         params: Vec<T>,
         read_from_replicas: bool,
-        recycle_check_frequency: usize,
+        options: RedisConfigOptions,
     ) -> RedisResult<Self> {
+        let mut client = ClusterClientBuilder::new(params);
+
+        if read_from_replicas {
+            client = client.read_from_replicas();
+        }
+        if let Some(response_timeout) = options.response_timeout {
+            client = client.response_timeout(Duration::from_secs(response_timeout));
+        }
+
         Ok(Self {
-            manager: ClusterManager::new(params, read_from_replicas)?,
-            recycle_check_frequency,
+            client: client.build()?,
+            ping_number: AtomicUsize::new(0),
+            recycle_check_frequency: options.recycle_check_frequency,
         })
     }
 }
@@ -163,7 +177,8 @@ impl Manager for CustomClusterManager {
     type Error = RedisError;
 
     async fn create(&self) -> Result<TrackedConnection<ClusterConnection>, RedisError> {
-        self.manager.create().await.map(TrackedConnection::from)
+        let conn = self.client.get_async_connection().await?;
+        Ok(TrackedConnection::new(conn))
     }
 
     async fn recycle(
@@ -188,7 +203,17 @@ impl Manager for CustomClusterManager {
             return Ok(());
         }
 
-        self.manager.recycle(conn, metrics).await
+        // Copied from deadpool_redis::cluster::Manager
+        let ping_number = self.ping_number.fetch_add(1, Ordering::Relaxed).to_string();
+        let n = redis::cmd("PING")
+            .arg(&ping_number)
+            .query_async::<String>(conn)
+            .await?;
+        if n == ping_number {
+            Ok(())
+        } else {
+            Err(RecycleError::message("Invalid PING response"))
+        }
     }
 }
 
@@ -229,7 +254,9 @@ impl redis::aio::ConnectionLike for CustomSingleConnection {
 /// ensuring proper connection health through periodic PING checks. It supports
 /// multiplexed connections for efficient handling of multiple operations.
 pub struct CustomSingleManager {
-    manager: SingleManager,
+    client: redis::Client,
+    ping_number: AtomicUsize,
+    connection_config: AsyncConnectionConfig,
     recycle_check_frequency: usize,
 }
 
@@ -238,13 +265,17 @@ impl CustomSingleManager {
     ///
     /// The manager will establish and maintain connections to the specified Redis
     /// instance, handling connection lifecycle and health checks.
-    pub fn new<T: IntoConnectionInfo>(
-        params: T,
-        recycle_check_frequency: usize,
-    ) -> RedisResult<Self> {
+    pub fn new<T: IntoConnectionInfo>(params: T, options: RedisConfigOptions) -> RedisResult<Self> {
+        let mut connection_config = AsyncConnectionConfig::new();
+        if let Some(response_timeout) = options.response_timeout {
+            connection_config =
+                connection_config.set_response_timeout(Duration::from_secs(response_timeout));
+        }
         Ok(Self {
-            manager: SingleManager::new(params)?,
-            recycle_check_frequency,
+            client: redis::Client::open(params)?,
+            ping_number: AtomicUsize::new(0),
+            connection_config,
+            recycle_check_frequency: options.recycle_check_frequency,
         })
     }
 }
@@ -254,7 +285,10 @@ impl Manager for CustomSingleManager {
     type Error = RedisError;
 
     async fn create(&self) -> Result<TrackedConnection<MultiplexedConnection>, RedisError> {
-        self.manager.create().await.map(TrackedConnection::from)
+        self.client
+            .get_multiplexed_async_connection_with_config(&self.connection_config)
+            .await
+            .map(TrackedConnection::from)
     }
 
     async fn recycle(
@@ -279,7 +313,21 @@ impl Manager for CustomSingleManager {
             return Ok(());
         }
 
-        self.manager.recycle(conn, metrics).await
+        // Copied from deadpool_redis::Manager::recycle
+        let ping_number = self.ping_number.fetch_add(1, Ordering::Relaxed).to_string();
+        // Using pipeline to avoid roundtrip for UNWATCH
+        let (n,) = redis::Pipeline::with_capacity(2)
+            .cmd("UNWATCH")
+            .ignore()
+            .cmd("PING")
+            .arg(&ping_number)
+            .query_async::<(String,)>(conn)
+            .await?;
+        if n == ping_number {
+            Ok(())
+        } else {
+            Err(RecycleError::message("Invalid PING response"))
+        }
     }
 }
 
