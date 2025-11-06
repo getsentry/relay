@@ -20,6 +20,7 @@ use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::transactions::profile::Profile;
+use crate::processing::utils::attachments;
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -332,51 +333,68 @@ impl Processor for TransactionProcessor {
             });
         }
 
-        // let _post_ds = cogs.start_category("post_ds");
+        // let _post_ds = cogs.start_category("post_ds"); // FIXME
 
-        // // Need to scrub the transaction before extracting spans.
-        // //
-        // // Unconditionally scrub to make sure PII is removed as early as possible.
-        // event::scrub(&mut event, ctx.project_info)?;
+        // Need to scrub the transaction before extracting spans.
+        //
+        // Unconditionally scrub to make sure PII is removed as early as possible.
+        utils::event::scrub(&mut event, ctx.project_info)
+            .map_err(Error::from)
+            .reject(&work)?;
 
-        // attachment::scrub(managed_envelope, ctx.project_info);
+        work.modify(|w, _| {
+            utils::attachments::scrub(w.attachments.iter_mut(), ctx.project_info);
+        });
 
-        // if_processing!(self.inner.config, {
-        //     // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-        //     let profile_id = profile::process(
-        //         managed_envelope,
-        //         &mut event,
-        //         ctx.global_config,
-        //         ctx.config,
-        //         ctx.project_info,
-        //     );
-        //     profile::transfer_id(&mut event, profile_id);
-        //     profile::scrub_profiler_id(&mut event);
+        if cfg!(feature = "processing") && ctx.config.processing_enabled() {
+            // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
+            let mut profile_id = None;
+            work.modify(|work, r| {
+                if let Some(profile) = work.profile.as_mut() {
+                    profile.set_sampled(false);
+                    let result = profile::process(
+                        profile,
+                        work.headers.meta().client_addr(),
+                        event.value(),
+                        &ctx,
+                    );
+                    match result {
+                        Err(outcome) => {
+                            r.reject_err(outcome, work.profile.take());
+                        }
+                        Ok(p) => profile_id = p,
+                    }
+                }
+            });
+            profile::transfer_id(&mut event, profile_id);
+            profile::scrub_profiler_id(&mut event);
 
-        //     // Always extract metrics in processing Relays for sampled items.
-        //     event_metrics_extracted = self.extract_transaction_metrics(
-        //         managed_envelope,
-        //         &mut event,
-        //         &mut extracted_metrics,
-        //         project_id,
-        //         ctx.project_info,
-        //         SamplingDecision::Keep,
-        //         event_metrics_extracted,
-        //         spans_extracted,
-        //     )?;
+            // Always extract metrics in processing Relays for sampled items.
+            event_metrics_extracted = utils::transaction::extract_metrics(
+                &mut event,
+                &mut extracted_metrics,
+                ExtractMetricsContext {
+                    dsc: work.headers.dsc(),
+                    project_id,
+                    ctx: &ctx,
+                    sampling_decision: SamplingDecision::Drop,
+                    event_metrics_extracted,
+                    spans_extracted,
+                },
+            )
+            .map_err(Error::ProcessingFailed)
+            .reject(&work)?;
 
-        //     if ctx.project_info.has_feature(Feature::ExtractSpansFromEvent) {
-        //         spans_extracted = span::extract_from_event(
-        //             managed_envelope,
-        //             &event,
-        //             ctx.global_config,
-        //             ctx.config,
-        //             server_sample_rate,
-        //             event_metrics_extracted,
-        //             spans_extracted,
-        //         );
-        //     }
-        // });
+            spans_extracted = span::extract_from_event(
+                managed_envelope,
+                &event,
+                ctx.global_config,
+                ctx.config,
+                server_sample_rate,
+                event_metrics_extracted,
+                spans_extracted,
+            );
+        }
 
         // event = self
         //     .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)

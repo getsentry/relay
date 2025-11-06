@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
+use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_config::NormalizationLevel;
 use relay_dynamic_config::Feature;
@@ -421,6 +422,39 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     } else {
         false
     }
+}
+
+/// Apply data privacy rules to the event payload.
+///
+/// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
+pub fn scrub(
+    event: &mut Annotated<Event>,
+    project_info: &ProjectInfo,
+) -> Result<(), ProcessingError> {
+    let config = &project_info.config;
+
+    if config.datascrubbing_settings.scrub_data
+        && let Some(event) = event.value_mut()
+    {
+        relay_pii::scrub_graphql(event);
+    }
+
+    metric!(timer(RelayTimers::EventProcessingPii), {
+        if let Some(ref config) = config.pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            processor::process_value(event, &mut processor, ProcessingState::root())?;
+        }
+        let pii_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+        if let Some(config) = pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            processor::process_value(event, &mut processor, ProcessingState::root())?;
+        }
+    });
+
+    Ok(())
 }
 
 #[cfg(feature = "processing")]
