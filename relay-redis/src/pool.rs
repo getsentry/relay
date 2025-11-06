@@ -5,6 +5,7 @@ use redis::cluster::ClusterClientBuilder;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
+use tokio::time::Instant;
 
 use crate::RedisConfigOptions;
 use crate::redis;
@@ -13,7 +14,7 @@ use crate::redis::cluster_async::ClusterConnection;
 use crate::redis::{
     Cmd, IntoConnectionInfo, Pipeline, RedisError, RedisFuture, RedisResult, Value,
 };
-use crate::statsd::RedisCounters;
+use crate::statsd::RedisTimers;
 
 use relay_statsd::metric;
 
@@ -27,6 +28,8 @@ pub type CustomSinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
 ///
 /// A connection is considered detached as soon as it is marked as detached and it can't be
 /// un-detached.
+///
+/// This connection will automatically emit metrics after sending Redis commands or pipelines.
 pub struct TrackedConnection<C> {
     connection: C,
     detach: bool,
@@ -56,10 +59,12 @@ impl<C> TrackedConnection<C> {
 impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for TrackedConnection<C> {
     fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
         async move {
+            let start = Instant::now();
             let result = self.connection.req_packed_command(cmd).await;
+            let elapsed = start.elapsed();
 
             self.detach |= Self::should_be_detached(result.as_ref());
-            emit_metrics(self.client_name, result.as_ref());
+            emit_metrics(result.as_ref(), elapsed, self.client_name, cmd_name(cmd));
 
             result
         }
@@ -73,13 +78,15 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
         count: usize,
     ) -> RedisFuture<'a, Vec<Value>> {
         async move {
+            let start = Instant::now();
             let result = self
                 .connection
                 .req_packed_commands(cmd, offset, count)
                 .await;
+            let elapsed = start.elapsed();
 
             self.detach |= Self::should_be_detached(result.as_ref());
-            emit_metrics(self.client_name, result.as_ref());
+            emit_metrics(result.as_ref(), elapsed, self.client_name, "pipeline");
 
             result
         }
@@ -344,7 +351,7 @@ impl From<Object<CustomSingleManager>> for CustomSingleConnection {
     }
 }
 
-fn emit_metrics<T>(client: &str, result: Result<T, &RedisError>) {
+fn emit_metrics<T>(result: Result<T, &RedisError>, elapsed: Duration, client: &str, cmd: &str) {
     let result = match result {
         Ok(_) => "ok",
         Err(e) if e.is_timeout() => "timeout",
@@ -352,8 +359,17 @@ fn emit_metrics<T>(client: &str, result: Result<T, &RedisError>) {
     };
 
     metric!(
-        counter(RedisCounters::CommandExecuted) += 1,
+        timer(RedisTimers::CommandExecuted) = elapsed,
         result = result,
         client = client,
+        cmd = cmd,
     );
+}
+
+/// Extracts a [`Cmd`]'s name from its first argument.
+fn cmd_name(cmd: &Cmd) -> &str {
+    match cmd.args_iter().next() {
+        Some(redis::Arg::Simple(data)) => std::str::from_utf8(data).unwrap_or("<unknown>"),
+        Some(redis::Arg::Cursor) | None => "<unknown>",
+    }
 }
