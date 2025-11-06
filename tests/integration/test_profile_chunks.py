@@ -3,7 +3,6 @@ from copy import deepcopy
 from pathlib import Path
 from datetime import datetime, timezone
 
-from _pytest.config import filter_traceback_for_conftest_import_failure
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
@@ -349,7 +348,7 @@ def test_profile_chunk_limited_transaction_context_removed(
 
     project_config["config"]["quotas"] = [
         {
-            "id": f"test_rate_limiting",
+            "id": "test_rate_limiting",
             "categories": [category],
             "limit": 0,
             "reasonCode": "profile_chunks_exceeded",
