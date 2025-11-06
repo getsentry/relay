@@ -449,15 +449,15 @@ impl Envelope {
         self.headers.dsc()
     }
 
-    // /// Overrides the dynamic sampling context in envelope headers.
-    // pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
-    //     self.headers.set_dsc(dsc);
-    // }
+    /// Overrides the dynamic sampling context in envelope headers.
+    pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
+        self.headers.set_dsc(dsc);
+    }
 
-    // /// Removes the dynamic sampling context from envelope headers.
-    // pub fn remove_dsc(&mut self) {
-    //     self.headers.remove_dsc();
-    // }
+    /// Removes the dynamic sampling context from envelope headers.
+    pub fn remove_dsc(&mut self) {
+        self.headers.remove_dsc();
+    }
 
     /// Features required to process this envelope.
     pub fn required_features(&self) -> &[Feature] {

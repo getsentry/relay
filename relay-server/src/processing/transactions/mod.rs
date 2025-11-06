@@ -6,6 +6,7 @@ use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics, SpanV2};
 use relay_filter::FilterStatKey;
 use relay_protocol::Annotated;
+use relay_quotas::{DataCategory, RateLimits};
 #[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
@@ -18,6 +19,7 @@ use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer,
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
+use crate::processing::transactions::profile::Profile;
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -39,6 +41,14 @@ pub enum Error {
     InvalidJson(#[from] serde_json::Error),
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingError),
+    #[error("rate limited")]
+    RateLimited(RateLimits),
+}
+
+impl From<RateLimits> for Error {
+    fn from(value: RateLimits) -> Self {
+        Self::RateLimited(value)
+    }
 }
 
 impl OutcomeError for Error {
@@ -46,8 +56,8 @@ impl OutcomeError for Error {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
-            Error::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
-            Error::ProcessingFailed(e) => match e {
+            Self::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
+            Self::ProcessingFailed(e) => match e {
                 ProcessingError::InvalidTransaction => {
                     Outcome::Invalid(DiscardReason::InvalidTransaction)
                 }
@@ -60,6 +70,10 @@ impl OutcomeError for Error {
                     Outcome::Invalid(DiscardReason::Internal)
                 }
             },
+            Self::RateLimited(limits) => {
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                Outcome::RateLimited(reason_code)
+            }
         };
         (Some(outcome), self)
     }
@@ -181,7 +195,7 @@ impl Processor for TransactionProcessor {
             }
         }
 
-        transfer_profile_id(&mut event, profile_id);
+        profile::transfer_id(&mut event, profile_id);
 
         let work = transaction_part.merge(profile).map(|(mut t, p), _| {
             t.profile = p;
@@ -228,13 +242,8 @@ impl Processor for TransactionProcessor {
                 if let Some(quotas_client) = self.quotas_client.as_ref() {
                     reservoir.set_redis(work.scoping().organization_id, quotas_client);
                 }
-                utils::dynamic_sampling::run(
-                    transaction_part.headers.dsc(),
-                    &mut event,
-                    &ctx,
-                    Some(&reservoir),
-                )
-                .await
+                utils::dynamic_sampling::run(work.headers.dsc(), &mut event, &ctx, Some(&reservoir))
+                    .await
             }
             false => SamplingResult::Pending,
         };
@@ -248,27 +257,40 @@ impl Processor for TransactionProcessor {
         #[cfg(feature = "processing")]
         let server_sample_rate = sampling_result.sample_rate();
 
+        // TODO: earlier
+        let work = work.map(|w, _| {
+            let SerializedTransaction {
+                headers,
+                transaction: _,
+                attachments,
+                profile,
+            } = w;
+            ExpandedTransaction {
+                headers,
+                transaction: event,
+                attachments,
+                profile,
+            }
+        });
+
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            let (transaction_part, profile) = work.split_once(|w| {
-                // TODO: transaction_part should be of a type without a profile field
-                let profile = w.profile.take();
-                (w, profile)
-            });
 
-            let profile = profile.transpose();
-            if let Some(profile) = profile {
-                profile.modify(|p, _| {
-                    p.set_sampled(false);
-                });
-                profile::process(
-                    &mut profile,
-                    work.headers.meta().client_addr(),
-                    event.value(),
-                    &ctx,
-                );
-            }
+            work.modify(|work, r| {
+                if let Some(profile) = work.profile.as_mut() {
+                    profile.set_sampled(false);
+                    let result = profile::process(
+                        profile,
+                        work.headers.meta().client_addr(),
+                        event.value(),
+                        &ctx,
+                    );
+                    if let Err(outcome) = result {
+                        r.reject_err(outcome, work.profile.take());
+                    }
+                }
+            });
 
             // Extract metrics here, we're about to drop the event/transaction.
             event_metrics_extracted = utils::transaction::extract_metrics(
@@ -286,24 +308,28 @@ impl Processor for TransactionProcessor {
             .map_err(Error::ProcessingFailed)
             .reject(&work)?;
 
+            let (work, profile) = work.split_once(|w| {
+                let profile = w.profile.take();
+                (w, profile)
+            });
+
+            // reject everything but the profile:
             // FIXME: track non-extracted spans as well.
             // -> Type TransactionWithEmbeddedSpans
+            let _ = work.reject_err(outcome);
 
-            // At this point we have:
-            //  - An empty envelope.
-            //  - An envelope containing only processed profiles.
-            // We need to make sure there are enough quotas for these profiles.
+            // If we have a profile left, we need to make sure there is quota for this profile.
+            if let Some(profile) = profile.transpose() {
+                let mut profile = profile.map(|p, _| Profile(p));
+                if self.limiter.enforce_quotas(&mut profile, ctx).await.is_ok() {
+                    work.profile = Some(profile.0);
+                }
+            }
 
-            // event = self
-            //     .enforce_quotas(
-            //         managed_envelope,
-            //         Annotated::empty(),
-            //         &mut extracted_metrics,
-            //         ctx,
-            //     )
-            //     .await?;
-
-            // return Ok(Some(extracted_metrics));
+            return Ok(super::Output {
+                main: Some(TransactionOutput(work)),
+                metrics: Some(work.wrap(extracted_metrics.into_inner())),
+            });
         }
 
         // let _post_ds = cogs.start_category("post_ds");
@@ -379,38 +405,10 @@ impl Processor for TransactionProcessor {
         //     );
         // };
 
-        Ok(crate::processing::Output {
-            main: Some(work),
-            metrics: Some(extracted_metrics),
+        Ok(super::Output {
+            main: Some(TransactionOutput(work)),
+            metrics: Some(work.wrap(extracted_metrics.into_inner())),
         })
-    }
-}
-
-/// Transfers the profile ID from the profile item to the transaction item.
-///
-/// The profile id may be `None` when the envelope does not contain a profile,
-/// in that case the profile context is removed.
-/// Some SDKs send transactions with profile ids but omit the profile in the envelope.
-fn transfer_profile_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) {
-    let Some(event) = event.value_mut() else {
-        return;
-    };
-
-    match profile_id {
-        Some(profile_id) => {
-            let contexts = event.contexts.get_or_insert_with(Contexts::new);
-            contexts.add(ProfileContext {
-                profile_id: Annotated::new(profile_id),
-                ..ProfileContext::default()
-            });
-        }
-        None => {
-            if let Some(contexts) = event.contexts.value_mut()
-                && let Some(profile_context) = contexts.get_mut::<ProfileContext>()
-            {
-                profile_context.profile_id = Annotated::empty();
-            }
-        }
     }
 }
 
@@ -462,8 +460,11 @@ impl Counted for ExpandedTransaction {
     fn quantities(&self) -> Quantities {
         let mut quantities = Quantities::new();
 
-        if let Some(event) = self.transaction.value() {
-            // TODO: count events and transactions here.
+        if self.transaction.value().is_some() {
+            quantities.extend([
+                (DataCategory::TransactionIndexed, 1),
+                (DataCategory::Transaction, 1),
+            ]);
         }
         quantities.extend(self.attachments.quantities());
         quantities.extend(self.profile.quantities());
@@ -472,14 +473,15 @@ impl Counted for ExpandedTransaction {
     }
 }
 
-pub struct CountSpans<'a>(&'a Event);
+// pub struct CountSpans<'a>(&'a Event);
 
-impl Counted for CountSpans<'_> {
-    fn quantities(&self) -> Quantities {
-        let mut quantities = self.0.quantities();
-        quantities.extend(self.0.spans.quantities());
-    }
-}
+// impl Counted for CountSpans<'_> {
+//     fn quantities(&self) -> Quantities {
+//         let mut quantities = self.0.quantities();
+//         quantities.extend(self.0.spans.quantities());
+//         quantities
+//     }
+// }
 
 #[derive(Debug)]
 pub struct TransactionOutput(Managed<ExpandedTransaction>);
@@ -505,28 +507,23 @@ impl Forward for TransactionOutput {
     ) -> Result<(), Rejected<()>> {
         let Self(output) = self;
 
-        let (envelope, spans) =
-            output.split_once(|ExpandedTransaction { headers, data }| match data {
-                ExpandedData::Transaction {
-                    transaction,
-                    attachments,
-                    profile,
-                    extracted_spans,
-                } => {
-                    let mut envelope =
-                        Envelope::try_from_event(headers, transaction).map_err(|e| {
-                            output.internal_error("failed to create envelope from event")
-                        })?;
-                    for item in attachment_items {
-                        envelope.add_item(item);
-                    }
+        let (envelope, spans) = output.split_once(
+            |ExpandedTransaction {
+                 headers,
+                 transaction,
+                 attachments,
+                 profile,
+                 //  extracted_spans,
+             }| {
+                let mut envelope = Envelope::try_from_event(headers, transaction)
+                    .map_err(|e| output.internal_error("failed to create envelope from event"))?;
+                for item in attachment_items {
+                    envelope.add_item(item);
+                }
 
-                    (envelope, extracted_spans)
-                }
-                ExpandedData::Profile(item) => {
-                    (Envelope::from_parts(headers, [item].into()), vec![])
-                }
-            });
+                (envelope, extracted_spans)
+            },
+        );
 
         // Send transaction & attachments in envelope:
         s.send(StoreEnvelope { envelope });

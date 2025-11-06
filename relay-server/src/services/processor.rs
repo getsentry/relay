@@ -660,6 +660,10 @@ impl ProcessingExtractedMetrics {
         }
     }
 
+    pub fn into_inner(self) -> ExtractedMetrics {
+        self.0
+    }
+
     /// Extends the contained metrics with [`ExtractedMetrics`].
     pub fn extend(
         &mut self,

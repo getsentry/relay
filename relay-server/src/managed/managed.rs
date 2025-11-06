@@ -15,7 +15,9 @@ use relay_system::Addr;
 use smallvec::SmallVec;
 
 use crate::Envelope;
+use crate::envelope::Item;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
+use crate::processing::CountRateLimited;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
 
