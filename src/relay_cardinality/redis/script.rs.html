@@ -226,7 +226,7 @@
 <a href=#226 id=226 data-nosnippet>226</a>            max_connections: <span class="number">1</span>,
 <a href=#227 id=227 data-nosnippet>227</a>            ..Default::default()
 <a href=#228 id=228 data-nosnippet>228</a>        };
-<a href=#229 id=229 data-nosnippet>229</a>        AsyncRedisClient::single(<span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>opts).unwrap()
+<a href=#229 id=229 data-nosnippet>229</a>        AsyncRedisClient::single(<span class="string">"test"</span>, <span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>opts).unwrap()
 <a href=#230 id=230 data-nosnippet>230</a>    }
 <a href=#231 id=231 data-nosnippet>231</a>
 <a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">fn </span>keys(prefix: Uuid, keys: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; <span class="kw">impl </span>Iterator&lt;Item = String&gt; {

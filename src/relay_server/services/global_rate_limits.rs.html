@@ -190,7 +190,7 @@
 <a href=#190 id=190 data-nosnippet>190</a>        <span class="kw">let </span>url = std::env::var(<span class="string">"RELAY_REDIS_URL"</span>)
 <a href=#191 id=191 data-nosnippet>191</a>            .unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned());
 <a href=#192 id=192 data-nosnippet>192</a>
-<a href=#193 id=193 data-nosnippet>193</a>        AsyncRedisClient::single(<span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>RedisConfigOptions::default()).unwrap()
+<a href=#193 id=193 data-nosnippet>193</a>        AsyncRedisClient::single(<span class="string">"test"</span>, <span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>RedisConfigOptions::default()).unwrap()
 <a href=#194 id=194 data-nosnippet>194</a>    }
 <a href=#195 id=195 data-nosnippet>195</a>
 <a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">fn </span>build_quota(window: u64, limit: <span class="kw">impl </span>Into&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;&gt;) -&gt; Quota {
