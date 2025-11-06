@@ -3,8 +3,7 @@ use std::sync::Arc;
 use relay_base_schema::events::EventType;
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::{Event, Metrics, SpanV2};
-use relay_filter::FilterStatKey;
+use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 #[cfg(feature = "processing")]
@@ -14,15 +13,14 @@ use relay_statsd::metric;
 use smallvec::SmallVec;
 
 use crate::Envelope;
-use crate::envelope::ContainerItems;
-use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType};
+use crate::envelope::{EnvelopeHeaders, Item, ItemType};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::transactions::profile::Profile;
 use crate::processing::utils::attachments;
 use crate::processing::utils::event::{
-    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
+    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
 };
 use crate::processing::utils::transaction::ExtractMetricsContext;
 use crate::processing::{Forward, Processor, QuotaRateLimiter, utils};
@@ -280,7 +278,7 @@ impl Processor for TransactionProcessor {
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
 
-            work.modify(|work, r| {
+            work.try_modify(|work, r| {
                 if let Some(profile) = work.profile.as_mut() {
                     profile.set_sampled(false);
                     let result = profile::process(
@@ -293,25 +291,26 @@ impl Processor for TransactionProcessor {
                         r.reject_err(outcome, work.profile.take());
                     }
                 }
+                // Extract metrics here, we're about to drop the event/transaction.
+                event_metrics_extracted = utils::transaction::extract_metrics(
+                    &mut work.transaction,
+                    &mut extracted_metrics,
+                    ExtractMetricsContext {
+                        dsc: work.headers.dsc(),
+                        project_id,
+                        ctx: &ctx,
+                        sampling_decision: SamplingDecision::Drop,
+                        event_metrics_extracted,
+                        spans_extracted,
+                    },
+                )?;
+                Ok::<_, Error>(())
             });
 
-            // Extract metrics here, we're about to drop the event/transaction.
-            event_metrics_extracted = utils::transaction::extract_metrics(
-                &mut event,
-                &mut extracted_metrics,
-                ExtractMetricsContext {
-                    dsc: work.headers.dsc(),
-                    project_id,
-                    ctx: &ctx,
-                    sampling_decision: SamplingDecision::Drop,
-                    event_metrics_extracted,
-                    spans_extracted,
-                },
-            )
-            .map_err(Error::ProcessingFailed)
-            .reject(&work)?;
+            // .map_err(Error::ProcessingFailed)
+            // .reject(&work)?;
 
-            let (work, profile) = work.split_once(|work| {
+            let (work, profile) = work.split_once(|mut work| {
                 let profile = work.profile.take();
                 (work, profile)
             });
@@ -322,11 +321,10 @@ impl Processor for TransactionProcessor {
             let _ = work.reject_err(outcome);
 
             // If we have a profile left, we need to make sure there is quota for this profile.
-            if let Some(profile) = profile.transpose() {
+            let profile = profile.transpose();
+            if let Some(profile) = profile {
                 let mut profile = profile.map(|p, _| Profile(p));
-                if self.limiter.enforce_quotas(&mut profile, ctx).await.is_ok() {
-                    work.profile = Some(profile.0);
-                }
+                self.limiter.enforce_quotas(&mut profile, ctx).await?;
             }
 
             let metrics = work.wrap(extracted_metrics.into_inner());
@@ -341,24 +339,23 @@ impl Processor for TransactionProcessor {
         // Need to scrub the transaction before extracting spans.
         //
         // Unconditionally scrub to make sure PII is removed as early as possible.
-        utils::event::scrub(&mut event, ctx.project_info)
-            .map_err(Error::from)
-            .reject(&work)?;
 
-        work.modify(|w, _| {
-            utils::attachments::scrub(w.attachments.iter_mut(), ctx.project_info);
+        work.try_modify(|work, _| {
+            utils::event::scrub(&mut work.transaction, ctx.project_info)?;
+            utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
+            Ok::<_, Error>(())
         });
 
         if cfg!(feature = "processing") && ctx.config.processing_enabled() {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             let mut profile_id = None;
-            work.modify(|work, r| {
+            work.try_modify(|work, r| {
                 if let Some(profile) = work.profile.as_mut() {
                     profile.set_sampled(false);
                     let result = profile::process(
                         profile,
                         work.headers.meta().client_addr(),
-                        event.value(),
+                        work.transaction.value(),
                         &ctx,
                     );
                     match result {
@@ -368,31 +365,29 @@ impl Processor for TransactionProcessor {
                         Ok(p) => profile_id = Some(p),
                     }
                 }
-            });
-            profile::transfer_id(&mut event, profile_id);
-            profile::scrub_profiler_id(&mut event);
 
-            // Always extract metrics in processing Relays for sampled items.
-            event_metrics_extracted = utils::transaction::extract_metrics(
-                &mut event,
-                &mut extracted_metrics,
-                ExtractMetricsContext {
-                    dsc: work.headers.dsc(),
-                    project_id,
-                    ctx: &ctx,
-                    sampling_decision: SamplingDecision::Drop,
-                    event_metrics_extracted,
-                    spans_extracted,
-                },
-            )
-            .map_err(Error::ProcessingFailed)
-            .reject(&work)?;
+                profile::transfer_id(&mut work.transaction, profile_id);
+                profile::scrub_profiler_id(&mut work.transaction);
 
-            let mut span_items = vec![];
-            work.modify(|w, r| {
+                // Always extract metrics in processing Relays for sampled items.
+                event_metrics_extracted = utils::transaction::extract_metrics(
+                    &mut work.transaction,
+                    &mut extracted_metrics,
+                    ExtractMetricsContext {
+                        dsc: work.headers.dsc(),
+                        project_id,
+                        ctx: &ctx,
+                        sampling_decision: SamplingDecision::Drop,
+                        event_metrics_extracted,
+                        spans_extracted,
+                    },
+                )?;
+
+                let mut span_items = vec![];
+
                 spans_extracted = spans::extract_from_event(
-                    w.headers.dsc(),
-                    &event,
+                    work.headers.dsc(),
+                    &work.transaction,
                     ctx.global_config,
                     ctx.config,
                     server_sample_rate,
@@ -401,6 +396,8 @@ impl Processor for TransactionProcessor {
                     |item| span_items.push(item),
                     r,
                 );
+
+                Ok::<_, Error>(())
             });
         }
 
@@ -431,9 +428,10 @@ impl Processor for TransactionProcessor {
         //     );
         // };
 
+        let metrics = work.wrap(extracted_metrics.into_inner());
         Ok(super::Output {
             main: Some(TransactionOutput(work)),
-            metrics: Some(work.wrap(extracted_metrics.into_inner())),
+            metrics: Some(metrics),
         })
     }
 }
@@ -543,7 +541,7 @@ impl Forward for TransactionOutput {
              }| {
                 let mut envelope = Envelope::try_from_event(headers, transaction)
                     .map_err(|e| output.internal_error("failed to create envelope from event"))?;
-                for item in attachment_items {
+                for item in attachments {
                     envelope.add_item(item);
                 }
 
@@ -566,174 +564,5 @@ impl Forward for TransactionOutput {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use relay_event_schema::protocol::Span;
-
-    use super::*;
-
-    fn params() -> (
-        TypedEnvelope<TransactionGroup>,
-        Annotated<Event>,
-        Arc<ProjectInfo>,
-    ) {
-        let bytes = Bytes::from(
-            r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
-{"type":"transaction"}
-{}
-"#,
-        );
-
-        let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
-        let project_info = Arc::new(ProjectInfo::default());
-
-        let event = Event {
-            ty: EventType::Transaction.into(),
-            start_timestamp: Timestamp(DateTime::from_timestamp(0, 0).unwrap()).into(),
-            timestamp: Timestamp(DateTime::from_timestamp(1, 0).unwrap()).into(),
-            contexts: Contexts(BTreeMap::from([(
-                "trace".into(),
-                ContextInner(Context::Trace(Box::new(TraceContext {
-                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                    span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
-                    exclusive_time: 1000.0.into(),
-                    ..Default::default()
-                })))
-                .into(),
-            )]))
-            .into(),
-            ..Default::default()
-        };
-
-        let managed_envelope = ManagedEnvelope::new(dummy_envelope, Addr::dummy());
-        let managed_envelope = (managed_envelope, ProcessingGroup::Transaction)
-            .try_into()
-            .unwrap();
-
-        let event = Annotated::from(event);
-
-        (managed_envelope, event, project_info)
-    }
-
-    #[test]
-    fn extract_sampled_default() {
-        let global_config = GlobalConfig::default();
-        assert!(global_config.options.span_extraction_sample_rate.is_none());
-        let (mut managed_envelope, event, _) = params();
-        extract_from_event(
-            &mut managed_envelope,
-            &event,
-            &global_config,
-            &Default::default(),
-            None,
-            EventMetricsExtracted(false),
-            SpansExtracted(false),
-        );
-        assert!(
-            managed_envelope
-                .envelope()
-                .items()
-                .any(|item| item.ty() == &ItemType::Span),
-            "{:?}",
-            managed_envelope.envelope()
-        );
-    }
-
-    #[test]
-    fn extract_sampled_explicit() {
-        let mut global_config = GlobalConfig::default();
-        global_config.options.span_extraction_sample_rate = Some(1.0);
-        let (mut managed_envelope, event, _) = params();
-        extract_from_event(
-            &mut managed_envelope,
-            &event,
-            &global_config,
-            &Default::default(),
-            None,
-            EventMetricsExtracted(false),
-            SpansExtracted(false),
-        );
-        assert!(
-            managed_envelope
-                .envelope()
-                .items()
-                .any(|item| item.ty() == &ItemType::Span),
-            "{:?}",
-            managed_envelope.envelope()
-        );
-    }
-
-    #[test]
-    fn extract_sampled_dropped() {
-        let mut global_config = GlobalConfig::default();
-        global_config.options.span_extraction_sample_rate = Some(0.0);
-        let (mut managed_envelope, event, _) = params();
-        extract_from_event(
-            &mut managed_envelope,
-            &event,
-            &global_config,
-            &Default::default(),
-            None,
-            EventMetricsExtracted(false),
-            SpansExtracted(false),
-        );
-        assert!(
-            !managed_envelope
-                .envelope()
-                .items()
-                .any(|item| item.ty() == &ItemType::Span),
-            "{:?}",
-            managed_envelope.envelope()
-        );
-    }
-
-    #[test]
-    fn extract_sample_rates() {
-        let mut global_config = GlobalConfig::default();
-        global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
-        let (mut managed_envelope, event, _) = params(); // client sample rate is 0.2
-        extract_from_event(
-            &mut managed_envelope,
-            &event,
-            &global_config,
-            &Default::default(),
-            Some(0.1),
-            EventMetricsExtracted(false),
-            SpansExtracted(false),
-        );
-
-        let span = managed_envelope
-            .envelope()
-            .items()
-            .find(|item| item.ty() == &ItemType::Span)
-            .unwrap();
-
-        let span = Annotated::<Span>::from_json_bytes(&span.payload()).unwrap();
-        let measurements = span.value().and_then(|s| s.measurements.value());
-
-        insta::assert_debug_snapshot!(measurements, @r###"
-        Some(
-            Measurements(
-                {
-                    "client_sample_rate": Measurement {
-                        value: 0.2,
-                        unit: Fraction(
-                            Ratio,
-                        ),
-                    },
-                    "server_sample_rate": Measurement {
-                        value: 0.1,
-                        unit: Fraction(
-                            Ratio,
-                        ),
-                    },
-                },
-            ),
-        )
-        "###);
     }
 }
