@@ -119,7 +119,6 @@ impl OutcomeError for Error {
 /// Accepts upload requests and maintains a list of concurrent uploads.
 pub struct UploadService {
     pending_requests: FuturesUnordered<BoxFuture<'static, Result<(), Rejected<Error>>>>,
-    notify: Arc<Notify>,
     max_concurrent_requests: usize,
     timeout: Duration,
 }
@@ -132,7 +131,6 @@ impl UploadService {
         } = config;
         Self {
             pending_requests: FuturesUnordered::new(),
-            notify: Arc::new(Notify::new()),
             max_concurrent_requests: *max_concurrent_requests,
             timeout: Duration::from_secs(*timeout),
         }
@@ -150,15 +148,8 @@ impl UploadService {
             return;
         }
 
-        self.pending_requests.push(
-            handle_upload(
-                self.timeout,
-                attachment,
-                respond_to,
-                Arc::clone(&self.notify),
-            )
-            .boxed(),
-        );
+        self.pending_requests
+            .push(handle_upload(self.timeout, attachment, respond_to).boxed());
     }
 }
 
@@ -173,7 +164,6 @@ impl Service for UploadService {
                 //Bias towards handling responses so that there's space for new incoming requests.
                 biased;
 
-                _ = self.notify.notified() => {},
                 Some(result) = self.pending_requests.next() => {
                     relay_log::trace!("One upload has finished");
                     count_upload(result);
@@ -209,7 +199,6 @@ async fn handle_upload(
     timeout: Duration,
     attachment: Managed<Attachment>,
     respond_to: Recipient<Managed<UploadedAttachment>, NoResponse>,
-    notify: Arc<Notify>,
 ) -> Result<(), Rejected<Error>> {
     relay_log::trace!("Starting upload");
     let key = attachment.meta.attachment_id.as_deref();
@@ -231,7 +220,6 @@ async fn handle_upload(
     });
 
     respond_to.send(uploaded_attachment);
-    notify.notify_one();
     relay_log::trace!("Finished upload");
     Ok(())
 }
