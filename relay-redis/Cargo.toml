@@ -30,8 +30,9 @@ serde = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 thiserror = { workspace = true }
 
+relay-statsd = { workspace = true, optional = true }
 relay-system = { workspace = true }
 
 [features]
 default = []
-impl = ["dep:deadpool", "dep:deadpool-redis", "dep:redis"]
+impl = ["dep:deadpool", "dep:deadpool-redis", "dep:relay-statsd", "dep:redis"]

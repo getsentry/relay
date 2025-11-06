@@ -155,8 +155,13 @@ pub fn finalize<'a>(
 
     let mut processor = ClockDriftProcessor::new(headers.sent_at(), headers.meta().received_at())
         .at_least(MINIMUM_CLOCK_DRIFT);
-    processor::process_value(event, &mut processor, ProcessingState::root())
-        .map_err(|_| ProcessingError::InvalidTransaction)?;
+    processor::process_value(event, &mut processor, ProcessingState::root()).map_err(|err| {
+        relay_log::debug!(
+            error = &err as &dyn std::error::Error,
+            "invalid transaction"
+        );
+        ProcessingError::InvalidTransaction
+    })?;
 
     // Log timestamp delays for all events after clock drift correction. This happens before
     // store processing, which could modify the timestamp if it exceeds a threshold. We are
@@ -302,8 +307,13 @@ pub fn normalize(
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {
-            validate_event(event, &event_validation_config)
-                .map_err(|_| ProcessingError::InvalidTransaction)?;
+            validate_event(event, &event_validation_config).map_err(|err| {
+                relay_log::debug!(
+                    error = &err as &dyn std::error::Error,
+                    "invalid transaction"
+                );
+                ProcessingError::InvalidTransaction
+            })?;
             normalize_event_inner(event, &normalization_config);
             if full_normalization && has_unprintable_fields(event) {
                 metric!(counter(RelayCounters::EventCorrupted) += 1);

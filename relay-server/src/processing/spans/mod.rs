@@ -159,7 +159,7 @@ impl processing::Processor for SpansProcessor {
 
         dynamic_sampling::validate_dsc(&spans).reject(&spans)?;
 
-        process::normalize(&mut spans, &self.geo_lookup);
+        process::normalize(&mut spans, &self.geo_lookup, ctx);
         filter::filter(&mut spans, ctx);
 
         self.limiter.enforce_quotas(&mut spans, ctx).await?;

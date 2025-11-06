@@ -25,6 +25,9 @@ mod scripts;
 #[cfg(feature = "impl")]
 pub use self::scripts::*;
 
+#[cfg(feature = "impl")]
+mod statsd;
+
 #[cfg(not(feature = "impl"))]
 mod noop;
 
