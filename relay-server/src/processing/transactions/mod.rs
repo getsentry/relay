@@ -156,19 +156,34 @@ impl Processor for TransactionProcessor {
         let mut metrics = Metrics::default();
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
-        let mut event = Annotated::empty();
-        if let Some(transaction_item) = &work.transaction {
-            let result = metric!(timer(RelayTimers::EventProcessingDeserialize), {
-                Annotated::<Event>::from_json_bytes(&transaction_item.payload())
-            });
-            event = result.map_err(Error::from).reject(&work)?;
-            if let Some(event) = event.value_mut() {
-                event.ty = EventType::Transaction.into();
+        let mut work = work.try_map(|w, _| {
+            let SerializedTransaction {
+                headers,
+                transaction: transaction_item,
+                attachments,
+                profile,
+            } = w;
+            let mut transaction = Annotated::empty();
+            if let Some(transaction_item) = transaction_item.as_ref() {
+                let result = metric!(timer(RelayTimers::EventProcessingDeserialize), {
+                    Annotated::<Event>::from_json_bytes(&transaction_item.payload())
+                });
+                transaction = result.map_err(Error::from).reject(&work)?;
+                if let Some(event) = transaction.value_mut() {
+                    event.ty = EventType::Transaction.into();
+                }
             }
-        }
+            Ok(ExpandedTransaction {
+                headers,
+                transaction,
+                attachments,
+                profile,
+            })
+        })?;
 
         let mut profile_id = None;
-        work.modify(|work, record_keeper| {
+        let run_dynamic_sampling;
+        work.try_modify(|work, record_keeper| {
             if let Some(profile_item) = work.profile.as_mut() {
                 let feature = Feature::Profiling;
                 if should_filter(ctx.config, ctx.project_info, feature) {
@@ -176,7 +191,7 @@ impl Processor for TransactionProcessor {
                         Outcome::Invalid(DiscardReason::FeatureDisabled(feature)),
                         work.profile.take(),
                     );
-                } else if work.transaction.is_none() && profile_item.sampled() {
+                } else if work.transaction.value().is_none() && profile_item.sampled() {
                     // A profile with `sampled=true` should never be without a transaction
                     record_keeper.reject_err(
                         Outcome::Invalid(DiscardReason::Profiling("missing_transaction")),
@@ -198,42 +213,40 @@ impl Processor for TransactionProcessor {
                     }
                 }
             }
-        });
 
-        profile::transfer_id(&mut event, profile_id);
+            profile::transfer_id(&mut work.transaction, profile_id);
 
-        work.modify(|w, r| utils::dsc::validate_and_set_dsc(&mut w.headers, &event, &mut ctx));
+            utils::dsc::validate_and_set_dsc(&mut work.headers, &work.transaction, &mut ctx);
 
-        utils::event::finalize(
-            &work.headers,
-            &mut event,
-            work.attachments.iter(),
-            &mut metrics,
-            &ctx.config,
-        );
+            utils::event::finalize(
+                &work.headers,
+                &mut work.transaction,
+                work.attachments.iter(),
+                &mut metrics,
+                &ctx.config,
+            );
 
-        event_fully_normalized = utils::event::normalize(
-            &work.headers,
-            &mut event,
-            event_fully_normalized,
-            project_id,
-            &ctx,
-            &self.geoip_lookup,
-        )
-        .map_err(Error::from)
-        .reject(&work)?;
+            event_fully_normalized = utils::event::normalize(
+                &work.headers,
+                &mut work.transaction,
+                event_fully_normalized,
+                project_id,
+                &ctx,
+                &self.geoip_lookup,
+            )?;
 
-        let filter_run = utils::event::filter(&work.headers, &mut event, &ctx)
-            .map_err(|e| ProcessingError::EventFiltered(e))
-            .map_err(Error::from)
-            .reject(&work)?;
+            let filter_run = utils::event::filter(&work.headers, &mut work.transaction, &ctx)
+                .map_err(|e| ProcessingError::EventFiltered(e))?;
 
-        // Always run dynamic sampling on processing Relays,
-        // but delay decision until inbound filters have been fully processed.
-        // Also, we require transaction metrics to be enabled before sampling.
-        let run_dynamic_sampling = (matches!(filter_run, FiltersStatus::Ok)
-            || ctx.config.processing_enabled())
-            && matches!(&ctx.project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
+            // Always run dynamic sampling on processing Relays,
+            // but delay decision until inbound filters have been fully processed.
+            // Also, we require transaction metrics to be enabled before sampling.
+            run_dynamic_sampling = (matches!(filter_run, FiltersStatus::Ok)
+                || ctx.config.processing_enabled())
+                && matches!(&ctx.project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
+
+            Ok(())
+        })?;
 
         let sampling_result = match run_dynamic_sampling {
             true => {
@@ -243,8 +256,13 @@ impl Processor for TransactionProcessor {
                 if let Some(quotas_client) = self.quotas_client.as_ref() {
                     reservoir.set_redis(work.scoping().organization_id, quotas_client);
                 }
-                utils::dynamic_sampling::run(work.headers.dsc(), &mut event, &ctx, Some(&reservoir))
-                    .await
+                utils::dynamic_sampling::run(
+                    work.headers.dsc(),
+                    &work.transaction,
+                    &ctx,
+                    Some(&reservoir),
+                )
+                .await
             }
             false => SamplingResult::Pending,
         };
@@ -257,22 +275,6 @@ impl Processor for TransactionProcessor {
 
         #[cfg(feature = "processing")]
         let server_sample_rate = sampling_result.sample_rate();
-
-        // TODO: earlier
-        let mut work = work.map(|w, _| {
-            let SerializedTransaction {
-                headers,
-                transaction: _,
-                attachments,
-                profile,
-            } = w;
-            ExpandedTransaction {
-                headers,
-                transaction: event,
-                attachments,
-                profile,
-            }
-        });
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
             // Process profiles before dropping the transaction, if necessary.
