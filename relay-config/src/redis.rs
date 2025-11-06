@@ -410,6 +410,7 @@ quotas:
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
+          "response_timeout": 30,
           "recycle_check_frequency": 100
         }
         "###);
@@ -432,6 +433,7 @@ quotas:
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
+          "response_timeout": 30,
           "recycle_check_frequency": 100
         }
         "###);
@@ -551,6 +553,7 @@ max_connections: 20
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
+          "response_timeout": 30,
           "recycle_check_frequency": 100
         }
         "###);
@@ -579,6 +582,7 @@ max_connections: 20
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
+          "response_timeout": 30,
           "recycle_check_frequency": 100
         }
         "###);
@@ -618,6 +622,7 @@ max_connections: 20
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
+            "response_timeout": 30,
             "recycle_check_frequency": 100
           },
           "cardinality": {
@@ -625,6 +630,7 @@ max_connections: 20
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
+            "response_timeout": 30,
             "recycle_check_frequency": 100
           },
           "quotas": {
@@ -636,6 +642,7 @@ max_connections: 20
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
+            "response_timeout": 30,
             "recycle_check_frequency": 100
           }
         }
