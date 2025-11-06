@@ -34,7 +34,8 @@ use crate::utils::{SamplingResult, should_filter};
 use crate::{processing::spans::store, services::store::StoreEnvelope};
 
 mod process;
-mod profile;
+pub mod profile;
+mod spans;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -140,7 +141,7 @@ impl Processor for TransactionProcessor {
     async fn process(
         &self,
         work: Managed<Self::UnitOfWork>,
-        ctx: super::Context<'_>,
+        mut ctx: super::Context<'_>,
     ) -> Result<super::Output<Self::Output>, Rejected<Self::Error>> {
         let project_id = work.scoping().project_id;
         let mut event_fully_normalized = EventFullyNormalized(
@@ -156,7 +157,7 @@ impl Processor for TransactionProcessor {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         let mut event = Annotated::empty();
-        if let Some(transaction_item) = work.transaction {
+        if let Some(transaction_item) = &work.transaction {
             let result = metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 Annotated::<Event>::from_json_bytes(&transaction_item.payload())
             });
@@ -166,7 +167,7 @@ impl Processor for TransactionProcessor {
             }
         }
 
-        let (transaction_part, profile) = work.split_once(|w| {
+        let (transaction_part, profile) = work.split_once(|mut w| {
             // TODO: transaction_part should be of a type without a profile field
             let profile = w.profile.take();
             (w, profile)
@@ -198,7 +199,7 @@ impl Processor for TransactionProcessor {
 
         profile::transfer_id(&mut event, profile_id);
 
-        let work = transaction_part.merge(profile).map(|(mut t, p), _| {
+        let mut work = transaction_part.merge(profile).map(|(mut t, p), _| {
             t.profile = p;
             t
         });
@@ -225,7 +226,8 @@ impl Processor for TransactionProcessor {
         .reject(&work)?;
 
         let filter_run = utils::event::filter(&work.headers, &mut event, &ctx)
-            .map_err(|e| ProcessingError::EventFiltered(e).into())
+            .map_err(|e| ProcessingError::EventFiltered(e))
+            .map_err(Error::from)
             .reject(&work)?;
 
         // Always run dynamic sampling on processing Relays,
@@ -259,7 +261,7 @@ impl Processor for TransactionProcessor {
         let server_sample_rate = sampling_result.sample_rate();
 
         // TODO: earlier
-        let work = work.map(|w, _| {
+        let mut work = work.map(|w, _| {
             let SerializedTransaction {
                 headers,
                 transaction: _,
@@ -284,7 +286,7 @@ impl Processor for TransactionProcessor {
                     let result = profile::process(
                         profile,
                         work.headers.meta().client_addr(),
-                        event.value(),
+                        work.transaction.value(),
                         &ctx,
                     );
                     if let Err(outcome) = result {
@@ -309,9 +311,9 @@ impl Processor for TransactionProcessor {
             .map_err(Error::ProcessingFailed)
             .reject(&work)?;
 
-            let (work, profile) = work.split_once(|w| {
-                let profile = w.profile.take();
-                (w, profile)
+            let (work, profile) = work.split_once(|work| {
+                let profile = work.profile.take();
+                (work, profile)
             });
 
             // reject everything but the profile:
@@ -327,9 +329,10 @@ impl Processor for TransactionProcessor {
                 }
             }
 
+            let metrics = work.wrap(extracted_metrics.into_inner());
             return Ok(super::Output {
                 main: Some(TransactionOutput(work)),
-                metrics: Some(work.wrap(extracted_metrics.into_inner())),
+                metrics: Some(metrics),
             });
         }
 
@@ -362,7 +365,7 @@ impl Processor for TransactionProcessor {
                         Err(outcome) => {
                             r.reject_err(outcome, work.profile.take());
                         }
-                        Ok(p) => profile_id = p,
+                        Ok(p) => profile_id = Some(p),
                     }
                 }
             });
@@ -385,15 +388,20 @@ impl Processor for TransactionProcessor {
             .map_err(Error::ProcessingFailed)
             .reject(&work)?;
 
-            spans_extracted = span::extract_from_event(
-                managed_envelope,
-                &event,
-                ctx.global_config,
-                ctx.config,
-                server_sample_rate,
-                event_metrics_extracted,
-                spans_extracted,
-            );
+            let mut span_items = vec![];
+            work.modify(|w, r| {
+                spans_extracted = spans::extract_from_event(
+                    w.headers.dsc(),
+                    &event,
+                    ctx.global_config,
+                    ctx.config,
+                    server_sample_rate,
+                    event_metrics_extracted,
+                    spans_extracted,
+                    |item| span_items.push(item),
+                    r,
+                );
+            });
         }
 
         // event = self
@@ -558,5 +566,174 @@ impl Forward for TransactionOutput {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use relay_event_schema::protocol::Span;
+
+    use super::*;
+
+    fn params() -> (
+        TypedEnvelope<TransactionGroup>,
+        Annotated<Event>,
+        Arc<ProjectInfo>,
+    ) {
+        let bytes = Bytes::from(
+            r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
+{"type":"transaction"}
+{}
+"#,
+        );
+
+        let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
+        let project_info = Arc::new(ProjectInfo::default());
+
+        let event = Event {
+            ty: EventType::Transaction.into(),
+            start_timestamp: Timestamp(DateTime::from_timestamp(0, 0).unwrap()).into(),
+            timestamp: Timestamp(DateTime::from_timestamp(1, 0).unwrap()).into(),
+            contexts: Contexts(BTreeMap::from([(
+                "trace".into(),
+                ContextInner(Context::Trace(Box::new(TraceContext {
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
+                    span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
+                    exclusive_time: 1000.0.into(),
+                    ..Default::default()
+                })))
+                .into(),
+            )]))
+            .into(),
+            ..Default::default()
+        };
+
+        let managed_envelope = ManagedEnvelope::new(dummy_envelope, Addr::dummy());
+        let managed_envelope = (managed_envelope, ProcessingGroup::Transaction)
+            .try_into()
+            .unwrap();
+
+        let event = Annotated::from(event);
+
+        (managed_envelope, event, project_info)
+    }
+
+    #[test]
+    fn extract_sampled_default() {
+        let global_config = GlobalConfig::default();
+        assert!(global_config.options.span_extraction_sample_rate.is_none());
+        let (mut managed_envelope, event, _) = params();
+        extract_from_event(
+            &mut managed_envelope,
+            &event,
+            &global_config,
+            &Default::default(),
+            None,
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
+        assert!(
+            managed_envelope
+                .envelope()
+                .items()
+                .any(|item| item.ty() == &ItemType::Span),
+            "{:?}",
+            managed_envelope.envelope()
+        );
+    }
+
+    #[test]
+    fn extract_sampled_explicit() {
+        let mut global_config = GlobalConfig::default();
+        global_config.options.span_extraction_sample_rate = Some(1.0);
+        let (mut managed_envelope, event, _) = params();
+        extract_from_event(
+            &mut managed_envelope,
+            &event,
+            &global_config,
+            &Default::default(),
+            None,
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
+        assert!(
+            managed_envelope
+                .envelope()
+                .items()
+                .any(|item| item.ty() == &ItemType::Span),
+            "{:?}",
+            managed_envelope.envelope()
+        );
+    }
+
+    #[test]
+    fn extract_sampled_dropped() {
+        let mut global_config = GlobalConfig::default();
+        global_config.options.span_extraction_sample_rate = Some(0.0);
+        let (mut managed_envelope, event, _) = params();
+        extract_from_event(
+            &mut managed_envelope,
+            &event,
+            &global_config,
+            &Default::default(),
+            None,
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
+        assert!(
+            !managed_envelope
+                .envelope()
+                .items()
+                .any(|item| item.ty() == &ItemType::Span),
+            "{:?}",
+            managed_envelope.envelope()
+        );
+    }
+
+    #[test]
+    fn extract_sample_rates() {
+        let mut global_config = GlobalConfig::default();
+        global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
+        let (mut managed_envelope, event, _) = params(); // client sample rate is 0.2
+        extract_from_event(
+            &mut managed_envelope,
+            &event,
+            &global_config,
+            &Default::default(),
+            Some(0.1),
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
+
+        let span = managed_envelope
+            .envelope()
+            .items()
+            .find(|item| item.ty() == &ItemType::Span)
+            .unwrap();
+
+        let span = Annotated::<Span>::from_json_bytes(&span.payload()).unwrap();
+        let measurements = span.value().and_then(|s| s.measurements.value());
+
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Some(
+            Measurements(
+                {
+                    "client_sample_rate": Measurement {
+                        value: 0.2,
+                        unit: Fraction(
+                            Ratio,
+                        ),
+                    },
+                    "server_sample_rate": Measurement {
+                        value: 0.1,
+                        unit: Fraction(
+                            Ratio,
+                        ),
+                    },
+                },
+            ),
+        )
+        "###);
     }
 }

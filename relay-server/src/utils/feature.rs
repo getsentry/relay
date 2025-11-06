@@ -1,4 +1,7 @@
 use relay_config::{Config, RelayMode};
+use relay_dynamic_config::Feature;
+
+use crate::services::projects::project::ProjectInfo;
 
 /// Function for on-off switches that filter specific item types (profiles, spans)
 /// based on a feature flag.

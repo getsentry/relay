@@ -1388,7 +1388,7 @@ impl EnvelopeProcessorService {
             .await?;
 
         if event.value().is_some() {
-            event::scrub(&mut event, ctx.project_info)?;
+            processing::utils::event::scrub(&mut event, ctx.project_info)?;
             event::serialize(
                 managed_envelope,
                 &mut event,
@@ -1399,7 +1399,11 @@ impl EnvelopeProcessorService {
             event::emit_feedback_metrics(managed_envelope.envelope());
         }
 
-        attachment::scrub(managed_envelope, ctx.project_info);
+        let attachments = managed_envelope
+            .envelope_mut()
+            .items_mut()
+            .filter(|i| i.ty() == &ItemType::Attachment);
+        processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
@@ -1453,7 +1457,7 @@ impl EnvelopeProcessorService {
             project_id,
             ctx.project_info,
         );
-        profile::transfer_id(&mut event, profile_id);
+        processing::transactions::profile::transfer_id(&mut event, profile_id);
 
         ctx.sampling_project_info = dynamic_sampling::validate_and_set_dsc(
             managed_envelope,

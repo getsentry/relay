@@ -34,6 +34,7 @@ use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{Envelope, EnvelopeHeaders, Item};
 use crate::processing::Context;
 use crate::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingError};
+use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self};
 

@@ -32,7 +32,7 @@ use crate::processing::Context;
 /// The function will return the sampling project information of the root project for the event. If
 /// no sampling project information is specified, the project information of the event’s project
 /// will be returned.
-pub fn validate_and_set_dsc<'a, T>(
+pub fn validate_and_set_dsc(
     headers: &mut EnvelopeHeaders,
     event: &Annotated<Event>,
     ctx: &mut Context,

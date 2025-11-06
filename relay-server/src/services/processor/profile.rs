@@ -642,47 +642,4 @@ mod tests {
                     && remark.ty == RemarkType::Removed)
         )
     }
-
-    #[cfg(feature = "processing")]
-    #[test]
-    fn test_scrub_profiler_id_should_not_be_stripped() {
-        let mut contexts = Contexts::new();
-        contexts.add(ProfileContext {
-            profiler_id: Annotated::new(EventId(
-                Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
-            )),
-            ..Default::default()
-        });
-        let mut event: Annotated<Event> = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-            ),
-            timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0)
-                    .unwrap()
-                    .checked_add_signed(Duration::milliseconds(20))
-                    .unwrap()
-                    .into(),
-            ),
-            contexts: Annotated::new(contexts),
-            ..Default::default()
-        });
-
-        scrub_profiler_id(&mut event);
-
-        let profile_context = get_value!(event.contexts)
-            .unwrap()
-            .get::<ProfileContext>()
-            .unwrap();
-
-        assert!(
-            !profile_context
-                .profiler_id
-                .meta()
-                .iter_remarks()
-                .any(|remark| remark.rule_id == *"transaction_duration"
-                    && remark.ty == RemarkType::Removed)
-        )
-    }
 }
