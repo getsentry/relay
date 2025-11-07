@@ -5,7 +5,6 @@ use std::error::Error;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
 use crate::metrics_extraction::{event, generic};
-use crate::processing::utils::event::extract_transaction_span;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{
     EventMetricsExtracted, ProcessingError, ProcessingExtractedMetrics, SpanGroup, SpansExtracted,
@@ -383,7 +382,7 @@ pub fn extract_from_event(
         return spans_extracted;
     };
 
-    let Some(transaction_span) = extract_transaction_span(
+    let Some(transaction_span) = processing::utils::transaction::extract_segment_span(
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)

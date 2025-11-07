@@ -323,6 +323,46 @@ impl RateLimits {
         self.iter().any(|limit| !limit.retry_after.expired_at(now))
     }
 
+    /// Returns `true` if this is instance contains any active rate limits
+    /// for the specified categories.
+    ///
+    /// A rate limit is considered active if it has not yet expired.
+    pub fn is_any_limited(&self, scopings: &[ItemScoping]) -> bool {
+        self.is_any_limited_with_quotas(&[], scopings)
+    }
+
+    /// Returns `true` if this is instance contains any active rate limits
+    /// for the specified categories.
+    ///
+    /// This is similar to [`Self::is_limited`], but additionally checks for quotas with a static
+    /// limit of `0`, which reject items even if there is no active rate limit in this instance.
+    ///
+    /// A rate limit is considered active if it has not yet expired.
+    pub fn is_any_limited_with_quotas<'a>(
+        &self,
+        quotas: impl IntoIterator<Item = &'a Quota>,
+        scopings: &[ItemScoping],
+    ) -> bool {
+        for quota in quotas {
+            for scoping in scopings {
+                if quota.limit == Some(0) && quota.matches(*scoping) {
+                    return true;
+                }
+            }
+        }
+
+        let now = Instant::now();
+        for scoping in scopings {
+            for limit in &self.limits {
+                if limit.matches(*scoping) && !limit.retry_after.expired_at(now) {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
     /// Removes expired rate limits from this instance.
     ///
     /// This is useful for cleaning up rate limits that are no longer relevant,
@@ -1050,6 +1090,66 @@ mod tests {
           ],
         )
         "###);
+    }
+
+    #[test]
+    fn test_rate_limits_is_any_limited() {
+        let mut rate_limits = RateLimits::new();
+
+        // Active error limit
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Error],
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+            namespaces: smallvec![],
+        });
+
+        // Active transaction limit
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Transaction],
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+            namespaces: smallvec![],
+        });
+
+        let scoping = Scoping {
+            organization_id: OrganizationId::new(42),
+            project_id: ProjectId::new(21),
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            key_id: None,
+        };
+
+        let quotas = &[Quota {
+            id: None,
+            categories: smallvec![DataCategory::Attachment],
+            scope: QuotaScope::Organization,
+            scope_id: Some("42".to_owned()),
+            limit: Some(0),
+            window: None,
+            reason_code: Some(ReasonCode::new("zero")),
+            namespace: None,
+        }];
+
+        assert!(
+            rate_limits.is_any_limited_with_quotas(quotas, &[scoping.item(DataCategory::Error)])
+        );
+        assert!(
+            rate_limits
+                .is_any_limited_with_quotas(quotas, &[scoping.item(DataCategory::Attachment)])
+        );
+        assert!(rate_limits.is_any_limited_with_quotas(
+            quotas,
+            &[
+                scoping.item(DataCategory::Replay),
+                scoping.item(DataCategory::Error)
+            ]
+        ));
+
+        assert!(
+            !rate_limits.is_any_limited_with_quotas(quotas, &[scoping.item(DataCategory::Replay)])
+        );
     }
 
     #[test]

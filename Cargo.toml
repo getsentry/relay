@@ -106,7 +106,6 @@ criterion = "0.5.1"
 crossbeam-channel = "0.5.15"
 data-encoding = "2.9.0"
 deadpool = "0.12.3"
-deadpool-redis = "0.20.0"
 debugid = "0.8.0"
 dialoguer = "0.11.0"
 dynfmt = "0.1.5"
@@ -177,7 +176,7 @@ sentry = { version = "0.41.0", default-features = false, features = [
   "transport",
 ] }
 sentry-core = "0.41.0"
-sentry-kafka-schemas = { version = "2.1.7", default-features = false }
+sentry-kafka-schemas = { version = "2.1.14", default-features = false }
 sentry-release-parser = { version = "1.3.2", default-features = false }
 sentry-types = "0.41.0"
 sentry_protos = "0.4.2"

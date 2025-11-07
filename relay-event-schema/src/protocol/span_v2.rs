@@ -29,16 +29,8 @@ pub struct SpanV2 {
     #[metastructure(required = true)]
     pub status: Annotated<SpanV2Status>,
 
-    /// Indicates whether a span's parent is remote.
-    ///
-    /// For OpenTelemetry spans, this is derived from span flags bits 8 and 9. See
-    /// `SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK` and `SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK`.
-    ///
-    /// The states are:
-    ///  - `false`: is not remote
-    ///  - `true`: is remote
-    #[metastructure(required = true)]
-    pub is_remote: Annotated<bool>,
+    /// Whether this span is the root span of a segment.
+    pub is_segment: Annotated<bool>,
 
     /// Used to clarify the relationship between parents and children, or to distinguish between
     /// spans, e.g. a `server` and `client` span with the same name.
@@ -215,7 +207,7 @@ mod tests {
   "span_id": "438f40bd3b4a41ee",
   "name": "GET http://app.test/",
   "status": "ok",
-  "is_remote": true,
+  "is_segment": true,
   "kind": "server",
   "start_timestamp": 1742921669.25,
   "end_timestamp": 1742921669.75,
@@ -318,7 +310,7 @@ mod tests {
             parent_span_id: Annotated::empty(),
             status: Annotated::new(SpanV2Status::Ok),
             kind: Annotated::new(SpanKind::Server),
-            is_remote: Annotated::new(true),
+            is_segment: Annotated::new(true),
             links: Annotated::new(links),
             attributes: Annotated::new(attributes),
             ..Default::default()

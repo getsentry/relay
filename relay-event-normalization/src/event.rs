@@ -1515,7 +1515,9 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 #[cfg(test)]
 mod tests {
 
+    use relay_event_schema::protocol::SpanData;
     use relay_pattern::Pattern;
+    use relay_protocol::assert_annotated_snapshot;
     use std::collections::BTreeMap;
     use std::collections::HashMap;
 
@@ -1577,6 +1579,15 @@ mod tests {
             }
         }
         "#;
+
+    fn collect_span_data<const N: usize>(event: Annotated<Event>) -> [Annotated<SpanData>; N] {
+        get_value!(event.spans!)
+            .iter()
+            .map(|span| Annotated::new(get_value!(span.data!).clone()))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
+    }
 
     #[test]
     fn test_normalize_dist_none() {
@@ -2310,72 +2321,34 @@ mod tests {
             },
         );
 
-        let spans = event.value().unwrap().spans.value().unwrap();
-        assert_eq!(spans.len(), 2);
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(50.0))
-        );
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
-            Some(&Value::F64(50.0))
-        );
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
-            Some(&Value::F64(10.0))
-        );
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
-            Some(&Value::F64(40.0))
-        );
-        assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(80.0))
-        );
-        assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
-            Some(&Value::F64(80.0))
-        );
-        assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
-            Some(&Value::F64(20.0)) // 1000 * 0.02
-        );
-        assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
-            Some(&Value::F64(60.0)) // 2000 * 0.03
-        );
+        let [span1, span2] = collect_span_data(event);
+
+        assert_annotated_snapshot!(span1, @r#"
+        {
+          "gen_ai.usage.total_tokens": 3000.0,
+          "gen_ai.usage.input_tokens": 1000.0,
+          "gen_ai.usage.output_tokens": 2000.0,
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.usage.total_cost": 50.0,
+          "gen_ai.cost.total_tokens": 50.0,
+          "gen_ai.cost.input_tokens": 10.0,
+          "gen_ai.cost.output_tokens": 40.0,
+          "gen_ai.response.tokens_per_second": 62500.0
+        }
+        "#);
+        assert_annotated_snapshot!(span2, @r#"
+        {
+          "gen_ai.usage.total_tokens": 3000.0,
+          "gen_ai.usage.input_tokens": 1000.0,
+          "gen_ai.usage.output_tokens": 2000.0,
+          "gen_ai.request.model": "gpt4-21-04",
+          "gen_ai.usage.total_cost": 80.0,
+          "gen_ai.cost.total_tokens": 80.0,
+          "gen_ai.cost.input_tokens": 20.0,
+          "gen_ai.cost.output_tokens": 60.0,
+          "gen_ai.response.tokens_per_second": 62500.0
+        }
+        "#);
     }
 
     #[test]
@@ -2463,83 +2436,49 @@ mod tests {
             },
         );
 
-        let spans = event.value().unwrap().spans.value().unwrap();
-        assert_eq!(spans.len(), 3);
-        let first_span_data = spans
-            .first()
-            .and_then(|span| span.value())
-            .and_then(|span| span.data.value());
-        assert_eq!(
-            first_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(75.0))
-        );
-        assert_eq!(
-            first_span_data.and_then(|data| data.gen_ai_cost_total_tokens.value()),
-            Some(&Value::F64(75.0))
-        );
-        assert_eq!(
-            first_span_data.and_then(|data| data.gen_ai_cost_input_tokens.value()),
-            Some(&Value::F64(25.0))
-        );
-        assert_eq!(
-            first_span_data.and_then(|data| data.gen_ai_cost_output_tokens.value()),
-            Some(&Value::F64(50.0))
-        );
-        assert_eq!(
-            first_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
-            Some(&Value::F64(2000.0))
-        );
+        let [span1, span2, span3] = collect_span_data(event);
 
-        let second_span_data = spans
-            .get(1)
-            .and_then(|span| span.value())
-            .and_then(|span| span.data.value());
-        assert_eq!(
-            second_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(190.0))
-        );
-        assert_eq!(
-            second_span_data.and_then(|data| data.gen_ai_cost_total_tokens.value()),
-            Some(&Value::F64(190.0))
-        );
-        assert_eq!(
-            second_span_data.and_then(|data| data.gen_ai_cost_input_tokens.value()),
-            Some(&Value::F64(90.0))
-        );
-        assert_eq!(
-            second_span_data.and_then(|data| data.gen_ai_cost_output_tokens.value()),
-            Some(&Value::F64(100.0))
-        );
-        assert_eq!(
-            second_span_data.and_then(|data| data.gen_ai_usage_total_tokens.value()),
-            Some(&Value::F64(3000.0))
-        );
-        assert_eq!(
-            second_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
-            Some(&Value::F64(2000.0))
-        );
-
-        // Cost calculation when there is only gen_ai.response.model present
-        let third_span_data = spans
-            .get(2)
-            .and_then(|span| span.value())
-            .and_then(|span| span.data.value());
-        assert_eq!(
-            third_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(190.0))
-        );
-        assert_eq!(
-            third_span_data.and_then(|data| data.gen_ai_cost_total_tokens.value()),
-            Some(&Value::F64(190.0))
-        );
-        assert_eq!(
-            third_span_data.and_then(|data| data.gen_ai_cost_input_tokens.value()),
-            Some(&Value::F64(90.0))
-        );
-        assert_eq!(
-            third_span_data.and_then(|data| data.gen_ai_cost_output_tokens.value()),
-            Some(&Value::F64(100.0))
-        );
+        assert_annotated_snapshot!(span1, @r#"
+        {
+          "gen_ai.usage.total_tokens": 3000.0,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.input_tokens.cached": 500,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.output_tokens.reasoning": 1000,
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.usage.total_cost": 75.0,
+          "gen_ai.cost.total_tokens": 75.0,
+          "gen_ai.cost.input_tokens": 25.0,
+          "gen_ai.cost.output_tokens": 50.0,
+          "gen_ai.response.tokens_per_second": 2000.0
+        }
+        "#);
+        assert_annotated_snapshot!(span2, @r#"
+        {
+          "gen_ai.usage.total_tokens": 3000.0,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.request.model": "gpt4-21-04",
+          "gen_ai.usage.total_cost": 190.0,
+          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.cost.input_tokens": 90.0,
+          "gen_ai.cost.output_tokens": 100.0,
+          "gen_ai.response.tokens_per_second": 2000.0
+        }
+        "#);
+        assert_annotated_snapshot!(span3, @r#"
+        {
+          "gen_ai.usage.total_tokens": 3000.0,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.response.model": "gpt4-21-04",
+          "gen_ai.usage.total_cost": 190.0,
+          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.cost.input_tokens": 90.0,
+          "gen_ai.cost.output_tokens": 100.0,
+          "gen_ai.response.tokens_per_second": 2000.0
+        }
+        "#);
     }
 
     #[test]
@@ -2584,35 +2523,13 @@ mod tests {
             },
         );
 
-        let spans = event.value().unwrap().spans.value().unwrap();
+        let [span] = collect_span_data(event);
 
-        assert_eq!(spans.len(), 1);
-        // total_cost shouldn't be set if no tokens are present on span data
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            None
-        );
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
-            None
-        );
-        // total_tokens shouldn't be set if no tokens are present on span data
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_tokens.value()),
-            None
-        );
+        assert_annotated_snapshot!(span, @r#"
+        {
+          "gen_ai.request.model": "claude-2.1"
+        }
+        "#);
     }
 
     #[test]
@@ -2686,80 +2603,36 @@ mod tests {
             },
         );
 
-        let spans = event.value().unwrap().spans.value().unwrap();
-        assert_eq!(spans.len(), 2);
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(65.0))
-        );
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
-            Some(&Value::F64(65.0))
-        );
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
-            Some(&Value::F64(25.0))
-        );
-        assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
-            Some(&Value::F64(40.0))
-        );
-        assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(190.0))
-        );
-        assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
-            Some(&Value::F64(190.0))
-        );
-        assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
-            Some(&Value::F64(90.0)) // 1000 * 0.09
-        );
-        assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
-            Some(&Value::F64(100.0)) // 2000 * 0.05
-        );
-        assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_tokens.value()),
-            Some(&Value::F64(3000.0))
-        );
+        let [span1, span2] = collect_span_data(event);
+
+        assert_annotated_snapshot!(span1, @r#"
+        {
+          "gen_ai.usage.total_tokens": 3000.0,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.input_tokens.cached": 500,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.output_tokens.reasoning": 1000,
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.usage.total_cost": 65.0,
+          "gen_ai.cost.total_tokens": 65.0,
+          "gen_ai.cost.input_tokens": 25.0,
+          "gen_ai.cost.output_tokens": 40.0,
+          "gen_ai.response.tokens_per_second": 62500.0
+        }
+        "#);
+        assert_annotated_snapshot!(span2, @r#"
+        {
+          "gen_ai.usage.total_tokens": 3000.0,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.request.model": "gpt4-21-04",
+          "gen_ai.usage.total_cost": 190.0,
+          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.cost.input_tokens": 90.0,
+          "gen_ai.cost.output_tokens": 100.0,
+          "gen_ai.response.tokens_per_second": 62500.0
+        }
+        "#);
     }
 
     #[test]
@@ -2794,15 +2667,15 @@ mod tests {
             },
         );
 
-        let span_data = get_value!(event.spans[0].data!);
+        let [span] = collect_span_data(event);
 
         // Should not set response_tokens_per_second when there are no output tokens
-        assert!(
-            span_data
-                .gen_ai_response_tokens_per_second
-                .value()
-                .is_none()
-        );
+        assert_annotated_snapshot!(span, @r#"
+        {
+          "gen_ai.usage.total_tokens": 500.0,
+          "gen_ai.usage.input_tokens": 500
+        }
+        "#);
     }
 
     #[test]
@@ -2837,15 +2710,15 @@ mod tests {
             },
         );
 
-        let span_data = get_value!(event.spans[0].data!);
+        let [span] = collect_span_data(event);
 
         // Should not set response_tokens_per_second when duration is zero
-        assert!(
-            span_data
-                .gen_ai_response_tokens_per_second
-                .value()
-                .is_none()
-        );
+        assert_annotated_snapshot!(span, @r#"
+        {
+          "gen_ai.usage.total_tokens": 1000.0,
+          "gen_ai.usage.output_tokens": 1000
+        }
+        "#);
     }
 
     #[test]
@@ -2905,25 +2778,23 @@ mod tests {
             },
         );
 
-        let span_data_0 = get_value!(event.spans[0].data!);
-        let span_data_1 = get_value!(event.spans[1].data!);
-        let span_data_2 = get_value!(event.spans[2].data!);
+        let [span1, span2, span3] = collect_span_data(event);
 
-        assert_eq!(
-            span_data_0.gen_ai_operation_type.value(),
-            Some(&"chat".to_owned())
-        );
-
-        assert_eq!(
-            span_data_1.gen_ai_operation_type.value(),
-            Some(&"handoff".to_owned())
-        );
-
-        // Third span should have operation type mapped to "agent" fallback
-        assert_eq!(
-            span_data_2.gen_ai_operation_type.value(),
-            Some(&"agent".to_owned())
-        );
+        assert_annotated_snapshot!(span1, @r#"
+        {
+          "gen_ai.operation.type": "chat"
+        }
+        "#);
+        assert_annotated_snapshot!(span2, @r#"
+        {
+          "gen_ai.operation.type": "handoff"
+        }
+        "#);
+        assert_annotated_snapshot!(span3, @r#"
+        {
+          "gen_ai.operation.type": "agent"
+        }
+        "#);
     }
 
     #[test]
@@ -2960,10 +2831,10 @@ mod tests {
             },
         );
 
-        let span_data = get_value!(event.spans[0].data!);
+        let [span] = collect_span_data(event);
 
         // Should not set operation type when map is disabled
-        assert_eq!(span_data.gen_ai_operation_type.value(), None);
+        assert_annotated_snapshot!(span, @"{}");
     }
 
     #[test]
@@ -2997,10 +2868,10 @@ mod tests {
             },
         );
 
-        let span_data = get_value!(event.spans[0].data!);
+        let [span] = collect_span_data(event);
 
         // Should not set operation type when map is empty
-        assert_eq!(span_data.gen_ai_operation_type.value(), None);
+        assert_annotated_snapshot!(span, @"{}");
     }
 
     #[test]

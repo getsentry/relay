@@ -40,6 +40,7 @@ use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
+use crate::services::upload::Upload;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
@@ -215,6 +216,8 @@ pub struct StoreService {
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
     metric_outcomes: MetricOutcomes,
+    #[expect(unused)]
+    upload: Addr<Upload>,
     producer: Producer,
 }
 
@@ -225,6 +228,7 @@ impl StoreService {
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
         metric_outcomes: MetricOutcomes,
+        upload: Addr<Upload>,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
@@ -233,6 +237,7 @@ impl StoreService {
             global_config,
             outcome_aggregator,
             metric_outcomes,
+            upload,
             producer,
         })
     }

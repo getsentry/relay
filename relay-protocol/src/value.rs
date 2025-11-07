@@ -78,7 +78,7 @@ impl Value {
         }
     }
 
-    /// Returns a f64 if the value can be converted to it, otherwise `None`.
+    /// Returns a `f64` if the value can be converted to it, otherwise `None`.
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Value::F64(f) => Some(*f),

@@ -167,13 +167,13 @@ def test_span_extraction(
                 "type": "string",
                 "value": "GET /api/0/organizations/?member=1",
             },
-            "sentry.is_segment": {"type": "boolean", "value": False},
+            "sentry.is_remote": {"type": "boolean", "value": False},
             "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
         },
         "downsampled_retention_days": 90,
         "end_timestamp": end.timestamp(),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "is_remote": False,
+        "is_segment": False,
         "links": [
             {
                 "trace_id": "0f62a8b040f340bda5d830223def1d82",
@@ -219,7 +219,7 @@ def test_span_extraction(
         "attributes": {
             "sentry.description": {"type": "string", "value": "hi"},
             "sentry.exclusive_time": {"type": "double", "value": 1500.0},
-            "sentry.is_segment": {"type": "boolean", "value": True},
+            "sentry.is_remote": {"type": "boolean", "value": True},
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
@@ -244,7 +244,7 @@ def test_span_extraction(
         "downsampled_retention_days": 90,
         "end_timestamp": end_timestamp.timestamp(),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "is_remote": True,
+        "is_segment": True,
         "links": [
             {
                 "trace_id": "1f62a8b040f340bda5d830223def1d83",
@@ -677,7 +677,6 @@ def test_span_ingestion(
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
                 "sentry.file_extension": {"type": "string", "value": "js"},
                 "sentry.group": {"type": "string", "value": "8a97a9e43588e2bd"},
-                "sentry.is_segment": {"type": "boolean", "value": True},
                 "sentry.normalized_description": {
                     "type": "string",
                     "value": "https://example.com/*/blah.js",
@@ -690,7 +689,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp() + 1,
-            "is_remote": False,
+            "is_segment": True,
             "links": [
                 {
                     "trace_id": "99143b0763095bd9c9955e8175d1fb25",
@@ -720,7 +719,6 @@ def test_span_ingestion(
                     "value": 'test \\" with \\" escaped \\" chars',
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
-                "sentry.is_segment": {"type": "boolean", "value": False},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
                 "user_agent.original": {
@@ -729,7 +727,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp() + 1,
-            "is_remote": False,
+            "is_segment": False,
             "name": "default",
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp": start.timestamp(),
@@ -748,7 +746,6 @@ def test_span_ingestion(
                 "sentry.browser.name": {"type": "string", "value": "Python Requests"},
                 "sentry.description": {"type": "string", "value": "my 2nd OTel span"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
-                "sentry.is_segment": {"type": "boolean", "value": True},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
@@ -759,7 +756,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp(),
-            "is_remote": False,
+            "is_segment": True,
             "kind": "producer",
             "links": [
                 {
@@ -786,7 +783,6 @@ def test_span_ingestion(
                 "client.address": {"type": "string", "value": "127.0.0.1"},
                 "sentry.browser.name": {"type": "string", "value": "Chrome"},
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
-                "sentry.is_segment": {"type": "boolean", "value": False},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
                 "user_agent.original": {
@@ -795,7 +791,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp() + 1,
-            "is_remote": False,
+            "is_segment": False,
             "name": "default",
             "span_id": "ed429c44b67a3eb1",
             "start_timestamp": start.timestamp(),
@@ -828,7 +824,6 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp(),
-            "is_remote": False,
             "kind": "consumer",
             "links": [
                 {

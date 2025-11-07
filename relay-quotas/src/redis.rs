@@ -411,7 +411,8 @@ mod tests {
     fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
-        let client = AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap();
+        let client =
+            AsyncRedisClient::single("test", &url, &RedisConfigOptions::default()).unwrap();
 
         let global_limiter = MockGlobalLimiter {
             client: client.clone(),
