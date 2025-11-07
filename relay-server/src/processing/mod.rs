@@ -156,6 +156,14 @@ impl<T> Output<T> {
         }
     }
 
+    /// Creates an new output with neither main nor metrics.
+    pub fn empty() -> Self {
+        Self {
+            main: None,
+            metrics: None,
+        }
+    }
+
     /// Maps an `Output<T>` to `Output<S>` by applying a function to [`Self::main`].
     pub fn map<F, S>(self, f: F) -> Output<S>
     where

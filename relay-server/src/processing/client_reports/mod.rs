@@ -92,11 +92,7 @@ impl processing::Processor for ClientReportsProcessor {
             .enforce_quotas(&mut client_reports, ctx)
             .await?;
 
-        // FIXME: Not sure if we want to emit some metrics here still
-        Ok(Output {
-            main: None,
-            metrics: None,
-        })
+        Ok(Output::empty())
     }
 }
 
@@ -114,7 +110,6 @@ pub struct SerializedClientReport {
 
 impl Counted for SerializedClientReport {
     fn quantities(&self) -> Quantities {
-        // TODO: Check the envelope rete_limiter
         smallvec::smallvec![]
     }
 }
