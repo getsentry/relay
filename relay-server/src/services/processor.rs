@@ -3014,12 +3014,11 @@ impl RateLimiter {
         }
 
         let scoping = managed_envelope.scoping();
-        let (enforcement, rate_limits) =
-            metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-                envelope_limiter
-                    .compute(managed_envelope.envelope_mut(), &scoping)
-                    .await
-            })?;
+        let (enforcement, rate_limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), type = self.name(), {
+            envelope_limiter
+                .compute(managed_envelope.envelope_mut(), &scoping)
+                .await
+        })?;
         let event_active = enforcement.is_event_active();
 
         // Use the same rate limits as used for the envelope on the metrics.
@@ -3035,6 +3034,13 @@ impl RateLimiter {
         }
 
         Ok(EnforcementResult::new(event, rate_limits))
+    }
+
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Cached => "cached",
+            Self::Consistent(_) => "consistent",
+        }
     }
 }
 
