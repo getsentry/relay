@@ -189,7 +189,7 @@ pub async fn process(
         .ok();
 
         // Validate for kafka (TODO: this should be moved to kafka producer)
-        match validate(&mut annotated_span) {
+        match processing::transactions::spans::validate(&mut annotated_span) {
             Ok(res) => res,
             Err(err) => {
                 relay_log::with_scope(
@@ -558,19 +558,11 @@ fn scrub(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-    use std::sync::{Arc, LazyLock};
+    use std::sync::LazyLock;
 
-    use bytes::Bytes;
-    use relay_event_schema::protocol::{Context, ContextInner, EventId, Timestamp, TraceContext};
-    use relay_event_schema::protocol::{Contexts, Event, Span};
+    use relay_event_schema::protocol::EventId;
+    use relay_event_schema::protocol::Span;
     use relay_protocol::get_value;
-    use relay_system::Addr;
-
-    use crate::envelope::Envelope;
-    use crate::managed::ManagedEnvelope;
-    use crate::services::processor::ProcessingGroup;
-    use crate::services::projects::project::ProjectInfo;
 
     use super::*;
 

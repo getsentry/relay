@@ -1,17 +1,16 @@
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
-use relay_cogs::Token;
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::{Event, Metrics};
+use relay_event_schema::protocol::{Event, Metrics, SpanV2};
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::{DataCategory, RateLimits};
 #[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
-use smallvec::{SmallVec, smallvec};
+use smallvec::smallvec;
 
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
@@ -27,14 +26,19 @@ use crate::processing::utils::transaction::ExtractMetricsContext;
 use crate::processing::{Forward, Processor, QuotaRateLimiter, RateLimited, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
+#[cfg(feature = "processing")]
+use crate::services::store::StoreEnvelope;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{SamplingResult, should_filter};
+
 #[cfg(feature = "processing")]
-use crate::{processing::spans::store, services::store::StoreEnvelope};
+use crate::managed::TypedEnvelope;
+#[cfg(feature = "processing")]
+use crate::services::processor::ProcessingGroup;
 
 mod process;
 pub mod profile;
-mod spans;
+pub mod spans;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -143,15 +147,16 @@ impl Processor for TransactionProcessor {
         mut ctx: super::Context<'_>,
     ) -> Result<super::Output<Self::Output>, Rejected<Self::Error>> {
         let project_id = work.scoping().project_id;
-        let mut event_fully_normalized = EventFullyNormalized(
-            work.headers.meta().request_trust().is_trusted()
+        let transaction = work.transaction.as_ref();
+        let mut flags = Flags {
+            metrics_extracted: transaction.is_some_and(|i| i.metrics_extracted()),
+            spans_extracted: transaction.is_some_and(|i| i.spans_extracted()),
+            fully_normalized: work.headers.meta().request_trust().is_trusted()
                 && work
                     .transaction
                     .as_ref()
                     .map_or(false, Item::fully_normalized),
-        );
-        let mut event_metrics_extracted = EventMetricsExtracted(false);
-        let mut spans_extracted = SpansExtracted(false);
+        };
         let mut metrics = Metrics::default();
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
@@ -174,8 +179,10 @@ impl Processor for TransactionProcessor {
             Ok::<_, Error>(ExpandedTransaction {
                 headers,
                 transaction: Transaction(transaction),
+                flags,
                 attachments,
                 profile,
+                extracted_spans: vec![],
             })
         })?;
 
@@ -225,14 +232,14 @@ impl Processor for TransactionProcessor {
                 &ctx.config,
             );
 
-            event_fully_normalized = utils::event::normalize(
+            work.flags.fully_normalized = utils::event::normalize(
                 &work.headers,
                 event,
-                event_fully_normalized,
+                EventFullyNormalized(work.flags.fully_normalized),
                 project_id,
                 &ctx,
                 &self.geoip_lookup,
-            )?;
+            )?.0;
 
             let filter_run = utils::event::filter(&work.headers, event, &ctx)
                 .map_err(|e| ProcessingError::EventFiltered(e))?;
@@ -293,7 +300,7 @@ impl Processor for TransactionProcessor {
                     }
                 }
                 // Extract metrics here, we're about to drop the event/transaction.
-                event_metrics_extracted = utils::transaction::extract_metrics(
+                work.flags.metrics_extracted = utils::transaction::extract_metrics(
                     &mut work.transaction.0,
                     &mut extracted_metrics,
                     ExtractMetricsContext {
@@ -301,10 +308,11 @@ impl Processor for TransactionProcessor {
                         project_id,
                         ctx: &ctx,
                         sampling_decision: SamplingDecision::Drop,
-                        event_metrics_extracted,
-                        spans_extracted,
+                        metrics_extracted: EventMetricsExtracted(work.flags.metrics_extracted),
+                        spans_extracted: work.flags.spans_extracted,
                     },
-                )?;
+                )?
+                .0;
                 Ok::<_, Error>(())
             });
 
@@ -371,7 +379,7 @@ impl Processor for TransactionProcessor {
                 profile::scrub_profiler_id(&mut work.transaction.0);
 
                 // Always extract metrics in processing Relays for sampled items.
-                event_metrics_extracted = utils::transaction::extract_metrics(
+                work.flags.metrics_extracted = utils::transaction::extract_metrics(
                     &mut work.transaction.0,
                     &mut extracted_metrics,
                     ExtractMetricsContext {
@@ -379,24 +387,32 @@ impl Processor for TransactionProcessor {
                         project_id,
                         ctx: &ctx,
                         sampling_decision: SamplingDecision::Drop,
-                        event_metrics_extracted,
-                        spans_extracted,
+                        metrics_extracted: EventMetricsExtracted(work.flags.metrics_extracted),
+                        spans_extracted: work.flags.spans_extracted,
                     },
-                )?;
+                )?
+                .0;
 
-                let mut span_items = vec![];
-
-                spans_extracted = spans::extract_from_event(
+                if let Some(results) = spans::extract_from_event(
                     work.headers.dsc(),
                     &work.transaction.0,
                     ctx.global_config,
                     ctx.config,
                     server_sample_rate,
-                    event_metrics_extracted,
-                    spans_extracted,
-                    |item| span_items.push(item),
-                    r,
-                );
+                    EventMetricsExtracted(work.flags.metrics_extracted),
+                    SpansExtracted(work.flags.spans_extracted),
+                ) {
+                    work.flags.spans_extracted = true;
+                    for result in results {
+                        match result {
+                            Ok(item) => work.extracted_spans.push(item),
+                            Err(_) => r.reject_err(
+                                Outcome::Invalid(DiscardReason::InvalidSpan),
+                                SpanV2::default(),
+                            ),
+                        }
+                    }
+                }
 
                 Ok::<_, Error>(())
             });
@@ -404,18 +420,7 @@ impl Processor for TransactionProcessor {
 
         self.limiter.enforce_quotas(&mut work, ctx).await?;
 
-        // // Event may have been dropped because of a quota and the envelope can be empty.
-        // if event.value().is_some() {
-        //     event::serialize(
-        //         managed_envelope,
-        //         &mut event,
-        //         event_fully_normalized,
-        //         event_metrics_extracted,
-        //         spans_extracted,
-        //     )?;
-        // }
-
-        if ctx.config.processing_enabled() && !event_fully_normalized.0 {
+        if ctx.config.processing_enabled() && !work.flags.fully_normalized {
             relay_log::error!(
                 tags.project = %project_id,
                 tags.ty = event_type(&work.transaction.0).map(|e| e.to_string()).unwrap_or("none".to_owned()),
@@ -471,8 +476,10 @@ impl Counted for SerializedTransaction {
 pub struct ExpandedTransaction {
     headers: EnvelopeHeaders,
     transaction: Transaction, // might be empty
+    flags: Flags,
     attachments: smallvec::SmallVec<[Item; 3]>,
     profile: Option<Item>,
+    extracted_spans: Vec<Item>,
 }
 
 impl ExpandedTransaction {
@@ -480,8 +487,15 @@ impl ExpandedTransaction {
         let Self {
             headers,
             transaction: Transaction(event),
+            flags:
+                Flags {
+                    metrics_extracted,
+                    spans_extracted,
+                    fully_normalized,
+                },
             attachments,
             profile,
+            extracted_spans,
         } = self;
 
         let mut items = smallvec![];
@@ -492,12 +506,15 @@ impl ExpandedTransaction {
             let mut item = Item::new(ItemType::Transaction);
             item.set_payload(ContentType::Json, data);
 
-            // TODO: set flags
+            item.set_metrics_extracted(metrics_extracted);
+            item.set_spans_extracted(spans_extracted);
+            item.set_fully_normalized(fully_normalized);
 
             items.push(item);
         }
         items.extend(attachments);
         items.extend(profile.into_iter());
+        items.extend(extracted_spans);
 
         Ok(Envelope::from_parts(headers, items))
     }
@@ -509,13 +526,16 @@ impl Counted for ExpandedTransaction {
         let Self {
             headers: _,
             transaction,
+            flags: _, // TODO: might be used to conditionally count embedded spans.
             attachments,
             profile,
+            extracted_spans,
         } = self;
 
         quantities.extend(transaction.quantities());
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
+        quantities.extend(extracted_spans.quantities());
 
         quantities
     }
@@ -537,8 +557,10 @@ impl RateLimited for Managed<ExpandedTransaction> {
         let ExpandedTransaction {
             headers: _,
             transaction,
+            flags,
             attachments,
             profile,
+            extracted_spans,
         } = self.as_ref();
 
         // If there is a transaction limit, drop everything.
@@ -554,6 +576,7 @@ impl RateLimited for Managed<ExpandedTransaction> {
         }
 
         let attachment_quantities = attachments.quantities();
+        let span_quantities = extracted_spans.quantities();
 
         // Check profile limits:
         for (category, quantity) in profile.quantities() {
@@ -582,10 +605,31 @@ impl RateLimited for Managed<ExpandedTransaction> {
             }
         }
 
-        // TODO: check extracted span limits
+        // Check attachment limits:
+        for (category, quantity) in span_quantities {
+            let limits = rate_limiter
+                .try_consume(scoping.item(category), quantity)
+                .await;
+
+            if !limits.is_empty() {
+                self.modify(|this, record_keeper| {
+                    record_keeper.reject_err(
+                        Error::from(limits),
+                        std::mem::take(&mut this.extracted_spans),
+                    );
+                });
+            }
+        }
 
         Ok(())
     }
+}
+
+#[derive(Debug)]
+struct Flags {
+    metrics_extracted: bool,
+    spans_extracted: bool,
+    fully_normalized: bool,
 }
 
 #[derive(Debug)]
@@ -636,39 +680,27 @@ impl Forward for TransactionOutput {
         ctx: super::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(output) = self;
+        let outcome_addr = output.outcome_addr().clone();
 
-        let (envelope, spans) = output.split_once(
-            |ExpandedTransaction {
-                 headers,
-                 transaction,
-                 attachments,
-                 profile,
-                 //  extracted_spans,
-             }| {
-                let mut envelope = Envelope::try_from_event(headers, transaction)
-                    .map_err(|e| output.internal_error("failed to create envelope from event"))?;
-                for item in attachments {
-                    envelope.add_item(item);
-                }
+        // pass ownership to store service.
+        output
+            .try_accept(|output| {
+                // TODO: split out spans here.
+                let envelope = output
+                    .serialize_envelope()
+                    .map_err(|_| Outcome::Invalid(DiscardReason::Internal))?;
 
-                (envelope, extracted_spans)
-            },
-        );
+                let envelope = ManagedEnvelope::new(envelope, outcome_addr);
+                let envelope = TypedEnvelope::<ProcessingGroup>::try_from((
+                    envelope,
+                    ProcessingGroup::Transaction,
+                ))
+                .map_err(|_| Outcome::Invalid(DiscardReason::Internal))?
+                .into_processed();
 
-        // Send transaction & attachments in envelope:
-        s.send(StoreEnvelope { envelope });
-
-        // Send spans:
-        let ctx = store::Context {
-            server_sample_rate: spans.server_sample_rate,
-            retention: ctx.retention(|r| r.span.as_ref()),
-        };
-        for span in spans.split(|v| v) {
-            if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
-                s.send(span);
-            };
-        }
-
-        Ok(())
+                s.send(StoreEnvelope { envelope });
+                Ok::<_, Outcome>(())
+            })
+            .map_err(|e| e.map(|_| ()))
     }
 }

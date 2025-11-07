@@ -38,8 +38,8 @@ pub struct ExtractMetricsContext<'a> {
     pub project_id: ProjectId,
     pub ctx: &'a Context<'a>,
     pub sampling_decision: SamplingDecision,
-    pub event_metrics_extracted: EventMetricsExtracted,
-    pub spans_extracted: SpansExtracted,
+    pub metrics_extracted: EventMetricsExtracted,
+    pub spans_extracted: bool,
 }
 
 /// Extract transaction metrics.
@@ -53,7 +53,7 @@ pub fn extract_metrics(
         project_id,
         ctx,
         sampling_decision,
-        event_metrics_extracted,
+        metrics_extracted: event_metrics_extracted,
         spans_extracted,
     } = ctx;
 
@@ -120,7 +120,7 @@ pub fn extract_metrics(
     }
 
     // If spans were already extracted for an event, we rely on span processing to extract metrics.
-    let extract_spans = !spans_extracted.0
+    let extract_spans = !spans_extracted
         && crate::utils::sample(
             ctx.global_config
                 .options

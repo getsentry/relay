@@ -661,7 +661,7 @@ impl ProcessingExtractedMetrics {
     }
 
     pub fn into_inner(self) -> ExtractedMetrics {
-        self.0
+        self.metrics
     }
 
     /// Extends the contained metrics with [`ExtractedMetrics`].
@@ -1551,8 +1551,8 @@ impl EnvelopeProcessorService {
                     project_id,
                     ctx: &ctx,
                     sampling_decision: SamplingDecision::Drop,
-                    event_metrics_extracted,
-                    spans_extracted,
+                    metrics_extracted: event_metrics_extracted,
+                    spans_extracted: spans_extracted.0,
                 },
             )?;
 
@@ -1584,9 +1584,13 @@ impl EnvelopeProcessorService {
         // Need to scrub the transaction before extracting spans.
         //
         // Unconditionally scrub to make sure PII is removed as early as possible.
-        event::scrub(&mut event, ctx.project_info)?;
+        processing::utils::event::scrub(&mut event, ctx.project_info)?;
 
-        attachment::scrub(managed_envelope, ctx.project_info);
+        let attachments = managed_envelope
+            .envelope()
+            .items_mut()
+            .filter(|i| i.ty() == &ItemType::Attachment);
+        processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
@@ -1597,8 +1601,8 @@ impl EnvelopeProcessorService {
                 ctx.config,
                 ctx.project_info,
             );
-            profile::transfer_id(&mut event, profile_id);
-            profile::scrub_profiler_id(&mut event);
+            processing::transactions::profile::transfer_id(&mut event, profile_id);
+            processing::transactions::profile::scrub_profiler_id(&mut event);
 
             // Always extract metrics in processing Relays for sampled items.
             event_metrics_extracted = processing::utils::transaction::extract_metrics(
@@ -1609,19 +1613,20 @@ impl EnvelopeProcessorService {
                     project_id,
                     ctx: &ctx,
                     sampling_decision: SamplingDecision::Keep,
-                    event_metrics_extracted,
-                    spans_extracted,
+                    metrics_extracted: event_metrics_extracted,
+                    spans_extracted: spans_extracted.0,
                 },
             )?;
 
-            spans_extracted = span::extract_from_event(
-                managed_envelope,
+            spans_extracted = processing::transactions::spans::extract_from_event(
+                managed_envelope.envelope().dsc(),
                 &event,
                 ctx.global_config,
                 ctx.config,
                 server_sample_rate,
                 event_metrics_extracted,
                 spans_extracted,
+                |span| managed_envelope.envelope_mut().add_item(span),
             );
         });
 

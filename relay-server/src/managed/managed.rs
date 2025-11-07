@@ -179,6 +179,13 @@ impl<T: Counted> Managed<T> {
         self.meta.scoping
     }
 
+    /// Get the address of the outcome aggregator.
+    ///
+    /// NOTE: This should not be exposed, only here for the transition period.
+    pub fn outcome_addr(&self) -> &Addr<TrackOutcome> {
+        &self.meta.outcome_aggregator
+    }
+
     /// Splits [`Self`] into two other [`Managed`] items.
     ///
     /// The two resulting managed instances together are expected to have the same outcomes as the original instance..

@@ -3,7 +3,6 @@ use relay_dynamic_config::{Feature, GlobalConfig};
 use std::net::IpAddr;
 
 use relay_base_schema::events::EventType;
-use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
@@ -13,12 +12,10 @@ use relay_protocol::Annotated;
 use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::managed::{Counted, ItemAction, Managed, ManagedResult, Rejected, TypedEnvelope};
-use crate::processing::transactions::{Error, SerializedTransaction};
+use crate::managed::{Counted, Managed};
+use crate::processing::transactions::Error;
 use crate::processing::{Context, CountRateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::TransactionGroup;
-use crate::services::projects::project::ProjectInfo;
 
 pub struct Profile(pub Item);
 
@@ -162,6 +159,13 @@ mod tests {
     #[cfg(feature = "processing")]
     #[test]
     fn test_scrub_profiler_id_should_not_be_stripped() {
+        use std::time::Duration;
+
+        use chrono::Utc;
+        use relay_event_schema::protocol::EventId;
+        use relay_protocol::get_value;
+        use uuid::Uuid;
+
         let mut contexts = Contexts::new();
         contexts.add(ProfileContext {
             profiler_id: Annotated::new(EventId(

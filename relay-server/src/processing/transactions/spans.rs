@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::managed::{ManagedEnvelope, RecordKeeper, TypedEnvelope};
+use crate::managed::RecordKeeper;
 use crate::processing::utils::event::{EventMetricsExtracted, SpansExtracted, event_type};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -11,13 +11,13 @@ use chrono::DateTime;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
-use relay_event_schema::protocol::{Event, Measurement, Measurements, Span};
+use relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit};
 use relay_protocol::{Annotated, Empty};
 use relay_sampling::DynamicSamplingContext;
 
 #[allow(clippy::too_many_arguments)]
-pub fn extract_from_event<F: FnMut(Item)>(
+pub fn extract_from_event(
     dsc: Option<&DynamicSamplingContext>,
     event: &Annotated<Event>,
     global_config: &GlobalConfig,
@@ -25,85 +25,40 @@ pub fn extract_from_event<F: FnMut(Item)>(
     server_sample_rate: Option<f64>,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
-    produce: F,
-    record_keeper: &mut RecordKeeper,
-) -> SpansExtracted {
+) -> Option<Vec<Result<Item, ()>>> {
     // Only extract spans from transactions (not errors).
     if event_type(event) != Some(EventType::Transaction) {
-        return spans_extracted;
+        return None;
     };
 
     if spans_extracted.0 {
-        return spans_extracted;
+        return None;
     }
 
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate
         && utils::sample(sample_rate).is_discard()
     {
-        return spans_extracted;
+        return None;
     }
 
     let client_sample_rate = dsc.and_then(|ctx| ctx.sample_rate);
 
-    let mut add_span = |mut span: Span| {
-        add_sample_rate(
-            &mut span.measurements,
-            "client_sample_rate",
-            client_sample_rate,
-        );
-        add_sample_rate(
-            &mut span.measurements,
-            "server_sample_rate",
-            server_sample_rate,
-        );
+    let event = event.value()?;
 
-        let mut span = Annotated::new(span);
-
-        match validate(&mut span) {
-            Ok(span) => span,
-            Err(e) => {
-                relay_log::error!(
-                    error = &e as &dyn Error,
-                    span = ?span,
-                    source = "event",
-                    "invalid span"
-                );
-                record_keeper.reject_err(Outcome::Invalid(DiscardReason::InvalidSpan), span);
-                return;
-            }
-        };
-
-        let Ok(mut item) = create_span_item(span, config) else {
-            record_keeper.reject_err(Outcome::Invalid(DiscardReason::InvalidSpan), span);
-            return;
-        };
-        // If metrics extraction happened for the event, it also happened for its spans:
-        item.set_metrics_extracted(event_metrics_extracted.0);
-
-        relay_log::trace!("Adding span to envelope");
-        produce(item);
-    };
-
-    let Some(event) = event.value() else {
-        return spans_extracted;
-    };
-
-    let Some(transaction_span) = processing::utils::transaction::extract_segment_span(
+    let transaction_span = processing::utils::transaction::extract_segment_span(
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
         &[],
-    ) else {
-        return spans_extracted;
-    };
+    )?;
 
-    // Add child spans as envelope items.
-    if let Some(child_spans) = event.spans.value() {
-        for span in child_spans {
-            let Some(inner_span) = span.value() else {
-                continue;
-            };
+    let mut results = vec![];
+
+    // Add child spans.
+    if let Some(spans) = event.spans.value() {
+        for span in spans {
+            let inner_span = span.value()?;
             // HACK: clone the span to set the segment_id. This should happen
             // as part of normalization once standalone spans reach wider adoption.
             let mut new_span = inner_span.clone();
@@ -117,13 +72,64 @@ pub fn extract_from_event<F: FnMut(Item)>(
             // child spans.
             new_span.profile_id = transaction_span.profile_id.clone();
 
-            add_span(new_span);
+            results.push(make_span_item(
+                new_span,
+                config,
+                client_sample_rate,
+                server_sample_rate,
+                event_metrics_extracted.0,
+            ));
         }
     }
 
-    add_span(transaction_span);
+    results.push(make_span_item(
+        transaction_span,
+        config,
+        client_sample_rate,
+        server_sample_rate,
+        event_metrics_extracted.0,
+    ));
 
-    SpansExtracted(true)
+    Some(results)
+}
+
+fn make_span_item(
+    mut span: Span,
+    config: &Config,
+    client_sample_rate: Option<f64>,
+    server_sample_rate: Option<f64>,
+    metrics_extracted: bool,
+) -> Result<Item, ()> {
+    add_sample_rate(
+        &mut span.measurements,
+        "client_sample_rate",
+        client_sample_rate,
+    );
+    add_sample_rate(
+        &mut span.measurements,
+        "server_sample_rate",
+        server_sample_rate,
+    );
+
+    let mut span = Annotated::new(span);
+
+    validate(&mut span)
+        .inspect_err(|e| {
+            relay_log::error!(
+                error = e as &dyn Error,
+                span = ?span,
+                source = "event",
+                "invalid span"
+            );
+        })
+        .map_err(|_| ())?;
+
+    let mut item = create_span_item(span, config)?;
+    // If metrics extraction happened for the event, it also happened for its spans:
+    item.set_metrics_extracted(metrics_extracted);
+
+    relay_log::trace!("Adding span to envelope");
+    Ok(item)
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -248,8 +254,19 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
 #[cfg(test)]
 mod tests {
 
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+
+    use bytes::Bytes;
     use relay_dynamic_config::GlobalConfig;
-    use relay_event_schema::protocol::Span;
+    use relay_event_schema::protocol::{
+        Context, ContextInner, Contexts, Span, Timestamp, TraceContext,
+    };
+    use relay_system::Addr;
+
+    use crate::Envelope;
+    use crate::managed::{ManagedEnvelope, TypedEnvelope};
+    use crate::services::processor::{ProcessingGroup, TransactionGroup};
 
     use super::*;
 
@@ -301,20 +318,21 @@ mod tests {
         let global_config = GlobalConfig::default();
         assert!(global_config.options.span_extraction_sample_rate.is_none());
         let (mut managed_envelope, event, _) = params();
-        extract_from_event(
-            &mut managed_envelope,
+        let mut items = vec![];
+        let spans = extract_from_event(
+            None,
             &event,
             &global_config,
             &Default::default(),
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
-        );
+        )
+        .unwrap();
         assert!(
-            managed_envelope
-                .envelope()
-                .items()
-                .any(|item| item.ty() == &ItemType::Span),
+            spans
+                .iter()
+                .any(|item| item.ok().is_some_and(|item| item.ty() == &ItemType::Span)),
             "{:?}",
             managed_envelope.envelope()
         );
@@ -325,20 +343,20 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let (mut managed_envelope, event, _) = params();
-        extract_from_event(
-            &mut managed_envelope,
+        let spans = extract_from_event(
+            None,
             &event,
             &global_config,
             &Default::default(),
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
-        );
+        )
+        .unwrap();
         assert!(
-            managed_envelope
-                .envelope()
-                .items()
-                .any(|item| item.ty() == &ItemType::Span),
+            spans
+                .iter()
+                .any(|item| item.ok().is_some_and(|item| item.ty() == &ItemType::Span)),
             "{:?}",
             managed_envelope.envelope()
         );
@@ -349,20 +367,20 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let (mut managed_envelope, event, _) = params();
-        extract_from_event(
-            &mut managed_envelope,
+        let spans = extract_from_event(
+            None,
             &event,
             &global_config,
             &Default::default(),
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
-        );
+        )
+        .unwrap();
         assert!(
-            !managed_envelope
-                .envelope()
-                .items()
-                .any(|item| item.ty() == &ItemType::Span),
+            !spans
+                .iter()
+                .any(|item| item.ok().is_some_and(|item| item.ty() == &ItemType::Span)),
             "{:?}",
             managed_envelope.envelope()
         );
@@ -373,20 +391,21 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
         let (mut managed_envelope, event, _) = params(); // client sample rate is 0.2
-        extract_from_event(
-            &mut managed_envelope,
+        let spans = extract_from_event(
+            None,
             &event,
             &global_config,
             &Default::default(),
             Some(0.1),
             EventMetricsExtracted(false),
             SpansExtracted(false),
-        );
+        )
+        .unwrap();
 
-        let span = managed_envelope
-            .envelope()
-            .items()
-            .find(|item| item.ty() == &ItemType::Span)
+        let span = spans
+            .into_iter()
+            .find(|item| item.unwrap().ty() == &ItemType::Span)
+            .unwrap()
             .unwrap();
 
         let span = Annotated::<Span>::from_json_bytes(&span.payload()).unwrap();

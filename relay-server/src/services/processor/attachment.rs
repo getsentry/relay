@@ -1,17 +1,8 @@
 //! Attachments processor code.
 
-use std::error::Error;
-use std::time::Instant;
-
-use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
-use relay_statsd::metric;
-
-use crate::envelope::{AttachmentType, ContentType, ItemType};
-use crate::statsd::RelayTimers;
+use crate::envelope::AttachmentType;
 
 use crate::managed::TypedEnvelope;
-use crate::services::projects::project::ProjectInfo;
-use relay_dynamic_config::Feature;
 #[cfg(feature = "processing")]
 use {
     crate::services::processor::{ErrorGroup, EventFullyNormalized},

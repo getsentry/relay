@@ -25,6 +25,7 @@ use relay_event_schema::protocol::IpAddr;
 use relay_event_schema::protocol::{Event, Metrics, OtelContext, RelayInfo};
 use relay_filter::FilterStatKey;
 use relay_metrics::MetricNamespace;
+use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
 use relay_protocol::Empty;
 use relay_quotas::DataCategory;
