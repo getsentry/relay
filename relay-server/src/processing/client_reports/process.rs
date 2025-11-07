@@ -9,6 +9,7 @@ use relay_event_schema::protocol::ClientReport;
 use relay_filter::FilterStatKey;
 use relay_quotas::ReasonCode;
 use relay_sampling::evaluation::MatchedRuleIds;
+use relay_system::Addr;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::managed::Managed;
@@ -16,8 +17,6 @@ use crate::processing::client_reports::SerializedClientReport;
 use crate::services::outcome::{Outcome, RuleCategories, TrackOutcome};
 use crate::services::processor::MINIMUM_CLOCK_DRIFT;
 use crate::services::projects::project::ProjectInfo;
-
-use crate::processing::client_reports;
 
 /// Fields of client reports that map to specific [`Outcome`]s without content.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -44,16 +43,13 @@ pub fn process_client_reports(
     client_reports: &mut Managed<SerializedClientReport>,
     config: &Config,
     project_info: &ProjectInfo,
-) -> Vec<TrackOutcome> {
-    // if client outcomes are disabled we leave the client reports unprocessed
-    // and pass them on.
-    if !config.emit_outcomes().any() || !config.emit_client_outcomes() {
-        // if a processing relay has client outcomes disabled we drop them.
-        if config.processing_enabled() {
-            // FIXME: Understand how to best drop them here silently
-            todo!("Drop all the items silently");
-        }
-        return vec![];
+    outcome_aggregator: &Addr<TrackOutcome>,
+) {
+    if (!config.emit_outcomes().any() || !config.emit_client_outcomes())
+        && config.processing_enabled()
+    {
+        // if a processing relay has client outcomes disabled we drop them without processing.
+        return;
     }
 
     let mut timestamp = None;
@@ -64,21 +60,18 @@ pub fn process_client_reports(
         ClockDriftProcessor::new(client_reports.headers.sent_at(), received)
             .at_least(MINIMUM_CLOCK_DRIFT);
 
-    // we're going through all client reports but we're effectively just merging
-    // them into the first one.
-    client_reports.retain(
-        |client_reports| &mut client_reports.client_reports,
-        |item, _| {
-            match ClientReport::parse(&item.payload()) {
-                Ok(ClientReport {
-                    timestamp: report_timestamp,
-                    discarded_events,
-                    rate_limited_events,
-                    filtered_events,
-                    filtered_sampling_events,
-                }) => {
-                    // Glue all discarded events together and give them the appropriate outcome type
-                    let input_events = discarded_events
+    client_reports.client_reports.iter().for_each(|item| {
+        match ClientReport::parse(&item.payload()) {
+            Ok(ClientReport {
+                timestamp: report_timestamp,
+                discarded_events,
+                rate_limited_events,
+                filtered_events,
+                filtered_sampling_events,
+            }) => {
+                // Glue all discarded events together and give them the appropriate outcome type
+                let input_events =
+                    discarded_events
                         .into_iter()
                         .map(|discarded_event| (ClientReportField::ClientDiscard, discarded_event))
                         .chain(
@@ -93,34 +86,31 @@ pub fn process_client_reports(
                             (ClientReportField::RateLimited, discarded_event)
                         }));
 
-                    for (outcome_type, discarded_event) in input_events {
-                        if discarded_event.reason.len() > 200 {
-                            relay_log::trace!("ignored client outcome with an overlong reason");
-                            continue;
-                        }
-                        *output_events
-                            .entry((
-                                outcome_type,
-                                discarded_event.reason,
-                                discarded_event.category,
-                            ))
-                            .or_insert(0) += discarded_event.quantity;
+                for (outcome_type, discarded_event) in input_events {
+                    if discarded_event.reason.len() > 200 {
+                        relay_log::trace!("ignored client outcome with an overlong reason");
+                        continue;
                     }
-                    if let Some(ts) = report_timestamp {
-                        timestamp.get_or_insert(ts);
-                    }
+                    *output_events
+                        .entry((
+                            outcome_type,
+                            discarded_event.reason,
+                            discarded_event.category,
+                        ))
+                        .or_insert(0) += discarded_event.quantity;
                 }
-                Err(err) => {
-                    relay_log::trace!(error = &err as &dyn Error, "invalid client report received")
+                if let Some(ts) = report_timestamp {
+                    timestamp.get_or_insert(ts);
                 }
             }
-            // FIXME: Understand what the equivalent of just dropping them here silently would be.
-            Ok::<_, client_reports::Error>(())
-        },
-    );
+            Err(err) => {
+                relay_log::trace!(error = &err as &dyn Error, "invalid client report received")
+            }
+        }
+    });
 
     if output_events.is_empty() {
-        return vec![];
+        return;
     }
 
     let timestamp =
@@ -146,7 +136,7 @@ pub fn process_client_reports(
             "skipping client outcomes older than {} days",
             max_age.num_days()
         );
-        return vec![];
+        return;
     }
 
     let max_future = SignedDuration::seconds(config.max_secs_in_future());
@@ -160,11 +150,9 @@ pub fn process_client_reports(
             "skipping client outcomes more than {}s in the future",
             max_future.num_seconds()
         );
-        return vec![];
+        return;
     }
 
-    // FIXME: This can be done more elegantly
-    let mut outcome_collection: Vec<TrackOutcome> = vec![];
     for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
         let outcome = match outcome_from_parts(outcome_type, &reason) {
             Ok(outcome) => outcome,
@@ -174,7 +162,7 @@ pub fn process_client_reports(
             }
         };
 
-        outcome_collection.push(TrackOutcome {
+        outcome_aggregator.send(TrackOutcome {
             // If we get to this point, the unwrap should not be used anymore, since we know by
             // now that the timestamp can be parsed, but just incase we fallback to UTC current
             // `DateTime`.
@@ -187,8 +175,6 @@ pub fn process_client_reports(
             quantity,
         });
     }
-
-    outcome_collection
 }
 
 /// Parse an outcome from an outcome ID and a reason string.

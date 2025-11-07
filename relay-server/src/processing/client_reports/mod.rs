@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
 use relay_quotas::RateLimits;
+use relay_system::Addr;
 
 use crate::envelope::{EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
-use crate::processing::{
-    self, Context, CountRateLimited, Forward, ForwardContext, Output, QuotaRateLimiter,
-};
-use crate::services::outcome::Outcome;
+use crate::processing::{self, Context, CountRateLimited, Nothing, Output, QuotaRateLimiter};
+use crate::services::outcome::{Outcome, TrackOutcome};
 
 mod process;
 
@@ -41,18 +40,22 @@ impl From<RateLimits> for Error {
 /// A processor for Client-Reports.
 pub struct ClientReportsProcessor {
     limiter: Arc<QuotaRateLimiter>,
+    aggregator: Addr<TrackOutcome>,
 }
 
 impl ClientReportsProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>) -> Self {
-        Self { limiter }
+    pub fn new(limiter: Arc<QuotaRateLimiter>, aggregator: Addr<TrackOutcome>) -> Self {
+        Self {
+            limiter,
+            aggregator,
+        }
     }
 }
 
 impl processing::Processor for ClientReportsProcessor {
     type UnitOfWork = SerializedClientReport;
-    type Output = ClientReportOutput;
+    type Output = Nothing;
     type Error = Error;
 
     fn prepare_envelope(
@@ -78,43 +81,22 @@ impl processing::Processor for ClientReportsProcessor {
         mut client_reports: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        // FIXME: Decide if we want to make the TrackedOutcomes the output of this processor.
-        let outcomes =
-            process::process_client_reports(&mut client_reports, ctx.config, ctx.project_info);
+        process::process_client_reports(
+            &mut client_reports,
+            ctx.config,
+            ctx.project_info,
+            &self.aggregator,
+        );
 
-        // FIXME: Are there even quotas on a client_report (the old code did check quotas but seems strange)
         self.limiter
             .enforce_quotas(&mut client_reports, ctx)
             .await?;
 
-        // FIXME: Looking at the 'old' processing code seems like we might still need to emit some
-        // metrics here
-        Ok(Output::just(ClientReportOutput(client_reports)))
-    }
-}
-
-// FIXME: The correct output might actually be the TrackedOutcomes that we generate
-/// Output produced by the [`ClientReportsProcessor`].
-#[derive(Debug)]
-pub struct ClientReportOutput(Managed<SerializedClientReport>);
-
-impl Forward for ClientReportOutput {
-    fn serialize_envelope(
-        self,
-        ctx: ForwardContext<'_>,
-    ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
-        // FIXME: Understand what should happen here
-        todo!()
-    }
-
-    #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        s: &relay_system::Addr<crate::services::store::Store>,
-        ctx: ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>> {
-        // FIXME: Understand what should happen here
-        todo!()
+        // FIXME: Not sure if we want to emit some metrics here still
+        Ok(Output {
+            main: None,
+            metrics: None,
+        })
     }
 }
 
@@ -132,6 +114,7 @@ pub struct SerializedClientReport {
 
 impl Counted for SerializedClientReport {
     fn quantities(&self) -> Quantities {
+        // TODO: Check the envelope rete_limiter
         smallvec::smallvec![]
     }
 }

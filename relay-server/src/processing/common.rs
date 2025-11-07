@@ -2,7 +2,6 @@ use crate::Envelope;
 use crate::managed::{Managed, Rejected};
 use crate::processing::ForwardContext;
 use crate::processing::check_ins::CheckInsProcessor;
-use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
@@ -58,5 +57,4 @@ outputs!(
     TraceMetrics => TraceMetricsProcessor,
     Spans => SpansProcessor,
     Sessions => SessionsProcessor,
-    ClientReports => ClientReportsProcessor,
 );

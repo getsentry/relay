@@ -69,7 +69,7 @@ mod tests {
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
-    use crate::processing;
+    use crate::processing::{self};
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
     use crate::testutils::create_test_processor;
 
@@ -133,70 +133,6 @@ mod tests {
             .await
             .unwrap();
         assert!(envelope.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_client_report_forwarding() {
-        relay_test::setup();
-        let outcome_aggregator = Addr::dummy();
-
-        let config = Config::from_json_value(serde_json::json!({
-            "outcomes": {
-                "emit_outcomes": false,
-                // a relay need to emit outcomes at all to not process.
-                "emit_client_outcomes": true
-            }
-        }))
-        .unwrap();
-
-        let processor = create_test_processor(Default::default()).await;
-
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        let request_meta = RequestMeta::new(dsn);
-        let mut envelope = Envelope::from_request(None, request_meta);
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::ClientReport);
-            item.set_payload(
-                ContentType::Json,
-                r#"
-                    {
-                        "discarded_events": [
-                            ["queue_full", "error", 42]
-                        ]
-                    }
-                "#,
-            );
-            item
-        });
-
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
-        assert_eq!(envelopes.len(), 1);
-        let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
-
-        let message = ProcessEnvelopeGrouped {
-            group,
-            envelope,
-            ctx: processing::Context {
-                config: &config,
-                ..processing::Context::for_test()
-            },
-            reservoir_counters: &ReservoirCounters::default(),
-        };
-
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
-            panic!();
-        };
-        let item = new_envelope.envelope().items().next().unwrap();
-        assert_eq!(item.ty(), &ItemType::ClientReport);
-
-        new_envelope.accept(); // do not try to capture or emit outcomes
     }
 
     #[tokio::test]

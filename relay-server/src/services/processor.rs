@@ -1205,6 +1205,7 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")]
         let rate_limiter = rate_limiter.map(Arc::new);
 
+        let outcome_aggregator = addrs.outcome_aggregator.clone();
         let inner = InnerProcessor {
             pool,
             global_config,
@@ -1234,7 +1235,7 @@ impl EnvelopeProcessorService {
                 spans: SpansProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 check_ins: CheckInsProcessor::new(Arc::clone(&quota_limiter)),
                 sessions: SessionsProcessor::new(Arc::clone(&quota_limiter)),
-                client_report: ClientReportsProcessor::new(quota_limiter),
+                client_report: ClientReportsProcessor::new(quota_limiter, outcome_aggregator),
             },
             geoip_lookup,
             config,
