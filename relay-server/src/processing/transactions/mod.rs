@@ -5,7 +5,7 @@ use relay_cogs::Token;
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Empty};
 use relay_quotas::{DataCategory, RateLimits};
 #[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
@@ -14,14 +14,14 @@ use relay_statsd::metric;
 use smallvec::{SmallVec, smallvec};
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::transactions::profile::Profile;
 use crate::processing::utils::attachments;
 use crate::processing::utils::event::{
-    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
+    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
 use crate::processing::utils::transaction::ExtractMetricsContext;
 use crate::processing::{Forward, Processor, QuotaRateLimiter, RateLimited, utils};
@@ -415,13 +415,13 @@ impl Processor for TransactionProcessor {
         //     )?;
         // }
 
-        // if ctx.config.processing_enabled() && !event_fully_normalized.0 {
-        //     relay_log::error!(
-        //         tags.project = %project_id,
-        //         tags.ty = event_type(&event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
-        //         "ingested event without normalizing"
-        //     );
-        // };
+        if ctx.config.processing_enabled() && !event_fully_normalized.0 {
+            relay_log::error!(
+                tags.project = %project_id,
+                tags.ty = event_type(&work.transaction.0).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                "ingested event without normalizing"
+            );
+        };
 
         let metrics = work.wrap(extracted_metrics.into_inner());
         Ok(super::Output {
@@ -473,6 +473,34 @@ pub struct ExpandedTransaction {
     transaction: Transaction, // might be empty
     attachments: smallvec::SmallVec<[Item; 3]>,
     profile: Option<Item>,
+}
+
+impl ExpandedTransaction {
+    fn serialize_envelope(self) -> Result<Box<Envelope>, serde_json::Error> {
+        let Self {
+            headers,
+            transaction: Transaction(event),
+            attachments,
+            profile,
+        } = self;
+
+        let mut items = smallvec![];
+        if !event.is_empty() {
+            let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
+                event.to_json()?
+            });
+            let mut item = Item::new(ItemType::Transaction);
+            item.set_payload(ContentType::Json, data);
+
+            // TODO: set flags
+
+            items.push(item);
+        }
+        items.extend(attachments);
+        items.extend(profile.into_iter());
+
+        Ok(Envelope::from_parts(headers, items))
+    }
 }
 
 impl Counted for ExpandedTransaction {
