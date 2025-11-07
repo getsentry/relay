@@ -5,6 +5,7 @@
 **Features**:
 
 - Only apply non-destructive PII rules to log bodies by default. ([#5272](https://github.com/getsentry/relay/pull/5272))
+- Allow configuring separate http server for internal routes. ([#5352](https://github.com/getsentry/relay/pull/5352))
 - Infer the client ip when set to `{{auto}}` for EAP items. ([#5304](https://github.com/getsentry/relay/pull/5304))
 - Increase the default size limit for attachments to 200MiB. ([#5310](https://github.com/getsentry/relay/pull/5310))
 - Add `sentry.origin` attribute to OTLP spans. ([#5294](https://github.com/getsentry/relay/pull/5294))

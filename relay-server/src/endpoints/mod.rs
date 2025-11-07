@@ -34,15 +34,35 @@ use crate::service::ServiceState;
 /// Size limit for internal batch endpoints.
 const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
 
+/// All of Relay's route.
+///
+/// This includes [`public_routes`] as well as [`internal_routes`].
+pub fn all_routes(config: &Config) -> Router<ServiceState> {
+    public_routes_raw(config).merge(internal_routes(config))
+}
+
+/// Relay's internal routes.
+///
+/// Routes which do not need to be exposed.
 #[rustfmt::skip]
-pub fn routes(config: &Config) -> Router<ServiceState>{
-    // Relay-internal routes pointing to /api/relay/
-    let internal_routes = Router::new()
+pub fn internal_routes(_: &Config) -> Router<ServiceState>{
+    Router::new()
         .route("/api/relay/healthcheck/{kind}/", get(health_check::handle))
         .route("/api/relay/autoscaling/", get(autoscaling::handle))
         // Fallback route, but with a name, and just on `/api/relay/*`.
-        .route("/api/relay/{*not_found}", any(statics::not_found));
+        .route("/api/relay/{*not_found}", any(statics::not_found))
+}
 
+/// Relay's public routes.
+///
+/// Routes which are public API and must be exposed.
+pub fn public_routes(config: &Config) -> Router<ServiceState> {
+    // Exclude internal routes, they must be configured separately.
+    public_routes_raw(config).route("/api/relay/{*not_found}", any(statics::not_found))
+}
+
+#[rustfmt::skip]
+fn public_routes_raw(config: &Config) -> Router<ServiceState> {
     // Sentry Web API routes pointing to /api/0/relays/
     let web_routes = Router::new()
         .route("/api/0/relays/projectconfigs/", post(project_configs::handle))
@@ -93,7 +113,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
     // NOTE: If you add a new (non-experimental) route here, please also list it in
     // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
 
-    Router::new().merge(internal_routes)
+    Router::new()
         .merge(web_routes)
         .merge(batch_routes)
         .merge(store_routes)
