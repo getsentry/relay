@@ -33,7 +33,12 @@ class Relay(SentryLike):
         options,
         version,
     ):
-        super().__init__(server_address, upstream, public_key)
+        super().__init__(
+            server_address,
+            upstream,
+            public_key,
+            internal_server_address=get_internal_address(options, server_address),
+        )
 
         self.process = process
         self.relay_id = relay_id
@@ -242,3 +247,10 @@ def latest_relay_version(get_relay_binary):
     ).strip()
     _the_word_relay, version = version_str.split(" ", 1)
     return version
+
+
+def get_internal_address(options, server_address):
+    relay = (options or {}).get("relay", {})
+    host = relay.get("internal_host")
+    port = relay.get("internal_port")
+    return (host or server_address[0], port or server_address[1])
