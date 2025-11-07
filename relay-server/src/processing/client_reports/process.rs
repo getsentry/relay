@@ -60,7 +60,7 @@ pub fn process_client_reports(
         ClockDriftProcessor::new(client_reports.headers.sent_at(), received)
             .at_least(MINIMUM_CLOCK_DRIFT);
 
-    client_reports.client_reports.iter().for_each(|item| {
+    for item in &client_reports.client_reports {
         match ClientReport::parse(&item.payload()) {
             Ok(ClientReport {
                 timestamp: report_timestamp,
@@ -107,7 +107,7 @@ pub fn process_client_reports(
                 relay_log::trace!(error = &err as &dyn Error, "invalid client report received")
             }
         }
-    });
+    }
 
     if output_events.is_empty() {
         return;
@@ -154,12 +154,9 @@ pub fn process_client_reports(
     }
 
     for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
-        let outcome = match outcome_from_parts(outcome_type, &reason) {
-            Ok(outcome) => outcome,
-            Err(_) => {
-                relay_log::trace!(?outcome_type, reason, "invalid outcome combination");
-                continue;
-            }
+        let Ok(outcome) = outcome_from_parts(outcome_type, &reason) else {
+            relay_log::trace!(?outcome_type, reason, "invalid outcome combination");
+            continue;
         };
 
         outcome_aggregator.send(TrackOutcome {
