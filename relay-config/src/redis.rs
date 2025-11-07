@@ -269,13 +269,24 @@ pub(super) fn build_redis_config(
 pub(super) fn build_redis_configs(
     configs: &RedisConfigs,
     cpu_concurrency: u32,
+    pool_concurrency: u32,
 ) -> RedisConfigsRef<'_> {
-    // The default number of connections is twice the concurrency since we are using async Redis
-    // so a single thread might be doing more I/O concurrently.
-    let default_connections = std::cmp::max(cpu_concurrency * 2, DEFAULT_MIN_MAX_CONNECTIONS);
+    // Project configurations are estimated to need around or less of `cpu_concurrency`
+    // connections, double this value for some extra headroom.
+    //
+    // For smaller setups give some extra headroom through `DEFAULT_MIN_MAX_CONNECTIONS`.
+    let project_connections = std::cmp::max(cpu_concurrency * 2, DEFAULT_MIN_MAX_CONNECTIONS);
+    // The total concurrency for rate limiting/processing is the total pool concurrency
+    // calculated by `cpu_concurrency * pool_concurrency`.
+    //
+    // No need to consider `DEFAULT_MIN_MAX_CONNECTIONS`, as these numbers are accurate.
+    let total_pool_concurrency = cpu_concurrency * pool_concurrency;
 
     match configs {
         RedisConfigs::Unified(cfg) => {
+            // A unified pool needs enough connections for project configs and enough to satisfy
+            // the processing pool.
+            let default_connections = total_pool_concurrency + project_connections;
             let config = build_redis_config(cfg, default_connections);
             RedisConfigsRef::Unified(config)
         }
@@ -284,9 +295,9 @@ pub(super) fn build_redis_configs(
             cardinality,
             quotas,
         } => {
-            let project_configs = build_redis_config(project_configs, default_connections);
-            let cardinality = build_redis_config(cardinality, default_connections);
-            let quotas = build_redis_config(quotas, default_connections);
+            let project_configs = build_redis_config(project_configs, project_connections);
+            let cardinality = build_redis_config(cardinality, total_pool_concurrency);
+            let quotas = build_redis_config(quotas, total_pool_concurrency);
             RedisConfigsRef::Individual {
                 project_configs,
                 cardinality,
