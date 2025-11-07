@@ -7,10 +7,6 @@ from urllib3.util import Retry
 
 from sentry_relay.auth import SecretKey
 
-session = Session()
-retries = Retry(total=5, backoff_factor=0.1)
-session.mount("http://", HTTPAdapter(max_retries=retries))
-
 
 class SentryLike:
     _health_check_passed = False
@@ -21,6 +17,11 @@ class SentryLike:
         self.server_address = server_address
         self.upstream = upstream
         self.public_key = public_key
+
+        self.session = Session()
+        self.session.mount(
+            "http://", HTTPAdapter(max_retries=Retry(total=5, backoff_factor=0.1))
+        )
 
     def get_dsn_public_key_configs(self, project_id):
         """
@@ -556,7 +557,7 @@ class SentryLike:
         if timeout is None:
             timeout = 10
 
-        return session.request(method, self.url + path, timeout=timeout, **kwargs)
+        return self.session.request(method, self.url + path, timeout=timeout, **kwargs)
 
     def post(self, path, **kwargs):
         return self.request("post", path, **kwargs)
