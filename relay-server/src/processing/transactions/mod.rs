@@ -11,7 +11,7 @@ use relay_quotas::{DataCategory, RateLimits};
 use relay_redis::AsyncRedisClient;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
 use crate::Envelope;
 use crate::envelope::{EnvelopeHeaders, Item, ItemType};
@@ -24,7 +24,7 @@ use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
 };
 use crate::processing::utils::transaction::ExtractMetricsContext;
-use crate::processing::{Forward, Processor, QuotaRateLimiter, utils};
+use crate::processing::{Forward, Processor, QuotaRateLimiter, RateLimited, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::statsd::{RelayCounters, RelayTimers};
@@ -35,7 +35,6 @@ use crate::{processing::spans::store, services::store::StoreEnvelope};
 mod process;
 pub mod profile;
 mod spans;
-mod types;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -165,24 +164,23 @@ impl Processor for TransactionProcessor {
             } = w;
             let mut transaction = Annotated::empty();
             if let Some(transaction_item) = transaction_item.as_ref() {
-                let result = metric!(timer(RelayTimers::EventProcessingDeserialize), {
+                transaction = metric!(timer(RelayTimers::EventProcessingDeserialize), {
                     Annotated::<Event>::from_json_bytes(&transaction_item.payload())
-                });
-                transaction = result.map_err(Error::from).reject(&work)?;
+                })?;
                 if let Some(event) = transaction.value_mut() {
                     event.ty = EventType::Transaction.into();
                 }
             }
-            Ok(ExpandedTransaction {
+            Ok::<_, Error>(ExpandedTransaction {
                 headers,
-                transaction,
+                transaction: Transaction(transaction),
                 attachments,
                 profile,
             })
         })?;
 
         let mut profile_id = None;
-        let run_dynamic_sampling;
+        let mut run_dynamic_sampling = false;
         work.try_modify(|work, record_keeper| {
             if let Some(profile_item) = work.profile.as_mut() {
                 let feature = Feature::Profiling;
@@ -191,7 +189,7 @@ impl Processor for TransactionProcessor {
                         Outcome::Invalid(DiscardReason::FeatureDisabled(feature)),
                         work.profile.take(),
                     );
-                } else if work.transaction.value().is_none() && profile_item.sampled() {
+                } else if work.transaction.0.value().is_none() && profile_item.sampled() {
                     // A profile with `sampled=true` should never be without a transaction
                     record_keeper.reject_err(
                         Outcome::Invalid(DiscardReason::Profiling("missing_transaction")),
@@ -214,13 +212,14 @@ impl Processor for TransactionProcessor {
                 }
             }
 
-            profile::transfer_id(&mut work.transaction, profile_id);
+            let event = &mut work.transaction.0;
+            profile::transfer_id(event, profile_id);
 
-            utils::dsc::validate_and_set_dsc(&mut work.headers, &work.transaction, &mut ctx);
+            utils::dsc::validate_and_set_dsc(&mut work.headers, event, &mut ctx);
 
             utils::event::finalize(
                 &work.headers,
-                &mut work.transaction,
+                event,
                 work.attachments.iter(),
                 &mut metrics,
                 &ctx.config,
@@ -228,14 +227,14 @@ impl Processor for TransactionProcessor {
 
             event_fully_normalized = utils::event::normalize(
                 &work.headers,
-                &mut work.transaction,
+                event,
                 event_fully_normalized,
                 project_id,
                 &ctx,
                 &self.geoip_lookup,
             )?;
 
-            let filter_run = utils::event::filter(&work.headers, &mut work.transaction, &ctx)
+            let filter_run = utils::event::filter(&work.headers, event, &ctx)
                 .map_err(|e| ProcessingError::EventFiltered(e))?;
 
             // Always run dynamic sampling on processing Relays,
@@ -245,7 +244,7 @@ impl Processor for TransactionProcessor {
                 || ctx.config.processing_enabled())
                 && matches!(&ctx.project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
 
-            Ok(())
+            Ok::<_,Error>(())
         })?;
 
         let sampling_result = match run_dynamic_sampling {
@@ -258,7 +257,7 @@ impl Processor for TransactionProcessor {
                 }
                 utils::dynamic_sampling::run(
                     work.headers.dsc(),
-                    &work.transaction,
+                    &work.transaction.0,
                     &ctx,
                     Some(&reservoir),
                 )
@@ -286,7 +285,7 @@ impl Processor for TransactionProcessor {
                     let result = profile::process(
                         profile,
                         work.headers.meta().client_addr(),
-                        work.transaction.value(),
+                        work.transaction.0.value(),
                         &ctx,
                     );
                     if let Err(outcome) = result {
@@ -295,7 +294,7 @@ impl Processor for TransactionProcessor {
                 }
                 // Extract metrics here, we're about to drop the event/transaction.
                 event_metrics_extracted = utils::transaction::extract_metrics(
-                    &mut work.transaction,
+                    &mut work.transaction.0,
                     &mut extracted_metrics,
                     ExtractMetricsContext {
                         dsc: work.headers.dsc(),
@@ -343,7 +342,7 @@ impl Processor for TransactionProcessor {
         // Unconditionally scrub to make sure PII is removed as early as possible.
 
         work.try_modify(|work, _| {
-            utils::event::scrub(&mut work.transaction, ctx.project_info)?;
+            utils::event::scrub(&mut work.transaction.0, ctx.project_info)?;
             utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
             Ok::<_, Error>(())
         });
@@ -357,7 +356,7 @@ impl Processor for TransactionProcessor {
                     let result = profile::process(
                         profile,
                         work.headers.meta().client_addr(),
-                        work.transaction.value(),
+                        work.transaction.0.value(),
                         &ctx,
                     );
                     match result {
@@ -368,12 +367,12 @@ impl Processor for TransactionProcessor {
                     }
                 }
 
-                profile::transfer_id(&mut work.transaction, profile_id);
-                profile::scrub_profiler_id(&mut work.transaction);
+                profile::transfer_id(&mut work.transaction.0, profile_id);
+                profile::scrub_profiler_id(&mut work.transaction.0);
 
                 // Always extract metrics in processing Relays for sampled items.
                 event_metrics_extracted = utils::transaction::extract_metrics(
-                    &mut work.transaction,
+                    &mut work.transaction.0,
                     &mut extracted_metrics,
                     ExtractMetricsContext {
                         dsc: work.headers.dsc(),
@@ -389,7 +388,7 @@ impl Processor for TransactionProcessor {
 
                 spans_extracted = spans::extract_from_event(
                     work.headers.dsc(),
-                    &work.transaction,
+                    &work.transaction.0,
                     ctx.global_config,
                     ctx.config,
                     server_sample_rate,
@@ -471,7 +470,7 @@ impl Counted for SerializedTransaction {
 #[derive(Debug)]
 pub struct ExpandedTransaction {
     headers: EnvelopeHeaders,
-    transaction: Annotated<Event>, // might be empty
+    transaction: Transaction, // might be empty
     attachments: smallvec::SmallVec<[Item; 3]>,
     profile: Option<Item>,
 }
@@ -479,17 +478,100 @@ pub struct ExpandedTransaction {
 impl Counted for ExpandedTransaction {
     fn quantities(&self) -> Quantities {
         let mut quantities = Quantities::new();
+        let Self {
+            headers: _,
+            transaction,
+            attachments,
+            profile,
+        } = self;
 
-        if self.transaction.value().is_some() {
-            quantities.extend([
-                (DataCategory::TransactionIndexed, 1),
-                (DataCategory::Transaction, 1),
-            ]);
-        }
-        quantities.extend(self.attachments.quantities());
-        quantities.extend(self.profile.quantities());
+        quantities.extend(transaction.quantities());
+        quantities.extend(attachments.quantities());
+        quantities.extend(profile.quantities());
 
         quantities
+    }
+}
+
+impl RateLimited for Managed<ExpandedTransaction> {
+    type Error = Error;
+
+    async fn enforce<T>(
+        &mut self,
+        mut rate_limiter: T,
+        ctx: super::Context<'_>,
+    ) -> Result<(), Rejected<Self::Error>>
+    where
+        T: super::RateLimiter,
+    {
+        let scoping = self.scoping();
+
+        let ExpandedTransaction {
+            headers: _,
+            transaction,
+            attachments,
+            profile,
+        } = self.as_ref();
+
+        // If there is a transaction limit, drop everything.
+        // This also affects profiles that lost their transaction due to sampling.
+        for (category, quantity) in transaction.quantities() {
+            let limits = rate_limiter
+                .try_consume(scoping.item(category), quantity)
+                .await;
+
+            if !limits.is_empty() {
+                return Err(self.reject_err(Error::from(limits)));
+            }
+        }
+
+        let attachment_quantities = attachments.quantities();
+
+        // Check profile limits:
+        for (category, quantity) in profile.quantities() {
+            let limits = rate_limiter
+                .try_consume(scoping.item(category), quantity)
+                .await;
+
+            if !limits.is_empty() {
+                self.modify(|this, record_keeper| {
+                    record_keeper.reject_err(Error::from(limits), this.profile.take());
+                });
+            }
+        }
+
+        // Check attachment limits:
+        for (category, quantity) in attachment_quantities {
+            let limits = rate_limiter
+                .try_consume(scoping.item(category), quantity)
+                .await;
+
+            if !limits.is_empty() {
+                self.modify(|this, record_keeper| {
+                    record_keeper
+                        .reject_err(Error::from(limits), std::mem::take(&mut this.attachments));
+                });
+            }
+        }
+
+        // TODO: check extracted span limits
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct Transaction(Annotated<Event>);
+
+impl Counted for Transaction {
+    fn quantities(&self) -> Quantities {
+        match self.0.value() {
+            Some(_) => smallvec![
+                (DataCategory::TransactionIndexed, 1),
+                (DataCategory::Transaction, 1),
+            ],
+            None => smallvec![],
+        }
     }
 }
 
