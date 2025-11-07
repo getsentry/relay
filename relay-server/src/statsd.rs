@@ -386,6 +386,9 @@ pub enum RelayTimers {
     /// Not all events reach this point. After an event is rate limited for the first time, the rate
     /// limit is cached. Events coming in after this will be discarded earlier in the request queue
     /// and do not reach the processing queue.
+    ///
+    /// This metric is tagged with:
+    ///  - `type`: The type of limiter executed, `cached` or `consistent`.
     EventProcessingRateLimiting,
     /// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens
     /// last before serializing the event back to JSON.
