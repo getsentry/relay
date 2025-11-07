@@ -153,17 +153,16 @@ fn expand_profile(
 }
 
 #[cfg(test)]
+#[cfg(feature = "processing")]
 mod tests {
     use super::*;
+    use chrono::{Duration, TimeZone, Utc};
+    use relay_event_schema::protocol::EventId;
+    use relay_protocol::get_value;
+    use uuid::Uuid;
 
-    #[cfg(feature = "processing")]
     #[test]
     fn test_scrub_profiler_id_should_not_be_stripped() {
-        use chrono::{Duration, TimeZone, Utc};
-        use relay_event_schema::protocol::EventId;
-        use relay_protocol::get_value;
-        use uuid::Uuid;
-
         let mut contexts = Contexts::new();
         contexts.add(ProfileContext {
             profiler_id: Annotated::new(EventId(

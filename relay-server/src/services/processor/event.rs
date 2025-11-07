@@ -4,12 +4,10 @@ use std::error::Error;
 
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
     SecurityReportType, Values,
 };
-use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
@@ -21,7 +19,6 @@ use crate::services::processor::{
     EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent, ProcessingError,
     SpansExtracted, event_type,
 };
-use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 

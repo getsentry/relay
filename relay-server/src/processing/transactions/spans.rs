@@ -331,7 +331,7 @@ mod tests {
         assert!(
             spans
                 .iter()
-                .any(|item| item.unwrap().ty() == &ItemType::Span),
+                .any(|item| item.as_ref().unwrap().ty() == &ItemType::Span),
             "{:?}",
             managed_envelope.envelope()
         );
@@ -355,7 +355,7 @@ mod tests {
         assert!(
             spans
                 .iter()
-                .any(|item| item.unwrap().ty() == &ItemType::Span),
+                .any(|item| item.as_ref().unwrap().ty() == &ItemType::Span),
             "{:?}",
             managed_envelope.envelope()
         );
@@ -379,7 +379,7 @@ mod tests {
         assert!(
             !spans
                 .iter()
-                .any(|item| item.unwrap().ty() == &ItemType::Span),
+                .any(|item| item.as_ref().unwrap().ty() == &ItemType::Span),
             "{:?}",
             managed_envelope.envelope()
         );
@@ -403,7 +403,7 @@ mod tests {
 
         let span = spans
             .into_iter()
-            .find(|item| item.unwrap().ty() == &ItemType::Span)
+            .find(|item| item.as_ref().unwrap().ty() == &ItemType::Span)
             .unwrap()
             .unwrap();
 
