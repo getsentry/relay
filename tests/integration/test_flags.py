@@ -30,7 +30,7 @@ def test_event_with_flags(relay, mini_sentry):
 
     relay.send_envelope(42, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.get_captured_event()
     assert envelope
     assert envelope.items[0].payload.json["contexts"] == {
         "flags": {
@@ -63,7 +63,7 @@ def test_event_with_flags_malformed(relay, mini_sentry):
     relay.send_envelope(42, envelope)
 
     # Malformed fields are removed. Unknown fields are passed through.
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.get_captured_event()
     assert envelope
     assert envelope.items[0].payload.json["contexts"] == {
         "flags": {"values": None, "key": "value", "type": "flags"}
@@ -98,7 +98,7 @@ def test_event_with_flags_malformed_inner_object(relay, mini_sentry):
     relay.send_envelope(42, envelope)
 
     # Malformed fields are removed. Unknown fields are passed through.
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.get_captured_event()
     assert envelope
     assert envelope.items[0].payload.json["contexts"] == {
         "flags": {"values": [{"flag": None, "key": "key"}, None], "type": "flags"}

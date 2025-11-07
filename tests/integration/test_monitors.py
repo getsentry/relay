@@ -18,7 +18,7 @@ def test_monitor_ingest(mini_sentry, relay):
     check_in = generate_check_in("my-monitor")
     relay.send_check_in(42, check_in)
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.get_captured_event()
     assert len(envelope.items) == 1
     item = envelope.items[0]
     assert item.headers["type"] == "check_in"
@@ -163,7 +163,7 @@ def test_monitor_post_json_body(mini_sentry, relay):
     response = relay.post(f"/api/42/cron/my-monitor/{public_key}", json=check_in)
     assert response.status_code == 202, response.text
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.get_captured_event()
     assert len(envelope.items) == 1
     item = envelope.items[0]
     assert item.headers["type"] == "check_in"
