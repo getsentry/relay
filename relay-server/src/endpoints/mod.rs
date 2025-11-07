@@ -34,7 +34,7 @@ use crate::service::ServiceState;
 /// Size limit for internal batch endpoints.
 const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
 
-/// All of Relay's route.
+/// All of Relay's routes.
 ///
 /// This includes [`public_routes`] as well as [`internal_routes`].
 pub fn all_routes(config: &Config) -> Router<ServiceState> {

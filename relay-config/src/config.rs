@@ -492,6 +492,13 @@ pub struct Relay {
     ///
     /// If not configured, internal routes are exposed on the main HTTP server.
     ///
+    /// Note: configuring the internal http server on an address which overlaps with the main
+    /// server (e.g. main on `0.0.0.0:3000` and internal on `127.0.0.1:3000`) is a misconfiguration
+    /// resulting in approximately half of the requests sent to `127.0.0.1:3000` to fail, as the handling
+    /// http server is chosen by the operating system 'at random'.
+    ///
+    /// As a best practice you should always choose different ports to avoid this issue.
+    ///
     /// Defaults to [`Self::host`].
     pub internal_host: Option<IpAddr>,
     /// The port to bind for internally exposed APIs.
