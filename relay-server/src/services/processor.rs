@@ -3039,6 +3039,7 @@ impl RateLimiter {
     fn name(&self) -> &'static str {
         match self {
             Self::Cached => "cached",
+            #[cfg(feature = "processing")]
             Self::Consistent(_) => "consistent",
         }
     }
