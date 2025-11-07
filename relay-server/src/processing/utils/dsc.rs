@@ -1,9 +1,7 @@
 use relay_base_schema::{events::EventType, project::ProjectKey};
-use relay_event_schema::protocol::Event;
+use relay_event_schema::protocol::{Event, TraceContext};
 use relay_protocol::Annotated;
 use relay_sampling::{DynamicSamplingContext, dsc::TraceUserContext};
-
-use sentry::protocol::TraceContext;
 
 use crate::envelope::EnvelopeHeaders;
 use crate::processing::Context;
@@ -71,7 +69,7 @@ pub fn validate_and_set_dsc(
 ///
 /// Since sampling information is not available in the event payload, the `sample_rate` field
 /// cannot be set when computing the dynamic sampling context from a transaction event.
-fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSamplingContext> {
+pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSamplingContext> {
     if event.ty.value() != Some(&EventType::Transaction) {
         return None;
     }

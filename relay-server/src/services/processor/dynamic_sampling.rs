@@ -54,7 +54,8 @@ pub fn validate_and_set_dsc<'a, T>(
     // below already checks for the event type.
     if let Some(event) = event.value()
         && let Some(key_config) = project_info.get_public_key_config()
-        && let Some(mut dsc) = utils::dsc_from_event(key_config.public_key, event)
+        && let Some(mut dsc) =
+            crate::processing::utils::dsc::dsc_from_event(key_config.public_key, event)
     {
         // All other information in the DSC must be discarded, but the sample rate was
         // actually applied by the client and is therefore correct.

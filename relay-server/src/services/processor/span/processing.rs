@@ -2,24 +2,19 @@
 
 use std::error::Error;
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::ItemType;
 use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
 use crate::metrics_extraction::{event, generic};
+use crate::processing;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{
-    EventMetricsExtracted, ProcessingError, ProcessingExtractedMetrics, SpanGroup, SpansExtracted,
-    TransactionGroup, event_type,
-};
-use crate::services::projects::project::ProjectInfo;
+use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics, SpanGroup};
 use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
-use crate::{processing, utils};
 use chrono::{DateTime, Utc};
-use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::{
-    CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
+    CombinedMetricExtractionConfig, ErrorBoundary, GlobalConfig, ProjectConfig,
 };
 use relay_event_normalization::AiOperationTypeMap;
 use relay_event_normalization::span::ai::enrich_ai_span_data;
@@ -31,11 +26,9 @@ use relay_event_normalization::{
     normalize_transaction_name, span::tag_extraction, validate_span,
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
-use relay_event_schema::protocol::{
-    BrowserContext, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
-};
+use relay_event_schema::protocol::{BrowserContext, Event, EventId, IpAddr, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
-use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
+use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
@@ -213,7 +206,10 @@ pub async fn process(
             }
         };
 
-        let Ok(mut new_item) = create_span_item(annotated_span, ctx.config) else {
+        let Ok(mut new_item) =
+            processing::transactions::spans::create_span_item(annotated_span, ctx.config)
+        // TODO: move function
+        else {
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
 

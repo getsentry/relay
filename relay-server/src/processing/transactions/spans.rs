@@ -318,7 +318,6 @@ mod tests {
         let global_config = GlobalConfig::default();
         assert!(global_config.options.span_extraction_sample_rate.is_none());
         let (mut managed_envelope, event, _) = params();
-        let mut items = vec![];
         let spans = extract_from_event(
             None,
             &event,
@@ -332,7 +331,7 @@ mod tests {
         assert!(
             spans
                 .iter()
-                .any(|item| item.ok().is_some_and(|item| item.ty() == &ItemType::Span)),
+                .any(|item| item.unwrap().ty() == &ItemType::Span),
             "{:?}",
             managed_envelope.envelope()
         );
@@ -356,7 +355,7 @@ mod tests {
         assert!(
             spans
                 .iter()
-                .any(|item| item.ok().is_some_and(|item| item.ty() == &ItemType::Span)),
+                .any(|item| item.unwrap().ty() == &ItemType::Span),
             "{:?}",
             managed_envelope.envelope()
         );
@@ -380,7 +379,7 @@ mod tests {
         assert!(
             !spans
                 .iter()
-                .any(|item| item.ok().is_some_and(|item| item.ty() == &ItemType::Span)),
+                .any(|item| item.unwrap().ty() == &ItemType::Span),
             "{:?}",
             managed_envelope.envelope()
         );

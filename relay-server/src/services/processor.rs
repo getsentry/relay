@@ -1587,7 +1587,7 @@ impl EnvelopeProcessorService {
         processing::utils::event::scrub(&mut event, ctx.project_info)?;
 
         let attachments = managed_envelope
-            .envelope()
+            .envelope_mut()
             .items_mut()
             .filter(|i| i.ty() == &ItemType::Attachment);
         processing::utils::attachments::scrub(attachments, ctx.project_info);
@@ -1618,7 +1618,7 @@ impl EnvelopeProcessorService {
                 },
             )?;
 
-            spans_extracted = processing::transactions::spans::extract_from_event(
+            if let Some(spans) = processing::transactions::spans::extract_from_event(
                 managed_envelope.envelope().dsc(),
                 &event,
                 ctx.global_config,
@@ -1626,17 +1626,25 @@ impl EnvelopeProcessorService {
                 server_sample_rate,
                 event_metrics_extracted,
                 spans_extracted,
-                |span| managed_envelope.envelope_mut().add_item(span),
-            );
+            ) {
+                spans_extracted = SpansExtracted(true);
+                for item in spans {
+                    match item {
+                        Ok(item) => managed_envelope.envelope_mut().add_item(item),
+                        Err(()) => managed_envelope.track_outcome(
+                            Outcome::Invalid(DiscardReason::InvalidSpan),
+                            DataCategory::SpanIndexed,
+                            1,
+                        ),
+                        // TODO: also `DataCategory::Span`?
+                    }
+                }
+            }
         });
 
         event = self
             .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)
             .await?;
-
-        if_processing!(self.inner.config, {
-            event = span::maybe_discard_transaction(managed_envelope, event, ctx.project_info);
-        });
 
         // Event may have been dropped because of a quota and the envelope can be empty.
         if event.value().is_some() {
@@ -1715,7 +1723,11 @@ impl EnvelopeProcessorService {
         .await?;
 
         report::process_user_reports(managed_envelope);
-        attachment::scrub(managed_envelope, ctx.project_info);
+        let attachments = managed_envelope
+            .envelope_mut()
+            .items_mut()
+            .filter(|i| i.ty() == &ItemType::Transaction);
+        processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         Ok(Some(extracted_metrics))
     }
