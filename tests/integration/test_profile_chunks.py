@@ -304,7 +304,7 @@ def test_profile_chunk_outcomes_rate_limited_fast(
     upstream.send_envelope(project_id, envelope)
 
     if platform is None:
-        envelope = mini_sentry.captured_events.get(timeout=1)
+        envelope = mini_sentry.get_captured_event()
         assert [item.type for item in envelope.items] == ["profile_chunk"]
     else:
         outcome = mini_sentry.get_client_report()
@@ -381,7 +381,7 @@ def test_profile_chunk_limited_transaction_context_removed(
         },
     )
 
-    event = mini_sentry.captured_events.get(timeout=5).get_transaction_event()
+    event = mini_sentry.get_captured_event().get_transaction_event()
     if filter_context:
         assert "profile" not in event["contexts"]
     else:

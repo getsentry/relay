@@ -130,7 +130,7 @@ def test_feedback_events_without_processing(mini_sentry, relay_chain):
     relay = relay_chain(min_relay_version="latest")
     relay.send_user_feedback(project_id, replay_item)
 
-    envelope = mini_sentry.captured_events.get(timeout=20)
+    envelope = mini_sentry.get_captured_event()
     assert len(envelope.items) == 1
 
     userfeedback = envelope.items[0]
