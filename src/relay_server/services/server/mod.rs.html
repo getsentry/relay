@@ -58,7 +58,7 @@
 <a href=#58 id=58 data-nosnippet>58</a><span class="kw">type </span>App = NormalizePath&lt;axum::Router&gt;;
 <a href=#59 id=59 data-nosnippet>59</a>
 <a href=#60 id=60 data-nosnippet>60</a><span class="doccomment">/// Build the axum application with all routes and middleware.
-<a href=#61 id=61 data-nosnippet>61</a></span><span class="kw">fn </span>make_app(service: ServiceState) -&gt; App {
+<a href=#61 id=61 data-nosnippet>61</a></span><span class="kw">fn </span>make_app(service: ServiceState, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;</span>Config) -&gt; axum::Router&lt;ServiceState&gt;) -&gt; App {
 <a href=#62 id=62 data-nosnippet>62</a>    <span class="comment">// Build the router middleware into a single service which runs _after_ routing. Service
 <a href=#63 id=63 data-nosnippet>63</a>    // builder order defines layers added first will be called first. This means:
 <a href=#64 id=64 data-nosnippet>64</a>    //  - Requests go from top to bottom
@@ -85,107 +85,107 @@
 <a href=#85 id=85 data-nosnippet>85</a>                .compress_when(SizeAbove::new(COMPRESSION_MIN_SIZE).and(DefaultPredicate::new())),
 <a href=#86 id=86 data-nosnippet>86</a>        );
 <a href=#87 id=87 data-nosnippet>87</a>
-<a href=#88 id=88 data-nosnippet>88</a>    <span class="kw">let </span>router = <span class="kw">crate</span>::endpoints::routes(service.config())
-<a href=#89 id=89 data-nosnippet>89</a>        .layer(middleware)
-<a href=#90 id=90 data-nosnippet>90</a>        .with_state(service);
-<a href=#91 id=91 data-nosnippet>91</a>
-<a href=#92 id=92 data-nosnippet>92</a>    <span class="comment">// Add middlewares that need to run _before_ routing, which need to wrap the router. This are
-<a href=#93 id=93 data-nosnippet>93</a>    // especially middlewares that modify the request path for the router:
-<a href=#94 id=94 data-nosnippet>94</a>    </span>NormalizePath::new(router)
-<a href=#95 id=95 data-nosnippet>95</a>}
-<a href=#96 id=96 data-nosnippet>96</a>
-<a href=#97 id=97 data-nosnippet>97</a><span class="kw">fn </span>listen(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;TcpListener, ServerError&gt; {
-<a href=#98 id=98 data-nosnippet>98</a>    <span class="comment">// Inform the user about a removed feature.
-<a href=#99 id=99 data-nosnippet>99</a>    </span><span class="kw">if </span>config.tls_listen_addr().is_some()
-<a href=#100 id=100 data-nosnippet>100</a>        || config.tls_identity_password().is_some()
-<a href=#101 id=101 data-nosnippet>101</a>        || config.tls_identity_path().is_some()
-<a href=#102 id=102 data-nosnippet>102</a>    {
-<a href=#103 id=103 data-nosnippet>103</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(ServerError::TlsNotSupported);
-<a href=#104 id=104 data-nosnippet>104</a>    }
-<a href=#105 id=105 data-nosnippet>105</a>
-<a href=#106 id=106 data-nosnippet>106</a>    <span class="kw">let </span>addr = config.listen_addr();
-<a href=#107 id=107 data-nosnippet>107</a>    <span class="kw">let </span>socket = <span class="kw">match </span>addr {
-<a href=#108 id=108 data-nosnippet>108</a>        SocketAddr::V4(<span class="kw">_</span>) =&gt; TcpSocket::new_v4(),
-<a href=#109 id=109 data-nosnippet>109</a>        SocketAddr::V6(<span class="kw">_</span>) =&gt; TcpSocket::new_v6(),
-<a href=#110 id=110 data-nosnippet>110</a>    }<span class="question-mark">?</span>;
-<a href=#111 id=111 data-nosnippet>111</a>
-<a href=#112 id=112 data-nosnippet>112</a>    <span class="attr">#[cfg(all(unix, not(target_os = <span class="string">"solaris"</span>), not(target_os = <span class="string">"illumos"</span>)))]
-<a href=#113 id=113 data-nosnippet>113</a>    </span>socket.set_reuseport(<span class="bool-val">true</span>)<span class="question-mark">?</span>;
-<a href=#114 id=114 data-nosnippet>114</a>    socket.bind(addr)<span class="question-mark">?</span>;
-<a href=#115 id=115 data-nosnippet>115</a>    <span class="prelude-val">Ok</span>(socket.listen(config.tcp_listen_backlog())<span class="question-mark">?</span>.into_std()<span class="question-mark">?</span>)
-<a href=#116 id=116 data-nosnippet>116</a>}
+<a href=#88 id=88 data-nosnippet>88</a>    <span class="kw">let </span>router = f(service.config()).layer(middleware).with_state(service);
+<a href=#89 id=89 data-nosnippet>89</a>
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="comment">// Add middlewares that need to run _before_ routing, which need to wrap the router. This are
+<a href=#91 id=91 data-nosnippet>91</a>    // especially middlewares that modify the request path for the router:
+<a href=#92 id=92 data-nosnippet>92</a>    </span>NormalizePath::new(router)
+<a href=#93 id=93 data-nosnippet>93</a>}
+<a href=#94 id=94 data-nosnippet>94</a>
+<a href=#95 id=95 data-nosnippet>95</a><span class="kw">fn </span>listen(addr: SocketAddr, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;TcpListener, ServerError&gt; {
+<a href=#96 id=96 data-nosnippet>96</a>    <span class="kw">let </span>socket = <span class="kw">match </span>addr {
+<a href=#97 id=97 data-nosnippet>97</a>        SocketAddr::V4(<span class="kw">_</span>) =&gt; TcpSocket::new_v4(),
+<a href=#98 id=98 data-nosnippet>98</a>        SocketAddr::V6(<span class="kw">_</span>) =&gt; TcpSocket::new_v6(),
+<a href=#99 id=99 data-nosnippet>99</a>    }<span class="question-mark">?</span>;
+<a href=#100 id=100 data-nosnippet>100</a>
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="attr">#[cfg(all(unix, not(target_os = <span class="string">"solaris"</span>), not(target_os = <span class="string">"illumos"</span>)))]
+<a href=#102 id=102 data-nosnippet>102</a>    </span>socket.set_reuseport(<span class="bool-val">true</span>)<span class="question-mark">?</span>;
+<a href=#103 id=103 data-nosnippet>103</a>    socket.bind(addr)<span class="question-mark">?</span>;
+<a href=#104 id=104 data-nosnippet>104</a>    <span class="prelude-val">Ok</span>(socket.listen(config.tcp_listen_backlog())<span class="question-mark">?</span>.into_std()<span class="question-mark">?</span>)
+<a href=#105 id=105 data-nosnippet>105</a>}
+<a href=#106 id=106 data-nosnippet>106</a>
+<a href=#107 id=107 data-nosnippet>107</a><span class="kw">async fn </span>serve(listener: TcpListener, app: App, config: <span class="kw-2">&amp;</span>Config) -&gt; std::io::Result&lt;()&gt; {
+<a href=#108 id=108 data-nosnippet>108</a>    <span class="kw">let </span>handle = Handle::new();
+<a href=#109 id=109 data-nosnippet>109</a>
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">let </span>acceptor = <span class="self">self</span>::acceptor::RelayAcceptor::new()
+<a href=#111 id=111 data-nosnippet>111</a>        .tcp_keepalive(config.keepalive_timeout(), KEEPALIVE_RETRIES)
+<a href=#112 id=112 data-nosnippet>112</a>        .idle_timeout(config.idle_timeout());
+<a href=#113 id=113 data-nosnippet>113</a>
+<a href=#114 id=114 data-nosnippet>114</a>    <span class="kw">let </span><span class="kw-2">mut </span>server = axum_server::from_tcp(listener)
+<a href=#115 id=115 data-nosnippet>115</a>        .acceptor(acceptor)
+<a href=#116 id=116 data-nosnippet>116</a>        .handle(handle.clone());
 <a href=#117 id=117 data-nosnippet>117</a>
-<a href=#118 id=118 data-nosnippet>118</a><span class="kw">async fn </span>serve(listener: TcpListener, app: App, config: Arc&lt;Config&gt;) {
-<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">let </span>handle = Handle::new();
-<a href=#120 id=120 data-nosnippet>120</a>
-<a href=#121 id=121 data-nosnippet>121</a>    <span class="kw">let </span>acceptor = <span class="self">self</span>::acceptor::RelayAcceptor::new()
-<a href=#122 id=122 data-nosnippet>122</a>        .tcp_keepalive(config.keepalive_timeout(), KEEPALIVE_RETRIES)
-<a href=#123 id=123 data-nosnippet>123</a>        .idle_timeout(config.idle_timeout());
-<a href=#124 id=124 data-nosnippet>124</a>
-<a href=#125 id=125 data-nosnippet>125</a>    <span class="kw">let </span><span class="kw-2">mut </span>server = axum_server::from_tcp(listener)
-<a href=#126 id=126 data-nosnippet>126</a>        .acceptor(acceptor)
-<a href=#127 id=127 data-nosnippet>127</a>        .handle(handle.clone());
-<a href=#128 id=128 data-nosnippet>128</a>
-<a href=#129 id=129 data-nosnippet>129</a>    server
-<a href=#130 id=130 data-nosnippet>130</a>        .http_builder()
-<a href=#131 id=131 data-nosnippet>131</a>        .http1()
-<a href=#132 id=132 data-nosnippet>132</a>        .timer(TokioTimer::new())
-<a href=#133 id=133 data-nosnippet>133</a>        .half_close(<span class="bool-val">true</span>)
-<a href=#134 id=134 data-nosnippet>134</a>        .keep_alive(<span class="bool-val">true</span>)
-<a href=#135 id=135 data-nosnippet>135</a>        .header_read_timeout(CLIENT_HEADER_TIMEOUT)
-<a href=#136 id=136 data-nosnippet>136</a>        .writev(<span class="bool-val">true</span>);
-<a href=#137 id=137 data-nosnippet>137</a>
-<a href=#138 id=138 data-nosnippet>138</a>    server
-<a href=#139 id=139 data-nosnippet>139</a>        .http_builder()
-<a href=#140 id=140 data-nosnippet>140</a>        .http2()
-<a href=#141 id=141 data-nosnippet>141</a>        .timer(TokioTimer::new())
-<a href=#142 id=142 data-nosnippet>142</a>        .keep_alive_timeout(config.keepalive_timeout());
+<a href=#118 id=118 data-nosnippet>118</a>    server
+<a href=#119 id=119 data-nosnippet>119</a>        .http_builder()
+<a href=#120 id=120 data-nosnippet>120</a>        .http1()
+<a href=#121 id=121 data-nosnippet>121</a>        .timer(TokioTimer::new())
+<a href=#122 id=122 data-nosnippet>122</a>        .half_close(<span class="bool-val">true</span>)
+<a href=#123 id=123 data-nosnippet>123</a>        .keep_alive(<span class="bool-val">true</span>)
+<a href=#124 id=124 data-nosnippet>124</a>        .header_read_timeout(CLIENT_HEADER_TIMEOUT)
+<a href=#125 id=125 data-nosnippet>125</a>        .writev(<span class="bool-val">true</span>);
+<a href=#126 id=126 data-nosnippet>126</a>
+<a href=#127 id=127 data-nosnippet>127</a>    server
+<a href=#128 id=128 data-nosnippet>128</a>        .http_builder()
+<a href=#129 id=129 data-nosnippet>129</a>        .http2()
+<a href=#130 id=130 data-nosnippet>130</a>        .timer(TokioTimer::new())
+<a href=#131 id=131 data-nosnippet>131</a>        .keep_alive_timeout(config.keepalive_timeout());
+<a href=#132 id=132 data-nosnippet>132</a>
+<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">let </span>service = ServiceBuilder::new()
+<a href=#134 id=134 data-nosnippet>134</a>        .layer(concurrency_limit::ConcurrencyLimitLayer::new(
+<a href=#135 id=135 data-nosnippet>135</a>            config.max_connections(),
+<a href=#136 id=136 data-nosnippet>136</a>        ))
+<a href=#137 id=137 data-nosnippet>137</a>        .service(ServiceExt::&lt;Request&gt;::into_make_service_with_connect_info::&lt;SocketAddr&gt;(app));
+<a href=#138 id=138 data-nosnippet>138</a>
+<a href=#139 id=139 data-nosnippet>139</a>    <span class="macro">relay_system::spawn!</span>(emit_active_connections_metric(
+<a href=#140 id=140 data-nosnippet>140</a>        config.metrics_periodic_interval(),
+<a href=#141 id=141 data-nosnippet>141</a>        handle.clone(),
+<a href=#142 id=142 data-nosnippet>142</a>    ));
 <a href=#143 id=143 data-nosnippet>143</a>
-<a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">let </span>service = ServiceBuilder::new()
-<a href=#145 id=145 data-nosnippet>145</a>        .layer(concurrency_limit::ConcurrencyLimitLayer::new(
-<a href=#146 id=146 data-nosnippet>146</a>            config.max_connections(),
-<a href=#147 id=147 data-nosnippet>147</a>        ))
-<a href=#148 id=148 data-nosnippet>148</a>        .service(ServiceExt::&lt;Request&gt;::into_make_service_with_connect_info::&lt;SocketAddr&gt;(app));
-<a href=#149 id=149 data-nosnippet>149</a>
-<a href=#150 id=150 data-nosnippet>150</a>    <span class="macro">relay_system::spawn!</span>(emit_active_connections_metric(
-<a href=#151 id=151 data-nosnippet>151</a>        config.metrics_periodic_interval(),
-<a href=#152 id=152 data-nosnippet>152</a>        handle.clone(),
-<a href=#153 id=153 data-nosnippet>153</a>    ));
-<a href=#154 id=154 data-nosnippet>154</a>
-<a href=#155 id=155 data-nosnippet>155</a>    <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
-<a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">let </span>Shutdown { timeout } = Controller::shutdown_handle().notified().<span class="kw">await</span>;
-<a href=#157 id=157 data-nosnippet>157</a>        <span class="macro">relay_log::info!</span>(<span class="string">"Shutting down HTTP server"</span>);
-<a href=#158 id=158 data-nosnippet>158</a>
-<a href=#159 id=159 data-nosnippet>159</a>        <span class="kw">match </span>timeout {
-<a href=#160 id=160 data-nosnippet>160</a>            <span class="prelude-val">Some</span>(timeout) =&gt; handle.graceful_shutdown(<span class="prelude-val">Some</span>(timeout)),
-<a href=#161 id=161 data-nosnippet>161</a>            <span class="prelude-val">None </span>=&gt; handle.shutdown(),
-<a href=#162 id=162 data-nosnippet>162</a>        }
-<a href=#163 id=163 data-nosnippet>163</a>    });
-<a href=#164 id=164 data-nosnippet>164</a>
-<a href=#165 id=165 data-nosnippet>165</a>    server
-<a href=#166 id=166 data-nosnippet>166</a>        .serve(service)
-<a href=#167 id=167 data-nosnippet>167</a>        .<span class="kw">await
-<a href=#168 id=168 data-nosnippet>168</a>        </span>.expect(<span class="string">"failed to start axum server"</span>);
-<a href=#169 id=169 data-nosnippet>169</a>}
-<a href=#170 id=170 data-nosnippet>170</a>
-<a href=#171 id=171 data-nosnippet>171</a><span class="doccomment">/// HTTP server service.
-<a href=#172 id=172 data-nosnippet>172</a>///
-<a href=#173 id=173 data-nosnippet>173</a>/// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
-<a href=#174 id=174 data-nosnippet>174</a>/// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
-<a href=#175 id=175 data-nosnippet>175</a></span><span class="kw">pub struct </span>HttpServer {
-<a href=#176 id=176 data-nosnippet>176</a>    config: Arc&lt;Config&gt;,
-<a href=#177 id=177 data-nosnippet>177</a>    service: ServiceState,
-<a href=#178 id=178 data-nosnippet>178</a>    listener: TcpListener,
-<a href=#179 id=179 data-nosnippet>179</a>}
-<a href=#180 id=180 data-nosnippet>180</a>
-<a href=#181 id=181 data-nosnippet>181</a><span class="kw">impl </span>HttpServer {
-<a href=#182 id=182 data-nosnippet>182</a>    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, service: ServiceState) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
-<a href=#183 id=183 data-nosnippet>183</a>        <span class="kw">let </span>listener = listen(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
-<a href=#184 id=184 data-nosnippet>184</a>
-<a href=#185 id=185 data-nosnippet>185</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
-<a href=#186 id=186 data-nosnippet>186</a>            config,
-<a href=#187 id=187 data-nosnippet>187</a>            service,
-<a href=#188 id=188 data-nosnippet>188</a>            listener,
+<a href=#144 id=144 data-nosnippet>144</a>    <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
+<a href=#145 id=145 data-nosnippet>145</a>        <span class="kw">let </span>Shutdown { timeout } = Controller::shutdown_handle().notified().<span class="kw">await</span>;
+<a href=#146 id=146 data-nosnippet>146</a>        <span class="macro">relay_log::info!</span>(<span class="string">"Shutting down HTTP server"</span>);
+<a href=#147 id=147 data-nosnippet>147</a>
+<a href=#148 id=148 data-nosnippet>148</a>        <span class="kw">match </span>timeout {
+<a href=#149 id=149 data-nosnippet>149</a>            <span class="prelude-val">Some</span>(timeout) =&gt; handle.graceful_shutdown(<span class="prelude-val">Some</span>(timeout)),
+<a href=#150 id=150 data-nosnippet>150</a>            <span class="prelude-val">None </span>=&gt; handle.shutdown(),
+<a href=#151 id=151 data-nosnippet>151</a>        }
+<a href=#152 id=152 data-nosnippet>152</a>    });
+<a href=#153 id=153 data-nosnippet>153</a>
+<a href=#154 id=154 data-nosnippet>154</a>    server.serve(service).<span class="kw">await
+<a href=#155 id=155 data-nosnippet>155</a></span>}
+<a href=#156 id=156 data-nosnippet>156</a>
+<a href=#157 id=157 data-nosnippet>157</a><span class="doccomment">/// HTTP server service.
+<a href=#158 id=158 data-nosnippet>158</a>///
+<a href=#159 id=159 data-nosnippet>159</a>/// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
+<a href=#160 id=160 data-nosnippet>160</a>/// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
+<a href=#161 id=161 data-nosnippet>161</a></span><span class="kw">pub struct </span>HttpServer {
+<a href=#162 id=162 data-nosnippet>162</a>    config: Arc&lt;Config&gt;,
+<a href=#163 id=163 data-nosnippet>163</a>    service: ServiceState,
+<a href=#164 id=164 data-nosnippet>164</a>    listener: TcpListener,
+<a href=#165 id=165 data-nosnippet>165</a>    internal_listener: <span class="prelude-ty">Option</span>&lt;TcpListener&gt;,
+<a href=#166 id=166 data-nosnippet>166</a>}
+<a href=#167 id=167 data-nosnippet>167</a>
+<a href=#168 id=168 data-nosnippet>168</a><span class="kw">impl </span>HttpServer {
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, service: ServiceState) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+<a href=#170 id=170 data-nosnippet>170</a>        <span class="comment">// Inform the user about a removed feature.
+<a href=#171 id=171 data-nosnippet>171</a>        </span><span class="kw">if </span>config.tls_listen_addr().is_some()
+<a href=#172 id=172 data-nosnippet>172</a>            || config.tls_identity_password().is_some()
+<a href=#173 id=173 data-nosnippet>173</a>            || config.tls_identity_path().is_some()
+<a href=#174 id=174 data-nosnippet>174</a>        {
+<a href=#175 id=175 data-nosnippet>175</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(ServerError::TlsNotSupported);
+<a href=#176 id=176 data-nosnippet>176</a>        }
+<a href=#177 id=177 data-nosnippet>177</a>
+<a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">let </span>listener = listen(config.listen_addr(), <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+<a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">let </span>internal_listener = <span class="kw">match </span>config.listen_addr_internal() {
+<a href=#180 id=180 data-nosnippet>180</a>            <span class="prelude-val">Some</span>(addr) =&gt; <span class="prelude-val">Some</span>(listen(addr, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>),
+<a href=#181 id=181 data-nosnippet>181</a>            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#182 id=182 data-nosnippet>182</a>        };
+<a href=#183 id=183 data-nosnippet>183</a>
+<a href=#184 id=184 data-nosnippet>184</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+<a href=#185 id=185 data-nosnippet>185</a>            config,
+<a href=#186 id=186 data-nosnippet>186</a>            service,
+<a href=#187 id=187 data-nosnippet>187</a>            listener,
+<a href=#188 id=188 data-nosnippet>188</a>            internal_listener,
 <a href=#189 id=189 data-nosnippet>189</a>        })
 <a href=#190 id=190 data-nosnippet>190</a>    }
 <a href=#191 id=191 data-nosnippet>191</a>}
@@ -198,26 +198,47 @@
 <a href=#198 id=198 data-nosnippet>198</a>            config,
 <a href=#199 id=199 data-nosnippet>199</a>            service,
 <a href=#200 id=200 data-nosnippet>200</a>            listener,
-<a href=#201 id=201 data-nosnippet>201</a>        } = <span class="self">self</span>;
-<a href=#202 id=202 data-nosnippet>202</a>
-<a href=#203 id=203 data-nosnippet>203</a>        <span class="macro">relay_log::info!</span>(<span class="string">"spawning http server"</span>);
-<a href=#204 id=204 data-nosnippet>204</a>        <span class="macro">relay_log::info!</span>(<span class="string">"  listening on http://{}/"</span>, config.listen_addr());
-<a href=#205 id=205 data-nosnippet>205</a>        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::ServerStarting) += <span class="number">1</span>);
-<a href=#206 id=206 data-nosnippet>206</a>
-<a href=#207 id=207 data-nosnippet>207</a>        <span class="kw">let </span>app = make_app(service);
-<a href=#208 id=208 data-nosnippet>208</a>        serve(listener, app, config).<span class="kw">await</span>;
-<a href=#209 id=209 data-nosnippet>209</a>    }
-<a href=#210 id=210 data-nosnippet>210</a>}
-<a href=#211 id=211 data-nosnippet>211</a>
-<a href=#212 id=212 data-nosnippet>212</a><span class="kw">async fn </span>emit_active_connections_metric(interval: <span class="prelude-ty">Option</span>&lt;Duration&gt;, handle: Handle) {
-<a href=#213 id=213 data-nosnippet>213</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>ticker) = interval.map(tokio::time::interval) <span class="kw">else </span>{
-<a href=#214 id=214 data-nosnippet>214</a>        <span class="kw">return</span>;
-<a href=#215 id=215 data-nosnippet>215</a>    };
+<a href=#201 id=201 data-nosnippet>201</a>            internal_listener,
+<a href=#202 id=202 data-nosnippet>202</a>        } = <span class="self">self</span>;
+<a href=#203 id=203 data-nosnippet>203</a>
+<a href=#204 id=204 data-nosnippet>204</a>        <span class="kw">let </span>listen_addr = config.listen_addr();
+<a href=#205 id=205 data-nosnippet>205</a>
+<a href=#206 id=206 data-nosnippet>206</a>        <span class="macro">relay_log::info!</span>(<span class="string">"spawning http server"</span>);
+<a href=#207 id=207 data-nosnippet>207</a>        <span class="macro">relay_log::info!</span>(<span class="string">"  listening on http://{listen_addr}/"</span>);
+<a href=#208 id=208 data-nosnippet>208</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(internal_addr) = config.listen_addr_internal() {
+<a href=#209 id=209 data-nosnippet>209</a>            <span class="macro">relay_log::info!</span>(<span class="string">"  listening on http://{internal_addr}/ [internal]"</span>);
+<a href=#210 id=210 data-nosnippet>210</a>        }
+<a href=#211 id=211 data-nosnippet>211</a>        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::ServerStarting) += <span class="number">1</span>);
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(internal_listener) = internal_listener {
+<a href=#214 id=214 data-nosnippet>214</a>            <span class="kw">let </span>public = make_app(service.clone(), <span class="kw">crate</span>::endpoints::public_routes);
+<a href=#215 id=215 data-nosnippet>215</a>            <span class="kw">let </span>internal = make_app(service, <span class="kw">crate</span>::endpoints::internal_routes);
 <a href=#216 id=216 data-nosnippet>216</a>
-<a href=#217 id=217 data-nosnippet>217</a>    <span class="kw">loop </span>{
-<a href=#218 id=218 data-nosnippet>218</a>        ticker.tick().<span class="kw">await</span>;
-<a href=#219 id=219 data-nosnippet>219</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#220 id=220 data-nosnippet>220</a>            gauge(RelayGauges::ServerActiveConnections) = handle.connection_count() <span class="kw">as </span>u64
-<a href=#221 id=221 data-nosnippet>221</a>        );
-<a href=#222 id=222 data-nosnippet>222</a>    }
-<a href=#223 id=223 data-nosnippet>223</a>}</code></pre></div></section></main></body></html>
+<a href=#217 id=217 data-nosnippet>217</a>            <span class="macro">tokio::try_join!</span>(
+<a href=#218 id=218 data-nosnippet>218</a>                serve(listener, public, <span class="kw-2">&amp;</span>config),
+<a href=#219 id=219 data-nosnippet>219</a>                serve(internal_listener, internal, <span class="kw-2">&amp;</span>config),
+<a href=#220 id=220 data-nosnippet>220</a>            )
+<a href=#221 id=221 data-nosnippet>221</a>            .map(drop)
+<a href=#222 id=222 data-nosnippet>222</a>        } <span class="kw">else </span>{
+<a href=#223 id=223 data-nosnippet>223</a>            <span class="kw">let </span>app = make_app(service, <span class="kw">crate</span>::endpoints::all_routes);
+<a href=#224 id=224 data-nosnippet>224</a>            serve(listener, app, <span class="kw-2">&amp;</span>config).<span class="kw">await
+<a href=#225 id=225 data-nosnippet>225</a>        </span>}
+<a href=#226 id=226 data-nosnippet>226</a>        .expect(<span class="string">"axum listener to not fail"</span>)
+<a href=#227 id=227 data-nosnippet>227</a>    }
+<a href=#228 id=228 data-nosnippet>228</a>}
+<a href=#229 id=229 data-nosnippet>229</a>
+<a href=#230 id=230 data-nosnippet>230</a><span class="kw">async fn </span>emit_active_connections_metric(interval: <span class="prelude-ty">Option</span>&lt;Duration&gt;, handle: Handle) {
+<a href=#231 id=231 data-nosnippet>231</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>ticker) = interval.map(tokio::time::interval) <span class="kw">else </span>{
+<a href=#232 id=232 data-nosnippet>232</a>        <span class="kw">return</span>;
+<a href=#233 id=233 data-nosnippet>233</a>    };
+<a href=#234 id=234 data-nosnippet>234</a>
+<a href=#235 id=235 data-nosnippet>235</a>    <span class="kw">let </span>addr = handle.listening().<span class="kw">await</span>.map(|addr| addr.to_string());
+<a href=#236 id=236 data-nosnippet>236</a>
+<a href=#237 id=237 data-nosnippet>237</a>    <span class="kw">loop </span>{
+<a href=#238 id=238 data-nosnippet>238</a>        ticker.tick().<span class="kw">await</span>;
+<a href=#239 id=239 data-nosnippet>239</a>        <span class="macro">relay_statsd::metric!</span>(
+<a href=#240 id=240 data-nosnippet>240</a>            gauge(RelayGauges::ServerActiveConnections) = handle.connection_count() <span class="kw">as </span>u64,
+<a href=#241 id=241 data-nosnippet>241</a>            addr = addr.as_deref().unwrap_or(<span class="string">"unknown"</span>),
+<a href=#242 id=242 data-nosnippet>242</a>        );
+<a href=#243 id=243 data-nosnippet>243</a>    }
+<a href=#244 id=244 data-nosnippet>244</a>}</code></pre></div></section></main></body></html>
