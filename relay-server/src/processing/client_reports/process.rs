@@ -13,7 +13,7 @@ use relay_system::Addr;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::managed::Managed;
-use crate::processing::client_reports::SerializedClientReport;
+use crate::processing::client_reports::SerializedClientReports;
 use crate::services::outcome::{Outcome, RuleCategories, TrackOutcome};
 use crate::services::processor::MINIMUM_CLOCK_DRIFT;
 use crate::services::projects::project::ProjectInfo;
@@ -40,7 +40,7 @@ pub enum ClientReportField {
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
 pub fn process_client_reports(
-    client_reports: &mut Managed<SerializedClientReport>,
+    client_reports: &mut Managed<SerializedClientReports>,
     config: &Config,
     project_info: &ProjectInfo,
     outcome_aggregator: &Addr<TrackOutcome>,

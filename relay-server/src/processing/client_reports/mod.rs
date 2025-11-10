@@ -24,7 +24,7 @@ impl ClientReportsProcessor {
 }
 
 impl processing::Processor for ClientReportsProcessor {
-    type UnitOfWork = SerializedClientReport;
+    type UnitOfWork = SerializedClientReports;
     type Output = Nothing;
     type Error = Error;
 
@@ -39,7 +39,7 @@ impl processing::Processor for ClientReportsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::ClientReport))
             .into_vec();
 
-        let work = SerializedClientReport {
+        let work = SerializedClientReports {
             headers,
             client_reports,
         };
@@ -64,7 +64,7 @@ impl processing::Processor for ClientReportsProcessor {
 
 /// Client-Reports in their serialized state, as transported in an envelope.
 #[derive(Debug)]
-pub struct SerializedClientReport {
+pub struct SerializedClientReports {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
@@ -74,7 +74,7 @@ pub struct SerializedClientReport {
     client_reports: Vec<Item>,
 }
 
-impl Counted for SerializedClientReport {
+impl Counted for SerializedClientReports {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![]
     }
