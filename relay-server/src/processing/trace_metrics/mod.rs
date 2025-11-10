@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::sync::Arc;
 
 use relay_event_schema::processor::ProcessingAction;
