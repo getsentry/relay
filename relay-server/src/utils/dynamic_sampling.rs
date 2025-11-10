@@ -2,8 +2,6 @@
 use std::ops::ControlFlow;
 
 use chrono::Utc;
-use relay_base_schema::events::EventType;
-use relay_event_schema::protocol::Event;
 use relay_sampling::config::{RuleType, SamplingConfig};
 use relay_sampling::dsc::DynamicSamplingContext;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator, SamplingMatch};
@@ -98,6 +96,8 @@ pub async fn is_trace_fully_sampled(
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::events::EventType;
+    use relay_event_schema::protocol::Event;
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
