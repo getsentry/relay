@@ -76,9 +76,8 @@ jobs:
           # we just cache the venv-dir directly in action-setup-venv
           enable-cache: false
 
-      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
+      - uses: getsentry/action-setup-venv@0958463ee0e02b9e8aa8f8e031afae1f84b80881 # v3.0.0
         with:
-          python-version: 3.11.9
           cache-dependency-path: uv.lock
           install-cmd: uv sync --frozen --only-dev --active
 
@@ -112,16 +111,13 @@ jobs:
           # we just cache the venv-dir directly in action-setup-venv
           enable-cache: false
 
-      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
+      - uses: getsentry/action-setup-venv@0958463ee0e02b9e8aa8f8e031afae1f84b80881 # v3.0.0
         with:
-          python-version: 3.11.9
           cache-dependency-path: uv.lock
           install-cmd: uv sync --frozen --only-dev --active
 
       - name: Build sdist
-        run: |
-          pip install setuptools
-          python setup.py sdist
+        run: python setup.py sdist
         working-directory: py
 
       - uses: actions/upload-artifact@v5

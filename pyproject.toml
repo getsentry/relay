@@ -45,7 +45,7 @@ dev = [
     "zstandard>=0.18.0",
 
     # used for ci build_library
-    "setuptools>=78.1.1",
+    "setuptools==65.5.1",
     "wheel>=0.42.0",
     "milksnake>=0.1.6",
 ]
