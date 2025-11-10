@@ -1,17 +1,13 @@
 use std::error::Error;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::managed::RecordKeeper;
 use crate::processing::utils::event::{EventMetricsExtracted, SpansExtracted, event_type};
-use crate::services::outcome::{DiscardReason, Outcome};
 
-use crate::services::projects::project::ProjectInfo;
 use crate::{processing, utils};
-use chrono::DateTime;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
-use relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2};
+use relay_event_schema::protocol::{Event, Measurement, Measurements, Span};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit};
 use relay_protocol::{Annotated, Empty};
 use relay_sampling::DynamicSamplingContext;
@@ -258,6 +254,7 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
+    use chrono::DateTime;
     use relay_dynamic_config::GlobalConfig;
     use relay_event_schema::protocol::{
         Context, ContextInner, Contexts, Span, Timestamp, TraceContext,
@@ -267,6 +264,7 @@ mod tests {
     use crate::Envelope;
     use crate::managed::{ManagedEnvelope, TypedEnvelope};
     use crate::services::processor::{ProcessingGroup, TransactionGroup};
+    use crate::services::projects::project::ProjectInfo;
 
     use super::*;
 

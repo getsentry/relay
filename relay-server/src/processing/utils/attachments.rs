@@ -7,16 +7,8 @@ use relay_statsd::metric;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::statsd::RelayTimers;
 
-use crate::managed::TypedEnvelope;
 use crate::services::projects::project::ProjectInfo;
 use relay_dynamic_config::Feature;
-#[cfg(feature = "processing")]
-use {
-    crate::services::processor::ErrorGroup,
-    crate::utils,
-    relay_event_schema::protocol::{Event, Metrics},
-    relay_protocol::Annotated,
-};
 
 /// Apply data privacy rules to attachments in the envelope.
 ///

@@ -2,18 +2,16 @@
 use relay_dynamic_config::{Feature, GlobalConfig};
 use std::net::IpAddr;
 
-use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
-use relay_profiling::{ProfileError, ProfileId};
+use relay_profiling::ProfileId;
 use relay_protocol::Annotated;
 #[cfg(feature = "processing")]
 use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{Counted, Managed};
-use crate::processing::transactions::Error;
 use crate::processing::{Context, CountRateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -58,7 +56,6 @@ pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) 
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-#[must_use]
 pub fn process(
     profile: &mut Item,
     client_ip: Option<IpAddr>,
@@ -157,6 +154,7 @@ fn expand_profile(
 mod tests {
     use super::*;
     use chrono::{Duration, TimeZone, Utc};
+    use relay_base_schema::events::EventType;
     use relay_event_schema::protocol::EventId;
     use relay_protocol::get_value;
     use uuid::Uuid;

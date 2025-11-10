@@ -15,9 +15,7 @@ use relay_system::Addr;
 use smallvec::SmallVec;
 
 use crate::Envelope;
-use crate::envelope::Item;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
-use crate::processing::CountRateLimited;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
 
@@ -585,6 +583,7 @@ impl<T: Counted + fmt::Debug> fmt::Debug for Managed<T> {
 }
 
 impl<T: Counted> Managed<Option<T>> {
+    /// Turns a managed option into an optional [`Managed`].
     pub fn transpose(self) -> Option<Managed<T>> {
         let (o, meta) = self.destructure();
         o.map(|t| Managed::from_parts(t, meta))

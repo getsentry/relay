@@ -18,7 +18,6 @@ use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::transactions::profile::Profile;
-use crate::processing::utils::attachments;
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -85,6 +84,7 @@ impl OutcomeError for Error {
 }
 
 /// A processor for transactions.
+#[expect(unused)]
 pub struct TransactionProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: GeoIpLookup,
@@ -148,7 +148,7 @@ impl Processor for TransactionProcessor {
     ) -> Result<super::Output<Self::Output>, Rejected<Self::Error>> {
         let project_id = work.scoping().project_id;
         let transaction = work.transaction.as_ref();
-        let mut flags = Flags {
+        let flags = Flags {
             metrics_extracted: transaction.is_some_and(|i| i.metrics_extracted()),
             spans_extracted: transaction.is_some_and(|i| i.spans_extracted()),
             fully_normalized: work.headers.meta().request_trust().is_trusted()
@@ -231,7 +231,7 @@ impl Processor for TransactionProcessor {
                 work.attachments.iter(),
                 &mut metrics,
                 &ctx.config,
-            );
+            )?;
 
             work.flags.fully_normalized = utils::event::normalize(
                 &work.headers,
@@ -315,7 +315,7 @@ impl Processor for TransactionProcessor {
                 )?
                 .0;
                 Ok::<_, Error>(())
-            });
+            })?;
 
             // .map_err(Error::ProcessingFailed)
             // .reject(&work)?;
@@ -354,7 +354,7 @@ impl Processor for TransactionProcessor {
             utils::event::scrub(&mut work.transaction.0, ctx.project_info)?;
             utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
             Ok::<_, Error>(())
-        });
+        })?;
 
         if cfg!(feature = "processing") && ctx.config.processing_enabled() {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
@@ -416,7 +416,7 @@ impl Processor for TransactionProcessor {
                 }
 
                 Ok::<_, Error>(())
-            });
+            })?;
         }
 
         self.limiter.enforce_quotas(&mut work, ctx).await?;
