@@ -269,383 +269,394 @@
 <a href=#269 id=269 data-nosnippet>269</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>build_redis_configs(
 <a href=#270 id=270 data-nosnippet>270</a>    configs: <span class="kw-2">&amp;</span>RedisConfigs,
 <a href=#271 id=271 data-nosnippet>271</a>    cpu_concurrency: u32,
-<a href=#272 id=272 data-nosnippet>272</a>) -&gt; RedisConfigsRef&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#273 id=273 data-nosnippet>273</a>    <span class="comment">// The default number of connections is twice the concurrency since we are using async Redis
-<a href=#274 id=274 data-nosnippet>274</a>    // so a single thread might be doing more I/O concurrently.
-<a href=#275 id=275 data-nosnippet>275</a>    </span><span class="kw">let </span>default_connections = std::cmp::max(cpu_concurrency * <span class="number">2</span>, DEFAULT_MIN_MAX_CONNECTIONS);
-<a href=#276 id=276 data-nosnippet>276</a>
-<a href=#277 id=277 data-nosnippet>277</a>    <span class="kw">match </span>configs {
-<a href=#278 id=278 data-nosnippet>278</a>        RedisConfigs::Unified(cfg) =&gt; {
-<a href=#279 id=279 data-nosnippet>279</a>            <span class="kw">let </span>config = build_redis_config(cfg, default_connections);
-<a href=#280 id=280 data-nosnippet>280</a>            RedisConfigsRef::Unified(config)
-<a href=#281 id=281 data-nosnippet>281</a>        }
-<a href=#282 id=282 data-nosnippet>282</a>        RedisConfigs::Individual {
-<a href=#283 id=283 data-nosnippet>283</a>            project_configs,
-<a href=#284 id=284 data-nosnippet>284</a>            cardinality,
-<a href=#285 id=285 data-nosnippet>285</a>            quotas,
-<a href=#286 id=286 data-nosnippet>286</a>        } =&gt; {
-<a href=#287 id=287 data-nosnippet>287</a>            <span class="kw">let </span>project_configs = build_redis_config(project_configs, default_connections);
-<a href=#288 id=288 data-nosnippet>288</a>            <span class="kw">let </span>cardinality = build_redis_config(cardinality, default_connections);
-<a href=#289 id=289 data-nosnippet>289</a>            <span class="kw">let </span>quotas = build_redis_config(quotas, default_connections);
-<a href=#290 id=290 data-nosnippet>290</a>            RedisConfigsRef::Individual {
-<a href=#291 id=291 data-nosnippet>291</a>                project_configs,
-<a href=#292 id=292 data-nosnippet>292</a>                cardinality,
-<a href=#293 id=293 data-nosnippet>293</a>                quotas,
-<a href=#294 id=294 data-nosnippet>294</a>            }
-<a href=#295 id=295 data-nosnippet>295</a>        }
-<a href=#296 id=296 data-nosnippet>296</a>    }
-<a href=#297 id=297 data-nosnippet>297</a>}
-<a href=#298 id=298 data-nosnippet>298</a>
-<a href=#299 id=299 data-nosnippet>299</a><span class="attr">#[cfg(test)]
-<a href=#300 id=300 data-nosnippet>300</a></span><span class="kw">mod </span>tests {
-<a href=#301 id=301 data-nosnippet>301</a>    <span class="kw">use </span>insta::assert_json_snapshot;
-<a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#304 id=304 data-nosnippet>304</a>
-<a href=#305 id=305 data-nosnippet>305</a>    <span class="attr">#[test]
-<a href=#306 id=306 data-nosnippet>306</a>    </span><span class="kw">fn </span>test_redis_single_opts() {
-<a href=#307 id=307 data-nosnippet>307</a>        <span class="kw">let </span>yaml = <span class="string">r#"
-<a href=#308 id=308 data-nosnippet>308</a>server: "redis://127.0.0.1:6379"
-<a href=#309 id=309 data-nosnippet>309</a>max_connections: 42
-<a href=#310 id=310 data-nosnippet>310</a>connection_timeout: 5
-<a href=#311 id=311 data-nosnippet>311</a>"#</span>;
-<a href=#312 id=312 data-nosnippet>312</a>
-<a href=#313 id=313 data-nosnippet>313</a>        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
-<a href=#314 id=314 data-nosnippet>314</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
+<a href=#272 id=272 data-nosnippet>272</a>    pool_concurrency: u32,
+<a href=#273 id=273 data-nosnippet>273</a>) -&gt; RedisConfigsRef&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#274 id=274 data-nosnippet>274</a>    <span class="comment">// Project configurations are estimated to need around or less of `cpu_concurrency`
+<a href=#275 id=275 data-nosnippet>275</a>    // connections, double this value for some extra headroom.
+<a href=#276 id=276 data-nosnippet>276</a>    //
+<a href=#277 id=277 data-nosnippet>277</a>    // For smaller setups give some extra headroom through `DEFAULT_MIN_MAX_CONNECTIONS`.
+<a href=#278 id=278 data-nosnippet>278</a>    </span><span class="kw">let </span>project_connections = std::cmp::max(cpu_concurrency * <span class="number">2</span>, DEFAULT_MIN_MAX_CONNECTIONS);
+<a href=#279 id=279 data-nosnippet>279</a>    <span class="comment">// The total concurrency for rate limiting/processing is the total pool concurrency
+<a href=#280 id=280 data-nosnippet>280</a>    // calculated by `cpu_concurrency * pool_concurrency`.
+<a href=#281 id=281 data-nosnippet>281</a>    //
+<a href=#282 id=282 data-nosnippet>282</a>    // No need to consider `DEFAULT_MIN_MAX_CONNECTIONS`, as these numbers are accurate.
+<a href=#283 id=283 data-nosnippet>283</a>    </span><span class="kw">let </span>total_pool_concurrency = cpu_concurrency * pool_concurrency;
+<a href=#284 id=284 data-nosnippet>284</a>
+<a href=#285 id=285 data-nosnippet>285</a>    <span class="kw">match </span>configs {
+<a href=#286 id=286 data-nosnippet>286</a>        RedisConfigs::Unified(cfg) =&gt; {
+<a href=#287 id=287 data-nosnippet>287</a>            <span class="comment">// A unified pool needs enough connections for project configs and enough to satisfy
+<a href=#288 id=288 data-nosnippet>288</a>            // the processing pool.
+<a href=#289 id=289 data-nosnippet>289</a>            </span><span class="kw">let </span>default_connections = total_pool_concurrency + project_connections;
+<a href=#290 id=290 data-nosnippet>290</a>            <span class="kw">let </span>config = build_redis_config(cfg, default_connections);
+<a href=#291 id=291 data-nosnippet>291</a>            RedisConfigsRef::Unified(config)
+<a href=#292 id=292 data-nosnippet>292</a>        }
+<a href=#293 id=293 data-nosnippet>293</a>        RedisConfigs::Individual {
+<a href=#294 id=294 data-nosnippet>294</a>            project_configs,
+<a href=#295 id=295 data-nosnippet>295</a>            cardinality,
+<a href=#296 id=296 data-nosnippet>296</a>            quotas,
+<a href=#297 id=297 data-nosnippet>297</a>        } =&gt; {
+<a href=#298 id=298 data-nosnippet>298</a>            <span class="kw">let </span>project_configs = build_redis_config(project_configs, project_connections);
+<a href=#299 id=299 data-nosnippet>299</a>            <span class="kw">let </span>cardinality = build_redis_config(cardinality, total_pool_concurrency);
+<a href=#300 id=300 data-nosnippet>300</a>            <span class="kw">let </span>quotas = build_redis_config(quotas, total_pool_concurrency);
+<a href=#301 id=301 data-nosnippet>301</a>            RedisConfigsRef::Individual {
+<a href=#302 id=302 data-nosnippet>302</a>                project_configs,
+<a href=#303 id=303 data-nosnippet>303</a>                cardinality,
+<a href=#304 id=304 data-nosnippet>304</a>                quotas,
+<a href=#305 id=305 data-nosnippet>305</a>            }
+<a href=#306 id=306 data-nosnippet>306</a>        }
+<a href=#307 id=307 data-nosnippet>307</a>    }
+<a href=#308 id=308 data-nosnippet>308</a>}
+<a href=#309 id=309 data-nosnippet>309</a>
+<a href=#310 id=310 data-nosnippet>310</a><span class="attr">#[cfg(test)]
+<a href=#311 id=311 data-nosnippet>311</a></span><span class="kw">mod </span>tests {
+<a href=#312 id=312 data-nosnippet>312</a>    <span class="kw">use </span>insta::assert_json_snapshot;
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#315 id=315 data-nosnippet>315</a>
-<a href=#316 id=316 data-nosnippet>316</a>        <span class="macro">assert_eq!</span>(
-<a href=#317 id=317 data-nosnippet>317</a>            config,
-<a href=#318 id=318 data-nosnippet>318</a>            RedisConfig::Single(SingleRedisConfig::Detailed {
-<a href=#319 id=319 data-nosnippet>319</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#320 id=320 data-nosnippet>320</a>                options: PartialRedisConfigOptions {
-<a href=#321 id=321 data-nosnippet>321</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
-<a href=#322 id=322 data-nosnippet>322</a>                    ..Default::default()
-<a href=#323 id=323 data-nosnippet>323</a>                }
-<a href=#324 id=324 data-nosnippet>324</a>            })
-<a href=#325 id=325 data-nosnippet>325</a>        );
-<a href=#326 id=326 data-nosnippet>326</a>    }
-<a href=#327 id=327 data-nosnippet>327</a>
-<a href=#328 id=328 data-nosnippet>328</a>    <span class="attr">#[test]
-<a href=#329 id=329 data-nosnippet>329</a>    </span><span class="kw">fn </span>test_redis_single_opts_unified() {
-<a href=#330 id=330 data-nosnippet>330</a>        <span class="kw">let </span>yaml = <span class="string">r#"
-<a href=#331 id=331 data-nosnippet>331</a>server: "redis://127.0.0.1:6379"
-<a href=#332 id=332 data-nosnippet>332</a>max_connections: 42
-<a href=#333 id=333 data-nosnippet>333</a>connection_timeout: 5
-<a href=#334 id=334 data-nosnippet>334</a>"#</span>;
-<a href=#335 id=335 data-nosnippet>335</a>
-<a href=#336 id=336 data-nosnippet>336</a>        <span class="kw">let </span>config: RedisConfigs = serde_yaml::from_str(yaml)
-<a href=#337 id=337 data-nosnippet>337</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
+<a href=#316 id=316 data-nosnippet>316</a>    <span class="attr">#[test]
+<a href=#317 id=317 data-nosnippet>317</a>    </span><span class="kw">fn </span>test_redis_single_opts() {
+<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">let </span>yaml = <span class="string">r#"
+<a href=#319 id=319 data-nosnippet>319</a>server: "redis://127.0.0.1:6379"
+<a href=#320 id=320 data-nosnippet>320</a>max_connections: 42
+<a href=#321 id=321 data-nosnippet>321</a>connection_timeout: 5
+<a href=#322 id=322 data-nosnippet>322</a>"#</span>;
+<a href=#323 id=323 data-nosnippet>323</a>
+<a href=#324 id=324 data-nosnippet>324</a>        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
+<a href=#325 id=325 data-nosnippet>325</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
+<a href=#326 id=326 data-nosnippet>326</a>
+<a href=#327 id=327 data-nosnippet>327</a>        <span class="macro">assert_eq!</span>(
+<a href=#328 id=328 data-nosnippet>328</a>            config,
+<a href=#329 id=329 data-nosnippet>329</a>            RedisConfig::Single(SingleRedisConfig::Detailed {
+<a href=#330 id=330 data-nosnippet>330</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#331 id=331 data-nosnippet>331</a>                options: PartialRedisConfigOptions {
+<a href=#332 id=332 data-nosnippet>332</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
+<a href=#333 id=333 data-nosnippet>333</a>                    ..Default::default()
+<a href=#334 id=334 data-nosnippet>334</a>                }
+<a href=#335 id=335 data-nosnippet>335</a>            })
+<a href=#336 id=336 data-nosnippet>336</a>        );
+<a href=#337 id=337 data-nosnippet>337</a>    }
 <a href=#338 id=338 data-nosnippet>338</a>
-<a href=#339 id=339 data-nosnippet>339</a>        <span class="macro">assert_eq!</span>(
-<a href=#340 id=340 data-nosnippet>340</a>            config,
-<a href=#341 id=341 data-nosnippet>341</a>            RedisConfigs::Unified(RedisConfig::Single(SingleRedisConfig::Detailed {
-<a href=#342 id=342 data-nosnippet>342</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#343 id=343 data-nosnippet>343</a>                options: PartialRedisConfigOptions {
-<a href=#344 id=344 data-nosnippet>344</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
-<a href=#345 id=345 data-nosnippet>345</a>                    ..Default::default()
-<a href=#346 id=346 data-nosnippet>346</a>                }
-<a href=#347 id=347 data-nosnippet>347</a>            }))
-<a href=#348 id=348 data-nosnippet>348</a>        );
-<a href=#349 id=349 data-nosnippet>349</a>    }
-<a href=#350 id=350 data-nosnippet>350</a>
-<a href=#351 id=351 data-nosnippet>351</a>    <span class="attr">#[test]
-<a href=#352 id=352 data-nosnippet>352</a>    </span><span class="kw">fn </span>test_redis_individual() {
-<a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">let </span>yaml = <span class="string">r#"
-<a href=#354 id=354 data-nosnippet>354</a>project_configs:
-<a href=#355 id=355 data-nosnippet>355</a>    server: "redis://127.0.0.1:6379"
-<a href=#356 id=356 data-nosnippet>356</a>    max_connections: 42
-<a href=#357 id=357 data-nosnippet>357</a>cardinality:
-<a href=#358 id=358 data-nosnippet>358</a>    server: "redis://127.0.0.1:6379"
-<a href=#359 id=359 data-nosnippet>359</a>quotas:
-<a href=#360 id=360 data-nosnippet>360</a>    cluster_nodes:
-<a href=#361 id=361 data-nosnippet>361</a>        - "redis://127.0.0.1:6379"
-<a href=#362 id=362 data-nosnippet>362</a>        - "redis://127.0.0.2:6379"
-<a href=#363 id=363 data-nosnippet>363</a>    max_connections: 17
-<a href=#364 id=364 data-nosnippet>364</a>"#</span>;
-<a href=#365 id=365 data-nosnippet>365</a>
-<a href=#366 id=366 data-nosnippet>366</a>        <span class="kw">let </span>configs: RedisConfigs = serde_yaml::from_str(yaml)
-<a href=#367 id=367 data-nosnippet>367</a>            .expect(<span class="string">"Parsed processing redis configs: single with options"</span>);
-<a href=#368 id=368 data-nosnippet>368</a>
-<a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">let </span>expected = RedisConfigs::Individual {
-<a href=#370 id=370 data-nosnippet>370</a>            project_configs: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
-<a href=#371 id=371 data-nosnippet>371</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#372 id=372 data-nosnippet>372</a>                options: PartialRedisConfigOptions {
-<a href=#373 id=373 data-nosnippet>373</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
-<a href=#374 id=374 data-nosnippet>374</a>                    ..Default::default()
-<a href=#375 id=375 data-nosnippet>375</a>                },
-<a href=#376 id=376 data-nosnippet>376</a>            })),
-<a href=#377 id=377 data-nosnippet>377</a>            cardinality: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
-<a href=#378 id=378 data-nosnippet>378</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#379 id=379 data-nosnippet>379</a>                options: Default::default(),
-<a href=#380 id=380 data-nosnippet>380</a>            })),
-<a href=#381 id=381 data-nosnippet>381</a>            quotas: Box::new(RedisConfig::Cluster {
-<a href=#382 id=382 data-nosnippet>382</a>                cluster_nodes: <span class="macro">vec!</span>[
-<a href=#383 id=383 data-nosnippet>383</a>                    <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#384 id=384 data-nosnippet>384</a>                    <span class="string">"redis://127.0.0.2:6379"</span>.to_owned(),
-<a href=#385 id=385 data-nosnippet>385</a>                ],
-<a href=#386 id=386 data-nosnippet>386</a>                options: PartialRedisConfigOptions {
-<a href=#387 id=387 data-nosnippet>387</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-<a href=#388 id=388 data-nosnippet>388</a>                    ..Default::default()
-<a href=#389 id=389 data-nosnippet>389</a>                },
-<a href=#390 id=390 data-nosnippet>390</a>            }),
-<a href=#391 id=391 data-nosnippet>391</a>        };
-<a href=#392 id=392 data-nosnippet>392</a>
-<a href=#393 id=393 data-nosnippet>393</a>        <span class="macro">assert_eq!</span>(configs, expected);
-<a href=#394 id=394 data-nosnippet>394</a>    }
-<a href=#395 id=395 data-nosnippet>395</a>
-<a href=#396 id=396 data-nosnippet>396</a>    <span class="attr">#[test]
-<a href=#397 id=397 data-nosnippet>397</a>    </span><span class="kw">fn </span>test_redis_single_serialize() {
-<a href=#398 id=398 data-nosnippet>398</a>        <span class="kw">let </span>config = RedisConfig::Single(SingleRedisConfig::Detailed {
-<a href=#399 id=399 data-nosnippet>399</a>            server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#400 id=400 data-nosnippet>400</a>            options: PartialRedisConfigOptions {
-<a href=#401 id=401 data-nosnippet>401</a>                max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
-<a href=#402 id=402 data-nosnippet>402</a>                ..Default::default()
-<a href=#403 id=403 data-nosnippet>403</a>            },
-<a href=#404 id=404 data-nosnippet>404</a>        });
-<a href=#405 id=405 data-nosnippet>405</a>
-<a href=#406 id=406 data-nosnippet>406</a>        <span class="macro">assert_json_snapshot!</span>(config, @<span class="string">r###"
-<a href=#407 id=407 data-nosnippet>407</a>        {
-<a href=#408 id=408 data-nosnippet>408</a>          "server": "redis://127.0.0.1:6379",
-<a href=#409 id=409 data-nosnippet>409</a>          "max_connections": 42,
-<a href=#410 id=410 data-nosnippet>410</a>          "idle_timeout": 60,
-<a href=#411 id=411 data-nosnippet>411</a>          "create_timeout": 3,
-<a href=#412 id=412 data-nosnippet>412</a>          "recycle_timeout": 2,
-<a href=#413 id=413 data-nosnippet>413</a>          "response_timeout": 30,
-<a href=#414 id=414 data-nosnippet>414</a>          "recycle_check_frequency": 100
-<a href=#415 id=415 data-nosnippet>415</a>        }
-<a href=#416 id=416 data-nosnippet>416</a>        "###</span>);
-<a href=#417 id=417 data-nosnippet>417</a>    }
-<a href=#418 id=418 data-nosnippet>418</a>
-<a href=#419 id=419 data-nosnippet>419</a>    <span class="attr">#[test]
-<a href=#420 id=420 data-nosnippet>420</a>    </span><span class="kw">fn </span>test_redis_single_serialize_unified() {
-<a href=#421 id=421 data-nosnippet>421</a>        <span class="kw">let </span>configs = RedisConfigs::Unified(RedisConfig::Single(SingleRedisConfig::Detailed {
-<a href=#422 id=422 data-nosnippet>422</a>            server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#423 id=423 data-nosnippet>423</a>            options: PartialRedisConfigOptions {
-<a href=#424 id=424 data-nosnippet>424</a>                max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
-<a href=#425 id=425 data-nosnippet>425</a>                ..Default::default()
-<a href=#426 id=426 data-nosnippet>426</a>            },
-<a href=#427 id=427 data-nosnippet>427</a>        }));
-<a href=#428 id=428 data-nosnippet>428</a>
-<a href=#429 id=429 data-nosnippet>429</a>        <span class="macro">assert_json_snapshot!</span>(configs, @<span class="string">r###"
-<a href=#430 id=430 data-nosnippet>430</a>        {
-<a href=#431 id=431 data-nosnippet>431</a>          "server": "redis://127.0.0.1:6379",
-<a href=#432 id=432 data-nosnippet>432</a>          "max_connections": 42,
-<a href=#433 id=433 data-nosnippet>433</a>          "idle_timeout": 60,
-<a href=#434 id=434 data-nosnippet>434</a>          "create_timeout": 3,
-<a href=#435 id=435 data-nosnippet>435</a>          "recycle_timeout": 2,
-<a href=#436 id=436 data-nosnippet>436</a>          "response_timeout": 30,
-<a href=#437 id=437 data-nosnippet>437</a>          "recycle_check_frequency": 100
-<a href=#438 id=438 data-nosnippet>438</a>        }
-<a href=#439 id=439 data-nosnippet>439</a>        "###</span>);
-<a href=#440 id=440 data-nosnippet>440</a>    }
-<a href=#441 id=441 data-nosnippet>441</a>
-<a href=#442 id=442 data-nosnippet>442</a>    <span class="attr">#[test]
-<a href=#443 id=443 data-nosnippet>443</a>    </span><span class="kw">fn </span>test_redis_single_opts_default() {
-<a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">let </span>yaml = <span class="string">r#"
-<a href=#445 id=445 data-nosnippet>445</a>server: "redis://127.0.0.1:6379"
-<a href=#446 id=446 data-nosnippet>446</a>"#</span>;
-<a href=#447 id=447 data-nosnippet>447</a>
-<a href=#448 id=448 data-nosnippet>448</a>        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
-<a href=#449 id=449 data-nosnippet>449</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
-<a href=#450 id=450 data-nosnippet>450</a>
-<a href=#451 id=451 data-nosnippet>451</a>        <span class="macro">assert_eq!</span>(
-<a href=#452 id=452 data-nosnippet>452</a>            config,
-<a href=#453 id=453 data-nosnippet>453</a>            RedisConfig::Single(SingleRedisConfig::Detailed {
-<a href=#454 id=454 data-nosnippet>454</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#455 id=455 data-nosnippet>455</a>                options: Default::default()
-<a href=#456 id=456 data-nosnippet>456</a>            })
-<a href=#457 id=457 data-nosnippet>457</a>        );
-<a href=#458 id=458 data-nosnippet>458</a>    }
-<a href=#459 id=459 data-nosnippet>459</a>
-<a href=#460 id=460 data-nosnippet>460</a>    <span class="comment">// To make sure that we have backwards compatibility and still support the redis configuration
-<a href=#461 id=461 data-nosnippet>461</a>    // when the single `redis://...` address is provided.
-<a href=#462 id=462 data-nosnippet>462</a>    </span><span class="attr">#[test]
-<a href=#463 id=463 data-nosnippet>463</a>    </span><span class="kw">fn </span>test_redis_single() {
-<a href=#464 id=464 data-nosnippet>464</a>        <span class="kw">let </span>yaml = <span class="string">r#"
-<a href=#465 id=465 data-nosnippet>465</a>"redis://127.0.0.1:6379"
-<a href=#466 id=466 data-nosnippet>466</a>"#</span>;
-<a href=#467 id=467 data-nosnippet>467</a>
-<a href=#468 id=468 data-nosnippet>468</a>        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
-<a href=#469 id=469 data-nosnippet>469</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
+<a href=#339 id=339 data-nosnippet>339</a>    <span class="attr">#[test]
+<a href=#340 id=340 data-nosnippet>340</a>    </span><span class="kw">fn </span>test_redis_single_opts_unified() {
+<a href=#341 id=341 data-nosnippet>341</a>        <span class="kw">let </span>yaml = <span class="string">r#"
+<a href=#342 id=342 data-nosnippet>342</a>server: "redis://127.0.0.1:6379"
+<a href=#343 id=343 data-nosnippet>343</a>max_connections: 42
+<a href=#344 id=344 data-nosnippet>344</a>connection_timeout: 5
+<a href=#345 id=345 data-nosnippet>345</a>"#</span>;
+<a href=#346 id=346 data-nosnippet>346</a>
+<a href=#347 id=347 data-nosnippet>347</a>        <span class="kw">let </span>config: RedisConfigs = serde_yaml::from_str(yaml)
+<a href=#348 id=348 data-nosnippet>348</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
+<a href=#349 id=349 data-nosnippet>349</a>
+<a href=#350 id=350 data-nosnippet>350</a>        <span class="macro">assert_eq!</span>(
+<a href=#351 id=351 data-nosnippet>351</a>            config,
+<a href=#352 id=352 data-nosnippet>352</a>            RedisConfigs::Unified(RedisConfig::Single(SingleRedisConfig::Detailed {
+<a href=#353 id=353 data-nosnippet>353</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#354 id=354 data-nosnippet>354</a>                options: PartialRedisConfigOptions {
+<a href=#355 id=355 data-nosnippet>355</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
+<a href=#356 id=356 data-nosnippet>356</a>                    ..Default::default()
+<a href=#357 id=357 data-nosnippet>357</a>                }
+<a href=#358 id=358 data-nosnippet>358</a>            }))
+<a href=#359 id=359 data-nosnippet>359</a>        );
+<a href=#360 id=360 data-nosnippet>360</a>    }
+<a href=#361 id=361 data-nosnippet>361</a>
+<a href=#362 id=362 data-nosnippet>362</a>    <span class="attr">#[test]
+<a href=#363 id=363 data-nosnippet>363</a>    </span><span class="kw">fn </span>test_redis_individual() {
+<a href=#364 id=364 data-nosnippet>364</a>        <span class="kw">let </span>yaml = <span class="string">r#"
+<a href=#365 id=365 data-nosnippet>365</a>project_configs:
+<a href=#366 id=366 data-nosnippet>366</a>    server: "redis://127.0.0.1:6379"
+<a href=#367 id=367 data-nosnippet>367</a>    max_connections: 42
+<a href=#368 id=368 data-nosnippet>368</a>cardinality:
+<a href=#369 id=369 data-nosnippet>369</a>    server: "redis://127.0.0.1:6379"
+<a href=#370 id=370 data-nosnippet>370</a>quotas:
+<a href=#371 id=371 data-nosnippet>371</a>    cluster_nodes:
+<a href=#372 id=372 data-nosnippet>372</a>        - "redis://127.0.0.1:6379"
+<a href=#373 id=373 data-nosnippet>373</a>        - "redis://127.0.0.2:6379"
+<a href=#374 id=374 data-nosnippet>374</a>    max_connections: 17
+<a href=#375 id=375 data-nosnippet>375</a>"#</span>;
+<a href=#376 id=376 data-nosnippet>376</a>
+<a href=#377 id=377 data-nosnippet>377</a>        <span class="kw">let </span>configs: RedisConfigs = serde_yaml::from_str(yaml)
+<a href=#378 id=378 data-nosnippet>378</a>            .expect(<span class="string">"Parsed processing redis configs: single with options"</span>);
+<a href=#379 id=379 data-nosnippet>379</a>
+<a href=#380 id=380 data-nosnippet>380</a>        <span class="kw">let </span>expected = RedisConfigs::Individual {
+<a href=#381 id=381 data-nosnippet>381</a>            project_configs: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
+<a href=#382 id=382 data-nosnippet>382</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#383 id=383 data-nosnippet>383</a>                options: PartialRedisConfigOptions {
+<a href=#384 id=384 data-nosnippet>384</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
+<a href=#385 id=385 data-nosnippet>385</a>                    ..Default::default()
+<a href=#386 id=386 data-nosnippet>386</a>                },
+<a href=#387 id=387 data-nosnippet>387</a>            })),
+<a href=#388 id=388 data-nosnippet>388</a>            cardinality: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
+<a href=#389 id=389 data-nosnippet>389</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#390 id=390 data-nosnippet>390</a>                options: Default::default(),
+<a href=#391 id=391 data-nosnippet>391</a>            })),
+<a href=#392 id=392 data-nosnippet>392</a>            quotas: Box::new(RedisConfig::Cluster {
+<a href=#393 id=393 data-nosnippet>393</a>                cluster_nodes: <span class="macro">vec!</span>[
+<a href=#394 id=394 data-nosnippet>394</a>                    <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#395 id=395 data-nosnippet>395</a>                    <span class="string">"redis://127.0.0.2:6379"</span>.to_owned(),
+<a href=#396 id=396 data-nosnippet>396</a>                ],
+<a href=#397 id=397 data-nosnippet>397</a>                options: PartialRedisConfigOptions {
+<a href=#398 id=398 data-nosnippet>398</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">17</span>),
+<a href=#399 id=399 data-nosnippet>399</a>                    ..Default::default()
+<a href=#400 id=400 data-nosnippet>400</a>                },
+<a href=#401 id=401 data-nosnippet>401</a>            }),
+<a href=#402 id=402 data-nosnippet>402</a>        };
+<a href=#403 id=403 data-nosnippet>403</a>
+<a href=#404 id=404 data-nosnippet>404</a>        <span class="macro">assert_eq!</span>(configs, expected);
+<a href=#405 id=405 data-nosnippet>405</a>    }
+<a href=#406 id=406 data-nosnippet>406</a>
+<a href=#407 id=407 data-nosnippet>407</a>    <span class="attr">#[test]
+<a href=#408 id=408 data-nosnippet>408</a>    </span><span class="kw">fn </span>test_redis_single_serialize() {
+<a href=#409 id=409 data-nosnippet>409</a>        <span class="kw">let </span>config = RedisConfig::Single(SingleRedisConfig::Detailed {
+<a href=#410 id=410 data-nosnippet>410</a>            server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#411 id=411 data-nosnippet>411</a>            options: PartialRedisConfigOptions {
+<a href=#412 id=412 data-nosnippet>412</a>                max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
+<a href=#413 id=413 data-nosnippet>413</a>                ..Default::default()
+<a href=#414 id=414 data-nosnippet>414</a>            },
+<a href=#415 id=415 data-nosnippet>415</a>        });
+<a href=#416 id=416 data-nosnippet>416</a>
+<a href=#417 id=417 data-nosnippet>417</a>        <span class="macro">assert_json_snapshot!</span>(config, @<span class="string">r###"
+<a href=#418 id=418 data-nosnippet>418</a>        {
+<a href=#419 id=419 data-nosnippet>419</a>          "server": "redis://127.0.0.1:6379",
+<a href=#420 id=420 data-nosnippet>420</a>          "max_connections": 42,
+<a href=#421 id=421 data-nosnippet>421</a>          "idle_timeout": 60,
+<a href=#422 id=422 data-nosnippet>422</a>          "create_timeout": 3,
+<a href=#423 id=423 data-nosnippet>423</a>          "recycle_timeout": 2,
+<a href=#424 id=424 data-nosnippet>424</a>          "response_timeout": 30,
+<a href=#425 id=425 data-nosnippet>425</a>          "recycle_check_frequency": 100
+<a href=#426 id=426 data-nosnippet>426</a>        }
+<a href=#427 id=427 data-nosnippet>427</a>        "###</span>);
+<a href=#428 id=428 data-nosnippet>428</a>    }
+<a href=#429 id=429 data-nosnippet>429</a>
+<a href=#430 id=430 data-nosnippet>430</a>    <span class="attr">#[test]
+<a href=#431 id=431 data-nosnippet>431</a>    </span><span class="kw">fn </span>test_redis_single_serialize_unified() {
+<a href=#432 id=432 data-nosnippet>432</a>        <span class="kw">let </span>configs = RedisConfigs::Unified(RedisConfig::Single(SingleRedisConfig::Detailed {
+<a href=#433 id=433 data-nosnippet>433</a>            server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#434 id=434 data-nosnippet>434</a>            options: PartialRedisConfigOptions {
+<a href=#435 id=435 data-nosnippet>435</a>                max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
+<a href=#436 id=436 data-nosnippet>436</a>                ..Default::default()
+<a href=#437 id=437 data-nosnippet>437</a>            },
+<a href=#438 id=438 data-nosnippet>438</a>        }));
+<a href=#439 id=439 data-nosnippet>439</a>
+<a href=#440 id=440 data-nosnippet>440</a>        <span class="macro">assert_json_snapshot!</span>(configs, @<span class="string">r###"
+<a href=#441 id=441 data-nosnippet>441</a>        {
+<a href=#442 id=442 data-nosnippet>442</a>          "server": "redis://127.0.0.1:6379",
+<a href=#443 id=443 data-nosnippet>443</a>          "max_connections": 42,
+<a href=#444 id=444 data-nosnippet>444</a>          "idle_timeout": 60,
+<a href=#445 id=445 data-nosnippet>445</a>          "create_timeout": 3,
+<a href=#446 id=446 data-nosnippet>446</a>          "recycle_timeout": 2,
+<a href=#447 id=447 data-nosnippet>447</a>          "response_timeout": 30,
+<a href=#448 id=448 data-nosnippet>448</a>          "recycle_check_frequency": 100
+<a href=#449 id=449 data-nosnippet>449</a>        }
+<a href=#450 id=450 data-nosnippet>450</a>        "###</span>);
+<a href=#451 id=451 data-nosnippet>451</a>    }
+<a href=#452 id=452 data-nosnippet>452</a>
+<a href=#453 id=453 data-nosnippet>453</a>    <span class="attr">#[test]
+<a href=#454 id=454 data-nosnippet>454</a>    </span><span class="kw">fn </span>test_redis_single_opts_default() {
+<a href=#455 id=455 data-nosnippet>455</a>        <span class="kw">let </span>yaml = <span class="string">r#"
+<a href=#456 id=456 data-nosnippet>456</a>server: "redis://127.0.0.1:6379"
+<a href=#457 id=457 data-nosnippet>457</a>"#</span>;
+<a href=#458 id=458 data-nosnippet>458</a>
+<a href=#459 id=459 data-nosnippet>459</a>        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
+<a href=#460 id=460 data-nosnippet>460</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
+<a href=#461 id=461 data-nosnippet>461</a>
+<a href=#462 id=462 data-nosnippet>462</a>        <span class="macro">assert_eq!</span>(
+<a href=#463 id=463 data-nosnippet>463</a>            config,
+<a href=#464 id=464 data-nosnippet>464</a>            RedisConfig::Single(SingleRedisConfig::Detailed {
+<a href=#465 id=465 data-nosnippet>465</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#466 id=466 data-nosnippet>466</a>                options: Default::default()
+<a href=#467 id=467 data-nosnippet>467</a>            })
+<a href=#468 id=468 data-nosnippet>468</a>        );
+<a href=#469 id=469 data-nosnippet>469</a>    }
 <a href=#470 id=470 data-nosnippet>470</a>
-<a href=#471 id=471 data-nosnippet>471</a>        <span class="macro">assert_eq!</span>(
-<a href=#472 id=472 data-nosnippet>472</a>            config,
-<a href=#473 id=473 data-nosnippet>473</a>            RedisConfig::Single(SingleRedisConfig::Simple(
-<a href=#474 id=474 data-nosnippet>474</a>                <span class="string">"redis://127.0.0.1:6379"</span>.to_owned()
-<a href=#475 id=475 data-nosnippet>475</a>            ))
-<a href=#476 id=476 data-nosnippet>476</a>        );
-<a href=#477 id=477 data-nosnippet>477</a>    }
+<a href=#471 id=471 data-nosnippet>471</a>    <span class="comment">// To make sure that we have backwards compatibility and still support the redis configuration
+<a href=#472 id=472 data-nosnippet>472</a>    // when the single `redis://...` address is provided.
+<a href=#473 id=473 data-nosnippet>473</a>    </span><span class="attr">#[test]
+<a href=#474 id=474 data-nosnippet>474</a>    </span><span class="kw">fn </span>test_redis_single() {
+<a href=#475 id=475 data-nosnippet>475</a>        <span class="kw">let </span>yaml = <span class="string">r#"
+<a href=#476 id=476 data-nosnippet>476</a>"redis://127.0.0.1:6379"
+<a href=#477 id=477 data-nosnippet>477</a>"#</span>;
 <a href=#478 id=478 data-nosnippet>478</a>
-<a href=#479 id=479 data-nosnippet>479</a>    <span class="attr">#[test]
-<a href=#480 id=480 data-nosnippet>480</a>    </span><span class="kw">fn </span>test_redis_cluster_nodes_opts() {
-<a href=#481 id=481 data-nosnippet>481</a>        <span class="kw">let </span>yaml = <span class="string">r#"
-<a href=#482 id=482 data-nosnippet>482</a>cluster_nodes:
-<a href=#483 id=483 data-nosnippet>483</a>    - "redis://127.0.0.1:6379"
-<a href=#484 id=484 data-nosnippet>484</a>    - "redis://127.0.0.2:6379"
-<a href=#485 id=485 data-nosnippet>485</a>max_connections: 10
-<a href=#486 id=486 data-nosnippet>486</a>"#</span>;
-<a href=#487 id=487 data-nosnippet>487</a>
-<a href=#488 id=488 data-nosnippet>488</a>        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
-<a href=#489 id=489 data-nosnippet>489</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
-<a href=#490 id=490 data-nosnippet>490</a>
-<a href=#491 id=491 data-nosnippet>491</a>        <span class="macro">assert_eq!</span>(
-<a href=#492 id=492 data-nosnippet>492</a>            config,
-<a href=#493 id=493 data-nosnippet>493</a>            RedisConfig::Cluster {
-<a href=#494 id=494 data-nosnippet>494</a>                cluster_nodes: <span class="macro">vec!</span>[
-<a href=#495 id=495 data-nosnippet>495</a>                    <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#496 id=496 data-nosnippet>496</a>                    <span class="string">"redis://127.0.0.2:6379"</span>.to_owned()
-<a href=#497 id=497 data-nosnippet>497</a>                ],
-<a href=#498 id=498 data-nosnippet>498</a>                options: PartialRedisConfigOptions {
-<a href=#499 id=499 data-nosnippet>499</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">10</span>),
-<a href=#500 id=500 data-nosnippet>500</a>                    ..Default::default()
-<a href=#501 id=501 data-nosnippet>501</a>                },
-<a href=#502 id=502 data-nosnippet>502</a>            }
-<a href=#503 id=503 data-nosnippet>503</a>        );
-<a href=#504 id=504 data-nosnippet>504</a>    }
-<a href=#505 id=505 data-nosnippet>505</a>
-<a href=#506 id=506 data-nosnippet>506</a>    <span class="attr">#[test]
-<a href=#507 id=507 data-nosnippet>507</a>    </span><span class="kw">fn </span>test_redis_cluster_nodes_opts_unified() {
-<a href=#508 id=508 data-nosnippet>508</a>        <span class="kw">let </span>yaml = <span class="string">r#"
-<a href=#509 id=509 data-nosnippet>509</a>cluster_nodes:
-<a href=#510 id=510 data-nosnippet>510</a>    - "redis://127.0.0.1:6379"
-<a href=#511 id=511 data-nosnippet>511</a>    - "redis://127.0.0.2:6379"
-<a href=#512 id=512 data-nosnippet>512</a>max_connections: 20
-<a href=#513 id=513 data-nosnippet>513</a>"#</span>;
-<a href=#514 id=514 data-nosnippet>514</a>
-<a href=#515 id=515 data-nosnippet>515</a>        <span class="kw">let </span>config: RedisConfigs = serde_yaml::from_str(yaml)
-<a href=#516 id=516 data-nosnippet>516</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
-<a href=#517 id=517 data-nosnippet>517</a>
-<a href=#518 id=518 data-nosnippet>518</a>        <span class="macro">assert_eq!</span>(
-<a href=#519 id=519 data-nosnippet>519</a>            config,
-<a href=#520 id=520 data-nosnippet>520</a>            RedisConfigs::Unified(RedisConfig::Cluster {
-<a href=#521 id=521 data-nosnippet>521</a>                cluster_nodes: <span class="macro">vec!</span>[
-<a href=#522 id=522 data-nosnippet>522</a>                    <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#523 id=523 data-nosnippet>523</a>                    <span class="string">"redis://127.0.0.2:6379"</span>.to_owned()
-<a href=#524 id=524 data-nosnippet>524</a>                ],
-<a href=#525 id=525 data-nosnippet>525</a>                options: PartialRedisConfigOptions {
-<a href=#526 id=526 data-nosnippet>526</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">20</span>),
-<a href=#527 id=527 data-nosnippet>527</a>                    ..Default::default()
-<a href=#528 id=528 data-nosnippet>528</a>                },
-<a href=#529 id=529 data-nosnippet>529</a>            })
-<a href=#530 id=530 data-nosnippet>530</a>        );
-<a href=#531 id=531 data-nosnippet>531</a>    }
-<a href=#532 id=532 data-nosnippet>532</a>
-<a href=#533 id=533 data-nosnippet>533</a>    <span class="attr">#[test]
-<a href=#534 id=534 data-nosnippet>534</a>    </span><span class="kw">fn </span>test_redis_cluster_serialize() {
-<a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">let </span>config = RedisConfig::Cluster {
-<a href=#536 id=536 data-nosnippet>536</a>            cluster_nodes: <span class="macro">vec!</span>[
-<a href=#537 id=537 data-nosnippet>537</a>                <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#538 id=538 data-nosnippet>538</a>                <span class="string">"redis://127.0.0.2:6379"</span>.to_owned(),
-<a href=#539 id=539 data-nosnippet>539</a>            ],
-<a href=#540 id=540 data-nosnippet>540</a>            options: PartialRedisConfigOptions {
-<a href=#541 id=541 data-nosnippet>541</a>                max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
-<a href=#542 id=542 data-nosnippet>542</a>                ..Default::default()
-<a href=#543 id=543 data-nosnippet>543</a>            },
-<a href=#544 id=544 data-nosnippet>544</a>        };
-<a href=#545 id=545 data-nosnippet>545</a>
-<a href=#546 id=546 data-nosnippet>546</a>        <span class="macro">assert_json_snapshot!</span>(config, @<span class="string">r###"
-<a href=#547 id=547 data-nosnippet>547</a>        {
-<a href=#548 id=548 data-nosnippet>548</a>          "cluster_nodes": [
-<a href=#549 id=549 data-nosnippet>549</a>            "redis://127.0.0.1:6379",
-<a href=#550 id=550 data-nosnippet>550</a>            "redis://127.0.0.2:6379"
-<a href=#551 id=551 data-nosnippet>551</a>          ],
-<a href=#552 id=552 data-nosnippet>552</a>          "max_connections": 42,
-<a href=#553 id=553 data-nosnippet>553</a>          "idle_timeout": 60,
-<a href=#554 id=554 data-nosnippet>554</a>          "create_timeout": 3,
-<a href=#555 id=555 data-nosnippet>555</a>          "recycle_timeout": 2,
-<a href=#556 id=556 data-nosnippet>556</a>          "response_timeout": 30,
-<a href=#557 id=557 data-nosnippet>557</a>          "recycle_check_frequency": 100
-<a href=#558 id=558 data-nosnippet>558</a>        }
-<a href=#559 id=559 data-nosnippet>559</a>        "###</span>);
-<a href=#560 id=560 data-nosnippet>560</a>    }
-<a href=#561 id=561 data-nosnippet>561</a>
-<a href=#562 id=562 data-nosnippet>562</a>    <span class="attr">#[test]
-<a href=#563 id=563 data-nosnippet>563</a>    </span><span class="kw">fn </span>test_redis_cluster_serialize_unified() {
-<a href=#564 id=564 data-nosnippet>564</a>        <span class="kw">let </span>configs = RedisConfigs::Unified(RedisConfig::Cluster {
-<a href=#565 id=565 data-nosnippet>565</a>            cluster_nodes: <span class="macro">vec!</span>[
-<a href=#566 id=566 data-nosnippet>566</a>                <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#567 id=567 data-nosnippet>567</a>                <span class="string">"redis://127.0.0.2:6379"</span>.to_owned(),
-<a href=#568 id=568 data-nosnippet>568</a>            ],
-<a href=#569 id=569 data-nosnippet>569</a>            options: PartialRedisConfigOptions {
-<a href=#570 id=570 data-nosnippet>570</a>                max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
-<a href=#571 id=571 data-nosnippet>571</a>                ..Default::default()
-<a href=#572 id=572 data-nosnippet>572</a>            },
-<a href=#573 id=573 data-nosnippet>573</a>        });
-<a href=#574 id=574 data-nosnippet>574</a>
-<a href=#575 id=575 data-nosnippet>575</a>        <span class="macro">assert_json_snapshot!</span>(configs, @<span class="string">r###"
-<a href=#576 id=576 data-nosnippet>576</a>        {
-<a href=#577 id=577 data-nosnippet>577</a>          "cluster_nodes": [
-<a href=#578 id=578 data-nosnippet>578</a>            "redis://127.0.0.1:6379",
-<a href=#579 id=579 data-nosnippet>579</a>            "redis://127.0.0.2:6379"
-<a href=#580 id=580 data-nosnippet>580</a>          ],
-<a href=#581 id=581 data-nosnippet>581</a>          "max_connections": 42,
-<a href=#582 id=582 data-nosnippet>582</a>          "idle_timeout": 60,
-<a href=#583 id=583 data-nosnippet>583</a>          "create_timeout": 3,
-<a href=#584 id=584 data-nosnippet>584</a>          "recycle_timeout": 2,
-<a href=#585 id=585 data-nosnippet>585</a>          "response_timeout": 30,
-<a href=#586 id=586 data-nosnippet>586</a>          "recycle_check_frequency": 100
-<a href=#587 id=587 data-nosnippet>587</a>        }
-<a href=#588 id=588 data-nosnippet>588</a>        "###</span>);
-<a href=#589 id=589 data-nosnippet>589</a>    }
-<a href=#590 id=590 data-nosnippet>590</a>
-<a href=#591 id=591 data-nosnippet>591</a>    <span class="attr">#[test]
-<a href=#592 id=592 data-nosnippet>592</a>    </span><span class="kw">fn </span>test_redis_serialize_individual() {
-<a href=#593 id=593 data-nosnippet>593</a>        <span class="kw">let </span>configs = RedisConfigs::Individual {
-<a href=#594 id=594 data-nosnippet>594</a>            project_configs: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
-<a href=#595 id=595 data-nosnippet>595</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#596 id=596 data-nosnippet>596</a>                options: PartialRedisConfigOptions {
-<a href=#597 id=597 data-nosnippet>597</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
-<a href=#598 id=598 data-nosnippet>598</a>                    ..Default::default()
-<a href=#599 id=599 data-nosnippet>599</a>                },
-<a href=#600 id=600 data-nosnippet>600</a>            })),
-<a href=#601 id=601 data-nosnippet>601</a>            cardinality: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
-<a href=#602 id=602 data-nosnippet>602</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#603 id=603 data-nosnippet>603</a>                options: Default::default(),
-<a href=#604 id=604 data-nosnippet>604</a>            })),
-<a href=#605 id=605 data-nosnippet>605</a>            quotas: Box::new(RedisConfig::Cluster {
-<a href=#606 id=606 data-nosnippet>606</a>                cluster_nodes: <span class="macro">vec!</span>[
-<a href=#607 id=607 data-nosnippet>607</a>                    <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
-<a href=#608 id=608 data-nosnippet>608</a>                    <span class="string">"redis://127.0.0.2:6379"</span>.to_owned(),
-<a href=#609 id=609 data-nosnippet>609</a>                ],
-<a href=#610 id=610 data-nosnippet>610</a>                options: PartialRedisConfigOptions {
-<a href=#611 id=611 data-nosnippet>611</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">84</span>),
-<a href=#612 id=612 data-nosnippet>612</a>                    ..Default::default()
-<a href=#613 id=613 data-nosnippet>613</a>                },
-<a href=#614 id=614 data-nosnippet>614</a>            }),
-<a href=#615 id=615 data-nosnippet>615</a>        };
-<a href=#616 id=616 data-nosnippet>616</a>
-<a href=#617 id=617 data-nosnippet>617</a>        <span class="macro">assert_json_snapshot!</span>(configs, @<span class="string">r###"
-<a href=#618 id=618 data-nosnippet>618</a>        {
-<a href=#619 id=619 data-nosnippet>619</a>          "project_configs": {
-<a href=#620 id=620 data-nosnippet>620</a>            "server": "redis://127.0.0.1:6379",
-<a href=#621 id=621 data-nosnippet>621</a>            "max_connections": 42,
-<a href=#622 id=622 data-nosnippet>622</a>            "idle_timeout": 60,
-<a href=#623 id=623 data-nosnippet>623</a>            "create_timeout": 3,
-<a href=#624 id=624 data-nosnippet>624</a>            "recycle_timeout": 2,
-<a href=#625 id=625 data-nosnippet>625</a>            "response_timeout": 30,
-<a href=#626 id=626 data-nosnippet>626</a>            "recycle_check_frequency": 100
-<a href=#627 id=627 data-nosnippet>627</a>          },
-<a href=#628 id=628 data-nosnippet>628</a>          "cardinality": {
-<a href=#629 id=629 data-nosnippet>629</a>            "server": "redis://127.0.0.1:6379",
-<a href=#630 id=630 data-nosnippet>630</a>            "idle_timeout": 60,
-<a href=#631 id=631 data-nosnippet>631</a>            "create_timeout": 3,
-<a href=#632 id=632 data-nosnippet>632</a>            "recycle_timeout": 2,
-<a href=#633 id=633 data-nosnippet>633</a>            "response_timeout": 30,
-<a href=#634 id=634 data-nosnippet>634</a>            "recycle_check_frequency": 100
-<a href=#635 id=635 data-nosnippet>635</a>          },
-<a href=#636 id=636 data-nosnippet>636</a>          "quotas": {
-<a href=#637 id=637 data-nosnippet>637</a>            "cluster_nodes": [
-<a href=#638 id=638 data-nosnippet>638</a>              "redis://127.0.0.1:6379",
-<a href=#639 id=639 data-nosnippet>639</a>              "redis://127.0.0.2:6379"
-<a href=#640 id=640 data-nosnippet>640</a>            ],
-<a href=#641 id=641 data-nosnippet>641</a>            "max_connections": 84,
-<a href=#642 id=642 data-nosnippet>642</a>            "idle_timeout": 60,
-<a href=#643 id=643 data-nosnippet>643</a>            "create_timeout": 3,
-<a href=#644 id=644 data-nosnippet>644</a>            "recycle_timeout": 2,
-<a href=#645 id=645 data-nosnippet>645</a>            "response_timeout": 30,
-<a href=#646 id=646 data-nosnippet>646</a>            "recycle_check_frequency": 100
-<a href=#647 id=647 data-nosnippet>647</a>          }
-<a href=#648 id=648 data-nosnippet>648</a>        }
-<a href=#649 id=649 data-nosnippet>649</a>        "###</span>);
-<a href=#650 id=650 data-nosnippet>650</a>    }
-<a href=#651 id=651 data-nosnippet>651</a>}</code></pre></div></section></main></body></html>
+<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
+<a href=#480 id=480 data-nosnippet>480</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
+<a href=#481 id=481 data-nosnippet>481</a>
+<a href=#482 id=482 data-nosnippet>482</a>        <span class="macro">assert_eq!</span>(
+<a href=#483 id=483 data-nosnippet>483</a>            config,
+<a href=#484 id=484 data-nosnippet>484</a>            RedisConfig::Single(SingleRedisConfig::Simple(
+<a href=#485 id=485 data-nosnippet>485</a>                <span class="string">"redis://127.0.0.1:6379"</span>.to_owned()
+<a href=#486 id=486 data-nosnippet>486</a>            ))
+<a href=#487 id=487 data-nosnippet>487</a>        );
+<a href=#488 id=488 data-nosnippet>488</a>    }
+<a href=#489 id=489 data-nosnippet>489</a>
+<a href=#490 id=490 data-nosnippet>490</a>    <span class="attr">#[test]
+<a href=#491 id=491 data-nosnippet>491</a>    </span><span class="kw">fn </span>test_redis_cluster_nodes_opts() {
+<a href=#492 id=492 data-nosnippet>492</a>        <span class="kw">let </span>yaml = <span class="string">r#"
+<a href=#493 id=493 data-nosnippet>493</a>cluster_nodes:
+<a href=#494 id=494 data-nosnippet>494</a>    - "redis://127.0.0.1:6379"
+<a href=#495 id=495 data-nosnippet>495</a>    - "redis://127.0.0.2:6379"
+<a href=#496 id=496 data-nosnippet>496</a>max_connections: 10
+<a href=#497 id=497 data-nosnippet>497</a>"#</span>;
+<a href=#498 id=498 data-nosnippet>498</a>
+<a href=#499 id=499 data-nosnippet>499</a>        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
+<a href=#500 id=500 data-nosnippet>500</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
+<a href=#501 id=501 data-nosnippet>501</a>
+<a href=#502 id=502 data-nosnippet>502</a>        <span class="macro">assert_eq!</span>(
+<a href=#503 id=503 data-nosnippet>503</a>            config,
+<a href=#504 id=504 data-nosnippet>504</a>            RedisConfig::Cluster {
+<a href=#505 id=505 data-nosnippet>505</a>                cluster_nodes: <span class="macro">vec!</span>[
+<a href=#506 id=506 data-nosnippet>506</a>                    <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#507 id=507 data-nosnippet>507</a>                    <span class="string">"redis://127.0.0.2:6379"</span>.to_owned()
+<a href=#508 id=508 data-nosnippet>508</a>                ],
+<a href=#509 id=509 data-nosnippet>509</a>                options: PartialRedisConfigOptions {
+<a href=#510 id=510 data-nosnippet>510</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">10</span>),
+<a href=#511 id=511 data-nosnippet>511</a>                    ..Default::default()
+<a href=#512 id=512 data-nosnippet>512</a>                },
+<a href=#513 id=513 data-nosnippet>513</a>            }
+<a href=#514 id=514 data-nosnippet>514</a>        );
+<a href=#515 id=515 data-nosnippet>515</a>    }
+<a href=#516 id=516 data-nosnippet>516</a>
+<a href=#517 id=517 data-nosnippet>517</a>    <span class="attr">#[test]
+<a href=#518 id=518 data-nosnippet>518</a>    </span><span class="kw">fn </span>test_redis_cluster_nodes_opts_unified() {
+<a href=#519 id=519 data-nosnippet>519</a>        <span class="kw">let </span>yaml = <span class="string">r#"
+<a href=#520 id=520 data-nosnippet>520</a>cluster_nodes:
+<a href=#521 id=521 data-nosnippet>521</a>    - "redis://127.0.0.1:6379"
+<a href=#522 id=522 data-nosnippet>522</a>    - "redis://127.0.0.2:6379"
+<a href=#523 id=523 data-nosnippet>523</a>max_connections: 20
+<a href=#524 id=524 data-nosnippet>524</a>"#</span>;
+<a href=#525 id=525 data-nosnippet>525</a>
+<a href=#526 id=526 data-nosnippet>526</a>        <span class="kw">let </span>config: RedisConfigs = serde_yaml::from_str(yaml)
+<a href=#527 id=527 data-nosnippet>527</a>            .expect(<span class="string">"Parsed processing redis config: single with options"</span>);
+<a href=#528 id=528 data-nosnippet>528</a>
+<a href=#529 id=529 data-nosnippet>529</a>        <span class="macro">assert_eq!</span>(
+<a href=#530 id=530 data-nosnippet>530</a>            config,
+<a href=#531 id=531 data-nosnippet>531</a>            RedisConfigs::Unified(RedisConfig::Cluster {
+<a href=#532 id=532 data-nosnippet>532</a>                cluster_nodes: <span class="macro">vec!</span>[
+<a href=#533 id=533 data-nosnippet>533</a>                    <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#534 id=534 data-nosnippet>534</a>                    <span class="string">"redis://127.0.0.2:6379"</span>.to_owned()
+<a href=#535 id=535 data-nosnippet>535</a>                ],
+<a href=#536 id=536 data-nosnippet>536</a>                options: PartialRedisConfigOptions {
+<a href=#537 id=537 data-nosnippet>537</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">20</span>),
+<a href=#538 id=538 data-nosnippet>538</a>                    ..Default::default()
+<a href=#539 id=539 data-nosnippet>539</a>                },
+<a href=#540 id=540 data-nosnippet>540</a>            })
+<a href=#541 id=541 data-nosnippet>541</a>        );
+<a href=#542 id=542 data-nosnippet>542</a>    }
+<a href=#543 id=543 data-nosnippet>543</a>
+<a href=#544 id=544 data-nosnippet>544</a>    <span class="attr">#[test]
+<a href=#545 id=545 data-nosnippet>545</a>    </span><span class="kw">fn </span>test_redis_cluster_serialize() {
+<a href=#546 id=546 data-nosnippet>546</a>        <span class="kw">let </span>config = RedisConfig::Cluster {
+<a href=#547 id=547 data-nosnippet>547</a>            cluster_nodes: <span class="macro">vec!</span>[
+<a href=#548 id=548 data-nosnippet>548</a>                <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#549 id=549 data-nosnippet>549</a>                <span class="string">"redis://127.0.0.2:6379"</span>.to_owned(),
+<a href=#550 id=550 data-nosnippet>550</a>            ],
+<a href=#551 id=551 data-nosnippet>551</a>            options: PartialRedisConfigOptions {
+<a href=#552 id=552 data-nosnippet>552</a>                max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
+<a href=#553 id=553 data-nosnippet>553</a>                ..Default::default()
+<a href=#554 id=554 data-nosnippet>554</a>            },
+<a href=#555 id=555 data-nosnippet>555</a>        };
+<a href=#556 id=556 data-nosnippet>556</a>
+<a href=#557 id=557 data-nosnippet>557</a>        <span class="macro">assert_json_snapshot!</span>(config, @<span class="string">r###"
+<a href=#558 id=558 data-nosnippet>558</a>        {
+<a href=#559 id=559 data-nosnippet>559</a>          "cluster_nodes": [
+<a href=#560 id=560 data-nosnippet>560</a>            "redis://127.0.0.1:6379",
+<a href=#561 id=561 data-nosnippet>561</a>            "redis://127.0.0.2:6379"
+<a href=#562 id=562 data-nosnippet>562</a>          ],
+<a href=#563 id=563 data-nosnippet>563</a>          "max_connections": 42,
+<a href=#564 id=564 data-nosnippet>564</a>          "idle_timeout": 60,
+<a href=#565 id=565 data-nosnippet>565</a>          "create_timeout": 3,
+<a href=#566 id=566 data-nosnippet>566</a>          "recycle_timeout": 2,
+<a href=#567 id=567 data-nosnippet>567</a>          "response_timeout": 30,
+<a href=#568 id=568 data-nosnippet>568</a>          "recycle_check_frequency": 100
+<a href=#569 id=569 data-nosnippet>569</a>        }
+<a href=#570 id=570 data-nosnippet>570</a>        "###</span>);
+<a href=#571 id=571 data-nosnippet>571</a>    }
+<a href=#572 id=572 data-nosnippet>572</a>
+<a href=#573 id=573 data-nosnippet>573</a>    <span class="attr">#[test]
+<a href=#574 id=574 data-nosnippet>574</a>    </span><span class="kw">fn </span>test_redis_cluster_serialize_unified() {
+<a href=#575 id=575 data-nosnippet>575</a>        <span class="kw">let </span>configs = RedisConfigs::Unified(RedisConfig::Cluster {
+<a href=#576 id=576 data-nosnippet>576</a>            cluster_nodes: <span class="macro">vec!</span>[
+<a href=#577 id=577 data-nosnippet>577</a>                <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#578 id=578 data-nosnippet>578</a>                <span class="string">"redis://127.0.0.2:6379"</span>.to_owned(),
+<a href=#579 id=579 data-nosnippet>579</a>            ],
+<a href=#580 id=580 data-nosnippet>580</a>            options: PartialRedisConfigOptions {
+<a href=#581 id=581 data-nosnippet>581</a>                max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
+<a href=#582 id=582 data-nosnippet>582</a>                ..Default::default()
+<a href=#583 id=583 data-nosnippet>583</a>            },
+<a href=#584 id=584 data-nosnippet>584</a>        });
+<a href=#585 id=585 data-nosnippet>585</a>
+<a href=#586 id=586 data-nosnippet>586</a>        <span class="macro">assert_json_snapshot!</span>(configs, @<span class="string">r###"
+<a href=#587 id=587 data-nosnippet>587</a>        {
+<a href=#588 id=588 data-nosnippet>588</a>          "cluster_nodes": [
+<a href=#589 id=589 data-nosnippet>589</a>            "redis://127.0.0.1:6379",
+<a href=#590 id=590 data-nosnippet>590</a>            "redis://127.0.0.2:6379"
+<a href=#591 id=591 data-nosnippet>591</a>          ],
+<a href=#592 id=592 data-nosnippet>592</a>          "max_connections": 42,
+<a href=#593 id=593 data-nosnippet>593</a>          "idle_timeout": 60,
+<a href=#594 id=594 data-nosnippet>594</a>          "create_timeout": 3,
+<a href=#595 id=595 data-nosnippet>595</a>          "recycle_timeout": 2,
+<a href=#596 id=596 data-nosnippet>596</a>          "response_timeout": 30,
+<a href=#597 id=597 data-nosnippet>597</a>          "recycle_check_frequency": 100
+<a href=#598 id=598 data-nosnippet>598</a>        }
+<a href=#599 id=599 data-nosnippet>599</a>        "###</span>);
+<a href=#600 id=600 data-nosnippet>600</a>    }
+<a href=#601 id=601 data-nosnippet>601</a>
+<a href=#602 id=602 data-nosnippet>602</a>    <span class="attr">#[test]
+<a href=#603 id=603 data-nosnippet>603</a>    </span><span class="kw">fn </span>test_redis_serialize_individual() {
+<a href=#604 id=604 data-nosnippet>604</a>        <span class="kw">let </span>configs = RedisConfigs::Individual {
+<a href=#605 id=605 data-nosnippet>605</a>            project_configs: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
+<a href=#606 id=606 data-nosnippet>606</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#607 id=607 data-nosnippet>607</a>                options: PartialRedisConfigOptions {
+<a href=#608 id=608 data-nosnippet>608</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">42</span>),
+<a href=#609 id=609 data-nosnippet>609</a>                    ..Default::default()
+<a href=#610 id=610 data-nosnippet>610</a>                },
+<a href=#611 id=611 data-nosnippet>611</a>            })),
+<a href=#612 id=612 data-nosnippet>612</a>            cardinality: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
+<a href=#613 id=613 data-nosnippet>613</a>                server: <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#614 id=614 data-nosnippet>614</a>                options: Default::default(),
+<a href=#615 id=615 data-nosnippet>615</a>            })),
+<a href=#616 id=616 data-nosnippet>616</a>            quotas: Box::new(RedisConfig::Cluster {
+<a href=#617 id=617 data-nosnippet>617</a>                cluster_nodes: <span class="macro">vec!</span>[
+<a href=#618 id=618 data-nosnippet>618</a>                    <span class="string">"redis://127.0.0.1:6379"</span>.to_owned(),
+<a href=#619 id=619 data-nosnippet>619</a>                    <span class="string">"redis://127.0.0.2:6379"</span>.to_owned(),
+<a href=#620 id=620 data-nosnippet>620</a>                ],
+<a href=#621 id=621 data-nosnippet>621</a>                options: PartialRedisConfigOptions {
+<a href=#622 id=622 data-nosnippet>622</a>                    max_connections: <span class="prelude-val">Some</span>(<span class="number">84</span>),
+<a href=#623 id=623 data-nosnippet>623</a>                    ..Default::default()
+<a href=#624 id=624 data-nosnippet>624</a>                },
+<a href=#625 id=625 data-nosnippet>625</a>            }),
+<a href=#626 id=626 data-nosnippet>626</a>        };
+<a href=#627 id=627 data-nosnippet>627</a>
+<a href=#628 id=628 data-nosnippet>628</a>        <span class="macro">assert_json_snapshot!</span>(configs, @<span class="string">r###"
+<a href=#629 id=629 data-nosnippet>629</a>        {
+<a href=#630 id=630 data-nosnippet>630</a>          "project_configs": {
+<a href=#631 id=631 data-nosnippet>631</a>            "server": "redis://127.0.0.1:6379",
+<a href=#632 id=632 data-nosnippet>632</a>            "max_connections": 42,
+<a href=#633 id=633 data-nosnippet>633</a>            "idle_timeout": 60,
+<a href=#634 id=634 data-nosnippet>634</a>            "create_timeout": 3,
+<a href=#635 id=635 data-nosnippet>635</a>            "recycle_timeout": 2,
+<a href=#636 id=636 data-nosnippet>636</a>            "response_timeout": 30,
+<a href=#637 id=637 data-nosnippet>637</a>            "recycle_check_frequency": 100
+<a href=#638 id=638 data-nosnippet>638</a>          },
+<a href=#639 id=639 data-nosnippet>639</a>          "cardinality": {
+<a href=#640 id=640 data-nosnippet>640</a>            "server": "redis://127.0.0.1:6379",
+<a href=#641 id=641 data-nosnippet>641</a>            "idle_timeout": 60,
+<a href=#642 id=642 data-nosnippet>642</a>            "create_timeout": 3,
+<a href=#643 id=643 data-nosnippet>643</a>            "recycle_timeout": 2,
+<a href=#644 id=644 data-nosnippet>644</a>            "response_timeout": 30,
+<a href=#645 id=645 data-nosnippet>645</a>            "recycle_check_frequency": 100
+<a href=#646 id=646 data-nosnippet>646</a>          },
+<a href=#647 id=647 data-nosnippet>647</a>          "quotas": {
+<a href=#648 id=648 data-nosnippet>648</a>            "cluster_nodes": [
+<a href=#649 id=649 data-nosnippet>649</a>              "redis://127.0.0.1:6379",
+<a href=#650 id=650 data-nosnippet>650</a>              "redis://127.0.0.2:6379"
+<a href=#651 id=651 data-nosnippet>651</a>            ],
+<a href=#652 id=652 data-nosnippet>652</a>            "max_connections": 84,
+<a href=#653 id=653 data-nosnippet>653</a>            "idle_timeout": 60,
+<a href=#654 id=654 data-nosnippet>654</a>            "create_timeout": 3,
+<a href=#655 id=655 data-nosnippet>655</a>            "recycle_timeout": 2,
+<a href=#656 id=656 data-nosnippet>656</a>            "response_timeout": 30,
+<a href=#657 id=657 data-nosnippet>657</a>            "recycle_check_frequency": 100
+<a href=#658 id=658 data-nosnippet>658</a>          }
+<a href=#659 id=659 data-nosnippet>659</a>        }
+<a href=#660 id=660 data-nosnippet>660</a>        "###</span>);
+<a href=#661 id=661 data-nosnippet>661</a>    }
+<a href=#662 id=662 data-nosnippet>662</a>}</code></pre></div></section></main></body></html>
