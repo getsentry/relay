@@ -20,6 +20,7 @@
 
 **Bug Fixes**:
 
+- Redis pools being sized too small by default. ([#5358](https://github.com/getsentry/relay/pull/5358))
 - Fix array attributes not being applied to standalone spans. ([#5337](https://github.com/getsentry/relay/pull/5337))
 - Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
 - Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
