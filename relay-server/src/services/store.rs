@@ -30,17 +30,19 @@ use relay_metrics::{
 use relay_protocol::{Annotated, FiniteF64, SerializableAnnotated};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Recipient, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::managed::{Counted, Managed, OutcomeError, Quantities, TypedEnvelope};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, TypedEnvelope};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
-use crate::services::upload::Upload;
+use crate::services::upload::{
+    Attachment, AttachmentMeta, AttachmentScope, Upload, UploadAttachment,
+};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
@@ -90,7 +92,7 @@ impl Producer {
     }
 }
 
-/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
+/// Publishes an [`Envelope`](crate::envelope::Envelope) to the Sentry core application through Kafka topics.
 #[derive(Debug)]
 pub struct StoreEnvelope {
     pub envelope: TypedEnvelope<Processed>,
@@ -216,8 +218,7 @@ pub struct StoreService {
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
     metric_outcomes: MetricOutcomes,
-    #[expect(unused)]
-    upload: Addr<Upload>,
+    upload: Option<Addr<Upload>>,
     producer: Producer,
 }
 
@@ -228,7 +229,7 @@ impl StoreService {
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
         metric_outcomes: MetricOutcomes,
-        upload: Addr<Upload>,
+        upload: Option<Addr<Upload>>,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
@@ -242,11 +243,11 @@ impl StoreService {
         })
     }
 
-    fn handle_message(&self, message: Store) {
+    async fn handle_message(&self, message: Store) {
         let ty = message.variant();
         relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
             match message {
-                Store::Envelope(message) => self.handle_store_envelope(message),
+                Store::Envelope(message) => self.handle_store_envelope(message).await,
                 Store::Metrics(message) => self.handle_store_metrics(message),
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
                 Store::Span(message) => self.handle_store_span(message),
@@ -254,15 +255,14 @@ impl StoreService {
         })
     }
 
-    fn handle_store_envelope(&self, message: StoreEnvelope) {
+    async fn handle_store_envelope(&self, message: StoreEnvelope) {
         let StoreEnvelope {
             envelope: mut managed,
         } = message;
 
         let scoping = managed.scoping();
-        let envelope = managed.take_envelope();
 
-        match self.store_envelope(envelope, managed.received_at(), scoping) {
+        match self.store_envelope(&mut managed).await {
             Ok(()) => managed.accept(),
             Err(error) => {
                 managed.reject(Outcome::Invalid(DiscardReason::Internal));
@@ -275,12 +275,14 @@ impl StoreService {
         }
     }
 
-    fn store_envelope(
+    async fn store_envelope(
         &self,
-        mut envelope: Box<Envelope>,
-        received_at: DateTime<Utc>,
-        scoping: Scoping,
+        managed_envelope: &mut ManagedEnvelope,
     ) -> Result<(), StoreError> {
+        let mut envelope = managed_envelope.take_envelope();
+        let received_at = managed_envelope.received_at();
+        let scoping = managed_envelope.scoping();
+
         let retention = envelope.retention();
         let downsampled_retention = envelope.downsampled_retention();
 
@@ -310,25 +312,32 @@ impl StoreService {
         let mut replay_event = None;
         let mut replay_recording = None;
 
+        let options = &self.global_config.current().options;
+
         // Whether Relay will submit the replay-event to snuba or not.
-        let replay_relay_snuba_publish_disabled = utils::sample(
-            self.global_config
-                .current()
-                .options
-                .replay_relay_snuba_publish_disabled_sample_rate,
-        )
-        .is_keep();
+        let replay_relay_snuba_publish_disabled =
+            utils::sample(options.replay_relay_snuba_publish_disabled_sample_rate).is_keep();
 
         for item in envelope.items() {
             let content_type = item.content_type();
             match item.ty() {
                 ItemType::Attachment => {
-                    if let Some(attachment) = self.produce_attachment(
-                        event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.project_id,
-                        item,
-                        send_individual_attachments,
-                    )? {
+                    // Whether Relay will store this attachment in objectstore or use kafka like before.
+                    let use_objectstore =
+                        utils::sample(options.objectstore_attachments_sample_rate).is_keep();
+
+                    if let Some(attachment) = self
+                        .produce_attachment(
+                            managed_envelope,
+                            event_id.ok_or(StoreError::NoEventId)?,
+                            scoping.organization_id,
+                            scoping.project_id,
+                            item,
+                            send_individual_attachments,
+                            use_objectstore,
+                        )
+                        .await?
+                    {
                         attachments.push(attachment);
                     }
                 }
@@ -767,12 +776,16 @@ impl StoreService {
     /// to fit inside a message.
     /// In that case, no `attachment_chunk` is produced, but the content is sent as part
     /// of the `attachment` message instead.
-    fn produce_attachment(
+    #[allow(clippy::too_many_arguments)]
+    async fn produce_attachment(
         &self,
+        managed_envelope: &ManagedEnvelope,
         event_id: EventId,
+        organization_id: OrganizationId,
         project_id: ProjectId,
         item: &Item,
         send_individual_attachments: bool,
+        use_objectstore: bool,
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
         let id = Uuid::new_v4().to_string();
 
@@ -780,12 +793,42 @@ impl StoreService {
         let size = item.len();
         let max_chunk_size = self.config.attachment_chunk_size();
 
-        // When sending individual attachments, and we have a single chunk, we want to send the
-        // `data` inline in the `attachment` message.
-        // This avoids a needless roundtrip through the attachments cache on the Sentry side.
         let payload = if size == 0 {
             AttachmentPayload::Chunked(0)
+        } else if use_objectstore && let Some(upload) = &self.upload {
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+            let attachment = Managed::from_envelope(
+                managed_envelope,
+                Attachment {
+                    meta: AttachmentMeta {
+                        attachment_id: None,
+                        scope: AttachmentScope {
+                            organization_id: organization_id.value(),
+                            project_id: project_id.value(),
+                        },
+                    },
+                    payload,
+                },
+            );
+
+            upload.send(UploadAttachment {
+                attachment,
+                respond_to: Recipient::<_, NoResponse>::new(tx),
+            });
+            let Some(uploaded) = rx.recv().await else {
+                // this means the upload has failed for some reason like an internal
+                // rate limiting, a timeout or an infrastructure problem with objectstore.
+                // in this case, the attachment has already been counted as `rejected` internally.
+                return Ok(None);
+            };
+
+            let stored_id = uploaded.accept(|uploaded| uploaded.stored_id);
+            AttachmentPayload::Stored(stored_id)
         } else if send_individual_attachments && size < max_chunk_size {
+            // When sending individual attachments, and we have a single chunk, we want to send the
+            // `data` inline in the `attachment` message.
+            // This avoids a needless roundtrip through the attachments cache on the Sentry side.
             AttachmentPayload::Inline(payload)
         } else {
             let mut chunk_index = 0;
@@ -1187,7 +1230,7 @@ impl Service for StoreService {
             // For now, we run each task synchronously, in the future we might explore how to make
             // the store async.
             this.pool
-                .spawn_async(async move { service.handle_message(message) }.boxed())
+                .spawn_async(async move { service.handle_message(message).await }.boxed())
                 .await;
         }
 
@@ -1211,7 +1254,6 @@ enum AttachmentPayload {
 
     /// The attachment has already been stored into the objectstore, with the given Id.
     #[serde(rename = "stored_id")]
-    #[allow(unused)] // TODO: actually storing it in objectstore first is still WIP
     Stored(String),
 }
 

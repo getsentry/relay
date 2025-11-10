@@ -20,6 +20,7 @@
 - Add `response_timeout` config setting for Redis. ([#5329](https://github.com/getsentry/relay/pull/5329))
 - Remove `projects:discard-transaction` feature flag. ([#5307](https://github.com/getsentry/relay/pull/5307))
 - Add SEER_USER data category. ([#5383](https://github.com/getsentry/relay/pull/5383))
+- Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
 
 **Bug Fixes**:
 
@@ -41,6 +42,7 @@
 - Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
 - Remove the span kind from the Kafka span schema. ([#5368](https://github.com/getsentry/relay/pull/5368))
 - Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5308))
+
 
 ## 25.10.0
 

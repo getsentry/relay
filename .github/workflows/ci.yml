@@ -201,6 +201,11 @@ jobs:
         ports:
           - 6379:6379
 
+      objectstore:
+        image: ghcr.io/getsentry/objectstore:nightly
+        ports:
+          - 8888:8888
+
     steps:
       - name: Install libcurl-dev
         run: |
@@ -753,6 +758,11 @@ jobs:
           KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
         ports:
           - 9092:9092
+
+      objectstore:
+        image: ghcr.io/getsentry/objectstore:nightly
+        ports:
+          - 8888:8888
 
     steps:
       - name: Install libcurl-dev
