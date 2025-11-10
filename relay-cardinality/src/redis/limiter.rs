@@ -290,7 +290,7 @@ mod tests {
             max_connections: 1,
             ..Default::default()
         };
-        let redis = AsyncRedisClient::single(&url, &opts).unwrap();
+        let redis = AsyncRedisClient::single("test", &url, &opts).unwrap();
 
         RedisSetLimiter::new(
             RedisSetLimiterOptions {

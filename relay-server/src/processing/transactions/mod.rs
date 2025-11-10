@@ -221,6 +221,7 @@ impl Processor for TransactionProcessor {
 
             let event = &mut work.transaction.0;
             profile::transfer_id(event, profile_id);
+            // TODO: profile::remove_context_if_rate_limited(&mut event, managed_envelope, ctx);
 
             utils::dsc::validate_and_set_dsc(&mut work.headers, event, &mut ctx);
 

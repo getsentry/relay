@@ -1,5 +1,6 @@
 //! Profiles related processor code.
 use relay_dynamic_config::{Feature, GlobalConfig};
+use relay_quotas::DataCategory;
 use std::net::IpAddr;
 
 use relay_base_schema::events::EventType;
@@ -7,13 +8,14 @@ use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
-use relay_profiling::{ProfileError, ProfileId};
-use relay_protocol::Annotated;
+use relay_profiling::{ProfileError, ProfileId, ProfileType};
+use relay_protocol::{Annotated, Empty};
 #[cfg(feature = "processing")]
 use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::managed::{ItemAction, TypedEnvelope};
+use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
+use crate::processing::Context;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{TransactionGroup, event_type, should_filter};
 use crate::services::projects::project::ProjectInfo;
@@ -63,6 +65,114 @@ pub fn filter<Group>(
     });
 
     profile_id
+}
+
+/// Transfers the profile ID from the profile item to the transaction item.
+///
+/// The profile id may be `None` when the envelope does not contain a profile,
+/// in that case the profile context is removed.
+/// Some SDKs send transactions with profile ids but omit the profile in the envelope.
+pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) {
+    let Some(event) = event.value_mut() else {
+        return;
+    };
+
+    match profile_id {
+        Some(profile_id) => {
+            let contexts = event.contexts.get_or_insert_with(Contexts::new);
+            contexts.add(ProfileContext {
+                profile_id: Annotated::new(profile_id),
+                ..ProfileContext::default()
+            });
+        }
+        None => {
+            if let Some(contexts) = event.contexts.value_mut()
+                && let Some(profile_context) = contexts.get_mut::<ProfileContext>()
+            {
+                profile_context.profile_id = Annotated::empty();
+            }
+        }
+    }
+}
+
+/// Removes the profile context from the transaction item if there is an active rate limit.
+///
+/// With continuous profiling profile chunks are ingested separately to transactions,
+/// in the case where these profiles are rate limited the link on the associated transaction(s)
+/// should also be removed.
+///
+/// See also: <https://github.com/getsentry/relay/issues/5071>.
+pub fn remove_context_if_rate_limited(
+    event: &mut Annotated<Event>,
+    envelope: &ManagedEnvelope,
+    ctx: Context<'_>,
+) {
+    let Some(event) = event.value_mut() else {
+        return;
+    };
+
+    // There is always only either a transaction profile or a continuous profile, never both.
+    //
+    // If the `profiler_id` is set on the context, it is for a continuous profile, the case we want
+    // to handle here.
+    // If it is empty -> do nothing.
+    let profile_ctx = event.context::<ProfileContext>();
+    if profile_ctx.is_none_or(|pctx| pctx.profiler_id.is_empty()) {
+        return;
+    }
+
+    // Continuous profiling has two separate categories based on the platform, infer the correct
+    // category to check for rate limits.
+    let scoping = envelope.scoping();
+    let categories = match event.platform.as_str().map(ProfileType::from_platform) {
+        Some(ProfileType::Ui) => &[
+            scoping.item(DataCategory::ProfileChunkUi),
+            scoping.item(DataCategory::ProfileDurationUi),
+        ],
+        Some(ProfileType::Backend) => &[
+            scoping.item(DataCategory::ProfileChunk),
+            scoping.item(DataCategory::ProfileDuration),
+        ],
+        _ => return,
+    };
+
+    // This is a 'best effort' approach, which is why it is enough to check against cached rate
+    // limits here.
+    let is_limited = ctx
+        .rate_limits
+        .is_any_limited_with_quotas(ctx.project_info.get_quotas(), categories);
+
+    if is_limited && let Some(contexts) = event.contexts.value_mut() {
+        let _ = contexts.remove::<ProfileContext>();
+    }
+}
+
+/// Strip out the profiler_id from the transaction's profile context if the transaction lasts less than 20ms.
+///
+/// This is necessary because if the transaction lasts less than 19.8ms, we know that the respective
+/// profile data won't have enough samples to be of any use, hence we "unlink" the profile from the transaction.
+#[cfg(feature = "processing")]
+pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
+    let Some(event) = event.value_mut() else {
+        return;
+    };
+    let transaction_duration = event
+        .get_value("event.duration")
+        .and_then(|duration| duration.as_f64());
+
+    if !transaction_duration.is_some_and(|duration| duration < 19.8) {
+        return;
+    }
+    if let Some(contexts) = event.contexts.value_mut().as_mut()
+        && let Some(profiler_id) = contexts
+            .get_mut::<ProfileContext>()
+            .map(|ctx| &mut ctx.profiler_id)
+    {
+        let id = std::mem::take(profiler_id.value_mut());
+        let remark = Remark::new(RemarkType::Removed, "transaction_duration");
+        profiler_id.meta_mut().add_remark(remark);
+        profiler_id.meta_mut().set_original_value(id);
+    }
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.

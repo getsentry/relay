@@ -21,7 +21,7 @@ fn build_redis_client() -> AsyncRedisClient {
     let url =
         std::env::var("RELAY_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-    AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap()
+    AsyncRedisClient::single("bench", &url, &RedisConfigOptions::default()).unwrap()
 }
 
 async fn build_limiter(client: AsyncRedisClient, reset_redis: bool) -> RedisSetLimiter {

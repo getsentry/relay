@@ -1458,6 +1458,7 @@ impl EnvelopeProcessorService {
             ctx.project_info,
         );
         processing::transactions::profile::transfer_id(&mut event, profile_id);
+        profile::remove_context_if_rate_limited(&mut event, managed_envelope, ctx);
 
         ctx.sampling_project_info = dynamic_sampling::validate_and_set_dsc(
             managed_envelope,
@@ -3038,12 +3039,11 @@ impl RateLimiter {
         }
 
         let scoping = managed_envelope.scoping();
-        let (enforcement, rate_limits) =
-            metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-                envelope_limiter
-                    .compute(managed_envelope.envelope_mut(), &scoping)
-                    .await
-            })?;
+        let (enforcement, rate_limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), type = self.name(), {
+            envelope_limiter
+                .compute(managed_envelope.envelope_mut(), &scoping)
+                .await
+        })?;
         let event_active = enforcement.is_event_active();
 
         // Use the same rate limits as used for the envelope on the metrics.
@@ -3059,6 +3059,14 @@ impl RateLimiter {
         }
 
         Ok(EnforcementResult::new(event, rate_limits))
+    }
+
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Cached => "cached",
+            #[cfg(feature = "processing")]
+            Self::Consistent(_) => "consistent",
+        }
     }
 }
 

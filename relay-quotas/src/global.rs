@@ -297,7 +297,7 @@ mod tests {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-        AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap()
+        AsyncRedisClient::single("test", &url, &RedisConfigOptions::default()).unwrap()
     }
 
     fn build_quota(window: u64, limit: impl Into<Option<u64>>) -> Quota {

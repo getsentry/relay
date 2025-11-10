@@ -999,16 +999,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "deadpool-redis"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c136f185b3ca9d1f4e4e19c11570e1002f4bfdd592d589053e225716d613851f"
-dependencies = [
- "deadpool",
- "redis",
-]
-
-[[package]]
 name = "deadpool-runtime"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4272,7 +4262,6 @@ name = "relay-redis"
 version = "25.10.0"
 dependencies = [
  "deadpool",
- "deadpool-redis",
  "futures",
  "redis",
  "relay-statsd",

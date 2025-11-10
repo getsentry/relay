@@ -39,6 +39,11 @@ pub struct PartialRedisConfigOptions {
     /// blocking when the pool is exhausted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wait_timeout: Option<u64>,
+    /// Sets the maximum time in seconds to wait for a result when sending a Redis command.
+    ///
+    /// If a command exceeds this timeout, the connection will be recycled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_timeout: Option<u64>,
     /// Sets the number of times after which the connection will check whether it is active when
     /// being recycled.
     ///
@@ -55,6 +60,7 @@ impl Default for PartialRedisConfigOptions {
             create_timeout: Some(3),
             recycle_timeout: Some(2),
             wait_timeout: None,
+            response_timeout: Some(30),
             recycle_check_frequency: 100,
         }
     }
@@ -224,6 +230,7 @@ fn build_redis_config_options(
         create_timeout: options.create_timeout,
         recycle_timeout: options.recycle_timeout,
         wait_timeout: options.wait_timeout,
+        response_timeout: options.response_timeout,
         recycle_check_frequency: options.recycle_check_frequency,
     }
 }
@@ -403,6 +410,7 @@ quotas:
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
+          "response_timeout": 30,
           "recycle_check_frequency": 100
         }
         "###);
@@ -425,6 +433,7 @@ quotas:
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
+          "response_timeout": 30,
           "recycle_check_frequency": 100
         }
         "###);
@@ -544,6 +553,7 @@ max_connections: 20
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
+          "response_timeout": 30,
           "recycle_check_frequency": 100
         }
         "###);
@@ -572,6 +582,7 @@ max_connections: 20
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
+          "response_timeout": 30,
           "recycle_check_frequency": 100
         }
         "###);
@@ -611,6 +622,7 @@ max_connections: 20
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
+            "response_timeout": 30,
             "recycle_check_frequency": 100
           },
           "cardinality": {
@@ -618,6 +630,7 @@ max_connections: 20
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
+            "response_timeout": 30,
             "recycle_check_frequency": 100
           },
           "quotas": {
@@ -629,6 +642,7 @@ max_connections: 20
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
+            "response_timeout": 30,
             "recycle_check_frequency": 100
           }
         }

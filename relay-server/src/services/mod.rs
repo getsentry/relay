@@ -27,6 +27,7 @@
 //! Controller::run(|| Server::start())
 //!     .expect("failed to start relay");
 //! ```
+pub mod autoscaling;
 pub mod buffer;
 pub mod cogs;
 pub mod global_config;
@@ -42,8 +43,9 @@ pub mod proxy_processor;
 pub mod relays;
 pub mod server;
 pub mod stats;
-pub mod upstream;
-
-pub mod autoscaling;
 #[cfg(feature = "processing")]
 pub mod store;
+#[cfg(feature = "processing")]
+#[expect(unused)]
+pub mod upload;
+pub mod upstream;
