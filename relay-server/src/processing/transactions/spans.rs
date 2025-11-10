@@ -249,6 +249,7 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
 }
 
 #[cfg(test)]
+#[cfg(feature = "processing")]
 mod tests {
 
     use std::collections::BTreeMap;
