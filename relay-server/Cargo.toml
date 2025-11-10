@@ -56,6 +56,7 @@ liblzma = { workspace = true }
 mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
+objectstore-client = { workspace = true }
 opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
