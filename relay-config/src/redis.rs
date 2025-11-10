@@ -1,8 +1,9 @@
 use relay_redis::RedisConfigOptions;
 use serde::{Deserialize, Serialize};
 
-/// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
-/// In this case, we fall back to the old default.
+/// The minimum amount of Redis connections Relay configures by default.
+///
+/// For small setups, the automatically inferred value based on concurrency may not be enough.
 pub(crate) const DEFAULT_MIN_MAX_CONNECTIONS: u32 = 24;
 
 /// Additional configuration options for a redis client.
@@ -11,7 +12,7 @@ pub(crate) const DEFAULT_MIN_MAX_CONNECTIONS: u32 = 24;
 pub struct PartialRedisConfigOptions {
     /// Maximum number of connections managed by the pool.
     ///
-    /// Defaults to 2x `limits.max_thread_count` or a minimum of 24.
+    /// Automatically sized by Relay if not specified.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_connections: Option<u32>,
     /// Sets the idle timeout used by the pool, in seconds.
