@@ -1,55 +1,25 @@
-use std::sync::Arc;
-
-use relay_quotas::RateLimits;
 use relay_system::Addr;
 
 use crate::envelope::{EnvelopeHeaders, Item, ItemType};
-use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
-use crate::processing::{self, Context, CountRateLimited, Nothing, Output, QuotaRateLimiter};
-use crate::services::outcome::{Outcome, TrackOutcome};
+use crate::managed::{Counted, Managed, ManagedEnvelope, Quantities, Rejected};
+use crate::processing::{self, Context, Nothing, Output};
+use crate::services::outcome::TrackOutcome;
 
 mod process;
 
+// TODO: Not sure there is a cleaner way to do this.
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
-    /// The client-reports are rate limited.
-    #[error("rate limited")]
-    RateLimited(RateLimits),
-}
-
-impl OutcomeError for Error {
-    type Error = Self;
-
-    fn consume(self) -> (Option<Outcome>, Self::Error) {
-        let outcome = match &self {
-            Self::RateLimited(limits) => {
-                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                Some(Outcome::RateLimited(reason_code))
-            }
-        };
-        (outcome, self)
-    }
-}
-
-impl From<RateLimits> for Error {
-    fn from(value: RateLimits) -> Self {
-        Self::RateLimited(value)
-    }
-}
+pub enum Error {}
 
 /// A processor for Client-Reports.
 pub struct ClientReportsProcessor {
-    limiter: Arc<QuotaRateLimiter>,
     aggregator: Addr<TrackOutcome>,
 }
 
 impl ClientReportsProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>, aggregator: Addr<TrackOutcome>) -> Self {
-        Self {
-            limiter,
-            aggregator,
-        }
+    pub fn new(aggregator: Addr<TrackOutcome>) -> Self {
+        Self { aggregator }
     }
 }
 
@@ -88,10 +58,6 @@ impl processing::Processor for ClientReportsProcessor {
             &self.aggregator,
         );
 
-        self.limiter
-            .enforce_quotas(&mut client_reports, ctx)
-            .await?;
-
         Ok(Output::empty())
     }
 }
@@ -112,8 +78,4 @@ impl Counted for SerializedClientReport {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![]
     }
-}
-
-impl CountRateLimited for Managed<SerializedClientReport> {
-    type Error = Error;
 }
