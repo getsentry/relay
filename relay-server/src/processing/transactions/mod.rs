@@ -1,3 +1,4 @@
+#![expect(unused)]
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
@@ -84,13 +85,11 @@ impl OutcomeError for Error {
 }
 
 /// A processor for transactions.
-#[expect(unused)]
 pub struct TransactionProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: GeoIpLookup,
     #[cfg(feature = "processing")]
     quotas_client: Option<AsyncRedisClient>,
-    #[cfg(feature = "processing")]
     reservoir_counters: ReservoirCounters,
 }
 
@@ -155,7 +154,7 @@ impl Processor for TransactionProcessor {
                 && work
                     .transaction
                     .as_ref()
-                    .map_or(false, Item::fully_normalized),
+                    .is_some_and(Item::fully_normalized),
         };
         let mut metrics = Metrics::default();
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
@@ -230,7 +229,7 @@ impl Processor for TransactionProcessor {
                 event,
                 work.attachments.iter(),
                 &mut metrics,
-                &ctx.config,
+                ctx.config,
             )?;
 
             work.flags.fully_normalized = utils::event::normalize(
@@ -243,7 +242,7 @@ impl Processor for TransactionProcessor {
             )?.0;
 
             let filter_run = utils::event::filter(&work.headers, event, &ctx)
-                .map_err(|e| ProcessingError::EventFiltered(e))?;
+                .map_err(ProcessingError::EventFiltered)?;
 
             // Always run dynamic sampling on processing Relays,
             // but delay decision until inbound filters have been fully processed.
@@ -356,7 +355,8 @@ impl Processor for TransactionProcessor {
             Ok::<_, Error>(())
         })?;
 
-        if cfg!(feature = "processing") && ctx.config.processing_enabled() {
+        #[cfg(feature = "processing")]
+        if ctx.config.processing_enabled() {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             let mut profile_id = None;
             work.try_modify(|work, r| {
@@ -454,10 +454,7 @@ impl SerializedTransaction {
             attachments,
             profile,
         } = self;
-        transaction
-            .into_iter()
-            .chain(attachments.into_iter())
-            .chain(profile.into_iter())
+        transaction.iter().chain(attachments).chain(profile.iter())
     }
 }
 
@@ -514,7 +511,7 @@ impl ExpandedTransaction {
             items.push(item);
         }
         items.extend(attachments);
-        items.extend(profile.into_iter());
+        items.extend(profile);
         items.extend(extracted_spans);
 
         Ok(Envelope::from_parts(headers, items))

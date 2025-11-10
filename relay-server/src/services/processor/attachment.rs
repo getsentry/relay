@@ -1,12 +1,12 @@
 //! Attachments processor code.
-
-use crate::envelope::AttachmentType;
-
-use crate::managed::TypedEnvelope;
 #[cfg(feature = "processing")]
 use {
-    crate::services::processor::{ErrorGroup, EventFullyNormalized},
-    crate::utils,
+    crate::{
+        envelope::AttachmentType,
+        managed::TypedEnvelope,
+        services::processor::{ErrorGroup, EventFullyNormalized},
+        utils,
+    },
     relay_event_schema::protocol::{Event, Metrics},
     relay_protocol::Annotated,
 };

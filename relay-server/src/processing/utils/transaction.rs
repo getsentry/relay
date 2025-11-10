@@ -1,3 +1,4 @@
+#![expect(unused)]
 use std::sync::Once;
 
 use relay_base_schema::project::ProjectId;

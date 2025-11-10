@@ -12,6 +12,7 @@ use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit};
 use relay_protocol::{Annotated, Empty};
 use relay_sampling::DynamicSamplingContext;
 
+#[cfg(feature = "processing")]
 #[allow(clippy::too_many_arguments)]
 pub fn extract_from_event(
     dsc: Option<&DynamicSamplingContext>,
@@ -387,7 +388,7 @@ mod tests {
     fn extract_sample_rates() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
-        let (mut managed_envelope, event, _) = params(); // client sample rate is 0.2
+        let (_, event, _) = params(); // client sample rate is 0.2
         let spans = extract_from_event(
             None,
             &event,

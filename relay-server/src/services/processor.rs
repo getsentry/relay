@@ -1353,7 +1353,7 @@ impl EnvelopeProcessorService {
             &mut event,
             attachments,
             &mut metrics,
-            &ctx.config,
+            ctx.config,
         )?;
         event_fully_normalized = processing::utils::event::normalize(
             managed_envelope.envelope().headers(),
@@ -1417,6 +1417,7 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes only transactions and transaction-related items.
+    #[allow(unused_assignments)]
     async fn process_transactions(
         &self,
         managed_envelope: &mut TypedEnvelope<TransactionGroup>,
@@ -1515,7 +1516,7 @@ impl EnvelopeProcessorService {
                 }
                 processing::utils::dynamic_sampling::run(
                     managed_envelope.envelope().headers().dsc(),
-                    &mut event,
+                    &event,
                     &ctx,
                     Some(&reservoir),
                 )
