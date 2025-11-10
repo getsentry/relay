@@ -224,10 +224,8 @@ impl ServiceState {
         let store = config
             .processing_enabled()
             .then(|| {
-                let Some(upload_service) = UploadService::new(config.upload())? else {
-                    return Ok(None);
-                };
-                let upload = services.start(upload_service);
+                let upload_service = UploadService::new(config.upload())?;
+                let upload = upload_service.map(|s| services.start(s));
                 StoreService::create(
                     store_pool.clone(),
                     config.clone(),
@@ -236,10 +234,9 @@ impl ServiceState {
                     metric_outcomes.clone(),
                     upload,
                 )
-                .map(|s| Some(services.start(s)))
+                .map(|s| services.start(s))
             })
-            .transpose()
-            .map(Option::flatten)?;
+            .transpose()?;
 
         #[cfg(feature = "processing")]
         let global_rate_limits = redis_clients
