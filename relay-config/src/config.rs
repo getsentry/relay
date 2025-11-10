@@ -487,6 +487,24 @@ pub struct Relay {
     pub host: IpAddr,
     /// The port to bind for the unencrypted relay HTTP server.
     pub port: u16,
+    /// The host the relay should bind to (network interface) for internally exposed APIs, like
+    /// health checks.
+    ///
+    /// If not configured, internal routes are exposed on the main HTTP server.
+    ///
+    /// Note: configuring the internal http server on an address which overlaps with the main
+    /// server (e.g. main on `0.0.0.0:3000` and internal on `127.0.0.1:3000`) is a misconfiguration
+    /// resulting in approximately half of the requests sent to `127.0.0.1:3000` to fail, as the handling
+    /// http server is chosen by the operating system 'at random'.
+    ///
+    /// As a best practice you should always choose different ports to avoid this issue.
+    ///
+    /// Defaults to [`Self::host`].
+    pub internal_host: Option<IpAddr>,
+    /// The port to bind for internally exposed APIs.
+    ///
+    /// Defaults to [`Self::port`].
+    pub internal_port: Option<u16>,
     /// Optional port to bind for the encrypted relay HTTPS server.
     #[serde(skip_serializing)]
     pub tls_port: Option<u16>,
@@ -512,6 +530,8 @@ impl Default for Relay {
             upstream: "https://sentry.io/".parse().unwrap(),
             host: default_host(),
             port: 3000,
+            internal_host: None,
+            internal_port: None,
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
@@ -1946,6 +1966,25 @@ impl Config {
     /// Returns the listen address.
     pub fn listen_addr(&self) -> SocketAddr {
         (self.values.relay.host, self.values.relay.port).into()
+    }
+
+    /// Returns the listen address for internal APIs.
+    ///
+    /// Internal APIs are APIs which do not need to be publicly exposed,
+    /// like health checks.
+    ///
+    /// Returns `None` when there is no explicit address configured for internal APIs,
+    /// and they should instead be exposed on the main [`Self::listen_addr`].
+    pub fn listen_addr_internal(&self) -> Option<SocketAddr> {
+        match (
+            self.values.relay.internal_host,
+            self.values.relay.internal_port,
+        ) {
+            (Some(host), None) => Some((host, self.values.relay.port).into()),
+            (None, Some(port)) => Some((self.values.relay.host, port).into()),
+            (Some(host), Some(port)) => Some((host, port).into()),
+            (None, None) => None,
+        }
     }
 
     /// Returns the TLS listen address.
