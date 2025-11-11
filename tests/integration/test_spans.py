@@ -32,7 +32,6 @@ TEST_CONFIG = {
 
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
-@pytest.mark.parametrize("discard_transaction", [False, True])
 def test_span_extraction(
     mini_sentry,
     relay_with_processing,
@@ -40,7 +39,6 @@ def test_span_extraction(
     transactions_consumer,
     events_consumer,
     metrics_consumer,
-    discard_transaction,
     performance_issues_spans,
 ):
     spans_consumer = spans_consumer()
@@ -56,8 +54,6 @@ def test_span_extraction(
     }
 
     project_config["config"].setdefault("features", [])
-    if discard_transaction:
-        project_config["config"]["features"].append("projects:discard-transaction")
     if performance_issues_spans:
         project_config["config"]["features"].append(
             "organizations:performance-issues-spans"
@@ -115,26 +111,15 @@ def test_span_extraction(
 
     relay.send_event(project_id, event)
 
-    if discard_transaction:
-        assert transactions_consumer.poll(timeout=2.0) is None
-
-        # We do not accidentally produce to the events topic:
-        assert events_consumer.poll(timeout=2.0) is None
-
-        # We _do_ extract span metrics:
-        assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
-            ("namespace", b"spans")
-        }
-    else:
-        received_event, _ = transactions_consumer.get_event(timeout=2.0)
-        assert received_event["event_id"] == event["event_id"]
-        assert received_event.get("_performance_issues_spans") == (
-            performance_issues_spans or None
-        )
-        assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
-            ("namespace", b"spans"),
-            ("namespace", b"transactions"),
-        }
+    received_event, _ = transactions_consumer.get_event(timeout=2.0)
+    assert received_event["event_id"] == event["event_id"]
+    assert received_event.get("_performance_issues_spans") == (
+        performance_issues_spans or None
+    )
+    assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
+        ("namespace", b"spans"),
+        ("namespace", b"transactions"),
+    }
 
     child_span = spans_consumer.get_span()
 

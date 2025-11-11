@@ -1728,7 +1728,7 @@ impl EnvelopeProcessorService {
         let attachments = managed_envelope
             .envelope_mut()
             .items_mut()
-            .filter(|i| i.ty() == &ItemType::Transaction);
+            .filter(|i| i.ty() == &ItemType::Attachment);
         processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         Ok(Some(extracted_metrics))
