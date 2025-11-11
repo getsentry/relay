@@ -56,7 +56,6 @@ pub fn internal_routes(_: &Config) -> Router<ServiceState>{
 /// Relay's public routes.
 ///
 /// Routes which are public API and must be exposed.
-#[expect(unused, reason = "temporarily unused")]
 pub fn public_routes(config: &Config) -> Router<ServiceState> {
     // Exclude internal routes, they must be configured separately.
     public_routes_raw(config).route("/api/relay/{*not_found}", any(statics::not_found))
