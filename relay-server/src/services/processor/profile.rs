@@ -1,19 +1,17 @@
 //! Profiles related processor code.
 use relay_dynamic_config::{Feature, GlobalConfig};
-use relay_quotas::DataCategory;
 use std::net::IpAddr;
 
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
-use relay_event_schema::protocol::{Event, ProfileContext};
+use relay_event_schema::protocol::Event;
 use relay_filter::ProjectFiltersConfig;
-use relay_profiling::{ProfileError, ProfileId, ProfileType};
-use relay_protocol::{Annotated, Empty};
+use relay_profiling::{ProfileError, ProfileId};
+use relay_protocol::Annotated;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
-use crate::processing::Context;
+use crate::managed::{ItemAction, TypedEnvelope};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{TransactionGroup, event_type, should_filter};
 use crate::services::projects::project::ProjectInfo;
@@ -63,58 +61,6 @@ pub fn filter<Group>(
     });
 
     profile_id
-}
-
-/// Removes the profile context from the transaction item if there is an active rate limit.
-///
-/// With continuous profiling profile chunks are ingested separately to transactions,
-/// in the case where these profiles are rate limited the link on the associated transaction(s)
-/// should also be removed.
-///
-/// See also: <https://github.com/getsentry/relay/issues/5071>.
-pub fn remove_context_if_rate_limited(
-    event: &mut Annotated<Event>,
-    envelope: &ManagedEnvelope,
-    ctx: Context<'_>,
-) {
-    let Some(event) = event.value_mut() else {
-        return;
-    };
-
-    // There is always only either a transaction profile or a continuous profile, never both.
-    //
-    // If the `profiler_id` is set on the context, it is for a continuous profile, the case we want
-    // to handle here.
-    // If it is empty -> do nothing.
-    let profile_ctx = event.context::<ProfileContext>();
-    if profile_ctx.is_none_or(|pctx| pctx.profiler_id.is_empty()) {
-        return;
-    }
-
-    // Continuous profiling has two separate categories based on the platform, infer the correct
-    // category to check for rate limits.
-    let scoping = envelope.scoping();
-    let categories = match event.platform.as_str().map(ProfileType::from_platform) {
-        Some(ProfileType::Ui) => &[
-            scoping.item(DataCategory::ProfileChunkUi),
-            scoping.item(DataCategory::ProfileDurationUi),
-        ],
-        Some(ProfileType::Backend) => &[
-            scoping.item(DataCategory::ProfileChunk),
-            scoping.item(DataCategory::ProfileDuration),
-        ],
-        _ => return,
-    };
-
-    // This is a 'best effort' approach, which is why it is enough to check against cached rate
-    // limits here.
-    let is_limited = ctx
-        .rate_limits
-        .is_any_limited_with_quotas(ctx.project_info.get_quotas(), categories);
-
-    if is_limited && let Some(contexts) = event.contexts.value_mut() {
-        let _ = contexts.remove::<ProfileContext>();
-    }
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
@@ -213,7 +159,7 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_cogs::Token;
     use relay_dynamic_config::Feature;
-    use relay_event_schema::protocol::EventId;
+    use relay_event_schema::protocol::{EventId, ProfileContext};
     use relay_sampling::evaluation::ReservoirCounters;
     use relay_system::Addr;
 
