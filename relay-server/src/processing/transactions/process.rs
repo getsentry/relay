@@ -1,10 +1,12 @@
 use relay_base_schema::events::EventType;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
+use relay_quotas::DataCategory;
 use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
+use smallvec::smallvec;
 
-use crate::managed::{Managed, Rejected};
+use crate::managed::{Counted, Managed, Quantities, RecordKeeper, Rejected};
 use crate::processing::transactions::extraction::{ExtractMetricsContext, extract_metrics};
 use crate::processing::transactions::profile::Profile;
 use crate::processing::transactions::{
@@ -94,15 +96,14 @@ pub async fn drop_after_sampling(
         Ok::<_, Error>(())
     })?;
 
-    let (work, profile) = work.split_once(|mut work| {
+    let (mut work, profile) = work.split_once(|mut work| {
         let profile = work.profile.take();
         (work, profile)
     });
 
     // reject everything but the profile:
-    // FIXME: track non-extracted spans as well.
-    // -> Type TransactionWithEmbeddedSpans
-    let _ = work.reject_err(outcome);
+    let _ = work.reject_err(outcome.clone());
+    emit_span_outcomes(&mut work, outcome);
 
     // If we have a profile left, we need to make sure there is quota for this profile.
     let profile = profile.transpose();
@@ -116,4 +117,38 @@ pub async fn drop_after_sampling(
         main: Some(TransactionOutput(work)),
         metrics: Some(metrics),
     })
+}
+
+fn emit_span_outcomes(work: &mut Managed<ExpandedTransaction>, outcome: Outcome) {
+    // Another 'hack' to emit outcomes from the container item for the contained items (spans).
+    //
+    // The entire tracking outcomes for contained elements is not handled in a systematic way
+    // and whenever an event/transaction is discarded, contained elements are tracked in a 'best
+    // effort' basis (basically in all the cases where someone figured out this is a problem).
+    //
+    // This is yet another case, when the spans have not yet been separated from the transaction
+    // also emit dynamic sampling outcomes for the contained spans.
+    debug_assert!(!work.flags.spans_extracted); // span extraction happens after dynamic sampling (for now)
+    if work.flags.spans_extracted {
+        return;
+    }
+
+    let Some(spans) = work.transaction.0.value().and_then(|e| e.spans.value()) else {
+        return;
+    };
+    let span_count = spans.len() + 1;
+
+    // Track the amount of contained spans + 1 segment span (the transaction itself which would
+    // be converted to a span).
+    work.modify(|work, record_keeper| {
+        record_keeper.reject_err(outcome, IndexedSpans(span_count));
+    });
+}
+
+struct IndexedSpans(usize);
+
+impl Counted for IndexedSpans {
+    fn quantities(&self) -> Quantities {
+        smallvec![(DataCategory::SpanIndexed, self.0)]
+    }
 }
