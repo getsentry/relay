@@ -1,4 +1,4 @@
-from twine import wheel
+import zipfile
 
 from packaging import metadata
 
@@ -7,9 +7,11 @@ import sys
 filepaths = sys.argv[1:]
 
 for fp in filepaths:
-    dist = wheel.Wheel(fp)
-    data = dist.read()
-    meta, unparsed = metadata.parse_email(data)
+    zipf = zipfile.ZipFile(fp)
+    names = zipf.namelist()
+
+    data = next((zipf.read(name) for name in names if "METADATA" in name), b"")
+    parsed, unparsed = metadata.parse_email(data)
 
     if unparsed:
         raise SystemExit(
@@ -17,7 +19,7 @@ for fp in filepaths:
         )
 
     try:
-        metadata.Metadata.from_raw(meta)
+        metadata.Metadata.from_raw(parsed)
     except metadata.ExceptionGroup as group:
         raise SystemExit(
             "Invalid distribution metadata ({}): {}".format(

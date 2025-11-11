@@ -86,6 +86,9 @@ jobs:
       - name: Build Wheel
         run: |
           python setup.py bdist_wheel -p ${{ matrix.py-platform }}
+          # this verifies that the wheel has good metadata
+          # if it fails then twine upload will not succeed; we want to find out sooner
+          # and not during the release itself
           python tools/verify_wheel.py dist/*.whl
         working-directory: py
         env:
