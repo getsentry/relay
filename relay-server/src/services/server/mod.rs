@@ -211,7 +211,7 @@ impl Service for HttpServer {
         relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
         if let Some(internal_listener) = internal_listener {
-            let public = make_app(service.clone(), crate::endpoints::public_routes);
+            let public = make_app(service.clone(), crate::endpoints::all_routes);
             let internal = make_app(service, crate::endpoints::internal_routes);
 
             tokio::try_join!(
