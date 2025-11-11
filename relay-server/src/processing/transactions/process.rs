@@ -1,5 +1,5 @@
 use relay_base_schema::events::EventType;
-use relay_event_schema::protocol::Event;
+use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::SamplingDecision;
@@ -16,7 +16,7 @@ use crate::processing::transactions::{
 use crate::processing::utils::event::EventMetricsExtracted;
 use crate::processing::{Context, Output, QuotaRateLimiter, utils};
 use crate::services::outcome::Outcome;
-use crate::services::processor::ProcessingExtractedMetrics;
+use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::statsd::RelayTimers;
 
 /// Parses the event payload.
@@ -48,6 +48,34 @@ pub fn expand(work: SerializedTransaction) -> Result<ExpandedTransaction, Error>
         profile,
         extracted_spans: vec![],
     })
+}
+
+/// Massages the data and conditionally drops the profile item.
+pub fn prepare_data(
+    work: &mut Managed<ExpandedTransaction>,
+    ctx: &mut Context<'_>,
+) -> Result<Metrics, Rejected<Error>> {
+    let mut metrics = Metrics::default();
+    let scoping = work.scoping();
+    work.try_modify(|work, record_keeper| {
+        let profile_id = profile::filter(work, record_keeper, *ctx, scoping.project_id);
+
+        let event = &mut work.transaction.0;
+        profile::transfer_id(event, profile_id);
+        profile::remove_context_if_rate_limited(event, scoping, *ctx);
+
+        utils::dsc::validate_and_set_dsc(&mut work.headers, event, ctx);
+
+        utils::event::finalize(
+            &work.headers,
+            event,
+            work.attachments.iter(),
+            &mut metrics,
+            ctx.config,
+        )
+        .map_err(Error::from)
+    })?;
+    Ok(metrics)
 }
 
 /// Finishes transaction and profile processing when the dynamic sampling decision was "drop".

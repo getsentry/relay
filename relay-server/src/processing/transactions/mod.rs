@@ -35,6 +35,8 @@ use crate::managed::TypedEnvelope;
 #[cfg(feature = "processing")]
 use crate::services::processor::ProcessingGroup;
 
+use super::Context;
+
 pub mod extraction;
 mod process;
 pub mod profile;
@@ -128,34 +130,21 @@ impl Processor for TransactionProcessor {
     async fn process(
         &self,
         work: Managed<Self::UnitOfWork>,
-        mut ctx: super::Context<'_>,
+        mut ctx: Context<'_>,
     ) -> Result<super::Output<Self::Output>, Rejected<Self::Error>> {
         let scoping = work.scoping();
         let project_id = work.scoping().project_id;
-        let mut metrics = Metrics::default();
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         let mut work = work.try_map(|w, _| process::expand(w))?;
 
+        let mut metrics = process::prepare_data(&mut work, &mut ctx)?;
+
         let mut run_dynamic_sampling = false;
         work.try_modify(|work, record_keeper| {
-
-            let profile_id = profile::filter(work, record_keeper, &ctx, project_id);
-
             let event = &mut work.transaction.0;
-            profile::transfer_id(event, profile_id);
-            profile::remove_context_if_rate_limited(event, scoping, ctx);
 
-            utils::dsc::validate_and_set_dsc(&mut work.headers, event, &mut ctx);
-
-            utils::event::finalize(
-                &work.headers,
-                event,
-                work.attachments.iter(),
-                &mut metrics,
-                ctx.config,
-            )?;
-
+            // 3 - NORMALIZE
             work.flags.fully_normalized = utils::event::normalize(
                 &work.headers,
                 event,
@@ -165,6 +154,7 @@ impl Processor for TransactionProcessor {
                 &self.geoip_lookup,
             )?.0;
 
+            // 4 - INBOUND FILTERS
             let filter_run = utils::event::filter(&work.headers, event, &ctx)
                 .map_err(ProcessingError::EventFiltered)?;
 
@@ -178,6 +168,7 @@ impl Processor for TransactionProcessor {
             Ok::<_,Error>(())
         })?;
 
+        // 4 - DYNAMIC SAMPLING
         let sampling_result = match run_dynamic_sampling {
             true => {
                 #[allow(unused_mut)]
@@ -220,6 +211,7 @@ impl Processor for TransactionProcessor {
         // Need to scrub the transaction before extracting spans.
         //
         // Unconditionally scrub to make sure PII is removed as early as possible.
+        // 5 - SCRUB
         work.try_modify(|work, _| {
             utils::event::scrub(&mut work.transaction.0, ctx.project_info)?;
             utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
@@ -233,6 +225,7 @@ impl Processor for TransactionProcessor {
             work.try_modify(|work, r| {
                 use crate::processing::transactions::extraction::ExtractMetricsContext;
 
+                // 6 - PROCESS PROFILE
                 if let Some(profile) = work.profile.as_mut() {
                     profile.set_sampled(false);
                     let result = profile::process(
@@ -252,6 +245,8 @@ impl Processor for TransactionProcessor {
                 profile::transfer_id(&mut work.transaction.0, profile_id);
                 profile::scrub_profiler_id(&mut work.transaction.0);
 
+                // 7 - EXTRACT METRICS
+
                 // Always extract metrics in processing Relays for sampled items.
                 work.flags.metrics_extracted = extraction::extract_metrics(
                     &mut work.transaction.0,
@@ -267,6 +262,7 @@ impl Processor for TransactionProcessor {
                 )?
                 .0;
 
+                // 8 - Extract spans
                 if let Some(results) = spans::extract_from_event(
                     work.headers.dsc(),
                     &work.transaction.0,
@@ -292,6 +288,7 @@ impl Processor for TransactionProcessor {
             })?;
         }
 
+        // 9 - RATE LIMIT
         self.limiter.enforce_quotas(&mut work, ctx).await?;
 
         if ctx.config.processing_enabled() && !work.flags.fully_normalized {
@@ -420,7 +417,7 @@ impl RateLimited for Managed<ExpandedTransaction> {
     async fn enforce<T>(
         &mut self,
         mut rate_limiter: T,
-        ctx: super::Context<'_>,
+        ctx: Context<'_>,
     ) -> Result<(), Rejected<Self::Error>>
     where
         T: super::RateLimiter,

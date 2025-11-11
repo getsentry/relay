@@ -37,7 +37,7 @@ impl CountRateLimited for Managed<Profile> {
 pub fn filter(
     work: &mut ExpandedTransaction,
     record_keeper: &mut RecordKeeper,
-    ctx: &Context,
+    ctx: Context,
     project_id: ProjectId,
 ) -> Option<ProfileId> {
     let profile_item = work.profile.as_ref()?;
