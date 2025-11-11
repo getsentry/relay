@@ -1267,12 +1267,6 @@ impl Default for OutcomeAggregatorConfig {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct UploadServiceConfig {
-    /// The base URL for the objectstore service.
-    ///
-    /// This defaults to [`None`], which means that the service will be disabled,
-    /// unless a proper configuration is provided.
-    pub objectstore_url: Option<String>,
-
     /// Maximum concurrency of uploads.
     pub max_concurrent_requests: usize,
 
@@ -1283,7 +1277,6 @@ pub struct UploadServiceConfig {
 impl Default for UploadServiceConfig {
     fn default() -> Self {
         Self {
-            objectstore_url: None,
             max_concurrent_requests: 100,
             timeout: 60,
         }
