@@ -6,7 +6,7 @@ use std::ops::AddAssign;
 use uuid::Uuid;
 
 use bytes::Bytes;
-use relay_event_schema::protocol::EventType;
+use relay_event_schema::protocol::{EventType, SpanId};
 use relay_protocol::Value;
 use relay_quotas::DataCategory;
 use serde::{Deserialize, Serialize};
@@ -42,6 +42,8 @@ impl Item {
                 fully_normalized: false,
                 profile_type: None,
                 platform: None,
+                span_id: None,
+                meta_length: None,
             },
             payload: Bytes::new(),
         }
@@ -856,6 +858,25 @@ pub struct ItemHeaders {
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
     profile_type: Option<ProfileType>,
+
+    /// Content length of the item.
+    ///
+    /// Can be omitted if the item does not contain new lines. In this case, the item payload is
+    /// parsed until the first newline is encountered.
+
+    /// Content length of an optional meta segment that might be contained in the item.
+    ///
+    /// For the time being such an meta segment is only present for span attachments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    meta_length: Option<u32>,
+
+    /// ID of ths span that the Item is associated with, if it is a span_attachment.
+    ///
+    /// If it is none than the the span_attachment is associated to single span.
+    ///
+    /// For the time being only applicable if the item is a span attachment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    span_id: Option<SpanId>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
