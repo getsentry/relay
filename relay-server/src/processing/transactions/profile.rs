@@ -40,9 +40,8 @@ pub fn filter(
     ctx: &Context,
     project_id: ProjectId,
 ) -> Option<ProfileId> {
-    let Some(profile_item) = work.profile.as_ref() else {
-        return None;
-    };
+    let profile_item = work.profile.as_ref()?;
+
     let feature = Feature::Profiling;
     let mut profile_id = None;
     if should_filter(ctx.config, ctx.project_info, feature) {

@@ -23,15 +23,13 @@ pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: 
             .has(Feature::ViewHierarchyScrubbing);
         for item in attachments {
             debug_assert_eq!(item.ty(), &ItemType::Attachment);
-            if dbg!(view_hierarchy_scrubbing_enabled)
-                && dbg!(item.attachment_type()) == Some(&AttachmentType::ViewHierarchy)
+            if view_hierarchy_scrubbing_enabled
+                && item.attachment_type() == Some(&AttachmentType::ViewHierarchy)
             {
                 scrub_view_hierarchy(item, config)
             } else if item.attachment_type() == Some(&AttachmentType::Minidump) {
                 scrub_minidump(item, config)
-            } else if item.ty() == &ItemType::Attachment
-                && dbg!(has_simple_attachment_selector(config))
-            {
+            } else if item.ty() == &ItemType::Attachment && has_simple_attachment_selector(config) {
                 // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
                 // such as `$attachments.'foo.txt'`.
                 // After we have assessed the impact on performance we can relax this condition.
