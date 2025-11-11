@@ -192,7 +192,7 @@ pub fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
             .value()
             .is_some_and(|s| s.parse::<u16>().is_err())
         {
-            sentry_tags.group.set_value(None);
+            sentry_tags.status_code.set_value(None);
         }
     }
     if let Some(tags) = tags.value_mut() {
