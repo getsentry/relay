@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use bytes::Bytes;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::SpanV2;
+use relay_event_schema::protocol::{SpanId, SpanV2};
 use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
