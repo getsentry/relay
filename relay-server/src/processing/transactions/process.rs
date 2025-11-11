@@ -27,22 +27,18 @@ pub fn expand(work: SerializedTransaction) -> Result<ExpandedTransaction, Error>
         attachments,
         profile,
     } = work;
-    let mut transaction = Annotated::empty();
-    let mut flags = Flags::default();
-    if let Some(transaction_item) = transaction_item.as_ref() {
-        transaction = metric!(timer(RelayTimers::EventProcessingDeserialize), {
-            Annotated::<Event>::from_json_bytes(&transaction_item.payload())
-        })?;
-        if let Some(event) = transaction.value_mut() {
-            event.ty = EventType::Transaction.into();
-        }
-        flags = Flags {
-            metrics_extracted: transaction_item.metrics_extracted(),
-            spans_extracted: transaction_item.spans_extracted(),
-            fully_normalized: headers.meta().request_trust().is_trusted()
-                && transaction_item.fully_normalized(),
-        };
+    let mut transaction = metric!(timer(RelayTimers::EventProcessingDeserialize), {
+        Annotated::<Event>::from_json_bytes(&transaction_item.payload())
+    })?;
+    if let Some(event) = transaction.value_mut() {
+        event.ty = EventType::Transaction.into();
     }
+    let flags = Flags {
+        metrics_extracted: transaction_item.metrics_extracted(),
+        spans_extracted: transaction_item.spans_extracted(),
+        fully_normalized: headers.meta().request_trust().is_trusted()
+            && transaction_item.fully_normalized(),
+    };
 
     Ok(ExpandedTransaction {
         headers,

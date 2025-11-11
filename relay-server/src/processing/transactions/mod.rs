@@ -103,29 +103,17 @@ impl Processor for TransactionProcessor {
     ) -> Option<Managed<Self::UnitOfWork>> {
         let headers = envelope.envelope().headers().clone();
 
-        // The envelope might contain only a profile as a leftover after dynamic sampling.
-        // In this case, `transaction` is `None`.
         let transaction = envelope
             .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::Transaction));
+            .take_item_by(|item| matches!(*item.ty(), ItemType::Transaction))?;
 
-        // Attachments are only allowed if a transaction exists.
-        let attachments = match transaction {
-            Some(_) => envelope
-                .envelope_mut()
-                .take_items_by(|item| matches!(*item.ty(), ItemType::Attachment)),
-            None => smallvec::smallvec![], // no attachments allowed.
-        };
+        let attachments = envelope
+            .envelope_mut()
+            .take_items_by(|item| matches!(*item.ty(), ItemType::Attachment));
 
-        // A profile is only allowed if a transaction exists, or if it is marked as not sampled,
-        // in which case it is a leftover from a transaction that was dropped by dynamic sampling.
-        let profile = envelope.envelope_mut().take_item_by(|item| {
-            matches!(*item.ty(), ItemType::Profile) && (transaction.is_some() || !item.sampled())
-        });
-
-        if transaction.is_none() && profile.is_none() && attachments.is_empty() {
-            return None;
-        }
+        let profile = envelope
+            .envelope_mut()
+            .take_item_by(|item| matches!(*item.ty(), ItemType::Profile));
 
         let work = SerializedTransaction {
             headers,
@@ -326,7 +314,7 @@ impl Processor for TransactionProcessor {
 #[derive(Debug)]
 pub struct SerializedTransaction {
     headers: EnvelopeHeaders,
-    transaction: Option<Item>,
+    transaction: Item,
     attachments: smallvec::SmallVec<[Item; 3]>,
     profile: Option<Item>,
 }
@@ -339,7 +327,9 @@ impl SerializedTransaction {
             attachments,
             profile,
         } = self;
-        transaction.iter().chain(attachments).chain(profile.iter())
+        std::iter::once(transaction)
+            .chain(attachments)
+            .chain(profile.iter())
     }
 }
 
