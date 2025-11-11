@@ -285,6 +285,9 @@ pub struct ExpandedSpans {
 
     /// Expanded and parsed spans.
     spans: ContainerItems<SpanV2>,
+
+    /// Expanded and parsed span attachments.
+    span_attachments: Vec<ValidatedSpanAttachment>,
 }
 
 impl ExpandedSpans {
@@ -315,6 +318,20 @@ impl Counted for ExpandedSpans {
 
 impl CountRateLimited for Managed<ExpandedSpans> {
     type Error = Error;
+}
+
+/// A validated and parsed span attachment.
+#[derive(Debug)]
+pub struct ValidatedSpanAttachment {
+    /// The span this attachment belongs to.
+    pub span_id: Option<SpanId>,
+
+    // TODO: Replace with a struct
+    /// The parsed metadata from the attachment.
+    pub meta: Bytes,
+
+    /// The raw attachment body.
+    pub body: Bytes,
 }
 
 /// Spans which have been sampled by dynamic sampling.

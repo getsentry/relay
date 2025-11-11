@@ -380,6 +380,23 @@ impl Item {
         self.headers.sampled = sampled;
     }
 
+    /// Returns the length of the item.
+    pub fn length(&self) -> Option<u32> {
+        self.headers.length
+    }
+
+    /// Returns the length of the item.
+    pub fn meta_length(&self) -> Option<u32> {
+        self.headers.meta_length
+    }
+
+    /// Returns the id of the span associated to the item.
+    ///
+    /// Only applicable if the item is a span attachment.
+    pub fn span_id(&self) -> Option<SpanId> {
+        self.headers.span_id
+    }
+
     /// Returns the specified header value, if present.
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
     where

@@ -1,16 +1,20 @@
+use std::collections::HashSet;
 use std::time::Duration;
 
+use bytes::Bytes;
 use relay_event_normalization::{
     GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
 };
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{Span, SpanV2};
+use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, WithHeader};
 use crate::managed::Managed;
 use crate::processing::Context;
-use crate::processing::spans::{self, Error, ExpandedSpans, Result, SampledSpans};
+use crate::processing::spans::{
+    self, Error, ExpandedSpans, Result, SampledSpans, ValidatedSpanAttachment,
+};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized spans.
@@ -26,6 +30,12 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
             all_spans.extend(expanded);
         }
 
+        // Collect all the span_ids that an attachment could be linked to.
+        let span_ids: HashSet<SpanId> = all_spans
+            .iter()
+            .filter_map(|span| span.value.value()?.span_id.value().copied())
+            .collect();
+
         for item in &spans.inner.legacy {
             match expand_legacy_span(item) {
                 Ok(span) => all_spans.push(span),
@@ -33,12 +43,28 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
             }
         }
 
+        let span_attachments: Vec<ValidatedSpanAttachment> = spans
+            .inner
+            .span_attachments
+            .into_iter()
+            .filter_map(
+                |item| match parse_and_validate_span_attachment(&item, &span_ids) {
+                    Ok(attachment) => Some(attachment),
+                    Err(err) => {
+                        drop(records.reject_err(err, item));
+                        None
+                    }
+                },
+            )
+            .collect();
+
         spans::integrations::expand_into(&mut all_spans, records, spans.inner.integrations);
 
         ExpandedSpans {
             headers: spans.inner.headers,
             server_sample_rate: spans.server_sample_rate,
             spans: all_spans,
+            span_attachments,
         }
     })
 }
@@ -65,6 +91,53 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
         .map_value(relay_spans::span_v1_to_span_v2);
 
     Ok(WithHeader::new(span))
+}
+
+/// Parses and validates a span attachment, converting it into a structured type.
+fn parse_and_validate_span_attachment(
+    item: &Item,
+    valid_span_ids: &HashSet<SpanId>,
+) -> Result<ValidatedSpanAttachment> {
+    // If the span_id is set the span needs to be in the same envelope else drop the attachment.
+    if let Some(span_id) = item.span_id()
+        && !valid_span_ids.contains(&span_id)
+    {
+        relay_log::debug!(
+            "span attachment references non-existent span_id: {}",
+            span_id
+        );
+        return Err(Error::Invalid(DiscardReason::InvalidJson));
+    }
+
+    // TODO: Not sure about if length is needed here or if just len would have sufficed
+    let total_length = item.length().ok_or_else(|| {
+        relay_log::debug!("span attachment missing length");
+        Error::Invalid(DiscardReason::InvalidJson)
+    })? as usize;
+
+    let meta_length = item.meta_length().ok_or_else(|| {
+        relay_log::debug!("span attachment missing meta_length");
+        Error::Invalid(DiscardReason::InvalidJson)
+    })? as usize;
+
+    if meta_length > total_length {
+        relay_log::debug!(
+            "span attachment meta_length ({}) exceeds total length ({})",
+            meta_length,
+            total_length
+        );
+        return Err(Error::Invalid(DiscardReason::InvalidJson));
+    }
+
+    let payload = item.payload();
+    let (meta_bytes, body_bytes) = payload.split_at(meta_length);
+
+    // FIXME: Find the best way to convert the Bytes into the actual struct with verification that everything is correct.
+    Ok(ValidatedSpanAttachment {
+        span_id: item.span_id(),
+        meta: Bytes::copy_from_slice(meta_bytes),
+        body: Bytes::copy_from_slice(body_bytes),
+    })
 }
 
 /// Normalizes individual spans.
