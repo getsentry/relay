@@ -224,8 +224,7 @@ impl ServiceState {
         let store = config
             .processing_enabled()
             .then(|| {
-                let upload_service = UploadService::new(config.upload())?;
-                let upload = upload_service.map(|s| services.start(s));
+                let upload = services.start(UploadService::new(config.upload()));
                 StoreService::create(
                     store_pool.clone(),
                     config.clone(),

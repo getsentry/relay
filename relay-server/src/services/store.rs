@@ -217,7 +217,7 @@ pub struct StoreService {
     outcome_aggregator: Addr<TrackOutcome>,
     metric_outcomes: MetricOutcomes,
     #[expect(unused)]
-    upload: Option<Addr<Upload>>,
+    upload: Addr<Upload>,
     producer: Producer,
 }
 
@@ -228,7 +228,7 @@ impl StoreService {
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
         metric_outcomes: MetricOutcomes,
-        upload: Option<Addr<Upload>>,
+        upload: Addr<Upload>,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {

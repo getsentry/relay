@@ -36,8 +36,6 @@
 - Add internal attributes to aid searching trace metrics. ([#5260](https://github.com/getsentry/relay/pull/5260))
 - Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
 - Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5308))
-- Hook up `objectstore-client` to the upload service. ([#5353](https://github.com/getsentry/relay/pull/5353))
-
 
 ## 25.10.0
 
