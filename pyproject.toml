@@ -5,7 +5,8 @@ name = "relay"
 version = "0.0.0"
 
 [tool.uv]
-environments = ["sys_platform == 'darwin' or sys_platform == 'linux'"]# This doesn't work; use uv sync --inexact to not uninstall the
+environments = ["sys_platform == 'darwin' or sys_platform == 'linux'"]
+# This doesn't work; use uv sync --inexact to not uninstall the
 # sentry_relay added by uv pip install -v -e py
 # override-dependencies = ["sentry_relay; sys_platform == 'never'"]
 
@@ -45,8 +46,11 @@ dev = [
     "zstandard>=0.18.0",
 
     # used for ci build_library
-    "setuptools==65.5.1",
-    "wheel>=0.42.0",
+    "setuptools==78.1.1",
+    # wheel must be 0.42.0; newer versions generate bad macos wheels
+    # where metadata version is written as 2.1 but has Dynamic fields
+    # which twine will refuse to upload
+    "wheel==0.42.0",
     "milksnake>=0.1.6",
 ]
 
