@@ -260,7 +260,7 @@ impl Processor for TransactionProcessor {
                         dsc: work.headers.dsc(),
                         project_id,
                         ctx: &ctx,
-                        sampling_decision: SamplingDecision::Drop,
+                        sampling_decision: SamplingDecision::Keep,
                         metrics_extracted: work.flags.metrics_extracted,
                         spans_extracted: work.flags.spans_extracted,
                     },
