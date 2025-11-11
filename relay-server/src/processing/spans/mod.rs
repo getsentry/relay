@@ -8,7 +8,8 @@ use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{
-    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
+    ContainerItems, ContainerWriteError, ContentType, EnvelopeHeaders, Item, ItemContainer,
+    ItemType, Items,
 };
 use crate::integrations::Integration;
 use crate::managed::{
@@ -130,11 +131,17 @@ impl processing::Processor for SpansProcessor {
             .take_items_by(|item| matches!(item.integration(), Some(Integration::Spans(_))))
             .into_vec();
 
+        let span_attachments = envelope
+            .envelope_mut()
+            .take_items_by(|item| matches!(item.content_type(), Some(ContentType::AttachmentV2)))
+            .to_vec();
+
         let work = SerializedSpans {
             headers,
             spans,
             legacy,
             integrations,
+            span_attachments,
         };
         Some(Managed::from_envelope(envelope, work))
     }
@@ -229,6 +236,9 @@ pub struct SerializedSpans {
 
     /// Spans which Relay received from arbitrary integrations.
     integrations: Vec<Item>,
+
+    /// A list of span attachments.
+    span_attachments: Vec<Item>,
 }
 
 impl SerializedSpans {
@@ -242,13 +252,19 @@ impl SerializedSpans {
 
 impl Counted for SerializedSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = (outcome_count(&self.spans)
+        let span_quantity = (outcome_count(&self.spans)
             + outcome_count(&self.legacy)
             + outcome_count(&self.integrations)) as usize;
 
+        let attachment_quantity = self
+            .span_attachments
+            .iter()
+            .fold(0, |acc, cur| acc + cur.len());
+
         smallvec::smallvec![
-            (DataCategory::Span, quantity),
-            (DataCategory::SpanIndexed, quantity),
+            (DataCategory::Span, span_quantity),
+            (DataCategory::SpanIndexed, span_quantity),
+            (DataCategory::Attachment, attachment_quantity)
         ]
     }
 }
