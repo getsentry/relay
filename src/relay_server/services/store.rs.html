@@ -217,7 +217,7 @@
 <a href=#217 id=217 data-nosnippet>217</a>    outcome_aggregator: Addr&lt;TrackOutcome&gt;,
 <a href=#218 id=218 data-nosnippet>218</a>    metric_outcomes: MetricOutcomes,
 <a href=#219 id=219 data-nosnippet>219</a>    <span class="attr">#[expect(unused)]
-<a href=#220 id=220 data-nosnippet>220</a>    </span>upload: <span class="prelude-ty">Option</span>&lt;Addr&lt;Upload&gt;&gt;,
+<a href=#220 id=220 data-nosnippet>220</a>    </span>upload: Addr&lt;Upload&gt;,
 <a href=#221 id=221 data-nosnippet>221</a>    producer: Producer,
 <a href=#222 id=222 data-nosnippet>222</a>}
 <a href=#223 id=223 data-nosnippet>223</a>
@@ -228,7 +228,7 @@
 <a href=#228 id=228 data-nosnippet>228</a>        global_config: GlobalConfigHandle,
 <a href=#229 id=229 data-nosnippet>229</a>        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
 <a href=#230 id=230 data-nosnippet>230</a>        metric_outcomes: MetricOutcomes,
-<a href=#231 id=231 data-nosnippet>231</a>        upload: <span class="prelude-ty">Option</span>&lt;Addr&lt;Upload&gt;&gt;,
+<a href=#231 id=231 data-nosnippet>231</a>        upload: Addr&lt;Upload&gt;,
 <a href=#232 id=232 data-nosnippet>232</a>    ) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
 <a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
 <a href=#234 id=234 data-nosnippet>234</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
