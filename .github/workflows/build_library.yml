@@ -82,7 +82,9 @@ jobs:
           install-cmd: uv sync --frozen --only-dev --active
 
       - name: Build Wheel
-        run: python setup.py bdist_wheel -p ${{ matrix.py-platform }}
+        run: |
+          python setup.py bdist_wheel -p ${{ matrix.py-platform }}
+          python tools/verify_wheel.py dist/*.whl
         working-directory: py
         env:
           # consumed by cargo and setup.py to obtain the target dir

@@ -10,9 +10,9 @@ environments = ["sys_platform == 'darwin' or sys_platform == 'linux'"]
 # sentry_relay added by uv pip install -v -e py
 # override-dependencies = ["sentry_relay; sys_platform == 'never'"]
 
-[[tool.uv.index]]
-url = "https://pypi.devinfra.sentry.io/simple"
-default = true
+#[[tool.uv.index]]
+#url = "https://pypi.devinfra.sentry.io/simple"
+#default = true
 
 [dependency-groups]
 dev = [
@@ -49,8 +49,10 @@ dev = [
     "setuptools==78.1.1",
     # wheel must be 0.42.0; newer versions generate bad macos wheels
     # where metadata version is written as 2.1 but has Dynamic fields
-    # which twine will refuse to upload
+    # which twine (in craft) will refuse to upload
     "wheel==0.42.0",
+    # twine only used for py/tools/verify_wheel.py
+    "twine==6.1.0",
     "milksnake>=0.1.6",
 ]
 
