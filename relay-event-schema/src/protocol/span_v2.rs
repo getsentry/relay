@@ -5,7 +5,7 @@ use std::fmt;
 use serde::Serialize;
 
 use crate::processor::ProcessValue;
-use crate::protocol::{Attributes, OperationType, SpanId, SpanKind, Timestamp, TraceId};
+use crate::protocol::{Attributes, OperationType, SpanId, Timestamp, TraceId};
 
 /// A version 2 (transactionless) span.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -31,13 +31,6 @@ pub struct SpanV2 {
 
     /// Whether this span is the root span of a segment.
     pub is_segment: Annotated<bool>,
-
-    /// Used to clarify the relationship between parents and children, or to distinguish between
-    /// spans, e.g. a `server` and `client` span with the same name.
-    ///
-    /// See <https://opentelemetry.io/docs/specs/otel/trace/api/#spankind>
-    #[metastructure(skip_serialization = "empty", trim = false)]
-    pub kind: Annotated<SpanKind>,
 
     /// Timestamp when the span started.
     #[metastructure(required = true)]
@@ -65,7 +58,6 @@ impl Getter for SpanV2 {
         Some(match path.strip_prefix("span.")? {
             "name" => self.name.value()?.as_str().into(),
             "status" => self.status.value()?.as_str().into(),
-            "kind" => self.kind.value()?.as_str().into(),
             path => {
                 if let Some(key) = path.strip_prefix("attributes.") {
                     let key = key.strip_suffix(".value")?;
@@ -208,7 +200,6 @@ mod tests {
   "name": "GET http://app.test/",
   "status": "ok",
   "is_segment": true,
-  "kind": "server",
   "start_timestamp": 1742921669.25,
   "end_timestamp": 1742921669.75,
   "links": [
@@ -309,7 +300,6 @@ mod tests {
             span_id: Annotated::new("438f40bd3b4a41ee".parse().unwrap()),
             parent_span_id: Annotated::empty(),
             status: Annotated::new(SpanV2Status::Ok),
-            kind: Annotated::new(SpanKind::Server),
             is_segment: Annotated::new(true),
             links: Annotated::new(links),
             attributes: Annotated::new(attributes),

@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use relay_conventions::IS_REMOTE;
+use relay_conventions::{IS_REMOTE, SPAN_KIND};
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
     SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
@@ -111,6 +111,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     if let Some(is_remote) = is_remote.value() {
         attributes.insert(IS_REMOTE, *is_remote);
     }
+    attributes.insert(SPAN_KIND, kind.map_value(|kind| kind.to_string()));
 
     let is_segment = match (is_segment.value(), is_remote.value()) {
         (None, Some(true)) => is_remote,
@@ -125,7 +126,6 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         status: Annotated::map_value(status, span_v1_status_to_span_v2_status)
             .or_else(|| SpanV2Status::Ok.into()),
         is_segment,
-        kind,
         start_timestamp,
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
@@ -326,7 +326,6 @@ mod tests {
           "name": "operation",
           "status": "ok",
           "is_segment": true,
-          "kind": "server",
           "start_timestamp": -63158400.0,
           "end_timestamp": 0.0,
           "links": [
@@ -390,6 +389,10 @@ mod tests {
             "sentry.is_remote": {
               "type": "boolean",
               "value": true
+            },
+            "sentry.kind": {
+              "type": "string",
+              "value": "server"
             },
             "sentry.normalized_description": {
               "type": "string",

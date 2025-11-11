@@ -78,5 +78,6 @@ mod not_yet_defined {
     pub const STATUS_MESSAGE: &str = "sentry.status.message";
 
     pub const IS_REMOTE: &str = "sentry.is_remote";
+    pub const SPAN_KIND: &str = "sentry.kind";
 }
 pub use self::not_yet_defined::*;

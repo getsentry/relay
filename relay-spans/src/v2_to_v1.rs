@@ -1,11 +1,6 @@
 use std::str::FromStr;
 
-use relay_conventions::{
-    DB_QUERY_TEXT, DB_STATEMENT, DB_SYSTEM_NAME, DESCRIPTION, FAAS_TRIGGER, GEN_AI_SYSTEM,
-    GRAPHQL_OPERATION, HTTP_PREFETCH, HTTP_REQUEST_METHOD, HTTP_RESPONSE_STATUS_CODE, HTTP_ROUTE,
-    HTTP_TARGET, MESSAGING_SYSTEM, OP, PLATFORM, PROFILE_ID, RPC_GRPC_STATUS_CODE, RPC_SERVICE,
-    SEGMENT_ID, URL_FULL, URL_PATH,
-};
+use relay_conventions::consts::*;
 use relay_event_schema::protocol::{SpanKind, SpanV2Link};
 
 use crate::status_codes;
@@ -47,7 +42,6 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         span_id,
         parent_span_id,
         name,
-        kind,
         links,
         attributes,
         status,
@@ -62,6 +56,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let mut platform = Annotated::empty();
     let mut segment_id = Annotated::empty();
     let mut profile_id = Annotated::empty();
+    let mut kind = Annotated::empty();
 
     for (key, value) in attributes.into_value().into_iter().flat_map(|attributes| {
         attributes.into_iter().flat_map(|(key, attribute)| {
@@ -102,6 +97,9 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
             }
             PROFILE_ID => {
                 profile_id = EventId::from_value(value);
+            }
+            SPAN_KIND => {
+                kind = SpanKind::from_value(value);
             }
             _ => {
                 data.insert(key.to_owned(), value);
@@ -235,9 +233,10 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
 
     // TODO: `http.method` is deprecated. This should probably be taken care of during normalization.
     if attributes.contains_key(HTTP_REQUEST_METHOD) || attributes.contains_key("http.method") {
-        return match span.kind.value() {
-            Some(SpanKind::Client) => String::from("http.client"),
-            Some(SpanKind::Server) => String::from("http.server"),
+        let kind = attributes.get_value(SPAN_KIND).and_then(|v| v.as_str());
+        return match kind {
+            Some(kind) if kind == SpanKind::Client.as_str() => String::from("http.client"),
+            Some(kind) if kind == SpanKind::Server.as_str() => String::from("http.server"),
             _ => {
                 if attributes.contains_key(HTTP_PREFETCH) {
                     String::from("http.prefetch")
@@ -285,7 +284,7 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
         return description;
     };
 
-    if let Some(http_description) = derive_http_description(attributes, &span.kind.value()) {
+    if let Some(http_description) = derive_http_description(attributes) {
         return Some(http_description);
     }
 
@@ -296,7 +295,7 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
     description
 }
 
-fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanKind>) -> Option<String> {
+fn derive_http_description(attributes: &Attributes) -> Option<String> {
     // Get HTTP method
     let http_method = attributes
         .get_value(HTTP_REQUEST_METHOD)
@@ -307,9 +306,9 @@ fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanKind>) ->
     let description = http_method.to_owned();
 
     // Get URL path information
-    let url_path = match kind {
-        Some(SpanKind::Server) => get_server_url_path(attributes),
-        Some(SpanKind::Client) => get_client_url_path(attributes),
+    let url_path = match attributes.get_value(SPAN_KIND).and_then(|v| v.as_str()) {
+        Some(kind) if kind == SpanKind::Server.as_str() => get_server_url_path(attributes),
+        Some(kind) if kind == SpanKind::Client.as_str() => get_client_url_path(attributes),
         _ => None,
     };
 
@@ -416,13 +415,16 @@ mod tests {
             "span_id": "e342abb1214ca181",
             "parent_span_id": "0c7a7dea069bf5a6",
             "name": "middleware - fastify -> @fastify/multipart",
-            "kind": "internal",
             "start_timestamp": "2023-10-18T09:14:14.980Z",
             "end_timestamp": "2023-10-18T09:14:14.980078800Z",
             "links": [],
             "attributes": {
                 "sentry.environment": {
                     "value": "test",
+                    "type": "string"
+                },
+                "sentry.kind": {
+                    "value": "internal",
                     "type": "string"
                 },
                 "fastify.type": {
@@ -456,7 +458,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
@@ -479,7 +481,7 @@ mod tests {
           "links": [],
           "kind": "internal"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -489,11 +491,14 @@ mod tests {
             "span_id": "e342abb1214ca181",
             "parent_span_id": "0c7a7dea069bf5a6",
             "name": "middleware - fastify -> @fastify/multipart",
-            "kind": "internal",
             "start_timestamp": "2023-10-18T09:14:14.980Z",
             "end_timestamp": "2023-10-18T09:14:14.980078800Z",
             "links": [],
             "attributes": {
+                "sentry.kind": {
+                    "value": "internal",
+                    "type": "string"
+                },
                 "sentry.exclusive_time": {
                     "value": 3200.0,
                     "type": "f64"
@@ -503,7 +508,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
@@ -520,7 +525,7 @@ mod tests {
           "links": [],
           "kind": "internal"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -530,7 +535,6 @@ mod tests {
             "span_id": "e342abb1214ca181",
             "parent_span_id": "0c7a7dea069bf5a6",
             "name": "middleware - fastify -> @fastify/multipart",
-            "kind": "internal",
             "start_timestamp": "2023-10-18T09:14:14.980Z",
             "end_timestamp": "2023-10-18T09:14:14.980078800Z",
             "links": []
@@ -538,7 +542,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
@@ -552,10 +556,9 @@ mod tests {
           "data": {
             "sentry.name": "middleware - fastify -> @fastify/multipart"
           },
-          "links": [],
-          "kind": "internal"
+          "links": []
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -572,6 +575,10 @@ mod tests {
             "attributes": {
                 "browser.name": {
                     "value": "Chrome",
+                    "type": "string"
+                },
+                "sentry.kind": {
+                    "value": "internal",
                     "type": "string"
                 },
                 "sentry.description": {
@@ -617,7 +624,7 @@ mod tests {
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
 
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -639,9 +646,10 @@ mod tests {
             "sentry.name": "myname"
           },
           "links": [],
-          "platform": "php"
+          "platform": "php",
+          "kind": "internal"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -652,8 +660,11 @@ mod tests {
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
             "end_timestamp": 123.5,
-            "kind": "client",
             "attributes": {
+                "sentry.kind": {
+                    "value": "client",
+                    "type": "string"
+                },
                 "http.method": {
                     "value": "GET",
                     "type": "string"
@@ -663,7 +674,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -679,7 +690,7 @@ mod tests {
           },
           "kind": "client"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -692,6 +703,10 @@ mod tests {
             "end_timestamp": 123.5,
             "kind": "client",
             "attributes": {
+                "sentry.kind": {
+                    "value": "client",
+                    "type": "string"
+                },
                 "server.address": {
                     "value": "github.com",
                     "type": "string"
@@ -713,7 +728,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -732,7 +747,7 @@ mod tests {
           },
           "kind": "client"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -743,8 +758,11 @@ mod tests {
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
             "end_timestamp": 123.5,
-            "kind": "server",
             "attributes": {
+                "sentry.kind": {
+                    "value": "server",
+                    "type": "string"
+                },
                 "http.method": {
                     "value": "GET",
                     "type": "string"
@@ -754,7 +772,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -770,7 +788,7 @@ mod tests {
           },
           "kind": "server"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -781,8 +799,11 @@ mod tests {
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
             "end_timestamp": 123.5,
-            "kind": "server",
             "attributes": {
+                "sentry.kind": {
+                    "value": "server",
+                    "type": "string"
+                },
                 "http.request.method": {
                     "value": "GET",
                     "type": "string"
@@ -800,7 +821,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -818,7 +839,7 @@ mod tests {
           },
           "kind": "server"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -830,8 +851,11 @@ mod tests {
             "start_timestamp": 123,
             "name": "SELECT users",
             "end_timestamp": 123.5,
-            "kind": "client",
             "attributes": {
+                "sentry.kind": {
+                    "value": "client",
+                    "type": "string"
+                },
                 "db.system": {
                     "value": "postgres",
                     "type": "string"
@@ -841,7 +865,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -858,7 +882,7 @@ mod tests {
           },
           "kind": "client"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -870,8 +894,11 @@ mod tests {
             "start_timestamp": 123,
             "name": "CACHE HIT",
             "end_timestamp": 123.1,
-            "kind": "client",
             "attributes": {
+                "sentry.kind": {
+                    "value": "client",
+                    "type": "string"
+                },
                 "db.system": {
                     "value": "redis",
                     "type": "string"
@@ -889,7 +916,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.1,
           "start_timestamp": 123.0,
@@ -907,7 +934,7 @@ mod tests {
           },
           "kind": "client"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -918,8 +945,11 @@ mod tests {
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
             "end_timestamp": 123.5,
-            "kind": "client",
             "attributes": {
+                "sentry.kind": {
+                    "value": "client",
+                    "type": "string"
+                },
                 "db.system": {
                     "value": "postgres",
                     "type": "string"
@@ -933,7 +963,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -950,7 +980,7 @@ mod tests {
           },
           "kind": "client"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -961,8 +991,11 @@ mod tests {
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
             "end_timestamp": 123.5,
-            "kind": "client",
             "attributes": {
+                "sentry.kind": {
+                    "value": "client",
+                    "type": "string"
+                },
                 "gen_ai.system": {
                     "value": "openai",
                     "type": "string"
@@ -976,7 +1009,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -992,7 +1025,7 @@ mod tests {
           },
           "kind": "client"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1003,8 +1036,11 @@ mod tests {
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
             "end_timestamp": 123.5,
-            "kind": "client",
             "attributes": {
+                "sentry.kind": {
+                    "value": "client",
+                    "type": "string"
+                },
                 "db.system": {
                     "value": "postgres",
                     "type": "string"
@@ -1018,7 +1054,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -1033,7 +1069,7 @@ mod tests {
           },
           "kind": "client"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1045,12 +1081,18 @@ mod tests {
             "start_timestamp": 123,
             "end_timestamp": 123.5,
             "kind": "client",
+            "attributes": {
+                "sentry.kind": {
+                    "value": "client",
+                    "type": "string"
+                }
+            },
             "links": []
         }"#;
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -1064,7 +1106,7 @@ mod tests {
           "links": [],
           "kind": "client"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1170,6 +1212,10 @@ mod tests {
             "name": "GET /api/users",
             "kind": "server",
             "attributes": {
+                "sentry.kind": {
+                    "value": "server",
+                    "type": "string"
+                },
                 "http.method": {
                     "value": "GET",
                     "type": "string"
@@ -1183,7 +1229,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -1201,7 +1247,7 @@ mod tests {
           },
           "kind": "server"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1215,6 +1261,10 @@ mod tests {
             "name": "SELECT users",
             "kind": "client",
             "attributes": {
+                "sentry.kind": {
+                    "value": "client",
+                    "type": "string"
+                },
                 "db.system": {
                     "value": "postgres",
                     "type": "string"
@@ -1228,7 +1278,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -1246,7 +1296,7 @@ mod tests {
           },
           "kind": "client"
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1260,6 +1310,10 @@ mod tests {
             "name": "POST /graphql",
             "kind": "server",
             "attributes": {
+                "sentry.kind": {
+                    "value": "server",
+                    "type": "string"
+                },
                 "http.method": {
                     "value": "POST",
                     "type": "string"
@@ -1277,7 +1331,7 @@ mod tests {
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -1296,7 +1350,7 @@ mod tests {
           },
           "kind": "server"
         }
-        "###);
+        "#);
     }
 
     #[test]
