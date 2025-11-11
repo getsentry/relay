@@ -88,7 +88,7 @@ pub async fn drop_after_sampling(
                 project_id,
                 ctx: &ctx,
                 sampling_decision: SamplingDecision::Drop,
-                metrics_extracted: EventMetricsExtracted(work.flags.metrics_extracted),
+                metrics_extracted: work.flags.metrics_extracted,
                 spans_extracted: work.flags.spans_extracted,
             },
         )?

@@ -40,18 +40,6 @@ impl<T: Counted> Counted for Option<T> {
     }
 }
 
-impl<T, S> Counted for (T, S)
-where
-    T: Counted,
-    S: Counted,
-{
-    fn quantities(&self) -> Quantities {
-        let mut v = self.0.quantities();
-        v.extend(self.1.quantities());
-        v
-    }
-}
-
 impl Counted for Item {
     fn quantities(&self) -> Quantities {
         self.quantities()

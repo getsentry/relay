@@ -152,21 +152,6 @@ impl<T: Counted> Managed<T> {
         Managed::from_parts(other, Arc::clone(&self.meta))
     }
 
-    /// Merge the current managed item with another managed item.
-    ///
-    /// The merged tuple uses the meta of `self`. It is the responsibility of the caller to make sure
-    /// that this matches the `meta` of `other`.
-    pub fn merge<S>(self, other: Managed<S>) -> Managed<(T, S)>
-    where
-        S: Counted,
-    {
-        let (this, meta) = self.destructure();
-        let (other, other_meta) = other.destructure();
-        debug_assert!(Arc::ptr_eq(&meta, &other_meta));
-
-        Managed::from_parts((this, other), meta)
-    }
-
     /// Original received timestamp.
     pub fn received_at(&self) -> DateTime<Utc> {
         self.meta.received_at
@@ -175,13 +160,6 @@ impl<T: Counted> Managed<T> {
     /// Scoping information stored in this context.
     pub fn scoping(&self) -> Scoping {
         self.meta.scoping
-    }
-
-    /// Get the address of the outcome aggregator.
-    ///
-    /// NOTE: This should not be exposed, only here for the transition period.
-    pub fn outcome_addr(&self) -> &Addr<TrackOutcome> {
-        &self.meta.outcome_aggregator
     }
 
     /// Splits [`Self`] into two other [`Managed`] items.

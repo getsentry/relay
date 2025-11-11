@@ -90,14 +90,11 @@ pub struct TransactionProcessor {
     geoip_lookup: GeoIpLookup,
     #[cfg(feature = "processing")]
     quotas_client: Option<AsyncRedisClient>,
-    reservoir_counters: ReservoirCounters,
 }
 
 impl Processor for TransactionProcessor {
     type UnitOfWork = SerializedTransaction;
-
     type Output = TransactionOutput;
-
     type Error = Error;
 
     fn prepare_envelope(
@@ -196,7 +193,7 @@ impl Processor for TransactionProcessor {
         let sampling_result = match run_dynamic_sampling {
             true => {
                 #[allow(unused_mut)]
-                let mut reservoir = ReservoirEvaluator::new(Arc::clone(&self.reservoir_counters));
+                let mut reservoir = ReservoirEvaluator::new(Arc::clone(&ctx.reservoir_counters));
                 #[cfg(feature = "processing")]
                 if let Some(quotas_client) = self.quotas_client.as_ref() {
                     reservoir.set_redis(work.scoping().organization_id, quotas_client);
@@ -276,7 +273,7 @@ impl Processor for TransactionProcessor {
                         project_id,
                         ctx: &ctx,
                         sampling_decision: SamplingDecision::Drop,
-                        metrics_extracted: EventMetricsExtracted(work.flags.metrics_extracted),
+                        metrics_extracted: work.flags.metrics_extracted,
                         spans_extracted: work.flags.spans_extracted,
                     },
                 )?
@@ -533,16 +530,6 @@ impl Counted for Transaction {
     }
 }
 
-// pub struct CountSpans<'a>(&'a Event);
-
-// impl Counted for CountSpans<'_> {
-//     fn quantities(&self) -> Quantities {
-//         let mut quantities = self.0.quantities();
-//         quantities.extend(self.0.spans.quantities());
-//         quantities
-//     }
-// }
-
 #[derive(Debug)]
 pub struct TransactionOutput(Managed<ExpandedTransaction>);
 
@@ -566,27 +553,19 @@ impl Forward for TransactionOutput {
         ctx: super::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(output) = self;
-        let outcome_addr = output.outcome_addr().clone();
 
-        // pass ownership to store service.
-        output
-            .try_accept(|output| {
-                // TODO: split out spans here.
-                let envelope = output
-                    .serialize_envelope()
-                    .map_err(|_| Outcome::Invalid(DiscardReason::Internal))?;
+        // TODO: split out envelope
+        let envelope: ManagedEnvelope = output
+            .try_map(|tx, _| {
+                tx.serialize_envelope()
+                    .map_err(|_| (Outcome::Invalid(DiscardReason::Internal), ()))
+            })?
+            .into();
 
-                let envelope = ManagedEnvelope::new(envelope, outcome_addr);
-                let envelope = TypedEnvelope::<ProcessingGroup>::try_from((
-                    envelope,
-                    ProcessingGroup::Transaction,
-                ))
-                .map_err(|_| Outcome::Invalid(DiscardReason::Internal))?
-                .into_processed();
+        s.send(StoreEnvelope {
+            envelope: envelope.into_processed(),
+        });
 
-                s.send(StoreEnvelope { envelope });
-                Ok::<_, Outcome>(())
-            })
-            .map_err(|e| e.map(|_| ()))
+        Ok(())
     }
 }

@@ -886,8 +886,6 @@ struct ProcessEnvelopeGrouped<'a> {
     pub envelope: ManagedEnvelope,
     /// The processing context.
     pub ctx: processing::Context<'a>,
-    /// Sampling reservoir counters.
-    pub reservoir_counters: &'a ReservoirCounters,
 }
 
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
@@ -1424,7 +1422,6 @@ impl EnvelopeProcessorService {
         cogs: &mut Token,
         project_id: ProjectId,
         mut ctx: processing::Context<'_>,
-        reservoir_counters: &ReservoirCounters,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
         let mut event_metrics_extracted = EventMetricsExtracted(false);
@@ -1513,7 +1510,7 @@ impl EnvelopeProcessorService {
         let sampling_result = match run_dynamic_sampling {
             true => {
                 #[allow(unused_mut)]
-                let mut reservoir = ReservoirEvaluator::new(Arc::clone(reservoir_counters));
+                let mut reservoir = ReservoirEvaluator::new(Arc::clone(ctx.reservoir_counters));
                 #[cfg(feature = "processing")]
                 if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
                     reservoir.set_redis(managed_envelope.scoping().organization_id, quotas_client);
@@ -1557,7 +1554,7 @@ impl EnvelopeProcessorService {
                     project_id,
                     ctx: &ctx,
                     sampling_decision: SamplingDecision::Drop,
-                    metrics_extracted: event_metrics_extracted,
+                    metrics_extracted: event_metrics_extracted.0,
                     spans_extracted: spans_extracted.0,
                 },
             )?;
@@ -1619,7 +1616,7 @@ impl EnvelopeProcessorService {
                     project_id,
                     ctx: &ctx,
                     sampling_decision: SamplingDecision::Keep,
-                    metrics_extracted: event_metrics_extracted,
+                    metrics_extracted: event_metrics_extracted.0,
                     spans_extracted: spans_extracted.0,
                 },
             )?;
@@ -1886,7 +1883,6 @@ impl EnvelopeProcessorService {
             group,
             envelope: mut managed_envelope,
             ctx,
-            reservoir_counters,
         } = message;
 
         // Pre-process the envelope headers.
@@ -1948,13 +1944,7 @@ impl EnvelopeProcessorService {
         match group {
             ProcessingGroup::Error => run!(process_errors, project_id, ctx),
             ProcessingGroup::Transaction => {
-                run!(
-                    process_transactions,
-                    cogs,
-                    project_id,
-                    ctx,
-                    reservoir_counters
-                )
+                run!(process_transactions, cogs, project_id, ctx)
             }
             ProcessingGroup::Session => {
                 self.process_with_processor(&self.inner.processing.sessions, managed_envelope, ctx)
@@ -2171,13 +2161,13 @@ impl EnvelopeProcessorService {
                 project_info: &message.project_info,
                 sampling_project_info: message.sampling_project_info.as_deref(),
                 rate_limits: &message.rate_limits,
+                reservoir_counters: &message.reservoir_counters,
             };
 
             let message = ProcessEnvelopeGrouped {
                 group,
                 envelope,
                 ctx,
-                reservoir_counters: &message.reservoir_counters,
             };
 
             let result = metric!(
@@ -3662,7 +3652,6 @@ mod tests {
                 project_info: &project_info,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(mut new_envelope))) =
@@ -3747,7 +3736,6 @@ mod tests {
                 sampling_project_info: Some(&project_info),
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let processor = create_test_processor(Config::from_json_value(config).unwrap()).await;

@@ -1231,7 +1231,7 @@ mod tests {
             );
             *Envelope::parse_bytes(bytes).unwrap()
         };
-        envelope.headers.set_dsc(dsc.clone());
+        envelope.set_dsc(dsc.clone());
 
         assert_eq!(
             envelope.dsc().unwrap().transaction.as_ref().unwrap(),

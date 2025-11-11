@@ -182,7 +182,6 @@ mod tests {
     use relay_event_schema::protocol::EventId;
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{RuleId, RuleType, SamplingRule, SamplingValue};
-    use relay_sampling::evaluation::ReservoirCounters;
     use relay_sampling::{DynamicSamplingContext, SamplingConfig};
     use relay_system::Addr;
 
@@ -215,7 +214,6 @@ mod tests {
                 sampling_project_info,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(envelope))) =

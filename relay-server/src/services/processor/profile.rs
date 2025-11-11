@@ -160,7 +160,6 @@ mod tests {
     use relay_cogs::Token;
     use relay_dynamic_config::Feature;
     use relay_event_schema::protocol::{EventId, ProfileContext};
-    use relay_sampling::evaluation::ReservoirCounters;
     use relay_system::Addr;
 
     use super::*;
@@ -268,7 +267,6 @@ mod tests {
                 project_info: &project_info,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =
@@ -403,7 +401,6 @@ mod tests {
                 project_info: &project_info,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =
@@ -478,7 +475,6 @@ mod tests {
                 project_info: &project_info,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let envelope = processor
@@ -554,7 +550,6 @@ mod tests {
                 project_info: &project_info,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =

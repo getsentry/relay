@@ -174,6 +174,7 @@ mod tests {
     use chrono::DateTime;
     use relay_pii::{DataScrubbingConfig, PiiConfig};
     use relay_protocol::SerializableAnnotated;
+    use relay_sampling::evaluation::ReservoirCounters;
 
     use crate::services::projects::project::ProjectInfo;
 
@@ -194,6 +195,7 @@ mod tests {
             ..Default::default()
         }));
         let rate_limits = Box::leak(Box::new(relay_quotas::RateLimits::default()));
+        let reservoir_counters = Box::leak(Box::new(ReservoirCounters::default()));
 
         Context {
             config,
@@ -201,6 +203,7 @@ mod tests {
             project_info,
             rate_limits,
             sampling_project_info: None,
+            reservoir_counters,
         }
     }
 
