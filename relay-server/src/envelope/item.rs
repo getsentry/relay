@@ -859,11 +859,6 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     profile_type: Option<ProfileType>,
 
-    /// Content length of the item.
-    ///
-    /// Can be omitted if the item does not contain new lines. In this case, the item payload is
-    /// parsed until the first newline is encountered.
-
     /// Content length of an optional meta segment that might be contained in the item.
     ///
     /// For the time being such an meta segment is only present for span attachments.

@@ -288,10 +288,7 @@ impl ProcessingGroup {
                 Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
             );
             let is_span = matches!(item.ty(), &ItemType::Span);
-            let is_span_attachment = matches!(
-                item.content_type(),
-                Some(ContentType::AttachmentV2Container)
-            );
+            let is_span_attachment = matches!(item.content_type(), Some(ContentType::AttachmentV2));
 
             ItemContainer::<SpanV2>::is_container(item)
                 || (exp_feature && is_span)
