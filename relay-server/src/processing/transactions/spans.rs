@@ -319,7 +319,7 @@ mod tests {
         assert!(global_config.options.span_extraction_sample_rate.is_none());
         let (mut managed_envelope, event, _) = params();
         let spans = extract_from_event(
-            None,
+            managed_envelope.envelope().dsc(),
             &event,
             &global_config,
             &Default::default(),
@@ -343,7 +343,7 @@ mod tests {
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let (mut managed_envelope, event, _) = params();
         let spans = extract_from_event(
-            None,
+            managed_envelope.envelope().dsc(),
             &event,
             &global_config,
             &Default::default(),
@@ -366,22 +366,17 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let (mut managed_envelope, event, _) = params();
-        let spans = extract_from_event(
-            None,
-            &event,
-            &global_config,
-            &Default::default(),
-            None,
-            EventMetricsExtracted(false),
-            SpansExtracted(false),
-        )
-        .unwrap();
         assert!(
-            !spans
-                .iter()
-                .any(|item| item.as_ref().unwrap().ty() == &ItemType::Span),
-            "{:?}",
-            managed_envelope.envelope()
+            extract_from_event(
+                managed_envelope.envelope().dsc(),
+                &event,
+                &global_config,
+                &Default::default(),
+                None,
+                EventMetricsExtracted(false),
+                SpansExtracted(false),
+            )
+            .is_none()
         );
     }
 
@@ -389,9 +384,9 @@ mod tests {
     fn extract_sample_rates() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
-        let (_, event, _) = params(); // client sample rate is 0.2
+        let (managed_envelope, event, _) = params(); // client sample rate is 0.2
         let spans = extract_from_event(
-            None,
+            managed_envelope.envelope().dsc(),
             &event,
             &global_config,
             &Default::default(),
