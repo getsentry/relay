@@ -5,13 +5,13 @@ use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 
 use crate::managed::{Managed, Rejected};
+use crate::processing::transactions::extraction::{ExtractMetricsContext, extract_metrics};
 use crate::processing::transactions::profile::Profile;
 use crate::processing::transactions::{
     Error, ExpandedTransaction, Flags, SerializedTransaction, Transaction, TransactionOutput,
     profile,
 };
 use crate::processing::utils::event::EventMetricsExtracted;
-use crate::processing::utils::transaction::ExtractMetricsContext;
 use crate::processing::{Context, Output, QuotaRateLimiter, utils};
 use crate::services::outcome::Outcome;
 use crate::services::processor::ProcessingExtractedMetrics;
@@ -78,7 +78,7 @@ pub async fn drop_after_sampling(
         }
         // Extract metrics here, we're about to drop the event/transaction.
         // TODO: move `utils` to `transaction`.
-        work.flags.metrics_extracted = utils::transaction::extract_metrics(
+        work.flags.metrics_extracted = extract_metrics(
             &mut work.transaction.0,
             &mut extracted_metrics,
             ExtractMetricsContext {

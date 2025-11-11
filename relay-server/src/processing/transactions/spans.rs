@@ -42,7 +42,7 @@ pub fn extract_from_event(
 
     let event = event.value()?;
 
-    let transaction_span = processing::utils::transaction::extract_segment_span(
+    let transaction_span = processing::transactions::extraction::extract_segment_span(
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)

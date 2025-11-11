@@ -52,11 +52,11 @@ use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
+use crate::processing::transactions::extraction::ExtractMetricsContext;
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_category,
     event_type,
 };
-use crate::processing::utils::transaction::ExtractMetricsContext;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -1549,7 +1549,7 @@ impl EnvelopeProcessorService {
                 ctx.project_info,
             );
             // Extract metrics here, we're about to drop the event/transaction.
-            event_metrics_extracted = processing::utils::transaction::extract_metrics(
+            event_metrics_extracted = processing::transactions::extraction::extract_metrics(
                 &mut event,
                 &mut extracted_metrics,
                 ExtractMetricsContext {
@@ -1611,7 +1611,7 @@ impl EnvelopeProcessorService {
             processing::transactions::profile::scrub_profiler_id(&mut event);
 
             // Always extract metrics in processing Relays for sampled items.
-            event_metrics_extracted = processing::utils::transaction::extract_metrics(
+            event_metrics_extracted = processing::transactions::extraction::extract_metrics(
                 &mut event,
                 &mut extracted_metrics,
                 ExtractMetricsContext {

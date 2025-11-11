@@ -22,7 +22,6 @@ use crate::processing::transactions::profile::Profile;
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
-use crate::processing::utils::transaction::ExtractMetricsContext;
 use crate::processing::{Forward, Processor, QuotaRateLimiter, RateLimited, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
@@ -36,6 +35,7 @@ use crate::managed::TypedEnvelope;
 #[cfg(feature = "processing")]
 use crate::services::processor::ProcessingGroup;
 
+pub mod extraction;
 mod process;
 pub mod profile;
 pub mod spans;
@@ -246,6 +246,8 @@ impl Processor for TransactionProcessor {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             let mut profile_id = None;
             work.try_modify(|work, r| {
+                use crate::processing::transactions::extraction::ExtractMetricsContext;
+
                 if let Some(profile) = work.profile.as_mut() {
                     profile.set_sampled(false);
                     let result = profile::process(
@@ -266,7 +268,7 @@ impl Processor for TransactionProcessor {
                 profile::scrub_profiler_id(&mut work.transaction.0);
 
                 // Always extract metrics in processing Relays for sampled items.
-                work.flags.metrics_extracted = utils::transaction::extract_metrics(
+                work.flags.metrics_extracted = extraction::extract_metrics(
                     &mut work.transaction.0,
                     &mut extracted_metrics,
                     ExtractMetricsContext {
