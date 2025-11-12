@@ -1,12 +1,10 @@
 name: Library Release Build
 
 on:
-  # TEMPORARY
-  pull_request:
-#  push:
-#    branches:
-#      - release-library/**
-#      - test-release-library/** # For testing the release build
+ push:
+   branches:
+     - release-library/**
+     - test-release-library/** # For testing the release build
 
 env:
   CARGO_TERM_COLOR: always
