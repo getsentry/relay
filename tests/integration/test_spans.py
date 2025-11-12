@@ -814,7 +814,7 @@ def test_span_ingestion(
                     "value": "my 3rd protobuf OTel span",
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
-                "sentry.kind": {"type": "double", "value": "consumer"},
+                "sentry.kind": {"type": "string", "value": "consumer"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.status": {"type": "string", "value": "ok"},
