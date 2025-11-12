@@ -43,6 +43,7 @@ jobs:
 
       - name: Verify Wheel
         run: |
+          pip install --index-url 'https://pypi.devinfra.sentry.io/simple' "packaging==25.0"
           # this verifies that the wheel has good metadata
           # if it fails then twine upload will not succeed
           # we want to error out sooner before a github release is cut
