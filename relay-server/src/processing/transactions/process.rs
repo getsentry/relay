@@ -136,7 +136,7 @@ pub async fn run_dynamic_sampling(
     work: &Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    quotas_client: &Option<AsyncRedisClient>,
+    quotas_client: Option<&AsyncRedisClient>,
 ) -> SamplingResult {
     let sampling_result = do_run_dynamic_sampling(work, ctx, filters_status, quotas_client).await;
     relay_statsd::metric!(
@@ -151,7 +151,7 @@ async fn do_run_dynamic_sampling(
     work: &Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    quotas_client: &Option<AsyncRedisClient>,
+    quotas_client: Option<&AsyncRedisClient>,
 ) -> SamplingResult {
     // Always run dynamic sampling on processing Relays,
     // but delay decision until inbound filters have been fully processed.
@@ -166,7 +166,7 @@ async fn do_run_dynamic_sampling(
     #[allow(unused_mut)]
     let mut reservoir = ReservoirEvaluator::new(Arc::clone(ctx.reservoir_counters));
     #[cfg(feature = "processing")]
-    if let Some(quotas_client) = quotas_client.as_ref() {
+    if let Some(quotas_client) = quotas_client {
         reservoir.set_redis(work.scoping().organization_id, quotas_client);
     }
     utils::dynamic_sampling::run(
@@ -258,6 +258,7 @@ pub fn extract_metrics(
     Ok((indexed, metrics))
 }
 
+#[cfg(feature = "processing")]
 pub fn extract_spans(
     work: Managed<ExpandedTransaction<IndexedTransaction>>,
     ctx: Context<'_>,

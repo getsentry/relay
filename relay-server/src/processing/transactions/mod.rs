@@ -1,4 +1,5 @@
 #![expect(unused)]
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
@@ -145,8 +146,12 @@ impl Processor for TransactionProcessor {
 
         let filters_status = process::run_inbound_filters(&work, ctx)?;
 
+        #[cfg(feature = "processing")]
+        let quotas_client = self.quotas_client.as_ref();
+        #[cfg(not(feature = "processing"))]
+        let quotas_client = None;
         let sampling_result =
-            process::run_dynamic_sampling(&work, ctx, filters_status, &self.quotas_client).await;
+            process::run_dynamic_sampling(&work, ctx, filters_status, quotas_client).await;
 
         #[cfg(feature = "processing")]
         let server_sample_rate = sampling_result.sample_rate();
@@ -237,13 +242,13 @@ impl SerializedTransaction {
 
 impl Counted for SerializedTransaction {
     fn quantities(&self) -> Quantities {
-        let mut quantities = Quantities::new();
-        // IDEA: `#[derive(Counted)]`
+        let mut quantities = BTreeMap::new();
         for item in self.items() {
-            // NOTE: This assumes non-overlapping item quantities.
-            quantities.extend(item.quantities());
+            for (category, size) in item.quantities() {
+                *quantities.entry(category).or_default() += size;
+            }
         }
-        quantities
+        quantities.into_iter().collect()
     }
 }
 

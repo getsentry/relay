@@ -9,7 +9,6 @@ use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileId, ProfileType};
 use relay_protocol::{Annotated, Empty};
-#[cfg(feature = "processing")]
 use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
@@ -200,7 +199,6 @@ pub fn process(
 ///
 /// This is necessary because if the transaction lasts less than 19.8ms, we know that the respective
 /// profile data won't have enough samples to be of any use, hence we "unlink" the profile from the transaction.
-#[cfg(feature = "processing")]
 pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
     let Some(event) = event.value_mut() else {
         return;

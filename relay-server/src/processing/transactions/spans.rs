@@ -55,7 +55,9 @@ pub fn extract_from_event(
     // Add child spans.
     if let Some(spans) = event.spans.value() {
         for span in spans {
-            let inner_span = span.value()?;
+            let Some(inner_span) = span.value() else {
+                continue;
+            };
             // HACK: clone the span to set the segment_id. This should happen
             // as part of normalization once standalone spans reach wider adoption.
             let mut new_span = inner_span.clone();
