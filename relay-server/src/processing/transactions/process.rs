@@ -16,8 +16,8 @@ use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, 
 use crate::processing::transactions::extraction::ExtractMetricsContext;
 use crate::processing::transactions::profile::Profile;
 use crate::processing::transactions::{
-    Error, ExpandedTransaction, Flags, SerializedTransaction, Transaction, TransactionOutput,
-    profile, spans,
+    Error, ExpandedTransaction, Flags, IndexedTransaction, SerializedTransaction, Transaction,
+    TransactionOutput, profile, spans,
 };
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
@@ -31,7 +31,7 @@ use crate::utils::SamplingResult;
 /// Parses the event payload.
 pub fn parse(
     work: Managed<SerializedTransaction>,
-) -> Result<Managed<ExpandedTransaction>, Rejected<Error>> {
+) -> Result<Managed<ExpandedTransaction<Transaction>>, Rejected<Error>> {
     work.try_map(|work, _| {
         let SerializedTransaction {
             headers,
@@ -76,7 +76,7 @@ fn validate_flags(flags: &Flags) {
 
 /// Validates and massages the data.
 pub fn prepare_data(
-    work: &mut Managed<ExpandedTransaction>,
+    work: &mut Managed<ExpandedTransaction<Transaction>>,
     ctx: &mut Context<'_>,
     metrics: &mut Metrics,
 ) -> Result<(), Rejected<Error>> {
@@ -102,10 +102,10 @@ pub fn prepare_data(
 }
 
 pub fn normalize(
-    work: Managed<ExpandedTransaction>,
+    work: Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
     geoip_lookup: &GeoIpLookup,
-) -> Result<Managed<ExpandedTransaction>, Rejected<Error>> {
+) -> Result<Managed<ExpandedTransaction<Transaction>>, Rejected<Error>> {
     let project_id = work.scoping().project_id;
     work.try_map(|mut work, _| {
         work.flags.fully_normalized = utils::event::normalize(
@@ -122,7 +122,7 @@ pub fn normalize(
 }
 
 pub fn run_inbound_filters(
-    work: &Managed<ExpandedTransaction>,
+    work: &Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
 ) -> Result<FiltersStatus, Rejected<Error>> {
     utils::event::filter(&work.headers, &work.transaction.0, &ctx)
@@ -132,7 +132,7 @@ pub fn run_inbound_filters(
 }
 
 pub async fn run_dynamic_sampling(
-    work: &Managed<ExpandedTransaction>,
+    work: &Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
     quotas_client: &Option<AsyncRedisClient>,
@@ -147,7 +147,7 @@ pub async fn run_dynamic_sampling(
 }
 
 async fn do_run_dynamic_sampling(
-    work: &Managed<ExpandedTransaction>,
+    work: &Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
     quotas_client: &Option<AsyncRedisClient>,
@@ -179,7 +179,7 @@ async fn do_run_dynamic_sampling(
 
 /// Finishes transaction and profile processing when the dynamic sampling decision was "drop".
 pub fn drop_after_sampling(
-    mut work: Managed<ExpandedTransaction>,
+    mut work: Managed<ExpandedTransaction<IndexedTransaction>>,
     ctx: Context<'_>,
     outcome: Outcome,
 ) -> Managed<Option<Profile>> {
@@ -196,10 +196,10 @@ pub fn drop_after_sampling(
 }
 
 pub fn process_profile(
-    work: Managed<ExpandedTransaction>,
+    work: Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
     sampling_decision: SamplingDecision,
-) -> Managed<ExpandedTransaction> {
+) -> Managed<ExpandedTransaction<Transaction>> {
     work.map(|mut work, record_keeper| {
         let mut profile_id = None;
         if let Some(profile) = work.profile.as_mut() {
@@ -225,12 +225,15 @@ pub fn process_profile(
 }
 
 pub fn extract_metrics(
-    work: Managed<ExpandedTransaction>,
+    work: Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
     sampling_decision: SamplingDecision,
     target: &mut ProcessingExtractedMetrics,
-) -> Result<Managed<ExpandedTransaction>, Rejected<Error>> {
+) -> Result<(Managed<ExpandedTransaction<IndexedTransaction>>), Rejected<Error>> {
     let project_id = work.scoping().project_id;
+
+    // TODO: split and return a `Managed<ExtractedMetrics>` here.
+
     work.try_map(|mut work, record_keeper| {
         // Extract metrics here, we're about to drop the event/transaction.
         work.flags.metrics_extracted = super::extraction::extract_metrics(
@@ -246,15 +249,15 @@ pub fn extract_metrics(
             },
         )?
         .0;
-        Ok::<_, Error>(work)
+        Ok::<_, Error>(work.into())
     })
 }
 
 pub fn extract_spans(
-    work: Managed<ExpandedTransaction>,
+    work: Managed<ExpandedTransaction<IndexedTransaction>>,
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
-) -> Managed<ExpandedTransaction> {
+) -> Managed<ExpandedTransaction<IndexedTransaction>> {
     work.map(|mut work, r| {
         if let Some(results) = spans::extract_from_event(
             work.headers.dsc(),
@@ -281,18 +284,24 @@ pub fn extract_spans(
     })
 }
 
-pub fn scrub(
-    work: Managed<ExpandedTransaction>,
+pub fn scrub<T>(
+    work: Managed<ExpandedTransaction<T>>,
     ctx: Context<'_>,
-) -> Result<Managed<ExpandedTransaction>, Rejected<Error>> {
+) -> Result<Managed<ExpandedTransaction<T>>, Rejected<Error>>
+where
+    T: Counted + AsMut<Annotated<Event>>,
+{
     work.try_map(|mut work, _| {
-        utils::event::scrub(&mut work.transaction.0, ctx.project_info)?;
+        utils::event::scrub(work.transaction.as_mut(), ctx.project_info)?;
         utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
         Ok::<_, Error>(work)
     })
 }
 
-fn emit_span_outcomes(work: &mut Managed<ExpandedTransaction>, outcome: Outcome) {
+fn emit_span_outcomes(
+    work: &mut Managed<ExpandedTransaction<IndexedTransaction>>,
+    outcome: Outcome,
+) {
     // Another 'hack' to emit outcomes from the container item for the contained items (spans).
     //
     // The entire tracking outcomes for contained elements is not handled in a systematic way

@@ -14,7 +14,7 @@ use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, Quantities, RecordKeeper};
-use crate::processing::transactions::ExpandedTransaction;
+use crate::processing::transactions::{ExpandedTransaction, Transaction};
 use crate::processing::{Context, CountRateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::utils::should_filter;
@@ -48,7 +48,7 @@ impl Counted for ProfileWithHeaders {
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
 pub fn filter(
-    work: &mut ExpandedTransaction,
+    work: &mut ExpandedTransaction<Transaction>,
     record_keeper: &mut RecordKeeper,
     ctx: Context,
     project_id: ProjectId,

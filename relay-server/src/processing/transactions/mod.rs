@@ -184,27 +184,35 @@ impl Processor for TransactionProcessor {
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            work = process::process_profile(work, ctx, SamplingDecision::Keep);
+            let work = process::process_profile(work, ctx, SamplingDecision::Keep);
 
-            work = process::extract_metrics(
+            let indexed = process::extract_metrics(
                 work,
                 ctx,
                 SamplingDecision::Keep,
                 &mut extracted_metrics,
             )?;
 
-            work = process::extract_spans(work, ctx, server_sample_rate);
+            let mut indexed = process::extract_spans(indexed, ctx, server_sample_rate);
+
+            self.limiter.enforce_quotas(&mut indexed, ctx).await?;
+
+            if !indexed.flags.fully_normalized {
+                relay_log::error!(
+                    tags.project = %project_id,
+                    tags.ty = event_type(&indexed.transaction.0).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                    "ingested event without normalizing"
+                );
+            };
+
+            let metrics = indexed.wrap(extracted_metrics.into_inner());
+            return Ok(super::Output {
+                main: Some(TransactionOutput::Indexed(indexed)),
+                metrics: Some(metrics),
+            });
         }
 
         self.limiter.enforce_quotas(&mut work, ctx).await?;
-
-        if ctx.config.processing_enabled() && !work.flags.fully_normalized {
-            relay_log::error!(
-                tags.project = %project_id,
-                tags.ty = event_type(&work.transaction.0).map(|e| e.to_string()).unwrap_or("none".to_owned()),
-                "ingested event without normalizing"
-            );
-        };
 
         let metrics = work.wrap(extracted_metrics.into_inner());
         Ok(super::Output {
@@ -250,20 +258,41 @@ impl Counted for SerializedTransaction {
 }
 
 #[derive(Debug)]
-pub struct ExpandedTransaction {
+pub struct ExpandedTransaction<T> {
     headers: EnvelopeHeaders,
-    transaction: Transaction, // might be empty
+    transaction: T, // might be empty
     flags: Flags,
     attachments: smallvec::SmallVec<[Item; 3]>,
     profile: Option<Item>,
     extracted_spans: Vec<Item>,
 }
 
-impl ExpandedTransaction {
+impl From<ExpandedTransaction<Transaction>> for ExpandedTransaction<IndexedTransaction> {
+    fn from(value: ExpandedTransaction<Transaction>) -> Self {
+        let ExpandedTransaction {
+            headers,
+            transaction,
+            flags,
+            attachments,
+            profile,
+            extracted_spans,
+        } = value;
+        Self {
+            headers,
+            transaction: IndexedTransaction::from(transaction),
+            flags,
+            attachments,
+            profile,
+            extracted_spans,
+        }
+    }
+}
+
+impl<T: Into<Annotated<Event>>> ExpandedTransaction<T> {
     fn serialize_envelope(self) -> Result<Box<Envelope>, serde_json::Error> {
         let Self {
             headers,
-            transaction: Transaction(event),
+            transaction,
             flags:
                 Flags {
                     metrics_extracted,
@@ -274,6 +303,8 @@ impl ExpandedTransaction {
             profile,
             extracted_spans,
         } = self;
+
+        let event = transaction.into();
 
         let mut items = smallvec![];
         if !event.is_empty() {
@@ -297,7 +328,7 @@ impl ExpandedTransaction {
     }
 }
 
-impl Counted for ExpandedTransaction {
+impl<T: Counted> Counted for ExpandedTransaction<T> {
     fn quantities(&self) -> Quantities {
         let mut quantities = Quantities::new();
         let Self {
@@ -318,16 +349,16 @@ impl Counted for ExpandedTransaction {
     }
 }
 
-impl RateLimited for Managed<ExpandedTransaction> {
+impl<T: Counted> RateLimited for Managed<ExpandedTransaction<T>> {
     type Error = Error;
 
-    async fn enforce<T>(
+    async fn enforce<R>(
         &mut self,
-        mut rate_limiter: T,
+        mut rate_limiter: R,
         ctx: Context<'_>,
     ) -> Result<(), Rejected<Self::Error>>
     where
-        T: super::RateLimiter,
+        R: super::RateLimiter,
     {
         let scoping = self.scoping();
 
@@ -410,7 +441,19 @@ struct Flags {
 }
 
 #[derive(Debug)]
-struct Transaction(Annotated<Event>);
+pub struct Transaction(Annotated<Event>);
+
+impl AsMut<Annotated<Event>> for Transaction {
+    fn as_mut(&mut self) -> &mut Annotated<Event> {
+        &mut self.0
+    }
+}
+
+impl Into<Annotated<Event>> for Transaction {
+    fn into(self) -> Annotated<Event> {
+        self.0
+    }
+}
 
 impl Counted for Transaction {
     fn quantities(&self) -> Quantities {
@@ -424,10 +467,44 @@ impl Counted for Transaction {
     }
 }
 
+/// Same as [`Transaction`], but only reports the `TransactionIndexed` quantity.
+///
+/// After dynamic sampling & metrics extraction, the total category is owned by `ExtractedMetrics`.
+#[derive(Debug)]
+pub struct IndexedTransaction(Annotated<Event>);
+
+impl AsMut<Annotated<Event>> for IndexedTransaction {
+    fn as_mut(&mut self) -> &mut Annotated<Event> {
+        &mut self.0
+    }
+}
+
+impl Into<Annotated<Event>> for IndexedTransaction {
+    fn into(self) -> Annotated<Event> {
+        self.0
+    }
+}
+
+impl From<Transaction> for IndexedTransaction {
+    fn from(value: Transaction) -> Self {
+        Self(value.0)
+    }
+}
+
+impl Counted for IndexedTransaction {
+    fn quantities(&self) -> Quantities {
+        match self.0.value() {
+            Some(_) => smallvec![(DataCategory::TransactionIndexed, 1),],
+            None => smallvec![],
+        }
+    }
+}
+
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum TransactionOutput {
-    Full(Managed<ExpandedTransaction>),
+    Full(Managed<ExpandedTransaction<Transaction>>),
+    Indexed(Managed<ExpandedTransaction<IndexedTransaction>>),
     OnlyProfile(Managed<ProfileWithHeaders>),
 }
 
@@ -438,6 +515,12 @@ impl Forward for TransactionOutput {
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         match self {
             TransactionOutput::Full(managed) => managed.try_map(|output, _| {
+                output
+                    .serialize_envelope()
+                    .map_err(drop)
+                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+            }),
+            TransactionOutput::Indexed(managed) => managed.try_map(|output, _| {
                 output
                     .serialize_envelope()
                     .map_err(drop)
