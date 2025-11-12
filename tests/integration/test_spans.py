@@ -746,6 +746,7 @@ def test_span_ingestion(
                 "sentry.browser.name": {"type": "string", "value": "Python Requests"},
                 "sentry.description": {"type": "string", "value": "my 2nd OTel span"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.kind": {"type": "string", "value": "producer"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
@@ -757,7 +758,6 @@ def test_span_ingestion(
             },
             "end_timestamp": end.timestamp(),
             "is_segment": True,
-            "kind": "producer",
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -814,6 +814,7 @@ def test_span_ingestion(
                     "value": "my 3rd protobuf OTel span",
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.kind": {"type": "double", "value": "consumer"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.status": {"type": "string", "value": "ok"},
@@ -824,7 +825,6 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp(),
-            "kind": "consumer",
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
