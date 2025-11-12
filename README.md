@@ -42,7 +42,7 @@ workspace with multiple features, so when running building or running tests
 always make sure to pass the `--all` and `--all-features` flags.
 The `processing` feature additionally requires a C compiler and CMake.
 
-To install the development environment, run `devenv sync`.
+To install the development environment, run `direnv allow` then `devenv sync`.
 ([Install devenv](https://github.com/getsentry/devenv/?tab=readme-ov-file#install) if you haven't already.)
 
 We use VSCode for development. This repository contains settings files
