@@ -39,6 +39,16 @@ jobs:
         env:
           TARGET: ${{ matrix.build-arch }}
 
+      - uses: actions/setup-python@v6
+
+      - name: Verify Wheel
+        run: |
+          # this verifies that the wheel has good metadata
+          # if it fails then twine upload will not succeed
+          # we want to error out sooner before a github release is cut
+          python tools/verify_wheel.py dist/*.whl
+        working-directory: py
+
       - uses: actions/upload-artifact@v5
         with:
           name: artifact-linux-${{ matrix.build-arch }}
@@ -87,8 +97,8 @@ jobs:
         run: |
           python setup.py bdist_wheel -p ${{ matrix.py-platform }}
           # this verifies that the wheel has good metadata
-          # if it fails then twine upload will not succeed; we want to find out sooner
-          # and not during the release itself
+          # if it fails then twine upload will not succeed
+          # we want to error out sooner before a github release is cut
           python tools/verify_wheel.py dist/*.whl
         working-directory: py
         env:
