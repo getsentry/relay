@@ -134,65 +134,19 @@ impl Processor for TransactionProcessor {
     ) -> Result<super::Output<Self::Output>, Rejected<Self::Error>> {
         let scoping = work.scoping();
         let project_id = work.scoping().project_id;
+        let mut metrics = Metrics::default();
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
-        let mut work = work.try_map(|w, _| process::expand(w))?;
+        let mut work = process::parse(work)?;
 
-        let mut metrics = process::prepare_data(&mut work, &mut ctx)?;
+        process::prepare_data(&mut work, &mut ctx, &mut metrics)?;
 
-        let mut run_dynamic_sampling = false;
-        work.try_modify(|work, record_keeper| {
-            let event = &mut work.transaction.0;
+        let work = process::normalize(work, ctx, &self.geoip_lookup)?;
 
-            // 3 - NORMALIZE
-            work.flags.fully_normalized = utils::event::normalize(
-                &work.headers,
-                event,
-                EventFullyNormalized(work.flags.fully_normalized),
-                project_id,
-                &ctx,
-                &self.geoip_lookup,
-            )?.0;
+        let filters_status = process::run_inbound_filters(&work, ctx)?;
 
-            // 4 - INBOUND FILTERS
-            let filter_run = utils::event::filter(&work.headers, event, &ctx)
-                .map_err(ProcessingError::EventFiltered)?;
-
-            // Always run dynamic sampling on processing Relays,
-            // but delay decision until inbound filters have been fully processed.
-            // Also, we require transaction metrics to be enabled before sampling.
-            run_dynamic_sampling = (matches!(filter_run, FiltersStatus::Ok)
-                || ctx.config.processing_enabled())
-                && matches!(&ctx.project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
-
-            Ok::<_,Error>(())
-        })?;
-
-        // 4 - DYNAMIC SAMPLING
-        let sampling_result = match run_dynamic_sampling {
-            true => {
-                #[allow(unused_mut)]
-                let mut reservoir = ReservoirEvaluator::new(Arc::clone(&ctx.reservoir_counters));
-                #[cfg(feature = "processing")]
-                if let Some(quotas_client) = self.quotas_client.as_ref() {
-                    reservoir.set_redis(work.scoping().organization_id, quotas_client);
-                }
-                utils::dynamic_sampling::run(
-                    work.headers.dsc(),
-                    &work.transaction.0,
-                    &ctx,
-                    Some(&reservoir),
-                )
-                .await
-            }
-            false => SamplingResult::Pending,
-        };
-
-        relay_statsd::metric!(
-            counter(RelayCounters::SamplingDecision) += 1,
-            decision = sampling_result.decision().as_str(),
-            item = "transaction"
-        );
+        let sampling_result =
+            process::run_dynamic_sampling(&work, ctx, filters_status, &self.quotas_client).await;
 
         #[cfg(feature = "processing")]
         let server_sample_rate = sampling_result.sample_rate();

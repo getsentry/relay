@@ -1,65 +1,75 @@
+use std::sync::Arc;
+
 use relay_base_schema::events::EventType;
+use relay_dynamic_config::ErrorBoundary;
+use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
-use relay_sampling::evaluation::SamplingDecision;
+use relay_redis::AsyncRedisClient;
+use relay_sampling::evaluation::{ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use smallvec::smallvec;
 
-use crate::managed::{Counted, Managed, Quantities, RecordKeeper, Rejected};
+use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
 use crate::processing::transactions::extraction::{ExtractMetricsContext, extract_metrics};
 use crate::processing::transactions::profile::Profile;
 use crate::processing::transactions::{
     Error, ExpandedTransaction, Flags, SerializedTransaction, Transaction, TransactionOutput,
     profile,
 };
-use crate::processing::utils::event::EventMetricsExtracted;
+use crate::processing::utils::event::{EventFullyNormalized, EventMetricsExtracted, FiltersStatus};
 use crate::processing::{Context, Output, QuotaRateLimiter, utils};
 use crate::services::outcome::Outcome;
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
-use crate::statsd::RelayTimers;
+use crate::statsd::{RelayCounters, RelayTimers};
+use crate::utils::SamplingResult;
 
 /// Parses the event payload.
-pub fn expand(work: SerializedTransaction) -> Result<ExpandedTransaction, Error> {
-    let SerializedTransaction {
-        headers,
-        transaction: transaction_item,
-        attachments,
-        profile,
-    } = work;
-    let mut transaction = metric!(timer(RelayTimers::EventProcessingDeserialize), {
-        Annotated::<Event>::from_json_bytes(&transaction_item.payload())
-    })?;
-    if let Some(event) = transaction.value_mut() {
-        event.ty = EventType::Transaction.into();
-    }
-    let flags = Flags {
-        metrics_extracted: transaction_item.metrics_extracted(),
-        spans_extracted: transaction_item.spans_extracted(),
-        fully_normalized: headers.meta().request_trust().is_trusted()
-            && transaction_item.fully_normalized(),
-    };
+pub fn parse(
+    work: Managed<SerializedTransaction>,
+) -> Result<Managed<ExpandedTransaction>, Rejected<Error>> {
+    work.try_map(|work, _| {
+        let SerializedTransaction {
+            headers,
+            transaction: transaction_item,
+            attachments,
+            profile,
+        } = work;
+        let mut transaction = metric!(timer(RelayTimers::EventProcessingDeserialize), {
+            Annotated::<Event>::from_json_bytes(&transaction_item.payload())
+        })?;
+        if let Some(event) = transaction.value_mut() {
+            event.ty = EventType::Transaction.into();
+        }
+        let flags = Flags {
+            metrics_extracted: transaction_item.metrics_extracted(),
+            spans_extracted: transaction_item.spans_extracted(),
+            fully_normalized: headers.meta().request_trust().is_trusted()
+                && transaction_item.fully_normalized(),
+        };
 
-    Ok(ExpandedTransaction {
-        headers,
-        transaction: Transaction(transaction),
-        flags,
-        attachments,
-        profile,
-        extracted_spans: vec![],
+        Ok::<_, Error>(ExpandedTransaction {
+            headers,
+            transaction: Transaction(transaction),
+            flags,
+            attachments,
+            profile,
+            extracted_spans: vec![],
+        })
     })
 }
 
-/// Massages the data and conditionally drops the profile item.
+/// Validates and massages the data.
 pub fn prepare_data(
     work: &mut Managed<ExpandedTransaction>,
     ctx: &mut Context<'_>,
+    metrics: &mut Metrics,
 ) -> Result<Metrics, Rejected<Error>> {
     let mut metrics = Metrics::default();
     let scoping = work.scoping();
     work.try_modify(|work, record_keeper| {
         let profile_id = profile::filter(work, record_keeper, *ctx, scoping.project_id);
-
         let event = &mut work.transaction.0;
         profile::transfer_id(event, profile_id);
         profile::remove_context_if_rate_limited(event, scoping, *ctx);
@@ -76,6 +86,82 @@ pub fn prepare_data(
         .map_err(Error::from)
     })?;
     Ok(metrics)
+}
+
+pub fn normalize(
+    work: Managed<ExpandedTransaction>,
+    ctx: Context<'_>,
+    geoip_lookup: &GeoIpLookup,
+) -> Result<Managed<ExpandedTransaction>, Rejected<Error>> {
+    let project_id = work.scoping().project_id;
+    work.try_map(|mut work, _| {
+        work.flags.fully_normalized = utils::event::normalize(
+            &work.headers,
+            &mut work.transaction.0,
+            EventFullyNormalized(work.flags.fully_normalized),
+            project_id,
+            ctx,
+            geoip_lookup,
+        )?
+        .0;
+        Ok::<_, Error>(work)
+    })
+}
+
+pub fn run_inbound_filters(
+    work: &Managed<ExpandedTransaction>,
+    ctx: Context<'_>,
+) -> Result<FiltersStatus, Rejected<Error>> {
+    utils::event::filter(&work.headers, &work.transaction.0, &ctx)
+        .map_err(ProcessingError::EventFiltered)
+        .map_err(Error::from)
+        .reject(work)
+}
+
+pub async fn run_dynamic_sampling(
+    work: &Managed<ExpandedTransaction>,
+    ctx: Context<'_>,
+    filters_status: FiltersStatus,
+    quotas_client: &Option<AsyncRedisClient>,
+) -> SamplingResult {
+    let sampling_result = do_run_dynamic_sampling(work, ctx, filters_status, quotas_client).await;
+    relay_statsd::metric!(
+        counter(RelayCounters::SamplingDecision) += 1,
+        decision = sampling_result.decision().as_str(),
+        item = "transaction"
+    );
+    sampling_result
+}
+
+async fn do_run_dynamic_sampling(
+    work: &Managed<ExpandedTransaction>,
+    ctx: Context<'_>,
+    filters_status: FiltersStatus,
+    quotas_client: &Option<AsyncRedisClient>,
+) -> SamplingResult {
+    // Always run dynamic sampling on processing Relays,
+    // but delay decision until inbound filters have been fully processed.
+    // Also, we require transaction metrics to be enabled before sampling.
+    let should_run = matches!(filters_status, FiltersStatus::Ok) || ctx.config.processing_enabled();
+
+    let can_extract_metrics = matches!(&ctx.project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
+    if !(should_run && can_extract_metrics) {
+        return SamplingResult::Pending;
+    }
+
+    #[allow(unused_mut)]
+    let mut reservoir = ReservoirEvaluator::new(Arc::clone(&ctx.reservoir_counters));
+    #[cfg(feature = "processing")]
+    if let Some(quotas_client) = quotas_client.as_ref() {
+        reservoir.set_redis(work.scoping().organization_id, quotas_client);
+    }
+    utils::dynamic_sampling::run(
+        work.headers.dsc(),
+        &work.transaction.0,
+        &ctx,
+        Some(&reservoir),
+    )
+    .await
 }
 
 /// Finishes transaction and profile processing when the dynamic sampling decision was "drop".

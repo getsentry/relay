@@ -189,7 +189,7 @@ pub fn normalize(
     event: &mut Annotated<Event>,
     mut event_fully_normalized: EventFullyNormalized,
     project_id: ProjectId,
-    ctx: &Context,
+    ctx: Context,
     geoip_lookup: &GeoIpLookup,
 ) -> Result<EventFullyNormalized, ProcessingError> {
     if event.value().is_empty() {
@@ -347,10 +347,10 @@ pub enum FiltersStatus {
 
 pub fn filter(
     headers: &EnvelopeHeaders,
-    event: &mut Annotated<Event>,
+    event: &Annotated<Event>,
     ctx: &Context,
 ) -> Result<FiltersStatus, FilterStatKey> {
-    let event = match event.value_mut() {
+    let event = match event.value() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
         // exist at this point in non-processing relays.
