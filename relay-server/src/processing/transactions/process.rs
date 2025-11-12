@@ -296,42 +296,13 @@ pub fn scrub<T>(
     ctx: Context<'_>,
 ) -> Result<Managed<ExpandedTransaction<T>>, Rejected<Error>>
 where
-    T: Counted + AsMut<Annotated<Event>>,
+    T: Counted + AsRef<Annotated<Event>> + AsMut<Annotated<Event>>,
 {
     work.try_map(|mut work, _| {
         utils::event::scrub(work.transaction.as_mut(), ctx.project_info)?;
         utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
         Ok::<_, Error>(work)
     })
-}
-
-fn emit_span_outcomes(
-    work: &mut Managed<ExpandedTransaction<IndexedTransaction>>,
-    outcome: Outcome,
-) {
-    // Another 'hack' to emit outcomes from the container item for the contained items (spans).
-    //
-    // The entire tracking outcomes for contained elements is not handled in a systematic way
-    // and whenever an event/transaction is discarded, contained elements are tracked in a 'best
-    // effort' basis (basically in all the cases where someone figured out this is a problem).
-    //
-    // This is yet another case, when the spans have not yet been separated from the transaction
-    // also emit dynamic sampling outcomes for the contained spans.
-    debug_assert!(!work.flags.spans_extracted); // span extraction happens after dynamic sampling (for now)
-    if work.flags.spans_extracted {
-        return;
-    }
-
-    let Some(spans) = work.transaction.0.value().and_then(|e| e.spans.value()) else {
-        return;
-    };
-    let span_count = spans.len() + 1;
-
-    // Track the amount of contained spans + 1 segment span (the transaction itself which would
-    // be converted to a span).
-    work.modify(|work, record_keeper| {
-        record_keeper.reject_err(outcome, IndexedSpans(span_count));
-    });
 }
 
 struct IndexedSpans(usize);

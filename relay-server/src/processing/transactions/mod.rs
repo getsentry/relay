@@ -318,19 +318,34 @@ impl<T: Into<Annotated<Event>>> ExpandedTransaction<T> {
     }
 }
 
-impl<T: Counted> Counted for ExpandedTransaction<T> {
+impl<T: Counted + AsRef<Annotated<Event>>> Counted for ExpandedTransaction<T> {
     fn quantities(&self) -> Quantities {
         let mut quantities = Quantities::new();
         let Self {
             headers: _,
             transaction,
-            flags: _, // TODO: might be used to conditionally count embedded spans.
+            flags,
             attachments,
             profile,
             extracted_spans,
         } = self;
 
         quantities.extend(transaction.quantities());
+        if !flags.spans_extracted {
+            // TODO: encode this flag into the type and remove `extracted_spans` from the "BeforeSpanExtraction" type.
+            debug_assert!(extracted_spans.is_empty());
+            let span_count = 1 + transaction
+                .as_ref()
+                .value()
+                .and_then(|e| e.spans.value())
+                .map_or(0, Vec::len);
+            quantities.push((DataCategory::SpanIndexed, span_count));
+            // TODO: instead of looking at the flag, depend on `T`
+            if !flags.metrics_extracted {
+                quantities.push((DataCategory::Span, span_count));
+            }
+        }
+
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
         quantities.extend(extracted_spans.quantities());
@@ -339,7 +354,7 @@ impl<T: Counted> Counted for ExpandedTransaction<T> {
     }
 }
 
-impl<T: Counted> RateLimited for Managed<ExpandedTransaction<T>> {
+impl<T: Counted + AsRef<Annotated<Event>>> RateLimited for Managed<ExpandedTransaction<T>> {
     type Error = Error;
 
     async fn enforce<R>(
@@ -433,15 +448,21 @@ struct Flags {
 #[derive(Debug)]
 pub struct Transaction(Annotated<Event>);
 
+impl AsRef<Annotated<Event>> for Transaction {
+    fn as_ref(&self) -> &Annotated<Event> {
+        &self.0
+    }
+}
+
 impl AsMut<Annotated<Event>> for Transaction {
     fn as_mut(&mut self) -> &mut Annotated<Event> {
         &mut self.0
     }
 }
 
-impl Into<Annotated<Event>> for Transaction {
-    fn into(self) -> Annotated<Event> {
-        self.0
+impl From<Transaction> for Annotated<Event> {
+    fn from(val: Transaction) -> Self {
+        val.0
     }
 }
 
@@ -463,15 +484,21 @@ impl Counted for Transaction {
 #[derive(Debug)]
 pub struct IndexedTransaction(Annotated<Event>);
 
+impl AsRef<Annotated<Event>> for IndexedTransaction {
+    fn as_ref(&self) -> &Annotated<Event> {
+        &self.0
+    }
+}
+
 impl AsMut<Annotated<Event>> for IndexedTransaction {
     fn as_mut(&mut self) -> &mut Annotated<Event> {
         &mut self.0
     }
 }
 
-impl Into<Annotated<Event>> for IndexedTransaction {
-    fn into(self) -> Annotated<Event> {
-        self.0
+impl From<IndexedTransaction> for Annotated<Event> {
+    fn from(val: IndexedTransaction) -> Self {
+        val.0
     }
 }
 
