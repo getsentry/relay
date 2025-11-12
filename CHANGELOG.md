@@ -21,6 +21,7 @@
 
 **Bug Fixes**:
 
+- Relay would record an invalid internal outcome when there should be no outcome. ([#5372](https://github.com/getsentry/relay/pull/5372))
 - Redis pools being sized too small by default. ([#5358](https://github.com/getsentry/relay/pull/5358))
 - Fix array attributes not being applied to standalone spans. ([#5337](https://github.com/getsentry/relay/pull/5337))
 - Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
