@@ -734,6 +734,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
+          cache-on-failure: "true"
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
