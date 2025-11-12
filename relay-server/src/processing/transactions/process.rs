@@ -13,6 +13,7 @@ use smallvec::smallvec;
 
 use crate::envelope::Item;
 use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
+use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::transactions::extraction::ExtractMetricsContext;
 use crate::processing::transactions::profile::Profile;
 use crate::processing::transactions::{
@@ -228,17 +229,21 @@ pub fn extract_metrics(
     work: Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
     sampling_decision: SamplingDecision,
-    target: &mut ProcessingExtractedMetrics,
-) -> Result<(Managed<ExpandedTransaction<IndexedTransaction>>), Rejected<Error>> {
+) -> Result<
+    (
+        Managed<ExpandedTransaction<IndexedTransaction>>,
+        Managed<ExtractedMetrics>,
+    ),
+    Rejected<Error>,
+> {
     let project_id = work.scoping().project_id;
 
-    // TODO: split and return a `Managed<ExtractedMetrics>` here.
-
-    work.try_map(|mut work, record_keeper| {
+    let mut metrics = ProcessingExtractedMetrics::new();
+    let indexed = work.try_map(|mut work, record_keeper| {
         // Extract metrics here, we're about to drop the event/transaction.
         work.flags.metrics_extracted = super::extraction::extract_metrics(
             &mut work.transaction.0,
-            target,
+            &mut metrics,
             ExtractMetricsContext {
                 dsc: work.headers.dsc(),
                 project_id,
@@ -249,8 +254,10 @@ pub fn extract_metrics(
             },
         )?
         .0;
-        Ok::<_, Error>(work.into())
-    })
+        Ok::<_, Error>(ExpandedTransaction::<IndexedTransaction>::from(work))
+    })?;
+    let metrics = indexed.wrap(metrics.into_inner());
+    Ok((indexed, metrics))
 }
 
 pub fn extract_spans(

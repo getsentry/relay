@@ -153,16 +153,11 @@ impl Processor for TransactionProcessor {
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
             let work = process::process_profile(work, ctx, SamplingDecision::Drop);
-            let work = process::extract_metrics(
-                work,
-                ctx,
-                SamplingDecision::Drop,
-                &mut extracted_metrics,
-            )?;
+            let (work, extracted_metrics) =
+                process::extract_metrics(work, ctx, SamplingDecision::Drop)?;
 
             let headers = work.headers.clone();
             let profile = process::drop_after_sampling(work, ctx, outcome);
-            let metrics = profile.wrap(extracted_metrics.into_inner());
             let mut profile = profile.transpose();
             if let Some(profile) = profile.as_mut() {
                 self.limiter.enforce_quotas(profile, ctx).await?;
@@ -174,7 +169,7 @@ impl Processor for TransactionProcessor {
                         managed.map(|Profile(item), _| ProfileWithHeaders { headers, item }),
                     )
                 }),
-                metrics: Some(metrics),
+                metrics: Some(extracted_metrics),
             });
         }
 
@@ -186,12 +181,8 @@ impl Processor for TransactionProcessor {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             let work = process::process_profile(work, ctx, SamplingDecision::Keep);
 
-            let indexed = process::extract_metrics(
-                work,
-                ctx,
-                SamplingDecision::Keep,
-                &mut extracted_metrics,
-            )?;
+            let (indexed, extracted_metrics) =
+                process::extract_metrics(work, ctx, SamplingDecision::Keep)?;
 
             let mut indexed = process::extract_spans(indexed, ctx, server_sample_rate);
 
@@ -205,10 +196,9 @@ impl Processor for TransactionProcessor {
                 );
             };
 
-            let metrics = indexed.wrap(extracted_metrics.into_inner());
             return Ok(super::Output {
                 main: Some(TransactionOutput::Indexed(indexed)),
-                metrics: Some(metrics),
+                metrics: Some(extracted_metrics),
             });
         }
 
