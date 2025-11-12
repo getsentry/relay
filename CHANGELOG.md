@@ -21,6 +21,7 @@
 
 **Bug Fixes**:
 
+- Relay would record an invalid internal outcome when there should be no outcome. ([#5372](https://github.com/getsentry/relay/pull/5372))
 - Redis pools being sized too small by default. ([#5358](https://github.com/getsentry/relay/pull/5358))
 - Fix array attributes not being applied to standalone spans. ([#5337](https://github.com/getsentry/relay/pull/5337))
 - Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
@@ -35,6 +36,7 @@
 - Switch default allocator from jemalloc to mimalloc. ([#5239](https://github.com/getsentry/relay/pull/5239))
 - Add internal attributes to aid searching trace metrics. ([#5260](https://github.com/getsentry/relay/pull/5260))
 - Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
+- Remove the span kind from the Kafka span schema. ([#5368](https://github.com/getsentry/relay/pull/5368))
 - Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5308))
 
 ## 25.10.0
