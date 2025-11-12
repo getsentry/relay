@@ -46,11 +46,11 @@ dev = [
     "zstandard>=0.18.0",
 
     # used for ci build_library
-    "setuptools==78.1.1",
-    # wheel must be 0.42.0; newer versions generate bad macos wheels
+    "setuptools==80.9.0",
+    # wheel must be 0.45.1; newer versions generate bad macos wheels
     # where metadata version is written as 2.1 but has Dynamic fields
     # which twine (in craft) will refuse to upload
-    "wheel==0.42.0",
+    "wheel==0.45.1",
     # used for py/tools/verify_wheel.py
     "packaging==25.0",
     "milksnake>=0.1.6",
