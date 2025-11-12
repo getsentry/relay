@@ -254,7 +254,7 @@ pub struct ExpandedTransaction<T> {
     flags: Flags,
     attachments: smallvec::SmallVec<[Item; 3]>,
     profile: Option<Item>,
-    extracted_spans: Vec<Item>,
+    extracted_spans: ExtractedSpans,
 }
 
 impl From<ExpandedTransaction<Transaction>> for ExpandedTransaction<IndexedTransaction> {
@@ -312,7 +312,7 @@ impl<T: Into<Annotated<Event>>> ExpandedTransaction<T> {
         }
         items.extend(attachments);
         items.extend(profile);
-        items.extend(extracted_spans);
+        items.extend(extracted_spans.0);
 
         Ok(Envelope::from_parts(headers, items))
     }
@@ -320,7 +320,6 @@ impl<T: Into<Annotated<Event>>> ExpandedTransaction<T> {
 
 impl<T: Counted + AsRef<Annotated<Event>>> Counted for ExpandedTransaction<T> {
     fn quantities(&self) -> Quantities {
-        let mut quantities = Quantities::new();
         let Self {
             headers: _,
             transaction,
@@ -330,10 +329,10 @@ impl<T: Counted + AsRef<Annotated<Event>>> Counted for ExpandedTransaction<T> {
             extracted_spans,
         } = self;
 
-        quantities.extend(transaction.quantities());
+        let mut quantities = transaction.quantities();
         if !flags.spans_extracted {
             // TODO: encode this flag into the type and remove `extracted_spans` from the "BeforeSpanExtraction" type.
-            debug_assert!(extracted_spans.is_empty());
+            debug_assert!(extracted_spans.0.is_empty());
             let span_count = 1 + transaction
                 .as_ref()
                 .value()
@@ -348,6 +347,11 @@ impl<T: Counted + AsRef<Annotated<Event>>> Counted for ExpandedTransaction<T> {
 
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
+
+        if !extracted_spans.0.is_empty() {
+            // For now, span extraction always happens at the very end:
+            debug_assert!(flags.metrics_extracted);
+        }
         quantities.extend(extracted_spans.quantities());
 
         quantities
@@ -418,7 +422,7 @@ impl<T: Counted + AsRef<Annotated<Event>>> RateLimited for Managed<ExpandedTrans
             }
         }
 
-        // Check attachment limits:
+        // Check span limits:
         for (category, quantity) in span_quantities {
             let limits = rate_limiter
                 .try_consume(scoping.item(category), quantity)
@@ -428,13 +432,30 @@ impl<T: Counted + AsRef<Annotated<Event>>> RateLimited for Managed<ExpandedTrans
                 self.modify(|this, record_keeper| {
                     record_keeper.reject_err(
                         Error::from(limits),
-                        std::mem::take(&mut this.extracted_spans),
+                        std::mem::take(&mut this.extracted_spans.0),
                     );
                 });
             }
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct ExtractedSpans(Vec<Item>);
+
+impl Counted for ExtractedSpans {
+    fn quantities(&self) -> Quantities {
+        // For now, extracted spans are always extracted after metrics extraction. This might change
+        // in the future.
+        debug_assert!(
+            self.0
+                .iter()
+                .all(|i| i.ty() == &ItemType::Span && i.metrics_extracted())
+        );
+
+        smallvec![(DataCategory::SpanIndexed, self.0.len())]
     }
 }
 

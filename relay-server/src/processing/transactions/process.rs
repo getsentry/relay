@@ -17,8 +17,8 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::transactions::extraction::ExtractMetricsContext;
 use crate::processing::transactions::profile::Profile;
 use crate::processing::transactions::{
-    Error, ExpandedTransaction, Flags, IndexedTransaction, SerializedTransaction, Transaction,
-    TransactionOutput, profile, spans,
+    Error, ExpandedTransaction, ExtractedSpans, Flags, IndexedTransaction, SerializedTransaction,
+    Transaction, TransactionOutput, profile, spans,
 };
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
@@ -60,7 +60,7 @@ pub fn parse(
             flags,
             attachments,
             profile,
-            extracted_spans: vec![],
+            extracted_spans: ExtractedSpans(vec![]),
         })
     })
 }
@@ -191,7 +191,6 @@ pub fn drop_after_sampling(
 
     // reject everything but the profile:
     let _ = work.reject_err(outcome.clone());
-    emit_span_outcomes(&mut work, outcome);
 
     profile.map(|item, _| item.map(Profile))
 }
@@ -225,17 +224,16 @@ pub fn process_profile(
     })
 }
 
+type IndexedWithMetrics = (
+    Managed<ExpandedTransaction<IndexedTransaction>>,
+    Managed<ExtractedMetrics>,
+);
+
 pub fn extract_metrics(
     work: Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
     sampling_decision: SamplingDecision,
-) -> Result<
-    (
-        Managed<ExpandedTransaction<IndexedTransaction>>,
-        Managed<ExtractedMetrics>,
-    ),
-    Rejected<Error>,
-> {
+) -> Result<IndexedWithMetrics, Rejected<Error>> {
     let project_id = work.scoping().project_id;
 
     let mut metrics = ProcessingExtractedMetrics::new();
@@ -278,7 +276,7 @@ pub fn extract_spans(
             work.flags.spans_extracted = true;
             for result in results {
                 match result {
-                    Ok(item) => work.extracted_spans.push(item),
+                    Ok(item) => work.extracted_spans.0.push(item),
                     Err(_) => r.reject_err(
                         Outcome::Invalid(DiscardReason::InvalidSpan),
                         // HACK to get correct outcomes for spans. TODO: should this only emit SpanIndexed?
