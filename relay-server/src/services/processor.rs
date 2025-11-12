@@ -1358,7 +1358,7 @@ impl EnvelopeProcessorService {
             &mut event,
             event_fully_normalized,
             project_id,
-            &ctx,
+            ctx,
             &self.inner.geoip_lookup,
         )?;
         let filter_run = processing::utils::event::filter(
@@ -1486,7 +1486,7 @@ impl EnvelopeProcessorService {
             &mut event,
             event_fully_normalized,
             project_id,
-            &ctx,
+            ctx,
             &self.inner.geoip_lookup,
         )?;
 
@@ -1552,7 +1552,7 @@ impl EnvelopeProcessorService {
                 ExtractMetricsContext {
                     dsc: managed_envelope.envelope().dsc(),
                     project_id,
-                    ctx: &ctx,
+                    ctx,
                     sampling_decision: SamplingDecision::Drop,
                     metrics_extracted: event_metrics_extracted.0,
                     spans_extracted: spans_extracted.0,
@@ -1614,7 +1614,7 @@ impl EnvelopeProcessorService {
                 ExtractMetricsContext {
                     dsc: managed_envelope.envelope().dsc(),
                     project_id,
-                    ctx: &ctx,
+                    ctx,
                     sampling_decision: SamplingDecision::Keep,
                     metrics_extracted: event_metrics_extracted.0,
                     spans_extracted: spans_extracted.0,

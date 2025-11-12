@@ -18,7 +18,7 @@ use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
-use crate::processing::transactions::profile::Profile;
+use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -141,7 +141,7 @@ impl Processor for TransactionProcessor {
 
         process::prepare_data(&mut work, &mut ctx, &mut metrics)?;
 
-        let work = process::normalize(work, ctx, &self.geoip_lookup)?;
+        let mut work = process::normalize(work, ctx, &self.geoip_lookup)?;
 
         let filters_status = process::run_inbound_filters(&work, ctx)?;
 
@@ -152,14 +152,30 @@ impl Processor for TransactionProcessor {
         let server_sample_rate = sampling_result.sample_rate();
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
-            return process::drop_after_sampling(
+            let work = process::process_profile(work, ctx, SamplingDecision::Drop);
+            let work = process::extract_metrics(
                 work,
-                extracted_metrics,
-                outcome,
                 ctx,
-                &self.limiter,
-            )
-            .await;
+                SamplingDecision::Drop,
+                &mut extracted_metrics,
+            )?;
+
+            let headers = work.headers.clone();
+            let profile = process::drop_after_sampling(work, ctx, outcome);
+            let metrics = profile.wrap(extracted_metrics.into_inner());
+            let mut profile = profile.transpose();
+            if let Some(profile) = profile.as_mut() {
+                self.limiter.enforce_quotas(profile, ctx).await?;
+            }
+
+            return Ok(super::Output {
+                main: profile.map(|managed| {
+                    TransactionOutput::OnlyProfile(
+                        managed.map(|Profile(item), _| ProfileWithHeaders { headers, item }),
+                    )
+                }),
+                metrics: Some(metrics),
+            });
         }
 
         // Need to scrub the transaction before extracting spans.
@@ -208,7 +224,7 @@ impl Processor for TransactionProcessor {
                     ExtractMetricsContext {
                         dsc: work.headers.dsc(),
                         project_id,
-                        ctx: &ctx,
+                        ctx,
                         sampling_decision: SamplingDecision::Keep,
                         metrics_extracted: work.flags.metrics_extracted,
                         spans_extracted: work.flags.spans_extracted,
@@ -255,7 +271,7 @@ impl Processor for TransactionProcessor {
 
         let metrics = work.wrap(extracted_metrics.into_inner());
         Ok(super::Output {
-            main: Some(TransactionOutput(work)),
+            main: Some(TransactionOutput::Full(work)),
             metrics: Some(metrics),
         })
     }
@@ -472,19 +488,29 @@ impl Counted for Transaction {
 }
 
 #[derive(Debug)]
-pub struct TransactionOutput(Managed<ExpandedTransaction>);
+pub enum TransactionOutput {
+    Full(Managed<ExpandedTransaction>),
+    OnlyProfile(Managed<ProfileWithHeaders>),
+}
 
 impl Forward for TransactionOutput {
     fn serialize_envelope(
         self,
         ctx: super::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        self.0.try_map(|output, _| {
-            output
-                .serialize_envelope()
-                .map_err(drop)
-                .with_outcome(Outcome::Invalid(DiscardReason::Internal))
-        })
+        match self {
+            TransactionOutput::Full(managed) => managed.try_map(|output, _| {
+                output
+                    .serialize_envelope()
+                    .map_err(drop)
+                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+            }),
+            TransactionOutput::OnlyProfile(profile) => {
+                Ok(profile.map(|ProfileWithHeaders { headers, item }, _| {
+                    Envelope::from_parts(headers, smallvec![item])
+                }))
+            }
+        }
     }
 
     #[cfg(feature = "processing")]
@@ -493,15 +519,8 @@ impl Forward for TransactionOutput {
         s: &relay_system::Addr<crate::services::store::Store>,
         ctx: super::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let Self(output) = self;
-
-        // TODO: split out envelope
-        let envelope: ManagedEnvelope = output
-            .try_map(|tx, _| {
-                tx.serialize_envelope()
-                    .map_err(|_| (Outcome::Invalid(DiscardReason::Internal), ()))
-            })?
-            .into();
+        // TODO: split out spans
+        let envelope: ManagedEnvelope = self.serialize_envelope(ctx)?.into();
 
         s.send(StoreEnvelope {
             envelope: envelope.into_processed(),

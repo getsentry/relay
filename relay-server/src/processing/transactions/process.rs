@@ -11,8 +11,9 @@ use relay_sampling::evaluation::{ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use smallvec::smallvec;
 
+use crate::envelope::Item;
 use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
-use crate::processing::transactions::extraction::{ExtractMetricsContext, extract_metrics};
+use crate::processing::transactions::extraction::ExtractMetricsContext;
 use crate::processing::transactions::profile::Profile;
 use crate::processing::transactions::{
     Error, ExpandedTransaction, Flags, SerializedTransaction, Transaction, TransactionOutput,
@@ -165,19 +166,31 @@ async fn do_run_dynamic_sampling(
 }
 
 /// Finishes transaction and profile processing when the dynamic sampling decision was "drop".
-pub async fn drop_after_sampling(
+pub fn drop_after_sampling(
     mut work: Managed<ExpandedTransaction>,
-    mut extracted_metrics: ProcessingExtractedMetrics,
-    outcome: Outcome,
     ctx: Context<'_>,
-    limiter: &QuotaRateLimiter,
-) -> Result<Output<TransactionOutput>, Rejected<Error>> {
-    // Process profiles before dropping the transaction, if necessary.
-    // Before metric extraction to make sure the profile count is reflected correctly.
-    let project_id = work.scoping().project_id;
-    work.try_modify(|work, record_keeper| {
+    outcome: Outcome,
+) -> Managed<Option<Profile>> {
+    let (mut work, profile) = work.split_once(|mut work| {
+        let profile = work.profile.take();
+        (work, profile)
+    });
+
+    // reject everything but the profile:
+    let _ = work.reject_err(outcome.clone());
+    emit_span_outcomes(&mut work, outcome);
+
+    profile.map(|item, _| item.map(Profile))
+}
+
+pub fn process_profile(
+    work: Managed<ExpandedTransaction>,
+    ctx: Context<'_>,
+    sampling_decision: SamplingDecision,
+) -> Managed<ExpandedTransaction> {
+    work.map(|mut work, record_keeper| {
         if let Some(profile) = work.profile.as_mut() {
-            profile.set_sampled(false);
+            profile.set_sampled(sampling_decision.is_keep());
             let result = profile::process(
                 profile,
                 work.headers.meta().client_addr(),
@@ -188,44 +201,33 @@ pub async fn drop_after_sampling(
                 record_keeper.reject_err(outcome, work.profile.take());
             }
         }
+        work
+    })
+}
+
+pub fn extract_metrics(
+    work: Managed<ExpandedTransaction>,
+    ctx: Context<'_>,
+    sampling_decision: SamplingDecision,
+    target: &mut ProcessingExtractedMetrics,
+) -> Result<Managed<ExpandedTransaction>, Rejected<Error>> {
+    let project_id = work.scoping().project_id;
+    work.try_map(|mut work, record_keeper| {
         // Extract metrics here, we're about to drop the event/transaction.
-        // TODO: move `utils` to `transaction`.
-        work.flags.metrics_extracted = extract_metrics(
+        work.flags.metrics_extracted = super::extraction::extract_metrics(
             &mut work.transaction.0,
-            &mut extracted_metrics,
+            target,
             ExtractMetricsContext {
                 dsc: work.headers.dsc(),
                 project_id,
-                ctx: &ctx,
+                ctx,
                 sampling_decision: SamplingDecision::Drop,
                 metrics_extracted: work.flags.metrics_extracted,
                 spans_extracted: work.flags.spans_extracted,
             },
         )?
         .0;
-        Ok::<_, Error>(())
-    })?;
-
-    let (mut work, profile) = work.split_once(|mut work| {
-        let profile = work.profile.take();
-        (work, profile)
-    });
-
-    // reject everything but the profile:
-    let _ = work.reject_err(outcome.clone());
-    emit_span_outcomes(&mut work, outcome);
-
-    // If we have a profile left, we need to make sure there is quota for this profile.
-    let profile = profile.transpose();
-    if let Some(profile) = profile {
-        let mut profile = profile.map(|p, _| Profile(p));
-        limiter.enforce_quotas(&mut profile, ctx).await?;
-    }
-
-    let metrics = work.wrap(extracted_metrics.into_inner());
-    Ok(Output {
-        main: Some(TransactionOutput(work)),
-        metrics: Some(metrics),
+        Ok::<_, Error>(work)
     })
 }
 

@@ -12,23 +12,36 @@ use relay_protocol::{Annotated, Empty};
 #[cfg(feature = "processing")]
 use relay_protocol::{Getter, Remark, RemarkType};
 
-use crate::envelope::{ContentType, Item, ItemType};
-use crate::managed::{Counted, Managed, RecordKeeper};
+use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::managed::{Counted, Managed, Quantities, RecordKeeper};
 use crate::processing::transactions::ExpandedTransaction;
 use crate::processing::{Context, CountRateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::utils::should_filter;
 
+#[derive(Debug)]
 pub struct Profile(pub Item);
 
 impl Counted for Profile {
-    fn quantities(&self) -> crate::managed::Quantities {
+    fn quantities(&self) -> Quantities {
         self.0.quantities()
     }
 }
 
 impl CountRateLimited for Managed<Profile> {
     type Error = super::Error;
+}
+
+#[derive(Debug)]
+pub struct ProfileWithHeaders {
+    pub headers: EnvelopeHeaders,
+    pub item: Item,
+}
+
+impl Counted for ProfileWithHeaders {
+    fn quantities(&self) -> Quantities {
+        self.item.quantities()
+    }
 }
 
 /// Filters out invalid profiles.

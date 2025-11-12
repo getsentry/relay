@@ -37,7 +37,7 @@ pub fn extract_segment_span(
 pub struct ExtractMetricsContext<'a> {
     pub dsc: Option<&'a DynamicSamplingContext>,
     pub project_id: ProjectId,
-    pub ctx: &'a Context<'a>,
+    pub ctx: Context<'a>,
     pub sampling_decision: SamplingDecision,
     pub metrics_extracted: bool,
     pub spans_extracted: bool,
