@@ -701,7 +701,6 @@ mod tests {
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
             "end_timestamp": 123.5,
-            "kind": "client",
             "attributes": {
                 "sentry.kind": {
                     "value": "client",
@@ -1080,7 +1079,6 @@ mod tests {
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
             "end_timestamp": 123.5,
-            "kind": "client",
             "attributes": {
                 "sentry.kind": {
                     "value": "client",
@@ -1210,7 +1208,6 @@ mod tests {
             "start_timestamp": 123,
             "end_timestamp": 123.5,
             "name": "GET /api/users",
-            "kind": "server",
             "attributes": {
                 "sentry.kind": {
                     "value": "server",
@@ -1259,7 +1256,6 @@ mod tests {
             "start_timestamp": 123,
             "end_timestamp": 123.5,
             "name": "SELECT users",
-            "kind": "client",
             "attributes": {
                 "sentry.kind": {
                     "value": "client",
@@ -1308,7 +1304,6 @@ mod tests {
             "start_timestamp": 123,
             "end_timestamp": 123.5,
             "name": "POST /graphql",
-            "kind": "server",
             "attributes": {
                 "sentry.kind": {
                     "value": "server",
