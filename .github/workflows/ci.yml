@@ -168,10 +168,6 @@ jobs:
         image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
         ports:
           - 6379:6379
-      redis_secondary:
-        image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
-        ports:
-          - 6380:6379
 
     steps:
       - name: Install libcurl-dev
@@ -706,10 +702,6 @@ jobs:
         image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
         ports:
           - 6379:6379
-      redis_secondary:
-        image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
-        ports:
-          - 6380:6379
 
       zookeeper:
         image: ghcr.io/getsentry/image-mirror-confluentinc-cp-zookeeper:6.2.0
