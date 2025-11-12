@@ -8,7 +8,7 @@ use relay_quotas::{
     ReasonCode, Scoping,
 };
 
-use crate::envelope::{Envelope, Item, ItemType};
+use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::integrations::Integration;
 use crate::managed::ManagedEnvelope;
 use crate::services::outcome::Outcome;
@@ -518,6 +518,10 @@ impl Enforcement {
         // to determine whether an item is limited.
         match item.ty() {
             ItemType::Attachment => {
+                // Drop span attachments if they have a span_id item header and span quota is null.
+                if matches!(item.content_type(), Some(ContentType::AttachmentV2)) && item.span_id().is_some() && self.spans_indexed.is_active() {
+                    return false;
+                }
                 if !(self.attachments.is_active() || self.attachment_items.is_active()) {
                     return true;
                 }
