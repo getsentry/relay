@@ -1361,15 +1361,12 @@ impl EnvelopeProcessorService {
             ctx,
             &self.inner.geoip_lookup,
         )?;
-        let filter_run = processing::utils::event::filter(
-            managed_envelope.envelope().headers(),
-            &mut event,
-            &ctx,
-        )
-        .map_err(|err| {
-            managed_envelope.reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })?;
+        let filter_run =
+            processing::utils::event::filter(managed_envelope.envelope().headers(), &event, &ctx)
+                .map_err(|err| {
+                managed_envelope.reject(Outcome::Filtered(err.clone()));
+                ProcessingError::EventFiltered(err)
+            })?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             dynamic_sampling::tag_error_with_sampling_decision(
@@ -1490,15 +1487,12 @@ impl EnvelopeProcessorService {
             &self.inner.geoip_lookup,
         )?;
 
-        let filter_run = processing::utils::event::filter(
-            managed_envelope.envelope().headers(),
-            &mut event,
-            &ctx,
-        )
-        .map_err(|err| {
-            managed_envelope.reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })?;
+        let filter_run =
+            processing::utils::event::filter(managed_envelope.envelope().headers(), &event, &ctx)
+                .map_err(|err| {
+                managed_envelope.reject(Outcome::Filtered(err.clone()));
+                ProcessingError::EventFiltered(err)
+            })?;
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.

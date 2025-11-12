@@ -3,7 +3,7 @@ use std::sync::Arc;
 use relay_base_schema::events::EventType;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::{Event, Metrics};
+use relay_event_schema::protocol::{Event, Metrics, SpanV2};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_redis::AsyncRedisClient;
@@ -17,11 +17,13 @@ use crate::processing::transactions::extraction::ExtractMetricsContext;
 use crate::processing::transactions::profile::Profile;
 use crate::processing::transactions::{
     Error, ExpandedTransaction, Flags, SerializedTransaction, Transaction, TransactionOutput,
-    profile,
+    profile, spans,
 };
-use crate::processing::utils::event::{EventFullyNormalized, EventMetricsExtracted, FiltersStatus};
+use crate::processing::utils::event::{
+    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
+};
 use crate::processing::{Context, Output, QuotaRateLimiter, utils};
-use crate::services::outcome::Outcome;
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::SamplingResult;
@@ -151,7 +153,7 @@ async fn do_run_dynamic_sampling(
     }
 
     #[allow(unused_mut)]
-    let mut reservoir = ReservoirEvaluator::new(Arc::clone(&ctx.reservoir_counters));
+    let mut reservoir = ReservoirEvaluator::new(Arc::clone(ctx.reservoir_counters));
     #[cfg(feature = "processing")]
     if let Some(quotas_client) = quotas_client.as_ref() {
         reservoir.set_redis(work.scoping().organization_id, quotas_client);
@@ -189,6 +191,7 @@ pub fn process_profile(
     sampling_decision: SamplingDecision,
 ) -> Managed<ExpandedTransaction> {
     work.map(|mut work, record_keeper| {
+        let mut profile_id = None;
         if let Some(profile) = work.profile.as_mut() {
             profile.set_sampled(sampling_decision.is_keep());
             let result = profile::process(
@@ -197,10 +200,16 @@ pub fn process_profile(
                 work.transaction.0.value(),
                 &ctx,
             );
-            if let Err(outcome) = result {
-                record_keeper.reject_err(outcome, work.profile.take());
-            }
+            match result {
+                Err(outcome) => {
+                    record_keeper.reject_err(outcome, work.profile.take());
+                }
+                Ok(id) => profile_id = Some(id),
+            };
         }
+        profile::transfer_id(&mut work.transaction.0, profile_id);
+        profile::scrub_profiler_id(&mut work.transaction.0);
+
         work
     })
 }
@@ -227,6 +236,48 @@ pub fn extract_metrics(
             },
         )?
         .0;
+        Ok::<_, Error>(work)
+    })
+}
+
+pub fn extract_spans(
+    work: Managed<ExpandedTransaction>,
+    ctx: Context<'_>,
+    server_sample_rate: Option<f64>,
+) -> Managed<ExpandedTransaction> {
+    work.map(|mut work, r| {
+        if let Some(results) = spans::extract_from_event(
+            work.headers.dsc(),
+            &work.transaction.0,
+            ctx.global_config,
+            ctx.config,
+            server_sample_rate,
+            EventMetricsExtracted(work.flags.metrics_extracted),
+            SpansExtracted(work.flags.spans_extracted),
+        ) {
+            work.flags.spans_extracted = true;
+            for result in results {
+                match result {
+                    Ok(item) => work.extracted_spans.push(item),
+                    Err(_) => r.reject_err(
+                        Outcome::Invalid(DiscardReason::InvalidSpan),
+                        // HACK to get correct outcomes for spans. TODO: should this only emit SpanIndexed?
+                        SpanV2::default(),
+                    ),
+                }
+            }
+        }
+        work
+    })
+}
+
+pub fn scrub(
+    work: Managed<ExpandedTransaction>,
+    ctx: Context<'_>,
+) -> Result<Managed<ExpandedTransaction>, Rejected<Error>> {
+    work.try_map(|mut work, _| {
+        utils::event::scrub(&mut work.transaction.0, ctx.project_info)?;
+        utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
         Ok::<_, Error>(work)
     })
 }

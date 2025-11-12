@@ -179,86 +179,23 @@ impl Processor for TransactionProcessor {
         }
 
         // Need to scrub the transaction before extracting spans.
-        //
-        // Unconditionally scrub to make sure PII is removed as early as possible.
-        // 5 - SCRUB
-        work.try_modify(|work, _| {
-            utils::event::scrub(&mut work.transaction.0, ctx.project_info)?;
-            utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
-            Ok::<_, Error>(())
-        })?;
+        work = process::scrub(work, ctx)?;
 
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            let mut profile_id = None;
-            work.try_modify(|work, r| {
-                use crate::processing::transactions::extraction::ExtractMetricsContext;
+            work = process::process_profile(work, ctx, SamplingDecision::Keep);
 
-                // 6 - PROCESS PROFILE
-                if let Some(profile) = work.profile.as_mut() {
-                    profile.set_sampled(false);
-                    let result = profile::process(
-                        profile,
-                        work.headers.meta().client_addr(),
-                        work.transaction.0.value(),
-                        &ctx,
-                    );
-                    match result {
-                        Err(outcome) => {
-                            r.reject_err(outcome, work.profile.take());
-                        }
-                        Ok(p) => profile_id = Some(p),
-                    }
-                }
+            work = process::extract_metrics(
+                work,
+                ctx,
+                SamplingDecision::Keep,
+                &mut extracted_metrics,
+            )?;
 
-                profile::transfer_id(&mut work.transaction.0, profile_id);
-                profile::scrub_profiler_id(&mut work.transaction.0);
-
-                // 7 - EXTRACT METRICS
-
-                // Always extract metrics in processing Relays for sampled items.
-                work.flags.metrics_extracted = extraction::extract_metrics(
-                    &mut work.transaction.0,
-                    &mut extracted_metrics,
-                    ExtractMetricsContext {
-                        dsc: work.headers.dsc(),
-                        project_id,
-                        ctx,
-                        sampling_decision: SamplingDecision::Keep,
-                        metrics_extracted: work.flags.metrics_extracted,
-                        spans_extracted: work.flags.spans_extracted,
-                    },
-                )?
-                .0;
-
-                // 8 - Extract spans
-                if let Some(results) = spans::extract_from_event(
-                    work.headers.dsc(),
-                    &work.transaction.0,
-                    ctx.global_config,
-                    ctx.config,
-                    server_sample_rate,
-                    EventMetricsExtracted(work.flags.metrics_extracted),
-                    SpansExtracted(work.flags.spans_extracted),
-                ) {
-                    work.flags.spans_extracted = true;
-                    for result in results {
-                        match result {
-                            Ok(item) => work.extracted_spans.push(item),
-                            Err(_) => r.reject_err(
-                                Outcome::Invalid(DiscardReason::InvalidSpan),
-                                SpanV2::default(),
-                            ),
-                        }
-                    }
-                }
-
-                Ok::<_, Error>(())
-            })?;
+            work = process::extract_spans(work, ctx, server_sample_rate);
         }
 
-        // 9 - RATE LIMIT
         self.limiter.enforce_quotas(&mut work, ctx).await?;
 
         if ctx.config.processing_enabled() && !work.flags.fully_normalized {
@@ -488,6 +425,7 @@ impl Counted for Transaction {
 }
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum TransactionOutput {
     Full(Managed<ExpandedTransaction>),
     OnlyProfile(Managed<ProfileWithHeaders>),
