@@ -51,6 +51,7 @@ pub fn parse(
             fully_normalized: headers.meta().request_trust().is_trusted()
                 && transaction_item.fully_normalized(),
         };
+        validate_flags(&flags);
 
         Ok::<_, Error>(ExpandedTransaction {
             headers,
@@ -63,13 +64,22 @@ pub fn parse(
     })
 }
 
+/// Validates the following assumption:
+/// 1. Metrics are only extracted in non-processing relays if the sampling decision is "drop".
+/// 2. That means that if we see a new transaction, it cannot yet have metrics extracted.
+fn validate_flags(flags: &Flags) {
+    debug_assert!(!flags.metrics_extracted);
+    if flags.metrics_extracted {
+        relay_log::error!("Received a transaction which already had its metrics extracted.");
+    }
+}
+
 /// Validates and massages the data.
 pub fn prepare_data(
     work: &mut Managed<ExpandedTransaction>,
     ctx: &mut Context<'_>,
     metrics: &mut Metrics,
-) -> Result<Metrics, Rejected<Error>> {
-    let mut metrics = Metrics::default();
+) -> Result<(), Rejected<Error>> {
     let scoping = work.scoping();
     work.try_modify(|work, record_keeper| {
         let profile_id = profile::filter(work, record_keeper, *ctx, scoping.project_id);
@@ -83,12 +93,12 @@ pub fn prepare_data(
             &work.headers,
             event,
             work.attachments.iter(),
-            &mut metrics,
+            metrics,
             ctx.config,
         )
         .map_err(Error::from)
     })?;
-    Ok(metrics)
+    Ok(())
 }
 
 pub fn normalize(
@@ -230,7 +240,7 @@ pub fn extract_metrics(
                 dsc: work.headers.dsc(),
                 project_id,
                 ctx,
-                sampling_decision: SamplingDecision::Drop,
+                sampling_decision,
                 metrics_extracted: work.flags.metrics_extracted,
                 spans_extracted: work.flags.spans_extracted,
             },
