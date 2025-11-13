@@ -1,3 +1,6 @@
+#[cfg(feature = "processing")]
+use std::time::Duration;
+
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
 
 /// Name of the event attachment.
@@ -31,3 +34,7 @@ pub const MAX_JSON_SIZE: usize = 262_144;
 
 /// The default client used for check ins whenever the incoming request has no client set.
 pub const DEFAULT_CHECK_IN_CLIENT: &str = "relay-http";
+
+/// The default retention for attachment, which defaults to 30 days currently.
+#[cfg(feature = "processing")]
+pub const DEFAULT_ATTACHMENT_RETENTION: Duration = Duration::from_hours(24 * 30);

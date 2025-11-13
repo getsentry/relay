@@ -116,6 +116,74 @@ def test_mixed_attachments_with_processing(
     }
 
 
+def test_attachments_with_objectstore(
+    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+):
+    project_id = 42
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+    mini_sentry.add_full_project_config(project_id)
+
+    options = {
+        "processing": {
+            "attachment_chunk_size": "100KB",
+            "upload": {"objectstore_url": "http://127.0.0.1:8888/"},
+        }
+    }
+    relay = relay_with_processing(options)
+    attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    chunked_contents = b"heavens no" * 20_000
+    attachments = [
+        ("att_1", "foo.txt", chunked_contents),
+        ("att_2", "foobar.txt", b""),
+    ]
+    relay.send_attachments(project_id, event_id, attachments)
+
+    attachment = attachments_consumer.get_individual_attachment()
+    assert attachment["attachment"].pop("id")
+
+    # this means the attachment is stored in objectstore
+    assert attachment["attachment"].pop("stored_id")
+
+    assert attachment == {
+        "type": "attachment",
+        "attachment": {
+            "name": "foo.txt",
+            "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": len(chunked_contents),
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }
+
+    outcomes_consumer.assert_empty()
+
+    # An empty attachment
+    attachment = attachments_consumer.get_individual_attachment()
+    assert attachment["attachment"].pop("id")
+
+    assert attachment == {
+        "type": "attachment",
+        "attachment": {
+            "name": "foobar.txt",
+            "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": 0,
+            # empty attachments are still transmitted with zero chunks,
+            # and not stored on objectstore
+            "chunks": 0,
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }
+
+
 @pytest.mark.parametrize("rate_limits", [[], ["attachment"], ["attachment_item"]])
 def test_attachments_ratelimit(
     mini_sentry, relay_with_processing, outcomes_consumer, rate_limits

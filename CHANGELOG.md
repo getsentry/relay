@@ -14,6 +14,8 @@
 - Remove the profile context from transactions if profiles are currently rate limited. ([#5346](https://github.com/getsentry/relay/pull/5346))
 - Replace `is_remote` with `is_segment` on the Span V2 schema. ([#5306](https://github.com/getsentry/relay/pull/5306))
 - Add `response_timeout` config setting for Redis. ([#5329](https://github.com/getsentry/relay/pull/5329))
+- Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
+
 
 **Breaking Changes**:
 
@@ -39,6 +41,8 @@
 - Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
 - Remove the span kind from the Kafka span schema. ([#5368](https://github.com/getsentry/relay/pull/5368))
 - Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5308))
+- Hook up `objectstore-client` to the upload service. ([#5353](https://github.com/getsentry/relay/pull/5353))
+
 
 ## 25.10.0
 
