@@ -39,7 +39,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         was_transaction,
         kind,
         performance_issues_spans,
-        other,
+        other: _,
     } = span_v1;
 
     let mut annotated_attributes = attributes_from_data(data);
@@ -130,7 +130,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
         attributes: annotated_attributes,
-        other,
+        other: Default::default(), // cannot carry over because of schema mismatch
     }
 }
 
@@ -432,7 +432,6 @@ mod tests {
               "value": true
             }
           },
-          "additional_field": "additional field value",
           "_meta": {
             "attributes": {
               "my.array": {
