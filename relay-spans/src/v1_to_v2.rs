@@ -39,7 +39,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         was_transaction,
         kind,
         performance_issues_spans,
-        other,
+        other: _,
     } = span_v1;
 
     let mut annotated_attributes = attributes_from_data(data);
@@ -130,7 +130,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
         attributes: annotated_attributes,
-        other,
+        other: Default::default(), // cannot carry over because of schema mismatch
     }
 }
 
@@ -243,7 +243,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_event_schema::protocol::Event;
+    use chrono::DateTime;
+    use relay_event_schema::protocol::{Event, Timestamp};
     use relay_protocol::{FromValue, SerializableAnnotated};
 
     #[test]
@@ -431,7 +432,6 @@ mod tests {
               "value": true
             }
           },
-          "additional_field": "additional field value",
           "_meta": {
             "attributes": {
               "my.array": {
@@ -485,6 +485,25 @@ mod tests {
                 .get_value("sentry.segment.name")
                 .and_then(Value::as_str),
             Some("hi")
+        );
+    }
+
+    #[test]
+    fn start_timestamp() {
+        let json = r#"{"timestamp": 123, "end_timestamp": "invalid data"}"#;
+        let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
+        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap());
+
+        // Parsed version is still fine:
+        assert_eq!(
+            span_v2.end_timestamp.value().unwrap(),
+            &Timestamp(DateTime::from_timestamp_secs(123).unwrap())
+        );
+
+        let serialized = Annotated::from(span_v2).payload_to_json().unwrap();
+        assert_eq!(
+            &serialized,
+            r#"{"status":"ok","end_timestamp":123.0,"attributes":{}}"#
         );
     }
 }
