@@ -18,6 +18,7 @@ use crate::processing::{Context, CountRateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::utils::should_filter;
 
+/// An item wrapper that counts as profile.
 #[derive(Debug)]
 pub struct Profile(pub Item);
 
@@ -27,6 +28,7 @@ impl Counted for Profile {
     }
 }
 
+/// A profile with metadata required to forward it.
 #[derive(Debug)]
 pub struct ProfileWithHeaders {
     pub headers: EnvelopeHeaders,

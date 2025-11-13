@@ -43,7 +43,7 @@ pub struct ExtractMetricsContext<'a> {
     pub spans_extracted: bool,
 }
 
-/// Extract transaction metrics.
+/// Extracts metrics from a transaction and its spans.
 pub fn extract_metrics(
     event: &mut Annotated<Event>,
     extracted_metrics: &mut ProcessingExtractedMetrics,

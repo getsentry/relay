@@ -102,6 +102,7 @@ pub fn prepare_data(
     Ok(())
 }
 
+/// Normalizes the transaction event.
 pub fn normalize(
     work: Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
@@ -122,6 +123,7 @@ pub fn normalize(
     })
 }
 
+/// Rejects the entire unit of work if one of the project's filters matches.
 pub fn run_inbound_filters(
     work: &Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
@@ -132,6 +134,7 @@ pub fn run_inbound_filters(
         .reject(work)
 }
 
+/// Computes the dynamic sampling decision for the unit of work, but does not perform action on data.
 pub async fn run_dynamic_sampling(
     work: &Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
@@ -197,6 +200,7 @@ pub fn drop_after_sampling(
     .transpose()
 }
 
+/// Processes the profile attached to the transaction.
 pub fn process_profile(
     work: Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
@@ -231,6 +235,7 @@ type IndexedWithMetrics = (
     Managed<ExtractedMetrics>,
 );
 
+/// Extracts transaction & span metrics from the payload.
 pub fn extract_metrics(
     work: Managed<ExpandedTransaction<Transaction>>,
     ctx: Context<'_>,
@@ -260,6 +265,7 @@ pub fn extract_metrics(
     Ok((indexed, metrics))
 }
 
+/// Converts the spans embedded in the transaction into top-level span items.
 #[cfg(feature = "processing")]
 pub fn extract_spans(
     work: Managed<ExpandedTransaction<IndexedTransaction>>,
@@ -292,6 +298,7 @@ pub fn extract_spans(
     })
 }
 
+/// Runs PiiProcessors on the event and its attachments.
 pub fn scrub<T>(
     work: Managed<ExpandedTransaction<T>>,
     ctx: Context<'_>,

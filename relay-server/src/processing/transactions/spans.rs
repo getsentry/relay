@@ -131,6 +131,7 @@ fn make_span_item(
     Ok(item)
 }
 
+/// Any violation of the span schema.
 #[derive(thiserror::Error, Debug)]
 pub enum ValidationError {
     #[error("empty span")]
@@ -204,6 +205,9 @@ pub fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     Ok(())
 }
 
+/// Serializes the given span into an envelope item.
+///
+/// In processing relays, creates a Span V2 so it can be published via kafka.
 pub fn create_span_item(span: Annotated<Span>, config: &Config) -> Result<Item, ()> {
     let mut new_item = Item::new(ItemType::Span);
     if cfg!(feature = "processing") && config.processing_enabled() {

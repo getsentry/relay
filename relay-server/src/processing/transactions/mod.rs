@@ -44,6 +44,7 @@ mod process;
 pub mod profile;
 pub mod spans;
 
+/// Errors that occur during transaction processing.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("invalid JSON")]
@@ -246,6 +247,10 @@ impl Counted for SerializedTransaction {
     }
 }
 
+/// A transaction after parsing.
+///
+/// The type parameter indicates whether metrics were already extracted, which changes how
+/// we count the transaction (total vs indexed).
 #[derive(Debug)]
 pub struct ExpandedTransaction<T> {
     headers: EnvelopeHeaders,
@@ -441,6 +446,9 @@ impl<T: Counted + AsRef<Annotated<Event>>> RateLimited for Managed<ExpandedTrans
     }
 }
 
+/// Wrapper for spans extracted from a transaction.
+///
+/// Needed to not emit the total category for spans.
 #[derive(Debug)]
 struct ExtractedSpans(Vec<Item>);
 
@@ -458,6 +466,10 @@ impl Counted for ExtractedSpans {
     }
 }
 
+/// Flags extracted from transaction item headers.
+///
+/// Ideally `metrics_extracted` and `spans_extracted` will not be needed in the future. Unsure
+/// about `fully_normalized`.
 #[derive(Debug, Default)]
 struct Flags {
     metrics_extracted: bool,
@@ -465,6 +477,7 @@ struct Flags {
     fully_normalized: bool,
 }
 
+/// A wrapper for transactions that counts the total and indexed category.
 #[derive(Debug)]
 pub struct Transaction(Annotated<Event>);
 
@@ -488,6 +501,11 @@ impl From<Transaction> for Annotated<Event> {
 
 impl Counted for Transaction {
     fn quantities(&self) -> Quantities {
+        debug_assert!(
+            self.0
+                .value()
+                .is_none_or(|event| event.ty.value() == Some(&EventType::Transaction))
+        );
         smallvec![
             (DataCategory::TransactionIndexed, 1),
             (DataCategory::Transaction, 1),
@@ -527,10 +545,16 @@ impl From<Transaction> for IndexedTransaction {
 
 impl Counted for IndexedTransaction {
     fn quantities(&self) -> Quantities {
+        debug_assert!(
+            self.0
+                .value()
+                .is_none_or(|event| event.ty.value() == Some(&EventType::Transaction))
+        );
         smallvec![(DataCategory::TransactionIndexed, 1)]
     }
 }
 
+/// Output of the transaction processor.
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum TransactionOutput {
