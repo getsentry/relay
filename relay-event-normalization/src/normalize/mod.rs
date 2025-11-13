@@ -305,7 +305,7 @@ static VERSION_REGEX: LazyLock<Regex> =
 /// Regex that matches date patterns at the end of a model name
 ///
 /// Pattern breakdown:
-/// 1. Optional separator: [-_@]?
+/// 1. Optional separator: `[-_@]?`
 /// 2. Date patterns (one of):
 ///    - \d{4}[-/\.]\d{2}[-/\.]\d{2} (YYYY-MM-DD with -, /, or .)
 ///    - \d{8} (YYYYMMDD)
