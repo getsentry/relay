@@ -111,6 +111,7 @@ dialoguer = "0.11.0"
 dynfmt = "0.1.5"
 ed25519-dalek = { version = "2.2.0", features = ["digest"] }
 enumset = "1.1.10"
+either = "1.15.0"
 flate2 = "1.1.4"
 flume = { version = "0.11.1", default-features = false }
 futures = { version = "0.3.31", default-features = false, features = ["std"] }
