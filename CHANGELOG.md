@@ -14,6 +14,7 @@
 - Remove the profile context from transactions if profiles are currently rate limited. ([#5346](https://github.com/getsentry/relay/pull/5346))
 - Replace `is_remote` with `is_segment` on the Span V2 schema. ([#5306](https://github.com/getsentry/relay/pull/5306))
 - Add `response_timeout` config setting for Redis. ([#5329](https://github.com/getsentry/relay/pull/5329))
+- Map `request_id` to `trace_id` in vercel log drain transform. ([#5333](https://github.com/getsentry/relay/pull/5333))
 
 **Breaking Changes**:
 
