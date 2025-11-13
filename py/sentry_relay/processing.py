@@ -264,7 +264,7 @@ def compare_version(a, b):
 
 
 def compare_version_no_build_code(a, b):
-    """Compares two versions with each other and returns 1/0/-1."""
+    """Compares two versions with each other, ignoring build code, and returns 1/0/-1."""
     return rustcall(
         lib.relay_compare_versions_no_build_code, encode_str(a), encode_str(b)
     )
