@@ -6,7 +6,6 @@
 )]
 #![recursion_limit = "256"]
 
-use std::collections::BTreeSet;
 use std::str::FromStr;
 
 use proc_macro2::{Span, TokenStream};
@@ -334,14 +333,6 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
 
     let mut is_tuple_struct = false;
 
-    let mut field_names = BTreeSet::new();
-    for (index, bi) in variant.bindings().iter().enumerate() {
-        let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct)?;
-        if !field_attrs.additional_properties {
-            field_names.insert(field_attrs.field_name.clone());
-        }
-    }
-
     for (index, bi) in variant.bindings().iter().enumerate() {
         let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct)?;
         let field_name = field_attrs.field_name.clone();
@@ -358,24 +349,16 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
             }).to_tokens(&mut from_value_body);
 
             (quote! {
-                for (__key, __value) in #bi {
-                    // Additional properties may not overwrite existing fields:
-                    __map.entry(__key).or_insert(
-                        Annotated::map_value(__value, ::relay_protocol::IntoValue::into_value)
-                    );
-                }
+                __map.extend(#bi.into_iter().map(|(__key, __value)| (
+                    __key,
+                    Annotated::map_value(__value, ::relay_protocol::IntoValue::into_value)
+                )));
             })
             .to_tokens(&mut to_value_body);
 
-            let field_names = field_names.iter().map(String::as_str).collect::<Vec<_>>();
-            assert!(field_names.is_sorted());
             (quote! {
-                let __field_names = &[ #( #field_names ),* ];
                 for (__key, __value) in #bi.iter() {
                     if !__value.skip_serialization(#skip_serialization_attr) {
-                        if __field_names.binary_search(&__key.as_str()).is_ok() {
-                            continue;
-                        }
                         ::serde::ser::SerializeMap::serialize_key(&mut __map_serializer, __key)?;
                         ::serde::ser::SerializeMap::serialize_value(&mut __map_serializer, &::relay_protocol::SerializePayload(__value, #skip_serialization_attr))?;
                     }

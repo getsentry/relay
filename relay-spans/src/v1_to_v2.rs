@@ -490,7 +490,7 @@ mod tests {
     }
 
     #[test]
-    fn conflicting_other() {
+    fn start_timestamp() {
         let json = r#"{"timestamp": 123, "end_timestamp": "invalid data"}"#;
         let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
         let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap());
@@ -501,7 +501,7 @@ mod tests {
             &Timestamp(DateTime::from_timestamp_secs(123).unwrap())
         );
 
-        let serialized = Annotated::from(span_v2).to_json().unwrap();
+        let serialized = Annotated::from(span_v2).payload_to_json().unwrap();
         assert_eq!(
             &serialized,
             r#"{"status":"ok","end_timestamp":123.0,"attributes":{}}"#
