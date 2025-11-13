@@ -13,7 +13,7 @@ use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, Quantities, RecordKeeper};
-use crate::processing::transactions::{ExpandedTransaction, Transaction};
+use crate::processing::transactions::{Error, ExpandedTransaction, Transaction};
 use crate::processing::{Context, CountRateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::utils::should_filter;
@@ -27,10 +27,6 @@ impl Counted for Profile {
     }
 }
 
-impl CountRateLimited for Managed<Profile> {
-    type Error = super::Error;
-}
-
 #[derive(Debug)]
 pub struct ProfileWithHeaders {
     pub headers: EnvelopeHeaders,
@@ -41,6 +37,10 @@ impl Counted for ProfileWithHeaders {
     fn quantities(&self) -> Quantities {
         self.item.quantities()
     }
+}
+
+impl CountRateLimited for Managed<ProfileWithHeaders> {
+    type Error = Error;
 }
 
 /// Filters out invalid profiles.

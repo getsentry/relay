@@ -14,8 +14,8 @@ use smallvec::smallvec;
 use crate::envelope::Item;
 use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
-use crate::processing::transactions::extraction::ExtractMetricsContext;
-use crate::processing::transactions::profile::Profile;
+use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
+use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
 use crate::processing::transactions::{
     Error, ExpandedTransaction, ExtractedSpans, Flags, IndexedTransaction, SerializedTransaction,
     Transaction, TransactionOutput, profile, spans,
@@ -183,16 +183,18 @@ pub fn drop_after_sampling(
     mut work: Managed<ExpandedTransaction<IndexedTransaction>>,
     ctx: Context<'_>,
     outcome: Outcome,
-) -> Managed<Option<Profile>> {
-    let (mut work, profile) = work.split_once(|mut work| {
+) -> Option<Managed<ProfileWithHeaders>> {
+    work.map(|mut work, record_keeper| {
+        // Take out the profile:
         let profile = work.profile.take();
-        (work, profile)
-    });
+        let headers = work.headers.clone();
 
-    // reject everything but the profile:
-    let _ = work.reject_err(outcome.clone());
+        // reject everything but the profile:
+        record_keeper.reject_err(outcome, work);
 
-    profile.map(|item, _| item.map(Profile))
+        profile.map(|item| ProfileWithHeaders { headers, item })
+    })
+    .transpose()
 }
 
 pub fn process_profile(
@@ -239,7 +241,7 @@ pub fn extract_metrics(
     let mut metrics = ProcessingExtractedMetrics::new();
     let indexed = work.try_map(|mut work, record_keeper| {
         // Extract metrics here, we're about to drop the event/transaction.
-        work.flags.metrics_extracted = super::extraction::extract_metrics(
+        work.flags.metrics_extracted = extraction::extract_metrics(
             &mut work.transaction.0,
             &mut metrics,
             ExtractMetricsContext {

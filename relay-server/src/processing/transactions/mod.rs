@@ -15,7 +15,7 @@ use relay_statsd::metric;
 use smallvec::smallvec;
 
 use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
@@ -23,7 +23,10 @@ use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
-use crate::processing::{Forward, Processor, QuotaRateLimiter, RateLimited, utils};
+use crate::processing::{
+    Context, Forward, ForwardContext, Output, Processor, QuotaRateLimiter, RateLimited,
+    RateLimiter, utils,
+};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 #[cfg(feature = "processing")]
@@ -35,8 +38,6 @@ use crate::utils::{SamplingResult, should_filter};
 use crate::managed::TypedEnvelope;
 #[cfg(feature = "processing")]
 use crate::services::processor::ProcessingGroup;
-
-use super::Context;
 
 pub mod extraction;
 mod process;
@@ -132,11 +133,10 @@ impl Processor for TransactionProcessor {
         &self,
         work: Managed<Self::UnitOfWork>,
         mut ctx: Context<'_>,
-    ) -> Result<super::Output<Self::Output>, Rejected<Self::Error>> {
+    ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let scoping = work.scoping();
         let project_id = work.scoping().project_id;
         let mut metrics = Metrics::default();
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         let mut work = process::parse(work)?;
 
@@ -162,18 +162,13 @@ impl Processor for TransactionProcessor {
                 process::extract_metrics(work, ctx, SamplingDecision::Drop)?;
 
             let headers = work.headers.clone();
-            let profile = process::drop_after_sampling(work, ctx, outcome);
-            let mut profile = profile.transpose();
+            let mut profile = process::drop_after_sampling(work, ctx, outcome);
             if let Some(profile) = profile.as_mut() {
                 self.limiter.enforce_quotas(profile, ctx).await?;
             }
 
-            return Ok(super::Output {
-                main: profile.map(|managed| {
-                    TransactionOutput::OnlyProfile(
-                        managed.map(|Profile(item), _| ProfileWithHeaders { headers, item }),
-                    )
-                }),
+            return Ok(Output {
+                main: profile.map(TransactionOutput::OnlyProfile),
                 metrics: Some(extracted_metrics),
             });
         }
@@ -201,7 +196,7 @@ impl Processor for TransactionProcessor {
                 );
             };
 
-            return Ok(super::Output {
+            return Ok(Output {
                 main: Some(TransactionOutput::Indexed(indexed)),
                 metrics: Some(extracted_metrics),
             });
@@ -209,10 +204,9 @@ impl Processor for TransactionProcessor {
 
         self.limiter.enforce_quotas(&mut work, ctx).await?;
 
-        let metrics = work.wrap(extracted_metrics.into_inner());
-        Ok(super::Output {
+        Ok(Output {
             main: Some(TransactionOutput::Full(work)),
-            metrics: Some(metrics),
+            metrics: None,
         })
     }
 }
@@ -222,7 +216,7 @@ impl Processor for TransactionProcessor {
 pub struct SerializedTransaction {
     headers: EnvelopeHeaders,
     transaction: Item,
-    attachments: smallvec::SmallVec<[Item; 3]>,
+    attachments: Items,
     profile: Option<Item>,
 }
 
@@ -257,7 +251,7 @@ pub struct ExpandedTransaction<T> {
     headers: EnvelopeHeaders,
     transaction: T, // might be empty
     flags: Flags,
-    attachments: smallvec::SmallVec<[Item; 3]>,
+    attachments: Items,
     profile: Option<Item>,
     extracted_spans: ExtractedSpans,
 }
@@ -372,7 +366,7 @@ impl<T: Counted + AsRef<Annotated<Event>>> RateLimited for Managed<ExpandedTrans
         ctx: Context<'_>,
     ) -> Result<(), Rejected<Self::Error>>
     where
-        R: super::RateLimiter,
+        R: RateLimiter,
     {
         let scoping = self.scoping();
 
@@ -494,13 +488,10 @@ impl From<Transaction> for Annotated<Event> {
 
 impl Counted for Transaction {
     fn quantities(&self) -> Quantities {
-        match self.0.value() {
-            Some(_) => smallvec![
-                (DataCategory::TransactionIndexed, 1),
-                (DataCategory::Transaction, 1),
-            ],
-            None => smallvec![],
-        }
+        smallvec![
+            (DataCategory::TransactionIndexed, 1),
+            (DataCategory::Transaction, 1),
+        ]
     }
 }
 
@@ -536,10 +527,7 @@ impl From<Transaction> for IndexedTransaction {
 
 impl Counted for IndexedTransaction {
     fn quantities(&self) -> Quantities {
-        match self.0.value() {
-            Some(_) => smallvec![(DataCategory::TransactionIndexed, 1),],
-            None => smallvec![],
-        }
+        smallvec![(DataCategory::TransactionIndexed, 1)]
     }
 }
 
@@ -554,7 +542,7 @@ pub enum TransactionOutput {
 impl Forward for TransactionOutput {
     fn serialize_envelope(
         self,
-        ctx: super::ForwardContext<'_>,
+        ctx: ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         match self {
             TransactionOutput::Full(managed) => managed.try_map(|output, _| {
@@ -581,7 +569,7 @@ impl Forward for TransactionOutput {
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
-        ctx: super::ForwardContext<'_>,
+        ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         // TODO: split out spans
         let envelope: ManagedEnvelope = self.serialize_envelope(ctx)?.into();

@@ -22,7 +22,7 @@ mod filter;
 mod integrations;
 mod process;
 #[cfg(feature = "processing")]
-pub mod store;
+mod store;
 mod validate;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
