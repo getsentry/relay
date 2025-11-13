@@ -258,16 +258,14 @@ def parse_release(release, json_loads: Callable[[str | bytes], Any] = json.loads
     )
 
 
-def compare_version(a, b):
+def compare_version(a, b, use_build_code=True):
     """Compares two versions with each other and returns 1/0/-1."""
-    return rustcall(lib.relay_compare_versions, encode_str(a), encode_str(b))
-
-
-def compare_version_no_build_code(a, b):
-    """Compares two versions with each other, ignoring build code, and returns 1/0/-1."""
-    return rustcall(
-        lib.relay_compare_versions_no_build_code, encode_str(a), encode_str(b)
-    )
+    if use_build_code:
+        return rustcall(lib.relay_compare_versions, encode_str(a), encode_str(b))
+    else:
+        return rustcall(
+            lib.relay_compare_versions_no_build_code, encode_str(a), encode_str(b)
+        )
 
 
 def validate_sampling_condition(condition):
