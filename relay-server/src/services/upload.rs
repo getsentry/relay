@@ -271,7 +271,6 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore = "needs objectstore devservice"]
     async fn test_basic() {
         let upload_service = UploadService::new(&UploadServiceConfig {
             max_concurrent_requests: 2,
