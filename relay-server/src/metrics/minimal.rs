@@ -1,6 +1,4 @@
-use relay_metrics::{
-    BucketMetadata, CounterType, MetricName, MetricNamespace, MetricResourceIdentifier,
-};
+use relay_metrics::{CounterType, MetricName, MetricNamespace, MetricResourceIdentifier};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
@@ -15,8 +13,6 @@ pub struct MinimalTrackableBucket {
     name: MetricName,
     #[serde(flatten)]
     value: MinimalValue,
-    #[serde(default)]
-    metadata: BucketMetadata,
 }
 
 impl TrackableBucket for MinimalTrackableBucket {
@@ -44,10 +40,6 @@ impl TrackableBucket for MinimalTrackableBucket {
             }),
             _ => BucketSummary::default(),
         }
-    }
-
-    fn metadata(&self) -> BucketMetadata {
-        self.metadata
     }
 }
 
@@ -141,7 +133,6 @@ mod tests {
         for (b, mb) in buckets.iter().zip(min_buckets.iter()) {
             assert_eq!(b.name(), mb.name());
             assert_eq!(b.summary(), mb.summary());
-            assert_eq!(b.metadata, mb.metadata);
         }
 
         let summary = min_buckets.iter().map(|b| b.summary()).collect::<Vec<_>>();

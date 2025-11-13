@@ -39,6 +39,7 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
             headers: spans.inner.headers,
             server_sample_rate: spans.server_sample_rate,
             spans: all_spans,
+            category: spans::TotalAndIndexed,
         }
     })
 }
