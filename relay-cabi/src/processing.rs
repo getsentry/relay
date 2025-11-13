@@ -562,4 +562,41 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_compare_versions_no_build_code() {
+        unsafe {
+            // Build codes should be ignored
+            assert_eq!(
+                relay_compare_versions_no_build_code(
+                    &RelayStr::from("1.0.0+200"),
+                    &RelayStr::from("1.0.0+100")
+                ),
+                0
+            );
+            assert_eq!(
+                relay_compare_versions_no_build_code(
+                    &RelayStr::from("1.0.0+abc"),
+                    &RelayStr::from("1.0.0+xyz")
+                ),
+                0
+            );
+
+            // Other comparisons should still work
+            assert_eq!(
+                relay_compare_versions_no_build_code(
+                    &RelayStr::from("2.0.0"),
+                    &RelayStr::from("1.0.0")
+                ),
+                1
+            );
+            assert_eq!(
+                relay_compare_versions_no_build_code(
+                    &RelayStr::from("1.0.0"),
+                    &RelayStr::from("1.0.0-rc1")
+                ),
+                1
+            );
+        }
+    }
 }
