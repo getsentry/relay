@@ -144,7 +144,7 @@ pub async fn run(
 /// Type returned by [`create_indexed_metrics`].
 ///
 /// Contains the indexed spans and the metrics extracted from the spans.
-type ExtractedSpans = (Managed<ExpandedSpans<Indexed>>, Managed<ExtractedMetrics>);
+type SpansAndMetrics = (Managed<ExpandedSpans<Indexed>>, Managed<ExtractedMetrics>);
 
 /// Creates/extracts metrics for spans which have been determined to be kept by dynamic sampling.
 ///
@@ -153,7 +153,7 @@ type ExtractedSpans = (Managed<ExpandedSpans<Indexed>>, Managed<ExtractedMetrics
 pub fn create_indexed_metrics(
     spans: Managed<ExpandedSpans>,
     ctx: Context<'_>,
-) -> Either<Managed<ExpandedSpans>, ExtractedSpans> {
+) -> Either<Managed<ExpandedSpans>, SpansAndMetrics> {
     if !ctx.is_processing() {
         return Either::Left(spans);
     }
