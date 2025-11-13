@@ -92,7 +92,7 @@ impl Producer {
     }
 }
 
-/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
+/// Publishes an [`Envelope`](crate::envelope::Envelope) to the Sentry core application through Kafka topics.
 #[derive(Debug)]
 pub struct StoreEnvelope {
     pub envelope: TypedEnvelope<Processed>,
