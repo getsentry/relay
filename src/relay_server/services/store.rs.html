@@ -137,7 +137,7 @@
 <a href=#137 id=137 data-nosnippet>137</a>
 <a href=#138 id=138 data-nosnippet>138</a><span class="kw">impl </span>Counted <span class="kw">for </span>StoreSpanV2 {
 <a href=#139 id=139 data-nosnippet>139</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
-<a href=#140 id=140 data-nosnippet>140</a>        <span class="self">self</span>.item.quantities()
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="macro">smallvec::smallvec!</span>[(DataCategory::SpanIndexed, <span class="number">1</span>)]
 <a href=#141 id=141 data-nosnippet>141</a>    }
 <a href=#142 id=142 data-nosnippet>142</a>}
 <a href=#143 id=143 data-nosnippet>143</a>
