@@ -137,7 +137,7 @@ pub struct StoreSpanV2 {
 
 impl Counted for StoreSpanV2 {
     fn quantities(&self) -> Quantities {
-        self.item.quantities()
+        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
     }
 }
 
