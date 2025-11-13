@@ -263,6 +263,13 @@ def compare_version(a, b):
     return rustcall(lib.relay_compare_versions, encode_str(a), encode_str(b))
 
 
+def compare_version_no_build_code(a, b):
+    """Compares two versions with each other and returns 1/0/-1."""
+    return rustcall(
+        lib.relay_compare_versions_no_build_code, encode_str(a), encode_str(b)
+    )
+
+
 def validate_sampling_condition(condition):
     """
     Deprecated legacy alias. Please use ``validate_rule_condition`` instead.

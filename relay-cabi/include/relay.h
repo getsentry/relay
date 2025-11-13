@@ -726,6 +726,12 @@ int32_t relay_compare_versions(const struct RelayStr *a,
                                const struct RelayStr *b);
 
 /**
+ * Compares two versions, ignoring build codes.
+ */
+int32_t compare_version_no_build_code(const struct RelayStr *a,
+                                        const struct RelayStr *b);
+
+/**
  * Validate a dynamic rule condition.
  *
  * Used by dynamic sampling, metric extraction, and metric tagging.
