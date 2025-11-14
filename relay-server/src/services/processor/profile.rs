@@ -1,24 +1,20 @@
 //! Profiles related processor code.
-use relay_dynamic_config::{Feature, GlobalConfig};
-use std::net::IpAddr;
+use relay_dynamic_config::Feature;
 
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_event_schema::protocol::Event;
-use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::Annotated;
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::ItemType;
 use crate::managed::{ItemAction, TypedEnvelope};
+use crate::processing::utils::event::event_type;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{TransactionGroup, event_type, should_filter};
+use crate::services::processor::should_filter;
 use crate::services::projects::project::ProjectInfo;
 
-/// Filters out invalid and duplicate profiles.
-///
-/// Returns the profile id of the single remaining profile, if there is one.
 pub fn filter<Group>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &Annotated<Event>,
@@ -63,92 +59,10 @@ pub fn filter<Group>(
     profile_id
 }
 
-/// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-pub fn process(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
-    event: &mut Annotated<Event>,
-    global_config: &GlobalConfig,
-    config: &Config,
-    project_info: &ProjectInfo,
-) -> Option<ProfileId> {
-    let client_ip = managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &project_info.config.filter_settings;
-
-    let profiling_enabled = project_info.has_feature(Feature::Profiling);
-    let mut profile_id = None;
-
-    managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::Profile => {
-            if !profiling_enabled {
-                return ItemAction::DropSilently;
-            }
-
-            // There should always be an event/transaction available at this stage.
-            // It is required to expand the profile. If it's missing, drop the item.
-            let Some(event) = event.value() else {
-                return ItemAction::DropSilently;
-            };
-
-            match expand_profile(
-                item,
-                event,
-                config,
-                client_ip,
-                filter_settings,
-                global_config,
-            ) {
-                Ok(id) => {
-                    profile_id = Some(id);
-                    ItemAction::Keep
-                }
-                Err(outcome) => ItemAction::Drop(outcome),
-            }
-        }
-        _ => ItemAction::Keep,
-    });
-
-    profile_id
-}
-
-/// Transfers transaction metadata to profile and check its size.
-fn expand_profile(
-    item: &mut Item,
-    event: &Event,
-    config: &Config,
-    client_ip: Option<IpAddr>,
-    filter_settings: &ProjectFiltersConfig,
-    global_config: &GlobalConfig,
-) -> Result<ProfileId, Outcome> {
-    match relay_profiling::expand_profile(
-        &item.payload(),
-        event,
-        client_ip,
-        filter_settings,
-        global_config,
-    ) {
-        Ok((id, payload)) => {
-            if payload.len() <= config.max_profile_size() {
-                item.set_payload(ContentType::Json, payload);
-                Ok(id)
-            } else {
-                Err(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
-                )))
-            }
-        }
-        Err(relay_profiling::ProfileError::Filtered(filter_stat_key)) => {
-            Err(Outcome::Filtered(filter_stat_key))
-        }
-        Err(err) => Err(Outcome::Invalid(DiscardReason::Profiling(
-            relay_profiling::discard_reason(err),
-        ))),
-    }
-}
-
 #[cfg(test)]
 #[cfg(feature = "processing")]
 mod tests {
-    use crate::envelope::Envelope;
+    use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
     use crate::processing;
@@ -157,7 +71,6 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use insta::assert_debug_snapshot;
-    use relay_cogs::Token;
     use relay_dynamic_config::Feature;
     use relay_event_schema::protocol::{EventId, ProfileContext};
     use relay_system::Addr;
@@ -269,9 +182,7 @@ mod tests {
             },
         };
 
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
+        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
             panic!();
         };
         let new_envelope = new_envelope.envelope();
@@ -403,9 +314,7 @@ mod tests {
             },
         };
 
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
+        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
             panic!();
         };
         let new_envelope = new_envelope.envelope();
@@ -477,10 +386,7 @@ mod tests {
             },
         };
 
-        let envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap();
+        let envelope = processor.process(message).await.unwrap();
         assert!(envelope.is_none());
     }
 
@@ -552,9 +458,7 @@ mod tests {
             },
         };
 
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
+        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
             panic!();
         };
         let new_envelope = new_envelope.envelope();

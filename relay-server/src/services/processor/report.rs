@@ -266,7 +266,6 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
 
 #[cfg(test)]
 mod tests {
-    use relay_cogs::Token;
     use relay_config::Config;
     use relay_event_schema::protocol::EventId;
 
@@ -331,10 +330,7 @@ mod tests {
             },
         };
 
-        let envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap();
+        let envelope = processor.process(message).await.unwrap();
         assert!(envelope.is_none());
     }
 
@@ -390,9 +386,7 @@ mod tests {
             },
         };
 
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
+        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
             panic!();
         };
         let item = new_envelope.envelope().items().next().unwrap();
@@ -457,10 +451,7 @@ mod tests {
             },
         };
 
-        let envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap();
+        let envelope = processor.process(message).await.unwrap();
         assert!(envelope.is_none());
     }
 
@@ -499,9 +490,7 @@ mod tests {
             ctx: processing::Context::for_test(),
         };
 
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
+        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
             panic!();
         };
         let new_envelope = new_envelope.envelope();
@@ -549,9 +538,7 @@ mod tests {
             ctx: processing::Context::for_test(),
         };
 
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
+        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
             panic!();
         };
         let new_envelope = new_envelope.envelope();
