@@ -2796,7 +2796,9 @@ impl EnvelopeProcessorService {
                 num_batches += 1;
             }
 
-            relay_statsd::metric!(distribution(RelayDistributions::BatchesPerPartition) = num_batches);
+            relay_statsd::metric!(
+                distribution(RelayDistributions::BatchesPerPartition) = num_batches
+            );
         }
     }
 
@@ -3139,7 +3141,9 @@ impl UpstreamRequest for SendEnvelope {
 
     fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
         let envelope_body = self.body.clone();
-        metric!(distribution(RelayDistributions::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
+        metric!(
+            distribution(RelayDistributions::UpstreamEnvelopeBodySize) = envelope_body.len() as u64
+        );
 
         let meta = &self.envelope.meta();
         let shard = self.envelope.partition_key().map(|p| p.to_string());
@@ -3355,7 +3359,9 @@ impl UpstreamRequest for SendMetricsRequest {
     }
 
     fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
-        metric!(distribution(RelayDistributions::UpstreamMetricsBodySize) = self.encoded.len() as u64);
+        metric!(
+            distribution(RelayDistributions::UpstreamMetricsBodySize) = self.encoded.len() as u64
+        );
 
         builder
             .content_encoding(self.http_encoding)

@@ -20,7 +20,7 @@ use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
-use crate::statsd::{RelayGauges, RelayDistributions, RelayTimers};
+use crate::statsd::{RelayDistributions, RelayGauges, RelayTimers};
 use crate::utils::MemoryChecker;
 
 /// Polymorphic envelope buffering interface.

@@ -90,7 +90,8 @@ impl ProjectStore {
         };
 
         metric!(
-            distribution(RelayDistributions::ProjectStateCacheSize) = self.shared.projects.len() as u64,
+            distribution(RelayDistributions::ProjectStateCacheSize) =
+                self.shared.projects.len() as u64,
             storage = "shared"
         );
         metric!(
