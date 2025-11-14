@@ -5,7 +5,7 @@ use relay_system::Addr;
 use crate::envelope::{EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{self, Context, Nothing, Output};
-use crate::services::outcome::TrackOutcome;
+use crate::services::outcome::{Outcome, TrackOutcome};
 
 mod process;
 
@@ -31,7 +31,7 @@ pub enum Error {
 impl OutcomeError for Error {
     type Error = Self;
 
-    fn consume(self) -> (Option<crate::services::outcome::Outcome>, Self::Error) {
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
         // Currently/historically client reports do not emit outcomes.
         (None, self)
     }
