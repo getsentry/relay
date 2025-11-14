@@ -182,6 +182,8 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_SEER_SCANNER = 28,
   /**
+   * DEPRECATED: Use SeerUser instead.
+   *
    * PreventUser
    *
    * This is the data category to count the number of assigned Prevent Users.

@@ -182,6 +182,8 @@ pub enum DataCategory {
     ///
     /// SDK rate limiting behavior: ignore.
     SeerScanner = 28,
+    /// DEPRECATED: Use SeerUser instead.
+    ///
     /// PreventUser
     ///
     /// This is the data category to count the number of assigned Prevent Users.
