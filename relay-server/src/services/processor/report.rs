@@ -84,7 +84,6 @@ mod tests {
         let config = Config::from_json_value(serde_json::json!({
             "outcomes": {
                 "emit_outcomes": true,
-                "emit_client_outcomes": true
             }
         }))
         .unwrap();
@@ -144,7 +143,6 @@ mod tests {
         let config = Config::from_json_value(serde_json::json!({
             "outcomes": {
                 "emit_outcomes": true,
-                "emit_client_outcomes": false,
             },
             "processing": {
                 "enabled": true,

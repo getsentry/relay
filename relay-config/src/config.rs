@@ -1346,8 +1346,6 @@ pub struct Outcomes {
     /// Processing relays always emit outcomes (for backwards compatibility).
     /// Can take the following values: false, "as_client_reports", true
     pub emit_outcomes: EmitOutcomes,
-    /// Controls wheather client reported outcomes should be emitted.
-    pub emit_client_outcomes: bool,
     /// The maximum number of outcomes that are batched before being sent
     /// via http to the upstream (only applies to non processing relays).
     pub batch_size: usize,
@@ -1365,7 +1363,6 @@ impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: EmitOutcomes::AsClientReports,
-            emit_client_outcomes: true,
             batch_size: 1000,
             batch_interval: 500,
             source: None,
@@ -2037,19 +2034,6 @@ impl Config {
             return EmitOutcomes::AsOutcomes;
         }
         self.values.outcomes.emit_outcomes
-    }
-
-    /// Returns whether this Relay should emit client outcomes
-    ///
-    /// Relays that do not emit client outcomes will forward client recieved outcomes
-    /// directly to the next relay in the chain as client report envelope.  This is only done
-    /// if this relay emits outcomes at all. A relay that will not emit outcomes
-    /// will forward the envelope unchanged.
-    ///
-    /// This flag can be explicitly disabled on processing relays as well to prevent the
-    /// emitting of client outcomes to the kafka topic.
-    pub fn emit_client_outcomes(&self) -> bool {
-        self.values.outcomes.emit_client_outcomes
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent

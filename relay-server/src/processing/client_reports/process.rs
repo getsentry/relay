@@ -45,9 +45,7 @@ pub fn process_client_reports(
     project_info: &ProjectInfo,
     outcome_aggregator: &Addr<TrackOutcome>,
 ) {
-    if (!config.emit_outcomes().any() || !config.emit_client_outcomes())
-        && config.processing_enabled()
-    {
+    if !config.emit_outcomes().any() && config.processing_enabled() {
         // if a processing relay has client outcomes disabled we drop them without processing.
         return;
     }
