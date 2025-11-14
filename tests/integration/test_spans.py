@@ -32,7 +32,6 @@ TEST_CONFIG = {
 
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
-@pytest.mark.parametrize("discard_transaction", [False, True])
 def test_span_extraction(
     mini_sentry,
     relay_with_processing,
@@ -40,7 +39,6 @@ def test_span_extraction(
     transactions_consumer,
     events_consumer,
     metrics_consumer,
-    discard_transaction,
     performance_issues_spans,
 ):
     spans_consumer = spans_consumer()
@@ -56,8 +54,6 @@ def test_span_extraction(
     }
 
     project_config["config"].setdefault("features", [])
-    if discard_transaction:
-        project_config["config"]["features"].append("projects:discard-transaction")
     if performance_issues_spans:
         project_config["config"]["features"].append(
             "organizations:performance-issues-spans"
@@ -115,26 +111,15 @@ def test_span_extraction(
 
     relay.send_event(project_id, event)
 
-    if discard_transaction:
-        assert transactions_consumer.poll(timeout=2.0) is None
-
-        # We do not accidentally produce to the events topic:
-        assert events_consumer.poll(timeout=2.0) is None
-
-        # We _do_ extract span metrics:
-        assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
-            ("namespace", b"spans")
-        }
-    else:
-        received_event, _ = transactions_consumer.get_event(timeout=2.0)
-        assert received_event["event_id"] == event["event_id"]
-        assert received_event.get("_performance_issues_spans") == (
-            performance_issues_spans or None
-        )
-        assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
-            ("namespace", b"spans"),
-            ("namespace", b"transactions"),
-        }
+    received_event, _ = transactions_consumer.get_event(timeout=2.0)
+    assert received_event["event_id"] == event["event_id"]
+    assert received_event.get("_performance_issues_spans") == (
+        performance_issues_spans or None
+    )
+    assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
+        ("namespace", b"spans"),
+        ("namespace", b"transactions"),
+    }
 
     child_span = spans_consumer.get_span()
 
@@ -368,7 +353,7 @@ def test_duplicate_performance_score(mini_sentry, relay):
 
     score_total_seen = 0
     for _ in range(3):  # 2 client reports and the actual item we're interested in
-        envelope = mini_sentry.captured_events.get(timeout=5)
+        envelope = mini_sentry.get_captured_event()
         for item in envelope.items:
             if item.type == "metric_buckets":
                 for metric in item.payload.json:
@@ -746,6 +731,7 @@ def test_span_ingestion(
                 "sentry.browser.name": {"type": "string", "value": "Python Requests"},
                 "sentry.description": {"type": "string", "value": "my 2nd OTel span"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.kind": {"type": "string", "value": "producer"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
@@ -757,7 +743,6 @@ def test_span_ingestion(
             },
             "end_timestamp": end.timestamp(),
             "is_segment": True,
-            "kind": "producer",
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -814,6 +799,7 @@ def test_span_ingestion(
                     "value": "my 3rd protobuf OTel span",
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.kind": {"type": "string", "value": "consumer"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.status": {"type": "string", "value": "ok"},
@@ -824,7 +810,6 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp(),
-            "kind": "consumer",
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",

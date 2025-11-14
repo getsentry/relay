@@ -366,8 +366,7 @@ def test_playstation_ignore_large_fields(
         }
     ]
     assert [
-        item.headers["filename"]
-        for item in mini_sentry.captured_events.get(timeout=5).items
+        item.headers["filename"] for item in mini_sentry.get_captured_event().items
     ] == ["playstation.prosperodmp"]
 
 

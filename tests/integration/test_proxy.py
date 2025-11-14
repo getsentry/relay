@@ -10,7 +10,6 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 import pytest
 from .test_dynamic_sampling import get_profile_payload
-import queue
 from requests.exceptions import HTTPError
 from dataclasses import dataclass
 from random import randbytes
@@ -46,8 +45,7 @@ def test_span_allowed(mini_sentry, relay):
 
     relay.send_envelope(42, envelope)
 
-    # Does not raise queue.Empty
-    envelope = mini_sentry.captured_events.get(timeout=10)
+    assert mini_sentry.get_captured_event() is not None
 
 
 def test_profile_allowed(mini_sentry, relay):
@@ -85,8 +83,7 @@ def test_profile_allowed(mini_sentry, relay):
     )
     relay.send_envelope(42, envelope)
 
-    # Does not raise queue.Empty
-    envelope = mini_sentry.captured_events.get(timeout=10)
+    envelope = mini_sentry.get_captured_event()
     assert {item.type for item in envelope.items} == {"transaction", "profile"}
 
 
@@ -106,8 +103,7 @@ def test_replay_allowed(mini_sentry, relay):
     )
     relay.send_envelope(42, envelope)
 
-    # Does not raise queue.Empty
-    envelope = mini_sentry.captured_events.get(timeout=10)
+    assert mini_sentry.get_captured_event() is not None
 
 
 class PayloadType(Enum):
@@ -270,7 +266,7 @@ def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior: RateLimitBeh
     )
 
     relay.send_envelope(project_id, envelope)
-    captured = mini_sentry.captured_events.get(timeout=1)
+    captured = mini_sentry.get_captured_event()
     (item,) = captured.items
     assert item.payload.get_bytes() == payload
 
@@ -287,17 +283,14 @@ def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior: RateLimitBeh
         assert rate_limited_events == behavior.expected_outcomes
 
         if behavior.expected_forward:
-            captured = mini_sentry.captured_events.get(timeout=1)
+            captured = mini_sentry.get_captured_event()
             (item,) = captured.items
             assert item.payload.get_bytes() == payload
     else:
         # If there is no outcome than they should just be forwarded
         relay.send_envelope(project_id, envelope)
-        captured = mini_sentry.captured_events.get(timeout=1)
+        captured = mini_sentry.get_captured_event()
         (item,) = captured.items
         assert item.payload.get_bytes() == payload
 
-    with pytest.raises(queue.Empty):
-        mini_sentry.get_client_report(timeout=1)
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_events.get(timeout=1)
+    assert mini_sentry.captured_events.empty()

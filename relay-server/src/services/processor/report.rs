@@ -63,8 +63,6 @@ mod tests {
     use relay_cogs::Token;
     use relay_config::Config;
     use relay_event_schema::protocol::EventId;
-    use relay_sampling::evaluation::ReservoirCounters;
-    use relay_system::Addr;
 
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
@@ -124,7 +122,6 @@ mod tests {
                 config: &config,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let envelope = processor
@@ -187,7 +184,6 @@ mod tests {
                 config: &config,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let envelope = processor
@@ -230,7 +226,6 @@ mod tests {
             group,
             envelope,
             ctx: processing::Context::for_test(),
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =
@@ -281,7 +276,6 @@ mod tests {
             group,
             envelope,
             ctx: processing::Context::for_test(),
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(new_envelope))) =

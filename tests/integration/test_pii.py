@@ -34,8 +34,7 @@ def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
         },
     )
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
+    event = mini_sentry.get_captured_event().get_event()
     assert event["spans"][0]["sentry_tags"]["user.geo.country_code"] == "**"
     assert event["spans"][0]["sentry_tags"]["user.geo.subregion"] == "***"
 
@@ -81,9 +80,7 @@ def test_logentry_formatted_smart_scrubbing(
         },
     )
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-
+    event = mini_sentry.get_captured_event().get_event()
     assert event["logentry"]["formatted"] == expected_output
 
 
@@ -111,9 +108,7 @@ def test_logentry_formatted_user_rules(mini_sentry, relay):
         },
     )
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-
+    event = mini_sentry.get_captured_event().get_event()
     assert event["logentry"]["formatted"] == "Auth failed with [secret]"
 
 
@@ -136,10 +131,8 @@ def test_logentry_formatted_data_scrubbing_settings(
         },
     )
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
+    event = mini_sentry.get_captured_event().get_event()
     formatted_value = event["logentry"]["formatted"]
-
     assert formatted_value == non_destructive.expected_output
 
     if non_destructive.additional_checks:

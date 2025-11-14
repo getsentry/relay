@@ -203,8 +203,11 @@ class Sentry(SentryLike):
         # must be called before initializing relay fixture
         self.global_config["options"][option_name] = value
 
+    def get_captured_event(self, *, timeout=None):
+        return self.captured_events.get(timeout=timeout or self.timeout)
+
     def get_client_report(self, timeout=None):
-        envelope = self.captured_events.get(timeout=timeout or self.timeout)
+        envelope = self.get_captured_event(timeout=timeout)
         items = envelope.items
         assert len(items) == 1
         item = items[0]
@@ -213,7 +216,7 @@ class Sentry(SentryLike):
         return json.loads(item.payload.bytes)
 
     def get_metrics(self, timeout=None):
-        envelope = self.captured_events.get(timeout=timeout or self.timeout)
+        envelope = self.get_captured_event(timeout=timeout)
         items = envelope.items
         assert len(items) == 1
         item = items[0]

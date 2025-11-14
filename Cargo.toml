@@ -111,6 +111,7 @@ dialoguer = "0.11.0"
 dynfmt = "0.1.5"
 ed25519-dalek = { version = "2.2.0", features = ["digest"] }
 enumset = "1.1.10"
+either = "1.15.0"
 flate2 = "1.1.4"
 flume = { version = "0.11.1", default-features = false }
 futures = { version = "0.3.31", default-features = false, features = ["std"] }
@@ -204,7 +205,11 @@ synstructure = { version = "0.13.2" }
 sysinfo = "0.35.1"
 tempfile = "3.23.0"
 thiserror = "2.0.17"
-tokio = { version = "1.42.0", default-features = false }
+# Tokio `1.45.1` is the last working/compatible Tokio version. `1.46` introduced a regression which causes
+# Relay to use excessive amounts of CPU. The issue has been fixed in current master of Tokio, which is expected
+# to release as `1.49.0` or `1.48.1`.
+# See: <https://github.com/tokio-rs/tokio/issues/7692>.
+tokio = { version = "=1.45.1", default-features = false }
 tokio-util = { version = "0.7.13", default-features = false }
 tower = { version = "0.5.2", default-features = false }
 tower-http = { version = "0.6.6", default-features = false }

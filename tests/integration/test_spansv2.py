@@ -765,7 +765,7 @@ def test_spanv2_with_string_pii_scrubbing(
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=5)
+    envelope = mini_sentry.get_captured_event()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
 
@@ -846,7 +846,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=5)
+    envelope = mini_sentry.get_captured_event()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
     attributes = item["attributes"]
@@ -959,7 +959,7 @@ def test_invalid_spans(mini_sentry, relay):
         },
     ]
 
-    envelope = mini_sentry.captured_events.get(timeout=0.1)
+    envelope = mini_sentry.get_captured_event()
     spans = json.loads(envelope.items[0].payload.bytes.decode())["items"]
 
     assert len(spans) == 1
