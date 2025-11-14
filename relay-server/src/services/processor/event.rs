@@ -4,12 +4,10 @@ use std::error::Error;
 
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
     SecurityReportType, Values,
 };
-use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
@@ -21,7 +19,6 @@ use crate::services::processor::{
     EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent, ProcessingError,
     SpansExtracted, event_type,
 };
-use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
@@ -138,39 +135,6 @@ pub fn extract<Group: EventProcessing>(
         event_metrics_extracted,
         spans_extracted,
     })
-}
-
-/// Apply data privacy rules to the event payload.
-///
-/// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-pub fn scrub(
-    event: &mut Annotated<Event>,
-    project_info: &ProjectInfo,
-) -> Result<(), ProcessingError> {
-    let config = &project_info.config;
-
-    if config.datascrubbing_settings.scrub_data
-        && let Some(event) = event.value_mut()
-    {
-        relay_pii::scrub_graphql(event);
-    }
-
-    metric!(timer(RelayTimers::EventProcessingPii), {
-        if let Some(ref config) = config.pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-        let pii_config = config
-            .datascrubbing_settings
-            .pii_config()
-            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
-        if let Some(config) = pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-    });
-
-    Ok(())
 }
 
 pub fn serialize<Group: EventProcessing>(

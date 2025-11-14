@@ -15,7 +15,7 @@ use crate::utils::SamplingResult;
 /// Computes the sampling decision on the incoming event
 pub async fn run(
     dsc: Option<&DynamicSamplingContext>,
-    event: &mut Annotated<Event>,
+    event: &Annotated<Event>,
     ctx: &Context<'_>,
     reservoir: Option<&ReservoirEvaluator<'_>>,
 ) -> SamplingResult {

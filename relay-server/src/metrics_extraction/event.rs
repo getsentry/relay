@@ -10,7 +10,7 @@ use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::generic::{self, Extractable};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
-use crate::processing::utils::transaction::extract_segment_span;
+use crate::processing::transactions::extraction::extract_segment_span;
 use crate::statsd::RelayTimers;
 
 impl Extractable for Event {

@@ -54,7 +54,8 @@ pub fn validate_and_set_dsc<'a, T>(
     // below already checks for the event type.
     if let Some(event) = event.value()
         && let Some(key_config) = project_info.get_public_key_config()
-        && let Some(mut dsc) = utils::dsc_from_event(key_config.public_key, event)
+        && let Some(mut dsc) =
+            crate::processing::utils::dsc::dsc_from_event(key_config.public_key, event)
     {
         // All other information in the DSC must be discarded, but the sample rate was
         // actually applied by the client and is therefore correct.
@@ -181,7 +182,6 @@ mod tests {
     use relay_event_schema::protocol::EventId;
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{RuleId, RuleType, SamplingRule, SamplingValue};
-    use relay_sampling::evaluation::ReservoirCounters;
     use relay_sampling::{DynamicSamplingContext, SamplingConfig};
     use relay_system::Addr;
 
@@ -214,7 +214,6 @@ mod tests {
                 sampling_project_info,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(envelope))) =

@@ -572,6 +572,14 @@ impl<T: Counted + fmt::Debug> fmt::Debug for Managed<T> {
     }
 }
 
+impl<T: Counted> Managed<Option<T>> {
+    /// Turns a managed option into an optional [`Managed`].
+    pub fn transpose(self) -> Option<Managed<T>> {
+        let (o, meta) = self.destructure();
+        o.map(|t| Managed::from_parts(t, meta))
+    }
+}
+
 impl From<Managed<Box<Envelope>>> for ManagedEnvelope {
     fn from(value: Managed<Box<Envelope>>) -> Self {
         let (value, meta) = value.destructure();
