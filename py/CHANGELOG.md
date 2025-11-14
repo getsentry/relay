@@ -4,6 +4,7 @@
 
 ### Various fixes & improvements
 
+- feat(releases): Support comparing release versions without build code #5376 by @srest2021
 - fix(billing): Use camel case for retentions config #5303 by @jjbayer
 
 ## 0.9.17
