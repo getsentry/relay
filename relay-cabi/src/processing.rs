@@ -393,22 +393,7 @@ pub unsafe extern "C" fn relay_compare_versions(a: *const RelayStr, b: *const Re
     }
 }
 
-fn cmp_no_build_code(
-    ver_a: &sentry_release_parser::Version,
-    ver_b: &sentry_release_parser::Version,
-) -> Ordering {
-    match ver_a.quad().cmp(&ver_b.quad()) {
-        Ordering::Equal => match (ver_a.pre(), ver_b.pre()) {
-            (None, Some(_)) => Ordering::Greater,
-            (Some(_), None) => Ordering::Less,
-            (Some(self_pre), Some(other_pre)) => self_pre.cmp(other_pre),
-            (None, None) => Ordering::Equal,
-        },
-        other => other,
-    }
-}
-
-/// Compares two versions, ignoring build codes.
+/// Compares two versions, ignoring build codes via semver 1.0's `cmp_precedence`.
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_compare_versions_no_build_code(
@@ -417,7 +402,7 @@ pub unsafe extern "C" fn relay_compare_versions_no_build_code(
 ) -> i32 {
     let ver_a = sentry_release_parser::Version::parse(unsafe { (*a).as_str() })?;
     let ver_b = sentry_release_parser::Version::parse(unsafe { (*b).as_str() })?;
-    match cmp_no_build_code(&ver_a, &ver_b) {
+    match ver_a.cmp_precedence(&ver_b) {
         Ordering::Less => -1,
         Ordering::Equal => 0,
         Ordering::Greater => 1,
