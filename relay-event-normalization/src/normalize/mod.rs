@@ -288,34 +288,28 @@ impl ModelCosts {
     }
 }
 
-/// Regex that matches version patterns at the end of a model name
+/// Regex that matches version or date patterns at the end of a model name
 ///
-/// Pattern breakdown:
-/// 1. Separator: [-_]
-/// 2. Version pattern: v\d+[:\.]?\d* (must start with 'v': v1, v1.0, v1:0)
-/// 3. Optional trailing content: [:\-].*
+/// Pattern breakdown (matches either):
+/// 1. Version pattern: [-_]v\d+[:\.]?\d*([:\-].*)?
+///    - Separator: [-_]
+///    - Version: v\d+[:\.]?\d* (must start with 'v': v1, v1.0, v1:0)
+///    - Optional trailing content: [:\-].*
+/// 2. Date pattern: ([-_@])?(\d{4}[-/\.]\d{2}[-/\.]\d{2}|\d{8})
+///    - Optional separator: [-_@]?
+///    - YYYY-MM-DD with -, /, or . OR YYYYMMDD
 ///
 /// Examples matched:
 /// - "-v1:0" in "claude-sonnet-4-20250514-v1:0"
 /// - "_v2" in "model_v2"
 /// - "-v1.0" in "gpt-4-v1.0"
-static VERSION_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[-_]v\d+[:\.]?\d*([:\-].*)?$").unwrap());
-
-/// Regex that matches date patterns at the end of a model name
-///
-/// Pattern breakdown:
-/// 1. Optional separator: `[-_@]?`
-/// 2. Date patterns (one of):
-///    - \d{4}[-/\.]\d{2}[-/\.]\d{2} (YYYY-MM-DD with -, /, or .)
-///    - \d{8} (YYYYMMDD)
-///
-/// Examples matched:
 /// - "-20250522" in "claude-4-sonnet-20250522"
 /// - "-2025-06-10" in "o3-pro-2025-06-10"
 /// - "@20241022" in "claude-3-5-haiku@20241022"
-static DATE_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"([-_@])?(\d{4}[-/\.]\d{2}[-/\.]\d{2}|\d{8})$").unwrap());
+static VERSION_OR_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"([-_]v\d+[:\.]?\d*([:\-].*)?|([-_@])?(\d{4}[-/\.]\d{2}[-/\.]\d{2}|\d{8}))$")
+        .unwrap()
+});
 
 /// Normalizes an AI model name by stripping date and version patterns.
 ///
@@ -323,9 +317,7 @@ static DATE_REGEX: LazyLock<Regex> =
 /// against cost configurations, ensuring that different versions of the same model can share
 /// cost information.
 ///
-/// The normalization happens in two steps:
-/// 1. Strip version patterns (if present)
-/// 2. Strip date patterns (if present)
+/// The normalization strips version and date patterns iteratively from the end of the string.
 ///
 /// Examples:
 /// - "claude-4-sonnet-20250522" -> "claude-4-sonnet"
@@ -337,10 +329,10 @@ static DATE_REGEX: LazyLock<Regex> =
 /// - "gpt-4-v1:0" -> "gpt-4"
 /// - "model_v2" -> "model"
 ///
-/// Version patterns (stripped first):
+/// Version patterns:
 /// - Must start with 'v': v1, v1.0, v1:0 (requires -, _ separator)
 ///
-/// Date patterns (stripped second):
+/// Date patterns:
 /// - YYYYMMDD: 20250522
 /// - YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD: 2025-06-10
 ///
@@ -350,24 +342,15 @@ static DATE_REGEX: LazyLock<Regex> =
 /// Returns:
 ///     The normalized model name without date and version patterns
 fn normalize_ai_model_name(model_id: &str) -> &str {
-    // First, strip version patterns if present
-    let after_version = if let Some(captures) = VERSION_REGEX.captures(model_id) {
-        let match_idx = captures.get(0).map(|m| m.start()).unwrap_or(model_id.len());
-        &model_id[..match_idx]
-    } else {
-        model_id
-    };
+    let mut result = model_id;
 
-    // Then, strip date patterns if present
-    if let Some(captures) = DATE_REGEX.captures(after_version) {
-        let match_idx = captures
-            .get(0)
-            .map(|m| m.start())
-            .unwrap_or(after_version.len());
-        &after_version[..match_idx]
-    } else {
-        after_version
+    // Keep stripping version/date patterns until no more matches are found
+    while let Some(captures) = VERSION_OR_DATE_REGEX.captures(result) {
+        let match_idx = captures.get(0).map(|m| m.start()).unwrap_or(result.len());
+        result = &result[..match_idx];
     }
+
+    result
 }
 
 /// Version 2 of a mapping of AI model types (like GPT-4) to their respective costs.
