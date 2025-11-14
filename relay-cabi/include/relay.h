@@ -182,7 +182,7 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_SEER_SCANNER = 28,
   /**
-   * DEPRECATED: Use SeerUser instead.
+   * DEPRECATED: Use RELAY_DATA_CATEGORY_SEER_USER instead.
    *
    * PreventUser
    *
