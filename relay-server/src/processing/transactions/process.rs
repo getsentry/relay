@@ -288,8 +288,7 @@ pub fn extract_spans(
                     Ok(item) => work.extracted_spans.0.push(item),
                     Err(_) => r.reject_err(
                         Outcome::Invalid(DiscardReason::InvalidSpan),
-                        // HACK to get correct outcomes for spans. TODO: should this only emit SpanIndexed?
-                        SpanV2::default(),
+                        IndexedSpans(1),
                     ),
                 }
             }

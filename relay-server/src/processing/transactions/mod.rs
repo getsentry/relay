@@ -595,7 +595,7 @@ impl Forward for TransactionOutput {
         s: &relay_system::Addr<crate::services::store::Store>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        // TODO: split out spans
+        // TODO: split out spans into a separate message.
         let envelope: ManagedEnvelope = self.serialize_envelope(ctx)?.into();
 
         s.send(StoreEnvelope {
