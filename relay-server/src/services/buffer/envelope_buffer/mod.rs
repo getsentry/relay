@@ -20,7 +20,7 @@ use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
-use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayGauges, RelayDistributions, RelayTimers};
 use crate::utils::MemoryChecker;
 
 /// Polymorphic envelope buffering interface.
@@ -79,7 +79,7 @@ impl PolymorphicEnvelopeBuffer {
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopeBodySize) =
+            distribution(RelayDistributions::BufferEnvelopeBodySize) =
                 envelope.items().map(Item::len).sum::<usize>() as u64,
             partition_id = self.partition_tag()
         );
@@ -576,7 +576,7 @@ where
             false => "false",
         };
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesCount) = total_count,
+            distribution(RelayDistributions::BufferEnvelopesCount) = total_count,
             initialized = initialized,
             stack_type = self.stack_provider.stack_type(),
             partition_id = &self.partition_tag

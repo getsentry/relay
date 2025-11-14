@@ -8,7 +8,7 @@ use crate::envelope::EnvelopeError;
 
 use crate::Envelope;
 use crate::services::buffer::common::ProjectKeyPair;
-use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayGauges, RelayDistributions, RelayTimers};
 use bytes::{Buf, Bytes};
 use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
@@ -141,7 +141,7 @@ impl<'a> TryFrom<&'a Envelope> for DatabaseEnvelope {
 
         let serialized_envelope = value.to_vec()?;
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopeSize) = serialized_envelope.len() as u64
+            distribution(RelayDistributions::BufferEnvelopeSize) = serialized_envelope.len() as u64
         );
 
         let encoded_envelope =
@@ -149,7 +149,7 @@ impl<'a> TryFrom<&'a Envelope> for DatabaseEnvelope {
                 zstd::encode_all(serialized_envelope.as_slice(), Self::COMPRESSION_LEVEL)?
             });
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopeSizeCompressed) =
+            distribution(RelayDistributions::BufferEnvelopeSizeCompressed) =
                 encoded_envelope.len() as u64
         );
 

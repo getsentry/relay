@@ -32,7 +32,7 @@
 //! # Results in: producer_name="unknown"
 //! ```
 
-use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric};
+use relay_statsd::{CounterMetric, GaugeMetric, DistributionMetric};
 
 pub enum KafkaCounters {
     /// Number of messages that failed to be enqueued in the Kafka producer's memory buffer.
@@ -84,7 +84,7 @@ impl CounterMetric for KafkaCounters {
     }
 }
 
-pub enum KafkaHistograms {
+pub enum KafkaDistributions {
     /// Size of emitted kafka message in bytes.
     ///
     /// This metric is tagged with:
@@ -94,7 +94,7 @@ pub enum KafkaHistograms {
     KafkaMessageSize,
 }
 
-impl HistogramMetric for KafkaHistograms {
+impl DistributionMetric for KafkaDistributions {
     fn name(&self) -> &'static str {
         match self {
             Self::KafkaMessageSize => "kafka.message_size",
