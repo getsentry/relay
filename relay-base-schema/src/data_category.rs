@@ -216,6 +216,12 @@ pub enum DataCategory {
     ///
     /// This is the data category to count the number of trace metric items.
     TraceMetric = 33,
+    /// SeerUser
+    ///
+    /// This is the data category to count the number of Seer users.
+    ///
+    /// SDK rate limiting behavior: ignore.
+    SeerUser = 34,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -266,6 +272,7 @@ impl DataCategory {
             "size_analysis" => Self::SizeAnalysis,
             "installable_build" => Self::InstallableBuild,
             "trace_metric" => Self::TraceMetric,
+            "seer_user" => Self::SeerUser,
             _ => Self::Unknown,
         }
     }
@@ -308,6 +315,7 @@ impl DataCategory {
             Self::SizeAnalysis => "size_analysis",
             Self::InstallableBuild => "installable_build",
             Self::TraceMetric => "trace_metric",
+            Self::SeerUser => "seer_user",
             Self::Unknown => "unknown",
         }
     }
@@ -411,6 +419,7 @@ impl TryFrom<u8> for DataCategory {
             31 => Ok(Self::SizeAnalysis),
             32 => Ok(Self::InstallableBuild),
             33 => Ok(Self::TraceMetric),
+            34 => Ok(Self::SeerUser),
             other => Err(UnknownDataCategory(other)),
         }
     }
@@ -425,7 +434,7 @@ mod tests {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
-        assert_eq!(DataCategory::try_from(33), Ok(DataCategory::TraceMetric));
-        assert_eq!(DataCategory::try_from(34), Err(UnknownDataCategory(34)));
+        assert_eq!(DataCategory::try_from(34), Ok(DataCategory::SeerUser));
+        assert_eq!(DataCategory::try_from(35), Err(UnknownDataCategory(35)));
     }
 }

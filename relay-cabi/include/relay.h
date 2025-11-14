@@ -218,6 +218,12 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_TRACE_METRIC = 33,
   /**
+   * SeerUser
+   *
+   * This is the data category to count the number of assigned Seer users.
+   */
+  RELAY_DATA_CATEGORY_SEER_USER = 34,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,
