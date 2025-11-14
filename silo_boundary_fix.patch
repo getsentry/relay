@@ -1,0 +1,73 @@
+--- a/src/sentry/integrations/services/integration/impl.py
++++ b/src/sentry/integrations/services/integration/impl.py
+@@ -1,5 +1,7 @@
+ from typing import Optional
+ from sentry.integrations.models import Integration
++from sentry.silo.base import SiloMode
++from sentry.services.hybrid_cloud.integration import integration_service
+ 
+ class DatabaseBackedIntegrationService:
+     def get_integration(
+@@ -9,8 +11,22 @@ class DatabaseBackedIntegrationService:
+         organization_id: int,
+         status: int,
+     ) -> Optional[Integration]:
+-        integration_kwargs = {...}
+-        return Integration.objects.get(**integration_kwargs)
++        # Check current silo mode to determine access method
++        current_mode = SiloMode.get_current_mode()
++        
++        if current_mode == SiloMode.REGION:
++            # Use hybrid cloud service for cross-silo communication
++            return integration_service.get_integration(
++                integration_id=integration_id,
++                provider=provider,
++                organization_id=organization_id,
++                status=status
++            )
++        else:
++            # Direct model access is safe in CONTROL or MONOLITH mode
++            integration_kwargs = {...}
++            return Integration.objects.get(**integration_kwargs)
++
+ 
+ --- a/src/sentry/seer/endpoints/seer_rpc.py
+ +++ b/src/sentry/seer/endpoints/seer_rpc.py
+@@ -1,4 +1,5 @@
+ from sentry.integrations.services.integration import integration_service
++from sentry.integrations.models import IntegrationProviderSlug, ObjectStatus
+ 
+ class SeerRpcServiceEndpoint(Endpoint):
+     def get_github_enterprise_integration_config(
+@@ -6,7 +7,30 @@ class SeerRpcServiceEndpoint(Endpoint):
+         organization_id: int,
+         integration_id: str,
+     ):
+-        integration = integration_service.get_integration(...)
+-        # Process integration and return config
++        try:
++            # Use silo-aware integration service
++            integration = integration_service.get_integration(
++                integration_id=int(integration_id),
++                provider=IntegrationProviderSlug.GITHUB_ENTERPRISE.value,
++                organization_id=organization_id,
++                status=ObjectStatus.ACTIVE,
++            )
++            
++            if not integration:
++                return {"success": False, "error": "Integration not found"}
++                
++            # Extract configuration from integration
++            domain_name = integration.metadata.get("domain_name", "")
++            config = {
++                "success": True,
++                "base_url": f"https://{domain_name}" if domain_name else "",
++                "api_url": f"https://{domain_name}/api/v3" if domain_name else "",
++                "installation_id": integration.external_id,
++                "metadata": integration.metadata
++            }
++            return config
++            
++        except Exception as e:
++            logger.exception("Failed to get GitHub Enterprise integration config")
++            return {"success": False, "error": str(e)}
