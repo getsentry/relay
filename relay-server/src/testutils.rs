@@ -117,6 +117,8 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
             upstream_relay,
             #[cfg(feature = "processing")]
             store_forwarder: None,
+            #[cfg(feature = "processing")]
+            upload: None,
             aggregator,
             #[cfg(feature = "processing")]
             global_rate_limits,
