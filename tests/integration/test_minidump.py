@@ -3,6 +3,7 @@ import os
 import msgpack
 
 import pytest
+from objectstore_client import Client, Usecase
 from requests import HTTPError
 from uuid import UUID
 
@@ -479,8 +480,11 @@ def test_minidump_with_processing(
     else:
         (attachment,) = message["attachments"]
 
-        # this means the attachment is stored in objectstore
-        assert attachment.pop("stored_id")
+        objectstore_key = attachment.pop("stored_id")
+        objectstore_session = Client("http://127.0.0.1:8888/").session(
+            Usecase("attachments"), org=1, project=project_id
+        )
+        assert objectstore_session.get(objectstore_key).payload.read() == content
 
         assert attachment.pop("id")
         assert attachment == {

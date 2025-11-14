@@ -2146,6 +2146,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "infer"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a588916bfdfd92e71cacef98a63d9b1f0d74d6599980d11894290e7ddefffcf7"
+
+[[package]]
 name = "insta"
 version = "1.43.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2548,6 +2554,12 @@ name = "md5"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae960838283323069879657ca3de837e9f7bbb4c7bf6ea7f1b290d5e9476d2e0"
+
+[[package]]
+name = "mediatype"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "120fa187be19d9962f0926633453784691731018a2bf936ddb4e29101b79c4a7"
 
 [[package]]
 name = "memchr"
@@ -2965,13 +2977,14 @@ dependencies = [
 
 [[package]]
 name = "objectstore-client"
-version = "0.0.9"
+version = "0.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3075d441351893f449331bff17f7da12d41dabea37202a7396471deebf9e903f"
+checksum = "3b8042b686597a4697640ac3c5d8541d8510afae1be5fedb12efded9f7e2ca2d"
 dependencies = [
  "async-compression",
  "bytes",
  "futures-util",
+ "infer",
  "objectstore-types",
  "reqwest",
  "sentry-core",
@@ -2984,12 +2997,13 @@ dependencies = [
 
 [[package]]
 name = "objectstore-types"
-version = "0.0.9"
+version = "0.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fbc335b5a73008592b413ebc929468d0967b991d3c41600cddfc1adabbb195f"
+checksum = "13e8ef8ad5b9ba35f5f63c2d60bd98d4656ac1d693916667cce6e56409242b9c"
 dependencies = [
  "http",
  "humantime",
+ "mediatype",
  "serde",
  "thiserror 2.0.17",
 ]

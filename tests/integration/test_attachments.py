@@ -4,6 +4,7 @@ import json
 
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from objectstore_client import Client, Usecase
 
 from .test_store import make_transaction
 
@@ -145,11 +146,14 @@ def test_attachments_with_objectstore(
     relay.send_attachments(project_id, event_id, attachments)
 
     attachment = attachments_consumer.get_individual_attachment()
+
+    objectstore_key = attachment["attachment"].pop("stored_id")
+    objectstore_session = Client("http://127.0.0.1:8888/").session(
+        Usecase("attachments"), org=1, project=project_id
+    )
+    assert objectstore_session.get(objectstore_key).payload.read() == chunked_contents
+
     assert attachment["attachment"].pop("id")
-
-    # this means the attachment is stored in objectstore
-    assert attachment["attachment"].pop("stored_id")
-
     assert attachment == {
         "type": "attachment",
         "attachment": {

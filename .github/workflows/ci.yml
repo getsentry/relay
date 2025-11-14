@@ -201,16 +201,19 @@ jobs:
         ports:
           - 6379:6379
 
-      objectstore:
-        image: ghcr.io/getsentry/objectstore:nightly
-        ports:
-          - 8888:8888
-
     steps:
       - name: Install libcurl-dev
         run: |
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: Start objectstore
+        run: |
+          docker run -d \
+            --name objectstore \
+            -p 8888:8888 \
+            ghcr.io/getsentry/objectstore:nightly \
+            run
 
       - uses: actions/checkout@v5.0.0
         with:
@@ -759,16 +762,19 @@ jobs:
         ports:
           - 9092:9092
 
-      objectstore:
-        image: ghcr.io/getsentry/objectstore:nightly
-        ports:
-          - 8888:8888
-
     steps:
       - name: Install libcurl-dev
         run: |
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: Start objectstore
+        run: |
+          docker run -d \
+            --name objectstore \
+            -p 8888:8888 \
+            ghcr.io/getsentry/objectstore:nightly \
+            run
 
       - uses: actions/checkout@v5.0.0
         with:

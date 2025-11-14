@@ -143,6 +143,14 @@ wheels = [
 ]
 
 [[package]]
+name = "filetype"
+version = "1.2.0"
+source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/filetype-1.2.0-py2.py3-none-any.whl", hash = "sha256:7ce71b6880181241cf7ac8697a2f1eb6a8bd9b429f7ad6d27b8db9ba5f1c2d25" },
+]
+
+[[package]]
 name = "flake8"
 version = "7.0.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
@@ -301,6 +309,20 @@ version = "1.9.1"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/nodeenv-1.9.1-py2.py3-none-any.whl", hash = "sha256:ba11c9782d29c27c70ffbdda2d7415098754709be8a7056d79a737cd901155c9" },
+]
+
+[[package]]
+name = "objectstore-client"
+version = "0.0.11"
+source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+dependencies = [
+    { name = "filetype", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "sentry-sdk", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "urllib3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "zstandard", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/objectstore_client-0.0.11-py3-none-any.whl", hash = "sha256:ed435c7a0297a5b75bfc6a6a90257d1c54e7e2a10ff6b03085faacf604c1eb8b" },
 ]
 
 [[package]]
@@ -491,6 +513,7 @@ dev = [
     { name = "milksnake", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "msgpack", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "mypy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "objectstore-client", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "opentelemetry-proto", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pre-commit", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -529,6 +552,7 @@ dev = [
     { name = "milksnake", specifier = ">=0.1.6" },
     { name = "msgpack", specifier = ">=1.1.0" },
     { name = "mypy", specifier = ">=1.10.0" },
+    { name = "objectstore-client", specifier = "==0.0.11" },
     { name = "opentelemetry-proto", specifier = ">=1.32.1" },
     { name = "packaging", specifier = "==25.0" },
     { name = "pre-commit", specifier = ">=4.2.0" },
