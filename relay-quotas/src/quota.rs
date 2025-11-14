@@ -217,7 +217,8 @@ impl CategoryUnit {
             | DataCategory::Session
             | DataCategory::SizeAnalysis
             | DataCategory::InstallableBuild
-            | DataCategory::TraceMetric => Some(Self::Count),
+            | DataCategory::TraceMetric
+            | DataCategory::SeerUser => Some(Self::Count),
             DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
             DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
                 Some(Self::Milliseconds)
