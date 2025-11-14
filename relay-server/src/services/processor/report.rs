@@ -63,6 +63,7 @@ mod tests {
     use relay_cogs::Token;
     use relay_config::Config;
     use relay_event_schema::protocol::EventId;
+    use relay_system::Addr;
 
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
