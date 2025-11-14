@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use relay_conventions::IS_REMOTE;
+use relay_conventions::{IS_REMOTE, SPAN_KIND};
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
     SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
@@ -39,7 +39,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         was_transaction,
         kind,
         performance_issues_spans,
-        other,
+        other: _,
     } = span_v1;
 
     let mut annotated_attributes = attributes_from_data(data);
@@ -111,6 +111,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     if let Some(is_remote) = is_remote.value() {
         attributes.insert(IS_REMOTE, *is_remote);
     }
+    attributes.insert(SPAN_KIND, kind.map_value(|kind| kind.to_string()));
 
     let is_segment = match (is_segment.value(), is_remote.value()) {
         (None, Some(true)) => is_remote,
@@ -125,12 +126,11 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         status: Annotated::map_value(status, span_v1_status_to_span_v2_status)
             .or_else(|| SpanV2Status::Ok.into()),
         is_segment,
-        kind,
         start_timestamp,
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
         attributes: annotated_attributes,
-        other,
+        other: Default::default(), // cannot carry over because of schema mismatch
     }
 }
 
@@ -243,7 +243,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_event_schema::protocol::Event;
+    use chrono::DateTime;
+    use relay_event_schema::protocol::{Event, Timestamp};
     use relay_protocol::{FromValue, SerializableAnnotated};
 
     #[test]
@@ -326,7 +327,6 @@ mod tests {
           "name": "operation",
           "status": "ok",
           "is_segment": true,
-          "kind": "server",
           "start_timestamp": -63158400.0,
           "end_timestamp": 0.0,
           "links": [
@@ -391,6 +391,10 @@ mod tests {
               "type": "boolean",
               "value": true
             },
+            "sentry.kind": {
+              "type": "string",
+              "value": "server"
+            },
             "sentry.normalized_description": {
               "type": "string",
               "value": "normalized description"
@@ -428,7 +432,6 @@ mod tests {
               "value": true
             }
           },
-          "additional_field": "additional field value",
           "_meta": {
             "attributes": {
               "my.array": {
@@ -482,6 +485,25 @@ mod tests {
                 .get_value("sentry.segment.name")
                 .and_then(Value::as_str),
             Some("hi")
+        );
+    }
+
+    #[test]
+    fn start_timestamp() {
+        let json = r#"{"timestamp": 123, "end_timestamp": "invalid data"}"#;
+        let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
+        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap());
+
+        // Parsed version is still fine:
+        assert_eq!(
+            span_v2.end_timestamp.value().unwrap(),
+            &Timestamp(DateTime::from_timestamp_secs(123).unwrap())
+        );
+
+        let serialized = Annotated::from(span_v2).payload_to_json().unwrap();
+        assert_eq!(
+            &serialized,
+            r#"{"status":"ok","end_timestamp":123.0,"attributes":{}}"#
         );
     }
 }

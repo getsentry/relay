@@ -58,7 +58,7 @@ pub enum ServerError {
 type App = NormalizePath<axum::Router>;
 
 /// Build the axum application with all routes and middleware.
-fn make_app(service: ServiceState) -> App {
+fn make_app(service: ServiceState, f: impl FnOnce(&Config) -> axum::Router<ServiceState>) -> App {
     // Build the router middleware into a single service which runs _after_ routing. Service
     // builder order defines layers added first will be called first. This means:
     //  - Requests go from top to bottom
@@ -85,25 +85,14 @@ fn make_app(service: ServiceState) -> App {
                 .compress_when(SizeAbove::new(COMPRESSION_MIN_SIZE).and(DefaultPredicate::new())),
         );
 
-    let router = crate::endpoints::routes(service.config())
-        .layer(middleware)
-        .with_state(service);
+    let router = f(service.config()).layer(middleware).with_state(service);
 
     // Add middlewares that need to run _before_ routing, which need to wrap the router. This are
     // especially middlewares that modify the request path for the router:
     NormalizePath::new(router)
 }
 
-fn listen(config: &Config) -> Result<TcpListener, ServerError> {
-    // Inform the user about a removed feature.
-    if config.tls_listen_addr().is_some()
-        || config.tls_identity_password().is_some()
-        || config.tls_identity_path().is_some()
-    {
-        return Err(ServerError::TlsNotSupported);
-    }
-
-    let addr = config.listen_addr();
+fn listen(addr: SocketAddr, config: &Config) -> Result<TcpListener, ServerError> {
     let socket = match addr {
         SocketAddr::V4(_) => TcpSocket::new_v4(),
         SocketAddr::V6(_) => TcpSocket::new_v6(),
@@ -115,7 +104,7 @@ fn listen(config: &Config) -> Result<TcpListener, ServerError> {
     Ok(socket.listen(config.tcp_listen_backlog())?.into_std()?)
 }
 
-async fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
+async fn serve(listener: TcpListener, app: App, config: &Config) -> std::io::Result<()> {
     let handle = Handle::new();
 
     let acceptor = self::acceptor::RelayAcceptor::new()
@@ -162,10 +151,7 @@ async fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
         }
     });
 
-    server
-        .serve(service)
-        .await
-        .expect("failed to start axum server");
+    server.serve(service).await
 }
 
 /// HTTP server service.
@@ -176,16 +162,30 @@ pub struct HttpServer {
     config: Arc<Config>,
     service: ServiceState,
     listener: TcpListener,
+    internal_listener: Option<TcpListener>,
 }
 
 impl HttpServer {
     pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
-        let listener = listen(&config)?;
+        // Inform the user about a removed feature.
+        if config.tls_listen_addr().is_some()
+            || config.tls_identity_password().is_some()
+            || config.tls_identity_path().is_some()
+        {
+            return Err(ServerError::TlsNotSupported);
+        }
+
+        let listener = listen(config.listen_addr(), &config)?;
+        let internal_listener = match config.listen_addr_internal() {
+            Some(addr) => Some(listen(addr, &config)?),
+            None => None,
+        };
 
         Ok(Self {
             config,
             service,
             listener,
+            internal_listener,
         })
     }
 }
@@ -198,14 +198,32 @@ impl Service for HttpServer {
             config,
             service,
             listener,
+            internal_listener,
         } = self;
 
+        let listen_addr = config.listen_addr();
+
         relay_log::info!("spawning http server");
-        relay_log::info!("  listening on http://{}/", config.listen_addr());
+        relay_log::info!("  listening on http://{listen_addr}/");
+        if let Some(internal_addr) = config.listen_addr_internal() {
+            relay_log::info!("  listening on http://{internal_addr}/ [internal]");
+        }
         relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
-        let app = make_app(service);
-        serve(listener, app, config).await;
+        if let Some(internal_listener) = internal_listener {
+            let public = make_app(service.clone(), crate::endpoints::all_routes);
+            let internal = make_app(service, crate::endpoints::internal_routes);
+
+            tokio::try_join!(
+                serve(listener, public, &config),
+                serve(internal_listener, internal, &config),
+            )
+            .map(drop)
+        } else {
+            let app = make_app(service, crate::endpoints::all_routes);
+            serve(listener, app, &config).await
+        }
+        .expect("axum listener to not fail")
     }
 }
 
@@ -214,10 +232,13 @@ async fn emit_active_connections_metric(interval: Option<Duration>, handle: Hand
         return;
     };
 
+    let addr = handle.listening().await.map(|addr| addr.to_string());
+
     loop {
         ticker.tick().await;
         relay_statsd::metric!(
-            gauge(RelayGauges::ServerActiveConnections) = handle.connection_count() as u64
+            gauge(RelayGauges::ServerActiveConnections) = handle.connection_count() as u64,
+            addr = addr.as_deref().unwrap_or("unknown"),
         );
     }
 }

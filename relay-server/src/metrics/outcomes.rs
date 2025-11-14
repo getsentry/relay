@@ -1,7 +1,6 @@
 use chrono::Utc;
 use relay_metrics::{
-    Bucket, BucketMetadata, BucketView, BucketViewValue, MetricName, MetricNamespace,
-    MetricResourceIdentifier,
+    Bucket, BucketView, BucketViewValue, MetricName, MetricNamespace, MetricResourceIdentifier,
 };
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
@@ -96,9 +95,6 @@ pub trait TrackableBucket {
     /// If the metric was extracted from one or more transactions or spans, it returns the amount
     /// of datapoints contained in the bucket.
     fn summary(&self) -> BucketSummary;
-
-    /// Metric bucket metadata.
-    fn metadata(&self) -> BucketMetadata;
 }
 
 impl<T: TrackableBucket> TrackableBucket for &T {
@@ -109,10 +105,6 @@ impl<T: TrackableBucket> TrackableBucket for &T {
     fn summary(&self) -> BucketSummary {
         (**self).summary()
     }
-
-    fn metadata(&self) -> BucketMetadata {
-        (**self).metadata()
-    }
 }
 
 impl TrackableBucket for Bucket {
@@ -122,10 +114,6 @@ impl TrackableBucket for Bucket {
 
     fn summary(&self) -> BucketSummary {
         BucketView::new(self).summary()
-    }
-
-    fn metadata(&self) -> BucketMetadata {
-        self.metadata
     }
 }
 
@@ -158,18 +146,9 @@ impl TrackableBucket for BucketView<'_> {
             }
         }
     }
-
-    fn metadata(&self) -> BucketMetadata {
-        self.metadata()
-    }
 }
 
 /// Extracts quota information from a list of metric buckets.
-///
-/// This does not count metrics which are extracted from indexed payloads,
-/// as the indexed payload is the one being rate limited.
-///
-/// See also: [`BucketMetadata::extracted_from_indexed`].
 pub fn extract_quantities<I, T>(buckets: I) -> SourceQuantities
 where
     I: IntoIterator<Item = T>,
@@ -179,10 +158,6 @@ where
 
     for bucket in buckets {
         quantities.buckets += 1;
-
-        if bucket.metadata().extracted_from_indexed {
-            continue;
-        }
 
         // Only count metrics for outcomes, where the indexed payload no longer exists.
         let summary = bucket.summary();

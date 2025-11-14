@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use either::Either;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::SpanV2;
@@ -166,25 +167,45 @@ impl processing::Processor for SpansProcessor {
 
         process::scrub(&mut spans, ctx);
 
-        let metrics = dynamic_sampling::create_indexed_metrics(&spans, ctx);
-
-        Ok(Output {
-            main: Some(SpanOutput(spans)),
-            metrics,
+        Ok(match dynamic_sampling::create_indexed_metrics(spans, ctx) {
+            Either::Left(spans) => Output::just(SpanOutput::TotalAndIndexed(spans)),
+            Either::Right((spans, metrics)) => Output {
+                main: Some(SpanOutput::Indexed(spans)),
+                metrics: Some(metrics),
+            },
         })
     }
 }
 
 /// Output produced by the [`SpansProcessor`].
 #[derive(Debug)]
-pub struct SpanOutput(Managed<ExpandedSpans>);
+pub enum SpanOutput {
+    TotalAndIndexed(Managed<ExpandedSpans<TotalAndIndexed>>),
+    Indexed(Managed<ExpandedSpans<Indexed>>),
+}
 
 impl Forward for SpanOutput {
     fn serialize_envelope(
         self,
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        self.0.try_map(|spans, _| {
+        let spans = match self {
+            Self::TotalAndIndexed(spans) => spans,
+            Self::Indexed(spans) => {
+                // If an indexed span is serialized back to an envelope, it loses the information
+                // that metrics have been extracted and the span is ready to be stored.
+                //
+                // On a technical level we can include this as metadata in the envelope or span,
+                // but our ingestion model does (no longer) allow for this.
+                //
+                // Metric extraction must be the last step in the pipeline.
+                return Err(
+                    spans.internal_error("an indexed span must be stored and not forwarded")
+                );
+            }
+        };
+
+        spans.try_map(|spans, _| {
             spans
                 .serialize_envelope()
                 .map_err(drop)
@@ -198,14 +219,20 @@ impl Forward for SpanOutput {
         s: &relay_system::Addr<crate::services::store::Store>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let Self(spans) = self;
+        let spans = match self {
+            Self::TotalAndIndexed(spans) => {
+                return Err(spans
+                    .internal_error("a span must have metrics extracted in order to be stored"));
+            }
+            Self::Indexed(spans) => spans,
+        };
 
         let ctx = store::Context {
             server_sample_rate: spans.server_sample_rate,
             retention: ctx.retention(|r| r.span.as_ref()),
         };
 
-        for span in spans.split(|spans| spans.spans) {
+        for span in spans.split(|spans| spans.into_indexed_spans()) {
             if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
                 s.send(span)
             };
@@ -259,19 +286,24 @@ impl CountRateLimited for Managed<SerializedSpans> {
 
 /// Spans which have been parsed and expanded from their serialized state.
 #[derive(Debug)]
-pub struct ExpandedSpans {
+pub struct ExpandedSpans<C = TotalAndIndexed> {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
     /// Server side applied (dynamic) sample rate.
-    #[cfg_attr(not(feature = "processing"), expect(dead_code))]
     server_sample_rate: Option<f64>,
 
     /// Expanded and parsed spans.
     spans: ContainerItems<SpanV2>,
+
+    /// Category of the contained spans.
+    ///
+    /// Either [`TotalAndIndexed`] or [`Indexed`].
+    #[expect(unused, reason = "marker field, only set never read")]
+    category: C,
 }
 
-impl ExpandedSpans {
+impl<C> ExpandedSpans<C> {
     fn serialize_envelope(self) -> Result<Box<Envelope>, ContainerWriteError> {
         let mut spans = Vec::new();
 
@@ -287,7 +319,51 @@ impl ExpandedSpans {
     }
 }
 
-impl Counted for ExpandedSpans {
+impl ExpandedSpans<TotalAndIndexed> {
+    /// Logically transforms contained spans into [`Indexed`].
+    ///
+    /// This must only be called during metric extraction.
+    fn into_indexed(self) -> ExpandedSpans<Indexed> {
+        let Self {
+            headers,
+            server_sample_rate,
+            spans,
+            category: _,
+        } = self;
+
+        ExpandedSpans {
+            headers,
+            server_sample_rate,
+            spans,
+            category: Indexed,
+        }
+    }
+}
+
+impl ExpandedSpans<Indexed> {
+    #[cfg(feature = "processing")]
+    fn into_indexed_spans(self) -> impl Iterator<Item = IndexedSpan> {
+        self.spans.into_iter().map(IndexedSpan)
+    }
+}
+
+/// The total and indexed category.
+///
+/// This category tracks spans in the total and indexed data categories.
+/// Until a span has metrics extracted it owns both categories.
+#[derive(Copy, Clone, Debug)]
+pub struct TotalAndIndexed;
+
+/// The indexed category.
+///
+/// Once metric extraction happened, spans no longer track/represent the total category, this was
+/// transferred over to the metrics.
+///
+/// Every which is stored, must have metrics extracted and transferred this ownership.
+#[derive(Copy, Clone, Debug)]
+pub struct Indexed;
+
+impl Counted for ExpandedSpans<TotalAndIndexed> {
     fn quantities(&self) -> Quantities {
         let quantity = self.spans.len();
         smallvec::smallvec![
@@ -297,8 +373,26 @@ impl Counted for ExpandedSpans {
     }
 }
 
-impl CountRateLimited for Managed<ExpandedSpans> {
+impl Counted for ExpandedSpans<Indexed> {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::SpanIndexed, self.spans.len())]
+    }
+}
+
+impl CountRateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
     type Error = Error;
+}
+
+/// A Span which only represents the indexed category.
+#[cfg(feature = "processing")]
+#[derive(Debug)]
+struct IndexedSpan(crate::envelope::WithHeader<SpanV2>);
+
+#[cfg(feature = "processing")]
+impl Counted for IndexedSpan {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
+    }
 }
 
 /// Spans which have been sampled by dynamic sampling.

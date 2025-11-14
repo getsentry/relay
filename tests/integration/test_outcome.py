@@ -1746,7 +1746,7 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
         assert mini_sentry.captured_events.empty()
     else:
         # Do not rate limit if there is only a transaction_indexed quota.
-        envelope = mini_sentry.captured_events.get(timeout=10)
+        envelope = mini_sentry.get_captured_event()
         assert envelope.items[0].headers["type"] == "profile"
 
         assert mini_sentry.captured_outcomes.empty()

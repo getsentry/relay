@@ -5,6 +5,7 @@
 **Features**:
 
 - Only apply non-destructive PII rules to log bodies by default. ([#5272](https://github.com/getsentry/relay/pull/5272))
+- Allow configuring separate http server for internal routes. ([#5352](https://github.com/getsentry/relay/pull/5352))
 - Infer the client ip when set to `{{auto}}` for EAP items. ([#5304](https://github.com/getsentry/relay/pull/5304))
 - Increase the default size limit for attachments to 200MiB. ([#5310](https://github.com/getsentry/relay/pull/5310))
 - Add `sentry.origin` attribute to OTLP spans. ([#5294](https://github.com/getsentry/relay/pull/5294))
@@ -21,6 +22,8 @@
 
 **Bug Fixes**:
 
+- Relay would record an invalid internal outcome when there should be no outcome. ([#5372](https://github.com/getsentry/relay/pull/5372))
+- Redis pools being sized too small by default. ([#5358](https://github.com/getsentry/relay/pull/5358))
 - Fix array attributes not being applied to standalone spans. ([#5337](https://github.com/getsentry/relay/pull/5337))
 - Envelopes created from integrations can now be spooled. ([#5284](https://github.com/getsentry/relay/pull/5284))
 - Make referer optional in Vercel Log Drain Transform. ([#5273](https://github.com/getsentry/relay/pull/5273))
@@ -28,12 +31,14 @@
 - Tag spans' count per root metric with the trace root's transaction instead of the local transaction. ([#5281](https://github.com/getsentry/relay/pull/5281))
 - Use `vercel.path` instead of `url.path` for Vercel Log Drain Transform. ([#5274](https://github.com/getsentry/relay/pull/5274))
 - Add Google Storebot to the crawler filter list. ([#5300](https://github.com/getsentry/relay/pull/5300))
+- Prevent duplicate fields in kafka spans. ([#5373](https://github.com/getsentry/relay/pull/5373))
 
 **Internal**:
 
 - Switch default allocator from jemalloc to mimalloc. ([#5239](https://github.com/getsentry/relay/pull/5239))
 - Add internal attributes to aid searching trace metrics. ([#5260](https://github.com/getsentry/relay/pull/5260))
 - Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
+- Remove the span kind from the Kafka span schema. ([#5368](https://github.com/getsentry/relay/pull/5368))
 - Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5308))
 
 ## 25.10.0

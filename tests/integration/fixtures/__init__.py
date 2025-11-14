@@ -13,8 +13,15 @@ class SentryLike:
 
     default_dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
 
-    def __init__(self, server_address, upstream=None, public_key=None):
+    def __init__(
+        self,
+        server_address,
+        upstream=None,
+        public_key=None,
+        internal_server_address=None,
+    ):
         self.server_address = server_address
+        self.internal_server_address = internal_server_address or server_address
         self.upstream = upstream
         self.public_key = public_key
 
@@ -79,6 +86,10 @@ class SentryLike:
     def url(self):
         return "http://{}:{}".format(*self.server_address)
 
+    @property
+    def internal_url(self):
+        return "http://{}:{}".format(*self.internal_server_address)
+
     def get_auth_header(self, project_id, dsn_key_idx=0, dsn_key=None):
         if dsn_key is None:
             dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
@@ -88,11 +99,11 @@ class SentryLike:
             "sentry_key={}".format(dsn_key)
         )
 
-    def _wait(self, path):
+    def _wait(self, path, *, is_internal=False):
         backoff = 0.1
         while True:
             try:
-                self.get(path).raise_for_status()
+                self.get(path, is_internal=is_internal).raise_for_status()
                 break
             except Exception:
                 time.sleep(backoff)
@@ -104,7 +115,7 @@ class SentryLike:
         if self._health_check_passed:
             return
 
-        self._wait("/api/relay/healthcheck/ready/")
+        self._wait("/api/relay/healthcheck/ready/", is_internal=True)
         self._health_check_passed = True
 
     def __repr__(self):
@@ -551,13 +562,14 @@ class SentryLike:
         envelope.add_item(Item(payload=PayloadRef(json=check_in), type="check_in"))
         self.send_envelope(project_id, envelope)
 
-    def request(self, method, path, timeout=None, **kwargs):
+    def request(self, method, path, timeout=None, is_internal=False, **kwargs):
         assert path.startswith("/")
 
         if timeout is None:
             timeout = 10
 
-        return self.session.request(method, self.url + path, timeout=timeout, **kwargs)
+        url = self.url if not is_internal else self.internal_url
+        return self.session.request(method, url + path, timeout=timeout, **kwargs)
 
     def post(self, path, **kwargs):
         return self.request("post", path, **kwargs)

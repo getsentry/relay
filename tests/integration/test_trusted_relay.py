@@ -28,7 +28,7 @@ def test_trusted_relay_chain(mini_sentry, relay, relay_credentials):
     relay.send_event(project_id, {"message": "trusted event"})
 
     for _ in range(2):
-        envelope = mini_sentry.captured_events.get(timeout=1)
+        envelope = mini_sentry.get_captured_event()
         event = envelope.get_event()
         assert event["logentry"]["formatted"] == "trusted event"
 
@@ -58,8 +58,7 @@ def test_send_directly(mini_sentry, relay, relay_credentials):
     # sending to the static relay works
     relay.send_event(project_id, {"message": "trusted event"})
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
+    event = mini_sentry.get_captured_event().get_event()
     assert event["logentry"]["formatted"] == "trusted event"
 
     # sending directly to the managed relay will be rejected
@@ -137,8 +136,7 @@ def test_internal_relay(mini_sentry, relay, relay_credentials):
     )
 
     for _ in range(2):
-        envelope = mini_sentry.captured_events.get(timeout=1)
-        event = envelope.get_event()
+        event = mini_sentry.get_captured_event().get_event()
         assert event["logentry"]["formatted"] == "trusted event"
 
 
@@ -179,8 +177,7 @@ def test_internal_relays_invalid_signature(mini_sentry, relay, relay_credentials
         headers=headers,
     )
     for _ in range(2):
-        envelope = mini_sentry.captured_events.get(timeout=1)
-        event = envelope.get_event()
+        event = mini_sentry.get_captured_event().get_event()
         assert event["logentry"]["formatted"] == "trusted event"
 
 

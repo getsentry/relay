@@ -16,12 +16,12 @@ def failing_check_challenge(*args, **kwargs):
     return "fail", 400
 
 
-def wait_get(server, path):
+def wait_get(server, path, **kwargs):
     """Waits until the server listens to requests and returns the response."""
     backoff = 0.1
     while True:
         try:
-            return server.get(path)
+            return server.get(path, **kwargs)
         except Exception:
             time.sleep(backoff)
             if backoff > 2:
@@ -37,14 +37,18 @@ def cli_healthcheck(relay_binary, relay, mode):
 
 
 def http_healthcheck(_, relay, mode):
-    response = relay.get(f"/api/relay/healthcheck/{mode}/")
+    response = relay.get(f"/api/relay/healthcheck/{mode}/", is_internal=True)
     return response.status_code == 200
 
 
+@pytest.mark.parametrize("port", [None, "random"])
 @pytest.mark.parametrize("check", [cli_healthcheck, http_healthcheck])
-def test_live(mini_sentry, relay, get_relay_binary, check):
-    """Internal endpoint used by kubernetes"""
-    relay = relay(mini_sentry)
+def test_live(mini_sentry, relay, get_relay_binary, random_port, port, check):
+    """Internal endpoint used by Kubernetes"""
+    options = None
+    if port == "random":
+        options = {"relay": {"internal_port": random_port()}}
+    relay = relay(mini_sentry, options=options)
     assert check(get_relay_binary(), relay, "live")
 
 
@@ -55,14 +59,19 @@ def test_external_live(mini_sentry, relay):
     assert response.status_code == 200
 
 
+@pytest.mark.parametrize("port", [None, "random"])
 @pytest.mark.parametrize("check", [cli_healthcheck, http_healthcheck])
-def test_readiness(mini_sentry, relay, get_relay_binary, check):
-    """Internal endpoint used by kubernetes"""
+def test_readiness(mini_sentry, relay, get_relay_binary, random_port, port, check):
+    """Internal endpoint used by Kubernetes"""
     original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
     mini_sentry.app.view_functions["check_challenge"] = failing_check_challenge
 
+    options = None
+    if port == "random":
+        options = {"relay": {"internal_port": random_port()}}
+
     try:
-        relay = relay(mini_sentry, wait_health_check=False)
+        relay = relay(mini_sentry, wait_health_check=False, options=options)
         assert not check(get_relay_binary(), relay, "ready")
 
         mini_sentry.app.view_functions["check_challenge"] = original_check_challenge
@@ -80,7 +89,7 @@ def test_readiness_flag(mini_sentry, relay):
         relay = relay(
             mini_sentry, {"auth": {"ready": "always"}}, wait_health_check=False
         )
-        response = wait_get(relay, "/api/relay/healthcheck/ready/")
+        response = wait_get(relay, "/api/relay/healthcheck/ready/", is_internal=True)
         assert response.status_code == 200
     finally:
         mini_sentry.clear_test_failures()
@@ -90,12 +99,12 @@ def test_readiness_proxy(mini_sentry, relay):
     mini_sentry.app.view_functions["check_challenge"] = failing_check_challenge
 
     relay = relay(mini_sentry, {"relay": {"mode": "proxy"}}, wait_health_check=False)
-    response = wait_get(relay, "/api/relay/healthcheck/ready/")
+    response = wait_get(relay, "/api/relay/healthcheck/ready/", is_internal=True)
     assert response.status_code == 200
 
 
 def assert_not_enough_memory(relay, mini_sentry, expected_comparison):
-    response = wait_get(relay, "/api/relay/healthcheck/ready/")
+    response = wait_get(relay, "/api/relay/healthcheck/ready/", is_internal=True)
     assert response.status_code == 503
     errors = ""
     for _ in range(100):
@@ -144,7 +153,7 @@ def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, r
     relay.send_metrics(42, metrics_payload)
 
     for _ in range(100):
-        response = wait_get(relay, "/api/relay/healthcheck/ready/")
+        response = wait_get(relay, "/api/relay/healthcheck/ready/", is_internal=True)
         if response.status_code == 503:
             error = str(mini_sentry.test_failures.get(timeout=1))
             assert "aggregator limit exceeded" in error
@@ -194,5 +203,5 @@ def test_readiness_disk_spool(mini_sentry, relay):
 
     time.sleep(2.0)
 
-    response = wait_get(relay, "/api/relay/healthcheck/ready/")
+    response = wait_get(relay, "/api/relay/healthcheck/ready/", is_internal=True)
     assert response.status_code == 503
