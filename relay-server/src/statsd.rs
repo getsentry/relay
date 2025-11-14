@@ -1,4 +1,4 @@
-use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+use relay_statsd::{CounterMetric, DistributionMetric, GaugeMetric, TimerMetric};
 #[cfg(doc)]
 use relay_system::RuntimeMetrics;
 
@@ -219,7 +219,7 @@ impl CounterMetric for RuntimeCounters {
 }
 
 /// Histogram metrics used by Relay.
-pub enum RelayHistograms {
+pub enum RelayDistributions {
     /// The number of bytes received by Relay for each individual envelope item type.
     ///
     /// This metric is tagged with:
@@ -336,37 +336,33 @@ pub enum RelayHistograms {
     PartitionSplits,
 }
 
-impl HistogramMetric for RelayHistograms {
+impl DistributionMetric for RelayDistributions {
     fn name(&self) -> &'static str {
         match self {
-            RelayHistograms::EnvelopeItemSize => "event.item_size",
-            RelayHistograms::EventSpans => "event.spans",
-            RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
-            RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
-            RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
-            RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
-            RelayHistograms::BufferEnvelopeSize => "buffer.envelope_size",
-            RelayHistograms::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
-            RelayHistograms::ProjectStatePending => "project_state.pending",
-            RelayHistograms::ProjectStateAttempts => "project_state.attempts",
-            RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
-            RelayHistograms::ProjectStateReceived => "project_state.received",
-            RelayHistograms::ProjectStateCacheSize => "project_cache.size",
+            Self::EnvelopeItemSize => "event.item_size",
+            Self::EventSpans => "event.spans",
+            Self::BatchesPerPartition => "metrics.buckets.batches_per_partition",
+            Self::BucketsPerBatch => "metrics.buckets.per_batch",
+            Self::BufferEnvelopesCount => "buffer.envelopes_count",
+            Self::BufferEnvelopeBodySize => "buffer.envelope_body_size",
+            Self::BufferEnvelopeSize => "buffer.envelope_size",
+            Self::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
+            Self::ProjectStatePending => "project_state.pending",
+            Self::ProjectStateAttempts => "project_state.attempts",
+            Self::ProjectStateRequestBatchSize => "project_state.request.batch_size",
+            Self::ProjectStateReceived => "project_state.received",
+            Self::ProjectStateCacheSize => "project_cache.size",
             #[cfg(feature = "processing")]
-            RelayHistograms::ProjectStateSizeBytesCompressed => {
-                "project_state.size_bytes.compressed"
-            }
+            Self::ProjectStateSizeBytesCompressed => "project_state.size_bytes.compressed",
             #[cfg(feature = "processing")]
-            RelayHistograms::ProjectStateSizeBytesDecompressed => {
-                "project_state.size_bytes.decompressed"
-            }
-            RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
-            RelayHistograms::UpstreamRetries => "upstream.retries",
-            RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
-            RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
-            RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
-            RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
-            RelayHistograms::PartitionSplits => "partition_splits",
+            Self::ProjectStateSizeBytesDecompressed => "project_state.size_bytes.decompressed",
+            Self::UpstreamMessageQueueSize => "http_queue.size",
+            Self::UpstreamRetries => "upstream.retries",
+            Self::UpstreamQueryBodySize => "upstream.query.body_size",
+            Self::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            Self::UpstreamMetricsBodySize => "upstream.metrics.body_size",
+            Self::PartitionKeys => "metrics.buckets.partition_keys",
+            Self::PartitionSplits => "partition_splits",
         }
     }
 }

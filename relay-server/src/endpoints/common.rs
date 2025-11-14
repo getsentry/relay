@@ -14,7 +14,7 @@ use crate::service::ServiceState;
 use crate::services::buffer::ProjectKeyPair;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
-use crate::statsd::{RelayCounters, RelayHistograms};
+use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{self, ApiErrorResponse, FormDataIter};
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
@@ -380,7 +380,7 @@ fn emit_envelope_metrics(envelope: &Envelope) {
         let is_container = if item.is_container() { "true" } else { "false" };
 
         metric!(
-            histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
+            distribution(RelayDistributions::EnvelopeItemSize) = item.payload().len() as u64,
             item_type = item_type,
             is_container = is_container,
         );

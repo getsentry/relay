@@ -33,7 +33,7 @@ use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{Envelope, EnvelopeHeaders, Item};
 use crate::processing::Context;
 use crate::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingError};
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
 use crate::utils::{self};
 
 /// Returns the data category if there is an event.
@@ -127,7 +127,7 @@ pub fn finalize<'a>(
 
             let span_count = inner_event.spans.value().map(Vec::len).unwrap_or(0) as u64;
             metric!(
-                histogram(RelayHistograms::EventSpans) = span_count,
+                distribution(RelayDistributions::EventSpans) = span_count,
                 sdk = client_name,
                 platform = platform,
             );
