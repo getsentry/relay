@@ -12,7 +12,7 @@ use relay_statsd::metric;
 
 use crate::services::projects::project::{ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;
-use crate::statsd::{RelayHistograms, RelayTimers};
+use crate::statsd::{RelayDistributions, RelayTimers};
 use crate::utils::{RetryBackoff, UniqueScheduledQueue};
 
 /// The backing storage for a project cache.
@@ -90,11 +90,12 @@ impl ProjectStore {
         };
 
         metric!(
-            histogram(RelayHistograms::ProjectStateCacheSize) = self.shared.projects.len() as u64,
+            distribution(RelayDistributions::ProjectStateCacheSize) =
+                self.shared.projects.len() as u64,
             storage = "shared"
         );
         metric!(
-            histogram(RelayHistograms::ProjectStateCacheSize) = self.private.len() as u64,
+            distribution(RelayDistributions::ProjectStateCacheSize) = self.private.len() as u64,
             storage = "private"
         );
 

@@ -23,7 +23,7 @@ enum SchemaFormat {
 enum MetricType {
     Timer,
     Counter,
-    Histogram,
+    Distribution,
     Set,
     Gauge,
 }
@@ -134,8 +134,8 @@ fn get_metric_type(imp: &mut syn::ItemImpl) -> Option<MetricType> {
         Some(MetricType::Timer)
     } else if trait_name == "CounterMetric" {
         Some(MetricType::Counter)
-    } else if trait_name == "HistogramMetric" {
-        Some(MetricType::Histogram)
+    } else if trait_name == "DistributionMetric" {
+        Some(MetricType::Distribution)
     } else if trait_name == "SetMetric" {
         Some(MetricType::Set)
     } else if trait_name == "GaugeMetric" {

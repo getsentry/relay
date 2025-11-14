@@ -24,7 +24,7 @@ use crate::services::projects::source::{FetchProjectState, SourceProjectState};
 use crate::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
 use crate::utils::{RetryBackoff, SleepHandle};
 
 /// A query to retrieve a batch of project states from upstream.
@@ -289,7 +289,7 @@ impl UpstreamProjectSourceService {
             .filter(|(id, channel)| {
                 if channel.expired() {
                     metric!(
-                        histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
+                        distribution(RelayDistributions::ProjectStateAttempts) = channel.attempts,
                         result = "timeout",
                     );
                     metric!(
@@ -315,7 +315,10 @@ impl UpstreamProjectSourceService {
 
         let total_count = cache_channels.len() + nocache_channels.len();
 
-        metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
+        metric!(
+            distribution(RelayDistributions::ProjectStatePending) =
+                self.state_channels.len() as u64
+        );
 
         relay_log::debug!(
             "updating project states for {}/{} projects (attempt {})",
@@ -373,7 +376,7 @@ impl UpstreamProjectSourceService {
             }
             relay_log::debug!("sending request of size {}", channels_batch.len());
             metric!(
-                histogram(RelayHistograms::ProjectStateRequestBatchSize) =
+                distribution(RelayDistributions::ProjectStateRequestBatchSize) =
                     channels_batch.len() as u64
             );
 
@@ -449,7 +452,7 @@ impl UpstreamProjectSourceService {
 
                     // Count number of project states returned (via http requests).
                     metric!(
-                        histogram(RelayHistograms::ProjectStateReceived) =
+                        distribution(RelayDistributions::ProjectStateReceived) =
                             response.configs.len() as u64
                     );
                     for (key, mut channel) in channels_batch {
@@ -484,7 +487,8 @@ impl UpstreamProjectSourceService {
                         };
 
                         metric!(
-                            histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
+                            distribution(RelayDistributions::ProjectStateAttempts) =
+                                channel.attempts,
                             result = result,
                         );
                         metric!(
@@ -515,7 +519,7 @@ impl UpstreamProjectSourceService {
                     }
 
                     metric!(
-                        histogram(RelayHistograms::ProjectStatePending) =
+                        distribution(RelayDistributions::ProjectStatePending) =
                             self.state_channels.len() as u64
                     );
                     // Put the channels back into the queue, we will retry again shortly.
