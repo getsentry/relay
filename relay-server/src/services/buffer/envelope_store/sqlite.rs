@@ -8,7 +8,7 @@ use crate::envelope::EnvelopeError;
 
 use crate::Envelope;
 use crate::services::buffer::common::ProjectKeyPair;
-use crate::statsd::{RelayGauges, RelayDistributions, RelayTimers};
+use crate::statsd::{RelayDistributions, RelayGauges, RelayTimers};
 use bytes::{Buf, Bytes};
 use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;

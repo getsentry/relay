@@ -662,7 +662,7 @@ mod tests {
     use cadence::{NopMetricSink, StatsdClient};
 
     use crate::{
-        CounterMetric, GaugeMetric, DistributionMetric, MetricsClient, SetMetric, TimerMetric,
+        CounterMetric, DistributionMetric, GaugeMetric, MetricsClient, SetMetric, TimerMetric,
         set_client, with_capturing_test_client, with_client,
     };
 

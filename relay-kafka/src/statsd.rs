@@ -32,7 +32,7 @@
 //! # Results in: producer_name="unknown"
 //! ```
 
-use relay_statsd::{CounterMetric, GaugeMetric, DistributionMetric};
+use relay_statsd::{CounterMetric, DistributionMetric, GaugeMetric};
 
 pub enum KafkaCounters {
     /// Number of messages that failed to be enqueued in the Kafka producer's memory buffer.

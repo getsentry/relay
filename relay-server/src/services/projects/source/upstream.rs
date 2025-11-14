@@ -315,7 +315,10 @@ impl UpstreamProjectSourceService {
 
         let total_count = cache_channels.len() + nocache_channels.len();
 
-        metric!(distribution(RelayDistributions::ProjectStatePending) = self.state_channels.len() as u64);
+        metric!(
+            distribution(RelayDistributions::ProjectStatePending) =
+                self.state_channels.len() as u64
+        );
 
         relay_log::debug!(
             "updating project states for {}/{} projects (attempt {})",
@@ -484,7 +487,8 @@ impl UpstreamProjectSourceService {
                         };
 
                         metric!(
-                            distribution(RelayDistributions::ProjectStateAttempts) = channel.attempts,
+                            distribution(RelayDistributions::ProjectStateAttempts) =
+                                channel.attempts,
                             result = result,
                         );
                         metric!(

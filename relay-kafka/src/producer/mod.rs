@@ -18,7 +18,7 @@ use crate::config::{KafkaParams, KafkaTopic};
 use crate::debounced::Debounced;
 use crate::limits::KafkaRateLimits;
 use crate::producer::utils::KafkaHeaders;
-use crate::statsd::{KafkaCounters, KafkaGauges, KafkaDistributions};
+use crate::statsd::{KafkaCounters, KafkaDistributions, KafkaGauges};
 
 mod utils;
 use utils::{Context, ThreadedProducer};
