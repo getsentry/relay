@@ -97,6 +97,22 @@ pub struct TransactionProcessor {
     quotas_client: Option<AsyncRedisClient>,
 }
 
+impl TransactionProcessor {
+    /// Creates a new transaction processor.
+    pub fn new(
+        limiter: Arc<QuotaRateLimiter>,
+        geoip_lookup: GeoIpLookup,
+        #[cfg(feature = "processing")] quotas_client: Option<AsyncRedisClient>,
+    ) -> Self {
+        Self {
+            limiter,
+            geoip_lookup,
+            #[cfg(feature = "processing")]
+            quotas_client,
+        }
+    }
+}
+
 impl Processor for TransactionProcessor {
     type UnitOfWork = SerializedTransaction;
     type Output = TransactionOutput;
