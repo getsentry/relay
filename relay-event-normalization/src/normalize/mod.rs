@@ -1,6 +1,7 @@
-use std::collections::HashMap;
 use std::hash::Hash;
+use std::{collections::HashMap, sync::LazyLock};
 
+use regex::Regex;
 use relay_base_schema::metrics::MetricUnit;
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
 use relay_pattern::Pattern;
@@ -266,20 +267,90 @@ impl ModelCosts {
             return None;
         }
 
+        let normalized_model_id = normalize_ai_model_name(model_id);
+
         // First try exact match by creating a Pattern from the model_id
-        if let Some(value) = self.models.get(model_id) {
+        if let Some(value) = self.models.get(normalized_model_id) {
             return Some(value);
         }
 
         // if there is not a direct match, try to find the match using a pattern
+        // since the name is already normalized, there are still patterns where the
+        // model name can have a prefix e.g. "us.antrophic.claude-sonnet-4" and this
+        // will be matched via glob "*claude-sonnet-4"
         self.models.iter().find_map(|(key, value)| {
-            if key.is_match(model_id) {
+            if key.is_match(normalized_model_id) {
                 Some(value)
             } else {
                 None
             }
         })
     }
+}
+
+/// Regex that matches version or date patterns at the end of a model name
+///
+/// Pattern breakdown (matches either):
+/// 1. Version pattern: [-_]v\d+[:\.]?\d*([:\-].*)?
+///    - Separator: [-_]
+///    - Version: v\d+[:\.]?\d* (must start with 'v': v1, v1.0, v1:0)
+///    - Optional trailing content: [:\-].*
+/// 2. Date pattern: ([-_@])?(\d{4}[-/\.]\d{2}[-/\.]\d{2}|\d{8})
+///    - Optional separator: [-_@]?
+///    - YYYY-MM-DD with -, /, or . OR YYYYMMDD
+///
+/// Examples matched:
+/// - "-v1:0" in "claude-sonnet-4-20250514-v1:0"
+/// - "_v2" in "model_v2"
+/// - "-v1.0" in "gpt-4-v1.0"
+/// - "-20250522" in "claude-4-sonnet-20250522"
+/// - "-2025-06-10" in "o3-pro-2025-06-10"
+/// - "@20241022" in "claude-3-5-haiku@20241022"
+static VERSION_OR_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"([-_]v\d+[:\.]?\d*([:\-].*)?|([-_@])?(\d{4}[-/\.]\d{2}[-/\.]\d{2}|\d{8}))$")
+        .unwrap()
+});
+
+/// Normalizes an AI model name by stripping date and version patterns.
+///
+/// This function converts specific model versions into normalized names suitable for matching
+/// against cost configurations, ensuring that different versions of the same model can share
+/// cost information.
+///
+/// The normalization strips version and date patterns iteratively from the end of the string.
+///
+/// Examples:
+/// - "claude-4-sonnet-20250522" -> "claude-4-sonnet"
+/// - "o3-pro-2025-06-10" -> "o3-pro"
+/// - "claude-3-5-haiku@20241022" -> "claude-3-5-haiku"
+/// - "claude-opus-4-1-20250805-v1:0" -> "claude-opus-4-1"
+/// - "us.anthropic.claude-sonnet-4-20250514-v1:0" -> "us.anthropic.claude-sonnet-4"
+/// - "gpt-4-v1.0" -> "gpt-4"
+/// - "gpt-4-v1:0" -> "gpt-4"
+/// - "model_v2" -> "model"
+///
+/// Version patterns:
+/// - Must start with 'v': v1, v1.0, v1:0 (requires -, _ separator)
+///
+/// Date patterns:
+/// - YYYYMMDD: 20250522
+/// - YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD: 2025-06-10
+///
+/// Args:
+///     model_id: The original model ID
+///
+/// Returns:
+///     The normalized model name without date and version patterns
+fn normalize_ai_model_name(model_id: &str) -> &str {
+    let mut result = model_id;
+
+    // Keep stripping version/date patterns until no more matches are found
+    while let Some(captures) = VERSION_OR_DATE_REGEX.captures(result) {
+        let match_idx = captures.get(0).map(|m| m.start()).unwrap_or(result.len());
+        result = &result[..match_idx];
+    }
+
+    result
 }
 
 /// Version 2 of a mapping of AI model types (like GPT-4) to their respective costs.
@@ -612,6 +683,50 @@ mod tests {
         assert_eq!(map.get_operation_type("gen_ai.other"), Some("default"));
 
         assert_eq!(map.get_operation_type("other.operation"), None);
+    }
+
+    #[test]
+    fn test_normalize_ai_model_name() {
+        // Test date patterns
+        assert_eq!(
+            normalize_ai_model_name("claude-4-sonnet-20250522"),
+            "claude-4-sonnet"
+        );
+        assert_eq!(normalize_ai_model_name("o3-pro-2025-06-10"), "o3-pro");
+        assert_eq!(
+            normalize_ai_model_name("claude-3-5-haiku@20241022"),
+            "claude-3-5-haiku"
+        );
+
+        // Test date with version patterns
+        assert_eq!(
+            normalize_ai_model_name("claude-opus-4-1-20250805-v1:0"),
+            "claude-opus-4-1"
+        );
+        assert_eq!(
+            normalize_ai_model_name("us.anthropic.claude-sonnet-4-20250514-v1:0"),
+            "us.anthropic.claude-sonnet-4"
+        );
+
+        // Test standalone version patterns with 'v' prefix
+        assert_eq!(normalize_ai_model_name("gpt-4-v1.0"), "gpt-4");
+        assert_eq!(normalize_ai_model_name("gpt-4-v1:0"), "gpt-4");
+        assert_eq!(normalize_ai_model_name("gpt-4-v1"), "gpt-4");
+        assert_eq!(normalize_ai_model_name("model_v2"), "model");
+
+        // Test that version patterns WITHOUT 'v' prefix are NOT stripped
+        assert_eq!(normalize_ai_model_name("gpt-4.5"), "gpt-4.5");
+
+        // Test that if version without 'v' comes after date, nothing is stripped
+        // (date regex requires end of string, so date won't match if followed by version)
+        assert_eq!(
+            normalize_ai_model_name("anthropic.claude-3-5-sonnet-20241022-v2:0"),
+            "anthropic.claude-3-5-sonnet"
+        );
+
+        // Test no pattern (should return original)
+        assert_eq!(normalize_ai_model_name("gpt-4"), "gpt-4");
+        assert_eq!(normalize_ai_model_name("claude-3-opus"), "claude-3-opus");
     }
 
     #[test]
