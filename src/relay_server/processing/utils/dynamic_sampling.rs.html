@@ -15,7 +15,7 @@
 <a href=#15 id=15 data-nosnippet>15</a><span class="doccomment">/// Computes the sampling decision on the incoming event
 <a href=#16 id=16 data-nosnippet>16</a></span><span class="kw">pub async fn </span>run(
 <a href=#17 id=17 data-nosnippet>17</a>    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
-<a href=#18 id=18 data-nosnippet>18</a>    event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
+<a href=#18 id=18 data-nosnippet>18</a>    event: <span class="kw-2">&amp;</span>Annotated&lt;Event&gt;,
 <a href=#19 id=19 data-nosnippet>19</a>    ctx: <span class="kw-2">&amp;</span>Context&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#20 id=20 data-nosnippet>20</a>    reservoir: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ReservoirEvaluator&lt;<span class="lifetime">'_</span>&gt;&gt;,
 <a href=#21 id=21 data-nosnippet>21</a>) -&gt; SamplingResult {
