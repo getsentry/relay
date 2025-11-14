@@ -617,7 +617,7 @@ macro_rules! metric {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
-                client.histogram_with_tags(&$crate::HistogramMetric::name(&$id), $value)
+                client.distribution_with_tags(&$crate::HistogramMetric::name(&$id), $value)
                     $(.with_tag(stringify!($($k).*), $v))*
             )
         })
@@ -641,7 +641,7 @@ macro_rules! metric {
             client.send_metric(
                 // NOTE: cadence histograms support Duration out of the box and converts it to nanos,
                 // but we want milliseconds for historical reasons.
-                client.histogram_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
+                client.distribution_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
                     $(.with_tag(stringify!($($k).*), $v))*
             )
         })
