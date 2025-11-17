@@ -13,6 +13,7 @@ macro_rules! outputs {
     ($($variant:ident => $ty:ty,)*) => {
         /// All known [`Processor`] outputs.
         #[derive(Debug)]
+        #[allow(clippy::large_enum_variant)]
         pub enum Outputs {
             $(
                 $variant(<$ty as Processor>::Output)

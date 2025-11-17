@@ -1235,6 +1235,7 @@ impl EnvelopeProcessorService {
                 transactions: TransactionProcessor::new(
                     Arc::clone(&quota_limiter),
                     geoip_lookup.clone(),
+                    #[cfg(feature = "processing")]
                     quotas.clone(),
                 ),
             },

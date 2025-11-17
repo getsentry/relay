@@ -235,31 +235,27 @@ pub struct SerializedTransaction {
     transaction: Item,
     attachments: Items,
     profile: Option<Item>,
+    spans: usize,
 }
 
-impl SerializedTransaction {
-    fn items(&self) -> impl Iterator<Item = &Item> {
+impl Counted for SerializedTransaction {
+    fn quantities(&self) -> Quantities {
         let Self {
             headers: _,
             transaction,
             attachments,
             profile,
+            spans,
         } = self;
-        std::iter::once(transaction)
-            .chain(attachments)
-            .chain(profile.iter())
-    }
-}
-
-impl Counted for SerializedTransaction {
-    fn quantities(&self) -> Quantities {
-        let mut quantities = BTreeMap::new();
-        for item in self.items() {
-            for (category, size) in item.quantities() {
-                *quantities.entry(category).or_default() += size;
-            }
-        }
-        quantities.into_iter().collect()
+        let mut quantities = transaction.quantities();
+        debug_assert!(!transaction.spans_extracted());
+        quantities.extend(attachments.quantities());
+        quantities.extend(profile.quantities());
+        quantities.extend([
+            (DataCategory::Span, *spans),
+            (DataCategory::SpanIndexed, *spans),
+        ]);
+        quantities
     }
 }
 
@@ -572,7 +568,6 @@ impl Counted for IndexedTransaction {
 
 /// Output of the transaction processor.
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
 pub enum TransactionOutput {
     Full(Managed<ExpandedTransaction<Transaction>>),
     Indexed(Managed<ExpandedTransaction<IndexedTransaction>>),
