@@ -223,7 +223,7 @@ class Sentry(SentryLike):
         assert item.headers["type"] == "metric_buckets"
 
         return sorted(
-            item.payload.json,
+            json.loads(item.payload.get_bytes()),
             key=lambda m: (
                 m["name"],
                 sorted(m.get("tags", {}).items()),
