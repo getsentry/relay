@@ -302,16 +302,14 @@ static VERSION_OR_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?x)
         (
-            # Date with optional version (e.g., -20250805-v1:0 or -20250522)
-            ([-_@])?                                    # Optional separator before date
-            (\d{4}[-/\.]\d{2}[-/\.]\d{2}|\d{8})        # Date: YYYY-MM-DD or YYYYMMDD
-            ([-_]v\d+[:\.]?\d*([:\-].*)?)?              # Optional version after date
-        |
-            # Version only (e.g., -v1.0)
-            [-_]                                        # Required separator before version
+            ([-_@])?                                    # Optional separator before date (-, _, or @)
+            (\d{4}[-/\.]\d{2}[-/\.]\d{2}|\d{8})        # Date: YYYY-MM-DD/YYYY/MM/DD/YYYY.MM.DD or YYYYMMDD
+        )?                                              # Date is optional
+        (
+            [-_]                                        # Required separator before version (- or _)
             v\d+[:\.]?\d*                               # Version: v1, v1.0, v1:0
-            ([:\-].*)?                                  # Optional trailing content after version
-        )
+            ([:\-].*)?                                  # Optional trailing content
+        )?                                              # Version is optional
         $  # Must be at the end of the string
         ",
     )
