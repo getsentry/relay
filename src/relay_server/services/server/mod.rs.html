@@ -211,7 +211,7 @@
 <a href=#211 id=211 data-nosnippet>211</a>        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::ServerStarting) += <span class="number">1</span>);
 <a href=#212 id=212 data-nosnippet>212</a>
 <a href=#213 id=213 data-nosnippet>213</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(internal_listener) = internal_listener {
-<a href=#214 id=214 data-nosnippet>214</a>            <span class="kw">let </span>public = make_app(service.clone(), <span class="kw">crate</span>::endpoints::all_routes);
+<a href=#214 id=214 data-nosnippet>214</a>            <span class="kw">let </span>public = make_app(service.clone(), <span class="kw">crate</span>::endpoints::public_routes);
 <a href=#215 id=215 data-nosnippet>215</a>            <span class="kw">let </span>internal = make_app(service, <span class="kw">crate</span>::endpoints::internal_routes);
 <a href=#216 id=216 data-nosnippet>216</a>
 <a href=#217 id=217 data-nosnippet>217</a>            <span class="macro">tokio::try_join!</span>(
