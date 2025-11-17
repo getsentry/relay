@@ -34,7 +34,6 @@
 
 **Internal**:
 
-- Support comparing release versions without build code ([#5376](https://github.com/getsentry/relay/pull/5376))
 - Switch default allocator from jemalloc to mimalloc. ([#5239](https://github.com/getsentry/relay/pull/5239))
 - Add internal attributes to aid searching trace metrics. ([#5260](https://github.com/getsentry/relay/pull/5260))
 - Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
