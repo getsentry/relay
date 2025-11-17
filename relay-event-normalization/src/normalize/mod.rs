@@ -288,7 +288,7 @@ impl ModelCosts {
     }
 }
 
-/// Regex that matches version and/or date patterns at the end of a model name
+/// Regex that matches version and/or date patterns at the end of a model name.
 ///
 /// Examples matched:
 /// - "-20250805-v1:0" in "claude-opus-4-1-20250805-v1:0" (both)
@@ -298,17 +298,17 @@ impl ModelCosts {
 /// - "-20250522" in "claude-4-sonnet-20250522" (date only)
 /// - "-2025-06-10" in "o3-pro-2025-06-10" (date only)
 /// - "@20241022" in "claude-3-5-haiku@20241022" (date only)
-static VERSION_OR_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+static VERSION_AND_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?x)
         (
             ([-_@])                                    # Required separator before date (-, _, or @)
-            (\d{4}[-/\.]\d{2}[-/\.]\d{2}|\d{8})        # Date: YYYY-MM-DD/YYYY/MM/DD/YYYY.MM.DD or YYYYMMDD
+            (\d{4}[-/.]\d{2}[-/.]\d{2}|\d{8})          # Date: YYYY-MM-DD/YYYY/MM/DD/YYYY.MM.DD or YYYYMMDD
         )?                                              # Date is optional
         (
             [-_]                                        # Required separator before version (- or _)
-            v\d+[:\.]?\d*                               # Version: v1, v1.0, v1:0
-            ([:\-].*)?                                  # Optional trailing content
+            v\d+[:.]?\d*                                # Version: v1, v1.0, v1:0
+            ([-:].*)?                                   # Optional trailing content
         )?                                              # Version is optional
         $  # Must be at the end of the string
         ",
@@ -347,7 +347,7 @@ static VERSION_OR_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 /// Returns:
 ///     The normalized model name without date and version patterns
 fn normalize_ai_model_name(model_id: &str) -> &str {
-    if let Some(captures) = VERSION_OR_DATE_REGEX.captures(model_id) {
+    if let Some(captures) = VERSION_AND_DATE_REGEX.captures(model_id) {
         let match_idx = captures.get(0).map(|m| m.start()).unwrap_or(model_id.len());
         &model_id[..match_idx]
     } else {
