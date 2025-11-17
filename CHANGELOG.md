@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 25.11.0
 
 **Breaking Changes**:
 
