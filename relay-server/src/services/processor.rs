@@ -64,7 +64,6 @@ use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBu
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
-#[cfg(feature = "processing")]
 use crate::services::upstream::{
     SendRequest, Sign, SignatureType, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };

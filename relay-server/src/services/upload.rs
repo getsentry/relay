@@ -11,7 +11,7 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{Item, ItemType};
-use crate::managed::{Managed, OutcomeError, TypedEnvelope};
+use crate::managed::{OutcomeError, TypedEnvelope};
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope};
@@ -19,9 +19,9 @@ use crate::statsd::{RelayCounters, RelayGauges};
 
 use super::outcome::Outcome;
 
-/// Message that requests all [`Attachment`]s of the [`Envelope`](crate::envelope::Envelope) to be uploaded.
+/// Message that requests all attachments of the [`Envelope`](crate::envelope::Envelope) to be uploaded.
 pub struct UploadAttachments {
-    /// The envelope containing [`Attachment`]s for upload.
+    /// The envelope containing attachments for upload.
     pub envelope: TypedEnvelope<Processed>,
 }
 
@@ -154,9 +154,10 @@ struct UploadServiceInner {
 }
 
 impl UploadServiceInner {
-    /// Spend a limited time trying to upload an attachment, and emit outcomes if this fails.
+    /// Uploads all attachments belonging to the given envelope.
     ///
-    /// Returns an [`UploadedAttachment`] if the upload was successful.
+    /// This mutates the attachment items in-place, setting their `stored_key` field to the key
+    /// in objectstore.
     async fn handle_envelope(&self, mut envelope: TypedEnvelope<Processed>) -> () {
         let scoping = envelope.scoping();
         let session = self
@@ -178,19 +179,10 @@ impl UploadServiceInner {
             attachments.map(|_| Err(Error::UploadFailed)).collect()
         };
 
-        // track the results of attachment upload
-        let managed_attachments = envelope
-            .envelope()
-            .items()
-            .filter(|item| *item.ty() == ItemType::Attachment)
-            .map(|item| Managed::from_envelope(&envelope, item));
-        for (attachment, result) in managed_attachments.zip(upload_results) {
+        for result in upload_results {
             let result_msg = match result {
-                Ok(()) => {
-                    attachment.accept(|_| ());
-                    "success"
-                }
-                Err(error) => attachment.reject_err(error).into_inner().as_str(),
+                Ok(()) => "success",
+                Err(error) => error.as_str(),
             };
             relay_statsd::metric!(
                 counter(RelayCounters::AttachmentUpload) += 1,
@@ -228,45 +220,3 @@ impl UploadServiceInner {
         Ok(())
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[tokio::test]
-//     async fn test_basic() {
-//         let upload_service = UploadService::new(&UploadServiceConfig {
-//             max_concurrent_requests: 2,
-//             timeout: 1,
-//             objectstore_url: Some("http://127.0.0.1:8888/".into()),
-//         })
-//         .unwrap()
-//         .unwrap()
-//         .start_detached();
-
-//         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-
-//         let (attachment, mut _managed_handle) = Managed::for_test(Attachment {
-//             meta: AttachmentMeta {
-//                 attachment_id: Some("my_key".to_owned()),
-//                 scope: AttachmentScope {
-//                     organization_id: 123,
-//                     project_id: 456,
-//                 },
-//             },
-//             payload: Bytes::from("hello world"),
-//         })
-//         .build();
-
-//         upload_service.send(UploadAttachment {
-//             attachment,
-//             respond_to: Recipient::<_, NoResponse>::new(tx),
-//         });
-//         let uploaded = rx.recv().await.unwrap();
-//         assert_eq!(uploaded.stored_id, "my_key");
-//         uploaded.accept(|_| {});
-
-//         drop(upload_service);
-//         assert!(rx.recv().await.is_none());
-//     }
-// }
