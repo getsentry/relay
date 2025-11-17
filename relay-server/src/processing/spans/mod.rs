@@ -3,14 +3,15 @@ use std::sync::Arc;
 use bytes::Bytes;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{SpanId, SpanV2};
+use relay_event_schema::protocol::{AttachmentV2Meta, SpanV2};
 use relay_pii::PiiConfigError;
+use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{
-    ContainerItems, ContainerWriteError, ContentType, EnvelopeHeaders, Item, ItemContainer,
-    ItemType, Items,
+    ContainerWriteError, ContentType, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
+    WithHeader,
 };
 use crate::integrations::Integration;
 use crate::managed::{
@@ -213,8 +214,9 @@ impl Forward for SpanOutput {
             retention: ctx.retention(|r| r.span.as_ref()),
         };
 
+        // FIXME: For now we are not doing anything with the attachments.
         for span in spans.split(|spans| spans.spans) {
-            if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
+            if let Ok(span) = span.try_map(|span, _| store::convert(span.span, &ctx)) {
                 s.send(span)
             };
         }
@@ -284,11 +286,11 @@ pub struct ExpandedSpans {
     #[cfg_attr(not(feature = "processing"), expect(dead_code))]
     server_sample_rate: Option<f64>,
 
-    /// Expanded and parsed spans.
-    spans: ContainerItems<SpanV2>,
+    /// Expanded and parsed spans, with optional associated attachments.
+    spans: Vec<SpanWrapper>,
 
-    /// Expanded and parsed span attachments.
-    span_attachments: Vec<ValidatedSpanAttachment>,
+    /// Span attachments that are not associated with any one specific span.
+    stand_alone_attachments: Vec<ValidatedSpanAttachment>,
 }
 
 impl ExpandedSpans {
@@ -297,7 +299,11 @@ impl ExpandedSpans {
 
         if !self.spans.is_empty() {
             let mut item = Item::new(ItemType::Span);
-            ItemContainer::from(self.spans)
+
+            // FIXME: For now we are not doing anything with the attachments.
+            let spans_without_attachments: Vec<_> =
+                self.spans.into_iter().map(|x| x.span).collect();
+            ItemContainer::from(spans_without_attachments)
                 .write_to(&mut item)
                 .inspect_err(|err| relay_log::error!("failed to serialize spans: {err}"))?;
             spans.push(item);
@@ -309,10 +315,27 @@ impl ExpandedSpans {
 
 impl Counted for ExpandedSpans {
     fn quantities(&self) -> Quantities {
+        // FIXME: There might be a more elegant way.
+        let mut attachment_quantity = 0;
+        let mut attachment_count = 0;
+
+        for span in &self.spans {
+            if let Some(attachment) = &span.attachment {
+                attachment_quantity += attachment.body.len();
+                attachment_count += 1;
+            }
+        }
+        for attachment in &self.stand_alone_attachments {
+            attachment_quantity += attachment.body.len();
+            attachment_count += 1;
+        }
+
         let quantity = self.spans.len();
         smallvec::smallvec![
             (DataCategory::Span, quantity),
             (DataCategory::SpanIndexed, quantity),
+            (DataCategory::Attachment, attachment_quantity),
+            (DataCategory::AttachmentItem, attachment_count)
         ]
     }
 }
@@ -324,15 +347,41 @@ impl CountRateLimited for Managed<ExpandedSpans> {
 /// A validated and parsed span attachment.
 #[derive(Debug)]
 pub struct ValidatedSpanAttachment {
-    /// The span this attachment belongs to.
-    pub span_id: Option<SpanId>,
-
-    // TODO: Replace with a struct
     /// The parsed metadata from the attachment.
-    pub meta: Bytes,
+    pub meta: Annotated<AttachmentV2Meta>,
 
     /// The raw attachment body.
     pub body: Bytes,
+}
+
+impl Counted for ValidatedSpanAttachment {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![
+            (DataCategory::Attachment, self.body.len()),
+            (DataCategory::AttachmentItem, 1)
+        ]
+    }
+}
+
+/// Wrapper around a SpanV2 and an optional associated attachment.
+///
+/// Allows for dropping the attachment together with the Span.
+#[derive(Debug)]
+struct SpanWrapper {
+    span: WithHeader<SpanV2>,
+    attachment: Option<ValidatedSpanAttachment>,
+}
+
+impl Counted for SpanWrapper {
+    fn quantities(&self) -> Quantities {
+        let mut quantities = self.span.quantities();
+
+        if let Some(attachment) = &self.attachment {
+            quantities.extend(attachment.quantities());
+        }
+
+        quantities
+    }
 }
 
 /// Spans which have been sampled by dynamic sampling.

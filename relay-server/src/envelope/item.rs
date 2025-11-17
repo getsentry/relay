@@ -381,11 +381,6 @@ impl Item {
     }
 
     /// Returns the length of the item.
-    pub fn length(&self) -> Option<u32> {
-        self.headers.length
-    }
-
-    /// Returns the length of the item.
     pub fn meta_length(&self) -> Option<u32> {
         self.headers.meta_length
     }
@@ -393,7 +388,7 @@ impl Item {
     /// Returns the id of the span associated to the item.
     ///
     /// Only applicable if the item is a span attachment.
-    pub fn span_id(&self) -> Option<SpanId> {
+    pub fn span_id(&self) -> Option<AssociatedSpanId> {
         self.headers.span_id
     }
 
@@ -884,11 +879,9 @@ pub struct ItemHeaders {
 
     /// ID of ths span that the Item is associated with, if it is a span_attachment.
     ///
-    /// If it is none than the the span_attachment is associated to single span.
-    ///
     /// For the time being only applicable if the item is a span attachment.
     #[serde(skip_serializing_if = "Option::is_none")]
-    span_id: Option<SpanId>,
+    span_id: Option<AssociatedSpanId>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
@@ -935,6 +928,16 @@ fn default_true() -> bool {
 
 fn is_true(value: &bool) -> bool {
     *value
+}
+
+/// ID of the span that a span attachment is associated with, if any.
+///
+/// `Null` indicates the attachment is not associated with any specific span.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AssociatedSpanId {
+    Value(SpanId),
+    Null(()),
 }
 
 #[cfg(test)]

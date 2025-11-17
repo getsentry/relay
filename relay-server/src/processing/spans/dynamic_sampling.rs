@@ -90,6 +90,7 @@ pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
     };
 
     for span in &spans.spans {
+        let span = &span.span;
         let trace_id = get_value!(span.trace_id);
 
         if trace_id != Some(&dsc.trace_id) {
