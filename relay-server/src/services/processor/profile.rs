@@ -93,6 +93,7 @@ mod tests {
             group,
             envelope,
             ctx: processing::Context {
+                config: &processor.inner.config,
                 project_info,
                 ..processing::Context::for_test()
             },
@@ -112,6 +113,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_profile_id_transfered() {
+        relay_log::init_test!();
         let config = Config::from_json_value(serde_json::json!({
             "processing": {
                 "enabled": true,

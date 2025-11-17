@@ -155,18 +155,23 @@ impl Processor for TransactionProcessor {
         let project_id = work.scoping().project_id;
         let mut metrics = Metrics::default();
 
-        let mut work = process::parse(work)?;
+        relay_log::trace!("Epand transaction");
+        let mut work = process::expand(work)?;
 
+        relay_log::trace!("Prepare transaction data");
         process::prepare_data(&mut work, &mut ctx, &mut metrics)?;
 
+        relay_log::trace!("Normalize transaction");
         let mut work = process::normalize(work, ctx, &self.geoip_lookup)?;
 
+        relay_log::trace!("Filter transaction");
         let filters_status = process::run_inbound_filters(&work, ctx)?;
 
         #[cfg(feature = "processing")]
         let quotas_client = self.quotas_client.as_ref();
         #[cfg(not(feature = "processing"))]
         let quotas_client = None;
+        relay_log::trace!("Sample transaction");
         let sampling_result =
             process::run_dynamic_sampling(&work, ctx, filters_status, quotas_client).await;
 
@@ -174,7 +179,9 @@ impl Processor for TransactionProcessor {
         let server_sample_rate = sampling_result.sample_rate();
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
+            relay_log::trace!("Process profile transaction");
             let work = process::process_profile(work, ctx, SamplingDecision::Drop);
+            relay_log::trace!("Extract transaction metrics");
             let (work, extracted_metrics) =
                 process::extract_metrics(work, ctx, SamplingDecision::Drop)?;
 
@@ -191,18 +198,23 @@ impl Processor for TransactionProcessor {
         }
 
         // Need to scrub the transaction before extracting spans.
+        relay_log::trace!("Scrubbing transaction");
         work = process::scrub(work, ctx)?;
 
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
+            relay_log::trace!("Process transaction profile");
             let work = process::process_profile(work, ctx, SamplingDecision::Keep);
 
+            relay_log::trace!("Extract transaction metrics");
             let (indexed, extracted_metrics) =
                 process::extract_metrics(work, ctx, SamplingDecision::Keep)?;
 
+            relay_log::trace!("Extract spans");
             let mut indexed = process::extract_spans(indexed, ctx, server_sample_rate);
 
+            relay_log::trace!("Enforce quotas");
             self.limiter.enforce_quotas(&mut indexed, ctx).await?;
 
             if !indexed.flags.fully_normalized {

@@ -30,7 +30,7 @@ use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::SamplingResult;
 
 /// Parses the event payload.
-pub fn parse(
+pub fn expand(
     work: Managed<SerializedTransaction>,
 ) -> Result<Managed<ExpandedTransaction<Transaction>>, Rejected<Error>> {
     work.try_map(|work, _| {
@@ -261,6 +261,10 @@ pub fn extract_metrics(
         .0;
         Ok::<_, Error>(ExpandedTransaction::<IndexedTransaction>::from(work))
     })?;
+    relay_log::trace!(
+        "Did extract transaction metrics? {}",
+        &indexed.flags.metrics_extracted
+    );
     let metrics = indexed.wrap(metrics.into_inner());
     Ok((indexed, metrics))
 }
