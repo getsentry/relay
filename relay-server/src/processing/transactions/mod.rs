@@ -235,7 +235,6 @@ pub struct SerializedTransaction {
     transaction: Item,
     attachments: Items,
     profile: Option<Item>,
-    spans: usize,
 }
 
 impl Counted for SerializedTransaction {
@@ -245,16 +244,18 @@ impl Counted for SerializedTransaction {
             transaction,
             attachments,
             profile,
-            spans,
         } = self;
         let mut quantities = transaction.quantities();
         debug_assert!(!transaction.spans_extracted());
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
+
+        let span_count = (transaction.span_count() + 1) as usize;
         quantities.extend([
-            (DataCategory::Span, *spans),
-            (DataCategory::SpanIndexed, *spans),
+            (DataCategory::Span, span_count),
+            (DataCategory::SpanIndexed, span_count),
         ]);
+
         quantities
     }
 }
@@ -572,6 +573,17 @@ pub enum TransactionOutput {
     Full(Managed<ExpandedTransaction<Transaction>>),
     Indexed(Managed<ExpandedTransaction<IndexedTransaction>>),
     OnlyProfile(Managed<ProfileWithHeaders>),
+}
+
+impl TransactionOutput {
+    #[cfg(test)]
+    pub fn event(self) -> Option<Annotated<Event>> {
+        match self {
+            Self::Full(managed) => Some(managed.accept(|x| x).transaction.0),
+            Self::Indexed(managed) => Some(managed.accept(|x| x).transaction.0),
+            Self::OnlyProfile(managed) => None,
+        }
+    }
 }
 
 impl Forward for TransactionOutput {

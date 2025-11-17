@@ -65,7 +65,7 @@ mod tests {
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
-    use crate::processing;
+    use crate::processing::{self, Outputs};
     use crate::services::processor::Submit;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
     use crate::services::projects::project::ProjectInfo;
@@ -77,6 +77,39 @@ mod tests {
 
     use super::*;
 
+    async fn process_event(
+        envelope: Box<Envelope>,
+        config: Config,
+        project_info: &ProjectInfo,
+    ) -> Option<Annotated<Event>> {
+        let processor = create_test_processor(config).await;
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
+        assert_eq!(envelopes.len(), 1);
+        let (group, envelope) = envelopes.pop().unwrap();
+
+        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
+
+        let message = ProcessEnvelopeGrouped {
+            group,
+            envelope,
+            ctx: processing::Context {
+                project_info,
+                ..processing::Context::for_test()
+            },
+        };
+
+        let result = processor.process(message).await.unwrap()?;
+
+        let Submit::Output {
+            output: Outputs::Transactions(t),
+            ctx: _,
+        } = result
+        else {
+            panic!();
+        };
+        Some(t.event().unwrap())
+    }
+
     #[tokio::test]
     async fn test_profile_id_transfered() {
         let config = Config::from_json_value(serde_json::json!({
@@ -86,7 +119,6 @@ mod tests {
             }
         }))
         .unwrap();
-        let processor = create_test_processor(config).await;
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -167,36 +199,11 @@ mod tests {
         let mut project_info = ProjectInfo::default();
         project_info.config.features.0.insert(Feature::Profiling);
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
-        assert_eq!(envelopes.len(), 1);
-
-        let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
-
-        let message = ProcessEnvelopeGrouped {
-            group,
-            envelope,
-            ctx: processing::Context {
-                project_info: &project_info,
-                ..processing::Context::for_test()
-            },
-        };
-
-        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
-            panic!();
-        };
-        let new_envelope = new_envelope.envelope();
-
-        // Get the re-serialized context.
-        let item = new_envelope
-            .get_item_by(|item| item.ty() == &ItemType::Transaction)
+        let event = process_event(envelope, config, &project_info)
+            .await
             .unwrap();
-        let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
-        let context = transaction
-            .value()
-            .unwrap()
-            .context::<ProfileContext>()
-            .unwrap();
+
+        let context = event.value().unwrap().context::<ProfileContext>().unwrap();
 
         assert_debug_snapshot!(context, @r###"
         ProfileContext {
@@ -218,7 +225,6 @@ mod tests {
             }
         }))
         .unwrap();
-        let processor = create_test_processor(config).await;
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -299,36 +305,10 @@ mod tests {
         let mut project_info = ProjectInfo::default();
         project_info.config.features.0.insert(Feature::Profiling);
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
-        assert_eq!(envelopes.len(), 1);
-
-        let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
-
-        let message = ProcessEnvelopeGrouped {
-            group,
-            envelope,
-            ctx: processing::Context {
-                project_info: &project_info,
-                ..processing::Context::for_test()
-            },
-        };
-
-        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
-            panic!();
-        };
-        let new_envelope = new_envelope.envelope();
-
-        // Get the re-serialized context.
-        let item = new_envelope
-            .get_item_by(|item| item.ty() == &ItemType::Transaction)
+        let event = process_event(envelope, config, &project_info)
+            .await
             .unwrap();
-        let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
-        let context = transaction
-            .value()
-            .unwrap()
-            .context::<ProfileContext>()
-            .unwrap();
+        let context = event.value().unwrap().context::<ProfileContext>().unwrap();
 
         assert_debug_snapshot!(context, @r###"
         ProfileContext {
@@ -341,9 +321,15 @@ mod tests {
     #[tokio::test]
     async fn filter_standalone_profile() {
         relay_log::init_test!();
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": []
+            }
+        }))
+        .unwrap();
 
         // Setup
-        let processor = create_test_processor(Default::default()).await;
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -371,23 +357,8 @@ mod tests {
         let mut project_info = ProjectInfo::default();
         project_info.config.features.0.insert(Feature::Profiling);
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
-        assert_eq!(envelopes.len(), 1);
-
-        let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope.clone(), Addr::dummy());
-
-        let message = ProcessEnvelopeGrouped {
-            group,
-            envelope,
-            ctx: processing::Context {
-                project_info: &project_info,
-                ..processing::Context::for_test()
-            },
-        };
-
-        let envelope = processor.process(message).await.unwrap();
-        assert!(envelope.is_none());
+        let event = process_event(envelope, config, &project_info).await;
+        assert!(event.is_none());
     }
 
     #[tokio::test]
@@ -400,7 +371,6 @@ mod tests {
             }
         }))
         .unwrap();
-        let processor = create_test_processor(config).await;
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -443,36 +413,10 @@ mod tests {
         let mut project_info = ProjectInfo::default();
         project_info.config.features.0.insert(Feature::Profiling);
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
-        assert_eq!(envelopes.len(), 1);
-
-        let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
-
-        let message = ProcessEnvelopeGrouped {
-            group,
-            envelope,
-            ctx: processing::Context {
-                project_info: &project_info,
-                ..processing::Context::for_test()
-            },
-        };
-
-        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
-            panic!();
-        };
-        let new_envelope = new_envelope.envelope();
-
-        // Get the re-serialized context.
-        let item = new_envelope
-            .get_item_by(|item| item.ty() == &ItemType::Transaction)
+        let event = process_event(envelope, config, &project_info)
+            .await
             .unwrap();
-        let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
-        let context = transaction
-            .value()
-            .unwrap()
-            .context::<ProfileContext>()
-            .unwrap();
+        let context = event.value().unwrap().context::<ProfileContext>().unwrap();
 
         assert_debug_snapshot!(context, @r###"
         ProfileContext {

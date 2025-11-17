@@ -38,6 +38,7 @@ impl Item {
                 other: BTreeMap::new(),
                 metrics_extracted: false,
                 spans_extracted: false,
+                span_count: 0,
                 sampled: true,
                 fully_normalized: false,
                 profile_type: None,
@@ -188,6 +189,11 @@ impl Item {
             true => self.headers.item_count,
             false => None,
         }
+    }
+
+    /// Returns the number of spans in `event.spans` if the item is an event item.
+    pub fn span_count(&self) -> u32 {
+        self.headers.span_count
     }
 
     /// Returns the content type of this item's payload.
@@ -834,6 +840,17 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     spans_extracted: bool,
 
+    /// The number of spans in the `event.spans` array.
+    ///
+    /// Should always be zero except for transaction items.
+    ///
+    /// When a transaction is dropped before spans were extracted from a transaction,
+    /// this number is used to emit correct outcomes for the spans category.
+    ///
+    /// This number does *not* count the transaction itself.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    span_count: u32,
+
     /// Whether the event has been _fully_ normalized.
     ///
     /// If the event has been partially normalized, this flag is false. By
@@ -902,6 +919,10 @@ fn default_true() -> bool {
 
 fn is_true(value: &bool) -> bool {
     *value
+}
+
+fn is_zero(val: &u32) -> bool {
+    *val == 0
 }
 
 #[cfg(test)]
