@@ -402,7 +402,7 @@ pub unsafe extern "C" fn relay_compare_versions_no_build_code(
 ) -> i32 {
     let ver_a = sentry_release_parser::Version::parse(unsafe { (*a).as_str() })?;
     let ver_b = sentry_release_parser::Version::parse(unsafe { (*b).as_str() })?;
-    match ver_a.cmp_precedence(&ver_b) {
+    match ver_a.as_semver1().cmp_precedence(&ver_b.as_semver1()) {
         Ordering::Less => -1,
         Ordering::Equal => 0,
         Ordering::Greater => 1,
