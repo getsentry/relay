@@ -302,7 +302,7 @@ static VERSION_OR_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?x)
         (
-            ([-_@])?                                    # Optional separator before date (-, _, or @)
+            ([-_@])                                    # Required separator before date (-, _, or @)
             (\d{4}[-/\.]\d{2}[-/\.]\d{2}|\d{8})        # Date: YYYY-MM-DD/YYYY/MM/DD/YYYY.MM.DD or YYYYMMDD
         )?                                              # Date is optional
         (
