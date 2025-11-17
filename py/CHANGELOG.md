@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.20
+
+### Various fixes & improvements
+
+- docs(py): Clean up changelog (#5334) by @jjbayer
+- release: 0.9.19 (d0b5b447) by @getsentry-bot
+- build(py): Upgrade python to 3.13 (#5323) by @jjbayer
+- build(py): Revert `uv`, `devenv`, `pre-commit` (#5321) by @jjbayer
+- build(py): Remove py/pyproject.toml altogether (#5314) by @jjbayer
+- build(py): Revert dynamic version, ignore pyproject.toml instead (#5313) by @jjbayer
+- build(py): Use dynamic version (#5311) by @jjbayer
+- feat(dev): Add devenv, uv, pre-commit (take 2) (#5248) by @joshuarli
+
 ## 0.9.19
 
 ### Various fixes & improvements
