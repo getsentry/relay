@@ -6,8 +6,8 @@ local single_tenants = ['disney', 'geico', 'goldmansachs', 'ly', 's4s'];
 
 // List of datadog monitors to check during the soak time in the different regions
 local soak_monitors = {
-  's4s': '14146876 154096671 154096678 <new_id>',
-  'us': '14146876 154096671 154096678  <new_id>',
+  's4s': '14146876 154096671 154096678 237863001',
+  'us': '14146876 154096671 154096678  237862997',
 };
 
 // The purpose of this stage is to let the deployment soak for a while and
@@ -88,7 +88,7 @@ local deploy_canary(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the canary deployment
-                DATADOG_MONITOR_IDS: '14146876 154096671  <new_id>',
+                DATADOG_MONITOR_IDS: '14146876 154096671  237862997',
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
                 SENTRY_PROJECTS: '4:relay:relay 9:pop-relay:relay-pop',
                 SENTRY_SINGLE_TENANT: 'false',
