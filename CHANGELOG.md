@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Derive the rate limiting decision in Relay from consumed quota. ([#5390](https://github.com/getsentry/relay/pull/5390))
+
 ## 25.11.0
 
 **Breaking Changes**:

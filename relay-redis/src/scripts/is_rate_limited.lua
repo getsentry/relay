@@ -37,19 +37,20 @@ local all_values = redis.call('MGET', unpack(KEYS))
 local results = {}
 local failed = false
 local num_quotas = #KEYS / 2
-for i=0, num_quotas - 1 do
+for i = 0, num_quotas - 1 do
     local k = i * 2 + 1
     local v = i * 4 + 1
 
     local limit = tonumber(ARGV[v])
-    local quantity = tonumber(ARGV[v+2])
-    local over_accept_once = ARGV[v+3]
-    local rejected = false
+    local quantity = tonumber(ARGV[v + 2])
+    local over_accept_once = ARGV[v + 3]
+
+    local main_value = all_values[k] or 0
+    local refund_value = all_values[k + 1] or 0
+    local consumed = main_value - refund_value
+
     -- limit=-1 means "no limit"
-    if limit >= 0 then
-        local main_value = all_values[k] or 0
-        local refund_value = all_values[k + 1] or 0
-        local consumed = main_value - refund_value
+    if not failed and limit >= 0 then
         -- Without over_accept_once, we never increment past the limit. if quantity is 0, check instead if we reached limit.
         -- With over_accept_once, we only reject if the previous update already reached the limit.
         -- This way, we ensure that we increment to or past the limit at some point,
@@ -57,20 +58,17 @@ for i=0, num_quotas - 1 do
         --
         -- NOTE: redis-rs crate since version 0.18.0 (2020-12-03) passes '1' in case of true and '0' when false.
         if quantity == 0 or over_accept_once == '1' then
-            rejected = consumed >= limit
+            failed = consumed >= limit
         else
-            rejected = consumed + quantity > limit
+            failed = consumed + quantity > limit
         end
     end
 
-    if rejected then
-        failed = true
-    end
-    results[i + 1] = rejected
+    results[i + 1] = consumed
 end
 
 if not failed then
-    for i=0, num_quotas - 1 do
+    for i = 0, num_quotas - 1 do
         local k = i * 2 + 1
         local v = i * 4 + 1
 
