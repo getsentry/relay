@@ -56,6 +56,8 @@ impl QuotaRateLimiter {
             project_quotas: ctx.project_info.get_quotas(),
         };
 
+        let mut ty = "cached";
+
         let limiter = CachedRateLimiter {
             cached: ctx.rate_limits,
             quotas,
@@ -63,6 +65,9 @@ impl QuotaRateLimiter {
 
         #[cfg(feature = "processing")]
         let limiter = {
+            if self.redis.is_some() {
+                ty = "consistent";
+            }
             let redis = self.redis.as_ref().map(|redis| redis::RedisRateLimiter {
                 redis,
                 quotas,
@@ -70,11 +75,6 @@ impl QuotaRateLimiter {
                 project: self.project_cache.get(data.scoping().project_key),
             });
             redis::CombinedRateLimiter(limiter, redis)
-        };
-
-        let ty = match self.redis.is_some() {
-            true => "consistent",
-            false => "cached",
         };
 
         relay_statsd::metric!(timer(RelayTimers::EventProcessingRateLimiting), type = ty, unit = std::any::type_name::<T>(), {
