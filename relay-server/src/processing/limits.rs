@@ -9,6 +9,7 @@ use crate::processing::{Context, Counted, Managed, Rejected};
 use crate::services::{
     global_rate_limits::GlobalRateLimitsServiceHandle, projects::cache::ProjectCacheHandle,
 };
+use crate::statsd::RelayTimers;
 
 #[cfg(feature = "processing")]
 type Redis = relay_quotas::RedisRateLimiter<GlobalRateLimitsServiceHandle>;
@@ -71,7 +72,9 @@ impl QuotaRateLimiter {
             redis::CombinedRateLimiter(limiter, redis)
         };
 
-        data.enforce(limiter, ctx).await
+        relay_statsd::metric!(timer(RelayTimers::EventProcessingRateLimiting), type = "consistent", unit = std::any::type_name::<T>(), {
+            data.enforce(limiter, ctx).await
+        })
     }
 }
 
