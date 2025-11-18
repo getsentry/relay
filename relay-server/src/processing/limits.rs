@@ -72,7 +72,12 @@ impl QuotaRateLimiter {
             redis::CombinedRateLimiter(limiter, redis)
         };
 
-        relay_statsd::metric!(timer(RelayTimers::EventProcessingRateLimiting), type = "consistent", unit = std::any::type_name::<T>(), {
+        let ty = match self.redis.is_some() {
+            true => "consistent",
+            false => "cached",
+        };
+
+        relay_statsd::metric!(timer(RelayTimers::EventProcessingRateLimiting), type = ty, unit = std::any::type_name::<T>(), {
             data.enforce(limiter, ctx).await
         })
     }
