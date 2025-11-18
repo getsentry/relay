@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 25.11.0
+
+**Breaking Changes**:
+
+- Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
 
 **Features**:
 
@@ -14,10 +18,8 @@
 - Remove the profile context from transactions if profiles are currently rate limited. ([#5346](https://github.com/getsentry/relay/pull/5346))
 - Replace `is_remote` with `is_segment` on the Span V2 schema. ([#5306](https://github.com/getsentry/relay/pull/5306))
 - Add `response_timeout` config setting for Redis. ([#5329](https://github.com/getsentry/relay/pull/5329))
-
-**Breaking Changes**:
-
-- Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
+- Remove `projects:discard-transaction` feature flag. ([#5307](https://github.com/getsentry/relay/pull/5307))
+- Add SEER_USER data category. ([#5383](https://github.com/getsentry/relay/pull/5383))
 
 **Bug Fixes**:
 

@@ -1,5 +1,37 @@
 # Changelog
 
+# Unreleased
+
+- Add SEER_USER data category. ([#5383](https://github.com/getsentry/relay/pull/5383))
+
+## 0.9.21
+
+### Various fixes & improvements
+
+- feat(billing): Add SEER_USER data category (#5383) by @brendanhsentry
+- release: 0.9.20 (8316dd42) by @getsentry-bot
+- docs(py): Clean up changelog (#5334) by @jjbayer
+- release: 0.9.19 (d0b5b447) by @getsentry-bot
+- build(py): Upgrade python to 3.13 (#5323) by @jjbayer
+- build(py): Revert `uv`, `devenv`, `pre-commit` (#5321) by @jjbayer
+- build(py): Remove py/pyproject.toml altogether (#5314) by @jjbayer
+- build(py): Revert dynamic version, ignore pyproject.toml instead (#5313) by @jjbayer
+- build(py): Use dynamic version (#5311) by @jjbayer
+- feat(dev): Add devenv, uv, pre-commit (take 2) (#5248) by @joshuarli
+
+## 0.9.20
+
+### Various fixes & improvements
+
+- docs(py): Clean up changelog (#5334) by @jjbayer
+- release: 0.9.19 (d0b5b447) by @getsentry-bot
+- build(py): Upgrade python to 3.13 (#5323) by @jjbayer
+- build(py): Revert `uv`, `devenv`, `pre-commit` (#5321) by @jjbayer
+- build(py): Remove py/pyproject.toml altogether (#5314) by @jjbayer
+- build(py): Revert dynamic version, ignore pyproject.toml instead (#5313) by @jjbayer
+- build(py): Use dynamic version (#5311) by @jjbayer
+- feat(dev): Add devenv, uv, pre-commit (take 2) (#5248) by @joshuarli
+
 ## 0.9.19
 
 ### Various fixes & improvements

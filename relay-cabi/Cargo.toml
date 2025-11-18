@@ -1,6 +1,6 @@
 [package]
 name = "relay-cabi"
-version = "0.9.19"
+version = "0.9.21"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -33,7 +33,7 @@ relay-ffi = { workspace = true }
 relay-pii = { workspace = true }
 relay-protocol = { workspace = true }
 relay-sampling = { workspace = true }
-sentry-release-parser = { workspace = true, features = ["serde"] }
+sentry-release-parser = { workspace = true, features = ["serde", "semver-1"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
