@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
+
 ## 25.11.0
 
 **Breaking Changes**:
@@ -20,7 +26,6 @@
 - Add `response_timeout` config setting for Redis. ([#5329](https://github.com/getsentry/relay/pull/5329))
 - Remove `projects:discard-transaction` feature flag. ([#5307](https://github.com/getsentry/relay/pull/5307))
 - Add SEER_USER data category. ([#5383](https://github.com/getsentry/relay/pull/5383))
-- Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
 
 **Bug Fixes**:
 
