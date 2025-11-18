@@ -88,7 +88,7 @@ local deploy_canary(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the canary deployment
-                DATADOG_MONITOR_IDS: '14146876 154096671  237862997',
+                DATADOG_MONITOR_IDS: '14146876 154096671 237862997',
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
                 SENTRY_PROJECTS: '4:relay:relay 9:pop-relay:relay-pop',
                 SENTRY_SINGLE_TENANT: 'false',
