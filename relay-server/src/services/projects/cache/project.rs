@@ -173,6 +173,7 @@ fn count_nested_spans(envelope: &mut ManagedEnvelope) -> Option<usize> {
 
     let count = event.spans.0;
     item.set_span_count(count as u32);
+    // TODO(follow-up): Update span count when serializing the event back into the envelope.
 
     Some(count)
 }
