@@ -39,7 +39,7 @@ impl Item {
                 other: BTreeMap::new(),
                 metrics_extracted: false,
                 spans_extracted: false,
-                span_count: 0,
+                span_count: None,
                 sampled: true,
                 fully_normalized: false,
                 profile_type: None,
@@ -192,16 +192,19 @@ impl Item {
         }
     }
 
-    /// Returns the number of spans in `event.spans` if the item is a transaction item (0 otherwise).
-    pub fn span_count(&self) -> u32 {
-        self.headers.span_count
-    }
-
-    /// Sets the span count. Should only be used for transactions.
+    /// Returns the number of spans in `event.spans`.
     ///
-    /// Must match the number of entries in `event.spans`.
-    pub fn set_span_count(&mut self, value: u32) {
-        self.headers.span_count = value;
+    /// This function lazily sets & returns the span count if it is `None`.
+    pub fn span_count(&mut self) -> usize {
+        match &mut self.headers.span_count {
+            Some(count) => *count,
+            None => {
+                let count = self.parse_span_count();
+                self.headers.span_count = Some(count);
+                count
+            }
+        }
+        // TODO(follow-up): Refresh span count after re-serializing the transaction
     }
 
     /// Returns the content type of this item's payload.
@@ -535,6 +538,19 @@ impl Item {
     pub fn is_container(&self) -> bool {
         self.content_type().is_some_and(ContentType::is_container)
     }
+
+    fn parse_span_count(&self) -> usize {
+        #[derive(Debug, serde::Deserialize)]
+        struct PartialEvent {
+            spans: crate::utils::SeqCount,
+        }
+
+        let Ok(event) = serde_json::from_slice::<PartialEvent>(&self.payload()) else {
+            return 0;
+        };
+
+        event.spans.0
+    }
 }
 
 pub type Items = SmallVec<[Item; 3]>;
@@ -866,14 +882,14 @@ pub struct ItemHeaders {
 
     /// The number of spans in the `event.spans` array.
     ///
-    /// Should always be zero except for transaction items.
+    /// Should never be set except for transaction items.
     ///
     /// When a transaction is dropped before spans were extracted from a transaction,
     /// this number is used to emit correct outcomes for the spans category.
     ///
     /// This number does *not* count the transaction itself.
-    #[serde(default, skip_serializing_if = "is_zero")]
-    span_count: u32,
+    #[serde(default)]
+    span_count: Option<usize>,
 
     /// Whether the event has been _fully_ normalized.
     ///

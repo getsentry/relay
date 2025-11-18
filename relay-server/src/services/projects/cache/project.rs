@@ -140,7 +140,12 @@ fn sync_spans_to_enforcement(envelope: &mut ManagedEnvelope, enforcement: &mut E
         return;
     }
 
-    let spans_count = count_nested_spans(envelope).unwrap_or(0);
+    let spans_count = envelope
+        .envelope_mut()
+        .items_mut()
+        .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())
+        .map_or(0, |item| item.span_count());
+
     if spans_count == 0 {
         return;
     }
@@ -155,27 +160,6 @@ fn sync_spans_to_enforcement(envelope: &mut ManagedEnvelope, enforcement: &mut E
             .event_indexed
             .clone_for(DataCategory::SpanIndexed, spans_count);
     }
-}
-
-/// Counts the nested spans inside the first transaction envelope item inside the [`Envelope`](crate::envelope::Envelope).
-fn count_nested_spans(envelope: &mut ManagedEnvelope) -> Option<usize> {
-    #[derive(Debug, serde::Deserialize)]
-    struct PartialEvent {
-        spans: crate::utils::SeqCount,
-    }
-
-    let item = envelope
-        .envelope_mut()
-        .items_mut()
-        .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())?;
-
-    let event = serde_json::from_slice::<PartialEvent>(&item.payload()).ok()?;
-
-    let count = event.spans.0;
-    item.set_span_count(count as u32);
-    // TODO(follow-up): Update span count when serializing the event back into the envelope.
-
-    Some(count)
 }
 
 #[cfg(test)]
