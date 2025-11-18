@@ -202,8 +202,8 @@ impl Item {
     /// Returns the recomputed count.
     pub fn refresh_span_count(&mut self) -> usize {
         let count = self.parse_span_count();
-        self.headers.span_count = Some(count);
-        count
+        self.headers.span_count = count;
+        count.unwrap_or(0)
     }
 
     /// Returns the span_count header, and computes it if it is not yet set.
@@ -548,17 +548,19 @@ impl Item {
         self.content_type().is_some_and(ContentType::is_container)
     }
 
-    fn parse_span_count(&self) -> usize {
+    fn parse_span_count(&self) -> Option<usize> {
         #[derive(Debug, serde::Deserialize)]
         struct PartialEvent {
             spans: crate::utils::SeqCount,
         }
 
-        let Ok(event) = serde_json::from_slice::<PartialEvent>(&self.payload()) else {
-            return 0;
-        };
+        if self.headers.ty != ItemType::Transaction || self.headers.spans_extracted {
+            return None;
+        }
 
-        event.spans.0
+        let event = serde_json::from_slice::<PartialEvent>(&self.payload()).ok()?;
+
+        Some(event.spans.0)
     }
 }
 
