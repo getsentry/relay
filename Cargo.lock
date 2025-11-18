@@ -5023,12 +5023,13 @@ dependencies = [
 
 [[package]]
 name = "sentry-release-parser"
-version = "1.3.2"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "663a866435288420b8af1ecd0fe5774c4d5f0f584eadb2456303d8ab0f5c8313"
+checksum = "c98f1c38deb5d037aacfcbf6790951da8acba07b7e3a3c8b90df531f2d4ebae2"
 dependencies = [
  "lazy_static",
  "regex",
+ "semver",
  "serde",
 ]
 
