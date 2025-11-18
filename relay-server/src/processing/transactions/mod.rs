@@ -222,7 +222,7 @@ impl Processor for TransactionProcessor {
             if !indexed.flags.fully_normalized {
                 relay_log::error!(
                     tags.project = %project_id,
-                    tags.ty = event_type(&indexed.event.0).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                    tags.ty = event_type(&indexed.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
                     "ingested event without normalizing"
                 );
             };
@@ -300,7 +300,7 @@ impl From<ExpandedTransaction<TotalAndIndexed>> for ExpandedTransaction<Indexed>
             attachments,
             profile,
             extracted_spans,
-            category,
+            category: _,
         } = value;
         Self {
             headers,
@@ -328,7 +328,7 @@ impl<T> ExpandedTransaction<T> {
             attachments,
             profile,
             extracted_spans,
-            category,
+            category: _,
         } = self;
 
         let mut items = smallvec![];
@@ -372,7 +372,7 @@ impl Counted for ExpandedTransaction<TotalAndIndexed> {
             attachments,
             profile,
             extracted_spans,
-            category,
+            category: _,
         } = self;
         debug_assert!(!flags.metrics_extracted);
         let mut quantities = smallvec![
@@ -406,7 +406,7 @@ impl Counted for ExpandedTransaction<Indexed> {
             attachments,
             profile,
             extracted_spans,
-            category,
+            category: _,
         } = self;
         debug_assert!(flags.metrics_extracted);
         let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
@@ -433,6 +433,7 @@ impl Counted for ExpandedTransaction<Indexed> {
 
 impl<T> RateLimited for Managed<ExpandedTransaction<T>>
 where
+    T: TransactionQuantities,
     ExpandedTransaction<T>: Counted,
 {
     type Error = Error;
@@ -454,12 +455,12 @@ where
             attachments,
             profile,
             extracted_spans,
-            category,
+            category: _,
         } = self.as_ref();
 
         // If there is a transaction limit, drop everything.
         // This also affects profiles that lost their transaction due to sampling.
-        for (category, quantity) in transaction.quantities() {
+        for (category, quantity) in T::transaction_quantities() {
             let limits = rate_limiter
                 .try_consume(scoping.item(category), quantity)
                 .await;
@@ -516,6 +517,25 @@ where
         }
 
         Ok(())
+    }
+}
+
+trait TransactionQuantities {
+    fn transaction_quantities() -> Quantities;
+}
+
+impl TransactionQuantities for TotalAndIndexed {
+    fn transaction_quantities() -> Quantities {
+        smallvec![
+            (DataCategory::Transaction, 1),
+            (DataCategory::TransactionIndexed, 1)
+        ]
+    }
+}
+
+impl TransactionQuantities for Indexed {
+    fn transaction_quantities() -> Quantities {
+        smallvec![(DataCategory::TransactionIndexed, 1)]
     }
 }
 

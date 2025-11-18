@@ -57,6 +57,8 @@ pub fn extract_metrics(
         metrics_extracted,
         spans_extracted,
     } = ctx;
+    // TODO(follow-up): this function should always extract metrics. Dynamic sampling should validate
+    // the full metrics extraction config and skip sampling if it is incomplete.
 
     if metrics_extracted {
         debug_assert!(false, "metrics extraction called twice");
