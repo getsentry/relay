@@ -361,7 +361,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
             let is_rejected = limit >= 0
                 && match quantity == 0 || over_accept_once {
                     true => consumed >= limit,
-                    false => consumed + quantity > limit,
+                    false => consumed.saturating_add(quantity) > limit,
                 };
 
             if is_rejected {
