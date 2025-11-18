@@ -1,58 +1,26 @@
 # Changelog
 
-# Unreleased
+## Unreleased
 
-- Add SEER_USER data category. ([#5383](https://github.com/getsentry/relay/pull/5383))
+
 
 ## 0.9.21
 
-### Various fixes & improvements
-
 - feat(billing): Add SEER_USER data category (#5383) by @brendanhsentry
-- release: 0.9.20 (8316dd42) by @getsentry-bot
-- docs(py): Clean up changelog (#5334) by @jjbayer
-- release: 0.9.19 (d0b5b447) by @getsentry-bot
-- build(py): Upgrade python to 3.13 (#5323) by @jjbayer
-- build(py): Revert `uv`, `devenv`, `pre-commit` (#5321) by @jjbayer
-- build(py): Remove py/pyproject.toml altogether (#5314) by @jjbayer
-- build(py): Revert dynamic version, ignore pyproject.toml instead (#5313) by @jjbayer
-- build(py): Use dynamic version (#5311) by @jjbayer
-- feat(dev): Add devenv, uv, pre-commit (take 2) (#5248) by @joshuarli
-
-## 0.9.20
-
-### Various fixes & improvements
-
-- docs(py): Clean up changelog (#5334) by @jjbayer
-- release: 0.9.19 (d0b5b447) by @getsentry-bot
-- build(py): Upgrade python to 3.13 (#5323) by @jjbayer
-- build(py): Revert `uv`, `devenv`, `pre-commit` (#5321) by @jjbayer
-- build(py): Remove py/pyproject.toml altogether (#5314) by @jjbayer
-- build(py): Revert dynamic version, ignore pyproject.toml instead (#5313) by @jjbayer
-- build(py): Use dynamic version (#5311) by @jjbayer
-- feat(dev): Add devenv, uv, pre-commit (take 2) (#5248) by @joshuarli
 
 ## 0.9.19
-
-### Various fixes & improvements
 
 - fix(billing): Use camel case for retentions config #5303 by @jjbayer
 
 ## 0.9.17
 
-### Various fixes & improvements
-
 - feat(billing): Add TraceMetric datacategory (#5206) by @k-fish
 
 ## 0.9.16
 
-### Various fixes & improvements
-
 - feat(billing): Add retentions to project configs (#5135) by @vbro
 
 ## 0.9.15
-
-### Various fixes & improvements
 
 - feat(billing): Add retentions to the project configuration (#5135) by @vbro
 - release: 0.9.14 (fb0730ea) by @getsentry-bot
@@ -63,16 +31,12 @@
 
 ## 0.9.14
 
-### Various fixes & improvements
-
 - feat(preprod): Add SizeAnalysis, InstallableBuild data categories (#5084) by @chromy
 - feat(ds): Introduce a project dynamic sampling rule type (#5077) by @Dav1dde
 - release: 0.9.13 (b9906104) by @getsentry-bot
 - fix(ourlogs): Improve PII Scrubbing for attributes (#5061) by @k-fish
 
 ## 0.9.13
-
-### Various fixes & improvements
 
 - fix(ourlogs): Improve PII Scrubbing for attributes (#5061) by @k-fish
 - Add `trusted_relay_settings` to the project configuration. ([#4772](https://github.com/getsentry/relay/pull/4772))
@@ -81,16 +45,12 @@
 
 ## 0.9.12
 
-### Various fixes & improvements
-
 - feat(billing): Add data categories for Prevent (#5052) by @brendanhsentry
 - release: 0.9.11 (9732dcf4) by @getsentry-bot
 - feat(billing): Add downsampled_event_retention to project configs (#5013) by @brendanhsentry
 - fix(contexts): Normalize browser and os names with missing versions (#4957) by @Dav1dde
 
 ## 0.9.11
-
-### Various fixes & improvements
 
 - feat(billing): Add downsampled_event_retention to project configs (#5013) by @brendanhsentry
 - fix(contexts): Normalize browser and os names with missing versions (#4957) by @Dav1dde
@@ -104,8 +64,6 @@
 - Add data categories for Seer. ([#4692](https://github.com/getsentry/relay/pull/4692))
 
 ## 0.9.8
-
-### Various fixes & improvements
 
 - release: 0.9.7 (c1653403) by @getsentry-bot
 - feat(profiling): Add ui chunk profiling data category (#4593) by @Dav1dde
@@ -147,8 +105,6 @@
 
 ## 0.8.67
 
-### Various fixes & improvements
-
 - release: 0.8.66 (8796b0b5) by @getsentry-bot
 - release: 0.8.65 (308c2438) by @getsentry-bot
 - ref: size-optimize the relay python library (#3610) by @asottile-sentry
@@ -163,8 +119,6 @@
 - release: 0.8.59 (70641b58) by @getsentry-bot
 
 ## 0.8.66
-
-### Various fixes & improvements
 
 - release: 0.8.65 (308c2438) by @getsentry-bot
 - ref: size-optimize the relay python library (#3610) by @asottile-sentry
@@ -216,8 +170,6 @@
 
 ## 0.8.56
 
-### Various fixes & improvements
-
 - feat(feedback): Emit outcomes for user feedback events (#3026) by @cmanallen
 - release: 0.8.55 (109ac110) by @getsentry-bot
 - feat(profiles): Add a new category to count profile chunks (#3303) by @phacops
@@ -233,8 +185,6 @@
 - Add a data category for profile duration. ([#3284](https://github.com/getsentry/relay/pull/3284))
 
 ## 0.8.50
-
-### Various fixes & improvements
 
 - release: 0.8.49 (99861e52) by @getsentry-bot
 - release: 0.8.48 (ff3e9662) by @getsentry-bot
