@@ -32,6 +32,7 @@ impl Item {
                 attachment_type: None,
                 content_type: None,
                 filename: None,
+                stored_key: None,
                 routing_hint: None,
                 rate_limited: false,
                 source_quantities: None,
@@ -282,6 +283,16 @@ impl Item {
         S: Into<String>,
     {
         self.headers.filename = Some(filename.into());
+    }
+
+    /// Returns the objectstore key, if it is an attachment stored in objectstore.
+    pub fn stored_key(&self) -> Option<&str> {
+        self.headers.stored_key.as_deref()
+    }
+
+    /// Sets the objectstore key of this attachment item.
+    pub fn set_stored_key(&mut self, stored_key: String) {
+        self.headers.stored_key = Some(stored_key);
     }
 
     /// Returns the routing_hint of this item.
@@ -772,6 +783,12 @@ pub struct ItemHeaders {
     /// If this is an attachment item, this may contain the original file name.
     #[serde(skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
+
+    /// If this is an attachment item, this may contain the storage key in case it is uploaded to objectstore.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    stored_key: Option<String>,
 
     /// The platform this item was produced for.
     ///
