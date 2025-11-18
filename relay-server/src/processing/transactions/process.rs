@@ -245,7 +245,6 @@ pub fn extract_metrics(
 
     let mut metrics = ProcessingExtractedMetrics::new();
     let indexed = work.try_map(|mut work, record_keeper| {
-        // Extract metrics here, we're about to drop the event/transaction.
         work.flags.metrics_extracted = extraction::extract_metrics(
             &mut work.transaction.0,
             &mut metrics,
@@ -261,10 +260,11 @@ pub fn extract_metrics(
         .0;
         Ok::<_, Error>(ExpandedTransaction::<IndexedTransaction>::from(work))
     })?;
-    relay_log::trace!(
-        "Did extract transaction metrics? {}",
-        &indexed.flags.metrics_extracted
-    );
+
+    if !indexed.flags.metrics_extracted {
+        relay_log::error!("Failed to extract metrics. Check project config");
+    }
+
     let metrics = indexed.wrap(metrics.into_inner());
     Ok((indexed, metrics))
 }

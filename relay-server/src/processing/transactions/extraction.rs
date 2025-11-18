@@ -59,10 +59,12 @@ pub fn extract_metrics(
     } = ctx;
 
     if metrics_extracted {
+        debug_assert!(false, "metrics extraction called twice");
         return Ok(EventMetricsExtracted(metrics_extracted));
     }
     let Some(event) = event.value_mut() else {
-        return Ok(EventMetricsExtracted(metrics_extracted));
+        // Nothing to extract, but metrics extraction was called.
+        return Ok(EventMetricsExtracted(true));
     };
 
     // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
