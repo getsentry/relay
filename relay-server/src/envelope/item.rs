@@ -193,18 +193,17 @@ impl Item {
     }
 
     /// Returns the number of spans in `event.spans`.
+    pub fn span_count(&self) -> Option<usize> {
+        self.headers.span_count
+    }
+
+    /// Sets the `span_count` item header by shallow parsing the event.
     ///
-    /// This function lazily sets & returns the span count if it is `None`.
-    pub fn span_count(&mut self) -> usize {
-        match &mut self.headers.span_count {
-            Some(count) => *count,
-            None => {
-                let count = self.parse_span_count();
-                self.headers.span_count = Some(count);
-                count
-            }
-        }
-        // TODO(follow-up): Refresh span count after re-serializing the transaction
+    /// Returns the recomputed count.
+    pub fn refresh_span_count(&mut self) -> usize {
+        let count = self.parse_span_count();
+        self.headers.span_count = Some(count);
+        count
     }
 
     /// Returns the content type of this item's payload.
@@ -959,10 +958,6 @@ fn default_true() -> bool {
 
 fn is_true(value: &bool) -> bool {
     *value
-}
-
-fn is_zero(val: &u32) -> bool {
-    *val == 0
 }
 
 #[cfg(test)]

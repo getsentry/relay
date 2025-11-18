@@ -144,7 +144,9 @@ fn sync_spans_to_enforcement(envelope: &mut ManagedEnvelope, enforcement: &mut E
         .envelope_mut()
         .items_mut()
         .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())
-        .map_or(0, |item| item.span_count());
+        .map_or(0, |item| item.refresh_span_count());
+
+    // TODO(follow-up): Refresh span count after re-serializing the transaction
 
     if spans_count == 0 {
         return;
