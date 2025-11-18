@@ -193,8 +193,8 @@ impl Item {
     }
 
     /// Returns the number of spans in `event.spans`.
-    pub fn span_count(&self) -> Option<usize> {
-        self.headers.span_count
+    pub fn span_count(&self) -> usize {
+        self.headers.span_count.unwrap_or(0)
     }
 
     /// Sets the `span_count` item header by shallow parsing the event.
@@ -204,6 +204,16 @@ impl Item {
         let count = self.parse_span_count();
         self.headers.span_count = Some(count);
         count
+    }
+
+    /// Returns the span_count header, and computes it if it is not yet set.
+    ///
+    /// Returns the recomputed count.
+    pub fn ensure_span_count(&mut self) -> usize {
+        match self.headers.span_count {
+            Some(count) => count,
+            None => self.refresh_span_count(),
+        }
     }
 
     /// Returns the content type of this item's payload.
@@ -887,7 +897,7 @@ pub struct ItemHeaders {
     /// this number is used to emit correct outcomes for the spans category.
     ///
     /// This number does *not* count the transaction itself.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     span_count: Option<usize>,
 
     /// Whether the event has been _fully_ normalized.
