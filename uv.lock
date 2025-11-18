@@ -541,7 +541,7 @@ dev = [
     { name = "redis", specifier = ">=4.5.4" },
     { name = "requests", specifier = ">=2.32.4" },
     { name = "sentry-protos", specifier = ">=0.4.1" },
-    { name = "sentry-sdk", specifier = ">=2.30.0" },
+    { name = "sentry-sdk", specifier = ">=2.44.0" },
     { name = "setuptools", specifier = "==80.9.0" },
     { name = "types-protobuf", specifier = ">=5.27.0.20240626" },
     { name = "types-pyyaml", specifier = ">=6.0.12.10" },
@@ -594,14 +594,14 @@ wheels = [
 
 [[package]]
 name = "sentry-sdk"
-version = "2.30.0"
+version = "2.44.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
     { name = "certifi", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "urllib3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/sentry_sdk-2.30.0-py2.py3-none-any.whl", hash = "sha256:59391db1550662f746ea09b483806a631c3ae38d6340804a1a4c0605044f6877" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/sentry_sdk-2.44.0-py2.py3-none-any.whl", hash = "sha256:9e36a0372b881e8f92fdbff4564764ce6cec4b7f25424d0a3a8d609c9e4651a7" },
 ]
 
 [[package]]
