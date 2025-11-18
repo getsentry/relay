@@ -1,4 +1,3 @@
-use std::isize;
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
@@ -90,7 +89,7 @@ pub fn prepare_data(
         profile::transfer_id(&mut work.event, profile_id);
         profile::remove_context_if_rate_limited(&mut work.event, scoping, *ctx);
 
-        utils::dsc::validate_and_set_dsc(&mut work.headers, &mut work.event, ctx);
+        utils::dsc::validate_and_set_dsc(&mut work.headers, &work.event, ctx);
 
         utils::event::finalize(
             &work.headers,
@@ -261,11 +260,10 @@ pub fn extract_metrics(
         record_keeper.modify_by(DataCategory::Transaction, -1);
         record_keeper.modify_by(
             DataCategory::Span,
-            -dbg!(
-                work.count_embedded_spans_and_self()
-                    .try_into()
-                    .unwrap_or(isize::MAX)
-            ),
+            -work
+                .count_embedded_spans_and_self()
+                .try_into()
+                .unwrap_or(isize::MAX),
         );
 
         Ok::<_, Error>(ExpandedTransaction::<Indexed>::from(work))

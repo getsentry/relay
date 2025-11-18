@@ -413,7 +413,7 @@ impl Counted for ExpandedTransaction<Indexed> {
         if !flags.spans_extracted {
             // TODO: encode this flag into the type and remove `extracted_spans` from the "BeforeSpanExtraction" type.
             // TODO: write span_count header in fast path.
-            debug_assert!(!extracted_spans.0.is_empty());
+            debug_assert!(extracted_spans.0.is_empty());
             let span_count = self.count_embedded_spans_and_self();
             quantities.push((DataCategory::SpanIndexed, span_count));
         }
@@ -422,6 +422,7 @@ impl Counted for ExpandedTransaction<Indexed> {
         quantities.extend(profile.quantities());
 
         if !extracted_spans.0.is_empty() {
+            debug_assert!(flags.spans_extracted);
             // For now, span extraction always happens at the very end:
             debug_assert!(flags.metrics_extracted);
             quantities.extend(extracted_spans.quantities());

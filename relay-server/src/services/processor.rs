@@ -3471,7 +3471,7 @@ mod tests {
         });
 
         let message = ProcessEnvelopeGrouped {
-            group: ProcessingGroup::Transaction,
+            group: ProcessingGroup::Error,
             envelope: managed_envelope,
             ctx: processing::Context {
                 config: &Config::from_json_value(config.clone()).unwrap(),

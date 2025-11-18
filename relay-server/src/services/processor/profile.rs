@@ -71,17 +71,20 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use insta::assert_debug_snapshot;
-    use relay_dynamic_config::Feature;
+    use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{EventId, ProfileContext};
     use relay_system::Addr;
 
     use super::*;
 
-    async fn process_event(
-        envelope: Box<Envelope>,
-        config: Config,
-        project_info: &ProjectInfo,
-    ) -> Option<Annotated<Event>> {
+    async fn process_event(envelope: Box<Envelope>) -> Option<Annotated<Event>> {
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": []
+            }
+        }))
+        .unwrap();
         let processor = create_test_processor(config).await;
         let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
@@ -89,12 +92,20 @@ mod tests {
 
         let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
 
+        let mut project_info = ProjectInfo::default().sanitized();
+        project_info.config.transaction_metrics =
+            Some(ErrorBoundary::Ok(TransactionMetricsConfig::new()));
+        project_info.config.features.0.insert(Feature::Profiling);
+
+        let mut global_config = GlobalConfig::default();
+        global_config.normalize();
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             ctx: processing::Context {
                 config: &processor.inner.config,
-                project_info,
+                project_info: &project_info,
+                global_config: &global_config,
                 ..processing::Context::for_test()
             },
         };
@@ -114,13 +125,7 @@ mod tests {
     #[tokio::test]
     async fn test_profile_id_transfered() {
         relay_log::init_test!();
-        let config = Config::from_json_value(serde_json::json!({
-            "processing": {
-                "enabled": true,
-                "kafka_config": []
-            }
-        }))
-        .unwrap();
+
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -198,12 +203,7 @@ mod tests {
             item
         });
 
-        let mut project_info = ProjectInfo::default();
-        project_info.config.features.0.insert(Feature::Profiling);
-
-        let event = process_event(envelope, config, &project_info)
-            .await
-            .unwrap();
+        let event = process_event(envelope).await.unwrap();
 
         let context = event.value().unwrap().context::<ProfileContext>().unwrap();
 
@@ -220,13 +220,6 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_profile_id_not_transfered() {
         // Setup
-        let config = Config::from_json_value(serde_json::json!({
-            "processing": {
-                "enabled": true,
-                "kafka_config": []
-            }
-        }))
-        .unwrap();
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -304,12 +297,7 @@ mod tests {
             item
         });
 
-        let mut project_info = ProjectInfo::default();
-        project_info.config.features.0.insert(Feature::Profiling);
-
-        let event = process_event(envelope, config, &project_info)
-            .await
-            .unwrap();
+        let event = process_event(envelope).await.unwrap();
         let context = event.value().unwrap().context::<ProfileContext>().unwrap();
 
         assert_debug_snapshot!(context, @r###"
@@ -323,14 +311,6 @@ mod tests {
     #[tokio::test]
     async fn filter_standalone_profile() {
         relay_log::init_test!();
-        let config = Config::from_json_value(serde_json::json!({
-            "processing": {
-                "enabled": true,
-                "kafka_config": []
-            }
-        }))
-        .unwrap();
-
         // Setup
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -356,23 +336,12 @@ mod tests {
             item
         });
 
-        let mut project_info = ProjectInfo::default();
-        project_info.config.features.0.insert(Feature::Profiling);
-
-        let event = process_event(envelope, config, &project_info).await;
+        let event = process_event(envelope).await;
         assert!(event.is_none());
     }
 
     #[tokio::test]
     async fn test_profile_id_removed_profiler_id_kept() {
-        // Setup
-        let config = Config::from_json_value(serde_json::json!({
-            "processing": {
-                "enabled": true,
-                "kafka_config": []
-            }
-        }))
-        .unwrap();
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -415,9 +384,7 @@ mod tests {
         let mut project_info = ProjectInfo::default();
         project_info.config.features.0.insert(Feature::Profiling);
 
-        let event = process_event(envelope, config, &project_info)
-            .await
-            .unwrap();
+        let event = process_event(envelope).await.unwrap();
         let context = event.value().unwrap().context::<ProfileContext>().unwrap();
 
         assert_debug_snapshot!(context, @r###"
