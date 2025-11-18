@@ -7,7 +7,7 @@ local single_tenants = ['disney', 'geico', 'goldmansachs', 'ly', 's4s'];
 // List of datadog monitors to check during the soak time in the different regions
 local soak_monitors = {
   s4s: '14146876 154096671 154096678 237863001',
-  us: '14146876 154096671 154096678  237862997',
+  us: '14146876 154096671 154096678 237862997',
   default: '14146876 154096671 154096678',
 };
 
@@ -27,7 +27,7 @@ local soak_time(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
-                DATADOG_MONITOR_IDS: if std.objectHas(soak_monitors, region) then soak_monitors[region] else soak_monitors['default'],
+                DATADOG_MONITOR_IDS: if std.objectHas(soak_monitors, region) then soak_monitors[region] else soak_monitors.default,
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
                 SENTRY_PROJECTS: if region == 's4s' then '1513938:sentry-for-sentry:relay' else '4:relay:relay 9:pop-relay:relay-pop',
                 SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
