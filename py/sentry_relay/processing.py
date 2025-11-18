@@ -258,14 +258,17 @@ def parse_release(release, json_loads: Callable[[str | bytes], Any] = json.loads
     )
 
 
-def compare_version(a, b, use_build_code=True):
-    """Compares two versions with each other and returns 1/0/-1."""
-    if use_build_code:
-        return rustcall(lib.relay_compare_versions, encode_str(a), encode_str(b))
-    else:
+def compare_version(a, b, semver_precedence=False):
+    """
+    Compares two versions with each other and returns 1/0/-1.
+
+    :param semver_precedence: Whether to use semver precedence (ie, ignore build code) for comparison.
+    """
+    if semver_precedence:
         return rustcall(
-            lib.relay_compare_versions_no_build_code, encode_str(a), encode_str(b)
+            lib.relay_compare_versions_semver_precedence, encode_str(a), encode_str(b)
         )
+    return rustcall(lib.relay_compare_versions, encode_str(a), encode_str(b))
 
 
 def validate_sampling_condition(condition):

@@ -734,9 +734,9 @@ int32_t relay_compare_versions(const struct RelayStr *a,
                                const struct RelayStr *b);
 
 /**
- * Compares two versions, ignoring build codes.
+ * Compares two versions using semver precedence (ie, ignoring build code).
  */
-int32_t relay_compare_versions_no_build_code(const struct RelayStr *a,
+int32_t relay_compare_versions_semver_precedence(const struct RelayStr *a,
                                              const struct RelayStr *b);
 
 /**

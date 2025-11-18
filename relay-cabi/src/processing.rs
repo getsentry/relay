@@ -393,10 +393,10 @@ pub unsafe extern "C" fn relay_compare_versions(a: *const RelayStr, b: *const Re
     }
 }
 
-/// Compares two versions, ignoring build codes via semver 1.0's `cmp_precedence`.
+/// Compares two versions, ignoring build code via semver 1.0's `cmp_precedence`.
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_compare_versions_no_build_code(
+pub unsafe extern "C" fn relay_compare_versions_semver_precedence(
     a: *const RelayStr,
     b: *const RelayStr,
 ) -> i32 {
@@ -549,18 +549,18 @@ mod tests {
     }
 
     #[test]
-    fn test_compare_versions_no_build_code() {
+    fn test_compare_versions_semver_precedence() {
         unsafe {
             // Build codes should be ignored
             assert_eq!(
-                relay_compare_versions_no_build_code(
+                relay_compare_versions_semver_precedence(
                     &RelayStr::from("1.0.0+200"),
                     &RelayStr::from("1.0.0+100")
                 ),
                 0
             );
             assert_eq!(
-                relay_compare_versions_no_build_code(
+                relay_compare_versions_semver_precedence(
                     &RelayStr::from("1.0.0+abc"),
                     &RelayStr::from("1.0.0+xyz")
                 ),
@@ -569,14 +569,14 @@ mod tests {
 
             // Other comparisons should still work
             assert_eq!(
-                relay_compare_versions_no_build_code(
+                relay_compare_versions_semver_precedence(
                     &RelayStr::from("2.0.0"),
                     &RelayStr::from("1.0.0")
                 ),
                 1
             );
             assert_eq!(
-                relay_compare_versions_no_build_code(
+                relay_compare_versions_semver_precedence(
                     &RelayStr::from("1.0.0"),
                     &RelayStr::from("1.0.0-rc1")
                 ),
