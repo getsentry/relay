@@ -2,9 +2,7 @@
 
 ## Unreleased
 
-
 - Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
-- Add SEER_USER data category. ([#5383](https://github.com/getsentry/relay/pull/5383))
 
 ## 0.9.21
 
