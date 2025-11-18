@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
 - Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
 
 ## 25.11.0

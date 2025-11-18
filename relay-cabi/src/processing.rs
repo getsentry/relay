@@ -393,6 +393,22 @@ pub unsafe extern "C" fn relay_compare_versions(a: *const RelayStr, b: *const Re
     }
 }
 
+/// Compares two versions, ignoring build code via semver 1.0's `cmp_precedence`.
+#[unsafe(no_mangle)]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_compare_versions_semver_precedence(
+    a: *const RelayStr,
+    b: *const RelayStr,
+) -> i32 {
+    let ver_a = sentry_release_parser::Version::parse(unsafe { (*a).as_str() })?;
+    let ver_b = sentry_release_parser::Version::parse(unsafe { (*b).as_str() })?;
+    match ver_a.as_semver1().cmp_precedence(&ver_b.as_semver1()) {
+        Ordering::Less => -1,
+        Ordering::Equal => 0,
+        Ordering::Greater => 1,
+    }
+}
+
 /// Validate a dynamic rule condition.
 ///
 /// Used by dynamic sampling, metric extraction, and metric tagging.
@@ -528,6 +544,43 @@ mod tests {
             assert_eq!(
                 relay_validate_pii_config(&RelayStr::from(config)).as_str(),
                 ""
+            );
+        }
+    }
+
+    #[test]
+    fn test_compare_versions_semver_precedence() {
+        unsafe {
+            // Build codes should be ignored
+            assert_eq!(
+                relay_compare_versions_semver_precedence(
+                    &RelayStr::from("1.0.0+200"),
+                    &RelayStr::from("1.0.0+100")
+                ),
+                0
+            );
+            assert_eq!(
+                relay_compare_versions_semver_precedence(
+                    &RelayStr::from("1.0.0+abc"),
+                    &RelayStr::from("1.0.0+xyz")
+                ),
+                0
+            );
+
+            // Other comparisons should still work
+            assert_eq!(
+                relay_compare_versions_semver_precedence(
+                    &RelayStr::from("2.0.0"),
+                    &RelayStr::from("1.0.0")
+                ),
+                1
+            );
+            assert_eq!(
+                relay_compare_versions_semver_precedence(
+                    &RelayStr::from("1.0.0"),
+                    &RelayStr::from("1.0.0-rc1")
+                ),
+                1
             );
         }
     }
