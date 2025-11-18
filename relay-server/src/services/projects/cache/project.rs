@@ -89,7 +89,7 @@ impl<'a> Project<'a> {
         // If we can extract spans from the event, we want to try and count the number of nested
         // spans to correctly emit negative outcomes in case the transaction itself is dropped.
         relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
-            sync_spans_to_enforcement(&envelope, &mut enforcement);
+            sync_spans_to_enforcement(&mut envelope, &mut enforcement);
         });
 
         enforcement.apply_with_outcomes(&mut envelope);
@@ -135,12 +135,12 @@ pub struct CheckedEnvelope {
 /// On the fast path of rate limiting, we do not have nested spans of a transaction extracted
 /// as top-level spans, thus if we limited a transaction, we want to count and emit negative
 /// outcomes for each of the spans nested inside that transaction.
-fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enforcement) {
+fn sync_spans_to_enforcement(envelope: &mut ManagedEnvelope, enforcement: &mut Enforcement) {
     if !enforcement.is_event_active() {
         return;
     }
 
-    let spans_count = count_nested_spans(envelope);
+    let spans_count = count_nested_spans(envelope).unwrap_or(0);
     if spans_count == 0 {
         return;
     }
@@ -149,6 +149,7 @@ fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enfor
         enforcement.spans = enforcement.event.clone_for(DataCategory::Span, spans_count);
     }
 
+    // TODO(follow-up): Do not manually enforce, rely on quantities() instead.
     if enforcement.event_indexed.is_active() {
         enforcement.spans_indexed = enforcement
             .event_indexed
@@ -157,20 +158,23 @@ fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enfor
 }
 
 /// Counts the nested spans inside the first transaction envelope item inside the [`Envelope`](crate::envelope::Envelope).
-fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
+fn count_nested_spans(envelope: &mut ManagedEnvelope) -> Option<usize> {
     #[derive(Debug, serde::Deserialize)]
     struct PartialEvent {
         spans: crate::utils::SeqCount,
     }
 
-    envelope
-        .envelope()
-        .items()
-        .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())
-        .and_then(|item| serde_json::from_slice::<PartialEvent>(&item.payload()).ok())
-        // We do + 1, since we count the transaction itself because it will be extracted
-        // as a span and counted during the slow path of rate limiting.
-        .map_or(0, |event| event.spans.0 + 1)
+    let item = envelope
+        .envelope_mut()
+        .items_mut()
+        .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())?;
+
+    let event = serde_json::from_slice::<PartialEvent>(&item.payload()).ok()?;
+
+    let count = event.spans.0;
+    item.set_span_count(count as u32);
+
+    Some(count)
 }
 
 #[cfg(test)]
