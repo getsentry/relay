@@ -431,11 +431,7 @@ impl Counted for ExpandedTransaction<Indexed> {
     }
 }
 
-impl<T> RateLimited for Managed<ExpandedTransaction<T>>
-where
-    T: TransactionQuantities,
-    ExpandedTransaction<T>: Counted,
-{
+impl RateLimited for Managed<ExpandedTransaction<TotalAndIndexed>> {
     type Error = Error;
 
     async fn enforce<R>(
@@ -447,6 +443,12 @@ where
         R: RateLimiter,
     {
         let scoping = self.scoping();
+
+        // These debug assertions are here because this function does not check indexed or extracted
+        // span limits.
+        // TODO: encode flags into types instead.
+        debug_assert!(!self.flags.metrics_extracted);
+        debug_assert!(!self.flags.spans_extracted);
 
         let ExpandedTransaction {
             headers: _,
@@ -460,15 +462,79 @@ where
 
         // If there is a transaction limit, drop everything.
         // This also affects profiles that lost their transaction due to sampling.
-        for (category, quantity) in T::transaction_quantities() {
+        let limits = rate_limiter
+            .try_consume(scoping.item(DataCategory::Transaction), 1)
+            .await;
+
+        // We do not check indexed quota at this point, because metrics have not been extracted
+        // from the transaction yet.
+
+        let attachment_quantities = attachments.quantities();
+
+        // Check profile limits:
+        for (category, quantity) in profile.quantities() {
             let limits = rate_limiter
                 .try_consume(scoping.item(category), quantity)
                 .await;
 
             if !limits.is_empty() {
-                return Err(self.reject_err(Error::from(limits)));
+                self.modify(|this, record_keeper| {
+                    record_keeper.reject_err(Error::from(limits), this.profile.take());
+                });
             }
         }
+
+        // Check attachment limits:
+        for (category, quantity) in attachment_quantities {
+            let limits = rate_limiter
+                .try_consume(scoping.item(category), quantity)
+                .await;
+
+            if !limits.is_empty() {
+                self.modify(|this, record_keeper| {
+                    record_keeper
+                        .reject_err(Error::from(limits), std::mem::take(&mut this.attachments));
+                });
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl RateLimited for Managed<ExpandedTransaction<Indexed>> {
+    type Error = Error;
+
+    async fn enforce<R>(
+        &mut self,
+        mut rate_limiter: R,
+        ctx: Context<'_>,
+    ) -> Result<(), Rejected<Self::Error>>
+    where
+        R: RateLimiter,
+    {
+        let scoping = self.scoping();
+
+        // These debug assertions are here because this function does not check indexed or extracted
+        // span limits.
+        // TODO: encode flags into types instead.
+        debug_assert!(self.flags.metrics_extracted);
+
+        let ExpandedTransaction {
+            headers: _,
+            event: transaction,
+            flags,
+            attachments,
+            profile,
+            extracted_spans,
+            category: _,
+        } = self.as_ref();
+
+        // If there is a transaction limit, drop everything.
+        // This also affects profiles that lost their transaction due to sampling.
+        let limits = rate_limiter
+            .try_consume(scoping.item(DataCategory::TransactionIndexed), 1)
+            .await;
 
         let attachment_quantities = attachments.quantities();
         let span_quantities = extracted_spans.quantities();
@@ -520,25 +586,6 @@ where
     }
 }
 
-trait TransactionQuantities {
-    fn transaction_quantities() -> Quantities;
-}
-
-impl TransactionQuantities for TotalAndIndexed {
-    fn transaction_quantities() -> Quantities {
-        smallvec![
-            (DataCategory::Transaction, 1),
-            (DataCategory::TransactionIndexed, 1)
-        ]
-    }
-}
-
-impl TransactionQuantities for Indexed {
-    fn transaction_quantities() -> Quantities {
-        smallvec![(DataCategory::TransactionIndexed, 1)]
-    }
-}
-
 /// Wrapper for spans extracted from a transaction.
 ///
 /// Needed to not emit the total category for spans.
@@ -554,6 +601,10 @@ impl Counted for ExtractedSpans {
                 .iter()
                 .all(|i| i.ty() == &ItemType::Span && i.metrics_extracted())
         );
+
+        if self.0.is_empty() {
+            return smallvec![];
+        }
 
         smallvec![(DataCategory::SpanIndexed, self.0.len())]
     }
