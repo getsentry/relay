@@ -3,6 +3,7 @@ import os
 import msgpack
 
 import pytest
+from objectstore_client import Client, Usecase
 from requests import HTTPError
 from uuid import UUID
 
@@ -360,15 +361,17 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "rate_limit,minidump_filename",
+    "rate_limit,minidump_filename,use_objectstore",
     [
-        (None, "minidump.dmp"),
-        ("attachment", "minidump.dmp"),
-        ("transaction", "minidump.dmp"),
-        (None, "minidump.dmp.gz"),
-        (None, "minidump.dmp.xz"),
-        (None, "minidump.dmp.bz2"),
-        (None, "minidump.dmp.zst"),
+        (None, "minidump.dmp", True),
+        (None, "minidump.dmp", False),
+        ("attachment", "minidump.dmp", True),
+        ("attachment", "minidump.dmp", False),
+        ("transaction", "minidump.dmp", False),
+        (None, "minidump.dmp.gz", False),
+        (None, "minidump.dmp.xz", False),
+        (None, "minidump.dmp.bz2", False),
+        (None, "minidump.dmp.zst", False),
     ],
 )
 def test_minidump_with_processing(
@@ -377,6 +380,7 @@ def test_minidump_with_processing(
     attachments_consumer,
     rate_limit,
     minidump_filename,
+    use_objectstore,
 ):
     dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
     with open(dmp_path, "rb") as f:
@@ -390,11 +394,20 @@ def test_minidump_with_processing(
         with open(compressed_dmp_path, "rb") as f:
             compressed_content = f.read()
 
-    relay = relay_with_processing()
-
+    if use_objectstore:
+        mini_sentry.global_config["options"][
+            "relay.objectstore-attachments.sample-rate"
+        ] = 1.0
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 50000
+
+    options = (
+        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
+        if use_objectstore
+        else None
+    )
+    relay = relay_with_processing(options)
 
     # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
     # will modify the minidump since it contains user paths in the module list.  This breaks
@@ -431,11 +444,12 @@ def test_minidump_with_processing(
     num_chunks = 0
     attachment_id = None
 
-    while attachment != content:
-        chunk, message = attachments_consumer.get_attachment_chunk()
-        attachment_id = attachment_id or message["id"]
-        attachment += chunk
-        num_chunks += 1
+    if not use_objectstore:
+        while attachment != content:
+            chunk, message = attachments_consumer.get_attachment_chunk()
+            attachment_id = attachment_id or message["id"]
+            attachment += chunk
+            num_chunks += 1
 
     event, message = attachments_consumer.get_event()
 
@@ -451,17 +465,35 @@ def test_minidump_with_processing(
     # Check that the SDK name is correctly detected
     assert event["sdk"]["name"] == "minidump.unknown"
 
-    assert list(message["attachments"]) == [
-        {
-            "id": attachment_id,
+    if not use_objectstore:
+        assert list(message["attachments"]) == [
+            {
+                "id": attachment_id,
+                "name": "minidump.dmp",
+                "rate_limited": rate_limit == "attachment",
+                "attachment_type": "event.minidump",
+                "content_type": "application/x-dmp",
+                "size": len(content),
+                "chunks": num_chunks,
+            }
+        ]
+    else:
+        (attachment,) = message["attachments"]
+
+        objectstore_key = attachment.pop("stored_id")
+        objectstore_session = Client("http://127.0.0.1:8888/").session(
+            Usecase("attachments"), org=1, project=project_id
+        )
+        assert objectstore_session.get(objectstore_key).payload.read() == content
+
+        assert attachment.pop("id")
+        assert attachment == {
             "name": "minidump.dmp",
             "rate_limited": rate_limit == "attachment",
             "attachment_type": "event.minidump",
             "content_type": "application/x-dmp",
             "size": len(content),
-            "chunks": num_chunks,
         }
-    ]
 
     assert "errors" not in event
 
