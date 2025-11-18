@@ -49,8 +49,9 @@ for i = 0, num_quotas - 1 do
     local refund_value = all_values[k + 1] or 0
     local consumed = main_value - refund_value
 
+    local rejected = false;
     -- limit=-1 means "no limit"
-    if not failed and limit >= 0 then
+    if limit >= 0 then
         -- Without over_accept_once, we never increment past the limit. if quantity is 0, check instead if we reached limit.
         -- With over_accept_once, we only reject if the previous update already reached the limit.
         -- This way, we ensure that we increment to or past the limit at some point,
@@ -58,13 +59,16 @@ for i = 0, num_quotas - 1 do
         --
         -- NOTE: redis-rs crate since version 0.18.0 (2020-12-03) passes '1' in case of true and '0' when false.
         if quantity == 0 or over_accept_once == '1' then
-            failed = consumed >= limit
+            rejected = consumed >= limit
         else
-            failed = consumed + quantity > limit
+            rejected = consumed + quantity > limit
         end
     end
 
-    results[i + 1] = consumed
+    failed = failed or rejected
+
+    table.insert(results, rejected)
+    table.insert(results, consumed)
 end
 
 if not failed then

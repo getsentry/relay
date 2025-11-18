@@ -2,7 +2,7 @@ use std::fmt::{self, Debug};
 
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
-use relay_redis::redis::Script;
+use relay_redis::redis::{FromRedisValue, Script};
 use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 use thiserror::Error;
 
@@ -346,25 +346,13 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
         // client across await points, otherwise it might be held for too long, and we will run out
         // of connections.
         let mut connection = self.client.get_connection().await?;
-        let results: Vec<i64> = invocation
+        let results: ScriptResult = invocation
             .invoke_async(&mut connection)
             .await
             .map_err(RedisError::Redis)?;
 
-        let quantity = i64::try_from(quantity).unwrap_or(i64::MAX);
-        for (quota, consumed) in tracked_quotas.iter().zip(results) {
-            let limit = quota.limit();
-
-            // Limit must not be unlimited (-1) and there must not be enough remaining in the quota.
-            //
-            // Note: this logic is synchronized to the one in the Redis script.
-            let is_rejected = limit >= 0
-                && match quantity == 0 || over_accept_once {
-                    true => consumed >= limit,
-                    false => consumed.saturating_add(quantity) > limit,
-                };
-
-            if is_rejected {
+        for (quota, state) in tracked_quotas.iter().zip(results.0) {
+            if state.is_rejected {
                 let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
                 rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
             }
@@ -383,6 +371,51 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
 
         RetryAfter::from_secs(seconds)
     }
+}
+
+/// The result returned from the rate limiting Redis script.
+#[derive(Debug)]
+struct ScriptResult(Vec<QuotaState>);
+
+impl FromRedisValue for ScriptResult {
+    fn from_redis_value(v: &relay_redis::redis::Value) -> relay_redis::redis::RedisResult<Self> {
+        let Some(seq) = v.as_sequence() else {
+            return Err(relay_redis::redis::RedisError::from((
+                relay_redis::redis::ErrorKind::TypeError,
+                "Expected a sequence from the rate limiting script",
+                format!("{v:?}"),
+            )));
+        };
+
+        let (chunks, rem) = seq.as_chunks();
+        if !rem.is_empty() {
+            return Err(relay_redis::redis::RedisError::from((
+                relay_redis::redis::ErrorKind::TypeError,
+                "Expected an even number of values from the rate limiting script",
+                format!("{v:?}"),
+            )));
+        }
+
+        let mut result = Vec::with_capacity(chunks.len());
+        for [is_rejected, consumed] in chunks {
+            result.push(QuotaState {
+                is_rejected: bool::from_redis_value(is_rejected)?,
+                consumed: i64::from_redis_value(consumed)?,
+            });
+        }
+
+        Ok(Self(result))
+    }
+}
+
+/// The state returned from the rate limiting script for a single quota.
+#[derive(Debug)]
+struct QuotaState {
+    /// Whether the quota rejects the request.
+    is_rejected: bool,
+    /// How much of the quota has already been consumed, before adding the requested quantity.
+    #[expect(unused, reason = "not yet used")]
+    consumed: i64,
 }
 
 #[cfg(test)]
@@ -1035,6 +1068,17 @@ mod tests {
 
         let script = RedisScripts::load_is_rate_limited();
 
+        macro_rules! assert_invocation {
+            ($invocation:expr, $($tt:tt)*) => {{
+                let result = $invocation
+                    .invoke_async::<ScriptResult>(&mut conn)
+                    .await
+                    .unwrap();
+
+                insta::assert_debug_snapshot!(result, $($tt)*);
+            }};
+        }
+
         let mut invocation = script.prepare_invoke();
         invocation
             .key(&foo) // key
@@ -1062,64 +1106,104 @@ mod tests {
             .arg(false); // over accept once
 
         // Current usage is 0. But current values are now incremented by 1 (quantity).
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<i64>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![0, 0]
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 0,
+                },
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 0,
+                },
+            ],
+        )
+        "
         );
 
         // The usage was incremented in the last invocation, this invocation fails the rate limit
         // on the first quota. -> No changes are made to the counters, the next invocation still
         // needs to be `[1, 1]`.
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<i64>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![1, 1]
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 1,
+                },
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
         );
 
         // The item should still be rate limited by the first key (1), but *not*
         // rate limited by the second key (2) even though this is the third time
         // we've checked the quotas. This ensures items that are rejected by a lower
         // quota don't affect unrelated items that share a parent quota.
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<i64>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![1, 1]
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 1,
+                },
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
         );
 
         // Using the second invocation which only considers a quota with a higher limit, this
         // should still yield the current value of `1` and the next invocation should yield `2`.
-        assert_eq!(
-            invocation2
-                .invoke_async::<Vec<i64>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![1]
+        assert_invocation!(invocation2, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
         );
 
         // This now yields `2`. This is also the invocation at the limit, which means it should no
         // longer increment the counter.
-        assert_eq!(
-            invocation2
-                .invoke_async::<Vec<i64>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![2]
+        assert_invocation!(invocation2, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 2,
+                },
+            ],
+        )
+        "
         );
 
         // Check again with the original invocation, this now yields `[1, 2]`.
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<i64>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![1, 2]
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 1,
+                },
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 2,
+                },
+            ],
+        )
+        "
         );
 
         assert_eq!(conn.get::<_, String>(&foo).await.unwrap(), "1");
@@ -1149,30 +1233,42 @@ mod tests {
             .arg(false);
 
         // increment, current quota is 0.
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<i64>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![0]
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 0,
+                },
+            ],
+        )
+        "
         );
 
         // test that it's rate limited without refund.
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<i64>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![1]
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
         );
 
         // Make sure, the counter wasn't incremented.
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<i64>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![1]
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
         );
 
         let mut invocation = script.prepare_invoke();
@@ -1185,12 +1281,16 @@ mod tests {
             .arg(false);
 
         // test that refund key is used
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<i64>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![-4]
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: false,
+                    consumed: -4,
+                },
+            ],
+        )
+        "
         );
     }
 }
