@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
+
 ## 25.11.0
 
 **Breaking Changes**:
