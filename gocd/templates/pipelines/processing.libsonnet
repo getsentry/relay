@@ -6,9 +6,9 @@ local single_tenants = ['disney', 'geico', 'goldmansachs', 'ly', 's4s'];
 
 // List of datadog monitors to check during the soak time in the different regions
 local soak_monitors = {
-  s4s: '14146876 154096671 154096678 237863001',
-  us: '14146876 154096671 154096678 237862997',
-  default: '14146876 154096671 154096678',
+  s4s: '14146876 154096678 237863001',
+  us: '14146876 154096671 237862997',
+  default: '14146876',
 };
 
 // The purpose of this stage is to let the deployment soak for a while and
