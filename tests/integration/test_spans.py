@@ -356,7 +356,7 @@ def test_duplicate_performance_score(mini_sentry, relay):
         envelope = mini_sentry.get_captured_event()
         for item in envelope.items:
             if item.type == "metric_buckets":
-                for metric in item.payload.json:
+                for metric in json.loads(item.payload.get_bytes()):
                     if (
                         metric["name"]
                         == "d:transactions/measurements.score.total@ratio"
