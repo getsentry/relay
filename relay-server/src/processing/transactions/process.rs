@@ -1,3 +1,4 @@
+use std::isize;
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
@@ -254,10 +255,24 @@ pub fn extract_metrics(
                 ctx,
                 sampling_decision,
                 metrics_extracted: work.flags.metrics_extracted,
-                spans_extracted: work.flags.spans_extracted,
+                spans_extracted: work.flags.spans_extracted, // TODO: what does fn do with this flag?
             },
         )?
         .0;
+
+        // TODO: remove `(SpanIndexed, 0)` from bookkeeping.
+
+        // The extracted metrics now take over the "total" data categories.
+        record_keeper.modify_by(DataCategory::Transaction, -1);
+        record_keeper.modify_by(
+            DataCategory::Span,
+            -dbg!(
+                work.count_embedded_spans_and_self()
+                    .try_into()
+                    .unwrap_or(isize::MAX)
+            ),
+        );
+
         Ok::<_, Error>(ExpandedTransaction::<IndexedTransaction>::from(work))
     })?;
 

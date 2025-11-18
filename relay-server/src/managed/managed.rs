@@ -761,8 +761,8 @@ impl<'a> RecordKeeper<'a> {
 
         let mut sums = debug::Quantities::from(&original).0;
         for (category, offset) in &self.modifications {
-            let v = sums.entry(*category).or_default();
-            match v.checked_add_signed(*offset) {
+            let v = dbg!(sums.entry(dbg!(*category)).or_default());
+            match dbg!(v.checked_add_signed(*offset)) {
                 Some(result) => *v = result,
                 None => emit!(
                     category,

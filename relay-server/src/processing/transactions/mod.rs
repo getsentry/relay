@@ -347,6 +347,17 @@ impl<T: Into<Annotated<Event>>> ExpandedTransaction<T> {
     }
 }
 
+impl<T: Counted + AsRef<Annotated<Event>>> ExpandedTransaction<T> {
+    fn count_embedded_spans_and_self(&self) -> usize {
+        1 + self
+            .transaction
+            .as_ref()
+            .value()
+            .and_then(|e| e.spans.value())
+            .map_or(0, Vec::len)
+    }
+}
+
 impl<T: Counted + AsRef<Annotated<Event>>> Counted for ExpandedTransaction<T> {
     fn quantities(&self) -> Quantities {
         let Self {
@@ -361,12 +372,9 @@ impl<T: Counted + AsRef<Annotated<Event>>> Counted for ExpandedTransaction<T> {
         let mut quantities = transaction.quantities();
         if !flags.spans_extracted {
             // TODO: encode this flag into the type and remove `extracted_spans` from the "BeforeSpanExtraction" type.
+            // TODO: write span_count header in fast path.
             debug_assert!(extracted_spans.0.is_empty());
-            let span_count = 1 + transaction
-                .as_ref()
-                .value()
-                .and_then(|e| e.spans.value())
-                .map_or(0, Vec::len);
+            let span_count = self.count_embedded_spans_and_self();
             quantities.push((DataCategory::SpanIndexed, span_count));
             // TODO: instead of looking at the flag, depend on `T`
             if !flags.metrics_extracted {

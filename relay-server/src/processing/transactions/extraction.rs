@@ -104,7 +104,7 @@ pub fn extract_metrics(
         }
         None => {
             relay_log::debug!("Legacy transaction metrics config is missing");
-            return Ok(EventMetricsExtracted(metrics_extracted));
+            return Ok(EventMetricsExtracted(dbg!(metrics_extracted)));
         }
     };
 
