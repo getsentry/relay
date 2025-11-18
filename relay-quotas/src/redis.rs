@@ -2,7 +2,7 @@ use std::fmt::{self, Debug};
 
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
-use relay_redis::redis::{FromRedisValue, Script};
+use relay_redis::redis::{self, FromRedisValue, Script};
 use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 use thiserror::Error;
 
@@ -378,10 +378,10 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
 struct ScriptResult(Vec<QuotaState>);
 
 impl FromRedisValue for ScriptResult {
-    fn from_redis_value(v: &relay_redis::redis::Value) -> relay_redis::redis::RedisResult<Self> {
+    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
         let Some(seq) = v.as_sequence() else {
-            return Err(relay_redis::redis::RedisError::from((
-                relay_redis::redis::ErrorKind::TypeError,
+            return Err(redis::RedisError::from((
+                redis::ErrorKind::TypeError,
                 "Expected a sequence from the rate limiting script",
                 format!("{v:?}"),
             )));
@@ -389,8 +389,8 @@ impl FromRedisValue for ScriptResult {
 
         let (chunks, rem) = seq.as_chunks();
         if !rem.is_empty() {
-            return Err(relay_redis::redis::RedisError::from((
-                relay_redis::redis::ErrorKind::TypeError,
+            return Err(redis::RedisError::from((
+                redis::ErrorKind::TypeError,
                 "Expected an even number of values from the rate limiting script",
                 format!("{v:?}"),
             )));
