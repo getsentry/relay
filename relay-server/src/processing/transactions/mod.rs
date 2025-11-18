@@ -1,5 +1,6 @@
 #![expect(unused)]
 use std::collections::BTreeMap;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
@@ -19,6 +20,7 @@ use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
+use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
@@ -138,7 +140,7 @@ impl Processor for TransactionProcessor {
 
         let work = SerializedTransaction {
             headers,
-            transaction,
+            event: transaction,
             attachments,
             profile,
         };
@@ -220,7 +222,7 @@ impl Processor for TransactionProcessor {
             if !indexed.flags.fully_normalized {
                 relay_log::error!(
                     tags.project = %project_id,
-                    tags.ty = event_type(&indexed.transaction.0).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                    tags.ty = event_type(&indexed.event.0).map(|e| e.to_string()).unwrap_or("none".to_owned()),
                     "ingested event without normalizing"
                 );
             };
@@ -234,7 +236,7 @@ impl Processor for TransactionProcessor {
         self.limiter.enforce_quotas(&mut work, ctx).await?;
 
         Ok(Output {
-            main: Some(TransactionOutput::Full(work)),
+            main: Some(TransactionOutput::TotalAndIndexed(work)),
             metrics: None,
         })
     }
@@ -244,7 +246,7 @@ impl Processor for TransactionProcessor {
 #[derive(Debug)]
 pub struct SerializedTransaction {
     headers: EnvelopeHeaders,
-    transaction: Item,
+    event: Item,
     attachments: Items,
     profile: Option<Item>,
 }
@@ -253,16 +255,16 @@ impl Counted for SerializedTransaction {
     fn quantities(&self) -> Quantities {
         let Self {
             headers: _,
-            transaction,
+            event,
             attachments,
             profile,
         } = self;
-        let mut quantities = transaction.quantities();
-        debug_assert!(!transaction.spans_extracted());
+        let mut quantities = event.quantities();
+        debug_assert!(!event.spans_extracted());
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
 
-        let span_count = (transaction.span_count() + 1) as usize;
+        let span_count = (event.span_count() + 1) as usize;
         quantities.extend([
             (DataCategory::Span, span_count),
             (DataCategory::SpanIndexed, span_count),
@@ -277,41 +279,46 @@ impl Counted for SerializedTransaction {
 /// The type parameter indicates whether metrics were already extracted, which changes how
 /// we count the transaction (total vs indexed).
 #[derive(Debug)]
-pub struct ExpandedTransaction<T> {
+pub struct ExpandedTransaction<C> {
     headers: EnvelopeHeaders,
-    transaction: T, // might be empty
+    event: Annotated<Event>,
     flags: Flags,
     attachments: Items,
     profile: Option<Item>,
     extracted_spans: ExtractedSpans,
+
+    #[expect(unused, reason = "marker field, only set never read")]
+    category: C,
 }
 
-impl From<ExpandedTransaction<Transaction>> for ExpandedTransaction<IndexedTransaction> {
-    fn from(value: ExpandedTransaction<Transaction>) -> Self {
+impl From<ExpandedTransaction<TotalAndIndexed>> for ExpandedTransaction<Indexed> {
+    fn from(value: ExpandedTransaction<TotalAndIndexed>) -> Self {
         let ExpandedTransaction {
             headers,
-            transaction,
+            event,
             flags,
             attachments,
             profile,
             extracted_spans,
+            category,
         } = value;
         Self {
             headers,
-            transaction: IndexedTransaction::from(transaction),
+            event,
             flags,
             attachments,
             profile,
             extracted_spans,
+            category: Indexed,
         }
     }
 }
 
-impl<T: Into<Annotated<Event>>> ExpandedTransaction<T> {
+impl<T> ExpandedTransaction<T> {
     fn serialize_envelope(self) -> Result<Box<Envelope>, serde_json::Error> {
         let Self {
             headers,
-            transaction,
+            event,
             flags:
                 Flags {
                     metrics_extracted,
@@ -321,9 +328,8 @@ impl<T: Into<Annotated<Event>>> ExpandedTransaction<T> {
             attachments,
             profile,
             extracted_spans,
+            category,
         } = self;
-
-        let event = transaction.into();
 
         let mut items = smallvec![];
         if !event.is_empty() {
@@ -347,39 +353,69 @@ impl<T: Into<Annotated<Event>>> ExpandedTransaction<T> {
     }
 }
 
-impl<T: Counted + AsRef<Annotated<Event>>> ExpandedTransaction<T> {
+impl<T> ExpandedTransaction<T> {
     fn count_embedded_spans_and_self(&self) -> usize {
         1 + self
-            .transaction
-            .as_ref()
+            .event
             .value()
             .and_then(|e| e.spans.value())
             .map_or(0, Vec::len)
     }
 }
 
-impl<T: Counted + AsRef<Annotated<Event>>> Counted for ExpandedTransaction<T> {
+impl Counted for ExpandedTransaction<TotalAndIndexed> {
     fn quantities(&self) -> Quantities {
         let Self {
             headers: _,
-            transaction,
+            event: transaction,
             flags,
             attachments,
             profile,
             extracted_spans,
+            category,
         } = self;
+        debug_assert!(!flags.metrics_extracted);
+        let mut quantities = smallvec![
+            (DataCategory::Transaction, 1),
+            (DataCategory::TransactionIndexed, 1),
+        ];
 
-        let mut quantities = transaction.quantities();
+        // For now, span extraction happens after metrics extraction:
+        debug_assert!(!flags.spans_extracted);
+        debug_assert!(extracted_spans.0.is_empty());
+
+        let span_count = self.count_embedded_spans_and_self();
+        quantities.extend([
+            (DataCategory::Span, span_count),
+            (DataCategory::SpanIndexed, span_count),
+        ]);
+
+        quantities.extend(attachments.quantities());
+        quantities.extend(profile.quantities());
+
+        quantities
+    }
+}
+
+impl Counted for ExpandedTransaction<Indexed> {
+    fn quantities(&self) -> Quantities {
+        let Self {
+            headers: _,
+            event: transaction,
+            flags,
+            attachments,
+            profile,
+            extracted_spans,
+            category,
+        } = self;
+        debug_assert!(flags.metrics_extracted);
+        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
         if !flags.spans_extracted {
             // TODO: encode this flag into the type and remove `extracted_spans` from the "BeforeSpanExtraction" type.
             // TODO: write span_count header in fast path.
-            debug_assert!(extracted_spans.0.is_empty());
+            debug_assert!(!extracted_spans.0.is_empty());
             let span_count = self.count_embedded_spans_and_self();
             quantities.push((DataCategory::SpanIndexed, span_count));
-            // TODO: instead of looking at the flag, depend on `T`
-            if !flags.metrics_extracted {
-                quantities.push((DataCategory::Span, span_count));
-            }
         }
 
         quantities.extend(attachments.quantities());
@@ -388,14 +424,17 @@ impl<T: Counted + AsRef<Annotated<Event>>> Counted for ExpandedTransaction<T> {
         if !extracted_spans.0.is_empty() {
             // For now, span extraction always happens at the very end:
             debug_assert!(flags.metrics_extracted);
+            quantities.extend(extracted_spans.quantities());
         }
-        quantities.extend(extracted_spans.quantities());
 
         quantities
     }
 }
 
-impl<T: Counted + AsRef<Annotated<Event>>> RateLimited for Managed<ExpandedTransaction<T>> {
+impl<T> RateLimited for Managed<ExpandedTransaction<T>>
+where
+    ExpandedTransaction<T>: Counted,
+{
     type Error = Error;
 
     async fn enforce<R>(
@@ -410,11 +449,12 @@ impl<T: Counted + AsRef<Annotated<Event>>> RateLimited for Managed<ExpandedTrans
 
         let ExpandedTransaction {
             headers: _,
-            transaction,
+            event: transaction,
             flags,
             attachments,
             profile,
             extracted_spans,
+            category,
         } = self.as_ref();
 
         // If there is a transaction limit, drop everything.
@@ -510,88 +550,11 @@ struct Flags {
     fully_normalized: bool,
 }
 
-/// A wrapper for transactions that counts the total and indexed category.
-#[derive(Debug)]
-pub struct Transaction(Annotated<Event>);
-
-impl AsRef<Annotated<Event>> for Transaction {
-    fn as_ref(&self) -> &Annotated<Event> {
-        &self.0
-    }
-}
-
-impl AsMut<Annotated<Event>> for Transaction {
-    fn as_mut(&mut self) -> &mut Annotated<Event> {
-        &mut self.0
-    }
-}
-
-impl From<Transaction> for Annotated<Event> {
-    fn from(val: Transaction) -> Self {
-        val.0
-    }
-}
-
-impl Counted for Transaction {
-    fn quantities(&self) -> Quantities {
-        debug_assert!(
-            self.0
-                .value()
-                .is_none_or(|event| event.ty.value() == Some(&EventType::Transaction))
-        );
-        smallvec![
-            (DataCategory::TransactionIndexed, 1),
-            (DataCategory::Transaction, 1),
-        ]
-    }
-}
-
-/// Same as [`Transaction`], but only reports the `TransactionIndexed` quantity.
-///
-/// After dynamic sampling & metrics extraction, the total category is owned by `ExtractedMetrics`.
-#[derive(Debug)]
-pub struct IndexedTransaction(Annotated<Event>);
-
-impl AsRef<Annotated<Event>> for IndexedTransaction {
-    fn as_ref(&self) -> &Annotated<Event> {
-        &self.0
-    }
-}
-
-impl AsMut<Annotated<Event>> for IndexedTransaction {
-    fn as_mut(&mut self) -> &mut Annotated<Event> {
-        &mut self.0
-    }
-}
-
-impl From<IndexedTransaction> for Annotated<Event> {
-    fn from(val: IndexedTransaction) -> Self {
-        val.0
-    }
-}
-
-impl From<Transaction> for IndexedTransaction {
-    fn from(value: Transaction) -> Self {
-        Self(value.0)
-    }
-}
-
-impl Counted for IndexedTransaction {
-    fn quantities(&self) -> Quantities {
-        debug_assert!(
-            self.0
-                .value()
-                .is_none_or(|event| event.ty.value() == Some(&EventType::Transaction))
-        );
-        smallvec![(DataCategory::TransactionIndexed, 1)]
-    }
-}
-
 /// Output of the transaction processor.
 #[derive(Debug)]
 pub enum TransactionOutput {
-    Full(Managed<ExpandedTransaction<Transaction>>),
-    Indexed(Managed<ExpandedTransaction<IndexedTransaction>>),
+    TotalAndIndexed(Managed<ExpandedTransaction<TotalAndIndexed>>),
+    Indexed(Managed<ExpandedTransaction<Indexed>>),
     OnlyProfile(Managed<ProfileWithHeaders>),
 }
 
@@ -599,8 +562,8 @@ impl TransactionOutput {
     #[cfg(test)]
     pub fn event(self) -> Option<Annotated<Event>> {
         match self {
-            Self::Full(managed) => Some(managed.accept(|x| x).transaction.0),
-            Self::Indexed(managed) => Some(managed.accept(|x| x).transaction.0),
+            Self::TotalAndIndexed(managed) => Some(managed.accept(|x| x).event),
+            Self::Indexed(managed) => Some(managed.accept(|x| x).event),
             Self::OnlyProfile(managed) => None,
         }
     }
@@ -612,7 +575,7 @@ impl Forward for TransactionOutput {
         ctx: ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         match self {
-            TransactionOutput::Full(managed) => managed.try_map(|output, _| {
+            TransactionOutput::TotalAndIndexed(managed) => managed.try_map(|output, _| {
                 output
                     .serialize_envelope()
                     .map_err(drop)

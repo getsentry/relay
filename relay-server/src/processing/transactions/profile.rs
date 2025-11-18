@@ -13,7 +13,8 @@ use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, Quantities, RecordKeeper};
-use crate::processing::transactions::{Error, ExpandedTransaction, Transaction};
+use crate::processing::spans::TotalAndIndexed;
+use crate::processing::transactions::{Error, ExpandedTransaction};
 use crate::processing::{Context, CountRateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::utils::should_filter;
@@ -49,7 +50,7 @@ impl CountRateLimited for Managed<ProfileWithHeaders> {
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
 pub fn filter(
-    work: &mut ExpandedTransaction<Transaction>,
+    work: &mut ExpandedTransaction<TotalAndIndexed>,
     record_keeper: &mut RecordKeeper,
     ctx: Context,
     project_id: ProjectId,
@@ -61,12 +62,6 @@ pub fn filter(
     if should_filter(ctx.config, ctx.project_info, feature) {
         record_keeper.reject_err(
             Outcome::Invalid(DiscardReason::FeatureDisabled(feature)),
-            work.profile.take(),
-        );
-    } else if work.transaction.0.value().is_none() && profile_item.sampled() {
-        // A profile with `sampled=true` should never be without a transaction
-        record_keeper.reject_err(
-            Outcome::Invalid(DiscardReason::Profiling("missing_transaction")),
             work.profile.take(),
         );
     } else {
