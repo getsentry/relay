@@ -159,7 +159,7 @@ fn map_vercel_level_to_sentry(level: VercelLogLevel) -> OurLogLevel {
     }
 }
 
-fn get_trace_id(trace_id: Option<String>, request_id: Option<String>) -> Annotated<TraceId> {
+fn get_trace_id(trace_id: Option<&String>, request_id: Option<&String>) -> Annotated<TraceId> {
     match trace_id {
         Some(s) if !s.is_empty() => match s.parse::<TraceId>() {
             Ok(id) => Annotated::new(id),
@@ -167,21 +167,14 @@ fn get_trace_id(trace_id: Option<String>, request_id: Option<String>) -> Annotat
                 meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.invalid"));
             }),
         },
-        _ => {
-            if let Some(request_id_string) = request_id {
-                if let Ok(id) = request_id_string.parse::<TraceId>() {
-                    Annotated::new_with_meta(id, |meta| {
-                        meta.add_remark(Remark::new(
-                            RemarkType::Substituted,
-                            "trace_id.replaced_with_request_id",
-                        ));
-                    });
-                }
-            }
-            Annotated::new_with_meta(TraceId::random(), |meta| {
-                meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
-            });
-        }
+        _ => request_id
+            .and_then(|s| s.parse::<TraceId>().ok())
+            .map(Annotated::new)
+            .unwrap_or_else(|| {
+                Annotated::new_with_meta(TraceId::random(), |meta| {
+                    meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
+                })
+            }),
     }
 }
 
@@ -223,6 +216,7 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
         span_id,
         proxy,
     } = vercel_log;
+    let trace_id = get_trace_id(trace_id.as_ref(), request_id.as_ref());
 
     let mut attributes: Attributes = Attributes::default();
 
@@ -322,7 +316,7 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
 
     OurLog {
         timestamp,
-        trace_id: get_trace_id(trace_id, request_id),
+        trace_id,
         span_id: get_span_id(span_id),
         level: Annotated::new(map_vercel_level_to_sentry(level)),
         body: Annotated::new(message.unwrap_or_default()),
