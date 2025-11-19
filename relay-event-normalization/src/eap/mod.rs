@@ -43,6 +43,16 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
             (Annotated(Some(Double), _), Annotated(Some(Value::U64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::F64(_)), _)) => (),
             (Annotated(Some(String), _), Annotated(Some(Value::String(_)), _)) => (),
+            (Annotated(Some(Array), _), Annotated(Some(Value::Array(arr)), _)) => {
+                // TODO: implement this check
+                let is_supported_array = arr.iter().all(|v| v.value().is_some());
+
+                if !is_supported_array {
+                    let original = attribute.value_mut().take();
+                    attribute.meta_mut().add_error(ErrorKind::InvalidData);
+                    attribute.meta_mut().set_original_value(original);
+                }
+            }
             // Note: currently the mapping to Kafka requires that invalid or unknown combinations
             // of types and values are removed from the mapping.
             //
