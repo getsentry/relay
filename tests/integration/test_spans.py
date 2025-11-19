@@ -1423,9 +1423,11 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
         }
         assert usage_metrics() == (0, 0)
     elif category == "transaction_indexed":
+        # We do not check indexed limits on the fast path,
+        # so we count the correct number of spans (ignoring the span_count header):
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (16, 2): expected_span_count,  # SpanIndexed, Rate Limited
+            (16, 2): 2,  # SpanIndexed, Rate Limited
         }
         # Metrics are always correct:
         assert usage_metrics() == (1, 2)
