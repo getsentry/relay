@@ -136,6 +136,7 @@ pub fn serialize<Group: EventProcessing>(
     event_item.set_metrics_extracted(event_metrics_extracted.0);
     event_item.set_spans_extracted(spans_extracted.0);
     event_item.set_fully_normalized(event_fully_normalized.0);
+    event_item.set_span_count(event.value().and_then(|e| e.spans.value()).map(Vec::len));
 
     managed_envelope.envelope_mut().add_item(event_item);
 

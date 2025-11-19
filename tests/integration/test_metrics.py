@@ -108,7 +108,7 @@ def test_metrics_proxy_mode_buckets(mini_sentry, relay):
     relay.send_metrics_buckets(project_id, [bucket])
 
     envelope = mini_sentry.get_captured_event()
-    payload = envelope.items[0].payload.json[0]
+    payload = json.loads(envelope.items[0].payload.get_bytes())[0]
     assert payload["name"] == bucket_name
 
 
@@ -1691,7 +1691,7 @@ def test_histogram_outliers(mini_sentry, relay):
         envelope = mini_sentry.get_captured_event()
         for item in envelope:
             if item.type == "metric_buckets":
-                buckets = item.payload.json
+                buckets = json.loads(item.payload.get_bytes())
                 for bucket in buckets:
                     if outlier := bucket.get("tags", {}).get("histogram_outlier"):
                         tags[bucket["name"]] = outlier

@@ -4,6 +4,17 @@
 
 **Features**:
 
+- Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
+- Add `span_count` item header to the envelope protocol. ([#5392](https://github.com/getsentry/relay/pull/5392))
+
+## 25.11.0
+
+**Breaking Changes**:
+
+- Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
+
+**Features**:
+
 - Only apply non-destructive PII rules to log bodies by default. ([#5272](https://github.com/getsentry/relay/pull/5272))
 - Allow configuring separate http server for internal routes. ([#5352](https://github.com/getsentry/relay/pull/5352))
 - Infer the client ip when set to `{{auto}}` for EAP items. ([#5304](https://github.com/getsentry/relay/pull/5304))
@@ -15,10 +26,7 @@
 - Replace `is_remote` with `is_segment` on the Span V2 schema. ([#5306](https://github.com/getsentry/relay/pull/5306))
 - Add `response_timeout` config setting for Redis. ([#5329](https://github.com/getsentry/relay/pull/5329))
 - Remove `projects:discard-transaction` feature flag. ([#5307](https://github.com/getsentry/relay/pull/5307))
-
-**Breaking Changes**:
-
-- Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
+- Add SEER_USER data category. ([#5383](https://github.com/getsentry/relay/pull/5383))
 
 **Bug Fixes**:
 
@@ -40,6 +48,7 @@
 - Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
 - Remove the span kind from the Kafka span schema. ([#5368](https://github.com/getsentry/relay/pull/5368))
 - Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5308))
+
 
 ## 25.10.0
 

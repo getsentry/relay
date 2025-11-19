@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.10.0"
+version = "25.11.0"
 edition = "2024"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -57,6 +57,7 @@ liblzma = { workspace = true }
 mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
+objectstore-client = { workspace = true }
 opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }

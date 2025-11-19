@@ -97,7 +97,7 @@ module.exports = async ({ github, context, core }) => {
     }
 
     // From: <https://develop.sentry.dev/engineering-practices/commit-messages/>.
-    const TITLE_RE = /^(ci|build|docs|feat|fix|perf|ref|style|test|meta|license)(\([^)]+\))?: [A-Z`'"].*[^,.]$/;
+    const TITLE_RE = /^(ci|build|docs|feat|fix|perf|ref|style|chore|test|meta|license)(\([^)]+\))?: [A-Z`'"].*[^,.]$/;
 
     if (pr.title.match(TITLE_RE) === null && !isRevert(pr.title)) {
       core.setFailed('PR title does not match Sentry conventions.');
