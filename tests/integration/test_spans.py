@@ -1368,6 +1368,8 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     end = start + timedelta(seconds=1)
 
     envelope = envelope_with_transaction_and_spans(start, end)
+    if span_count_header is not None:
+        envelope.items[0].headers["span_count"] = span_count_header
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
@@ -1423,7 +1425,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (16, 2): expected_span_count,  # SpanIndexed, Rate Limited
+            (16, 2): 2,  # SpanIndexed, Rate Limited
         }
         # Metrics are always correct:
         assert usage_metrics() == (1, 2)
