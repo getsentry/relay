@@ -389,6 +389,8 @@ pub enum RelayTimers {
     ///
     /// This metric is tagged with:
     ///  - `type`: The type of limiter executed, `cached` or `consistent`.
+    ///  - `unit`: The item/unit of work which is being rate limited, only available for new
+    ///    processing pipelines.
     EventProcessingRateLimiting,
     /// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens
     /// last before serializing the event back to JSON.
