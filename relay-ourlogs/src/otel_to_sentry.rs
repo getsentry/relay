@@ -7,7 +7,7 @@ use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLogRecord;
-use relay_conventions::ORIGIN;
+use relay_conventions::{EVENT_NAME, ORIGIN};
 
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
@@ -59,6 +59,7 @@ pub fn otel_to_sentry_log(
         attributes,
         trace_id,
         span_id,
+        event_name,
         ..
     } = otel_log;
 
@@ -76,6 +77,7 @@ pub fn otel_to_sentry_log(
 
     let mut attribute_data = Attributes::default();
     attribute_data.insert(ORIGIN, "auto.otlp.logs".to_owned());
+    attribute_data.insert(EVENT_NAME, event_name.to_owned());
 
     relay_otel::otel_scope_into_attributes(&mut attribute_data, resource, scope);
 
