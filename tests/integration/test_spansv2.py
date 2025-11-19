@@ -72,6 +72,7 @@ def test_spansv2_basic(
             "status": "ok",
             "attributes": {
                 "foo": {"value": "bar", "type": "string"},
+                "array": {"value": ["foo", "bar"], "type": "array"},
                 "invalid": {"value": True, "type": "string"},
                 "http.response_content_length": {"value": 17, "type": "integer"},
             },
@@ -91,6 +92,7 @@ def test_spansv2_basic(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
         "attributes": {
+            "array": {"type": "array", "value": ["foo", "bar"]},
             "foo": {"type": "string", "value": "bar"},
             "http.response_content_length": {"value": 17, "type": "integer"},
             "http.response.body.size": {"value": 17, "type": "integer"},

@@ -128,13 +128,13 @@ def test_ourlog_multiple_containers_not_allowed(
         # 296 here is a billing relevant metric, do not arbitrarily change it,
         # this value is supposed to be static and purely based on data received,
         # independent of any normalization.
-        (None, 296),
+        (None, 336),
         # Same applies as above, a proxy Relay does not need to run normalization.
-        ("proxy", 296),
+        ("proxy", 336),
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 521),
+        ("managed", 550),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -199,6 +199,8 @@ def test_ourlog_extraction_with_sentry_logs(
                 "unknown_type": {"value": "info", "type": "unknown"},
                 "broken_type": {"value": "info", "type": "not_a_real_type"},
                 "mismatched_type": {"value": "some string", "type": "boolean"},
+                "string_array": {"value": ["foo", "bar"], "type": "array"},
+                "mixed_array": {"value": ["foo", 3.0], "type": "array"},
                 "valid_string_with_other": {
                     "value": "test",
                     "type": "string",
@@ -240,6 +242,9 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry._meta.fields.attributes.broken_type": {
                     "stringValue": '{"meta":{"":{"err":["invalid_data"],"val":{"type":"not_a_real_type","value":"info"}}}}'
                 },
+                "sentry._meta.fields.attributes.mixed_array": {
+                    "stringValue": '{"meta":{"":{"err":["invalid_data"]}}}'
+                },
                 "sentry._meta.fields.attributes.mismatched_type": {
                     "stringValue": '{"meta":{"":{"err":["invalid_data"],"val":{"type":"boolean","value":"some '
                     'string"}}}}'
@@ -263,6 +268,11 @@ def test_ourlog_extraction_with_sentry_logs(
                 "http.response.body.size": {"intValue": "17"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "string.attribute": {"stringValue": "some string"},
+                "string_array": {
+                    "arrayValue": {
+                        "values": [{"stringValue": "foo"}, {"stringValue": "bar"}]
+                    }
+                },
                 "valid_string_with_other": {"stringValue": "test"},
                 **timestamps(ts),
             },
