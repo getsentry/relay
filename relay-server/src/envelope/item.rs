@@ -14,6 +14,7 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
+use crate::statsd::RelayTimers;
 
 #[derive(Clone, Debug)]
 pub struct Item {
@@ -192,32 +193,41 @@ impl Item {
         }
     }
 
-    /// Returns the number of spans in `event.spans`.
+    /// Returns the number of spans in the `event.spans` array.
+    ///
+    /// Should always be 0 except for transaction items.
+    ///
+    /// When a transaction is dropped before spans were extracted from a transaction,
+    /// this number is used to emit correct outcomes for the spans category.
+    ///
+    /// This number does *not* count the transaction itself.
     pub fn span_count(&self) -> usize {
         self.headers.span_count.unwrap_or(0)
     }
 
-    #[cfg(test)]
-    pub fn set_span_count(&mut self, value: usize) {
-        self.headers.span_count = Some(value);
+    /// Sets the number of spans in the transaction payload.
+    pub fn set_span_count(&mut self, value: Option<usize>) {
+        self.headers.span_count = value;
     }
 
     /// Sets the `span_count` item header by shallow parsing the event.
     ///
     /// Returns the recomputed count.
-    pub fn refresh_span_count(&mut self) -> usize {
+    fn refresh_span_count(&mut self) -> usize {
         let count = self.parse_span_count();
         self.headers.span_count = count;
         count.unwrap_or(0)
     }
 
-    /// Returns the span_count header, and computes it if it is not yet set.
-    ///
-    /// Returns the recomputed count.
+    /// Returns the `span_count`` header, and computes it if it has not yet been set.
     pub fn ensure_span_count(&mut self) -> usize {
         match self.headers.span_count {
             Some(count) => count,
-            None => self.refresh_span_count(),
+            None => {
+                relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
+                    self.refresh_span_count()
+                })
+            }
         }
     }
 

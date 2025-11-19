@@ -1425,7 +1425,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (16, 2): 2,  # SpanIndexed, Rate Limited
+            (16, 2): expected_span_count,  # SpanIndexed, Rate Limited
         }
         # Metrics are always correct:
         assert usage_metrics() == (1, 2)
