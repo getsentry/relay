@@ -442,6 +442,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-rerunfailures"
+version = "15.0"
+source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+dependencies = [
+    { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "pytest", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/pytest_rerunfailures-15.0-py3-none-any.whl", hash = "sha256:dd150c4795c229ef44320adc9a0c0532c51b78bb7a6843a8c53556b9a611df1a" },
+]
+
+[[package]]
 name = "pytest-sentry"
 version = "0.3.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
@@ -519,6 +531,7 @@ dev = [
     { name = "pre-commit", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest-localserver", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "pytest-rerunfailures", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest-sentry", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest-timeout", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest-xdist", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -558,6 +571,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pytest", specifier = ">=7.4.3" },
     { name = "pytest-localserver", specifier = ">=0.8.1" },
+    { name = "pytest-rerunfailures", specifier = ">=15.0" },
     { name = "pytest-sentry", specifier = ">=0.3.0" },
     { name = "pytest-timeout", specifier = ">=2.2.0" },
     { name = "pytest-xdist", specifier = ">=3.5.0" },

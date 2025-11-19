@@ -116,7 +116,7 @@ def test_batch_size_bytes_asserted(mini_sentry, relay):
     assert relay.wait_for_exit() != 0, "Expected Relay to not start, but it started"
 
 
-@pytest.mark.skip("Flaky test")
+@pytest.mark.flaky(reruns=3)
 def test_forced_shutdown(mini_sentry, relay):
     from time import sleep
 

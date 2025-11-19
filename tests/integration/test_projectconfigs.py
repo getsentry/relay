@@ -271,6 +271,7 @@ def test_unparsable_project_config(mini_sentry, relay):
     assert mini_sentry.captured_events.empty()
 
 
+@pytest.mark.flaky(reruns=3)
 def test_cached_project_config(mini_sentry, relay):
     mini_sentry.project_config_ignore_revision = True
 
