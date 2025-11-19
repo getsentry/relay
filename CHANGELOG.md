@@ -26,6 +26,7 @@
 - Add `response_timeout` config setting for Redis. ([#5329](https://github.com/getsentry/relay/pull/5329))
 - Remove `projects:discard-transaction` feature flag. ([#5307](https://github.com/getsentry/relay/pull/5307))
 - Add SEER_USER data category. ([#5383](https://github.com/getsentry/relay/pull/5383))
+- Add `span_count` item header to the envelope protocol. ([#5392](https://github.com/getsentry/relay/pull/5392))
 
 **Bug Fixes**:
 
