@@ -1196,9 +1196,11 @@ impl EnvelopeProcessorService {
 
         #[cfg(feature = "processing")]
         let rate_limiter = match (quotas.clone(), global_rate_limits) {
-            (Some(redis), Some(global)) => {
-                Some(RedisRateLimiter::new(redis, global).max_limit(config.max_rate_limit()))
-            }
+            (Some(redis), Some(global)) => Some(
+                RedisRateLimiter::new(redis, global)
+                    .max_limit(config.max_rate_limit())
+                    .cache(config.quota_cache_percentage()),
+            ),
             _ => None,
         };
 
