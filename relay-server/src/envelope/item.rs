@@ -232,11 +232,7 @@ impl Item {
     pub fn ensure_span_count(&mut self) -> usize {
         match self.headers.span_count {
             Some(count) => count,
-            None => {
-                relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
-                    self.refresh_span_count()
-                })
-            }
+            None => self.refresh_span_count(),
         }
     }
 
@@ -582,7 +578,9 @@ impl Item {
             return None;
         }
 
-        let event = serde_json::from_slice::<PartialEvent>(&self.payload()).ok()?;
+        let event = relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
+            serde_json::from_slice::<PartialEvent>(&self.payload()).ok()?
+        });
 
         Some(event.spans.0)
     }
