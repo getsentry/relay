@@ -1,5 +1,9 @@
 use std::fmt::{self, Debug};
+use std::num::NonZeroI64;
+use std::sync::Arc;
 
+use relay_base_schema::metrics::MetricNamespace;
+use relay_base_schema::organization::OrganizationId;
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::{self, FromRedisValue, Script};
@@ -7,6 +11,7 @@ use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 use thiserror::Error;
 
 use crate::REJECT_ALL_SECS;
+use crate::cache::OpportunisticQuotaCache;
 use crate::global::GlobalLimiter;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
@@ -185,7 +190,7 @@ impl<'a> RedisQuota<'a> {
     /// The key includes the quota ID, organization ID, and other scoping information
     /// based on the quota's scope type. Keys are structured to ensure proper isolation
     /// between different organizations and scopes.
-    pub fn key(&self) -> String {
+    pub fn key(&self) -> QuotaKey {
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         let subscope = match self.quota.scope {
@@ -194,16 +199,13 @@ impl<'a> RedisQuota<'a> {
             scope => self.scoping.scope_id(scope),
         };
 
-        let org = self.scoping.organization_id;
-
-        format!(
-            "quota:{id}{{{org}}}{subscope}{namespace}:{slot}",
-            id = self.prefix,
-            org = org,
-            subscope = OptionalDisplay(subscope),
-            namespace = OptionalDisplay(self.namespace),
-            slot = self.slot(),
-        )
+        QuotaKey {
+            id: self.prefix.into(),
+            org: self.scoping.organization_id,
+            subscope,
+            namespace: self.namespace,
+            slot: self.slot(),
+        }
     }
 }
 
@@ -212,6 +214,29 @@ impl std::ops::Deref for RedisQuota<'_> {
 
     fn deref(&self) -> &Self::Target {
         self.quota
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct QuotaKey {
+    id: Arc<str>,
+    org: OrganizationId,
+    subscope: Option<u64>,
+    namespace: Option<MetricNamespace>,
+    slot: u64,
+}
+
+impl fmt::Display for QuotaKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "quota:{id}{{{org}}}{subscope}{namespace}:{slot}",
+            id = self.id,
+            org = self.org,
+            subscope = OptionalDisplay(self.subscope),
+            namespace = OptionalDisplay(self.namespace),
+            slot = self.slot,
+        )
     }
 }
 
@@ -228,6 +253,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 #[derive(Clone)]
 pub struct RedisRateLimiter<T> {
     client: AsyncRedisClient,
+    cache: Arc<OpportunisticQuotaCache<String>>,
     script: &'static Script,
     max_limit: Option<u64>,
     global_limiter: T,
@@ -238,6 +264,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
     pub fn new(client: AsyncRedisClient, global_limiter: T) -> Self {
         RedisRateLimiter {
             client,
+            cache: Arc::new(OpportunisticQuotaCache::new(NonZeroI64::new(100).unwrap())),
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limiter,
@@ -297,6 +324,13 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
                     global_quotas.push(quota);
                 } else {
                     let key = quota.key();
+
+                    // let quantity = match self.cache.foobar(&quota, quantity) {
+                    //     crate::cache::Action::Accept => continue,
+                    //     crate::cache::Action::Check(quantity) => quantity,
+                    // };
+
+                    let key = key.to_string();
                     // Remaining quotas are expected to be trackable in Redis.
                     let refund_key = get_refunded_quota_key(&key);
 
@@ -466,6 +500,7 @@ mod tests {
 
         RedisRateLimiter {
             client,
+            cache: Arc::new(OpportunisticQuotaCache::new(NonZeroI64::new(100).unwrap())),
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limiter,
@@ -986,7 +1021,7 @@ mod tests {
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
         let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
-        assert_eq!(redis_quota.key(), "quota:foo{69420}42:61561561");
+        assert_eq!(redis_quota.key().to_string(), "quota:foo{69420}42:61561561");
     }
 
     #[tokio::test]
@@ -1015,7 +1050,7 @@ mod tests {
 
         let timestamp = UnixTimestamp::from_secs(234_531);
         let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
-        assert_eq!(redis_quota.key(), "quota:foo{69420}:23453");
+        assert_eq!(redis_quota.key().to_string(), "quota:foo{69420}:23453");
     }
 
     #[tokio::test]

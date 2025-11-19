@@ -19,6 +19,7 @@ workspace = true
 [dependencies]
 async-trait = { workspace = true }
 hashbrown = { workspace = true }
+papaya = { workspace = true }
 itertools = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
