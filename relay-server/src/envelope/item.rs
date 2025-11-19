@@ -110,10 +110,19 @@ impl Item {
 
         match self.ty() {
             ItemType::Event => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Transaction => smallvec![
-                (DataCategory::Transaction, item_count),
-                (DataCategory::TransactionIndexed, item_count),
-            ],
+            ItemType::Transaction => {
+                let mut quantities = smallvec![
+                    (DataCategory::Transaction, item_count),
+                    (DataCategory::TransactionIndexed, item_count),
+                ];
+                if !self.spans_extracted() {
+                    quantities.extend([
+                        (DataCategory::Span, item_count + self.span_count()),
+                        (DataCategory::SpanIndexed, item_count + self.span_count()),
+                    ]);
+                }
+                quantities
+            }
             ItemType::Security | ItemType::RawSecurity => {
                 smallvec![(DataCategory::Security, item_count)]
             }
