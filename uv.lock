@@ -143,6 +143,14 @@ wheels = [
 ]
 
 [[package]]
+name = "filetype"
+version = "1.2.0"
+source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/filetype-1.2.0-py2.py3-none-any.whl", hash = "sha256:7ce71b6880181241cf7ac8697a2f1eb6a8bd9b429f7ad6d27b8db9ba5f1c2d25" },
+]
+
+[[package]]
 name = "flake8"
 version = "7.0.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
@@ -301,6 +309,20 @@ version = "1.9.1"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/nodeenv-1.9.1-py2.py3-none-any.whl", hash = "sha256:ba11c9782d29c27c70ffbdda2d7415098754709be8a7056d79a737cd901155c9" },
+]
+
+[[package]]
+name = "objectstore-client"
+version = "0.0.11"
+source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+dependencies = [
+    { name = "filetype", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "sentry-sdk", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "urllib3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "zstandard", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://pypi.devinfra.sentry.io/wheels/objectstore_client-0.0.11-py3-none-any.whl", hash = "sha256:ed435c7a0297a5b75bfc6a6a90257d1c54e7e2a10ff6b03085faacf604c1eb8b" },
 ]
 
 [[package]]
@@ -491,6 +513,7 @@ dev = [
     { name = "milksnake", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "msgpack", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "mypy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "objectstore-client", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "opentelemetry-proto", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pre-commit", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -529,6 +552,7 @@ dev = [
     { name = "milksnake", specifier = ">=0.1.6" },
     { name = "msgpack", specifier = ">=1.1.0" },
     { name = "mypy", specifier = ">=1.10.0" },
+    { name = "objectstore-client", specifier = "==0.0.11" },
     { name = "opentelemetry-proto", specifier = ">=1.32.1" },
     { name = "packaging", specifier = "==25.0" },
     { name = "pre-commit", specifier = ">=4.2.0" },
@@ -541,7 +565,7 @@ dev = [
     { name = "redis", specifier = ">=4.5.4" },
     { name = "requests", specifier = ">=2.32.4" },
     { name = "sentry-protos", specifier = ">=0.4.1" },
-    { name = "sentry-sdk", specifier = ">=2.30.0" },
+    { name = "sentry-sdk", specifier = ">=2.44.0" },
     { name = "setuptools", specifier = "==80.9.0" },
     { name = "types-protobuf", specifier = ">=5.27.0.20240626" },
     { name = "types-pyyaml", specifier = ">=6.0.12.10" },
@@ -594,14 +618,14 @@ wheels = [
 
 [[package]]
 name = "sentry-sdk"
-version = "2.30.0"
+version = "2.44.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
     { name = "certifi", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "urllib3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/sentry_sdk-2.30.0-py2.py3-none-any.whl", hash = "sha256:59391db1550662f746ea09b483806a631c3ae38d6340804a1a4c0605044f6877" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/sentry_sdk-2.44.0-py2.py3-none-any.whl", hash = "sha256:9e36a0372b881e8f92fdbff4564764ce6cec4b7f25424d0a3a8d609c9e4651a7" },
 ]
 
 [[package]]

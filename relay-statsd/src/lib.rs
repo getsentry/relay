@@ -142,6 +142,9 @@ impl MetricsClient {
         for (k, v) in &self.default_tags {
             metric = metric.with_tag(k, v);
         }
+        if self.sample_rate > 0.0 && self.sample_rate < 1.0 {
+            metric = metric.with_sampling_rate(self.sample_rate.into());
+        }
 
         if let Err(error) = metric.try_send() {
             relay_log::error!(

@@ -52,11 +52,11 @@ use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
+use crate::processing::transactions::extraction::ExtractMetricsContext;
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_category,
     event_type,
 };
-use crate::processing::utils::transaction::ExtractMetricsContext;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -76,6 +76,7 @@ use {
     crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
+    crate::services::upload::UploadAttachments,
     crate::utils::Enforcement,
     itertools::Itertools,
     relay_cardinality::{
@@ -660,6 +661,10 @@ impl ProcessingExtractedMetrics {
         }
     }
 
+    pub fn into_inner(self) -> ExtractedMetrics {
+        self.metrics
+    }
+
     /// Extends the contained metrics with [`ExtractedMetrics`].
     pub fn extend(
         &mut self,
@@ -882,8 +887,6 @@ struct ProcessEnvelopeGrouped<'a> {
     pub envelope: ManagedEnvelope,
     /// The processing context.
     pub ctx: processing::Context<'a>,
-    /// Sampling reservoir counters.
-    pub reservoir_counters: &'a ReservoirCounters,
 }
 
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
@@ -1102,6 +1105,8 @@ pub struct Addrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
+    pub upload: Option<Addr<UploadAttachments>>,
+    #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
     #[cfg(feature = "processing")]
@@ -1113,6 +1118,8 @@ impl Default for Addrs {
         Addrs {
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            upload: None,
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator: Addr::dummy(),
@@ -1349,24 +1356,22 @@ impl EnvelopeProcessorService {
             &mut event,
             attachments,
             &mut metrics,
-            &self.inner.config,
+            ctx.config,
         )?;
         event_fully_normalized = processing::utils::event::normalize(
             managed_envelope.envelope().headers(),
             &mut event,
             event_fully_normalized,
-            &ctx,
+            project_id,
+            ctx,
             &self.inner.geoip_lookup,
         )?;
-        let filter_run = processing::utils::event::filter(
-            managed_envelope.envelope().headers(),
-            &mut event,
-            &ctx,
-        )
-        .map_err(|err| {
-            managed_envelope.reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })?;
+        let filter_run =
+            processing::utils::event::filter(managed_envelope.envelope().headers(), &event, &ctx)
+                .map_err(|err| {
+                managed_envelope.reject(Outcome::Filtered(err.clone()));
+                ProcessingError::EventFiltered(err)
+            })?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             dynamic_sampling::tag_error_with_sampling_decision(
@@ -1383,7 +1388,7 @@ impl EnvelopeProcessorService {
             .await?;
 
         if event.value().is_some() {
-            event::scrub(&mut event, ctx.project_info)?;
+            processing::utils::event::scrub(&mut event, ctx.project_info)?;
             event::serialize(
                 managed_envelope,
                 &mut event,
@@ -1394,7 +1399,11 @@ impl EnvelopeProcessorService {
             event::emit_feedback_metrics(managed_envelope.envelope());
         }
 
-        attachment::scrub(managed_envelope, ctx.project_info);
+        let attachments = managed_envelope
+            .envelope_mut()
+            .items_mut()
+            .filter(|i| i.ty() == &ItemType::Attachment);
+        processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
@@ -1409,14 +1418,12 @@ impl EnvelopeProcessorService {
 
     /// Processes only transactions and transaction-related items.
     #[allow(unused_assignments)]
-    #[allow(clippy::too_many_arguments)]
     async fn process_transactions(
         &self,
         managed_envelope: &mut TypedEnvelope<TransactionGroup>,
         cogs: &mut Token,
         project_id: ProjectId,
         mut ctx: processing::Context<'_>,
-        reservoir_counters: &ReservoirCounters,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
         let mut event_metrics_extracted = EventMetricsExtracted(false);
@@ -1450,8 +1457,12 @@ impl EnvelopeProcessorService {
             project_id,
             ctx.project_info,
         );
-        profile::transfer_id(&mut event, profile_id);
-        profile::remove_context_if_rate_limited(&mut event, managed_envelope, ctx);
+        processing::transactions::profile::transfer_id(&mut event, profile_id);
+        processing::transactions::profile::remove_context_if_rate_limited(
+            &mut event,
+            managed_envelope.scoping(),
+            ctx,
+        );
 
         ctx.sampling_project_info = dynamic_sampling::validate_and_set_dsc(
             managed_envelope,
@@ -1476,19 +1487,17 @@ impl EnvelopeProcessorService {
             managed_envelope.envelope().headers(),
             &mut event,
             event_fully_normalized,
-            &ctx,
+            project_id,
+            ctx,
             &self.inner.geoip_lookup,
         )?;
 
-        let filter_run = processing::utils::event::filter(
-            managed_envelope.envelope().headers(),
-            &mut event,
-            &ctx,
-        )
-        .map_err(|err| {
-            managed_envelope.reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })?;
+        let filter_run =
+            processing::utils::event::filter(managed_envelope.envelope().headers(), &event, &ctx)
+                .map_err(|err| {
+                managed_envelope.reject(Outcome::Filtered(err.clone()));
+                ProcessingError::EventFiltered(err)
+            })?;
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
@@ -1500,14 +1509,14 @@ impl EnvelopeProcessorService {
         let sampling_result = match run_dynamic_sampling {
             true => {
                 #[allow(unused_mut)]
-                let mut reservoir = ReservoirEvaluator::new(Arc::clone(reservoir_counters));
+                let mut reservoir = ReservoirEvaluator::new(Arc::clone(ctx.reservoir_counters));
                 #[cfg(feature = "processing")]
                 if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
                     reservoir.set_redis(managed_envelope.scoping().organization_id, quotas_client);
                 }
                 processing::utils::dynamic_sampling::run(
                     managed_envelope.envelope().headers().dsc(),
-                    &mut event,
+                    &event,
                     &ctx,
                     Some(&reservoir),
                 )
@@ -1536,16 +1545,16 @@ impl EnvelopeProcessorService {
                 ctx.project_info,
             );
             // Extract metrics here, we're about to drop the event/transaction.
-            event_metrics_extracted = processing::utils::transaction::extract_metrics(
+            event_metrics_extracted = processing::transactions::extraction::extract_metrics(
                 &mut event,
                 &mut extracted_metrics,
                 ExtractMetricsContext {
                     dsc: managed_envelope.envelope().dsc(),
                     project_id,
-                    ctx: &ctx,
+                    ctx,
                     sampling_decision: SamplingDecision::Drop,
-                    event_metrics_extracted,
-                    spans_extracted,
+                    metrics_extracted: event_metrics_extracted.0,
+                    spans_extracted: spans_extracted.0,
                 },
             )?;
 
@@ -1577,9 +1586,13 @@ impl EnvelopeProcessorService {
         // Need to scrub the transaction before extracting spans.
         //
         // Unconditionally scrub to make sure PII is removed as early as possible.
-        event::scrub(&mut event, ctx.project_info)?;
+        processing::utils::event::scrub(&mut event, ctx.project_info)?;
 
-        attachment::scrub(managed_envelope, ctx.project_info);
+        let attachments = managed_envelope
+            .envelope_mut()
+            .items_mut()
+            .filter(|i| i.ty() == &ItemType::Attachment);
+        processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
@@ -1590,41 +1603,50 @@ impl EnvelopeProcessorService {
                 ctx.config,
                 ctx.project_info,
             );
-            profile::transfer_id(&mut event, profile_id);
-            profile::scrub_profiler_id(&mut event);
+            processing::transactions::profile::transfer_id(&mut event, profile_id);
+            processing::transactions::profile::scrub_profiler_id(&mut event);
 
             // Always extract metrics in processing Relays for sampled items.
-            event_metrics_extracted = processing::utils::transaction::extract_metrics(
+            event_metrics_extracted = processing::transactions::extraction::extract_metrics(
                 &mut event,
                 &mut extracted_metrics,
                 ExtractMetricsContext {
                     dsc: managed_envelope.envelope().dsc(),
                     project_id,
-                    ctx: &ctx,
+                    ctx,
                     sampling_decision: SamplingDecision::Keep,
-                    event_metrics_extracted,
-                    spans_extracted,
+                    metrics_extracted: event_metrics_extracted.0,
+                    spans_extracted: spans_extracted.0,
                 },
             )?;
 
-            spans_extracted = span::extract_from_event(
-                managed_envelope,
+            if let Some(spans) = processing::transactions::spans::extract_from_event(
+                managed_envelope.envelope().dsc(),
                 &event,
                 ctx.global_config,
                 ctx.config,
                 server_sample_rate,
                 event_metrics_extracted,
                 spans_extracted,
-            );
+            ) {
+                spans_extracted = SpansExtracted(true);
+                for item in spans {
+                    match item {
+                        Ok(item) => managed_envelope.envelope_mut().add_item(item),
+                        Err(()) => managed_envelope.track_outcome(
+                            Outcome::Invalid(DiscardReason::InvalidSpan),
+                            DataCategory::SpanIndexed,
+                            1,
+                        ),
+                        // TODO: also `DataCategory::Span`?
+                    }
+                }
+            }
         });
 
         event = self
             .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)
             .await?;
-
-        if_processing!(self.inner.config, {
-            event = span::maybe_discard_transaction(managed_envelope, event, ctx.project_info);
-        });
 
         // Event may have been dropped because of a quota and the envelope can be empty.
         if event.value().is_some() {
@@ -1703,7 +1725,11 @@ impl EnvelopeProcessorService {
         .await?;
 
         report::process_user_reports(managed_envelope);
-        attachment::scrub(managed_envelope, ctx.project_info);
+        let attachments = managed_envelope
+            .envelope_mut()
+            .items_mut()
+            .filter(|i| i.ty() == &ItemType::Attachment);
+        processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         Ok(Some(extracted_metrics))
     }
@@ -1856,7 +1882,6 @@ impl EnvelopeProcessorService {
             group,
             envelope: mut managed_envelope,
             ctx,
-            reservoir_counters,
         } = message;
 
         // Pre-process the envelope headers.
@@ -1918,13 +1943,7 @@ impl EnvelopeProcessorService {
         match group {
             ProcessingGroup::Error => run!(process_errors, project_id, ctx),
             ProcessingGroup::Transaction => {
-                run!(
-                    process_transactions,
-                    cogs,
-                    project_id,
-                    ctx,
-                    reservoir_counters
-                )
+                run!(process_transactions, cogs, project_id, ctx)
             }
             ProcessingGroup::Session => {
                 self.process_with_processor(&self.inner.processing.sessions, managed_envelope, ctx)
@@ -2141,13 +2160,13 @@ impl EnvelopeProcessorService {
                 project_info: &message.project_info,
                 sampling_project_info: message.sampling_project_info.as_deref(),
                 rate_limits: &message.rate_limits,
+                reservoir_counters: &message.reservoir_counters,
             };
 
             let message = ProcessEnvelopeGrouped {
                 group,
                 envelope,
                 ctx,
-                reservoir_counters: &message.reservoir_counters,
             };
 
             let result = metric!(
@@ -2283,7 +2302,27 @@ impl EnvelopeProcessorService {
             && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
         {
             match submit {
-                Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
+                Submit::Envelope(envelope) => {
+                    let envelope_has_attachments = envelope
+                        .envelope()
+                        .items()
+                        .any(|item| *item.ty() == ItemType::Attachment);
+                    // Whether Relay will store this attachment in objectstore or use kafka like before.
+                    let use_objectstore = || {
+                        let options = &self.inner.global_config.current().options;
+                        utils::sample(options.objectstore_attachments_sample_rate).is_keep()
+                    };
+
+                    if let Some(upload) = &self.inner.addrs.upload
+                        && envelope_has_attachments
+                        && use_objectstore()
+                    {
+                        // the `UploadService` will upload all attachments, and then forward the envelope to the `StoreService`.
+                        upload.send(UploadAttachments { envelope })
+                    } else {
+                        store_forwarder.send(StoreEnvelope { envelope })
+                    }
+                }
                 Submit::Output { output, ctx } => output
                     .forward_store(store_forwarder, ctx)
                     .unwrap_or_else(|err| err.into_inner()),
@@ -3632,7 +3671,6 @@ mod tests {
                 project_info: &project_info,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let Ok(Some(Submit::Envelope(mut new_envelope))) =
@@ -3717,7 +3755,6 @@ mod tests {
                 sampling_project_info: Some(&project_info),
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
         let processor = create_test_processor(Config::from_json_value(config).unwrap()).await;

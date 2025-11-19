@@ -200,16 +200,20 @@ jobs:
         image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
         ports:
           - 6379:6379
-      redis_secondary:
-        image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
-        ports:
-          - 6380:6379
 
     steps:
       - name: Install libcurl-dev
         run: |
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: Start objectstore
+        run: |
+          docker run -d \
+            --name objectstore \
+            -p 8888:8888 \
+            ghcr.io/getsentry/objectstore:nightly \
+            run
 
       - uses: actions/checkout@v5.0.0
         with:
@@ -742,10 +746,6 @@ jobs:
         image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
         ports:
           - 6379:6379
-      redis_secondary:
-        image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
-        ports:
-          - 6380:6379
 
       zookeeper:
         image: ghcr.io/getsentry/image-mirror-confluentinc-cp-zookeeper:6.2.0
@@ -767,6 +767,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: Start objectstore
+        run: |
+          docker run -d \
+            --name objectstore \
+            -p 8888:8888 \
+            ghcr.io/getsentry/objectstore:nightly \
+            run
 
       - uses: actions/checkout@v5.0.0
         with:

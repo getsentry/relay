@@ -522,6 +522,9 @@ impl<T: Counted> Managed<T> {
     /// De-structures this managed instance into its own parts.
     ///
     /// While de-structured no outcomes will be emitted on drop.
+    ///
+    /// Currently no `Managed`, which already has outcomes emitted, should be de-structured
+    /// as this status is lost.
     fn destructure(self) -> (T, Arc<Meta>) {
         // SAFETY: this follows an approach mentioned in the RFC
         // <https://github.com/rust-lang/rfcs/pull/3466> to move fields out of
@@ -533,8 +536,18 @@ impl<T: Counted> Managed<T> {
         // And the original type is forgotten, de-structuring the original type
         // without running its drop implementation.
         let this = ManuallyDrop::new(self);
-        let value = unsafe { std::ptr::read(&this.value) };
-        let meta = unsafe { std::ptr::read(&this.meta) };
+        let Managed { value, meta, done } = &*this;
+
+        let value = unsafe { std::ptr::read(value) };
+        let meta = unsafe { std::ptr::read(meta) };
+        let done = unsafe { std::ptr::read(done) };
+        // This is a current invariant, if we ever need to change the invariant,
+        // the done status should be preserved and returned instead.
+        debug_assert!(
+            !done.load(Ordering::Relaxed),
+            "a `done` managed should never be destructured"
+        );
+
         (value, meta)
     }
 
@@ -569,6 +582,14 @@ impl<T: Counted + fmt::Debug> fmt::Debug for Managed<T> {
         write!(f, "](")?;
         self.value.fmt(f)?;
         write!(f, ")")
+    }
+}
+
+impl<T: Counted> Managed<Option<T>> {
+    /// Turns a managed option into an optional [`Managed`].
+    pub fn transpose(self) -> Option<Managed<T>> {
+        let (o, meta) = self.destructure();
+        o.map(|t| Managed::from_parts(t, meta))
     }
 }
 

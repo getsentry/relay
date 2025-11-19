@@ -839,6 +839,81 @@ mod tests {
     }
 
     #[test]
+    fn test_redact_custom_negative_pattern() {
+        let config = serde_json::from_str::<PiiConfig>(
+            r#"
+            {
+                "applications": {
+                    "$string": ["myrule"]
+                },
+                "rules": {
+                    "myrule": {
+                        "type": "pattern",
+                        "pattern": "the good string|.*OK.*|(.*)",
+                        "replaceGroups": [1],
+                        "redaction": {
+                            "method": "mask"
+                        }
+                    }
+                }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+            "extra": {
+                "1": "the good string",
+                "2": "a bad string",
+                "3": "another OK string",
+                "4": "another bad one"
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event.value().unwrap().extra, @r#"
+        {
+          "1": "the good string",
+          "2": "************",
+          "3": "another OK string",
+          "4": "***************",
+          "_meta": {
+            "2": {
+              "": {
+                "rem": [
+                  [
+                    "myrule",
+                    "m",
+                    0,
+                    12
+                  ]
+                ],
+                "len": 12
+              }
+            },
+            "4": {
+              "": {
+                "rem": [
+                  [
+                    "myrule",
+                    "m",
+                    0,
+                    15
+                  ]
+                ],
+                "len": 15
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
     fn test_no_field_upsert() {
         let config = serde_json::from_str::<PiiConfig>(
             r#"

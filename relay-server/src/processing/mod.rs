@@ -9,6 +9,7 @@
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_quotas::RateLimits;
+use relay_sampling::evaluation::ReservoirCounters;
 
 use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
@@ -27,6 +28,7 @@ pub mod logs;
 pub mod sessions;
 pub mod spans;
 pub mod trace_metrics;
+pub mod transactions;
 pub mod utils;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
@@ -47,7 +49,9 @@ pub trait Processor {
     /// Extracts a [`Self::UnitOfWork`] from a [`ManagedEnvelope`].
     ///
     /// This is infallible, if a processor wants to report an error,
-    /// it should return a [`Self::UnitOfWork`] which later, can produce an error when being
+    /// it should return a [`Self::UnitOfWork`] which later, can produce an error when being processed.
+    ///
+    /// Returns `None` if nothing in the envelope concerns this processor.
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope)
     -> Option<Managed<Self::UnitOfWork>>;
 
@@ -74,6 +78,8 @@ pub struct Context<'a> {
     ///
     /// The caller needs to ensure the rate limits are not yet expired.
     pub rate_limits: &'a RateLimits,
+    /// Reservoir counters for "get more samples" functionality.
+    pub reservoir_counters: &'a ReservoirCounters,
 }
 
 impl<'a> Context<'a> {
@@ -118,6 +124,7 @@ impl Context<'static> {
         static GLOBAL_CONFIG: LazyLock<GlobalConfig> = LazyLock::new(Default::default);
         static PROJECT_INFO: LazyLock<ProjectInfo> = LazyLock::new(Default::default);
         static RATE_LIMITS: LazyLock<RateLimits> = LazyLock::new(Default::default);
+        static RESERVOIR_COUNTERS: LazyLock<ReservoirCounters> = LazyLock::new(Default::default);
 
         Self {
             config: &CONFIG,
@@ -125,6 +132,7 @@ impl Context<'static> {
             project_info: &PROJECT_INFO,
             sampling_project_info: None,
             rate_limits: &RATE_LIMITS,
+            reservoir_counters: &RESERVOIR_COUNTERS,
         }
     }
 }
