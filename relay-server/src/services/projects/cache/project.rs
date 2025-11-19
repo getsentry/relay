@@ -144,7 +144,7 @@ fn sync_spans_to_enforcement(envelope: &mut ManagedEnvelope, enforcement: &mut E
         .envelope_mut()
         .items_mut()
         .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())
-        .map_or(0, |item| item.ensure_span_count());
+        .map_or(0, |item| 1 + item.ensure_span_count());
 
     if spans_count == 0 {
         return;
@@ -200,6 +200,15 @@ mod tests {
             .unwrap();
 
         RequestMeta::new(dsn)
+    }
+
+    fn get_span_count(managed_envelope: &ManagedEnvelope) -> usize {
+        managed_envelope
+            .envelope()
+            .items()
+            .next()
+            .unwrap()
+            .span_count()
     }
 
     #[tokio::test]
@@ -258,7 +267,9 @@ mod tests {
 
         let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator.clone());
 
+        assert_eq!(get_span_count(&managed_envelope), 0); // not written yet
         project.check_envelope(managed_envelope).await.unwrap();
+
         drop(outcome_aggregator);
 
         let expected = [
@@ -266,6 +277,69 @@ mod tests {
             (DataCategory::TransactionIndexed, 1),
             (DataCategory::Span, 3),
             (DataCategory::SpanIndexed, 3),
+        ];
+
+        for (expected_category, expected_quantity) in expected {
+            let outcome = outcome_aggregator_rx.recv().await.unwrap();
+            assert_eq!(outcome.category, expected_category);
+            assert_eq!(outcome.quantity, expected_quantity);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_track_nested_spans_outcomes_predefined() {
+        let config = Default::default();
+        let project = create_project(
+            &config,
+            Some(json!({
+                "quotas": [{
+                   "id": "foo",
+                   "categories": ["transaction"],
+                   "window": 3600,
+                   "limit": 0,
+                   "reasonCode": "foo",
+               }]
+            })),
+        );
+
+        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
+
+        let mut transaction = Item::new(ItemType::Transaction);
+        transaction.set_span_count(666);
+        transaction.set_payload(
+            ContentType::Json,
+            r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "I have a stale timestamp, but I'm recent!",
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "contexts": {
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4"
+    }
+  },
+  "spans": []
+}"#,
+        );
+
+        envelope.add_item(transaction);
+
+        let (outcome_aggregator, mut outcome_aggregator_rx) = relay_system::Addr::custom();
+
+        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator.clone());
+
+        assert_eq!(get_span_count(&managed_envelope), 666);
+        project.check_envelope(managed_envelope).await.unwrap();
+
+        drop(outcome_aggregator);
+
+        let expected = [
+            (DataCategory::Transaction, 1),
+            (DataCategory::TransactionIndexed, 1),
+            (DataCategory::Span, 667),
+            (DataCategory::SpanIndexed, 667),
         ];
 
         for (expected_category, expected_quantity) in expected {

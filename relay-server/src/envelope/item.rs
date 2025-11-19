@@ -197,6 +197,11 @@ impl Item {
         self.headers.span_count.unwrap_or(0)
     }
 
+    #[cfg(test)]
+    pub fn set_span_count(&mut self, value: usize) {
+        self.headers.span_count = Some(value);
+    }
+
     /// Sets the `span_count` item header by shallow parsing the event.
     ///
     /// Returns the recomputed count.
