@@ -7,6 +7,10 @@
 - Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
 - Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
 
+**Internal**:
+
+- Derive the rate limiting decision in Relay from consumed quota. ([#5390](https://github.com/getsentry/relay/pull/5390))
+
 ## 25.11.0
 
 **Breaking Changes**:
