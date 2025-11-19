@@ -6,6 +6,7 @@
 
 - Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
 - Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
+- Add `event.name` attribute to OTLP logs. ([#5396](https://github.com/getsentry/relay/pull/5396))
 
 **Internal**:
 
@@ -52,7 +53,6 @@
 - Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
 - Remove the span kind from the Kafka span schema. ([#5368](https://github.com/getsentry/relay/pull/5368))
 - Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5308))
-
 
 ## 25.10.0
 
