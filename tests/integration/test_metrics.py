@@ -1157,13 +1157,17 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     relay.send_transaction(project_id, tx)
 
     # The only envelopes received should be outcomes for Transaction{,Indexed}:
-    reports = [mini_sentry.get_client_report() for _ in range(2)]
+    reports = [mini_sentry.get_client_report() for _ in range(4)]
     filtered_events = [
         outcome for report in reports for outcome in report["filtered_events"]
     ]
     filtered_events.sort(key=lambda x: x["category"])
 
+    # NOTE: span categories should be 2.
+    # Will be fixed in https://github.com/getsentry/relay/pull/5379.
     assert filtered_events == [
+        {"reason": "release-version", "category": "span", "quantity": 1},
+        {"reason": "release-version", "category": "span_indexed", "quantity": 1},
         {"reason": "release-version", "category": "transaction", "quantity": 1},
         {"reason": "release-version", "category": "transaction_indexed", "quantity": 1},
     ]

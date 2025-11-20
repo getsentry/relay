@@ -7,7 +7,7 @@ use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLogRecord;
-use relay_conventions::ORIGIN;
+use relay_conventions::{EVENT_NAME, ORIGIN};
 
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
@@ -59,7 +59,10 @@ pub fn otel_to_sentry_log(
         attributes,
         trace_id,
         span_id,
-        ..
+        event_name,
+        observed_time_unix_nano: _,
+        dropped_attributes_count: _,
+        flags: _,
     } = otel_log;
 
     let span_id = match span_id.is_empty() {
@@ -76,6 +79,9 @@ pub fn otel_to_sentry_log(
 
     let mut attribute_data = Attributes::default();
     attribute_data.insert(ORIGIN, "auto.otlp.logs".to_owned());
+    if !event_name.is_empty() {
+        attribute_data.insert(EVENT_NAME, event_name.to_owned());
+    }
 
     relay_otel::otel_scope_into_attributes(&mut attribute_data, resource, scope);
 
@@ -565,6 +571,63 @@ mod tests {
                   ]
                 ]
               }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_otel_log_with_event_name() {
+        // 2024-01-01T10:00:00Z = 1704103200
+        let json = r#"{
+            "eventName": "user.login",
+            "timeUnixNano": "1704103200000000000",
+            "severityText": "INFO",
+            "body": {
+                "stringValue": "User login successful"
+            },
+            "attributes": [
+                {
+                    "key": "user.id",
+                    "value": { "stringValue": "12345" }
+                },
+                {
+                    "key": "login.method",
+                    "value": { "stringValue": "oauth" }
+                }
+            ],
+            "traceId": "abcdef1234567890abcdef1234567890",
+            "spanId": "7890123456789012"
+        }"#;
+
+        let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
+        let our_log = otel_to_sentry_log(otel_log, None, None);
+        let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_log), @r#"
+        {
+          "timestamp": 1704103200.0,
+          "trace_id": "abcdef1234567890abcdef1234567890",
+          "span_id": "7890123456789012",
+          "level": "info",
+          "body": "User login successful",
+          "attributes": {
+            "event.name": {
+              "type": "string",
+              "value": "user.login"
+            },
+            "login.method": {
+              "type": "string",
+              "value": "oauth"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.logs"
+            },
+            "user.id": {
+              "type": "string",
+              "value": "12345"
             }
           }
         }
