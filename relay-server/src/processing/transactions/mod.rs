@@ -222,7 +222,7 @@ impl Processor for TransactionProcessor {
             relay_log::trace!("Extract spans");
             let mut indexed = process::extract_spans(indexed, ctx, server_sample_rate);
 
-            relay_log::trace!("Enforce quotas");
+            relay_log::trace!("Enforce quotas (processing)");
             self.limiter.enforce_quotas(&mut indexed, ctx).await?;
 
             if !indexed.flags.fully_normalized {
@@ -233,14 +233,17 @@ impl Processor for TransactionProcessor {
                 );
             };
 
+            relay_log::trace!("Done");
             return Ok(Output {
                 main: Some(TransactionOutput::Indexed(indexed)),
                 metrics: Some(extracted_metrics),
             });
         }
 
+        relay_log::trace!("Enforce quotas");
         self.limiter.enforce_quotas(&mut work, ctx).await?;
 
+        relay_log::trace!("Done");
         Ok(Output {
             main: Some(TransactionOutput::TotalAndIndexed(work)),
             metrics: None,
@@ -653,7 +656,12 @@ impl Forward for TransactionOutput {
                     .map_err(drop)
                     .with_outcome(Outcome::Invalid(DiscardReason::Internal))
             }),
-            TransactionOutput::Indexed(managed) => managed.try_map(|output, _| {
+            TransactionOutput::Indexed(managed) => managed.try_map(|output, record_keeper| {
+                // TODO(follow-up): `Counted` impl of `Box<Envelope>` is wrong.
+                // But we will send structured data to the store soon instead of an envelope,
+                // then this problem is circumvented.
+                record_keeper.lenient(DataCategory::Transaction);
+                record_keeper.lenient(DataCategory::Span);
                 output
                     .serialize_envelope()
                     .map_err(drop)
