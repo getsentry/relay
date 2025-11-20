@@ -50,6 +50,10 @@ impl Counted for Box<Envelope> {
 
         let data = [
             (DataCategory::Attachment, summary.attachment_quantity),
+            (
+                DataCategory::AttachmentItem,
+                summary.attachment_item_quantity,
+            ),
             (DataCategory::Profile, summary.profile_quantity),
             (DataCategory::ProfileIndexed, summary.profile_quantity),
             (DataCategory::Span, summary.span_quantity),
