@@ -274,6 +274,8 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
         [
             DataCategory.TRANSACTION,
             DataCategory.TRANSACTION_INDEXED,
+            DataCategory.SPAN,
+            DataCategory.SPAN_INDEXED,
         ]
         if event_type == "transaction"
         else [DataCategory.ERROR]
@@ -481,7 +483,8 @@ def test_outcome_forwarding(
 
     _send_event(downstream_relay, event_type=event_type)
 
-    expected_categories = [1] if event_type == "error" else [2, 9]
+    expected_categories = [1] if event_type == "error" else [2, 9, 12, 16]
+
     outcomes = outcomes_consumer.get_outcomes(n=len(expected_categories))
     outcomes.sort(key=lambda x: x["category"])
 
@@ -2029,7 +2032,7 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=4)
+    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=6)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == [
@@ -2048,7 +2051,9 @@ def test_span_outcomes_invalid(
             (DataCategory.TRANSACTION, "invalid_transaction"),
             (DataCategory.TRANSACTION_INDEXED, "invalid_transaction"),
             (DataCategory.SPAN, "invalid_span"),
+            (DataCategory.SPAN, "invalid_transaction"),
             (DataCategory.SPAN_INDEXED, "invalid_span"),
+            (DataCategory.SPAN_INDEXED, "invalid_transaction"),
         ]
     ]
 
