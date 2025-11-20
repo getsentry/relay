@@ -60,7 +60,9 @@ pub fn otel_to_sentry_log(
         trace_id,
         span_id,
         event_name,
-        ..
+        observed_time_unix_nano: _,
+        dropped_attributes_count: _,
+        flags: _,
     } = otel_log;
 
     let span_id = match span_id.is_empty() {
