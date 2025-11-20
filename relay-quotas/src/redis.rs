@@ -10,11 +10,11 @@ use relay_redis::redis::{self, FromRedisValue, Script};
 use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 use thiserror::Error;
 
-use crate::REJECT_ALL_SECS;
 use crate::cache::OpportunisticQuotaCache;
 use crate::global::GlobalLimiter;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
+use crate::{REJECT_ALL_SECS, cache};
 
 /// The `grace` period allows accommodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -253,7 +253,7 @@ impl fmt::Display for QuotaKey {
 #[derive(Clone)]
 pub struct RedisRateLimiter<T> {
     client: AsyncRedisClient,
-    cache: Arc<OpportunisticQuotaCache<String>>,
+    cache: Arc<OpportunisticQuotaCache<QuotaKey>>,
     script: &'static Script,
     max_limit: Option<u64>,
     global_limiter: T,
@@ -324,17 +324,22 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
                     global_quotas.push(quota);
                 } else {
                     let key = quota.key();
+                    let redis_key = key.to_string();
 
-                    // let quantity = match self.cache.foobar(&quota, quantity) {
-                    //     crate::cache::Action::Accept => continue,
-                    //     crate::cache::Action::Check(quantity) => quantity,
-                    // };
+                    let cache_quota = cache::Quota {
+                        limit: quota.limit(),
+                        key,
+                        expiry: UnixTimestamp::from_secs(quota.key_expiry()),
+                    };
+                    let quantity = match self.cache.check_quota(cache_quota, quantity as i64) {
+                        cache::Action::Accept => continue,
+                        cache::Action::Check(quantity) => quantity,
+                    };
 
-                    let key = key.to_string();
                     // Remaining quotas are expected to be trackable in Redis.
-                    let refund_key = get_refunded_quota_key(&key);
+                    let refund_key = get_refunded_quota_key(&redis_key);
 
-                    invocation.key(key);
+                    invocation.key(redis_key);
                     invocation.key(refund_key);
 
                     invocation.arg(quota.limit());
@@ -376,21 +381,35 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
             return Ok(rate_limits);
         }
 
-        // We get the redis client after the global rate limiting since we don't want to hold the
+        // We get the Redis client after the global rate limiting since we don't want to hold the
         // client across await points, otherwise it might be held for too long, and we will run out
         // of connections.
         let mut connection = self.client.get_connection().await?;
-        let results: ScriptResult = invocation
+        let result: ScriptResult = invocation
             .invoke_async(&mut connection)
             .await
             .map_err(RedisError::Redis)?;
 
-        for (quota, state) in tracked_quotas.iter().zip(results.0) {
+        for (quota, state) in tracked_quotas.iter().zip(result.quotas) {
             if state.is_rejected {
+                // TODO: can we track the error here somehow?
                 let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
                 rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
+            } else {
+                // Only update the cache if it's really necessary. Quotas which are being rejected,
+                // will not be able to be handled from the cache anyways.
+                self.cache.update_quota(
+                    cache::Quota {
+                        limit: quota.limit(),
+                        key: quota.key(),
+                        expiry: UnixTimestamp::from_secs(quota.key_expiry()),
+                    },
+                    state.consumed,
+                );
             }
         }
+
+        self.cache.try_vacuum(timestamp);
 
         Ok(rate_limits)
     }
@@ -409,7 +428,10 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
 
 /// The result returned from the rate limiting Redis script.
 #[derive(Debug)]
-struct ScriptResult(Vec<QuotaState>);
+struct ScriptResult {
+    /// Holds all individually queried quota results.
+    quotas: Vec<QuotaState>,
+}
 
 impl FromRedisValue for ScriptResult {
     fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
@@ -430,15 +452,15 @@ impl FromRedisValue for ScriptResult {
             )));
         }
 
-        let mut result = Vec::with_capacity(chunks.len());
+        let mut quotas = Vec::with_capacity(chunks.len());
         for [is_rejected, consumed] in chunks {
-            result.push(QuotaState {
+            quotas.push(QuotaState {
                 is_rejected: bool::from_redis_value(is_rejected)?,
                 consumed: i64::from_redis_value(consumed)?,
             });
         }
 
-        Ok(Self(result))
+        Ok(Self { quotas })
     }
 }
 
@@ -447,8 +469,7 @@ impl FromRedisValue for ScriptResult {
 struct QuotaState {
     /// Whether the quota rejects the request.
     is_rejected: bool,
-    /// How much of the quota has already been consumed, before adding the requested quantity.
-    #[expect(unused, reason = "not yet used")]
+    /// How much of the quota has already been consumed.
     consumed: i64,
 }
 
