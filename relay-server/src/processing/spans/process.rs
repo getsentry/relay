@@ -150,118 +150,124 @@ fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
     normalize_db_query_text(attributes);
 }
 
-fn normalize_db_query_text(annotated_attributes: &mut Annotated<Attributes>) {
-    let Some(attributes) = annotated_attributes.value_mut() else {
-        return;
-    };
-    let (op, sub_op) = attributes
-        .get_value(consts::OP)
-        .and_then(|v| v.as_str())
-        .and_then(|op| {
-            op.split_once('.')
-                .map(|(op, sub_op)| (op.to_owned(), sub_op.to_owned()))
+fn normalize_db_query_text(attributes: &mut Annotated<Attributes>) {
+    let (normalized_db_query, db_operation, db_collection_name) = attributes
+        .value()
+        .map(|attributes| {
+            let (op, sub_op) = attributes
+                .get_value(consts::OP)
+                .and_then(|v| v.as_str())
+                .and_then(|op| op.split_once('.'))
+                .unwrap_or_default();
+
+            let raw_query = attributes
+                .get_value(consts::DB_QUERY_TEXT)
+                .or_else(|| {
+                    if op == "db" {
+                        attributes.get_value(consts::DESCRIPTION)
+                    } else {
+                        None
+                    }
+                })
+                .and_then(|v| v.as_str());
+
+            let db_system = attributes
+                .get_value(consts::DB_SYSTEM_NAME)
+                .and_then(|v| v.as_str());
+
+            let db_operation = attributes
+                .get_value(consts::DB_OPERATION)
+                .and_then(|v| v.as_str());
+
+            let collection_name = attributes
+                .get_value(consts::DB_COLLECTION_NAME)
+                .and_then(|v| v.as_str());
+
+            let span_origin = attributes
+                .get_value(consts::ORIGIN)
+                .and_then(|v| v.as_str());
+
+            let (normalized_db_query, parsed_sql) = if let Some(raw_query) = raw_query {
+                scrub_db_query(
+                    raw_query,
+                    sub_op,
+                    db_system,
+                    db_operation,
+                    collection_name,
+                    span_origin,
+                )
+            } else {
+                (None, None)
+            };
+
+            let db_operation = if db_operation.is_none() {
+                match sub_op {
+                    "redis" => {
+                        // This only works as long as redis span descriptions contain the command + " *"
+                        if let Some(query) = normalized_db_query.as_ref() {
+                            let command = query.replace(" *", "");
+                            if command.is_empty() {
+                                None
+                            } else {
+                                Some(command)
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    _ => {
+                        if let Some(raw_query) = raw_query {
+                            // For other database operations, try to get the operation from data
+                            sql_action_from_query(raw_query).map(|a| a.to_uppercase())
+                        } else {
+                            None
+                        }
+                    }
+                }
+            } else {
+                db_operation.map(|db_operation| db_operation.to_uppercase())
+            };
+
+            let db_collection_name: Option<String> = if collection_name.is_none() {
+                if span_origin == Some("auto.db.supabase") {
+                    normalized_db_query
+                        .as_ref()
+                        .and_then(|query| query.strip_prefix("from("))
+                        .and_then(|s| s.strip_suffix(")"))
+                        .map(String::from)
+                } else if let Some(raw_query) = raw_query {
+                    sql_tables_from_query(raw_query, &parsed_sql)
+                } else {
+                    None
+                }
+            } else if let Some(collection_name) = collection_name
+                && db_system == Some("mongodb")
+            {
+                if let Cow::Owned(collection_name) =
+                    TABLE_NAME_REGEX.replace_all(collection_name, "{%s}")
+                {
+                    Some(collection_name)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            (normalized_db_query, db_operation, db_collection_name)
         })
         .unwrap_or_default();
 
-    let raw_query = attributes
-        .get_value(consts::DB_QUERY_TEXT)
-        .or_else(|| {
-            if op == "db" {
-                attributes.get_value(consts::DESCRIPTION)
-            } else {
-                None
-            }
-        })
-        .and_then(|v| v.as_str())
-        .map(String::from);
-
-    let db_system = attributes
-        .get_value(consts::DB_SYSTEM_NAME)
-        .and_then(|v| v.as_str())
-        .map(String::from);
-
-    let db_operation = attributes
-        .get_value(consts::DB_OPERATION)
-        .and_then(|v| v.as_str())
-        .map(String::from);
-
-    let collection_name = attributes
-        .get_value(consts::DB_COLLECTION_NAME)
-        .and_then(|v| v.as_str())
-        .map(String::from);
-
-    let span_origin = attributes
-        .get_value(consts::ORIGIN)
-        .and_then(|v| v.as_str())
-        .map(String::from);
-
-    let (scrubbed, parsed_sql) = if let Some(raw_query) = raw_query.as_ref() {
-        scrub_db_query(
-            raw_query,
-            sub_op.as_str(),
-            db_system.as_deref(),
-            db_operation.as_deref(),
-            collection_name.as_deref(),
-            span_origin.as_deref(),
-        )
-    } else {
-        (None, None)
-    };
-
-    let Some(normalized_db_query) = scrubbed else {
-        return;
-    };
-
-    attributes.insert(consts::NORMALIZED_DB_QUERY, normalized_db_query.clone());
-
-    // Insert the db operation attribute if not present, otherwise uppercase it
-    if db_operation.is_none() {
-        if let Some(new_db_operation) = match sub_op.as_str() {
-            "redis" => {
-                // This only works as long as redis span descriptions contain the command + " *"
-                let command = normalized_db_query.replace(" *", "");
-                if command.is_empty() {
-                    None
-                } else {
-                    Some(command)
-                }
-            }
-            _ => {
-                if let Some(raw_query) = raw_query.as_ref() {
-                    // For other database operations, try to get the operation from data
-                    sql_action_from_query(raw_query).map(|a| a.to_uppercase())
-                } else {
-                    None
-                }
-            }
-        } {
-            attributes.insert(consts::DB_OPERATION, new_db_operation);
+    if let Some(attributes) = attributes.value_mut() {
+        if let Some(normalized_db_query) = normalized_db_query {
+            attributes.insert(consts::NORMALIZED_DB_QUERY, normalized_db_query);
         }
-    } else if let Some(s) = db_operation.map(|db_op| db_op.to_uppercase()) {
-        attributes.insert(consts::DB_OPERATION, s)
-    }
-
-    // Add a collection name attribute if not present, otherwise normalize it
-    if collection_name.is_none() {
-        let new_collection_name = if span_origin.as_deref() == Some("auto.db.supabase") {
-            normalized_db_query
-                .as_str()
-                .strip_prefix("from(")
-                .and_then(|s| s.strip_suffix(')'))
-                .map(String::from)
-        } else if let Some(raw_query) = raw_query.as_ref() {
-            sql_tables_from_query(raw_query, &parsed_sql)
-        } else {
-            None
-        };
-        if let Some(new_collection_name) = new_collection_name {
-            attributes.insert(consts::DB_COLLECTION_NAME, new_collection_name);
+        if let Some(db_operation_name) = db_operation {
+            attributes.insert(consts::DB_OPERATION, db_operation_name)
         }
-    } else if db_system.as_deref() == Some("mongodb")
-        && let Cow::Owned(new_collection_name) =
-            TABLE_NAME_REGEX.replace_all(collection_name.unwrap_or("".to_owned()).as_str(), "{%s}")
-    {
-        attributes.insert(consts::DB_COLLECTION_NAME, new_collection_name);
+        if let Some(db_collection_name) = db_collection_name {
+            attributes.insert(consts::DB_COLLECTION_NAME, db_collection_name);
+        }
     }
 }
 
