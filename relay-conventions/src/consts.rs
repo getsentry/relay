@@ -29,6 +29,7 @@ convention_attributes!(
     DSC_TRACE_ID => "sentry.dsc.trace_id",
     DSC_TRANSACTION => "sentry.dsc.transaction",
     ENVIRONMENT => "sentry.environment",
+    EVENT_NAME => "event.name",
     FAAS_TRIGGER => "faas.trigger",
     GEN_AI_COST_INPUT_TOKENS => "gen_ai.cost.input_tokens",
     GEN_AI_COST_OUTPUT_TOKENS => "gen_ai.cost.output_tokens",
