@@ -1,8 +1,14 @@
-use std::num::NonZeroI64;
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use relay_common::time::UnixTimestamp;
+
+// pub trait Cache<T> {
+//     fn check_quota(&self, quota: Quota<T>, quantity: usize) -> Action;
+//     fn update_quota(&self, quota: Quota<T>, consumed: i64);
+//     fn try_vacuum(&self, now: UnixTimestamp) -> bool;
+// }
 
 /// A quota to be checked with the [`OpportunisticQuotaCache`].
 #[derive(Debug, Clone, Copy)]
@@ -33,7 +39,7 @@ where
     /// For example: Setting this to `10` means, if there is 100 quota remaining, the cache will
     /// opportunistically accept the next 10 items, if there is a quota of 90 remaining, the cache
     /// will accept the next 9 items.
-    max_over_spend_divisor: NonZeroI64,
+    max_over_spend_divisor: NonZeroUsize,
 
     /// Minimum interval between vacuum of the cache.
     vacuum_interval: Duration,
@@ -49,7 +55,7 @@ where
 {
     /// Creates a new [`Self`], with the configured maximum amount the cache accepts per quota
     /// until it requires synchronization.
-    pub fn new(max_over_spend_divisor: NonZeroI64) -> Self {
+    pub fn new(max_over_spend_divisor: NonZeroUsize) -> Self {
         Self {
             cache: Default::default(),
             max_over_spend_divisor,
@@ -69,8 +75,16 @@ where
     ///
     /// Whenever the cache returns [`Action::Check`], the cache requires a call to [`Self::update_quota`],
     /// with a synchronized 'consumed' amount.
-    pub fn check_quota(&self, quota: Quota<T>, quantity: i64) -> Action {
+    pub fn check_quota(&self, quota: Quota<T>, quantity: usize) -> Action {
         let cache = self.cache.pin();
+
+        // We can potentially short circuit here with a simple read, the cases:
+        // 1. `NeedsSync`
+        // 2. Active with `consumed >= limit`
+        // 3. No entry.
+        //
+        // This may be faster because the map does not require a mutation.
+        // Needs more investigation if the additional lookup is worth it.
 
         let value = cache.update(quota.key, |q| {
             let (consumed, local_use) = match q {
@@ -87,12 +101,22 @@ where
                 } => (*consumed, *local_use),
             };
 
+            // Can short circuit here already if consumed is already above or equal to the limit.
+            //
+            // We could also propagate this out to the caller as a definitive negative in the
+            // future. This does require some additional consideration how this would interact with
+            // refunds, which can reduce the consumed.
+            if consumed >= quota.limit {
+                return CachedQuota::NeedsSync;
+            }
+
             let remaining = quota.limit.saturating_sub(consumed).max(0);
-            let max_allowed_spend = remaining / self.max_over_spend_divisor.get();
+            let max_allowed_spend = usize::try_from(remaining).unwrap_or(usize::MAX)
+                / self.max_over_spend_divisor.get();
 
             let total_local_use = local_use + quantity;
             match total_local_use > max_allowed_spend {
-                true => NonZeroI64::new(total_local_use)
+                true => NonZeroUsize::new(total_local_use)
                     .map(CachedQuota::NeedsSyncWithQuantity)
                     .unwrap_or(CachedQuota::NeedsSync),
                 false => CachedQuota::Active {
@@ -196,7 +220,7 @@ pub enum Action {
     /// Accept the quota request.
     Accept,
     /// Synchronize the quota with the returned quantity.
-    Check(i64),
+    Check(usize),
 }
 
 /// State of a cached quota.
@@ -207,11 +231,11 @@ enum CachedQuota {
     NeedsSync,
     /// Like [`Self::NeedsSync`], but also carries a total quantity which needs to be synchronized
     /// with the store.
-    NeedsSyncWithQuantity(NonZeroI64),
+    NeedsSyncWithQuantity(NonZeroUsize),
     /// The cache is active and can still make decisions without a synchronization.
     Active {
         consumed: i64,
-        local_use: i64,
+        local_use: usize,
         expiry: UnixTimestamp,
     },
 }
@@ -235,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_opp_quota() {
-        let cache = OpportunisticQuotaCache::new(NonZeroI64::new(10).unwrap());
+        let cache = OpportunisticQuotaCache::new(NonZeroUsize::new(10).unwrap());
 
         let q1 = Quota {
             limit: 100,
@@ -293,7 +317,7 @@ mod tests {
 
     #[test]
     fn test_opp_quota_vacuum() {
-        let cache = OpportunisticQuotaCache::new(NonZeroI64::new(10).unwrap());
+        let cache = OpportunisticQuotaCache::new(NonZeroUsize::new(10).unwrap());
 
         let q1 = Quota {
             limit: 100,

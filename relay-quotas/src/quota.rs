@@ -1,5 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::organization::OrganizationId;
@@ -320,7 +321,7 @@ fn default_scope() -> QuotaScope {
 /// Reason codes provide a standardized way to communicate why a particular
 /// item was rate limited.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Hash)]
-pub struct ReasonCode(String);
+pub struct ReasonCode(Arc<str>);
 
 impl ReasonCode {
     /// Creates a new reason code from a string.
@@ -328,7 +329,7 @@ impl ReasonCode {
     /// This method is primarily intended for testing. In production, reason codes
     /// should typically be deserialized from quota configurations rather than
     /// constructed manually.
-    pub fn new<S: Into<String>>(code: S) -> Self {
+    pub fn new<S: Into<Arc<str>>>(code: S) -> Self {
         Self(code.into())
     }
 
@@ -363,7 +364,7 @@ pub struct Quota {
     ///
     /// Required for all quotas except those with `limit` = 0, which are statically enforced.
     #[serde(default)]
-    pub id: Option<String>,
+    pub id: Option<Arc<str>>,
 
     /// Data categories this quota applies to.
     ///
@@ -383,7 +384,7 @@ pub struct Quota {
     /// If set, this quota only applies to the specified scope instance
     /// (e.g., a specific project key). Requires `scope` to be set explicitly.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scope_id: Option<String>,
+    pub scope_id: Option<Arc<str>>,
 
     /// Maximum number of events allowed within the time window.
     ///
@@ -862,7 +863,7 @@ mod tests {
             id: None,
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
-            scope_id: Some("not_a_number".to_owned()),
+            scope_id: Some("not_a_number".into()),
             limit: None,
             window: None,
             reason_code: None,
@@ -887,7 +888,7 @@ mod tests {
             id: None,
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
-            scope_id: Some("42".to_owned()),
+            scope_id: Some("42".into()),
             limit: None,
             window: None,
             reason_code: None,
@@ -923,7 +924,7 @@ mod tests {
             id: None,
             categories: DataCategories::new(),
             scope: QuotaScope::Project,
-            scope_id: Some("21".to_owned()),
+            scope_id: Some("21".into()),
             limit: None,
             window: None,
             reason_code: None,
@@ -959,7 +960,7 @@ mod tests {
             id: None,
             categories: DataCategories::new(),
             scope: QuotaScope::Key,
-            scope_id: Some("17".to_owned()),
+            scope_id: Some("17".into()),
             limit: None,
             window: None,
             reason_code: None,

@@ -14,6 +14,7 @@ const REJECT_ALL_SECS: u64 = 60;
 pub mod cache;
 mod quota;
 mod rate_limit;
+mod statsd;
 
 pub use self::quota::*;
 pub use self::rate_limit::*;

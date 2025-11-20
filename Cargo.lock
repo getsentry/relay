@@ -4339,6 +4339,7 @@ dependencies = [
  "relay-common",
  "relay-log",
  "relay-redis",
+ "relay-statsd",
  "serde",
  "serde_json",
  "smallvec",
