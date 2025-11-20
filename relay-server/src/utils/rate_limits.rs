@@ -4,8 +4,8 @@ use std::marker::PhantomData;
 
 use relay_profiling::ProfileType;
 use relay_quotas::{
-    DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
-    ReasonCode, Scoping,
+    DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
+    Scoping,
 };
 
 use crate::envelope::{Envelope, Item, ItemType};
@@ -68,12 +68,13 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
             None => continue,
         };
 
-        let mut categories = DataCategories::new();
-        for category in components.next().unwrap_or("").split(';') {
-            if !category.is_empty() {
-                categories.push(DataCategory::from_name(category));
-            }
-        }
+        let categories = components
+            .next()
+            .unwrap_or("")
+            .split(';')
+            .filter(|category| !category.is_empty())
+            .map(DataCategory::from_name)
+            .collect();
 
         let quota_scope = QuotaScope::from_name(components.next().unwrap_or(""));
         let scope = RateLimitScope::for_quota(*scoping, quota_scope);
@@ -1024,7 +1025,7 @@ mod tests {
 
         // Add a generic rate limit for all categories.
         rate_limits.add(RateLimit {
-            categories: DataCategories::new(),
+            categories: Default::default(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
@@ -1033,7 +1034,7 @@ mod tests {
 
         // Add a more specific rate limit for just one category.
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction, DataCategory::Security],
+            categories: [DataCategory::Transaction, DataCategory::Security].into(),
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(4711),
@@ -1051,7 +1052,7 @@ mod tests {
 
         // Rate limit with reason code and namespace.
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::MetricBucket],
+            categories: [DataCategory::MetricBucket].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
@@ -1060,7 +1061,7 @@ mod tests {
 
         // Rate limit without reason code.
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::MetricBucket],
+            categories: [DataCategory::MetricBucket].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(42),
@@ -1105,18 +1106,19 @@ mod tests {
             rate_limits,
             vec![
                 RateLimit {
-                    categories: DataCategories::new(),
+                    categories: Default::default(),
                     scope: RateLimitScope::Organization(OrganizationId::new(42)),
                     reason_code: Some(ReasonCode::new("my_limit")),
                     retry_after: rate_limits[0].retry_after,
                     namespaces: smallvec![],
                 },
                 RateLimit {
-                    categories: smallvec![
+                    categories: [
                         DataCategory::Unknown,
                         DataCategory::Transaction,
                         DataCategory::Security,
-                    ],
+                    ]
+                    .into(),
                     scope: RateLimitScope::Project(ProjectId::new(21)),
                     reason_code: None,
                     retry_after: rate_limits[1].retry_after,
@@ -1145,7 +1147,7 @@ mod tests {
         assert_eq!(
             rate_limits,
             vec![RateLimit {
-                categories: smallvec![DataCategory::MetricBucket],
+                categories: [DataCategory::MetricBucket].into(),
                 scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
@@ -1171,7 +1173,7 @@ mod tests {
         assert_eq!(
             rate_limits,
             vec![RateLimit {
-                categories: smallvec![DataCategory::MetricBucket],
+                categories: [DataCategory::MetricBucket].into(),
                 scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: Some(ReasonCode::new("some_reason")),
                 retry_after: rate_limits[0].retry_after,
@@ -1196,7 +1198,7 @@ mod tests {
         assert_eq!(
             rate_limits,
             vec![RateLimit {
-                categories: smallvec![DataCategory::Unknown, DataCategory::Unknown],
+                categories: [DataCategory::Unknown, DataCategory::Unknown].into(),
                 scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
@@ -1235,7 +1237,7 @@ mod tests {
 
     fn rate_limit(category: DataCategory) -> RateLimit {
         RateLimit {
-            categories: vec![category].into(),
+            categories: [category].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(60),
