@@ -45,7 +45,7 @@ local region_pops = {
 // List of datadog monitors to check during the soak time in the different regions
 local soak_monitors = {
   // (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
-  s4s: '165839949, 237862998',
+  s4s: '165839949 237862998',
   // (Retry Count for a Single Event is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
   us: '165839953 165839955 237862996',
   default: '',
@@ -54,7 +54,7 @@ local soak_monitors = {
 // List of datadog monitors to check during the canary deployment in the different regions
 local canary_monitors = {
   // (S4S Service Queues are Backlogging), (CrashLoopBackoff Count is High)
-  s4s: '165839949, 237862998',
+  s4s: '165839949 237862998',
   // (Retry Count for a Single Event is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
   us: '165839953 165839955 237862996',
   // (CrashLoopBackoff Count is High)
