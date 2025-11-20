@@ -110,10 +110,19 @@ impl Item {
 
         match self.ty() {
             ItemType::Event => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Transaction => smallvec![
-                (DataCategory::Transaction, item_count),
-                (DataCategory::TransactionIndexed, item_count),
-            ],
+            ItemType::Transaction => {
+                let mut quantities = smallvec![
+                    (DataCategory::Transaction, item_count),
+                    (DataCategory::TransactionIndexed, item_count),
+                ];
+                if !self.spans_extracted() {
+                    quantities.extend([
+                        (DataCategory::Span, item_count + self.span_count()),
+                        (DataCategory::SpanIndexed, item_count + self.span_count()),
+                    ]);
+                }
+                quantities
+            }
             ItemType::Security | ItemType::RawSecurity => {
                 smallvec![(DataCategory::Security, item_count)]
             }
@@ -223,11 +232,7 @@ impl Item {
     pub fn ensure_span_count(&mut self) -> usize {
         match self.headers.span_count {
             Some(count) => count,
-            None => {
-                relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
-                    self.refresh_span_count()
-                })
-            }
+            None => self.refresh_span_count(),
         }
     }
 
@@ -573,7 +578,9 @@ impl Item {
             return None;
         }
 
-        let event = serde_json::from_slice::<PartialEvent>(&self.payload()).ok()?;
+        let event = relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
+            serde_json::from_slice::<PartialEvent>(&self.payload()).ok()?
+        });
 
         Some(event.spans.0)
     }

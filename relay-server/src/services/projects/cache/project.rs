@@ -9,7 +9,7 @@ use crate::managed::ManagedEnvelope;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::projects::cache::state::SharedProject;
 use crate::services::projects::project::ProjectState;
-use crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter};
+use crate::utils::{CheckLimits, EnvelopeLimiter};
 
 /// A loaded project.
 pub struct Project<'a> {
@@ -76,18 +76,24 @@ impl<'a> Project<'a> {
         let current_limits = self.rate_limits().current_limits();
 
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
+
+        // To get the correct span outcomes, we have to partially parse the event payload
+        // and count the spans contained in the transaction events.
+        // For performance reasons, we only do this if there is an active limit on `Transaction`.
+        if current_limits
+            .is_any_limited_with_quotas(quotas, &[scoping.item(DataCategory::Transaction)])
+        {
+            ensure_span_count(&mut envelope);
+        }
+
         let envelope_limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |item_scoping, _| {
             let current_limits = Arc::clone(&current_limits);
             async move { Ok(current_limits.check_with_quotas(quotas, item_scoping)) }
         });
 
-        let (mut enforcement, mut rate_limits) = envelope_limiter
+        let (enforcement, mut rate_limits) = envelope_limiter
             .compute(envelope.envelope_mut(), &scoping)
             .await?;
-
-        // If we can extract spans from the event, we want to try and count the number of nested
-        // spans to correctly emit negative outcomes in case the transaction itself is dropped.
-        sync_spans_to_enforcement(&mut envelope, &mut enforcement);
 
         enforcement.apply_with_outcomes(&mut envelope);
 
@@ -127,35 +133,13 @@ pub struct CheckedEnvelope {
     pub rate_limits: RateLimits,
 }
 
-/// Adds category limits for the nested spans inside a transaction.
-///
-/// On the fast path of rate limiting, we do not have nested spans of a transaction extracted
-/// as top-level spans, thus if we limited a transaction, we want to count and emit negative
-/// outcomes for each of the spans nested inside that transaction.
-fn sync_spans_to_enforcement(envelope: &mut ManagedEnvelope, enforcement: &mut Enforcement) {
-    if !enforcement.is_event_active() {
-        return;
-    }
-
-    let spans_count = envelope
+fn ensure_span_count(envelope: &mut ManagedEnvelope) {
+    if let Some(transaction_item) = envelope
         .envelope_mut()
         .items_mut()
         .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())
-        .map_or(0, |item| 1 + item.ensure_span_count());
-
-    if spans_count == 0 {
-        return;
-    }
-
-    if enforcement.event.is_active() {
-        enforcement.spans = enforcement.event.clone_for(DataCategory::Span, spans_count);
-    }
-
-    // TODO(follow-up): Do not manually enforce, rely on quantities() instead.
-    if enforcement.event_indexed.is_active() {
-        enforcement.spans_indexed = enforcement
-            .event_indexed
-            .clone_for(DataCategory::SpanIndexed, spans_count);
+    {
+        transaction_item.ensure_span_count();
     }
 }
 
