@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from unittest import mock
 
-from sentry_sdk import envelope
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
@@ -10,7 +9,6 @@ from .asserts import time_within_delta, time_within
 from .test_dynamic_sampling import _add_sampling_config
 
 import json
-import uuid
 import pytest
 
 TEST_CONFIG = {
@@ -18,74 +16,6 @@ TEST_CONFIG = {
         "emit_outcomes": True,
     }
 }
-
-
-# Simple test to check the behavior of the attachment, before treating the span attachment as
-# something special this test passed.
-def test_span_attachment(
-    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
-):
-    project_id = 42
-    event_id = "515539018c9b4260a6f999572f1661ee"
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config = project_config["config"].update(
-        {
-            "features": [
-                "organizations:standalone-span-ingestion",
-                "projects:span-v2-experimental-processing",
-            ],
-            "retentions": {"span": {"standard": 42, "downsampled": 1337}},
-        }
-    )
-    relay = relay_with_processing()
-    attachments_consumer = attachments_consumer()
-    outcomes_consumer = outcomes_consumer()
-
-    metadata = {
-        "attachment_id": str(uuid.uuid4()),
-        "timestamp": 1760520026.781239,
-        "filename": "myfile.txt",
-        "content_type": "text/plain",
-        "attributes": {
-            "foo": {"type": "string", "value": "bar"},
-            "custom_tag": {"type": "string", "value": "test"},
-        },
-    }
-
-    attachment_body = b"This is some mock attachment content"
-    metadata_bytes = json.dumps(metadata).encode("utf-8")
-    combined_payload = metadata_bytes + attachment_body
-
-    envelope = Envelope(headers={"event_id": event_id})
-    attachment_item = Item(
-        payload=PayloadRef(bytes=combined_payload),
-        type="attachment",
-    )
-
-    attachment_item.headers["content_type"] = "application/vnd.sentry.attachment.v2"
-    attachment_item.headers["meta_length"] = len(metadata_bytes)
-    attachment_item.headers["span_id"] = "EEE19B7EC3C1B174"
-
-    envelope.add_item(attachment_item)
-    relay.send_envelope(project_id, envelope)
-
-    attachment = attachments_consumer.get_individual_attachment()
-    assert attachment == {
-        "type": "attachment",
-        "attachment": {
-            "name": "Unnamed Attachment",
-            "rate_limited": False,
-            "attachment_type": "event.attachment",
-            "size": len(combined_payload),
-            "data": combined_payload,
-            "content_type": "application/vnd.sentry.attachment.v2",
-            "id": mock.ANY,
-        },
-        "event_id": event_id,
-        "project_id": project_id,
-    }
-
-    outcomes_consumer.assert_empty()
 
 
 def envelope_with_spans(*payloads: dict, trace_info=None) -> Envelope:

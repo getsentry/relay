@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::time::Duration;
 
 use relay_event_normalization::{
@@ -8,10 +8,8 @@ use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{AttachmentV2Meta, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
-use crate::envelope::{
-    AssociatedSpanId, ContainerItems, EnvelopeHeaders, Item, ItemContainer, WithHeader,
-};
-use crate::managed::Managed;
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
+use crate::managed::{Managed, RecordKeeper};
 use crate::processing::Context;
 use crate::processing::spans::{
     self, Error, ExpandedSpans, Result, SampledSpans, SpanWrapper, ValidatedSpanAttachment,
@@ -32,7 +30,9 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
         }
 
         // Collect all the span_ids that an attachment could be linked to.
-        let span_ids: HashSet<SpanId> = all_spans
+        // Note: We only want the ids of the 'v2' spans hence this is done before the legacy
+        // and integration expansion.
+        let span_ids: BTreeSet<SpanId> = all_spans
             .iter()
             .filter_map(|span| span.value.value()?.span_id.value().copied())
             .collect();
@@ -53,8 +53,8 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
             .inner
             .span_attachments
             .into_iter()
-            .filter_map(
-                |item| match parse_and_validate_span_attachment(&item, &span_ids) {
+            .filter_map(|item| {
+                match parse_and_validate_span_attachment(&item, &span_ids, records) {
                     Ok((None, attachment)) => Some(attachment),
                     Ok((Some(span_id), attachment)) => {
                         attachments.insert(span_id, attachment);
@@ -64,8 +64,8 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
                         drop(records.reject_err(err, item));
                         None
                     }
-                },
-            )
+                }
+            })
             .collect();
 
         // Package all the spans into span wrappers attaching the associated span attachment if it
@@ -118,11 +118,11 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
 /// Parses and validates a span attachment, converting it into a structured type.
 fn parse_and_validate_span_attachment(
     item: &Item,
-    span_ids: &HashSet<SpanId>,
+    span_ids: &BTreeSet<SpanId>,
+    records: &mut RecordKeeper<'_>,
 ) -> Result<(Option<SpanId>, ValidatedSpanAttachment)> {
-    let associated_span_id = match item.span_id() {
-        Some(AssociatedSpanId::Value(span_id)) => Some(span_id),
-        Some(AssociatedSpanId::Null(_)) => None,
+    let associated_span_id = match item.parent_id() {
+        Some(ParentId::SpanId(span_id)) => *span_id,
         None => {
             relay_log::debug!("span attachment missing associated span id");
             return Err(Error::Invalid(DiscardReason::InvalidJson));
@@ -160,6 +160,13 @@ fn parse_and_validate_span_attachment(
             Error::Invalid(DiscardReason::InvalidJson)
         })?;
     let body = payload.slice(meta_length..);
+
+    // TODO: Remove this to count the entire thing.
+    // From here on only count the body of the attachment v2 not its meta data.
+    records.modify_by(
+        relay_quotas::DataCategory::Attachment,
+        -(item.meta_length().unwrap_or(0) as isize),
+    );
 
     Ok((associated_span_id, ValidatedSpanAttachment { meta, body }))
 }
@@ -226,31 +233,16 @@ fn normalize_span(
 pub fn scrub(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
     spans.retain(
         |spans| &mut spans.spans,
-        |span, r| {
+        |span, _| {
             scrub_span(&mut span.span, ctx)
                 .inspect_err(|err| relay_log::debug!("failed to scrub pii from span: {err}"))?;
 
-            // Also scrub the attachment but don't drop the associated span just because the attachment is bad.
-            // Need to take the item here and leave the None behind such that everything is happy
-            if let Some(attachment) = &mut span.attachment {
-                let t = scrub_attachment(attachment, ctx).inspect_err(|err| {
-                    relay_log::debug!("failed to scrub pii from span attachment: {err}");
-                    drop(r.reject_err(err, *attachment));
-                });
-            }
+            // TODO: Also scrub the attachment
             Ok::<(), Error>(())
         },
     );
 
-    // Filter all the standalone spans.
-    spans.retain(
-        |spans| &mut spans.stand_alone_attachments,
-        |attachment, _| {
-            scrub_attachment(attachment, ctx).inspect_err(|err| {
-                relay_log::debug!("failed to scrub pii from span attachment: {err}")
-            })
-        },
-    );
+    // TODO: Also scrub the standalone attachments
 }
 
 fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
@@ -268,11 +260,6 @@ fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
         pii_config_from_scrubbing.as_ref(),
     )?;
 
-    Ok(())
-}
-
-fn scrub_attachment(attachment: &mut ValidatedSpanAttachment, ctx: Context<'_>) -> Result<()> {
-    // TODO: Fill in the attachment scrubbing logic, needs to work both on the body as it does for the normal attachments so far and the attachment meta?
     Ok(())
 }
 

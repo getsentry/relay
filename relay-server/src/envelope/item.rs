@@ -42,7 +42,7 @@ impl Item {
                 fully_normalized: false,
                 profile_type: None,
                 platform: None,
-                span_id: None,
+                parent_id: None,
                 meta_length: None,
             },
             payload: Bytes::new(),
@@ -385,11 +385,21 @@ impl Item {
         self.headers.meta_length
     }
 
-    /// Returns the id of the span associated to the item.
+    /// Returns the parent entity that this item is associated with, if any.
     ///
-    /// Only applicable if the item is a span attachment.
-    pub fn span_id(&self) -> Option<AssociatedSpanId> {
-        self.headers.span_id
+    /// Only applicable if the item is an attachment.
+    pub fn parent_id(&self) -> Option<&ParentId> {
+        self.headers.parent_id.as_ref()
+    }
+
+    /// Sets the length of the optional meta segment.
+    pub fn set_meta_length(&mut self, meta_length: u32) {
+        self.headers.meta_length = Some(meta_length);
+    }
+
+    /// Sets the parent entity that this item is associated with.
+    pub fn set_parent_id(&mut self, parent_id: ParentId) {
+        self.headers.parent_id = Some(parent_id);
     }
 
     /// Returns the specified header value, if present.
@@ -877,11 +887,11 @@ pub struct ItemHeaders {
     #[serde(skip_serializing_if = "Option::is_none")]
     meta_length: Option<u32>,
 
-    /// ID of ths span that the Item is associated with, if it is a span_attachment.
+    /// Parent entity that this item is associated with, if any.
     ///
-    /// For the time being only applicable if the item is a span attachment.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    span_id: Option<AssociatedSpanId>,
+    /// For the time being only applicable if the item is a span-attachment.
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    parent_id: Option<ParentId>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
@@ -930,14 +940,16 @@ fn is_true(value: &bool) -> bool {
     *value
 }
 
-/// ID of the span that a span attachment is associated with, if any.
+/// Parent identifier for an attachment-v2.
 ///
-/// `Null` indicates the attachment is not associated with any specific span.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum AssociatedSpanId {
-    Value(SpanId),
-    Null(()),
+/// Attachments can be associated with different types of parent entities (only spans for now).
+///
+/// SpanId(None) indicates that the item is a span-attachment that is associated with no specific
+/// span.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ParentId {
+    SpanId(Option<SpanId>),
 }
 
 #[cfg(test)]
