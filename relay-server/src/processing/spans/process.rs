@@ -1,17 +1,24 @@
 use std::time::Duration;
 
-use relay_event_normalization::{
-    GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
-};
-use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{Span, SpanV2};
-use relay_protocol::Annotated;
-
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, WithHeader};
 use crate::managed::Managed;
 use crate::processing::Context;
 use crate::processing::spans::{self, Error, ExpandedSpans, Result, SampledSpans};
 use crate::services::outcome::DiscardReason;
+use relay_conventions::consts;
+use relay_event_normalization::span::TABLE_NAME_REGEX;
+use relay_event_normalization::span::description::scrub_db_query;
+use relay_event_normalization::span::tag_extraction::{
+    sql_action_from_query, sql_tables_from_query,
+};
+use relay_event_normalization::{
+    GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
+};
+use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
+use relay_event_schema::protocol::{Attributes, Span, SpanV2};
+use relay_protocol::Annotated;
+use relay_spans::derive_op_for_v2_span;
+use std::borrow::Cow;
 
 /// Parses all serialized spans.
 ///
@@ -94,6 +101,18 @@ fn normalize_span(
         let duration = span_duration(span);
         let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
 
+        if span
+            .attributes
+            .value()
+            .and_then(|v| v.get_value(consts::OP))
+            .is_none()
+        {
+            let inferred_op = derive_op_for_v2_span(span);
+            span.attributes
+                .get_or_insert_with(Default::default)
+                .insert(consts::OP, inferred_op);
+        }
+
         validate_timestamps(span)?;
 
         eap::normalize_attribute_types(&mut span.attributes);
@@ -108,6 +127,8 @@ fn normalize_span(
             eap::normalize_dsc(&mut span.attributes, dsc);
         }
         eap::normalize_ai(&mut span.attributes, duration, model_costs);
+
+        normalize_attribute_values(&mut span.attributes);
     };
 
     process_value(span, &mut TrimmingProcessor::new(), ProcessingState::root())?;
@@ -123,6 +144,125 @@ fn normalize_span(
     }
 
     Ok(())
+}
+
+fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
+    normalize_db_query_text(attributes);
+}
+
+fn normalize_db_query_text(annotated_attributes: &mut Annotated<Attributes>) {
+    let Some(attributes) = annotated_attributes.value_mut() else {
+        return;
+    };
+    let (op, sub_op) = attributes
+        .get_value(consts::OP)
+        .and_then(|v| v.as_str())
+        .and_then(|op| {
+            op.split_once('.')
+                .map(|(op, sub_op)| (op.to_owned(), sub_op.to_owned()))
+        })
+        .unwrap_or_default();
+
+    let raw_query = attributes
+        .get_value(consts::DB_QUERY_TEXT)
+        .or_else(|| {
+            if op == "db" {
+                attributes.get_value(consts::DESCRIPTION)
+            } else {
+                None
+            }
+        })
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let db_system = attributes
+        .get_value(consts::DB_SYSTEM_NAME)
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let db_operation = attributes
+        .get_value(consts::DB_OPERATION)
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let collection_name = attributes
+        .get_value(consts::DB_COLLECTION_NAME)
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let span_origin = attributes
+        .get_value(consts::ORIGIN)
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let (scrubbed, parsed_sql) = if let Some(raw_query) = raw_query.as_ref() {
+        scrub_db_query(
+            raw_query,
+            sub_op.as_str(),
+            db_system.as_deref(),
+            db_operation.as_deref(),
+            collection_name.as_deref(),
+            span_origin.as_deref(),
+        )
+    } else {
+        (None, None)
+    };
+
+    let Some(normalized_db_query) = scrubbed else {
+        return;
+    };
+
+    attributes.insert(consts::NORMALIZED_DB_QUERY, normalized_db_query.clone());
+
+    // Insert the db operation attribute if not present, otherwise uppercase it
+    if db_operation.is_none() {
+        if let Some(new_db_operation) = match sub_op.as_str() {
+            "redis" => {
+                // This only works as long as redis span descriptions contain the command + " *"
+                let command = normalized_db_query.replace(" *", "");
+                if command.is_empty() {
+                    None
+                } else {
+                    Some(command)
+                }
+            }
+            _ => {
+                if let Some(raw_query) = raw_query.as_ref() {
+                    // For other database operations, try to get the operation from data
+                    sql_action_from_query(raw_query).map(|a| a.to_uppercase())
+                } else {
+                    None
+                }
+            }
+        } {
+            attributes.insert(consts::DB_OPERATION, new_db_operation);
+        }
+    } else if let Some(s) = db_operation.map(|db_op| db_op.to_uppercase()) {
+        attributes.insert(consts::DB_OPERATION, s)
+    }
+
+    // Add a collection name attribute if not present, otherwise normalize it
+    if collection_name.is_none() {
+        let new_collection_name = if span_origin.as_deref() == Some("auto.db.supabase") {
+            normalized_db_query
+                .as_str()
+                .strip_prefix("from(")
+                .and_then(|s| s.strip_suffix(')'))
+                .map(String::from)
+        } else if let Some(raw_query) = raw_query.as_ref() {
+            sql_tables_from_query(raw_query, &parsed_sql)
+        } else {
+            None
+        };
+        if let Some(new_collection_name) = new_collection_name {
+            attributes.insert(consts::DB_COLLECTION_NAME, new_collection_name);
+        }
+    } else if db_system.as_deref() == Some("mongodb")
+        && let Cow::Owned(new_collection_name) =
+            TABLE_NAME_REGEX.replace_all(collection_name.unwrap_or("".to_owned()).as_str(), "{%s}")
+    {
+        attributes.insert(consts::DB_COLLECTION_NAME, new_collection_name);
+    }
 }
 
 /// Validates the start and end timestamps of a span.
@@ -669,5 +809,117 @@ mod tests {
             ..Default::default()
         });
         assert!(r.is_err());
+    }
+    #[test]
+    fn test_normalize_span_infers_op() {
+        let mut span = Annotated::<SpanV2>::from_json(
+            r#"
+        {
+            "start_timestamp": 1544719859.0,
+            "end_timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "db.query",
+            "status": "ok",
+            "attributes": {
+                "db.system.name": {
+                    "type": "string",
+                    "value": "mysql"
+                },
+                "db.operation": {
+                    "type": "string",
+                    "value": "query"
+                }
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = crate::extractors::RequestMeta::new(dsn);
+        let envelope = crate::envelope::Envelope::from_request(None, request_meta);
+
+        normalize_span(
+            &mut span,
+            envelope.headers(),
+            &GeoIpLookup::default(),
+            make_context(relay_pii::DataScrubbingConfig::default(), None),
+        )
+        .unwrap();
+        assert_eq!(
+            span.value()
+                .unwrap()
+                .attributes
+                .value()
+                .unwrap()
+                .get_value(consts::OP)
+                .unwrap()
+                .as_str(),
+            Some("db")
+        );
+    }
+
+    #[test]
+    fn test_normalize_db_query_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          },
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.otlp.spans"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mysql"
+          },
+          "db.operation": {
+            "type": "string",
+            "value": "query"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "SELECT \"not an identifier\""
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_db_query_text(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.operation": {
+            "type": "string",
+            "value": "QUERY"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "SELECT \"not an identifier\""
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mysql"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "SELECT %s"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          },
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.otlp.spans"
+          }
+        }
+        "#);
     }
 }
