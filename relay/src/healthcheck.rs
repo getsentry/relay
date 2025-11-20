@@ -18,6 +18,7 @@ pub fn healthcheck(config: &Config, matches: &ArgMatches) -> Result<()> {
     let addr = matches
         .get_one::<SocketAddr>("addr")
         .copied()
+        .or_else(|| config.listen_addr_internal())
         .unwrap_or(config.listen_addr());
 
     let client = Client::builder()

@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 
 use chrono::Utc;
+use either::Either;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
 use relay_protocol::get_value;
@@ -15,7 +16,7 @@ use crate::managed::{Counted, Managed, Quantities};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::Context;
 use crate::processing::spans::{
-    Error, ExpandedSpans, Result, SampledSpans, SerializedSpans, outcome_count,
+    Error, ExpandedSpans, Indexed, Result, SampledSpans, SerializedSpans, outcome_count,
 };
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
@@ -141,34 +142,36 @@ pub async fn run(
     Err(metrics)
 }
 
+/// Type returned by [`create_indexed_metrics`].
+///
+/// Contains the indexed spans and the metrics extracted from the spans.
+type SpansAndMetrics = (Managed<ExpandedSpans<Indexed>>, Managed<ExtractedMetrics>);
+
 /// Creates/extracts metrics for spans which have been determined to be kept by dynamic sampling.
 ///
 /// Indexed metrics can only be extracted from the Relay making the final sampling decision,
-/// if the current Relay is not the final Relay, the function returns `None`.
+/// if the current Relay is not the final Relay, the function returns the original spans unchanged.
 pub fn create_indexed_metrics(
-    spans: &Managed<ExpandedSpans>,
+    spans: Managed<ExpandedSpans>,
     ctx: Context<'_>,
-) -> Option<Managed<ExtractedMetrics>> {
+) -> Either<Managed<ExpandedSpans>, SpansAndMetrics> {
     if !ctx.is_processing() {
-        return None;
+        return Either::Left(spans);
     }
 
-    let metrics = create_metrics(
-        spans.scoping(),
-        spans.spans.len() as u32,
-        spans.headers.dsc(),
-        SamplingDecision::Keep,
-    );
+    let scoping = spans.scoping();
+    let (indexed, metrics) = spans.split_once(|spans| {
+        let metrics = create_metrics(
+            scoping,
+            spans.spans.len() as u32,
+            spans.headers.dsc(),
+            SamplingDecision::Keep,
+        );
 
-    // Metrics are extracted from indexed spans, they should not emit any span outcomes.
-    debug_assert!(
-        metrics
-            .quantities()
-            .into_iter()
-            .all(|(c, _)| c == DataCategory::MetricBucket)
-    );
+        (spans.into_indexed(), metrics)
+    });
 
-    Some(spans.wrap(metrics))
+    Either::Right((indexed, metrics))
 }
 
 async fn compute(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> SamplingResult {

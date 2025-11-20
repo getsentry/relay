@@ -1,6 +1,7 @@
 import uuid
 from copy import deepcopy
 from pathlib import Path
+from datetime import datetime, timezone
 
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -303,7 +304,7 @@ def test_profile_chunk_outcomes_rate_limited_fast(
     upstream.send_envelope(project_id, envelope)
 
     if platform is None:
-        envelope = mini_sentry.captured_events.get(timeout=1)
+        envelope = mini_sentry.get_captured_event()
         assert [item.type for item in envelope.items] == ["profile_chunk"]
     else:
         outcome = mini_sentry.get_client_report()
@@ -311,3 +312,77 @@ def test_profile_chunk_outcomes_rate_limited_fast(
             {"category": category, "quantity": 1, "reason": "profile_chunks_exceeded"}
         ]
         assert mini_sentry.captured_events.empty()
+
+
+@pytest.mark.parametrize(
+    "platform, category, filter_context",
+    [
+        ("cocoa", "profile_chunk_ui", True),
+        ("cocoa", "profile_duration_ui", True),
+        ("cocoa", "profile_chunk", False),
+        ("cocoa", "profile_duration", False),
+        ("node", "profile_chunk", True),
+        ("node", "profile_duration", True),
+        ("node", "profile_chunk_ui", False),
+        ("node", "profile_duration_ui", False),
+    ],
+)
+def test_profile_chunk_limited_transaction_context_removed(
+    mini_sentry,
+    relay,
+    platform,
+    category,
+    filter_context,
+):
+    """
+    Test asserts that Relay removes the profile context if profile chunks are rate limited.
+
+    See also: <https://github.com/getsentry/relay/issues/5071>.
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+
+    project_config["config"].setdefault("features", []).append(
+        "organizations:continuous-profiling"
+    )
+
+    project_config["config"]["quotas"] = [
+        {
+            "id": "test_rate_limiting",
+            "categories": [category],
+            "limit": 0,
+            "reasonCode": "profile_chunks_exceeded",
+        }
+    ]
+
+    relay = relay(mini_sentry)
+
+    ts = datetime.now(timezone.utc)
+
+    relay.send_transaction(
+        project_id,
+        {
+            "type": "transaction",
+            "timestamp": ts.timestamp(),
+            "start_timestamp": ts.timestamp() - 2.0,
+            "platform": platform,
+            "spans": [],
+            "contexts": {
+                "profile": {
+                    "profiler_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                },
+                "trace": {
+                    "trace_id": "5b8efff798038103d269b633813fc60c",
+                    "span_id": "aaaaaaaaaaaaaaaa",
+                    "type": "trace",
+                },
+            },
+            "transaction": "/hello",
+        },
+    )
+
+    event = mini_sentry.get_captured_event().get_transaction_event()
+    if filter_context:
+        assert "profile" not in event["contexts"]
+    else:
+        assert "profile" in event["contexts"]

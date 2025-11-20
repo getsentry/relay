@@ -254,9 +254,8 @@ def test_it_removes_events(mini_sentry, relay):
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
     # the event should be removed by Relay sampling
-    assert mini_sentry.captured_events.get(timeout=2) == only_items("metric_buckets")
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_events.get(timeout=1)
+    assert mini_sentry.get_captured_event() == only_items("metric_buckets")
+    assert mini_sentry.captured_events.empty()
 
     outcomes = mini_sentry.captured_outcomes.get(timeout=2)
     assert outcomes is not None
@@ -285,7 +284,7 @@ def test_it_does_not_sample_error(mini_sentry, relay):
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
     # test that error is kept by Relay
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.get_captured_event()
     assert envelope is not None
     # double check that we get back our object
     # we put the id in extra since Relay overrides the initial event_id
@@ -325,7 +324,7 @@ def test_it_tags_error(mini_sentry, relay, expected_sampled, sample_rate):
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
     # test that error is kept by Relay
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.get_captured_event()
     assert envelope is not None
     # double check that we get back our object
     # we put the id in extra since Relay overrides the initial event_id
@@ -426,7 +425,7 @@ def test_it_keeps_events(mini_sentry, relay):
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
     # the event should be left alone by Relay sampling
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.get_captured_event()
     assert envelope is not None
     # double check that we get back our object
     # we put the id in extra since Relay overrides the initial event_id
@@ -491,9 +490,8 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id2, envelope)
     # the event should be removed by Relay sampling
-    assert mini_sentry.captured_events.get(timeout=2) == only_items("metric_buckets")
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_events.get(timeout=1)
+    assert mini_sentry.get_captured_event() == only_items("metric_buckets")
+    assert mini_sentry.captured_events.empty()
 
     # and it should create an outcome
     outcomes = mini_sentry.captured_outcomes.get(timeout=2)  # Spans
@@ -514,7 +512,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     relay.send_envelope(project_id1, envelope)
 
     # the event should be passed along to upstream (with the transaction unchanged)
-    evt = mini_sentry.captured_events.get(timeout=1).get_transaction_event()
+    evt = mini_sentry.get_captured_event().get_transaction_event()
     assert evt is not None
 
     # no outcome should be generated (since the event is passed along to the upstream)
@@ -570,11 +568,8 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
         # send the event, the transaction should be removed.
         relay.send_envelope(project_id, envelope)
         # the event should be removed by Relay sampling
-        assert mini_sentry.captured_events.get(timeout=2) == only_items(
-            "metric_buckets"
-        )
-        with pytest.raises(queue.Empty):
-            mini_sentry.captured_events.get(timeout=1)
+        assert mini_sentry.get_captured_event() == only_items("metric_buckets")
+        assert mini_sentry.captured_events.empty()
 
         outcomes = mini_sentry.captured_outcomes.get(timeout=2)
         assert outcomes is not None
@@ -602,7 +597,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
 
         for _ in range(expected_count * 3):  # Allow for some extra attempts
             try:
-                received_envelope = mini_sentry.captured_events.get(
+                received_envelope = mini_sentry.get_captured_event(
                     timeout=timeout_per_event
                 )
                 if (
@@ -696,8 +691,7 @@ def test_relay_chain(
     )
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    envelope.get_transaction_event()
+    assert mini_sentry.get_captured_event().get_transaction_event() is not None
 
 
 @pytest.mark.parametrize("mode", ["default", "chain"])
@@ -892,4 +886,4 @@ def test_invalid_global_generic_filters_skip_dynamic_sampling(mini_sentry, relay
     envelope, _, _ = _create_transaction_envelope(public_key, client_sample_rate=0)
 
     relay.send_envelope(project_id, envelope)
-    assert mini_sentry.captured_events.get(timeout=1)
+    assert mini_sentry.get_captured_event()

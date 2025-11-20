@@ -704,6 +704,15 @@ where
     }
 }
 
+impl<M: 'static + Send> Recipient<M, NoResponse> {
+    /// Creates a new recipient from a tokio channel. Used in tests.
+    pub fn new(tx: tokio::sync::mpsc::UnboundedSender<M>) -> Self {
+        Self {
+            inner: Box::new(tx),
+        }
+    }
+}
+
 // Manual implementation since `XSender` cannot require `Clone` for object safety.
 impl<M, R: MessageResponse> Clone for Recipient<M, R> {
     fn clone(&self) -> Self {
@@ -816,6 +825,19 @@ where
 
     fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output {
         Addr::send(self, message)
+    }
+
+    fn to_trait_object(&self) -> Box<dyn SendDispatch<M, Response = Self::Response>> {
+        Box::new(self.clone())
+    }
+}
+
+// Used in tests.
+impl<M: 'static + Send> SendDispatch<M> for tokio::sync::mpsc::UnboundedSender<M> {
+    type Response = NoResponse;
+
+    fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output {
+        self.send(message).ok();
     }
 
     fn to_trait_object(&self) -> Box<dyn SendDispatch<M, Response = Self::Response>> {

@@ -32,7 +32,7 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name, extract_metrics):
     response = relay.send_unreal_request(project_id, unreal_content)
 
     event_id = response.text.replace("-", "")
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.get_captured_event()
     assert envelope
     assert event_id == envelope.headers.get("event_id")
     items = envelope.items

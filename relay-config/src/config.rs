@@ -487,6 +487,24 @@ pub struct Relay {
     pub host: IpAddr,
     /// The port to bind for the unencrypted relay HTTP server.
     pub port: u16,
+    /// The host the relay should bind to (network interface) for internally exposed APIs, like
+    /// health checks.
+    ///
+    /// If not configured, internal routes are exposed on the main HTTP server.
+    ///
+    /// Note: configuring the internal http server on an address which overlaps with the main
+    /// server (e.g. main on `0.0.0.0:3000` and internal on `127.0.0.1:3000`) is a misconfiguration
+    /// resulting in approximately half of the requests sent to `127.0.0.1:3000` to fail, as the handling
+    /// http server is chosen by the operating system 'at random'.
+    ///
+    /// As a best practice you should always choose different ports to avoid this issue.
+    ///
+    /// Defaults to [`Self::host`].
+    pub internal_host: Option<IpAddr>,
+    /// The port to bind for internally exposed APIs.
+    ///
+    /// Defaults to [`Self::port`].
+    pub internal_port: Option<u16>,
     /// Optional port to bind for the encrypted relay HTTPS server.
     #[serde(skip_serializing)]
     pub tls_port: Option<u16>,
@@ -512,6 +530,8 @@ impl Default for Relay {
             upstream: "https://sentry.io/".parse().unwrap(),
             host: default_host(),
             port: 3000,
+            internal_host: None,
+            internal_port: None,
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
@@ -1173,6 +1193,9 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
+    /// Configuration for attachment uploads.
+    #[serde(default)]
+    pub upload: UploadServiceConfig,
 }
 
 impl Default for Processing {
@@ -1191,6 +1214,7 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
+            upload: UploadServiceConfig::default(),
         }
     }
 }
@@ -1235,6 +1259,33 @@ impl Default for OutcomeAggregatorConfig {
         Self {
             bucket_interval: 60,
             flush_interval: 120,
+        }
+    }
+}
+
+/// Configuration values for attachment uploads.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct UploadServiceConfig {
+    /// The base URL for the objectstore service.
+    ///
+    /// This defaults to [`None`], which means that the service will be disabled,
+    /// unless a proper configuration is provided.
+    pub objectstore_url: Option<String>,
+
+    /// Maximum concurrency of uploads.
+    pub max_concurrent_requests: usize,
+
+    /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
+    pub timeout: u64,
+}
+
+impl Default for UploadServiceConfig {
+    fn default() -> Self {
+        Self {
+            objectstore_url: None,
+            max_concurrent_requests: 100,
+            timeout: 60,
         }
     }
 }
@@ -1924,6 +1975,25 @@ impl Config {
         (self.values.relay.host, self.values.relay.port).into()
     }
 
+    /// Returns the listen address for internal APIs.
+    ///
+    /// Internal APIs are APIs which do not need to be publicly exposed,
+    /// like health checks.
+    ///
+    /// Returns `None` when there is no explicit address configured for internal APIs,
+    /// and they should instead be exposed on the main [`Self::listen_addr`].
+    pub fn listen_addr_internal(&self) -> Option<SocketAddr> {
+        match (
+            self.values.relay.internal_host,
+            self.values.relay.internal_port,
+        ) {
+            (Some(host), None) => Some((host, self.values.relay.port).into()),
+            (None, Some(port)) => Some((self.values.relay.host, port).into()),
+            (Some(host), Some(port)) => Some((host, port).into()),
+            (None, None) => None,
+        }
+    }
+
     /// Returns the TLS listen address.
     pub fn tls_listen_addr(&self) -> Option<SocketAddr> {
         if self.values.relay.tls_identity_path.is_some() {
@@ -2493,6 +2563,11 @@ impl Config {
         &self.values.processing.topics.unused
     }
 
+    /// Configuration of the attachment upload service.
+    pub fn upload(&self) -> &UploadServiceConfig {
+        &self.values.processing.upload
+    }
+
     /// Redis servers to connect to for project configs, cardinality limits,
     /// rate limiting, and metrics metadata.
     pub fn redis(&self) -> Option<RedisConfigsRef<'_>> {
@@ -2501,6 +2576,7 @@ impl Config {
         Some(build_redis_configs(
             redis_configs,
             self.cpu_concurrency() as u32,
+            self.pool_concurrency() as u32,
         ))
     }
 

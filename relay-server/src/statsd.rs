@@ -77,6 +77,9 @@ pub enum RelayGauges {
     /// - `service`: the service name.
     /// - `instance_id`: a for the service name unique identifier for the running service
     ServiceUtilization,
+    /// Number of attachment uploads currently in flight.
+    #[cfg(feature = "processing")]
+    ConcurrentAttachmentUploads,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -106,6 +109,8 @@ impl GaugeMetric for RelayGauges {
             #[cfg(feature = "processing")]
             RelayGauges::MetricDelayMax => "metrics.delay.max",
             RelayGauges::ServiceUtilization => "service.utilization",
+            #[cfg(feature = "processing")]
+            RelayGauges::ConcurrentAttachmentUploads => "attachment.upload.concurrent",
         }
     }
 }
@@ -381,6 +386,11 @@ pub enum RelayTimers {
     /// Not all events reach this point. After an event is rate limited for the first time, the rate
     /// limit is cached. Events coming in after this will be discarded earlier in the request queue
     /// and do not reach the processing queue.
+    ///
+    /// This metric is tagged with:
+    ///  - `type`: The type of limiter executed, `cached` or `consistent`.
+    ///  - `unit`: The item/unit of work which is being rate limited, only available for new
+    ///    processing pipelines.
     EventProcessingRateLimiting,
     /// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens
     /// last before serializing the event back to JSON.
@@ -919,7 +929,16 @@ pub enum RelayCounters {
     #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
     /// The number of times a sampling decision was made.
+    ///
+    /// This metric is tagged with:
+    /// - `item`: what item the decision is taken for (transaction vs span).
     SamplingDecision,
+    /// The number of times an upload of an attachment occurs.
+    ///
+    /// This metric is tagged with:
+    /// - `result`: `success` or the failure reason.
+    #[cfg(feature = "processing")]
+    AttachmentUpload,
 }
 
 impl CounterMetric for RelayCounters {
@@ -974,6 +993,8 @@ impl CounterMetric for RelayCounters {
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
             RelayCounters::SamplingDecision => "sampling.decision",
+            #[cfg(feature = "processing")]
+            RelayCounters::AttachmentUpload => "attachment.upload",
         }
     }
 }

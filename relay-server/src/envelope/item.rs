@@ -14,6 +14,7 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
+use crate::statsd::RelayTimers;
 
 #[derive(Clone, Debug)]
 pub struct Item {
@@ -32,12 +33,14 @@ impl Item {
                 attachment_type: None,
                 content_type: None,
                 filename: None,
+                stored_key: None,
                 routing_hint: None,
                 rate_limited: false,
                 source_quantities: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
                 spans_extracted: false,
+                span_count: None,
                 sampled: true,
                 fully_normalized: false,
                 profile_type: None,
@@ -109,10 +112,19 @@ impl Item {
 
         match self.ty() {
             ItemType::Event => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Transaction => smallvec![
-                (DataCategory::Transaction, item_count),
-                (DataCategory::TransactionIndexed, item_count),
-            ],
+            ItemType::Transaction => {
+                let mut quantities = smallvec![
+                    (DataCategory::Transaction, item_count),
+                    (DataCategory::TransactionIndexed, item_count),
+                ];
+                if !self.spans_extracted() {
+                    quantities.extend([
+                        (DataCategory::Span, item_count + self.span_count()),
+                        (DataCategory::SpanIndexed, item_count + self.span_count()),
+                    ]);
+                }
+                quantities
+            }
             ItemType::Security | ItemType::RawSecurity => {
                 smallvec![(DataCategory::Security, item_count)]
             }
@@ -189,6 +201,40 @@ impl Item {
         match self.ty().can_support_container() {
             true => self.headers.item_count,
             false => None,
+        }
+    }
+
+    /// Returns the number of spans in the `event.spans` array.
+    ///
+    /// Should always be 0 except for transaction items.
+    ///
+    /// When a transaction is dropped before spans were extracted from a transaction,
+    /// this number is used to emit correct outcomes for the spans category.
+    ///
+    /// This number does *not* count the transaction itself.
+    pub fn span_count(&self) -> usize {
+        self.headers.span_count.unwrap_or(0)
+    }
+
+    /// Sets the number of spans in the transaction payload.
+    pub fn set_span_count(&mut self, value: Option<usize>) {
+        self.headers.span_count = value;
+    }
+
+    /// Sets the `span_count` item header by shallow parsing the event.
+    ///
+    /// Returns the recomputed count.
+    fn refresh_span_count(&mut self) -> usize {
+        let count = self.parse_span_count();
+        self.headers.span_count = count;
+        count.unwrap_or(0)
+    }
+
+    /// Returns the `span_count`` header, and computes it if it has not yet been set.
+    pub fn ensure_span_count(&mut self) -> usize {
+        match self.headers.span_count {
+            Some(count) => count,
+            None => self.refresh_span_count(),
         }
     }
 
@@ -284,6 +330,16 @@ impl Item {
         S: Into<String>,
     {
         self.headers.filename = Some(filename.into());
+    }
+
+    /// Returns the objectstore key, if it is an attachment stored in objectstore.
+    pub fn stored_key(&self) -> Option<&str> {
+        self.headers.stored_key.as_deref()
+    }
+
+    /// Sets the objectstore key of this attachment item.
+    pub fn set_stored_key(&mut self, stored_key: String) {
+        self.headers.stored_key = Some(stored_key);
     }
 
     /// Returns the routing_hint of this item.
@@ -534,6 +590,23 @@ impl Item {
     /// Determines if this item is an `ItemContainer` based on its content type.
     pub fn is_container(&self) -> bool {
         self.content_type().is_some_and(ContentType::is_container)
+    }
+
+    fn parse_span_count(&self) -> Option<usize> {
+        #[derive(Debug, serde::Deserialize)]
+        struct PartialEvent {
+            spans: crate::utils::SeqCount,
+        }
+
+        if self.headers.ty != ItemType::Transaction || self.headers.spans_extracted {
+            return None;
+        }
+
+        let event = relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
+            serde_json::from_slice::<PartialEvent>(&self.payload()).ok()?
+        });
+
+        Some(event.spans.0)
     }
 }
 
@@ -797,6 +870,12 @@ pub struct ItemHeaders {
     #[serde(skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
 
+    /// If this is an attachment item, this may contain the storage key in case it is uploaded to objectstore.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    stored_key: Option<String>,
+
     /// The platform this item was produced for.
     ///
     /// Currently only used for [`ItemType::ProfileChunk`].
@@ -857,6 +936,17 @@ pub struct ItemHeaders {
     /// from spans (the opposite direction), to prevent going in circles.
     #[serde(default, skip_serializing_if = "is_false")]
     spans_extracted: bool,
+
+    /// The number of spans in the `event.spans` array.
+    ///
+    /// Should never be set except for transaction items.
+    ///
+    /// When a transaction is dropped before spans were extracted from a transaction,
+    /// this number is used to emit correct outcomes for the spans category.
+    ///
+    /// This number does *not* count the transaction itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    span_count: Option<usize>,
 
     /// Whether the event has been _fully_ normalized.
     ///

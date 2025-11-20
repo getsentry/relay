@@ -33,8 +33,8 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::managed::{Counted, Managed, OutcomeError, Quantities, TypedEnvelope};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, TypedEnvelope};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -89,7 +89,7 @@ impl Producer {
     }
 }
 
-/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
+/// Publishes an [`Envelope`](crate::envelope::Envelope) to the Sentry core application through Kafka topics.
 #[derive(Debug)]
 pub struct StoreEnvelope {
     pub envelope: TypedEnvelope<Processed>,
@@ -136,7 +136,7 @@ pub struct StoreSpanV2 {
 
 impl Counted for StoreSpanV2 {
     fn quantities(&self) -> Quantities {
-        self.item.quantities()
+        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
     }
 }
 
@@ -255,9 +255,8 @@ impl StoreService {
         } = message;
 
         let scoping = managed.scoping();
-        let envelope = managed.take_envelope();
 
-        match self.store_envelope(envelope, managed.received_at(), scoping) {
+        match self.store_envelope(&mut managed) {
             Ok(()) => managed.accept(),
             Err(error) => {
                 managed.reject(Outcome::Invalid(DiscardReason::Internal));
@@ -270,12 +269,11 @@ impl StoreService {
         }
     }
 
-    fn store_envelope(
-        &self,
-        mut envelope: Box<Envelope>,
-        received_at: DateTime<Utc>,
-        scoping: Scoping,
-    ) -> Result<(), StoreError> {
+    fn store_envelope(&self, managed_envelope: &mut ManagedEnvelope) -> Result<(), StoreError> {
+        let mut envelope = managed_envelope.take_envelope();
+        let received_at = managed_envelope.received_at();
+        let scoping = managed_envelope.scoping();
+
         let retention = envelope.retention();
         let downsampled_retention = envelope.downsampled_retention();
 
@@ -305,14 +303,11 @@ impl StoreService {
         let mut replay_event = None;
         let mut replay_recording = None;
 
+        let options = &self.global_config.current().options;
+
         // Whether Relay will submit the replay-event to snuba or not.
-        let replay_relay_snuba_publish_disabled = utils::sample(
-            self.global_config
-                .current()
-                .options
-                .replay_relay_snuba_publish_disabled_sample_rate,
-        )
-        .is_keep();
+        let replay_relay_snuba_publish_disabled =
+            utils::sample(options.replay_relay_snuba_publish_disabled_sample_rate).is_keep();
 
         for item in envelope.items() {
             let content_type = item.content_type();
@@ -775,12 +770,14 @@ impl StoreService {
         let size = item.len();
         let max_chunk_size = self.config.attachment_chunk_size();
 
-        // When sending individual attachments, and we have a single chunk, we want to send the
-        // `data` inline in the `attachment` message.
-        // This avoids a needless roundtrip through the attachments cache on the Sentry side.
         let payload = if size == 0 {
             AttachmentPayload::Chunked(0)
+        } else if let Some(stored_key) = item.stored_key() {
+            AttachmentPayload::Stored(stored_key.into())
         } else if send_individual_attachments && size < max_chunk_size {
+            // When sending individual attachments, and we have a single chunk, we want to send the
+            // `data` inline in the `attachment` message.
+            // This avoids a needless roundtrip through the attachments cache on the Sentry side.
             AttachmentPayload::Inline(payload)
         } else {
             let mut chunk_index = 0;
@@ -1206,7 +1203,6 @@ enum AttachmentPayload {
 
     /// The attachment has already been stored into the objectstore, with the given Id.
     #[serde(rename = "stored_id")]
-    #[allow(unused)] // TODO: actually storing it in objectstore first is still WIP
     Stored(String),
 }
 

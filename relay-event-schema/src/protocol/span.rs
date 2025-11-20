@@ -134,9 +134,8 @@ pub struct Span {
     )]
     pub performance_issues_spans: Annotated<bool>,
 
-    // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = true, pii = "maybe")]
+    #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
 }
 

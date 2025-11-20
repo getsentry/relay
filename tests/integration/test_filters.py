@@ -413,8 +413,7 @@ def test_localhost_filter_no_local_header_ips(mini_sentry, relay, headers):
     event = {"user": {"ip_address": None}, "request": {"headers": headers}}
     relay.send_event(project_id, event)
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
+    event = mini_sentry.get_captured_event().get_event()
     assert event is not None
 
 

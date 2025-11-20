@@ -765,7 +765,7 @@ def test_spanv2_with_string_pii_scrubbing(
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=5)
+    envelope = mini_sentry.get_captured_event()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
 
@@ -846,7 +846,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=5)
+    envelope = mini_sentry.get_captured_event()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
     attributes = item["attributes"]
@@ -918,28 +918,48 @@ def test_invalid_spans(mini_sentry, relay):
     outcomes = mini_sentry.get_aggregated_outcomes(timeout=5)
     assert outcomes == [
         {
-            "category": 12,
+            "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,
             "project_id": 42,
-            "reason": "no_data",
+            "reason": "timestamp",
             "timestamp": time_within_delta(),
-            "quantity": len(invalid_spans),
+            "quantity": 6,
         },
         {
-            "category": 16,
+            "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,
             "project_id": 42,
             "reason": "no_data",
             "timestamp": time_within_delta(),
-            "quantity": len(invalid_spans),
+            "quantity": 7,
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "reason": "timestamp",
+            "timestamp": time_within_delta(),
+            "quantity": 6,
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "reason": "no_data",
+            "timestamp": time_within_delta(),
+            "quantity": 7,
         },
     ]
 
-    envelope = mini_sentry.captured_events.get(timeout=0.1)
+    envelope = mini_sentry.get_captured_event()
     spans = json.loads(envelope.items[0].payload.bytes.decode())["items"]
 
     assert len(spans) == 1

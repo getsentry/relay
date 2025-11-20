@@ -1,3 +1,62 @@
+[project]
+name = "relay"
+# see py/setup.py for versioning; we only have this here to make uv happy
+# which we intend to use for dependency management, not packaging
+version = "0.0.0"
+
+[tool.uv]
+environments = ["sys_platform == 'darwin' or sys_platform == 'linux'"]
+# This doesn't work; use uv sync --inexact to not uninstall the
+# sentry_relay added by uv pip install -v -e py
+# override-dependencies = ["sentry_relay; sys_platform == 'never'"]
+
+[[tool.uv.index]]
+url = "https://pypi.devinfra.sentry.io/simple"
+default = true
+
+[dependency-groups]
+dev = [
+    "black>=24.3.0",
+    "blinker>=1.8.2",
+    "click>=8.1.7",
+    "confluent-kafka==2.3.0",
+    "devservices>=1.2.1",
+    "flake8>=7.0.0",
+    "flask>=3.0.3",
+    "msgpack>=1.1.0",
+    "mypy>=1.10.0",
+    "objectstore-client==0.0.11",
+    "opentelemetry-proto>=1.32.1",
+    "pre-commit>=4.2.0",
+    "pytest>=7.4.3",
+    "pytest-timeout>=2.2.0",
+    "pytest-localserver>=0.8.1",
+    "pytest-sentry>=0.3.0",
+    "pytest-xdist>=3.5.0",
+    "pyyaml>=6.0.2",
+    "redis>=4.5.4",
+    "requests>=2.32.4",
+    "sentry-protos>=0.4.1",
+    "sentry-sdk>=2.44.0",
+    "types-protobuf>=5.27.0.20240626",
+    "types-pyyaml>=6.0.12.10",
+    "types-redis>=4.5.1.3",
+    "types-requests>=2.30.0.0",
+    "types-setuptools>=69.0.0.0",
+    "werkzeug>=3.0.6",
+    "zstandard>=0.18.0",
+
+    # used for ci build_library
+    "setuptools==80.9.0",
+    # wheel must be 0.45.1; newer versions generate bad macos wheels
+    # where metadata version is written as 2.1 but has Dynamic fields
+    # which twine (in craft) will refuse to upload
+    "wheel==0.45.1",
+    # used for py/tools/verify_wheel.py
+    "packaging==25.0",
+    "milksnake>=0.1.6",
+]
+
 [tool.black]
 exclude = '''
 /(
@@ -16,7 +75,8 @@ exclude = '''
 '''
 
 [tool.mypy]
-exclude = ["^py/sentry_relay/_lowlevel__ffi.py"]
+mypy_path = "py"
+explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 module = [
