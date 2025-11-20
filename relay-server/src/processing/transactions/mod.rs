@@ -157,7 +157,7 @@ impl Processor for TransactionProcessor {
         let project_id = work.scoping().project_id;
         let mut metrics = Metrics::default();
 
-        relay_log::trace!("Epand transaction");
+        relay_log::trace!("Expand transaction");
         let mut work = process::expand(work)?;
 
         relay_log::trace!("Prepare transaction data");
@@ -264,7 +264,7 @@ impl Counted for SerializedTransaction {
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
 
-        let span_count = (event.span_count() + 1) as usize;
+        let span_count = event.span_count() + 1;
         quantities.extend([
             (DataCategory::Span, span_count),
             (DataCategory::SpanIndexed, span_count),
