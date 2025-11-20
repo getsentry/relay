@@ -243,7 +243,7 @@ def _send_event(relay, project_id=42, event_type="error", event_id=None, trace_i
                     "type": "trace",
                 }
             },
-            "spans": [{}],
+            "spans": [],
             "extra": {"id": event_id},
             "environment": "production",
             "release": "foo@1.2.3",
@@ -481,8 +481,6 @@ def test_outcome_forwarding(
 
     _send_event(downstream_relay, event_type=event_type)
 
-    # NOTE: This should emit a span count of 2, will be fixed in
-    # https://github.com/getsentry/relay/pull/5379.
     expected_categories = [1] if event_type == "error" else [2, 9, 12, 16]
 
     outcomes = outcomes_consumer.get_outcomes(n=len(expected_categories))
