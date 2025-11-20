@@ -287,17 +287,36 @@ fn create_metrics(
 /// as the total category is counted from now in in metrics.
 struct UnsampledSpans {
     spans: Vec<Item>,
+    span_attachments: Vec<Item>,
 }
 
 impl From<SerializedSpans> for UnsampledSpans {
     fn from(value: SerializedSpans) -> Self {
-        Self { spans: value.spans }
+        Self {
+            spans: value.spans,
+            span_attachments: value.span_attachments,
+        }
     }
 }
 
 impl Counted for UnsampledSpans {
     fn quantities(&self) -> Quantities {
         let quantity = outcome_count(&self.spans) as usize;
-        smallvec::smallvec![(DataCategory::SpanIndexed, quantity),]
+        let mut quantities = smallvec::smallvec![];
+
+        if quantity > 0 {
+            quantities.push((DataCategory::SpanIndexed, quantity));
+        }
+        if !self.span_attachments.is_empty() {
+            quantities.push((
+                DataCategory::Attachment,
+                self.span_attachments
+                    .iter()
+                    .fold(0, |acc, cur| acc + cur.len()),
+            ));
+            quantities.push((DataCategory::AttachmentItem, self.span_attachments.len()));
+        }
+
+        quantities
     }
 }
