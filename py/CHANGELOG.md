@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.9.22
 
-
+- Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
 
 ## 0.9.21
 

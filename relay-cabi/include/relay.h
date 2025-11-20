@@ -734,6 +734,12 @@ int32_t relay_compare_versions(const struct RelayStr *a,
                                const struct RelayStr *b);
 
 /**
+ * Compares two versions using semver precedence (ie, ignoring build code).
+ */
+int32_t relay_compare_versions_semver_precedence(const struct RelayStr *a,
+                                             const struct RelayStr *b);
+
+/**
  * Validate a dynamic rule condition.
  *
  * Used by dynamic sampling, metric extraction, and metric tagging.
