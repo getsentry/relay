@@ -42,6 +42,28 @@ local region_pops = {
   s4s: [],
 };
 
+// List of datadog monitors to check during the soak time in the different regions
+local soak_monitors = {
+  // (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
+  s4s: '165839949, 237862998',
+  // (Retry Count for a Single Event is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
+  us: '165839953 165839955 237862996',
+  default: '',
+};
+
+// List of datadog monitors to check during the canary deployment in the different regions
+local canary_monitors = {
+  // (S4S Service Queues are Backlogging), (CrashLoopBackoff Count is High)
+  s4s: '165839949, 237862998',
+  // (Retry Count for a Single Event is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
+  us: '165839953 165839955 237862996',
+  // (CrashLoopBackoff Count is High)
+  de: '237862984',
+  // (CrashLoopBackoff Count is High)
+  ly: '237862992',
+  default: '',
+};
+
 // The purpose of this stage is to let the deployment soak for a while and
 // detect any issues that might have been introduced.
 local soak_time(region) =
@@ -58,7 +80,7 @@ local soak_time(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
-                DATADOG_MONITOR_IDS: '165839953 165839955 165839949 165839921',
+                DATADOG_MONITOR_IDS: if std.objectHas(soak_monitors, region) then soak_monitors[region] else soak_monitors.default,
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
                 SENTRY_PROJECTS: if region == 's4s' then '1513938:sentry-for-sentry:relay' else '9:pop-relay:relay-pop 4:relay:relay',
                 SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
@@ -98,7 +120,7 @@ local deploy_pop_canary_job(region) =
       DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
       DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
       // Datadog monitor IDs for the canary deployment
-      DATADOG_MONITOR_IDS: '165839953 165839955 165839949 165839921',
+      DATADOG_MONITOR_IDS: if std.objectHas(canary_monitors, region) then canary_monitors[region] else canary_monitors.default,
       // Sentry projects to check for errors <project_id>:<project_slug>:<service>
       SENTRY_PROJECTS: '9:pop-relay:relay-pop 4:relay:relay',
       SENTRY_SINGLE_TENANT: 'false',
