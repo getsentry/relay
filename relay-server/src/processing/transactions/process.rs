@@ -254,8 +254,6 @@ pub fn extract_metrics(
         )?
         .0;
 
-        // TODO: remove `(SpanIndexed, 0)` from bookkeeping.
-
         // The extracted metrics now take over the "total" data categories.
         record_keeper.modify_by(DataCategory::Transaction, -1);
         record_keeper.modify_by(
