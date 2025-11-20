@@ -274,6 +274,8 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
         [
             DataCategory.TRANSACTION,
             DataCategory.TRANSACTION_INDEXED,
+            DataCategory.SPAN,
+            DataCategory.SPAN_INDEXED,
         ]
         if event_type == "transaction"
         else [DataCategory.ERROR]
