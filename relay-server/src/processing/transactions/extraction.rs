@@ -57,12 +57,16 @@ pub fn extract_metrics(
         metrics_extracted,
         spans_extracted,
     } = ctx;
+    // TODO(follow-up): this function should always extract metrics. Dynamic sampling should validate
+    // the full metrics extraction config and skip sampling if it is incomplete.
 
     if metrics_extracted {
-        return Ok(EventMetricsExtracted(metrics_extracted));
+        debug_assert!(false, "metrics extraction called twice");
+        return Ok(EventMetricsExtracted(true));
     }
     let Some(event) = event.value_mut() else {
-        return Ok(EventMetricsExtracted(metrics_extracted));
+        // Nothing to extract, but metrics extraction was called.
+        return Ok(EventMetricsExtracted(true));
     };
 
     // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
@@ -71,7 +75,7 @@ pub fn extract_metrics(
     let combined_config = {
         let config = match &ctx.project_info.config.metric_extraction {
             ErrorBoundary::Ok(config) if config.is_supported() => config,
-            _ => return Ok(EventMetricsExtracted(metrics_extracted)),
+            _ => return Ok(EventMetricsExtracted(false)),
         };
         let global_config = match &ctx.global_config.metric_extraction {
             ErrorBoundary::Ok(global_config) => global_config,
@@ -86,7 +90,7 @@ pub fn extract_metrics(
                     // If there's an error with global metrics extraction, it is safe to assume that this
                     // Relay instance is not up-to-date, and we should skip extraction.
                     relay_log::debug!("Failed to parse global extraction config: {e}");
-                    return Ok(EventMetricsExtracted(metrics_extracted));
+                    return Ok(EventMetricsExtracted(false));
                 }
             }
         };
@@ -98,11 +102,11 @@ pub fn extract_metrics(
         Some(ErrorBoundary::Ok(tx_config)) => tx_config,
         Some(ErrorBoundary::Err(e)) => {
             relay_log::debug!("Failed to parse legacy transaction metrics config: {e}");
-            return Ok(EventMetricsExtracted(metrics_extracted));
+            return Ok(EventMetricsExtracted(false));
         }
         None => {
             relay_log::debug!("Legacy transaction metrics config is missing");
-            return Ok(EventMetricsExtracted(metrics_extracted));
+            return Ok(EventMetricsExtracted(false));
         }
     };
 
@@ -117,7 +121,7 @@ pub fn extract_metrics(
                 }
             });
 
-        return Ok(EventMetricsExtracted(metrics_extracted));
+        return Ok(EventMetricsExtracted(false));
     }
 
     // If spans were already extracted for an event, we rely on span processing to extract metrics.

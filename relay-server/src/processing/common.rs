@@ -6,12 +6,14 @@ use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
+use crate::processing::transactions::TransactionProcessor;
 use crate::processing::{Forward, Processor};
 
 macro_rules! outputs {
     ($($variant:ident => $ty:ty,)*) => {
         /// All known [`Processor`] outputs.
         #[derive(Debug)]
+        #[allow(clippy::large_enum_variant)]
         pub enum Outputs {
             $(
                 $variant(<$ty as Processor>::Output)
@@ -57,4 +59,5 @@ outputs!(
     TraceMetrics => TraceMetricsProcessor,
     Spans => SpansProcessor,
     Sessions => SessionsProcessor,
+    Transactions => TransactionProcessor,
 );

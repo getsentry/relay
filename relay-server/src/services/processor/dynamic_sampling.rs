@@ -4,14 +4,9 @@ use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::{Contexts, Event, TraceContext};
 use relay_protocol::{Annotated, Empty};
-use relay_quotas::DataCategory;
 
-use crate::envelope::ItemType;
 use crate::managed::TypedEnvelope;
-use crate::services::outcome::Outcome;
-use crate::services::processor::{
-    EventProcessing, SpansExtracted, TransactionGroup, event_category,
-};
+use crate::services::processor::EventProcessing;
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{self};
 
@@ -71,60 +66,6 @@ pub fn validate_and_set_dsc<'a, T>(
     None
 }
 
-/// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn drop_unsampled_items(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
-    event: Annotated<Event>,
-    outcome: Outcome,
-    spans_extracted: SpansExtracted,
-) {
-    // Remove all items from the envelope which need to be dropped due to dynamic sampling.
-    let dropped_items = managed_envelope
-        .envelope_mut()
-        // Profiles are not dropped by dynamic sampling, they are all forwarded to storage and
-        // later processed in Sentry and potentially dropped there.
-        .take_items_by(|item| *item.ty() != ItemType::Profile);
-
-    for item in dropped_items {
-        for (category, quantity) in item.quantities() {
-            // Dynamic sampling only drops indexed items.
-            //
-            // Only emit the base category, if the item does not have an indexed category.
-            if category.index_category().is_none() {
-                managed_envelope.track_outcome(outcome.clone(), category, quantity);
-            }
-        }
-    }
-
-    // Mark all remaining items in the envelope as un-sampled.
-    for item in managed_envelope.envelope_mut().items_mut() {
-        item.set_sampled(false);
-    }
-
-    // Another 'hack' to emit outcomes from the container item for the contained items (spans).
-    //
-    // The entire tracking outcomes for contained elements is not handled in a systematic way
-    // and whenever an event/transaction is discarded, contained elements are tracked in a 'best
-    // effort' basis (basically in all the cases where someone figured out this is a problem).
-    //
-    // This is yet another case, when the spans have not yet been separated from the transaction
-    // also emit dynamic sampling outcomes for the contained spans.
-    if !spans_extracted.0 {
-        let spans = event.value().and_then(|e| e.spans.value());
-        let span_count = spans.map_or(0, |s| s.len());
-
-        // Track the amount of contained spans + 1 segment span (the transaction itself which would
-        // be converted to a span).
-        managed_envelope.track_outcome(outcome.clone(), DataCategory::SpanIndexed, span_count + 1);
-    }
-
-    // All items have been dropped, now make sure the event is also handled and dropped.
-    if let Some(category) = event_category(&event) {
-        let category = category.index_category().unwrap_or(category);
-        managed_envelope.track_outcome(outcome, category, 1)
-    }
-}
-
 /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
 /// decision.
 ///
@@ -178,14 +119,13 @@ mod tests {
     use std::collections::BTreeMap;
 
     use relay_base_schema::project::ProjectKey;
-    use relay_cogs::Token;
     use relay_event_schema::protocol::EventId;
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{RuleId, RuleType, SamplingRule, SamplingValue};
     use relay_sampling::{DynamicSamplingContext, SamplingConfig};
     use relay_system::Addr;
 
-    use crate::envelope::{ContentType, Envelope, Item};
+    use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
     use crate::processing;
@@ -216,9 +156,7 @@ mod tests {
             },
         };
 
-        let Ok(Some(Submit::Envelope(envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
+        let Ok(Some(Submit::Envelope(envelope))) = processor.process(message).await else {
             panic!();
         };
 
