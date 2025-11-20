@@ -148,6 +148,8 @@ ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
         "transaction",
         PayloadType.JSON,
         [
+            {"category": "span", "quantity": 1, "reason": "generic"},
+            {"category": "span_indexed", "quantity": 1, "reason": "generic"},
             {"category": "transaction", "quantity": 1, "reason": "generic"},
             {"category": "transaction_indexed", "quantity": 1, "reason": "generic"},
         ],

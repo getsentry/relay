@@ -1308,6 +1308,7 @@ def test_rate_limit_spans_in_envelope(
 
 
 @pytest.mark.parametrize("category", ["transaction", "transaction_indexed"])
+@pytest.mark.parametrize("span_count_header", [None, 666])
 def test_rate_limit_is_consistent_between_transaction_and_spans(
     mini_sentry,
     relay_with_processing,
@@ -1316,6 +1317,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     metrics_consumer,
     outcomes_consumer,
     category,
+    span_count_header,
 ):
     """
     Rate limits are consistent between transactions and nested spans.
@@ -1366,6 +1368,8 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     end = start + timedelta(seconds=1)
 
     envelope = envelope_with_transaction_and_spans(start, end)
+    if span_count_header is not None:
+        envelope.items[0].headers["span_count"] = span_count_header
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
@@ -1407,19 +1411,25 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     with maybe_raises:
         relay.send_envelope(project_id, envelope)
 
+    # The fast path now trusts the span_count item header
+    expected_span_count = 2 if span_count_header is None else 667
+
     if category == "transaction":
         assert summarize_outcomes() == {
             (2, 2): 1,  # Transaction, Rate Limited
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 2): 2,  # Span, Rate Limited
-            (16, 2): 2,  # SpanIndexed, Rate Limited
+            (12, 2): expected_span_count,  # Span, Rate Limited
+            (16, 2): expected_span_count,  # SpanIndexed, Rate Limited
         }
         assert usage_metrics() == (0, 0)
     elif category == "transaction_indexed":
+        # We do not check indexed limits on the fast path,
+        # so we count the correct number of spans (ignoring the span_count header):
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
+        # Metrics are always correct:
         assert usage_metrics() == (1, 2)
 
 

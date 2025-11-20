@@ -1635,6 +1635,8 @@ mod tests {
             vec![
                 (DataCategory::Transaction, 1),
                 (DataCategory::TransactionIndexed, 1),
+                (DataCategory::Span, 1),
+                (DataCategory::SpanIndexed, 1),
             ]
         );
     }
@@ -1665,8 +1667,11 @@ mod tests {
         assert!(!enforcement.event.is_active());
         assert!(!enforcement.profiles_indexed.is_active());
         assert!(!enforcement.profiles.is_active());
+        assert!(!enforcement.spans.is_active());
+        assert!(!enforcement.spans_indexed.is_active());
         mock.lock().await.assert_call(DataCategory::Transaction, 1);
         mock.lock().await.assert_call(DataCategory::Profile, 1);
+        mock.lock().await.assert_call(DataCategory::Span, 1);
     }
 
     #[tokio::test]
@@ -1722,6 +1727,8 @@ mod tests {
                 (DataCategory::TransactionIndexed, 1),
                 (DataCategory::Profile, 1),
                 (DataCategory::ProfileIndexed, 1),
+                (DataCategory::Span, 1),
+                (DataCategory::SpanIndexed, 1),
             ]
         );
     }
@@ -1769,7 +1776,8 @@ mod tests {
             vec![
                 (DataCategory::TransactionIndexed, 1),
                 (DataCategory::Attachment, 10),
-                (DataCategory::AttachmentItem, 1)
+                (DataCategory::AttachmentItem, 1),
+                (DataCategory::SpanIndexed, 1),
             ]
         );
     }
