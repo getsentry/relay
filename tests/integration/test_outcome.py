@@ -2029,7 +2029,7 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=5)
+    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=6)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == [
@@ -2048,7 +2048,9 @@ def test_span_outcomes_invalid(
             (DataCategory.TRANSACTION, "invalid_transaction"),
             (DataCategory.TRANSACTION_INDEXED, "invalid_transaction"),
             (DataCategory.SPAN, "invalid_span"),
+            (DataCategory.SPAN, "invalid_transaction"),
             (DataCategory.SPAN_INDEXED, "invalid_span"),
+            (DataCategory.SPAN_INDEXED, "invalid_transaction"),
         ]
     ]
 
