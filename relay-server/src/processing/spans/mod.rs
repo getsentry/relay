@@ -410,8 +410,7 @@ impl ExpandedSpans<TotalAndIndexed> {
 impl ExpandedSpans<Indexed> {
     #[cfg(feature = "processing")]
     fn into_indexed_spans(self) -> impl Iterator<Item = IndexedSpan> {
-        // FIXME: Should an indexed span not also contain the attachment?
-        self.spans.into_iter().map(|x| IndexedSpan(x.span))
+        self.spans.into_iter().map(IndexedSpan)
     }
 }
 
@@ -463,8 +462,32 @@ impl Counted for ExpandedSpans<TotalAndIndexed> {
 
 impl Counted for ExpandedSpans<Indexed> {
     fn quantities(&self) -> Quantities {
-        // TODO: See if this needs changing
-        smallvec::smallvec![(DataCategory::SpanIndexed, self.spans.len())]
+        let mut attachment_quantity = 0;
+        let mut attachment_count = 0;
+
+        for span in &self.spans {
+            if let Some(attachment) = &span.attachment {
+                attachment_quantity += attachment.body.len();
+                attachment_count += 1;
+            }
+        }
+        for attachment in &self.stand_alone_attachments {
+            attachment_quantity += attachment.body.len();
+            attachment_count += 1;
+        }
+
+        let mut quantities = smallvec::smallvec![];
+
+        if !self.spans.is_empty() {
+            quantities.push((DataCategory::SpanIndexed, self.spans.len()));
+        }
+
+        if attachment_quantity > 0 {
+            quantities.push((DataCategory::Attachment, attachment_quantity));
+            quantities.push((DataCategory::AttachmentItem, attachment_count));
+        }
+
+        quantities
     }
 }
 
@@ -475,7 +498,7 @@ impl CountRateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
 /// A Span which only represents the indexed category.
 #[cfg(feature = "processing")]
 #[derive(Debug)]
-struct IndexedSpan(crate::envelope::WithHeader<SpanV2>);
+struct IndexedSpan(SpanWrapper);
 
 #[cfg(feature = "processing")]
 impl Counted for IndexedSpan {
