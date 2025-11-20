@@ -364,6 +364,26 @@ impl<C> ExpandedSpans<C> {
     }
 }
 
+fn attachment_to_item(
+    attachment: ValidatedSpanAttachment,
+    span_id: Option<SpanId>,
+) -> Result<Item, ContainerWriteError> {
+    let meta_json = attachment.meta.to_json()?;
+    let meta_bytes = meta_json.into_bytes();
+    let meta_length = meta_bytes.len();
+
+    let mut payload = bytes::BytesMut::with_capacity(meta_length + attachment.body.len());
+    payload.extend_from_slice(&meta_bytes);
+    payload.extend_from_slice(&attachment.body);
+
+    let mut item = Item::new(ItemType::Attachment);
+    item.set_payload(ContentType::AttachmentV2, payload.freeze());
+    item.set_meta_length(meta_length as u32);
+    item.set_parent_id(ParentId::SpanId(span_id));
+
+    Ok(item)
+}
+
 impl ExpandedSpans<TotalAndIndexed> {
     /// Logically transforms contained spans into [`Indexed`].
     ///
@@ -373,6 +393,7 @@ impl ExpandedSpans<TotalAndIndexed> {
             headers,
             server_sample_rate,
             spans,
+            stand_alone_attachments,
             category: _,
         } = self;
 
@@ -380,6 +401,7 @@ impl ExpandedSpans<TotalAndIndexed> {
             headers,
             server_sample_rate,
             spans,
+            stand_alone_attachments,
             category: Indexed,
         }
     }
@@ -388,7 +410,8 @@ impl ExpandedSpans<TotalAndIndexed> {
 impl ExpandedSpans<Indexed> {
     #[cfg(feature = "processing")]
     fn into_indexed_spans(self) -> impl Iterator<Item = IndexedSpan> {
-        self.spans.into_iter().map(IndexedSpan)
+        // FIXME: Should an indexed span not also contain the attachment?
+        self.spans.into_iter().map(|x| IndexedSpan(x.span))
     }
 }
 
@@ -438,28 +461,27 @@ impl Counted for ExpandedSpans<TotalAndIndexed> {
     }
 }
 
-fn attachment_to_item(
-    attachment: ValidatedSpanAttachment,
-    span_id: Option<SpanId>,
-) -> Result<Item, ContainerWriteError> {
-    let meta_json = attachment.meta.to_json()?;
-    let meta_bytes = meta_json.into_bytes();
-    let meta_length = meta_bytes.len();
-
-    let mut payload = bytes::BytesMut::with_capacity(meta_length + attachment.body.len());
-    payload.extend_from_slice(&meta_bytes);
-    payload.extend_from_slice(&attachment.body);
-
-    let mut item = Item::new(ItemType::Attachment);
-    item.set_payload(ContentType::AttachmentV2, payload.freeze());
-    item.set_meta_length(meta_length as u32);
-    item.set_parent_id(ParentId::SpanId(span_id));
-
-    Ok(item)
+impl Counted for ExpandedSpans<Indexed> {
+    fn quantities(&self) -> Quantities {
+        // TODO: See if this needs changing
+        smallvec::smallvec![(DataCategory::SpanIndexed, self.spans.len())]
+    }
 }
 
-impl CountRateLimited for Managed<ExpandedSpans> {
+impl CountRateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
     type Error = Error;
+}
+
+/// A Span which only represents the indexed category.
+#[cfg(feature = "processing")]
+#[derive(Debug)]
+struct IndexedSpan(crate::envelope::WithHeader<SpanV2>);
+
+#[cfg(feature = "processing")]
+impl Counted for IndexedSpan {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
+    }
 }
 
 /// A validated and parsed span attachment.
@@ -501,29 +523,6 @@ impl Counted for SpanWrapper {
         quantities
     }
 }
-// BEGIN = DAVIDS New code (need to manually check how to resolve this.)
-impl Counted for ExpandedSpans<Indexed> {
-    fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::SpanIndexed, self.spans.len())]
-    }
-}
-
-impl CountRateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
-    type Error = Error;
-}
-
-/// A Span which only represents the indexed category.
-#[cfg(feature = "processing")]
-#[derive(Debug)]
-struct IndexedSpan(crate::envelope::WithHeader<SpanV2>);
-
-#[cfg(feature = "processing")]
-impl Counted for IndexedSpan {
-    fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
-    }
-}
-// END = DAVIDS New code
 
 /// Spans which have been sampled by dynamic sampling.
 ///

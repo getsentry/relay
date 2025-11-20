@@ -44,7 +44,6 @@ class DataCategory(IntEnum):
     SIZE_ANALYSIS = 31
     INSTALLABLE_BUILD = 32
     TRACE_METRIC = 33
-    SEER_USER = 34
     UNKNOWN = -1
     # end generated
 
