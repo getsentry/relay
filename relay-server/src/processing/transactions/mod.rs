@@ -7,7 +7,7 @@ use relay_base_schema::events::EventType;
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics, SpanV2};
-use relay_protocol::{Annotated, Empty};
+use relay_protocol::{Annotated, Empty, get_value};
 use relay_quotas::{DataCategory, RateLimits};
 #[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
@@ -335,6 +335,12 @@ impl<T> ExpandedTransaction<T> {
         } = self;
 
         let mut items = smallvec![];
+
+        items.extend(attachments);
+        items.extend(profile);
+        items.extend(extracted_spans.0);
+
+        // To be compatible with previous code, add the transaction at the end:
         if !event.is_empty() {
             let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
                 event.to_json()?
@@ -348,9 +354,6 @@ impl<T> ExpandedTransaction<T> {
 
             items.push(item);
         }
-        items.extend(attachments);
-        items.extend(profile);
-        items.extend(extracted_spans.0);
 
         Ok(Envelope::from_parts(headers, items))
     }
@@ -681,7 +684,6 @@ impl Forward for TransactionOutput {
         s: &relay_system::Addr<crate::services::store::Store>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        // TODO: split out spans into a separate message.
         let envelope: ManagedEnvelope = self.serialize_envelope(ctx)?.into();
 
         s.send(StoreEnvelope {

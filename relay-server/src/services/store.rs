@@ -271,6 +271,7 @@ impl StoreService {
 
     fn store_envelope(&self, managed_envelope: &mut ManagedEnvelope) -> Result<(), StoreError> {
         let mut envelope = managed_envelope.take_envelope();
+
         let received_at = managed_envelope.received_at();
         let scoping = managed_envelope.scoping();
 
