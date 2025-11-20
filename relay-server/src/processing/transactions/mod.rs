@@ -418,7 +418,6 @@ impl Counted for ExpandedTransaction<Indexed> {
         let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
         if !flags.spans_extracted {
             // TODO: encode this flag into the type and remove `extracted_spans` from the "BeforeSpanExtraction" type.
-            // TODO: write span_count header in fast path.
             debug_assert!(extracted_spans.0.is_empty());
             let span_count = self.count_embedded_spans_and_self();
             quantities.push((DataCategory::SpanIndexed, span_count));
