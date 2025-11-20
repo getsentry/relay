@@ -367,7 +367,7 @@ impl Counted for ExpandedTransaction<TotalAndIndexed> {
     fn quantities(&self) -> Quantities {
         let Self {
             headers: _,
-            event: transaction,
+            event,
             flags,
             attachments,
             profile,
@@ -401,7 +401,7 @@ impl Counted for ExpandedTransaction<Indexed> {
     fn quantities(&self) -> Quantities {
         let Self {
             headers: _,
-            event: transaction,
+            event,
             flags,
             attachments,
             profile,
@@ -453,7 +453,7 @@ impl RateLimited for Managed<ExpandedTransaction<TotalAndIndexed>> {
 
         let ExpandedTransaction {
             headers: _,
-            event: transaction,
+            event,
             flags,
             attachments,
             profile,
@@ -523,7 +523,7 @@ impl RateLimited for Managed<ExpandedTransaction<Indexed>> {
 
         let ExpandedTransaction {
             headers: _,
-            event: transaction,
+            event,
             flags,
             attachments,
             profile,
