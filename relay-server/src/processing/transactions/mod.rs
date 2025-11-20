@@ -126,9 +126,15 @@ impl Processor for TransactionProcessor {
     ) -> Option<Managed<Self::UnitOfWork>> {
         let headers = envelope.envelope().headers().clone();
 
-        let transaction = envelope
+        #[allow(unused_mut)]
+        let mut event = envelope
             .envelope_mut()
             .take_item_by(|item| matches!(*item.ty(), ItemType::Transaction))?;
+
+        // Count number of spans by shallow-parsing the event.
+        // Needed for accounting but not in prod, because the event is immediately parsed afterwards.
+        #[cfg(debug_assertions)]
+        event.ensure_span_count();
 
         let attachments = envelope
             .envelope_mut()
@@ -140,7 +146,7 @@ impl Processor for TransactionProcessor {
 
         let work = SerializedTransaction {
             headers,
-            event: transaction,
+            event,
             attachments,
             profile,
         };
