@@ -259,16 +259,10 @@ impl Counted for SerializedTransaction {
             attachments,
             profile,
         } = self;
-        let mut quantities = event.quantities();
         debug_assert!(!event.spans_extracted());
+        let mut quantities = event.quantities(); // counts spans based on `span_count` header.
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
-
-        let span_count = event.span_count() + 1;
-        quantities.extend([
-            (DataCategory::Span, span_count),
-            (DataCategory::SpanIndexed, span_count),
-        ]);
 
         quantities
     }
