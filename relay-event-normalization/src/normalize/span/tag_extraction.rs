@@ -1305,7 +1305,8 @@ static SQL_ACTION_EXTRACTOR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)(?P<action>(SELECT|INSERT|DELETE|UPDATE|SET|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT))"#).unwrap()
 });
 
-fn sql_action_from_query(query: &str) -> Option<&str> {
+/// Returns the SQL action from a raw query.
+pub fn sql_action_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
 }
 
@@ -1320,7 +1321,7 @@ static SQL_TABLE_EXTRACTOR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 /// HACK: When there is a single table, add comma separation so that the
 /// backend can understand the difference between tables and their subsets
 /// for example: table `,users,` and table `,users_config,` should be considered different
-fn sql_tables_from_query(
+pub fn sql_tables_from_query(
     query: &str,
     ast: &Option<Vec<sqlparser::ast::Statement>>,
 ) -> Option<String> {
