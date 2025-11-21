@@ -147,10 +147,10 @@ fn normalize_span(
 }
 
 fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
-    normalize_db_query_text(attributes);
+    normalize_db_attributes(attributes);
 }
 
-fn normalize_db_query_text(attributes: &mut Annotated<Attributes>) {
+fn normalize_db_attributes(attributes: &mut Annotated<Attributes>) {
     let (normalized_db_query, db_operation, db_collection_name) = attributes
         .value()
         .map(|attributes| {
@@ -868,7 +868,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_db_query_attributes() {
+    fn test_normalize_mysql_db_query_attributes() {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
         {
@@ -884,10 +884,6 @@ mod tests {
             "type": "string",
             "value": "mysql"
           },
-          "db.operation": {
-            "type": "string",
-            "value": "query"
-          },
           "db.query.text": {
             "type": "string",
             "value": "SELECT \"not an identifier\""
@@ -897,13 +893,13 @@ mod tests {
         )
         .unwrap();
 
-        normalize_db_query_text(&mut attributes);
+        normalize_db_attributes(&mut attributes);
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
           "db.operation": {
             "type": "string",
-            "value": "QUERY"
+            "value": "SELECT"
           },
           "db.query.text": {
             "type": "string",
@@ -920,6 +916,110 @@ mod tests {
           "sentry.op": {
             "type": "string",
             "value": "db.query"
+          },
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.otlp.spans"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_mongodb_db_query_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.operation": {
+            "type": "string",
+            "value": "find"
+          },
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_db_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_db_attributes_does_not_change_non_db_spans() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.otlp.spans"
+          },
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          }
+        }
+      "#,
+        )
+        .unwrap();
+
+        normalize_db_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
           },
           "sentry.origin": {
             "type": "string",
