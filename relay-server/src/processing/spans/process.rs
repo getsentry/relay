@@ -1,16 +1,19 @@
+use std::collections::{BTreeSet, HashMap};
 use std::time::Duration;
 
 use relay_event_normalization::{
     GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
 };
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{Span, SpanV2};
+use relay_event_schema::protocol::{AttachmentV2Meta, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, WithHeader};
-use crate::managed::Managed;
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
+use crate::managed::{Managed, RecordKeeper};
 use crate::processing::Context;
-use crate::processing::spans::{self, Error, ExpandedSpans, Result, SampledSpans};
+use crate::processing::spans::{
+    self, Error, ExpandedSpans, Result, SampledSpans, SpanWrapper, ValidatedSpanAttachment,
+};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized spans.
@@ -26,6 +29,14 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
             all_spans.extend(expanded);
         }
 
+        // Collect all the span_ids that an attachment could be linked to.
+        // Note: We only want the ids of the 'v2' spans hence this is done before the legacy
+        // and integration expansion.
+        let span_ids: BTreeSet<SpanId> = all_spans
+            .iter()
+            .filter_map(|span| span.value.value()?.span_id.value().copied())
+            .collect();
+
         for item in &spans.inner.legacy {
             match expand_legacy_span(item) {
                 Ok(span) => all_spans.push(span),
@@ -35,10 +46,47 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
 
         spans::integrations::expand_into(&mut all_spans, records, spans.inner.integrations);
 
+        // Parse and validate all the span attachments, put the ones with a valid span_id into a map
+        // to later merge with the associated spans, all the remaining attachments are standalone.
+        let mut attachments = HashMap::<SpanId, ValidatedSpanAttachment>::new();
+        let stand_alone_attachments: Vec<ValidatedSpanAttachment> = spans
+            .inner
+            .span_attachments
+            .into_iter()
+            .filter_map(|item| {
+                match parse_and_validate_span_attachment(&item, &span_ids, records) {
+                    Ok((None, attachment)) => Some(attachment),
+                    Ok((Some(span_id), attachment)) => {
+                        attachments.insert(span_id, attachment);
+                        None
+                    }
+                    Err(err) => {
+                        drop(records.reject_err(err, item));
+                        None
+                    }
+                }
+            })
+            .collect();
+
+        // Package all the spans into span wrappers attaching the associated span attachment if it
+        // exists.
+        let all_spans = all_spans
+            .into_iter()
+            .map(|span| {
+                // Extract the span_id and look up the attachment in the hashmap
+                let attachment = span
+                    .value()
+                    .and_then(|s| s.span_id.value().copied())
+                    .and_then(|span_id| attachments.remove(&span_id));
+                SpanWrapper { span, attachment }
+            })
+            .collect();
+
         ExpandedSpans {
             headers: spans.inner.headers,
             server_sample_rate: spans.server_sample_rate,
             spans: all_spans,
+            stand_alone_attachments,
             category: spans::TotalAndIndexed,
         }
     })
@@ -68,12 +116,68 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
     Ok(WithHeader::new(span))
 }
 
+/// Parses and validates a span attachment, converting it into a structured type.
+fn parse_and_validate_span_attachment(
+    item: &Item,
+    span_ids: &BTreeSet<SpanId>,
+    records: &mut RecordKeeper<'_>,
+) -> Result<(Option<SpanId>, ValidatedSpanAttachment)> {
+    let associated_span_id = match item.parent_id() {
+        Some(ParentId::SpanId(span_id)) => *span_id,
+        None => {
+            relay_log::debug!("span attachment missing associated span id");
+            return Err(Error::Invalid(DiscardReason::InvalidJson));
+        }
+    };
+
+    // If the span attachment has a concrete associated span_id than the id needs to point to a span
+    // send in the same envelope.
+    if let Some(associated_span_id) = associated_span_id
+        && !span_ids.contains(&associated_span_id)
+    {
+        relay_log::debug!("span attachment invalid associated span id");
+        return Err(Error::Invalid(DiscardReason::InvalidJson));
+    };
+
+    let total_length = item.len();
+    let meta_length = item.meta_length().ok_or_else(|| {
+        relay_log::debug!("span attachment missing meta_length");
+        Error::Invalid(DiscardReason::InvalidJson)
+    })? as usize;
+
+    if meta_length > total_length {
+        relay_log::debug!(
+            "span attachment meta_length ({}) exceeds total length ({})",
+            meta_length,
+            total_length
+        );
+        return Err(Error::Invalid(DiscardReason::InvalidJson));
+    }
+
+    let payload = item.payload();
+    let meta =
+        Annotated::<AttachmentV2Meta>::from_json_bytes(&payload[..meta_length]).map_err(|err| {
+            relay_log::debug!("failed to parse span attachment: {err}");
+            Error::Invalid(DiscardReason::InvalidJson)
+        })?;
+    let body = payload.slice(meta_length..);
+
+    // TODO: Remove this to count the entire thing.
+    // From here on only count the body of the attachment v2 not its meta data.
+    records.modify_by(
+        relay_quotas::DataCategory::Attachment,
+        -(item.meta_length().unwrap_or(0) as isize),
+    );
+
+    Ok((associated_span_id, ValidatedSpanAttachment { meta, body }))
+}
+
 /// Normalizes individual spans.
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
     spans.retain_with_context(
         |spans| (&mut spans.spans, &spans.headers),
         |span, headers, _| {
-            normalize_span(span, headers, geo_lookup, ctx).inspect_err(|err| {
+            normalize_span(&mut span.span, headers, geo_lookup, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize span: {err}");
             })
         },
@@ -140,10 +244,15 @@ pub fn scrub(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
     spans.retain(
         |spans| &mut spans.spans,
         |span, _| {
-            scrub_span(span, ctx)
-                .inspect_err(|err| relay_log::debug!("failed to scrub pii from span: {err}"))
+            scrub_span(&mut span.span, ctx)
+                .inspect_err(|err| relay_log::debug!("failed to scrub pii from span: {err}"))?;
+
+            // TODO: Also scrub the attachment
+            Ok::<(), Error>(())
         },
     );
+
+    // TODO: Also scrub the standalone attachments
 }
 
 fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
