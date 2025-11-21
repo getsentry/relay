@@ -6,7 +6,6 @@
 
 - Switch Statsd histogram metrics to distribution metrics. ([#5378](https://github.com/getsentry/relay/pull/5378))
 
-
 **Features**:
 
 - Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
