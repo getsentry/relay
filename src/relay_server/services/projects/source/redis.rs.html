@@ -7,7 +7,7 @@
 <a href=#7 id=7 data-nosnippet>7</a>
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ParsedProjectState, ProjectState, Revision};
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::source::SourceProjectState;
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayDistributions, RelayTimers};
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>relay_redis::redis::cmd;
 <a href=#12 id=12 data-nosnippet>12</a>
 <a href=#13 id=13 data-nosnippet>13</a><span class="attr">#[derive(Clone, Debug)]
@@ -33,11 +33,11 @@
 <a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">let </span>decoded_response = <span class="kw">match </span><span class="kw-2">&amp;</span>decompression_result {
 <a href=#34 id=34 data-nosnippet>34</a>        <span class="prelude-val">Ok</span>(decoded) =&gt; {
 <a href=#35 id=35 data-nosnippet>35</a>            <span class="macro">metric!</span>(
-<a href=#36 id=36 data-nosnippet>36</a>                histogram(RelayHistograms::ProjectStateSizeBytesCompressed) =
+<a href=#36 id=36 data-nosnippet>36</a>                distribution(RelayDistributions::ProjectStateSizeBytesCompressed) =
 <a href=#37 id=37 data-nosnippet>37</a>                    raw_response.len() <span class="kw">as </span>f64
 <a href=#38 id=38 data-nosnippet>38</a>            );
 <a href=#39 id=39 data-nosnippet>39</a>            <span class="macro">metric!</span>(
-<a href=#40 id=40 data-nosnippet>40</a>                histogram(RelayHistograms::ProjectStateSizeBytesDecompressed) =
+<a href=#40 id=40 data-nosnippet>40</a>                distribution(RelayDistributions::ProjectStateSizeBytesDecompressed) =
 <a href=#41 id=41 data-nosnippet>41</a>                    decoded.len() <span class="kw">as </span>f64
 <a href=#42 id=42 data-nosnippet>42</a>            );
 <a href=#43 id=43 data-nosnippet>43</a>            decoded.as_slice()

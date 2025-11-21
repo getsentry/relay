@@ -12,7 +12,7 @@
 <a href=#12 id=12 data-nosnippet>12</a>        script::{CardinalityScript, CardinalityScriptResult, Status},
 <a href=#13 id=13 data-nosnippet>13</a>        state::{LimitState, RedisEntry},
 <a href=#14 id=14 data-nosnippet>14</a>    },
-<a href=#15 id=15 data-nosnippet>15</a>    statsd::{CardinalityLimiterHistograms, CardinalityLimiterTimers},
+<a href=#15 id=15 data-nosnippet>15</a>    statsd::{CardinalityLimiterDistributions, CardinalityLimiterTimers},
 <a href=#16 id=16 data-nosnippet>16</a>};
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <a href=#18 id=18 data-nosnippet>18</a>
@@ -78,7 +78,7 @@
 <a href=#78 id=78 data-nosnippet>78</a>        }
 <a href=#79 id=79 data-nosnippet>79</a>
 <a href=#80 id=80 data-nosnippet>80</a>        <span class="macro">metric!</span>(
-<a href=#81 id=81 data-nosnippet>81</a>            histogram(CardinalityLimiterHistograms::RedisCheckHashes) = num_hashes,
+<a href=#81 id=81 data-nosnippet>81</a>            distribution(CardinalityLimiterDistributions::RedisCheckHashes) = num_hashes,
 <a href=#82 id=82 data-nosnippet>82</a>            id = state.id(),
 <a href=#83 id=83 data-nosnippet>83</a>        );
 <a href=#84 id=84 data-nosnippet>84</a>
@@ -90,7 +90,7 @@
 <a href=#90 id=90 data-nosnippet>90</a>            .zip(results)
 <a href=#91 id=91 data-nosnippet>91</a>            .inspect(|(<span class="kw">_</span>, result)| {
 <a href=#92 id=92 data-nosnippet>92</a>                <span class="macro">metric!</span>(
-<a href=#93 id=93 data-nosnippet>93</a>                    histogram(CardinalityLimiterHistograms::RedisSetCardinality) =
+<a href=#93 id=93 data-nosnippet>93</a>                    distribution(CardinalityLimiterDistributions::RedisSetCardinality) =
 <a href=#94 id=94 data-nosnippet>94</a>                        result.cardinality <span class="kw">as </span>u64,
 <a href=#95 id=95 data-nosnippet>95</a>                    id = state.id(),
 <a href=#96 id=96 data-nosnippet>96</a>                );

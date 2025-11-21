@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">use </span>tokio::time::Instant;
 <a href=#35 id=35 data-nosnippet>35</a>
 <a href=#36 id=36 data-nosnippet>36</a><span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
-<a href=#37 id=37 data-nosnippet>37</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayHistograms, RelayTimers};
+<a href=#37 id=37 data-nosnippet>37</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayDistributions, RelayTimers};
 <a href=#38 id=38 data-nosnippet>38</a><span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 <a href=#39 id=39 data-nosnippet>39</a>
 <a href=#40 id=40 data-nosnippet>40</a><span class="doccomment">/// Rate limits returned by the upstream.
@@ -570,7 +570,7 @@
 <a href=#570 id=570 data-nosnippet>570</a>        <span class="kw">let </span>body = <span class="self">self</span>.body()<span class="question-mark">?</span>;
 <a href=#571 id=571 data-nosnippet>571</a>
 <a href=#572 id=572 data-nosnippet>572</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#573 id=573 data-nosnippet>573</a>            histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() <span class="kw">as </span>u64
+<a href=#573 id=573 data-nosnippet>573</a>            distribution(RelayDistributions::UpstreamQueryBodySize) = body.len() <span class="kw">as </span>u64
 <a href=#574 id=574 data-nosnippet>574</a>        );
 <a href=#575 id=575 data-nosnippet>575</a>
 <a href=#576 id=576 data-nosnippet>576</a>        builder
@@ -705,7 +705,7 @@
 <a href=#705 id=705 data-nosnippet>705</a>    );
 <a href=#706 id=706 data-nosnippet>706</a>
 <a href=#707 id=707 data-nosnippet>707</a>    <span class="macro">relay_statsd::metric!</span>(
-<a href=#708 id=708 data-nosnippet>708</a>        histogram(RelayHistograms::UpstreamRetries) = entry.retries <span class="kw">as </span>u64,
+<a href=#708 id=708 data-nosnippet>708</a>        distribution(RelayDistributions::UpstreamRetries) = entry.retries <span class="kw">as </span>u64,
 <a href=#709 id=709 data-nosnippet>709</a>        result = description,
 <a href=#710 id=710 data-nosnippet>710</a>        status_code = status_str,
 <a href=#711 id=711 data-nosnippet>711</a>        route = entry.request.route(),
@@ -1043,7 +1043,7 @@
 <a href=#1043 id=1043 data-nosnippet>1043</a>            RequestPriority::Low =&gt; <span class="self">self</span>.low.push_back(entry),
 <a href=#1044 id=1044 data-nosnippet>1044</a>        }
 <a href=#1045 id=1045 data-nosnippet>1045</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#1046 id=1046 data-nosnippet>1046</a>            histogram(RelayHistograms::UpstreamMessageQueueSize) = <span class="self">self</span>.len() <span class="kw">as </span>u64,
+<a href=#1046 id=1046 data-nosnippet>1046</a>            distribution(RelayDistributions::UpstreamMessageQueueSize) = <span class="self">self</span>.len() <span class="kw">as </span>u64,
 <a href=#1047 id=1047 data-nosnippet>1047</a>            priority = priority.name(),
 <a href=#1048 id=1048 data-nosnippet>1048</a>            attempt = <span class="string">"first"
 <a href=#1049 id=1049 data-nosnippet>1049</a>        </span>);
@@ -1065,7 +1065,7 @@
 <a href=#1065 id=1065 data-nosnippet>1065</a>        <span class="self">self</span>.next_retry = Instant::now() + <span class="self">self</span>.retry_interval;
 <a href=#1066 id=1066 data-nosnippet>1066</a>
 <a href=#1067 id=1067 data-nosnippet>1067</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#1068 id=1068 data-nosnippet>1068</a>            histogram(RelayHistograms::UpstreamMessageQueueSize) = <span class="self">self</span>.len() <span class="kw">as </span>u64,
+<a href=#1068 id=1068 data-nosnippet>1068</a>            distribution(RelayDistributions::UpstreamMessageQueueSize) = <span class="self">self</span>.len() <span class="kw">as </span>u64,
 <a href=#1069 id=1069 data-nosnippet>1069</a>            priority = priority.name(),
 <a href=#1070 id=1070 data-nosnippet>1070</a>            attempt = <span class="string">"retry"
 <a href=#1071 id=1071 data-nosnippet>1071</a>        </span>);

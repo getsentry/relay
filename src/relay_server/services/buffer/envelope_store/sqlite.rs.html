@@ -8,7 +8,7 @@
 <a href=#8 id=8 data-nosnippet>8</a>
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::Envelope;
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RelayHistograms, RelayTimers};
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayDistributions, RelayGauges, RelayTimers};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>bytes::{Buf, Bytes};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>chrono::{DateTime, Utc};
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>futures::stream::StreamExt;
@@ -141,7 +141,7 @@
 <a href=#141 id=141 data-nosnippet>141</a>
 <a href=#142 id=142 data-nosnippet>142</a>        <span class="kw">let </span>serialized_envelope = value.to_vec()<span class="question-mark">?</span>;
 <a href=#143 id=143 data-nosnippet>143</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#144 id=144 data-nosnippet>144</a>            histogram(RelayHistograms::BufferEnvelopeSize) = serialized_envelope.len() <span class="kw">as </span>u64
+<a href=#144 id=144 data-nosnippet>144</a>            distribution(RelayDistributions::BufferEnvelopeSize) = serialized_envelope.len() <span class="kw">as </span>u64
 <a href=#145 id=145 data-nosnippet>145</a>        );
 <a href=#146 id=146 data-nosnippet>146</a>
 <a href=#147 id=147 data-nosnippet>147</a>        <span class="kw">let </span>encoded_envelope =
@@ -149,7 +149,7 @@
 <a href=#149 id=149 data-nosnippet>149</a>                zstd::encode_all(serialized_envelope.as_slice(), <span class="self">Self</span>::COMPRESSION_LEVEL)<span class="question-mark">?
 <a href=#150 id=150 data-nosnippet>150</a>            </span>});
 <a href=#151 id=151 data-nosnippet>151</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#152 id=152 data-nosnippet>152</a>            histogram(RelayHistograms::BufferEnvelopeSizeCompressed) =
+<a href=#152 id=152 data-nosnippet>152</a>            distribution(RelayDistributions::BufferEnvelopeSizeCompressed) =
 <a href=#153 id=153 data-nosnippet>153</a>                encoded_envelope.len() <span class="kw">as </span>u64
 <a href=#154 id=154 data-nosnippet>154</a>        );
 <a href=#155 id=155 data-nosnippet>155</a>

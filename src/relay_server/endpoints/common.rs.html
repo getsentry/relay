@@ -14,7 +14,7 @@
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::ProjectKeyPair;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{BucketSource, MetricData, ProcessMetrics};
-<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayDistributions};
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, FormDataIter};
 <a href=#19 id=19 data-nosnippet>19</a>
 <a href=#20 id=20 data-nosnippet>20</a><span class="attr">#[derive(Clone, Copy, Debug, thiserror::Error)]
@@ -380,7 +380,7 @@
 <a href=#380 id=380 data-nosnippet>380</a>        <span class="kw">let </span>is_container = <span class="kw">if </span>item.is_container() { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>};
 <a href=#381 id=381 data-nosnippet>381</a>
 <a href=#382 id=382 data-nosnippet>382</a>        <span class="macro">metric!</span>(
-<a href=#383 id=383 data-nosnippet>383</a>            histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() <span class="kw">as </span>u64,
+<a href=#383 id=383 data-nosnippet>383</a>            distribution(RelayDistributions::EnvelopeItemSize) = item.payload().len() <span class="kw">as </span>u64,
 <a href=#384 id=384 data-nosnippet>384</a>            item_type = item_type,
 <a href=#385 id=385 data-nosnippet>385</a>            is_container = is_container,
 <a href=#386 id=386 data-nosnippet>386</a>        );

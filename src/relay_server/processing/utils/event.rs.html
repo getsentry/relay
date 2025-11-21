@@ -36,8 +36,8 @@
 <a href=#36 id=36 data-nosnippet>36</a><span class="kw">use </span><span class="kw">crate</span>::processing::Context;
 <a href=#37 id=37 data-nosnippet>37</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingError};
 <a href=#38 id=38 data-nosnippet>38</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
-<a href=#39 id=39 data-nosnippet>39</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-<a href=#40 id=40 data-nosnippet>40</a><span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>};
+<a href=#39 id=39 data-nosnippet>39</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayDistributions, RelayTimers};
+<a href=#40 id=40 data-nosnippet>40</a><span class="kw">use </span><span class="kw">crate</span>::utils;
 <a href=#41 id=41 data-nosnippet>41</a>
 <a href=#42 id=42 data-nosnippet>42</a><span class="doccomment">/// Returns the data category if there is an event.
 <a href=#43 id=43 data-nosnippet>43</a>///
@@ -130,7 +130,7 @@
 <a href=#130 id=130 data-nosnippet>130</a>
 <a href=#131 id=131 data-nosnippet>131</a>            <span class="kw">let </span>span_count = inner_event.spans.value().map(Vec::len).unwrap_or(<span class="number">0</span>) <span class="kw">as </span>u64;
 <a href=#132 id=132 data-nosnippet>132</a>            <span class="macro">metric!</span>(
-<a href=#133 id=133 data-nosnippet>133</a>                histogram(RelayHistograms::EventSpans) = span_count,
+<a href=#133 id=133 data-nosnippet>133</a>                distribution(RelayDistributions::EventSpans) = span_count,
 <a href=#134 id=134 data-nosnippet>134</a>                sdk = client_name,
 <a href=#135 id=135 data-nosnippet>135</a>                platform = platform,
 <a href=#136 id=136 data-nosnippet>136</a>            );

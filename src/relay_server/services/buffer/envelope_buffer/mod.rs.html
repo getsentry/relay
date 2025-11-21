@@ -20,7 +20,7 @@
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::memory::MemoryStackProvider;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::{StackCreationType, StackProvider};
-<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RelayHistograms, RelayTimers};
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayDistributions, RelayGauges, RelayTimers};
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::utils::MemoryChecker;
 <a href=#25 id=25 data-nosnippet>25</a>
 <a href=#26 id=26 data-nosnippet>26</a><span class="doccomment">/// Polymorphic envelope buffering interface.
@@ -79,7 +79,7 @@
 <a href=#79 id=79 data-nosnippet>79</a>    <span class="doccomment">/// Adds an envelope to the buffer.
 <a href=#80 id=80 data-nosnippet>80</a>    </span><span class="kw">pub async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
 <a href=#81 id=81 data-nosnippet>81</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#82 id=82 data-nosnippet>82</a>            histogram(RelayHistograms::BufferEnvelopeBodySize) =
+<a href=#82 id=82 data-nosnippet>82</a>            distribution(RelayDistributions::BufferEnvelopeBodySize) =
 <a href=#83 id=83 data-nosnippet>83</a>                envelope.items().map(Item::len).sum::&lt;usize&gt;() <span class="kw">as </span>u64,
 <a href=#84 id=84 data-nosnippet>84</a>            partition_id = <span class="self">self</span>.partition_tag()
 <a href=#85 id=85 data-nosnippet>85</a>        );
@@ -576,7 +576,7 @@
 <a href=#576 id=576 data-nosnippet>576</a>            <span class="bool-val">false </span>=&gt; <span class="string">"false"</span>,
 <a href=#577 id=577 data-nosnippet>577</a>        };
 <a href=#578 id=578 data-nosnippet>578</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#579 id=579 data-nosnippet>579</a>            histogram(RelayHistograms::BufferEnvelopesCount) = total_count,
+<a href=#579 id=579 data-nosnippet>579</a>            distribution(RelayDistributions::BufferEnvelopesCount) = total_count,
 <a href=#580 id=580 data-nosnippet>580</a>            initialized = initialized,
 <a href=#581 id=581 data-nosnippet>581</a>            stack_type = <span class="self">self</span>.stack_provider.stack_type(),
 <a href=#582 id=582 data-nosnippet>582</a>            partition_id = <span class="kw-2">&amp;</span><span class="self">self</span>.partition_tag
