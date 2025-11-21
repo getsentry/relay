@@ -1,5 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::organization::OrganizationId;
@@ -141,7 +142,7 @@ impl ItemScoping {
     }
 
     /// Checks whether the category matches any of the quota's categories.
-    pub(crate) fn matches_categories(&self, categories: &DataCategories) -> bool {
+    pub(crate) fn matches_categories(&self, categories: &[DataCategory]) -> bool {
         // An empty list of categories means that this quota matches all categories. Note that we
         // skip `Unknown` categories silently. If the list of categories only contains `Unknown`s,
         // we do **not** match, since apparently the quota is meant for some data this Relay does
@@ -231,10 +232,71 @@ impl CategoryUnit {
 
 /// An efficient container for data categories that avoids allocations.
 ///
-/// [`DataCategories`] is a small-vector based collection of [`DataCategory`] values.
-/// It's optimized for the common case of having only a few categories, avoiding heap
-/// allocations in these scenarios.
-pub type DataCategories = SmallVec<[DataCategory; 8]>;
+/// It is a read only and has set like properties, allowing for fast comparisons.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize)]
+#[serde(transparent)]
+pub struct DataCategories(Arc<[DataCategory]>);
+
+impl DataCategories {
+    /// Creates new and empty [`DataCategories`].
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Adds a data category to [`Self`].
+    ///
+    /// Returns `None` if the category was already contained, otherwise creates a new [`Self`] with
+    /// the `category` added.
+    pub fn add(&self, category: DataCategory) -> Option<Self> {
+        // We know the list of contained data categories is small -> we can just do a linear search
+        // instead of a binary search.
+        if self.0.contains(&category) {
+            return None;
+        }
+
+        let mut new = SmallVec::<[DataCategory; 12]>::from(&*self.0);
+        new.push(category);
+        Some(new.into())
+    }
+}
+
+impl std::ops::Deref for DataCategories {
+    type Target = [DataCategory];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for DataCategories {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        SmallVec::<[DataCategory; 12]>::deserialize(deserializer).map(Into::into)
+    }
+}
+
+impl<const N: usize> From<SmallVec<[DataCategory; N]>> for DataCategories {
+    fn from(mut categories: SmallVec<[DataCategory; N]>) -> Self {
+        categories.sort_unstable();
+        categories.dedup();
+        Self(categories.as_slice().into())
+    }
+}
+
+impl<const N: usize> From<[DataCategory; N]> for DataCategories {
+    fn from(categories: [DataCategory; N]) -> Self {
+        SmallVec::from_buf(categories).into()
+    }
+}
+
+impl FromIterator<DataCategory> for DataCategories {
+    fn from_iter<T: IntoIterator<Item = DataCategory>>(iter: T) -> Self {
+        let v: SmallVec<[DataCategory; 12]> = iter.into_iter().collect();
+        v.into()
+    }
+}
 
 /// The scope at which a quota is applied.
 ///
@@ -320,7 +382,7 @@ fn default_scope() -> QuotaScope {
 /// Reason codes provide a standardized way to communicate why a particular
 /// item was rate limited.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Hash)]
-pub struct ReasonCode(String);
+pub struct ReasonCode(Arc<str>);
 
 impl ReasonCode {
     /// Creates a new reason code from a string.
@@ -328,7 +390,7 @@ impl ReasonCode {
     /// This method is primarily intended for testing. In production, reason codes
     /// should typically be deserialized from quota configurations rather than
     /// constructed manually.
-    pub fn new<S: Into<String>>(code: S) -> Self {
+    pub fn new<S: Into<Arc<str>>>(code: S) -> Self {
         Self(code.into())
     }
 
@@ -363,12 +425,12 @@ pub struct Quota {
     ///
     /// Required for all quotas except those with `limit` = 0, which are statically enforced.
     #[serde(default)]
-    pub id: Option<String>,
+    pub id: Option<Arc<str>>,
 
     /// Data categories this quota applies to.
     ///
     /// If missing or empty, this quota applies to all data categories.
-    #[serde(default = "DataCategories::new")]
+    #[serde(default)]
     pub categories: DataCategories,
 
     /// The scope level at which this quota is enforced.
@@ -383,7 +445,7 @@ pub struct Quota {
     /// If set, this quota only applies to the specified scope instance
     /// (e.g., a specific project key). Requires `scope` to be set explicitly.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scope_id: Option<String>,
+    pub scope_id: Option<Arc<str>>,
 
     /// Maximum number of events allowed within the time window.
     ///
@@ -483,8 +545,6 @@ impl Quota {
 
 #[cfg(test)]
 mod tests {
-    use smallvec::smallvec;
-
     use super::*;
 
     #[test]
@@ -692,7 +752,7 @@ mod tests {
     fn test_quota_valid_reject_all() {
         let quota = Quota {
             id: None,
-            categories: DataCategories::new(),
+            categories: Default::default(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: Some(0),
@@ -708,7 +768,7 @@ mod tests {
     fn test_quota_invalid_only_unknown() {
         let quota = Quota {
             id: None,
-            categories: smallvec![DataCategory::Unknown, DataCategory::Unknown],
+            categories: [DataCategory::Unknown, DataCategory::Unknown].into(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: Some(0),
@@ -724,7 +784,7 @@ mod tests {
     fn test_quota_valid_reject_all_mixed() {
         let quota = Quota {
             id: None,
-            categories: smallvec![DataCategory::Error, DataCategory::Attachment],
+            categories: [DataCategory::Error, DataCategory::Attachment].into(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: Some(0),
@@ -740,7 +800,7 @@ mod tests {
     fn test_quota_invalid_limited_mixed() {
         let quota = Quota {
             id: None,
-            categories: smallvec![DataCategory::Error, DataCategory::Attachment],
+            categories: [DataCategory::Error, DataCategory::Attachment].into(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: Some(1000),
@@ -757,7 +817,7 @@ mod tests {
     fn test_quota_invalid_unlimited_mixed() {
         let quota = Quota {
             id: None,
-            categories: smallvec![DataCategory::Error, DataCategory::Attachment],
+            categories: [DataCategory::Error, DataCategory::Attachment].into(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: None,
@@ -774,7 +834,7 @@ mod tests {
     fn test_quota_matches_no_categories() {
         let quota = Quota {
             id: None,
-            categories: DataCategories::new(),
+            categories: Default::default(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: None,
@@ -799,7 +859,7 @@ mod tests {
     fn test_quota_matches_unknown_category() {
         let quota = Quota {
             id: None,
-            categories: smallvec![DataCategory::Unknown],
+            categories: [DataCategory::Unknown].into(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: None,
@@ -824,7 +884,7 @@ mod tests {
     fn test_quota_matches_multiple_categores() {
         let quota = Quota {
             id: None,
-            categories: smallvec![DataCategory::Unknown, DataCategory::Error],
+            categories: [DataCategory::Unknown, DataCategory::Error].into(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: None,
@@ -860,9 +920,9 @@ mod tests {
     fn test_quota_matches_no_invalid_scope() {
         let quota = Quota {
             id: None,
-            categories: DataCategories::new(),
+            categories: Default::default(),
             scope: QuotaScope::Organization,
-            scope_id: Some("not_a_number".to_owned()),
+            scope_id: Some("not_a_number".into()),
             limit: None,
             window: None,
             reason_code: None,
@@ -885,9 +945,9 @@ mod tests {
     fn test_quota_matches_organization_scope() {
         let quota = Quota {
             id: None,
-            categories: DataCategories::new(),
+            categories: Default::default(),
             scope: QuotaScope::Organization,
-            scope_id: Some("42".to_owned()),
+            scope_id: Some("42".into()),
             limit: None,
             window: None,
             reason_code: None,
@@ -921,9 +981,9 @@ mod tests {
     fn test_quota_matches_project_scope() {
         let quota = Quota {
             id: None,
-            categories: DataCategories::new(),
+            categories: Default::default(),
             scope: QuotaScope::Project,
-            scope_id: Some("21".to_owned()),
+            scope_id: Some("21".into()),
             limit: None,
             window: None,
             reason_code: None,
@@ -957,9 +1017,9 @@ mod tests {
     fn test_quota_matches_key_scope() {
         let quota = Quota {
             id: None,
-            categories: DataCategories::new(),
+            categories: Default::default(),
             scope: QuotaScope::Key,
-            scope_id: Some("17".to_owned()),
+            scope_id: Some("17".into()),
             limit: None,
             window: None,
             reason_code: None,
@@ -998,5 +1058,44 @@ mod tests {
             },
             namespace: MetricNamespaceScoping::None,
         }));
+    }
+
+    #[test]
+    fn test_data_categories_sorted_deduplicated() {
+        let a = DataCategories::from([
+            DataCategory::Transaction,
+            DataCategory::Span,
+            DataCategory::Transaction,
+        ]);
+        let b = DataCategories::from([
+            DataCategory::Span,
+            DataCategory::Transaction,
+            DataCategory::Span,
+        ]);
+        let c = DataCategories::from([DataCategory::Span, DataCategory::Transaction]);
+
+        assert_eq!(a, b);
+        assert_eq!(b, c);
+        assert_eq!(a, c);
+    }
+
+    #[test]
+    fn test_data_categories_serde() {
+        let s: DataCategories = serde_json::from_str(r#"["span", "transaction", "span"]"#).unwrap();
+        insta::assert_json_snapshot!(s, @r#"
+        [
+          "transaction",
+          "span"
+        ]
+        "#);
+    }
+
+    #[test]
+    fn test_data_categories_add() {
+        let c = DataCategories::new();
+        let c = c.add(DataCategory::Span).unwrap();
+        assert!(c.add(DataCategory::Span).is_none());
+        let c = c.add(DataCategory::Transaction).unwrap();
+        assert_eq!(c, [DataCategory::Span, DataCategory::Transaction].into());
     }
 }

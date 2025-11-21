@@ -302,7 +302,7 @@ mod tests {
 
     fn build_quota(window: u64, limit: impl Into<Option<u64>>) -> Quota {
         Quota {
-            id: Some(uuid::Uuid::new_v4().to_string()),
+            id: Some(uuid::Uuid::new_v4().to_string().into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Global,
             scope_id: None,

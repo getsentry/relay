@@ -117,8 +117,8 @@ impl ProjectConfig {
         // Check if indexed and non-indexed are double-counting towards the same ID.
         // This is probably not intended behavior.
         for quota in &self.quotas {
-            if let Some(id) = &quota.id {
-                for category in &quota.categories {
+            if let Some(id) = quota.id.as_deref() {
+                for category in &*quota.categories {
                     if let Some(indexed) = category.index_category()
                         && quota.categories.contains(&indexed)
                     {
