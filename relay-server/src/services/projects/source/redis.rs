@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::services::projects::project::{ParsedProjectState, ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
 use relay_redis::redis::cmd;
 
 #[derive(Clone, Debug)]
@@ -33,11 +33,11 @@ fn parse_redis_response(raw_response: &[u8]) -> Result<ParsedProjectState, Redis
     let decoded_response = match &decompression_result {
         Ok(decoded) => {
             metric!(
-                histogram(RelayHistograms::ProjectStateSizeBytesCompressed) =
+                distribution(RelayDistributions::ProjectStateSizeBytesCompressed) =
                     raw_response.len() as f64
             );
             metric!(
-                histogram(RelayHistograms::ProjectStateSizeBytesDecompressed) =
+                distribution(RelayDistributions::ProjectStateSizeBytesDecompressed) =
                     decoded.len() as f64
             );
             decoded.as_slice()
