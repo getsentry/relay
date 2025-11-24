@@ -37,7 +37,7 @@ impl OutcomeError for Error {
     }
 }
 
-/// A processor for Client-Reports.
+/// A processor for client reports.
 pub struct ClientReportsProcessor {
     aggregator: Addr<TrackOutcome>,
 }
