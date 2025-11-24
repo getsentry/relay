@@ -287,114 +287,108 @@ pub fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
 /// the db operation and collection name are updated if needed.
 ///
 /// Note: This function assumes that the sentry.op has already been inferred and set in the attributes.
-pub fn normalize_db_attributes(attributes: &mut Annotated<Attributes>) {
+pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
+    let Some(attributes) = annotated_attributes.value() else {
+        return;
+    };
+
     // Skip normalization if the normalized db query attribute is already set.
-    if attributes
-        .value()
-        .is_some_and(|attributes| attributes.get_value(NORMALIZED_DB_QUERY).is_some())
-    {
+    if attributes.get_value(NORMALIZED_DB_QUERY).is_some() {
         return;
     }
 
-    let (normalized_db_query, db_operation, db_collection_name) = attributes
-        .value()
-        .map(|attributes| {
-            let (op, sub_op) = attributes
-                .get_value(OP)
-                .and_then(|v| v.as_str())
-                .map(|op| op.split_once('.').unwrap_or((op, "")))
-                .unwrap_or_default();
+    let (op, sub_op) = attributes
+        .get_value(OP)
+        .and_then(|v| v.as_str())
+        .map(|op| op.split_once('.').unwrap_or((op, "")))
+        .unwrap_or_default();
 
-            let raw_query = attributes
-                .get_value(DB_QUERY_TEXT)
-                .or_else(|| {
-                    if op == "db" {
-                        attributes.get_value(DESCRIPTION)
-                    } else {
-                        None
-                    }
-                })
-                .and_then(|v| v.as_str());
-
-            let db_system = attributes
-                .get_value(DB_SYSTEM_NAME)
-                .and_then(|v| v.as_str());
-
-            let db_operation = attributes
-                .get_value(DB_OPERATION_NAME)
-                .and_then(|v| v.as_str());
-
-            let collection_name = attributes
-                .get_value(DB_COLLECTION_NAME)
-                .and_then(|v| v.as_str());
-
-            let span_origin = attributes.get_value(ORIGIN).and_then(|v| v.as_str());
-
-            let (normalized_db_query, parsed_sql) = if let Some(raw_query) = raw_query {
-                scrub_db_query(
-                    raw_query,
-                    sub_op,
-                    db_system,
-                    db_operation,
-                    collection_name,
-                    span_origin,
-                )
+    let raw_query = attributes
+        .get_value(DB_QUERY_TEXT)
+        .or_else(|| {
+            if op == "db" {
+                attributes.get_value(DESCRIPTION)
             } else {
-                (None, None)
-            };
+                None
+            }
+        })
+        .and_then(|v| v.as_str());
 
-            let db_operation = if db_operation.is_none() {
-                if sub_op == "redis" || db_system == Some("redis") {
-                    // This only works as long as redis span descriptions contain the command + " *"
-                    if let Some(query) = normalized_db_query.as_ref() {
-                        let command = query.replace(" *", "");
-                        if command.is_empty() {
-                            None
-                        } else {
-                            Some(command)
-                        }
-                    } else {
-                        None
-                    }
-                } else if let Some(raw_query) = raw_query {
-                    // For other database operations, try to get the operation from data
-                    sql_action_from_query(raw_query).map(|a| a.to_uppercase())
-                } else {
-                    None
-                }
-            } else {
-                db_operation.map(|db_operation| db_operation.to_uppercase())
-            };
+    let db_system = attributes
+        .get_value(DB_SYSTEM_NAME)
+        .and_then(|v| v.as_str());
 
-            let db_collection_name: Option<String> = if collection_name.is_none() {
-                if span_origin == Some("auto.db.supabase") {
-                    normalized_db_query
-                        .as_ref()
-                        .and_then(|query| query.strip_prefix("from("))
-                        .and_then(|s| s.strip_suffix(")"))
-                        .map(String::from)
-                } else if let Some(raw_query) = raw_query {
-                    sql_tables_from_query(raw_query, &parsed_sql)
-                } else {
+    let db_operation = attributes
+        .get_value(DB_OPERATION_NAME)
+        .and_then(|v| v.as_str());
+
+    let collection_name = attributes
+        .get_value(DB_COLLECTION_NAME)
+        .and_then(|v| v.as_str());
+
+    let span_origin = attributes.get_value(ORIGIN).and_then(|v| v.as_str());
+
+    let (normalized_db_query, parsed_sql) = if let Some(raw_query) = raw_query {
+        scrub_db_query(
+            raw_query,
+            sub_op,
+            db_system,
+            db_operation,
+            collection_name,
+            span_origin,
+        )
+    } else {
+        (None, None)
+    };
+
+    let db_operation = if db_operation.is_none() {
+        if sub_op == "redis" || db_system == Some("redis") {
+            // This only works as long as redis span descriptions contain the command + " *"
+            if let Some(query) = normalized_db_query.as_ref() {
+                let command = query.replace(" *", "");
+                if command.is_empty() {
                     None
-                }
-            } else if let Some(collection_name) = collection_name
-                && db_system == Some("mongodb")
-            {
-                if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(collection_name, "{%s}") {
-                    Some(s)
                 } else {
-                    Some(collection_name.to_owned())
+                    Some(command)
                 }
             } else {
                 None
-            };
+            }
+        } else if let Some(raw_query) = raw_query {
+            // For other database operations, try to get the operation from data
+            sql_action_from_query(raw_query).map(|a| a.to_uppercase())
+        } else {
+            None
+        }
+    } else {
+        db_operation.map(|db_operation| db_operation.to_uppercase())
+    };
 
-            (normalized_db_query, db_operation, db_collection_name)
-        })
-        .unwrap_or_default();
+    let db_collection_name: Option<String> = if collection_name.is_none() {
+        if span_origin == Some("auto.db.supabase") {
+            normalized_db_query
+                .as_ref()
+                .and_then(|query| query.strip_prefix("from("))
+                .and_then(|s| s.strip_suffix(")"))
+                .map(String::from)
+        } else if let Some(raw_query) = raw_query {
+            sql_tables_from_query(raw_query, &parsed_sql)
+        } else {
+            None
+        }
+    } else if let Some(collection_name) = collection_name
+        && db_system == Some("mongodb")
+    {
+        if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(collection_name, "{%s}") {
+            Some(s)
+        } else {
+            Some(collection_name.to_owned())
+        }
+    } else {
+        None
+    };
 
-    if let Some(attributes) = attributes.value_mut() {
+    if let Some(attributes) = annotated_attributes.value_mut() {
         if let Some(normalized_db_query) = normalized_db_query {
             attributes.insert(NORMALIZED_DB_QUERY, normalized_db_query);
         }
