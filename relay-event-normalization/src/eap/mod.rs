@@ -302,7 +302,7 @@ pub fn normalize_db_attributes(attributes: &mut Annotated<Attributes>) {
             let (op, sub_op) = attributes
                 .get_value(OP)
                 .and_then(|v| v.as_str())
-                .and_then(|op| op.split_once('.'))
+                .map(|op| op.split_once('.').unwrap_or((op, "")))
                 .unwrap_or_default();
 
             let raw_query = attributes
