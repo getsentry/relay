@@ -3,7 +3,6 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use relay_config::Config;
-use relay_dynamic_config::Feature;
 
 use crate::endpoints::common;
 use crate::envelope::ContentType;
