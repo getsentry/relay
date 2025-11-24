@@ -1,16 +1,17 @@
 use std::time::Duration;
 
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, WithHeader};
-use crate::managed::Managed;
-use crate::processing::Context;
-use crate::processing::spans::{self, Error, ExpandedSpans, Result, SampledSpans};
-use crate::services::outcome::DiscardReason;
 use relay_event_normalization::{
     GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
 };
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanV2};
 use relay_protocol::Annotated;
+
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, WithHeader};
+use crate::managed::Managed;
+use crate::processing::Context;
+use crate::processing::spans::{self, Error, ExpandedSpans, Result, SampledSpans};
+use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized spans.
 ///
