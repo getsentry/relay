@@ -9,6 +9,7 @@ pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::IngestUnsampledProfiles,
     Feature::ScrubMongoDbDescriptions,
     Feature::DeprecatedExtractSpansFromEvent,
+    Feature::VercelLogDrainEndpoint,
 ];
 
 /// Features exposed by project config.
@@ -61,6 +62,11 @@ pub enum Feature {
     /// Serialized as `organizations:relay-otel-logs-endpoint`.
     #[serde(rename = "organizations:relay-otel-logs-endpoint")]
     OtelLogsEndpoint,
+    /// Enable logs ingestion via the Vercel Log Drain endpoint.
+    ///
+    /// Serialized as `organizations:relay-vercel-log-drain-endpoint`.
+    #[serde(rename = "organizations:relay-vercel-log-drain-endpoint")]
+    VercelLogDrainEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.
