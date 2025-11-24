@@ -614,3 +614,169 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     ]
 
     assert mini_sentry.captured_events.empty()
+
+
+@pytest.mark.parametrize(
+    "quota_config,expected_outcomes",
+    [
+        pytest.param(
+            [
+                {
+                    "categories": ["span_indexed"],
+                    "limit": 0,
+                    "window": 3600,
+                    "id": "span_limit",
+                    "reasonCode": "span_quota_exceeded",
+                }
+            ],
+            {
+                # Rate limit spans
+                (DataCategory.SPAN.value, 2): 1,
+                (DataCategory.SPAN_INDEXED.value, 2): 1,
+                # Rate limit associated span attachments
+                (DataCategory.ATTACHMENT.value, 2): 19,
+                (DataCategory.ATTACHMENT_ITEM.value, 2): 1,
+                # Don't Rate limit standalone attachments
+                (DataCategory.ATTACHMENT.value, 3): 45,
+                (DataCategory.ATTACHMENT_ITEM.value, 3): 1,
+            },
+            id="span_quota_exceeded",
+        ),
+        pytest.param(
+            [
+                {
+                    "categories": ["attachment"],
+                    "limit": 0,
+                    "window": 3600,
+                    "id": "attachment_limit",
+                    "reasonCode": "attachment_quota_exceeded",
+                }
+            ],
+            {
+                # Span make it through
+                (DataCategory.SPAN_INDEXED.value, 0): 1,
+                # Attachments don't make it through
+                (DataCategory.ATTACHMENT.value, 2): 446,
+                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+            },
+            id="attachment_quota_exceeded",
+        ),
+        pytest.param(
+            [
+                {
+                    "categories": ["span_indexed"],
+                    "limit": 0,
+                    "window": 3600,
+                    "id": "span_limit",
+                    "reasonCode": "span_quota_exceeded",
+                },
+                {
+                    "categories": ["attachment"],
+                    "limit": 0,
+                    "window": 3600,
+                    "id": "attachment_limit",
+                    "reasonCode": "attachment_quota_exceeded",
+                },
+            ],
+            {
+                # Nothing makes it through
+                (DataCategory.SPAN.value, 2): 1,
+                (DataCategory.SPAN_INDEXED.value, 2): 1,
+                (DataCategory.ATTACHMENT.value, 2): 446,
+                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+            },
+            id="both_quotas_exceeded",
+        ),
+    ],
+)
+def test_span_attachment_independent_rate_limiting(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    quota_config,
+    expected_outcomes,
+):
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+    project_config["config"]["quotas"] = quota_config
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    outcomes_consumer = outcomes_consumer()
+
+    ts = datetime.now(timezone.utc)
+    span_id = "eee19b7ec3c1b174"
+    trace_id = "5b8efff798038103d269b633813fc60c"
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "is_segment": True,
+            "name": "test span",
+            "status": "ok",
+        },
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    per_span_metadata = create_attachment_metadata()
+    per_span_body = b"per-span attachment"
+    per_span_metadata_bytes = json.dumps(
+        per_span_metadata, separators=(",", ":")
+    ).encode("utf-8")
+    per_span_payload = per_span_metadata_bytes + per_span_body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=per_span_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(per_span_metadata_bytes),
+                "span_id": span_id,
+                "length": len(per_span_payload),
+            },
+        )
+    )
+
+    standalone_metadata = create_attachment_metadata()
+    standalone_body = b"standalone attachment - should be independent"
+    standalone_metadata_bytes = json.dumps(
+        standalone_metadata, separators=(",", ":")
+    ).encode("utf-8")
+    standalone_payload = standalone_metadata_bytes + standalone_body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=standalone_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(standalone_metadata_bytes),
+                "span_id": None,  # Not attached to any span
+                "length": len(standalone_payload),
+            },
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes(timeout=3)
+    print(outcomes)
+    outcome_counter = {}
+    for outcome in outcomes:
+        key = (outcome["category"], outcome["outcome"])
+        outcome_counter[key] = outcome_counter.get(key, 0) + outcome["quantity"]
+
+    assert outcome_counter == expected_outcomes
+
+    outcomes_consumer.assert_empty()
