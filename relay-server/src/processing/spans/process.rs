@@ -201,28 +201,23 @@ fn normalize_db_attributes(attributes: &mut Annotated<Attributes>) {
             };
 
             let db_operation = if db_operation.is_none() {
-                match sub_op {
-                    "redis" => {
-                        // This only works as long as redis span descriptions contain the command + " *"
-                        if let Some(query) = normalized_db_query.as_ref() {
-                            let command = query.replace(" *", "");
-                            if command.is_empty() {
-                                None
-                            } else {
-                                Some(command)
-                            }
-                        } else {
+                if sub_op == "redis" || db_system == Some("redis") {
+                    // This only works as long as redis span descriptions contain the command + " *"
+                    if let Some(query) = normalized_db_query.as_ref() {
+                        let command = query.replace(" *", "");
+                        if command.is_empty() {
                             None
-                        }
-                    }
-                    _ => {
-                        if let Some(raw_query) = raw_query {
-                            // For other database operations, try to get the operation from data
-                            sql_action_from_query(raw_query).map(|a| a.to_uppercase())
                         } else {
-                            None
+                            Some(command)
                         }
+                    } else {
+                        None
                     }
+                } else if let Some(raw_query) = raw_query {
+                    // For other database operations, try to get the operation from data
+                    sql_action_from_query(raw_query).map(|a| a.to_uppercase())
+                } else {
+                    None
                 }
             } else {
                 db_operation.map(|db_operation| db_operation.to_uppercase())
@@ -243,12 +238,10 @@ fn normalize_db_attributes(attributes: &mut Annotated<Attributes>) {
             } else if let Some(collection_name) = collection_name
                 && db_system == Some("mongodb")
             {
-                if let Cow::Owned(collection_name) =
-                    TABLE_NAME_REGEX.replace_all(collection_name, "{%s}")
-                {
-                    Some(collection_name)
+                if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(collection_name, "{%s}") {
+                    Some(s)
                 } else {
-                    None
+                    Some(collection_name.to_owned())
                 }
             } else {
                 None
