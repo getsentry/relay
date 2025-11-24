@@ -199,9 +199,6 @@ pub fn emit(
     })
 }
 
-/// Parse an outcome from an outcome ID and a reason string.
-///
-/// Currently only used to reconstruct outcomes encoded in client reports.
 fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
     match field {
         ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
