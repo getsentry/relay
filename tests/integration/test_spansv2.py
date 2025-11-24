@@ -111,6 +111,7 @@ def test_spansv2_basic(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.op": {"type": "string", "value": "default"},
         },
         "_meta": {
             "attributes": {
@@ -780,6 +781,7 @@ def test_spanv2_with_string_pii_scrubbing(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.op": {"type": "string", "value": "default"},
         },
         "_meta": {
             "attributes": {
