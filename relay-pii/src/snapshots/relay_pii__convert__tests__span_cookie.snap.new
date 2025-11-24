@@ -1,5 +1,6 @@
 ---
 source: relay-pii/src/convert.rs
+assertion_line: 1663
 expression: data
 ---
 {

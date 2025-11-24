@@ -1624,7 +1624,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                       "client_sample_rate": 1.0,
                       "origin": "auto.http.otel.http",
                       "data": {
-                        "http.request.header.cookie": "session=hello-inc-1512-remix",
+                        "http.request.header.cookie": "session=hello-secret",
                         "sentry.op": "http.server",
                         "sentry.origin": "auto.http.otel.http",
                         "url": "http://localhost:3000/api/submit"
@@ -1645,7 +1645,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                       "description": "query",
                       "origin": "auto.http.otel.express",
                       "data": {
-                        "http.request.header.cookie": "session=hello-inc-1512-remix",
+                        "http.request.header.cookie": "session=hello-secret",
                         "express.name": "query",
                         "express.type": "middleware",
                         "sentry.op": "middleware.express",
