@@ -151,6 +151,13 @@ fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
 }
 
 fn normalize_db_attributes(attributes: &mut Annotated<Attributes>) {
+    if attributes
+        .value()
+        .is_some_and(|attributes| attributes.get_value(consts::NORMALIZED_DB_QUERY).is_some())
+    {
+        return;
+    }
+
     let (normalized_db_query, db_operation, db_collection_name) = attributes
         .value()
         .map(|attributes| {
@@ -978,6 +985,74 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_normalize_db_attributes_does_not_update_attributes_if_already_normalized() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_db_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(
+            SerializableAnnotated(&attributes), @r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#
+        );
     }
 
     #[test]
