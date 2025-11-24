@@ -122,7 +122,7 @@ pub struct ExpandedClientReports {
 }
 
 impl Counted for ExpandedClientReports {
-    fn quantities(&self) -> crate::managed::Quantities {
+    fn quantities(&self) -> Quantities {
         smallvec::smallvec![]
     }
 }
