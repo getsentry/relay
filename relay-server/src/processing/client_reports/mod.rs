@@ -32,7 +32,7 @@ impl OutcomeError for Error {
     type Error = Self;
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
-        // Currently/historically client reports do not emit outcomes.
+        // Client reports are outcomes, and we do not emit outcomes for outcomes.
         (None, self)
     }
 }
