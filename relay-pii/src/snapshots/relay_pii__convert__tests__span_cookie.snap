@@ -13,7 +13,7 @@ expression: data
       "client_sample_rate": 1.0,
       "origin": "auto.http.otel.http",
       "data": {
-        "http.request.header.cookie": "session=hello-inc-1512-remix",
+        "http.request.header.cookie": "[Filtered]",
         "sentry.op": "http.server",
         "sentry.origin": "auto.http.otel.http",
         "url": "http://localhost:3000/api/submit"
@@ -37,11 +37,51 @@ expression: data
       "data": {
         "express.name": "query",
         "express.type": "middleware",
-        "http.request.header.cookie": "session=hello-inc-1512-remix",
+        "http.request.header.cookie": "[Filtered]",
         "sentry.op": "middleware.express",
         "sentry.origin": "auto.http.otel.express"
       },
       "hash": "1b1cc7f086b3f074"
     }
-  ]
+  ],
+  "_meta": {
+    "contexts": {
+      "trace": {
+        "data": {
+          "http.request.header.cookie": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 28
+            }
+          }
+        }
+      }
+    },
+    "spans": {
+      "0": {
+        "data": {
+          "http.request.header.cookie": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 28
+            }
+          }
+        }
+      }
+    }
+  }
 }
