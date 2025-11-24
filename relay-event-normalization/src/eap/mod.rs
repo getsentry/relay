@@ -364,26 +364,23 @@ pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>)
         db_operation.map(|db_operation| db_operation.to_uppercase())
     };
 
-    let db_collection_name: Option<String> = if collection_name.is_none() {
-        if span_origin == Some("auto.db.supabase") {
-            normalized_db_query
-                .as_ref()
-                .and_then(|query| query.strip_prefix("from("))
-                .and_then(|s| s.strip_suffix(")"))
-                .map(String::from)
-        } else if let Some(raw_query) = raw_query {
-            sql_tables_from_query(raw_query, &parsed_sql)
+    let db_collection_name: Option<String> = if let Some(name) = collection_name {
+        if db_system == Some("mongodb") {
+            match TABLE_NAME_REGEX.replace_all(name, "{%s}") {
+                Cow::Owned(s) => Some(s),
+                Cow::Borrowed(_) => Some(name.to_owned()),
+            }
         } else {
-            None
+            Some(name.to_owned())
         }
-    } else if let Some(collection_name) = collection_name
-        && db_system == Some("mongodb")
-    {
-        if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(collection_name, "{%s}") {
-            Some(s)
-        } else {
-            Some(collection_name.to_owned())
-        }
+    } else if span_origin == Some("auto.db.supabase") {
+        normalized_db_query
+            .as_ref()
+            .and_then(|query| query.strip_prefix("from("))
+            .and_then(|s| s.strip_suffix(")"))
+            .map(String::from)
+    } else if let Some(raw_query) = raw_query {
+        sql_tables_from_query(raw_query, &parsed_sql)
     } else {
         None
     };
