@@ -160,22 +160,8 @@ fn map_vercel_level_to_sentry(level: VercelLogLevel) -> OurLogLevel {
 }
 
 fn get_trace_id(trace_id: Option<&String>, request_id: Option<&String>) -> Annotated<TraceId> {
-    match trace_id {
-        Some(s) if !s.is_empty() => match s.parse::<TraceId>() {
-            Ok(id) => Annotated::new(id),
-            Err(_) => Annotated::new_with_meta(TraceId::random(), |meta| {
-                meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.invalid"));
-            }),
-        },
-        _ => request_id
-            .and_then(|s| s.parse::<TraceId>().ok())
-            .map(Annotated::new)
-            .unwrap_or_else(|| {
-                Annotated::new_with_meta(TraceId::random(), |meta| {
-                    meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
-                })
-            }),
-    }
+    let id_str = trace_id.or(request_id).map_or("", |v| v);
+    TraceId::try_from_str_or_random(id_str)
 }
 
 fn get_span_id(span_id: Option<String>) -> Annotated<SpanId> {

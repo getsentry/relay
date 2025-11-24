@@ -35,21 +35,32 @@ impl TraceId {
         Self(Uuid::new_v4())
     }
 
-    /// Parses a [`TraceId`] from a slice, if it fails uses a [`Self::random`] id instead.
+    /// Parses a [`TraceId`] from a value that can be converted into one.
     ///
-    /// Additionally adds a remark to the [`Annotated`] that parsing failed.
+    /// If parsing fails, uses a [`Self::random`] id instead and adds a remark.
+    pub fn try_from_or_random<T>(value: T) -> Annotated<Self>
+    where
+        T: TryInto<Self> + AsRef<[u8]> + Copy,
+    {
+        value.try_into().map(Annotated::new).unwrap_or_else(|_| {
+            let mut meta = Meta::default();
+            let rule_id = match value.as_ref().is_empty() {
+                true => "trace_id.missing",
+                false => "trace_id.invalid",
+            };
+            meta.add_remark(Remark::new(RemarkType::Substituted, rule_id));
+            Annotated(Some(TraceId::random()), meta)
+        })
+    }
+
+    /// Parses a [`TraceId`] from a slice, if it fails uses a [`Self::random`] id instead.
     pub fn try_from_slice_or_random(value: &[u8]) -> Annotated<Self> {
-        TraceId::try_from(value)
-            .map(Annotated::new)
-            .unwrap_or_else(|_| {
-                let mut meta = Meta::default();
-                let rule_id = match value.is_empty() {
-                    true => "trace_id.missing",
-                    false => "trace_id.invalid",
-                };
-                meta.add_remark(Remark::new(RemarkType::Substituted, rule_id));
-                Annotated(Some(TraceId::random()), meta)
-            })
+        Self::try_from_or_random(value)
+    }
+
+    /// Parses a [`TraceId`] from a string, if it fails uses a [`Self::random`] id instead.
+    pub fn try_from_str_or_random(value: &str) -> Annotated<Self> {
+        Self::try_from_or_random(value)
     }
 }
 
@@ -62,6 +73,14 @@ impl FromStr for TraceId {
         Uuid::parse_str(s)
             .map(Into::into)
             .map_err(|_| Error::invalid("the trace id is not valid"))
+    }
+}
+
+impl TryFrom<&str> for TraceId {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 
@@ -553,5 +572,47 @@ mod tests {
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
+    }
+
+    #[test]
+    fn test_try_from_or_random() {
+        // Test valid string
+        let valid_str = "4c79f60c11214eb38604f4ae0781bfb2";
+        let annotated = TraceId::try_from_str_or_random(valid_str);
+        assert_eq!(
+            annotated.value().unwrap().as_u128(),
+            0x4c79f60c11214eb38604f4ae0781bfb2
+        );
+        assert!(annotated.meta().is_empty());
+
+        // Test invalid string (should return random + remark)
+        let invalid_str = "invalid";
+        let annotated = TraceId::try_from_str_or_random(invalid_str);
+        assert!(annotated.value().is_some()); // Random trace ID
+        assert_ne!(annotated.value().unwrap().as_u128(), 0);
+        assert_eq!(annotated.meta().iter_remarks().count(), 1);
+        let remark = annotated.meta().iter_remarks().next().unwrap();
+        assert_eq!(remark.rule_id(), "trace_id.invalid");
+
+        // Test empty string (should return random + remark)
+        let empty_str = "";
+        let annotated = TraceId::try_from_str_or_random(empty_str);
+        assert!(annotated.value().is_some());
+        let remark = annotated.meta().iter_remarks().next().unwrap();
+        assert_eq!(remark.rule_id(), "trace_id.missing");
+
+        // Test valid slice
+        let valid_bytes = b"\x4c\x79\xf6\x0c\x11\x21\x4e\xb3\x86\x04\xf4\xae\x07\x81\xbf\xb2";
+        let annotated = TraceId::try_from_slice_or_random(valid_bytes.as_slice());
+        assert_eq!(
+            annotated.value().unwrap().as_u128(),
+            0x4c79f60c11214eb38604f4ae0781bfb2
+        );
+
+        // Test invalid slice length
+        let invalid_bytes = b"\x00";
+        let annotated = TraceId::try_from_slice_or_random(invalid_bytes.as_slice());
+        let remark = annotated.meta().iter_remarks().next().unwrap();
+        assert_eq!(remark.rule_id(), "trace_id.invalid");
     }
 }
