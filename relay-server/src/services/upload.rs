@@ -19,19 +19,18 @@ use crate::statsd::{RelayCounters, RelayGauges};
 
 use super::outcome::Outcome;
 
-/// Message that requests all attachments of the [`Envelope`](crate::envelope::Envelope) to be uploaded.
-pub struct UploadAttachments {
-    /// The envelope containing attachments for upload.
-    pub envelope: TypedEnvelope<Processed>,
+/// Messages that the upload service can handle.
+pub enum Upload {
+    Envelope(StoreEnvelope),
 }
 
-impl Interface for UploadAttachments {}
+impl Interface for Upload {}
 
-impl FromMessage<UploadAttachments> for UploadAttachments {
+impl FromMessage<StoreEnvelope> for Upload {
     type Response = NoResponse;
 
-    fn from_message(message: UploadAttachments, _sender: ()) -> Self {
-        message
+    fn from_message(message: StoreEnvelope, _sender: ()) -> Self {
+        Self::Envelope(message)
     }
 }
 
@@ -103,8 +102,8 @@ impl UploadService {
         }))
     }
 
-    fn handle_message(&self, message: UploadAttachments) {
-        let UploadAttachments { envelope } = message;
+    fn handle_message(&self, message: Upload) {
+        let Upload::Envelope(StoreEnvelope { envelope }) = message;
         if self.pending_requests.len() >= self.max_concurrent_requests {
             // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
             // We might want to have a less aggressive mechanism in the future.
@@ -121,7 +120,7 @@ impl UploadService {
 }
 
 impl Service for UploadService {
-    type Interface = UploadAttachments;
+    type Interface = Upload;
 
     async fn run(mut self, mut rx: Receiver<Self::Interface>) {
         relay_log::info!("Upload service started");
