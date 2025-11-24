@@ -21,7 +21,7 @@ pub struct AttachmentV2Meta {
     pub filename: Annotated<String>,
 
     /// Content type of the attachment body.
-    #[metastructure(max_chars = 128, trim = false)]
+    #[metastructure(required = true, max_chars = 128, trim = false)]
     pub content_type: Annotated<String>,
 
     /// Arbitrary attributes on a span attachment.
