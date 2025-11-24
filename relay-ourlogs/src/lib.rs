@@ -6,6 +6,9 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+#[macro_use]
+mod attributes;
+mod logplex_to_sentry;
 mod otel_to_sentry;
 mod size;
 mod vercel_to_sentry;
