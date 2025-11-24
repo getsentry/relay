@@ -37,7 +37,6 @@ mod logs {
 
         let envelope = builder
             .with_type(LogsIntegration::VercelDrainLog { format })
-            .with_required_feature(Feature::VercelLogDrainEndpoint)
             .build();
 
         common::handle_envelope(&state, envelope).await?;
