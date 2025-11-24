@@ -243,6 +243,15 @@ impl DataCategories {
         Default::default()
     }
 
+    /// Creates a new [`Self`] from a [`SmallVec`].
+    ///
+    /// Sorts and de-duplicates the contents to uphold the invariants of the type.
+    fn new_sort_and_dedup<const N: usize>(mut s: SmallVec<[DataCategory; N]>) -> Self {
+        s.sort_unstable();
+        s.dedup();
+        Self(s.as_slice().into())
+    }
+
     /// Adds a data category to [`Self`].
     ///
     /// Returns `None` if the category was already contained, otherwise creates a new [`Self`] with
@@ -273,28 +282,26 @@ impl<'de> Deserialize<'de> for DataCategories {
     where
         D: serde::Deserializer<'de>,
     {
-        SmallVec::<[DataCategory; 12]>::deserialize(deserializer).map(Into::into)
+        SmallVec::<[DataCategory; 12]>::deserialize(deserializer).map(Self::new_sort_and_dedup)
     }
 }
 
 impl<const N: usize> From<SmallVec<[DataCategory; N]>> for DataCategories {
-    fn from(mut categories: SmallVec<[DataCategory; N]>) -> Self {
-        categories.sort_unstable();
-        categories.dedup();
-        Self(categories.as_slice().into())
+    fn from(categories: SmallVec<[DataCategory; N]>) -> Self {
+        Self::new_sort_and_dedup(categories)
     }
 }
 
 impl<const N: usize> From<[DataCategory; N]> for DataCategories {
     fn from(categories: [DataCategory; N]) -> Self {
-        SmallVec::from_buf(categories).into()
+        Self::new_sort_and_dedup(SmallVec::from_buf(categories))
     }
 }
 
 impl FromIterator<DataCategory> for DataCategories {
     fn from_iter<T: IntoIterator<Item = DataCategory>>(iter: T) -> Self {
         let v: SmallVec<[DataCategory; 12]> = iter.into_iter().collect();
-        v.into()
+        Self::new_sort_and_dedup(v)
     }
 }
 
