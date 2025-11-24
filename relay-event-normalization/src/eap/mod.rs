@@ -17,6 +17,20 @@ use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 mod ai;
 
 pub use self::ai::normalize_ai;
+use relay_spans::derive_op_for_v2_span;
+
+/// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
+pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
+    if attributes
+        .value()
+        .is_some_and(|attrs| attrs.contains_key(OP))
+    {
+        return;
+    }
+    let inferred_op = derive_op_for_v2_span(attributes);
+    let attrs = attributes.get_or_insert_with(Default::default);
+    attrs.insert_if_missing(OP, || inferred_op);
+}
 
 /// Normalizes/validates all attribute types.
 ///

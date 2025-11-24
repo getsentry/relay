@@ -17,7 +17,6 @@ use relay_event_normalization::{
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Attributes, Span, SpanV2};
 use relay_protocol::Annotated;
-use relay_spans::derive_op_for_v2_span;
 use std::borrow::Cow;
 
 /// Parses all serialized spans.
@@ -101,20 +100,9 @@ fn normalize_span(
         let duration = span_duration(span);
         let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
 
-        if span
-            .attributes
-            .value()
-            .and_then(|v| v.get_value(consts::OP))
-            .is_none()
-        {
-            let inferred_op = derive_op_for_v2_span(span);
-            span.attributes
-                .get_or_insert_with(Default::default)
-                .insert(consts::OP, inferred_op);
-        }
-
         validate_timestamps(span)?;
 
+        eap::normalize_sentry_op(&mut span.attributes);
         eap::normalize_attribute_types(&mut span.attributes);
         eap::normalize_attribute_names(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());
