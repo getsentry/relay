@@ -20,7 +20,7 @@ convention_attributes!(
     DB_QUERY_TEXT => "db.query.text",
     DB_STATEMENT => "db.statement",
     DB_SYSTEM_NAME => "db.system.name",
-    DB_OPERATION => "db.operation",
+    DB_OPERATION_NAME => "db.operation.name",
     DB_COLLECTION_NAME => "db.collection.name",
     DESCRIPTION => "sentry.description",
     DSC_ENVIRONMENT => "sentry.dsc.environment",

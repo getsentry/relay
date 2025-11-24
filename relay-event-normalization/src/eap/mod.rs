@@ -270,7 +270,7 @@ fn normalize_attribute_names_inner(
 /// Normalizes the values of a set of attributes if present in the span.
 ///
 /// Each span type has a set of important attributes containing the main relevant information displayed
-/// in the product-end. For instance, for DB spans, these attributes are `db.query.text`, `db.operation`,
+/// in the product-end. For instance, for DB spans, these attributes are `db.query.text`, `db.operation.name`,
 /// `db.collection.name`. Previously, V1 spans always held these important values in the `description` field,
 /// however, V2 spans now store these values in their respective attributes based on sentry conventions.
 /// This function ports over the SpanV1 normalization logic that was previously in `scrub_span_description`
@@ -279,7 +279,7 @@ pub fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
     normalize_db_attributes(attributes);
 }
 
-/// Normalizes the following db attributes: `db.query.text`, `db.operation`, `db.collection.name`
+/// Normalizes the following db attributes: `db.query.text`, `db.operation.name`, `db.collection.name`
 /// based on related attributes within DB spans.
 ///
 /// This function reads the raw db query from `db.query.text`, scrubs it if possible, and writes
@@ -320,7 +320,9 @@ pub fn normalize_db_attributes(attributes: &mut Annotated<Attributes>) {
                 .get_value(DB_SYSTEM_NAME)
                 .and_then(|v| v.as_str());
 
-            let db_operation = attributes.get_value(DB_OPERATION).and_then(|v| v.as_str());
+            let db_operation = attributes
+                .get_value(DB_OPERATION_NAME)
+                .and_then(|v| v.as_str());
 
             let collection_name = attributes
                 .get_value(DB_COLLECTION_NAME)
@@ -397,7 +399,7 @@ pub fn normalize_db_attributes(attributes: &mut Annotated<Attributes>) {
             attributes.insert(NORMALIZED_DB_QUERY, normalized_db_query);
         }
         if let Some(db_operation_name) = db_operation {
-            attributes.insert(DB_OPERATION, db_operation_name)
+            attributes.insert(DB_OPERATION_NAME, db_operation_name)
         }
         if let Some(db_collection_name) = db_collection_name {
             attributes.insert(DB_COLLECTION_NAME, db_collection_name);
@@ -859,7 +861,7 @@ mod tests {
                 "type": "string",
                 "value": "mysql"
             },
-            "db.operation": {
+            "db.operation.name": {
                 "type": "string",
                 "value": "query"
             }
@@ -872,7 +874,7 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
-          "db.operation": {
+          "db.operation.name": {
             "type": "string",
             "value": "query"
           },
@@ -918,7 +920,7 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
-          "db.operation": {
+          "db.operation.name": {
             "type": "string",
             "value": "SELECT"
           },
@@ -963,7 +965,7 @@ mod tests {
             "type": "string",
             "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
           },
-          "db.operation": {
+          "db.operation.name": {
             "type": "string",
             "value": "find"
           },
@@ -984,7 +986,7 @@ mod tests {
             "type": "string",
             "value": "documents"
           },
-          "db.operation": {
+          "db.operation.name": {
             "type": "string",
             "value": "FIND"
           },
@@ -1017,7 +1019,7 @@ mod tests {
             "type": "string",
             "value": "documents"
           },
-          "db.operation": {
+          "db.operation.name": {
             "type": "string",
             "value": "FIND"
           },
@@ -1051,7 +1053,7 @@ mod tests {
             "type": "string",
             "value": "documents"
           },
-          "db.operation": {
+          "db.operation.name": {
             "type": "string",
             "value": "FIND"
           },
