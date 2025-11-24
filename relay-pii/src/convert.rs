@@ -1609,6 +1609,59 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
+    fn test_span_cookie() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "contexts": {
+                    "trace": {
+                      "trace_id": "466baf35b509b6c6a3cc12a1de295591",
+                      "span_id": "4ce0ac489040739e",
+                      "op": "http.server",
+                      "status": "ok",
+                      "exclusive_time": 3.427,
+                      "client_sample_rate": 1.0,
+                      "origin": "auto.http.otel.http",
+                      "data": {
+                        "http.request.header.cookie": "session=hello-inc-1512-remix",
+                        "sentry.op": "http.server",
+                        "sentry.origin": "auto.http.otel.http",
+                        "url": "http://localhost:3000/api/submit"
+                      },
+                      "hash": "36850989d7b70755",
+                      "type": "trace"
+                    }
+                },
+                "spans": [{
+                      "timestamp": 1763715589.163131,
+                      "start_timestamp": 1763715589.163,
+                      "exclusive_time": 0.131,
+                      "op": "middleware.express",
+                      "span_id": "6ec4d78de6e732e2",
+                      "parent_span_id": "4ce0ac489040739e",
+                      "trace_id": "466baf35b509b6c6a3cc12a1de295591",
+                      "status": "ok",
+                      "description": "query",
+                      "origin": "auto.http.otel.express",
+                      "data": {
+                        "http.request.header.cookie": "session=hello-inc-1512-remix",
+                        "express.name": "query",
+                        "express.type": "middleware",
+                        "sentry.op": "middleware.express",
+                        "sentry.origin": "auto.http.otel.express"
+                      },
+                      "hash": "1b1cc7f086b3f074"
+                    }]
+            })
+            .into(),
+        );
+
+        let config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
     fn test_exclude_expression() {
         let mut data = Event::from_value(
             serde_json::json!({
