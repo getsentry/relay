@@ -18,7 +18,7 @@ use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
-use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
+use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter, RateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod dynamic_sampling;
@@ -242,6 +242,17 @@ impl Forward for SpanOutput {
             retention: ctx.retention(|r| r.span.as_ref()),
         };
 
+        // Explicitly drop standalone attachments before splitting
+        // They are not stored with indexed spans
+        let spans = spans.map(|mut inner, record_keeper| {
+            if !inner.stand_alone_attachments.is_empty() {
+                let standalone = std::mem::take(&mut inner.stand_alone_attachments);
+                // Drop with an Invalid outcome since they're not being stored
+                record_keeper.reject_err(Outcome::Invalid(DiscardReason::Internal), standalone);
+            }
+            inner
+        });
+
         for span in spans.split(|spans| spans.into_indexed_spans()) {
             if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
                 s.send(span)
@@ -305,10 +316,6 @@ impl Counted for SerializedSpans {
 
         quantities
     }
-}
-
-impl CountRateLimited for Managed<SerializedSpans> {
-    type Error = Error;
 }
 
 /// Spans which have been parsed and expanded from their serialized state.
@@ -491,8 +498,65 @@ impl Counted for ExpandedSpans<Indexed> {
     }
 }
 
-impl CountRateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
+impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
     type Error = Error;
+
+    async fn enforce<T>(
+        &mut self,
+        mut rate_limiter: T,
+        _: Context<'_>,
+    ) -> std::result::Result<(), Rejected<Self::Error>>
+    where
+        T: processing::RateLimiter,
+    {
+        let scoping = self.scoping();
+
+        for (category, quantity) in self.quantities() {
+            if matches!(category, DataCategory::Span | DataCategory::SpanIndexed) {
+                let limits = rate_limiter
+                    .try_consume(scoping.item(category), quantity)
+                    .await;
+
+                // If there is a span quota reject all the spans and the associated attachments.
+                if !limits.is_empty() {
+                    self.modify(|this, record_keeper| {
+                        record_keeper
+                            .reject_err(Error::from(limits), std::mem::take(&mut this.spans));
+                    });
+                }
+            } else if matches!(
+                category,
+                DataCategory::Attachment | DataCategory::AttachmentItem
+            ) {
+                // If there is an attachment quota reject all the attachments both associated
+                let limits = rate_limiter
+                    .try_consume(scoping.item(category), quantity)
+                    .await;
+
+                if !limits.is_empty() {
+                    self.modify(|this, record_keeper| {
+                        // Reject both stand_alone and associated attachments.
+                        let mut all_attachments = std::mem::take(&mut this.stand_alone_attachments);
+                        all_attachments.extend(
+                            this.spans
+                                .iter_mut()
+                                .filter_map(|span| span.attachment.take()),
+                        );
+
+                        record_keeper.reject_err(Error::from(limits), all_attachments);
+                    });
+                }
+            } else {
+                relay_log::error!(
+                    category = ?category,
+                    "unexpected data category in span rate limiting"
+                );
+                debug_assert!(false, "unexpected data category: {:?}", category);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// A Span which only represents the indexed category.
