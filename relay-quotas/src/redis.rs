@@ -486,7 +486,7 @@ mod tests {
                 namespace: None,
             },
             Quota {
-                id: Some("42".to_owned()),
+                id: Some("42".into()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
@@ -533,7 +533,7 @@ mod tests {
         let quota_limit = 5;
         let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
             Quota {
-                id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
+                id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4()).into()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
@@ -602,7 +602,7 @@ mod tests {
     #[tokio::test]
     async fn test_simple_quota() {
         let quotas = &[Quota {
-            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
+            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -653,7 +653,7 @@ mod tests {
     #[tokio::test]
     async fn test_simple_global_quota() {
         let quotas = &[Quota {
-            id: Some(format!("test_simple_global_quota_{}", uuid::Uuid::new_v4())),
+            id: Some(format!("test_simple_global_quota_{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Global,
             scope_id: None,
@@ -704,7 +704,7 @@ mod tests {
     #[tokio::test]
     async fn test_quantity_0() {
         let quotas = &[Quota {
-            id: Some(format!("test_quantity_0_{}", uuid::Uuid::new_v4())),
+            id: Some(format!("test_quantity_0_{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -767,7 +767,7 @@ mod tests {
     #[tokio::test]
     async fn test_quota_go_over() {
         let quotas = &[Quota {
-            id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4())),
+            id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -850,7 +850,7 @@ mod tests {
     async fn test_limited_with_unlimited_quota() {
         let quotas = &[
             Quota {
-                id: Some("q0".to_owned()),
+                id: Some("q0".into()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
@@ -860,7 +860,7 @@ mod tests {
                 namespace: None,
             },
             Quota {
-                id: Some("q1".to_owned()),
+                id: Some("q1".into()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
@@ -912,7 +912,7 @@ mod tests {
     #[tokio::test]
     async fn test_quota_with_quantity() {
         let quotas = &[Quota {
-            id: Some(format!("test_quantity_quota_{}", uuid::Uuid::new_v4())),
+            id: Some(format!("test_quantity_quota_{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -963,10 +963,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_redis_key_scoped() {
         let quota = Quota {
-            id: Some("foo".to_owned()),
+            id: Some("foo".into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Project,
-            scope_id: Some("42".to_owned()),
+            scope_id: Some("42".into()),
             window: Some(2),
             limit: Some(0),
             reason_code: None,
@@ -992,7 +992,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_redis_key_unscoped() {
         let quota = Quota {
-            id: Some("foo".to_owned()),
+            id: Some("foo".into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -1021,7 +1021,7 @@ mod tests {
     #[tokio::test]
     async fn test_large_redis_limit_large() {
         let quota = Quota {
-            id: Some("foo".to_owned()),
+            id: Some("foo".into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,

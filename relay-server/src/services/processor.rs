@@ -3468,7 +3468,7 @@ mod tests {
     fn mock_quota(id: &str) -> Quota {
         Quota {
             id: Some(id.into()),
-            categories: smallvec::smallvec![DataCategory::MetricBucket],
+            categories: [DataCategory::MetricBucket].into(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: Some(0),
@@ -3523,9 +3523,9 @@ mod tests {
             let project_info = {
                 let quota = Quota {
                     id: Some("testing".into()),
-                    categories: vec![DataCategory::MetricBucket].into(),
+                    categories: [DataCategory::MetricBucket].into(),
                     scope: relay_quotas::QuotaScope::Organization,
-                    scope_id: Some(rate_limited_org.organization_id.to_string()),
+                    scope_id: Some(rate_limited_org.organization_id.to_string().into()),
                     limit: Some(0),
                     window: None,
                     reason_code: Some(ReasonCode::new("test")),
