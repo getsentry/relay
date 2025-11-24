@@ -5,6 +5,7 @@ use crate::envelope::{ContainerItems, Item, WithHeader};
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
 
+mod heroku;
 mod otel;
 mod vercel;
 
@@ -45,6 +46,9 @@ pub fn expand_into(
         let result = match integration {
             LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
             LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
+            integration @ LogsIntegration::HerokuLogDrain { .. } => {
+                heroku::expand(&integration, &payload, produce)
+            }
         };
 
         match result {

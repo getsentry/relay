@@ -44,12 +44,13 @@ define_integrations!(
     "application/vnd.sentry.integration.otel.spans+protobuf" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Protobuf }),
     "application/vnd.sentry.integration.vercel.logs+json" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::Json }),
     "application/vnd.sentry.integration.vercel.logs+ndjson" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::NdJson }),
+    "application/vnd.sentry.integration.heroku.logs+logplex" => Integration::Logs(LogsIntegration::HerokuLogDrain { msg_count: None, frame_id: None, drain_token: None, user_agent: None }),
 );
 
 /// An exhaustive list of all integrations supported by Relay.
 ///
 /// While the list is currently exhaustive more integrations may be added at any time.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Integration {
     /// All logging integrations.
     Logs(LogsIntegration),
@@ -70,7 +71,7 @@ impl From<SpansIntegration> for Integration {
 }
 
 /// All logging integrations supported by Relay.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum LogsIntegration {
     /// The OTeL logging integration.
     ///
@@ -80,10 +81,19 @@ pub enum LogsIntegration {
     ///
     /// Supports the [`relay_ourlogs::VercelLog`] format.
     VercelDrainLog { format: VercelLogDrainFormat },
+    /// The Heroku Log Drain integration.
+    ///
+    /// Supports logplex-formatted syslog messages.
+    HerokuLogDrain {
+        msg_count: Option<String>,
+        frame_id: Option<String>,
+        drain_token: Option<String>,
+        user_agent: Option<String>,
+    },
 }
 
 /// All span integrations supported by Relay.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum SpansIntegration {
     /// The OTeL traces integration.
     ///

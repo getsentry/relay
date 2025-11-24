@@ -66,6 +66,11 @@ pub enum Feature {
     /// Serialized as `organizations:relay-vercel-log-drain-endpoint`.
     #[serde(rename = "organizations:relay-vercel-log-drain-endpoint")]
     VercelLogDrainEndpoint,
+    /// Enable logs ingestion via the Heroku Log Drain endpoint.
+    ///
+    /// Serialized as `organizations:relay-heroku-log-drain-endpoint`.
+    #[serde(rename = "organizations:relay-heroku-log-drain-endpoint")]
+    HerokuLogDrainEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.
