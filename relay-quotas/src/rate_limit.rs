@@ -266,10 +266,7 @@ impl RateLimits {
     ///
     /// If a rate limit with an overlapping scope already exists, the `retry_after` count is merged
     /// with the existing limit. Otherwise, the new rate limit is added.
-    pub fn add(&mut self, mut limit: RateLimit) {
-        // Categories are logically a set, but not implemented as such.
-        limit.categories.sort();
-
+    pub fn add(&mut self, limit: RateLimit) {
         let limit_opt = self.limits.iter_mut().find(|l| {
             let RateLimit {
                 categories,
@@ -541,8 +538,8 @@ impl CachedRateLimits {
                 };
 
                 for inherited in inherited_categories(category) {
-                    if !limit.categories.contains(inherited) {
-                        limit.categories.push(*inherited);
+                    if let Some(categories) = limit.categories.add(*inherited) {
+                        limit.categories = categories;
                     }
                 }
             }
@@ -636,7 +633,7 @@ mod tests {
     #[test]
     fn test_rate_limit_matches_categories() {
         let rate_limit = RateLimit {
-            categories: smallvec![DataCategory::Unknown, DataCategory::Error],
+            categories: [DataCategory::Unknown, DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -735,7 +732,7 @@ mod tests {
     #[test]
     fn test_rate_limit_matches_namespaces() {
         let rate_limit = RateLimit {
-            categories: smallvec![],
+            categories: Default::default(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -762,7 +759,7 @@ mod tests {
         }));
 
         let general_rate_limit = RateLimit {
-            categories: smallvec![],
+            categories: Default::default(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -822,7 +819,7 @@ mod tests {
         let mut rate_limits = RateLimits::new();
 
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Default, DataCategory::Error],
+            categories: [DataCategory::Default, DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
@@ -831,7 +828,7 @@ mod tests {
 
         // longer rate limit shadows shorter one
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error, DataCategory::Default],
+            categories: [DataCategory::Error, DataCategory::Default].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
@@ -861,7 +858,7 @@ mod tests {
         let mut rate_limits = RateLimits::new();
 
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Default, DataCategory::Error],
+            categories: [DataCategory::Default, DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(10),
@@ -870,7 +867,7 @@ mod tests {
 
         // shorter rate limit is shadowed by existing one
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error, DataCategory::Default],
+            categories: [DataCategory::Error, DataCategory::Default].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(1),
@@ -900,7 +897,7 @@ mod tests {
         let mut rate_limits = RateLimits::new();
 
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -909,7 +906,7 @@ mod tests {
 
         // Same scope but different categories
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction],
+            categories: [DataCategory::Transaction].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -918,7 +915,7 @@ mod tests {
 
         // Same categories but different scope
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -966,7 +963,7 @@ mod tests {
         let mut rate_limits = RateLimits::new();
 
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::MetricBucket],
+            categories: [DataCategory::MetricBucket].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -975,7 +972,7 @@ mod tests {
 
         // Same category but different namespaces
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::MetricBucket],
+            categories: [DataCategory::MetricBucket].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1017,7 +1014,7 @@ mod tests {
         let mut rate_limits = RateLimits::new();
 
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
@@ -1026,7 +1023,7 @@ mod tests {
 
         // Distinct scope to prevent deduplication
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction],
+            categories: [DataCategory::Transaction].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
@@ -1053,7 +1050,7 @@ mod tests {
 
         // Active error limit
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1062,7 +1059,7 @@ mod tests {
 
         // Inactive error limit with distinct scope
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(0),
@@ -1098,7 +1095,7 @@ mod tests {
 
         // Active error limit
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1107,7 +1104,7 @@ mod tests {
 
         // Active transaction limit
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction],
+            categories: [DataCategory::Transaction].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1123,9 +1120,9 @@ mod tests {
 
         let quotas = &[Quota {
             id: None,
-            categories: smallvec![DataCategory::Attachment],
+            categories: [DataCategory::Attachment].into(),
             scope: QuotaScope::Organization,
-            scope_id: Some("42".to_owned()),
+            scope_id: Some("42".into()),
             limit: Some(0),
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
@@ -1158,7 +1155,7 @@ mod tests {
 
         // Active error limit
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1167,7 +1164,7 @@ mod tests {
 
         // Active transaction limit
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction],
+            categories: [DataCategory::Transaction].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1209,7 +1206,7 @@ mod tests {
 
         // Active error limit
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1218,7 +1215,7 @@ mod tests {
 
         // Active transaction limit
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction],
+            categories: [DataCategory::Transaction].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1238,9 +1235,9 @@ mod tests {
 
         let quotas = &[Quota {
             id: None,
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: QuotaScope::Organization,
-            scope_id: Some("42".to_owned()),
+            scope_id: Some("42".into()),
             limit: Some(0),
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
@@ -1272,7 +1269,7 @@ mod tests {
         let mut rate_limits2 = RateLimits::new();
 
         rate_limits1.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
@@ -1280,7 +1277,7 @@ mod tests {
         });
 
         rate_limits1.add(RateLimit {
-            categories: smallvec![DataCategory::TransactionIndexed],
+            categories: [DataCategory::TransactionIndexed].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1288,7 +1285,7 @@ mod tests {
         });
 
         rate_limits2.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
@@ -1329,7 +1326,7 @@ mod tests {
 
         // Active error limit
         cached.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1338,7 +1335,7 @@ mod tests {
 
         // Inactive error limit with distinct scope
         cached.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
+            categories: [DataCategory::Error].into(),
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(0),

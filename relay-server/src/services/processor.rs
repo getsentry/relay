@@ -67,7 +67,7 @@ use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::upstream::{
     SendRequest, Sign, SignatureType, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
 use crate::utils::{self, CheckLimits, EnvelopeLimiter, SamplingResult};
 use crate::{http, processing};
 use relay_threading::AsyncPool;
@@ -2770,7 +2770,7 @@ impl EnvelopeProcessorService {
             let dsn = PartialDsn::outbound(scoping, upstream);
 
             relay_statsd::metric!(
-                histogram(RelayHistograms::PartitionKeys) = u64::from(partition_key)
+                distribution(RelayDistributions::PartitionKeys) = u64::from(partition_key)
             );
 
             let mut num_batches = 0;
@@ -2789,14 +2789,16 @@ impl EnvelopeProcessorService {
                     .scope(*scoping);
 
                 relay_statsd::metric!(
-                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
+                    distribution(RelayDistributions::BucketsPerBatch) = batch.len() as u64
                 );
 
                 self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
                 num_batches += 1;
             }
 
-            relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
+            relay_statsd::metric!(
+                distribution(RelayDistributions::BatchesPerPartition) = num_batches
+            );
         }
     }
 
@@ -2874,7 +2876,7 @@ impl EnvelopeProcessorService {
         }
 
         if partition_splits > 0 {
-            metric!(histogram(RelayHistograms::PartitionSplits) = partition_splits);
+            metric!(distribution(RelayDistributions::PartitionSplits) = partition_splits);
         }
 
         self.send_global_partition(partition_key, &mut partition);
@@ -3139,7 +3141,9 @@ impl UpstreamRequest for SendEnvelope {
 
     fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
         let envelope_body = self.body.clone();
-        metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
+        metric!(
+            distribution(RelayDistributions::UpstreamEnvelopeBodySize) = envelope_body.len() as u64
+        );
 
         let meta = &self.envelope.meta();
         let shard = self.envelope.partition_key().map(|p| p.to_string());
@@ -3355,7 +3359,9 @@ impl UpstreamRequest for SendMetricsRequest {
     }
 
     fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
-        metric!(histogram(RelayHistograms::UpstreamMetricsBodySize) = self.encoded.len() as u64);
+        metric!(
+            distribution(RelayDistributions::UpstreamMetricsBodySize) = self.encoded.len() as u64
+        );
 
         builder
             .content_encoding(self.http_encoding)
@@ -3462,7 +3468,7 @@ mod tests {
     fn mock_quota(id: &str) -> Quota {
         Quota {
             id: Some(id.into()),
-            categories: smallvec::smallvec![DataCategory::MetricBucket],
+            categories: [DataCategory::MetricBucket].into(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: Some(0),
@@ -3517,9 +3523,9 @@ mod tests {
             let project_info = {
                 let quota = Quota {
                     id: Some("testing".into()),
-                    categories: vec![DataCategory::MetricBucket].into(),
+                    categories: [DataCategory::MetricBucket].into(),
                     scope: relay_quotas::QuotaScope::Organization,
-                    scope_id: Some(rate_limited_org.organization_id.to_string()),
+                    scope_id: Some(rate_limited_org.organization_id.to_string().into()),
                     limit: Some(0),
                     window: None,
                     reason_code: Some(ReasonCode::new("test")),
