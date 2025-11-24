@@ -3468,7 +3468,7 @@
 <a href=#3468 id=3468 data-nosnippet>3468</a>    </span><span class="kw">fn </span>mock_quota(id: <span class="kw-2">&amp;</span>str) -&gt; Quota {
 <a href=#3469 id=3469 data-nosnippet>3469</a>        Quota {
 <a href=#3470 id=3470 data-nosnippet>3470</a>            id: <span class="prelude-val">Some</span>(id.into()),
-<a href=#3471 id=3471 data-nosnippet>3471</a>            categories: <span class="macro">smallvec::smallvec!</span>[DataCategory::MetricBucket],
+<a href=#3471 id=3471 data-nosnippet>3471</a>            categories: [DataCategory::MetricBucket].into(),
 <a href=#3472 id=3472 data-nosnippet>3472</a>            scope: QuotaScope::Organization,
 <a href=#3473 id=3473 data-nosnippet>3473</a>            scope_id: <span class="prelude-val">None</span>,
 <a href=#3474 id=3474 data-nosnippet>3474</a>            limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
@@ -3523,9 +3523,9 @@
 <a href=#3523 id=3523 data-nosnippet>3523</a>            <span class="kw">let </span>project_info = {
 <a href=#3524 id=3524 data-nosnippet>3524</a>                <span class="kw">let </span>quota = Quota {
 <a href=#3525 id=3525 data-nosnippet>3525</a>                    id: <span class="prelude-val">Some</span>(<span class="string">"testing"</span>.into()),
-<a href=#3526 id=3526 data-nosnippet>3526</a>                    categories: <span class="macro">vec!</span>[DataCategory::MetricBucket].into(),
+<a href=#3526 id=3526 data-nosnippet>3526</a>                    categories: [DataCategory::MetricBucket].into(),
 <a href=#3527 id=3527 data-nosnippet>3527</a>                    scope: relay_quotas::QuotaScope::Organization,
-<a href=#3528 id=3528 data-nosnippet>3528</a>                    scope_id: <span class="prelude-val">Some</span>(rate_limited_org.organization_id.to_string()),
+<a href=#3528 id=3528 data-nosnippet>3528</a>                    scope_id: <span class="prelude-val">Some</span>(rate_limited_org.organization_id.to_string().into()),
 <a href=#3529 id=3529 data-nosnippet>3529</a>                    limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
 <a href=#3530 id=3530 data-nosnippet>3530</a>                    window: <span class="prelude-val">None</span>,
 <a href=#3531 id=3531 data-nosnippet>3531</a>                    reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"test"</span>)),

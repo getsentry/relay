@@ -486,7 +486,7 @@
 <a href=#486 id=486 data-nosnippet>486</a>                namespace: <span class="prelude-val">None</span>,
 <a href=#487 id=487 data-nosnippet>487</a>            },
 <a href=#488 id=488 data-nosnippet>488</a>            Quota {
-<a href=#489 id=489 data-nosnippet>489</a>                id: <span class="prelude-val">Some</span>(<span class="string">"42"</span>.to_owned()),
+<a href=#489 id=489 data-nosnippet>489</a>                id: <span class="prelude-val">Some</span>(<span class="string">"42"</span>.into()),
 <a href=#490 id=490 data-nosnippet>490</a>                categories: DataCategories::new(),
 <a href=#491 id=491 data-nosnippet>491</a>                scope: QuotaScope::Organization,
 <a href=#492 id=492 data-nosnippet>492</a>                scope_id: <span class="prelude-val">None</span>,
@@ -533,7 +533,7 @@
 <a href=#533 id=533 data-nosnippet>533</a>        <span class="kw">let </span>quota_limit = <span class="number">5</span>;
 <a href=#534 id=534 data-nosnippet>534</a>        <span class="kw">let </span>get_quota = |namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;| -&gt; Quota {
 <a href=#535 id=535 data-nosnippet>535</a>            Quota {
-<a href=#536 id=536 data-nosnippet>536</a>                id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_simple_quota_{}"</span>, uuid::Uuid::new_v4())),
+<a href=#536 id=536 data-nosnippet>536</a>                id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_simple_quota_{}"</span>, uuid::Uuid::new_v4()).into()),
 <a href=#537 id=537 data-nosnippet>537</a>                categories: DataCategories::new(),
 <a href=#538 id=538 data-nosnippet>538</a>                scope: QuotaScope::Organization,
 <a href=#539 id=539 data-nosnippet>539</a>                scope_id: <span class="prelude-val">None</span>,
@@ -602,7 +602,7 @@
 <a href=#602 id=602 data-nosnippet>602</a>    <span class="attr">#[tokio::test]
 <a href=#603 id=603 data-nosnippet>603</a>    </span><span class="kw">async fn </span>test_simple_quota() {
 <a href=#604 id=604 data-nosnippet>604</a>        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
-<a href=#605 id=605 data-nosnippet>605</a>            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_simple_quota_{}"</span>, uuid::Uuid::new_v4())),
+<a href=#605 id=605 data-nosnippet>605</a>            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_simple_quota_{}"</span>, uuid::Uuid::new_v4()).into()),
 <a href=#606 id=606 data-nosnippet>606</a>            categories: DataCategories::new(),
 <a href=#607 id=607 data-nosnippet>607</a>            scope: QuotaScope::Organization,
 <a href=#608 id=608 data-nosnippet>608</a>            scope_id: <span class="prelude-val">None</span>,
@@ -653,7 +653,7 @@
 <a href=#653 id=653 data-nosnippet>653</a>    <span class="attr">#[tokio::test]
 <a href=#654 id=654 data-nosnippet>654</a>    </span><span class="kw">async fn </span>test_simple_global_quota() {
 <a href=#655 id=655 data-nosnippet>655</a>        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
-<a href=#656 id=656 data-nosnippet>656</a>            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_simple_global_quota_{}"</span>, uuid::Uuid::new_v4())),
+<a href=#656 id=656 data-nosnippet>656</a>            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_simple_global_quota_{}"</span>, uuid::Uuid::new_v4()).into()),
 <a href=#657 id=657 data-nosnippet>657</a>            categories: DataCategories::new(),
 <a href=#658 id=658 data-nosnippet>658</a>            scope: QuotaScope::Global,
 <a href=#659 id=659 data-nosnippet>659</a>            scope_id: <span class="prelude-val">None</span>,
@@ -704,7 +704,7 @@
 <a href=#704 id=704 data-nosnippet>704</a>    <span class="attr">#[tokio::test]
 <a href=#705 id=705 data-nosnippet>705</a>    </span><span class="kw">async fn </span>test_quantity_0() {
 <a href=#706 id=706 data-nosnippet>706</a>        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
-<a href=#707 id=707 data-nosnippet>707</a>            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_quantity_0_{}"</span>, uuid::Uuid::new_v4())),
+<a href=#707 id=707 data-nosnippet>707</a>            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_quantity_0_{}"</span>, uuid::Uuid::new_v4()).into()),
 <a href=#708 id=708 data-nosnippet>708</a>            categories: DataCategories::new(),
 <a href=#709 id=709 data-nosnippet>709</a>            scope: QuotaScope::Organization,
 <a href=#710 id=710 data-nosnippet>710</a>            scope_id: <span class="prelude-val">None</span>,
@@ -767,7 +767,7 @@
 <a href=#767 id=767 data-nosnippet>767</a>    <span class="attr">#[tokio::test]
 <a href=#768 id=768 data-nosnippet>768</a>    </span><span class="kw">async fn </span>test_quota_go_over() {
 <a href=#769 id=769 data-nosnippet>769</a>        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
-<a href=#770 id=770 data-nosnippet>770</a>            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_quota_go_over{}"</span>, uuid::Uuid::new_v4())),
+<a href=#770 id=770 data-nosnippet>770</a>            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_quota_go_over{}"</span>, uuid::Uuid::new_v4()).into()),
 <a href=#771 id=771 data-nosnippet>771</a>            categories: DataCategories::new(),
 <a href=#772 id=772 data-nosnippet>772</a>            scope: QuotaScope::Organization,
 <a href=#773 id=773 data-nosnippet>773</a>            scope_id: <span class="prelude-val">None</span>,
@@ -850,7 +850,7 @@
 <a href=#850 id=850 data-nosnippet>850</a>    </span><span class="kw">async fn </span>test_limited_with_unlimited_quota() {
 <a href=#851 id=851 data-nosnippet>851</a>        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[
 <a href=#852 id=852 data-nosnippet>852</a>            Quota {
-<a href=#853 id=853 data-nosnippet>853</a>                id: <span class="prelude-val">Some</span>(<span class="string">"q0"</span>.to_owned()),
+<a href=#853 id=853 data-nosnippet>853</a>                id: <span class="prelude-val">Some</span>(<span class="string">"q0"</span>.into()),
 <a href=#854 id=854 data-nosnippet>854</a>                categories: DataCategories::new(),
 <a href=#855 id=855 data-nosnippet>855</a>                scope: QuotaScope::Organization,
 <a href=#856 id=856 data-nosnippet>856</a>                scope_id: <span class="prelude-val">None</span>,
@@ -860,7 +860,7 @@
 <a href=#860 id=860 data-nosnippet>860</a>                namespace: <span class="prelude-val">None</span>,
 <a href=#861 id=861 data-nosnippet>861</a>            },
 <a href=#862 id=862 data-nosnippet>862</a>            Quota {
-<a href=#863 id=863 data-nosnippet>863</a>                id: <span class="prelude-val">Some</span>(<span class="string">"q1"</span>.to_owned()),
+<a href=#863 id=863 data-nosnippet>863</a>                id: <span class="prelude-val">Some</span>(<span class="string">"q1"</span>.into()),
 <a href=#864 id=864 data-nosnippet>864</a>                categories: DataCategories::new(),
 <a href=#865 id=865 data-nosnippet>865</a>                scope: QuotaScope::Organization,
 <a href=#866 id=866 data-nosnippet>866</a>                scope_id: <span class="prelude-val">None</span>,
@@ -912,7 +912,7 @@
 <a href=#912 id=912 data-nosnippet>912</a>    <span class="attr">#[tokio::test]
 <a href=#913 id=913 data-nosnippet>913</a>    </span><span class="kw">async fn </span>test_quota_with_quantity() {
 <a href=#914 id=914 data-nosnippet>914</a>        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
-<a href=#915 id=915 data-nosnippet>915</a>            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_quantity_quota_{}"</span>, uuid::Uuid::new_v4())),
+<a href=#915 id=915 data-nosnippet>915</a>            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_quantity_quota_{}"</span>, uuid::Uuid::new_v4()).into()),
 <a href=#916 id=916 data-nosnippet>916</a>            categories: DataCategories::new(),
 <a href=#917 id=917 data-nosnippet>917</a>            scope: QuotaScope::Organization,
 <a href=#918 id=918 data-nosnippet>918</a>            scope_id: <span class="prelude-val">None</span>,
@@ -963,10 +963,10 @@
 <a href=#963 id=963 data-nosnippet>963</a>    <span class="attr">#[tokio::test]
 <a href=#964 id=964 data-nosnippet>964</a>    </span><span class="kw">async fn </span>test_get_redis_key_scoped() {
 <a href=#965 id=965 data-nosnippet>965</a>        <span class="kw">let </span>quota = Quota {
-<a href=#966 id=966 data-nosnippet>966</a>            id: <span class="prelude-val">Some</span>(<span class="string">"foo"</span>.to_owned()),
+<a href=#966 id=966 data-nosnippet>966</a>            id: <span class="prelude-val">Some</span>(<span class="string">"foo"</span>.into()),
 <a href=#967 id=967 data-nosnippet>967</a>            categories: DataCategories::new(),
 <a href=#968 id=968 data-nosnippet>968</a>            scope: QuotaScope::Project,
-<a href=#969 id=969 data-nosnippet>969</a>            scope_id: <span class="prelude-val">Some</span>(<span class="string">"42"</span>.to_owned()),
+<a href=#969 id=969 data-nosnippet>969</a>            scope_id: <span class="prelude-val">Some</span>(<span class="string">"42"</span>.into()),
 <a href=#970 id=970 data-nosnippet>970</a>            window: <span class="prelude-val">Some</span>(<span class="number">2</span>),
 <a href=#971 id=971 data-nosnippet>971</a>            limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
 <a href=#972 id=972 data-nosnippet>972</a>            reason_code: <span class="prelude-val">None</span>,
@@ -992,7 +992,7 @@
 <a href=#992 id=992 data-nosnippet>992</a>    <span class="attr">#[tokio::test]
 <a href=#993 id=993 data-nosnippet>993</a>    </span><span class="kw">async fn </span>test_get_redis_key_unscoped() {
 <a href=#994 id=994 data-nosnippet>994</a>        <span class="kw">let </span>quota = Quota {
-<a href=#995 id=995 data-nosnippet>995</a>            id: <span class="prelude-val">Some</span>(<span class="string">"foo"</span>.to_owned()),
+<a href=#995 id=995 data-nosnippet>995</a>            id: <span class="prelude-val">Some</span>(<span class="string">"foo"</span>.into()),
 <a href=#996 id=996 data-nosnippet>996</a>            categories: DataCategories::new(),
 <a href=#997 id=997 data-nosnippet>997</a>            scope: QuotaScope::Organization,
 <a href=#998 id=998 data-nosnippet>998</a>            scope_id: <span class="prelude-val">None</span>,
@@ -1021,7 +1021,7 @@
 <a href=#1021 id=1021 data-nosnippet>1021</a>    <span class="attr">#[tokio::test]
 <a href=#1022 id=1022 data-nosnippet>1022</a>    </span><span class="kw">async fn </span>test_large_redis_limit_large() {
 <a href=#1023 id=1023 data-nosnippet>1023</a>        <span class="kw">let </span>quota = Quota {
-<a href=#1024 id=1024 data-nosnippet>1024</a>            id: <span class="prelude-val">Some</span>(<span class="string">"foo"</span>.to_owned()),
+<a href=#1024 id=1024 data-nosnippet>1024</a>            id: <span class="prelude-val">Some</span>(<span class="string">"foo"</span>.into()),
 <a href=#1025 id=1025 data-nosnippet>1025</a>            categories: DataCategories::new(),
 <a href=#1026 id=1026 data-nosnippet>1026</a>            scope: QuotaScope::Organization,
 <a href=#1027 id=1027 data-nosnippet>1027</a>            scope_id: <span class="prelude-val">None</span>,
