@@ -247,7 +247,6 @@ impl Forward for SpanOutput {
         let spans = spans.map(|mut inner, record_keeper| {
             if !inner.stand_alone_attachments.is_empty() {
                 let standalone = std::mem::take(&mut inner.stand_alone_attachments);
-                // Drop with an Invalid outcome since they're not being stored
                 record_keeper.reject_err(Outcome::Invalid(DiscardReason::Internal), standalone);
             }
             inner

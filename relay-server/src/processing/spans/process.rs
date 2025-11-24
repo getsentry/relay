@@ -73,7 +73,6 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
         let all_spans = all_spans
             .into_iter()
             .map(|span| {
-                // Extract the span_id and look up the attachment in the hashmap
                 let attachment = span
                     .value()
                     .and_then(|s| s.span_id.value().copied())
@@ -162,7 +161,6 @@ fn parse_and_validate_span_attachment(
         })?;
     let body = payload.slice(meta_length..);
 
-    // TODO: Remove this to count the entire thing.
     // From here on only count the body of the attachment v2 not its meta data.
     records.modify_by(
         relay_quotas::DataCategory::Attachment,
