@@ -12,6 +12,8 @@
 - Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
 - Add `span_count` item header to the envelope protocol. ([#5392](https://github.com/getsentry/relay/pull/5392))
 - Add `event.name` attribute to OTLP logs. ([#5396](https://github.com/getsentry/relay/pull/5396))
+- Remove feature flag for Vercel Log Drain endpoint. ([#5406](https://github.com/getsentry/relay/pull/5406))
+- Add `http.request.header.cookie` to fields scrubbed by cookie rules. ([#5408](https://github.com/getsentry/relay/pull/5408))
 - Map `request_id` to `trace_id` in vercel log drain transform. ([#5333](https://github.com/getsentry/relay/pull/5333))
 
 **Internal**:
