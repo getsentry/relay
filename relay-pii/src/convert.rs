@@ -229,7 +229,7 @@ mod tests {
     use relay_protocol::{FromValue, assert_annotated_snapshot};
     use similar_asserts::assert_eq;
 
-    use crate::PiiProcessor;
+    use crate::{AttributeMode, PiiProcessor};
 
     use super::to_pii_config as to_pii_config_impl;
     use super::*;
@@ -1614,25 +1614,43 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     fn test_span_cookie() {
         let mut data = Event::from_value(
             serde_json::json!({
-                "contexts": {
-                    "trace": {
-                      "data": {
-                        "http.request.header.cookie": "session=hello-secret",
-                      },
-                      "type": "trace"
-                    }
+              "contexts": {
+                  "trace": {
+                    "data": {
+                      "http.request.header.cookie": "session=hello-secret",
+                    },
+                    "type": "trace"
+                  }
+              },
+              "spans": [{
+                "data": {
+                  "http.request.header.cookie": "session=hello-secret",
                 },
-                "spans": [{
-                      "data": {
-                        "http.request.header.cookie": "session=hello-secret",
-                      },
-                    }]
+              }]
             })
             .into(),
         );
 
         let config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_span_v2_cookie() {
+        let mut data = SpanV2::from_value(
+            serde_json::json!({
+              "attributes": {
+                "http.request.header.cookie": {"value": "session=hello-secret" },
+              }
+            })
+            .into(),
+        );
+
+        let config = simple_enabled_pii_config();
+        let mut pii_processor =
+            PiiProcessor::new(config.compiled()).attribute_mode(AttributeMode::ValueOnly);
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
     }
