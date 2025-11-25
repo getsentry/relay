@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["otel_scope_into_attributes","otel_value_to_attribute"]};
+window.SIDEBAR_ITEMS = {"fn":["otel_resource_to_platform","otel_scope_into_attributes","otel_value_to_attribute"]};
