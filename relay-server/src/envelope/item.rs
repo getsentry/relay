@@ -441,18 +441,18 @@ impl Item {
         self.headers.meta_length
     }
 
-    /// Returns the parent entity that this item is associated with, if any.
-    ///
-    /// Only applicable if the item is an attachment.
-    pub fn parent_id(&self) -> Option<&ParentId> {
-        self.headers.parent_id.as_ref()
-    }
-
     /// Sets the length of the optional meta segment.
     ///
     /// Only applicable if the item is an attachment.
     pub fn set_meta_length(&mut self, meta_length: u32) {
         self.headers.meta_length = Some(meta_length);
+    }
+
+    /// Returns the parent entity that this item is associated with, if any.
+    ///
+    /// Only applicable if the item is an attachment.
+    pub fn parent_id(&self) -> Option<&ParentId> {
+        self.headers.parent_id.as_ref()
     }
 
     /// Sets the parent entity that this item is associated with.

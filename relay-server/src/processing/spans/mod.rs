@@ -134,7 +134,7 @@ impl processing::Processor for SpansProcessor {
             .take_items_by(|item| matches!(item.integration(), Some(Integration::Spans(_))))
             .into_vec();
 
-        let span_attachments = envelope
+        let attachments = envelope
             .envelope_mut()
             .take_items_by(|item| matches!(item.content_type(), Some(ContentType::AttachmentV2)))
             .to_vec();
@@ -144,7 +144,7 @@ impl processing::Processor for SpansProcessor {
             spans,
             legacy,
             integrations,
-            span_attachments,
+            attachments,
         };
         Some(Managed::from_envelope(envelope, work))
     }
@@ -154,6 +154,7 @@ impl processing::Processor for SpansProcessor {
         spans: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
+        let spans = filter::feature_flag_attachment(spans, ctx);
         filter::feature_flag(ctx).reject(&spans)?;
         validate::container(&spans).reject(&spans)?;
 
@@ -215,6 +216,8 @@ impl Forward for SpanOutput {
         };
 
         spans.try_map(|spans, r| {
+            // SpanOutput counts only attachment body (excluding meta), while the serialized item
+            // body includes both, causing an expected discrepancy.
             r.lenient(relay_quotas::DataCategory::Attachment);
             spans
                 .serialize_envelope()
@@ -296,10 +299,7 @@ impl Counted for SerializedSpans {
             + outcome_count(&self.legacy)
             + outcome_count(&self.integrations)) as usize;
 
-        let attachment_quantity = self
-            .span_attachments
-            .iter()
-            .fold(0, |acc, cur| acc + cur.len());
+        let attachment_quantity = self.attachments.iter().map(Item::len).sum();
 
         let mut quantities = smallvec::smallvec![];
 
@@ -310,7 +310,7 @@ impl Counted for SerializedSpans {
 
         if attachment_quantity > 0 {
             quantities.push((DataCategory::Attachment, attachment_quantity));
-            quantities.push((DataCategory::AttachmentItem, self.span_attachments.len()));
+            quantities.push((DataCategory::AttachmentItem, self.attachments.len()));
         }
 
         quantities
@@ -596,6 +596,15 @@ impl Counted for ValidatedSpanAttachment {
 struct SpanWrapper {
     span: WithHeader<SpanV2>,
     attachment: Option<ValidatedSpanAttachment>,
+}
+
+impl SpanWrapper {
+    fn new(span: WithHeader<SpanV2>) -> Self {
+        Self {
+            span,
+            attachment: None,
+        }
+    }
 }
 
 impl Counted for SpanWrapper {

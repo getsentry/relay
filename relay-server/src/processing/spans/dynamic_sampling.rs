@@ -297,7 +297,7 @@ impl From<SerializedSpans> for UnsampledSpans {
     fn from(value: SerializedSpans) -> Self {
         Self {
             spans: value.spans,
-            span_attachments: value.span_attachments,
+            attachments: value.attachments,
         }
     }
 }
@@ -310,14 +310,12 @@ impl Counted for UnsampledSpans {
         if quantity > 0 {
             quantities.push((DataCategory::SpanIndexed, quantity));
         }
-        if !self.span_attachments.is_empty() {
+        if !self.attachments.is_empty() {
             quantities.push((
                 DataCategory::Attachment,
-                self.span_attachments
-                    .iter()
-                    .map(Item::len).sum()
+                self.attachments.iter().map(Item::len).sum(),
             ));
-            quantities.push((DataCategory::AttachmentItem, self.span_attachments.len()));
+            quantities.push((DataCategory::AttachmentItem, self.attachments.len()));
         }
 
         quantities

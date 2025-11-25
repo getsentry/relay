@@ -13,7 +13,7 @@ pub struct AttachmentV2Meta {
     pub attachment_id: Annotated<Uuid>,
 
     /// Timestamp when the attachment was created.
-    #[metastructure(required = true)]
+    #[metastructure(required = true, trim = false)]
     pub timestamp: Annotated<Timestamp>,
 
     /// Original filename of the attachment.

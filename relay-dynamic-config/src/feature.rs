@@ -134,6 +134,9 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:indexed-spans-extraction")]
     DeprecatedExtractSpansFromEvent,
+    /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
+    #[serde(rename = "projects:span-v2-attachment-processing")]
+    SpanV2AttachmentProcessing,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
