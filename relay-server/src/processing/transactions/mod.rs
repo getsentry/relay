@@ -320,6 +320,7 @@ impl From<ExpandedTransaction<TotalAndIndexed>> for ExpandedTransaction<Indexed>
 
 impl<T> ExpandedTransaction<T> {
     fn serialize_envelope(self) -> Result<Box<Envelope>, serde_json::Error> {
+        let span_count = self.count_embedded_spans_and_self() - 1;
         let Self {
             headers,
             event,
@@ -342,19 +343,18 @@ impl<T> ExpandedTransaction<T> {
         items.extend(extracted_spans.0);
 
         // To be compatible with previous code, add the transaction at the end:
-        if !event.is_empty() {
-            let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
-                event.to_json()?
-            });
-            let mut item = Item::new(ItemType::Transaction);
-            item.set_payload(ContentType::Json, data);
+        let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
+            event.to_json()?
+        });
+        let mut item = Item::new(ItemType::Transaction);
+        item.set_payload(ContentType::Json, data);
 
-            item.set_metrics_extracted(metrics_extracted);
-            item.set_spans_extracted(spans_extracted);
-            item.set_fully_normalized(fully_normalized);
+        item.set_metrics_extracted(metrics_extracted);
+        item.set_spans_extracted(spans_extracted);
+        item.set_fully_normalized(fully_normalized);
+        item.set_span_count(Some(span_count));
 
-            items.push(item);
-        }
+        items.push(item);
 
         Ok(Envelope::from_parts(headers, items))
     }
