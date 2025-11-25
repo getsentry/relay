@@ -518,10 +518,10 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
 
                 // If there is a span quota reject all the spans and the associated attachments.
                 if !limits.is_empty() {
-                    self.modify(|this, record_keeper| {
-                        record_keeper
-                            .reject_err(Error::from(limits), std::mem::take(&mut this.spans));
-                    });
+             if !limits.is_empty() {
+                let error = Error::from(limits);
+                return Err(self.reject_err(error));
+            }
                 }
             } else if matches!(
                 category,
