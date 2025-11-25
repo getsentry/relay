@@ -1,10 +1,13 @@
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
+use opentelemetry_proto::tonic::common::v1::any_value;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
+use opentelemetry_semantic_conventions::attribute as otel_semconv;
 use relay_conventions::IS_REMOTE;
 use relay_conventions::ORIGIN;
+use relay_conventions::PLATFORM;
 use relay_conventions::SPAN_KIND;
 use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
@@ -68,6 +71,11 @@ pub fn otel_to_sentry_span(
     relay_otel::otel_scope_into_attributes(&mut sentry_attributes, resource, scope);
 
     sentry_attributes.insert(ORIGIN, "auto.otlp.spans".to_owned());
+    if let Some(resource) = resource
+        && let Some(platform) = otel_resource_to_platform(resource)
+    {
+        sentry_attributes.insert(PLATFORM, platform.to_owned());
+    }
 
     let mut name = if name.is_empty() { None } else { Some(name) };
     for (key, value) in attributes.into_iter().flat_map(|attribute| {
@@ -190,6 +198,31 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
     Ok(span_link)
 }
 
+fn otel_resource_to_platform(resource: &Resource) -> Option<&str> {
+    if let any_value::Value::StringValue(language) = resource
+        .attributes
+        .iter()
+        .find(|attr| attr.key == otel_semconv::TELEMETRY_SDK_LANGUAGE)?
+        .value
+        .as_ref()?
+        .value
+        .as_ref()?
+    {
+        // Smooth out some naming differences between OTel
+        // (https://opentelemetry.io/docs/specs/semconv/resource/#telemetry-sdk)
+        // and Sentry
+        // (https://github.com/getsentry/relay/blob/8e6c963cdd79dc9ba2bebc21518a3553f70feeb3/relay-event-schema/src/protocol/event.rs#L251-L253).
+        Some(match language.as_str() {
+            "dotnet" => "csharp",
+            "nodejs" => "node",
+            "webjs" => "javascript",
+            _ => language,
+        })
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,6 +297,9 @@ mod tests {
             "attributes": [{
                 "key": "service.name",
                 "value": {"stringValue": "test-service"},
+            }, {
+              "key": "telemetry.sdk.language",
+              "value": {"stringValue": "nodejs"},
             }]
         }))
         .unwrap();
@@ -313,6 +349,10 @@ mod tests {
               "type": "string",
               "value": "test-service"
             },
+            "resource.telemetry.sdk.language": {
+              "type": "string",
+              "value": "nodejs"
+            },
             "sentry.environment": {
               "type": "string",
               "value": "test"
@@ -332,6 +372,10 @@ mod tests {
             "sentry.parentSampled": {
               "type": "boolean",
               "value": true
+            },
+            "sentry.platform": {
+              "type": "string",
+              "value": "node"
             },
             "sentry.sample_rate": {
               "type": "integer",
