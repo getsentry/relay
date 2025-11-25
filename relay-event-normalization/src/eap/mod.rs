@@ -2,6 +2,7 @@
 //!
 //! A central place for all modifications/normalizations for attributes.
 
+use std::borrow::Cow;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
@@ -11,12 +12,29 @@ use relay_conventions::{AttributeInfo, WriteBehavior};
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Meta, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
+use relay_spans::derive_op_for_v2_span;
 
+use crate::span::TABLE_NAME_REGEX;
+use crate::span::description::scrub_db_query;
+use crate::span::tag_extraction::{sql_action_from_query, sql_tables_from_query};
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
 
 pub use self::ai::normalize_ai;
+
+/// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
+pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
+    if attributes
+        .value()
+        .is_some_and(|attrs| attrs.contains_key(OP))
+    {
+        return;
+    }
+    let inferred_op = derive_op_for_v2_span(attributes);
+    let attrs = attributes.get_or_insert_with(Default::default);
+    attrs.insert_if_missing(OP, || inferred_op);
+}
 
 /// Normalizes/validates all attribute types.
 ///
@@ -245,6 +263,137 @@ fn normalize_attribute_names_inner(
                     attributes.0.insert(new_name.to_owned(), current_attribute);
                 }
             }
+        }
+    }
+}
+
+/// Normalizes the values of a set of attributes if present in the span.
+///
+/// Each span type has a set of important attributes containing the main relevant information displayed
+/// in the product-end. For instance, for DB spans, these attributes are `db.query.text`, `db.operation.name`,
+/// `db.collection.name`. Previously, V1 spans always held these important values in the `description` field,
+/// however, V2 spans now store these values in their respective attributes based on sentry conventions.
+/// This function ports over the SpanV1 normalization logic that was previously in `scrub_span_description`
+/// by creating a set of functions to handle each group of attributes separately.
+pub fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
+    normalize_db_attributes(attributes);
+}
+
+/// Normalizes the following db attributes: `db.query.text`, `db.operation.name`, `db.collection.name`
+/// based on related attributes within DB spans.
+///
+/// This function reads the raw db query from `db.query.text`, scrubs it if possible, and writes
+/// the normalized query to the `sentry.normalized_db_query` attribute. After normalizing the query,
+/// the db operation and collection name are updated if needed.
+///
+/// Note: This function assumes that the sentry.op has already been inferred and set in the attributes.
+pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
+    let Some(attributes) = annotated_attributes.value() else {
+        return;
+    };
+
+    // Skip normalization if the normalized db query attribute is already set.
+    if attributes.get_value(NORMALIZED_DB_QUERY).is_some() {
+        return;
+    }
+
+    let (op, sub_op) = attributes
+        .get_value(OP)
+        .and_then(|v| v.as_str())
+        .map(|op| op.split_once('.').unwrap_or((op, "")))
+        .unwrap_or_default();
+
+    let raw_query = attributes
+        .get_value(DB_QUERY_TEXT)
+        .or_else(|| {
+            if op == "db" {
+                attributes.get_value(DESCRIPTION)
+            } else {
+                None
+            }
+        })
+        .and_then(|v| v.as_str());
+
+    let db_system = attributes
+        .get_value(DB_SYSTEM_NAME)
+        .and_then(|v| v.as_str());
+
+    let db_operation = attributes
+        .get_value(DB_OPERATION_NAME)
+        .and_then(|v| v.as_str());
+
+    let collection_name = attributes
+        .get_value(DB_COLLECTION_NAME)
+        .and_then(|v| v.as_str());
+
+    let span_origin = attributes.get_value(ORIGIN).and_then(|v| v.as_str());
+
+    let (normalized_db_query, parsed_sql) = if let Some(raw_query) = raw_query {
+        scrub_db_query(
+            raw_query,
+            sub_op,
+            db_system,
+            db_operation,
+            collection_name,
+            span_origin,
+        )
+    } else {
+        (None, None)
+    };
+
+    let db_operation = if db_operation.is_none() {
+        if sub_op == "redis" || db_system == Some("redis") {
+            // This only works as long as redis span descriptions contain the command + " *"
+            if let Some(query) = normalized_db_query.as_ref() {
+                let command = query.replace(" *", "");
+                if command.is_empty() {
+                    None
+                } else {
+                    Some(command)
+                }
+            } else {
+                None
+            }
+        } else if let Some(raw_query) = raw_query {
+            // For other database operations, try to get the operation from data
+            sql_action_from_query(raw_query).map(|a| a.to_uppercase())
+        } else {
+            None
+        }
+    } else {
+        db_operation.map(|db_operation| db_operation.to_uppercase())
+    };
+
+    let db_collection_name: Option<String> = if let Some(name) = collection_name {
+        if db_system == Some("mongodb") {
+            match TABLE_NAME_REGEX.replace_all(name, "{%s}") {
+                Cow::Owned(s) => Some(s),
+                Cow::Borrowed(_) => Some(name.to_owned()),
+            }
+        } else {
+            Some(name.to_owned())
+        }
+    } else if span_origin == Some("auto.db.supabase") {
+        normalized_db_query
+            .as_ref()
+            .and_then(|query| query.strip_prefix("from("))
+            .and_then(|s| s.strip_suffix(")"))
+            .map(String::from)
+    } else if let Some(raw_query) = raw_query {
+        sql_tables_from_query(raw_query, &parsed_sql)
+    } else {
+        None
+    };
+
+    if let Some(attributes) = annotated_attributes.value_mut() {
+        if let Some(normalized_db_query) = normalized_db_query {
+            attributes.insert(NORMALIZED_DB_QUERY, normalized_db_query);
+        }
+        if let Some(db_operation_name) = db_operation {
+            attributes.insert(DB_OPERATION_NAME, db_operation_name)
+        }
+        if let Some(db_collection_name) = db_collection_name {
+            attributes.insert(DB_COLLECTION_NAME, db_collection_name);
         }
     }
 }
@@ -693,5 +842,272 @@ mod tests {
           }
         }
         "###);
+    }
+
+    #[test]
+    fn test_normalize_span_infers_op() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "db.system.name": {
+                "type": "string",
+                "value": "mysql"
+            },
+            "db.operation.name": {
+                "type": "string",
+                "value": "query"
+            }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_sentry_op(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.operation.name": {
+            "type": "string",
+            "value": "query"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mysql"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_attribute_values_mysql_db_query_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          },
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.otlp.spans"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mysql"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "SELECT \"not an identifier\""
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_db_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.operation.name": {
+            "type": "string",
+            "value": "SELECT"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "SELECT \"not an identifier\""
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mysql"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "SELECT %s"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          },
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.otlp.spans"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_mongodb_db_query_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "find"
+          },
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_db_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_db_attributes_does_not_update_attributes_if_already_normalized() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_db_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(
+            SerializableAnnotated(&attributes), @r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#
+        );
+    }
+
+    #[test]
+    fn test_normalize_db_attributes_does_not_change_non_db_spans() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.otlp.spans"
+          },
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          }
+        }
+      "#,
+        )
+        .unwrap();
+
+        normalize_db_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.otlp.spans"
+          }
+        }
+        "#);
     }
 }

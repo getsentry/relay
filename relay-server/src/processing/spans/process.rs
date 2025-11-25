@@ -96,6 +96,7 @@ fn normalize_span(
 
         validate_timestamps(span)?;
 
+        eap::normalize_sentry_op(&mut span.attributes);
         eap::normalize_attribute_types(&mut span.attributes);
         eap::normalize_attribute_names(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());
@@ -108,6 +109,8 @@ fn normalize_span(
             eap::normalize_dsc(&mut span.attributes, dsc);
         }
         eap::normalize_ai(&mut span.attributes, duration, model_costs);
+
+        eap::normalize_attribute_values(&mut span.attributes);
     };
 
     process_value(span, &mut TrimmingProcessor::new(), ProcessingState::root())?;

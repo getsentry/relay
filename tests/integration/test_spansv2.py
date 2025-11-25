@@ -111,6 +111,7 @@ def test_spansv2_basic(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.op": {"type": "string", "value": "default"},
         },
         "_meta": {
             "attributes": {
@@ -780,6 +781,7 @@ def test_spanv2_with_string_pii_scrubbing(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.op": {"type": "string", "value": "default"},
         },
         "_meta": {
             "attributes": {
@@ -859,6 +861,110 @@ def test_spanv2_default_pii_scrubbing_attributes(
     rem_info = meta["rem"]
     assert len(rem_info) == 1
     assert rem_info[0][0] == rule_type
+
+
+def test_spansv2_attribute_normalization(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """
+    A test making sure spans undergo attribute normalization after ingestion.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].update(
+        {
+            "features": [
+                "organizations:standalone-span-ingestion",
+                "projects:span-v2-experimental-processing",
+            ],
+            "retentions": {"span": {"standard": 42, "downsampled": 1337}},
+        }
+    )
+
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "is_segment": True,
+            "name": "some op",
+            "status": "ok",
+            "attributes": {
+                "db.system.name": {"value": "mysql", "type": "string"},
+                "db.operation.name": {"value": "SELECT", "type": "string"},
+                "db.query.text": {
+                    "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
+                    "type": "string",
+                },
+                "db.collection.name": {"value": "users", "type": "string"},
+            },
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "release": "foo@1.0",
+            "environment": "prod",
+            "transaction": "/my/fancy/endpoint",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert spans_consumer.get_span() == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b175",
+        "attributes": {
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.dsc.environment": {"type": "string", "value": "prod"},
+            "sentry.dsc.public_key": {
+                "type": "string",
+                "value": project_config["publicKeys"][0]["publicKey"],
+            },
+            "sentry.dsc.release": {"type": "string", "value": "foo@1.0"},
+            "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "5b8efff798038103d269b633813fc60c",
+            },
+            "sentry.op": {"type": "string", "value": "db"},
+            "db.system.name": {"type": "string", "value": "mysql"},
+            "db.operation.name": {"type": "string", "value": "SELECT"},
+            "db.query.text": {
+                "type": "string",
+                "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
+            },
+            "db.collection.name": {"type": "string", "value": "users"},
+            "sentry.normalized_db_query": {
+                "type": "string",
+                "value": "SELECT id FROM users WHERE id = %s AND name = %s",
+            },
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+        },
+        "name": "some op",
+        "received": time_within(ts),
+        "start_timestamp": time_within(ts),
+        "end_timestamp": time_within(ts.timestamp() + 0.5),
+        "is_segment": True,
+        "status": "ok",
+        "retention_days": 42,
+        "downsampled_retention_days": 1337,
+        "key_id": 123,
+        "organization_id": 1,
+        "project_id": 42,
+    }
 
 
 def test_invalid_spans(mini_sentry, relay):
