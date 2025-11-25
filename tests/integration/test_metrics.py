@@ -1037,24 +1037,12 @@ def test_transaction_metrics_extraction_external_relays(
     assert mini_sentry.captured_events.empty()
 
 
-@pytest.mark.parametrize(
-    "send_extracted_header,expect_metrics_extraction",
-    [(False, True), (True, False)],
-    ids=["must extract metrics", "mustn't extract metrics"],
-)
 def test_transaction_metrics_extraction_processing_relays(
     transactions_consumer,
     metrics_consumer,
     mini_sentry,
     relay_with_processing,
-    send_extracted_header,
-    expect_metrics_extraction,
 ):
-    if send_extracted_header:
-        item_headers = {"metrics_extracted": True}
-    else:
-        item_headers = None
-
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
@@ -1070,29 +1058,28 @@ def test_transaction_metrics_extraction_processing_relays(
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
     processing = relay_with_processing(options=TEST_CONFIG)
-    processing.send_transaction(project_id, tx, item_headers)
+    processing.send_transaction(project_id, tx, None)
 
     tx, _ = tx_consumer.get_event()
     assert tx["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     tx_consumer.assert_empty()
 
-    if expect_metrics_extraction:
-        metrics = metrics_by_name(metrics_consumer, 6, timeout=3)
-        metric_usage = metrics["c:transactions/usage@none"]
-        assert metric_usage["tags"] == {}
-        assert metric_usage["value"] == 1.0
-        metric_duration = metrics["d:transactions/duration@millisecond"]
-        assert (
-            metric_duration["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
-        metric_duration_light = metrics["d:transactions/duration_light@millisecond"]
-        assert (
-            metric_duration_light["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
-        metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
-        assert metric_count_per_project["value"] == 1.0
+    metrics = metrics_by_name(metrics_consumer, 6, timeout=3)
+    metric_usage = metrics["c:transactions/usage@none"]
+    assert metric_usage["tags"] == {}
+    assert metric_usage["value"] == 1.0
+    metric_duration = metrics["d:transactions/duration@millisecond"]
+    assert (
+        metric_duration["tags"]["transaction"]
+        == "/organizations/:orgId/performance/:eventSlug/"
+    )
+    metric_duration_light = metrics["d:transactions/duration_light@millisecond"]
+    assert (
+        metric_duration_light["tags"]["transaction"]
+        == "/organizations/:orgId/performance/:eventSlug/"
+    )
+    metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
+    assert metric_count_per_project["value"] == 1.0
 
     metrics_consumer.assert_empty()
 

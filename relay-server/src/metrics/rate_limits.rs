@@ -187,13 +187,11 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         metric_outcomes: &MetricOutcomes,
     ) -> bool {
         for category in [DataCategory::Transaction, DataCategory::Span] {
-            let active_rate_limits = rate_limits.check_with_quotas(
-                dbg!(self.quotas.as_ref()),
-                self.scoping.item(dbg!(category)),
-            );
+            let active_rate_limits =
+                rate_limits.check_with_quotas(self.quotas.as_ref(), self.scoping.item(category));
 
             // If a rate limit is active, discard relevant buckets.
-            if let Some(limit) = dbg!(active_rate_limits).longest() {
+            if let Some(limit) = active_rate_limits.longest() {
                 self.drop_with_outcome(
                     category,
                     Outcome::RateLimited(limit.reason_code.clone()),
