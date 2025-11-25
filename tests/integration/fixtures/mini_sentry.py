@@ -145,6 +145,7 @@ class Sentry(SentryLike):
                         "$object": ["@password"],
                     },
                 },
+                "transactionMetrics": {"version": 3},
             },
         }
 
@@ -179,7 +180,6 @@ class Sentry(SentryLike):
                 },
                 "blacklistedIps": ["127.43.33.22"],
                 "trustedRelays": [],
-                "transactionMetrics": {"version": 3},
             },
         }
 

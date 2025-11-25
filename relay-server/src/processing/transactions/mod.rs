@@ -473,7 +473,7 @@ impl RateLimited for Managed<ExpandedTransaction<TotalAndIndexed>> {
             .try_consume(scoping.item(DataCategory::Transaction), 1)
             .await;
 
-        if !limits.is_empty() {
+        if !dbg!(&limits).is_empty() {
             let error = Error::from(limits);
             return Err(self.reject_err(error));
         }
