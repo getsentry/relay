@@ -449,6 +449,8 @@ impl Item {
     }
 
     /// Sets the length of the optional meta segment.
+    ///
+    /// Only applicable if the item is an attachment.
     pub fn set_meta_length(&mut self, meta_length: u32) {
         self.headers.meta_length = Some(meta_length);
     }

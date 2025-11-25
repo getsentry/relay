@@ -278,7 +278,7 @@ pub struct SerializedSpans {
     integrations: Vec<Item>,
 
     /// A list of span attachments.
-    span_attachments: Vec<Item>,
+    attachments: Vec<Item>,
 }
 
 impl SerializedSpans {

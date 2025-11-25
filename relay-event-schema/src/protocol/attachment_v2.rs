@@ -25,7 +25,7 @@ pub struct AttachmentV2Meta {
     pub content_type: Annotated<String>,
 
     /// Arbitrary attributes on a span attachment.
-    #[metastructure(pii = "maybe", trim = false)]
+    #[metastructure(pii = "maybe")]
     pub attributes: Annotated<Attributes>,
 
     /// Additional arbitrary fields for forwards compatibility.

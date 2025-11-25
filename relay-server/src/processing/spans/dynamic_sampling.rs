@@ -290,7 +290,7 @@ fn create_metrics(
 /// as the total category is counted from now in in metrics.
 struct UnsampledSpans {
     spans: Vec<Item>,
-    span_attachments: Vec<Item>,
+    attachments: Vec<Item>,
 }
 
 impl From<SerializedSpans> for UnsampledSpans {
@@ -315,7 +315,7 @@ impl Counted for UnsampledSpans {
                 DataCategory::Attachment,
                 self.span_attachments
                     .iter()
-                    .fold(0, |acc, cur| acc + cur.len()),
+                    .map(Item::len).sum()
             ));
             quantities.push((DataCategory::AttachmentItem, self.span_attachments.len()));
         }
