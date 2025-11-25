@@ -117,26 +117,6 @@ impl<T> Annotated<T> {
         Annotated(Some(value), Meta::default())
     }
 
-    /// Creates a new annotated value with meta data configured by the provided closure.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use relay_protocol::{Annotated, Meta};
-    /// let annotated = Annotated::new_with_meta(42, |meta| {
-    ///     meta.set_original_length(Some(10));
-    /// });
-    /// ```
-    #[inline]
-    pub fn new_with_meta<F>(value: T, f: F) -> Self
-    where
-        F: FnOnce(&mut Meta),
-    {
-        let mut meta = Meta::default();
-        f(&mut meta);
-        Annotated(Some(value), meta)
-    }
-
     /// Creates an empty annotated value without meta data.
     #[inline]
     pub fn empty() -> Self {
