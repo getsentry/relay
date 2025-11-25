@@ -18,7 +18,7 @@ use crate::config::{KafkaParams, KafkaTopic};
 use crate::debounced::Debounced;
 use crate::limits::KafkaRateLimits;
 use crate::producer::utils::KafkaHeaders;
-use crate::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
+use crate::statsd::{KafkaCounters, KafkaDistributions, KafkaGauges};
 
 mod utils;
 use utils::{Context, ThreadedProducer};
@@ -217,7 +217,7 @@ impl Producer {
         let producer_name = producer.context().producer_name();
 
         metric!(
-            histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
+            distribution(KafkaDistributions::KafkaMessageSize) = payload.len() as u64,
             variant = variant,
             topic = topic_name,
             producer_name = producer_name

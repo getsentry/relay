@@ -415,7 +415,7 @@ impl Counted for ExpandedTransaction<Indexed> {
             category: _,
         } = self;
         debug_assert!(flags.metrics_extracted);
-        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
+        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1)];
         if !flags.spans_extracted {
             // TODO: encode this flag into the type and remove `extracted_spans` from the "BeforeSpanExtraction" type.
             debug_assert!(extracted_spans.0.is_empty());

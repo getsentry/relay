@@ -6,8 +6,11 @@ local single_tenants = ['disney', 'geico', 'goldmansachs', 'ly', 's4s'];
 
 // List of datadog monitors to check during the soak time in the different regions
 local soak_monitors = {
+  // (The Number of Pending Projects is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
   s4s: '14146876 154096678 237863001',
+  // (The Number of Pending Projects is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
   us: '14146876 154096671 237862997',
+  // (The Number of Pending Projects is High)
   default: '14146876',
 };
 

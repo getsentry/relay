@@ -2,12 +2,17 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Switch Statsd histogram metrics to distribution metrics. ([#5378](https://github.com/getsentry/relay/pull/5378))
+
 **Features**:
 
 - Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
 - Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
 - Add `span_count` item header to the envelope protocol. ([#5392](https://github.com/getsentry/relay/pull/5392))
 - Add `event.name` attribute to OTLP logs. ([#5396](https://github.com/getsentry/relay/pull/5396))
+- Remove feature flag for Vercel Log Drain endpoint. ([#5406](https://github.com/getsentry/relay/pull/5406))
 
 **Internal**:
 

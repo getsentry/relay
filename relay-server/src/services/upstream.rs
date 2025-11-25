@@ -34,7 +34,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
-use crate::statsd::{RelayHistograms, RelayTimers};
+use crate::statsd::{RelayDistributions, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 
 /// Rate limits returned by the upstream.
@@ -570,7 +570,7 @@ where
         let body = self.body()?;
 
         relay_statsd::metric!(
-            histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() as u64
+            distribution(RelayDistributions::UpstreamQueryBodySize) = body.len() as u64
         );
 
         builder
@@ -705,7 +705,7 @@ fn emit_response_metrics(
     );
 
     relay_statsd::metric!(
-        histogram(RelayHistograms::UpstreamRetries) = entry.retries as u64,
+        distribution(RelayDistributions::UpstreamRetries) = entry.retries as u64,
         result = description,
         status_code = status_str,
         route = entry.request.route(),
@@ -1043,7 +1043,7 @@ impl UpstreamQueue {
             RequestPriority::Low => self.low.push_back(entry),
         }
         relay_statsd::metric!(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
+            distribution(RelayDistributions::UpstreamMessageQueueSize) = self.len() as u64,
             priority = priority.name(),
             attempt = "first"
         );
@@ -1065,7 +1065,7 @@ impl UpstreamQueue {
         self.next_retry = Instant::now() + self.retry_interval;
 
         relay_statsd::metric!(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
+            distribution(RelayDistributions::UpstreamMessageQueueSize) = self.len() as u64,
             priority = priority.name(),
             attempt = "retry"
         );
