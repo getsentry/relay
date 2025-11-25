@@ -50,7 +50,7 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
 
         let mut stand_alone_attachments: Vec<ValidatedSpanAttachment> = Vec::new();
         for attachment in spans.inner.attachments {
-            match parse_and_validate_span_attachment(&attachment, &span_id_mapping, records) {
+            match parse_and_validate_span_attachment(&attachment, records) {
                 Ok((None, attachment)) => {
                     stand_alone_attachments.push(attachment);
                 }
@@ -58,12 +58,11 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
                     if let Some(entry) = span_id_mapping.get_mut(&span_id) {
                         entry.attachment = Some(attachment);
                     } else {
-                        // Should never happen since parse_and_validate_span_attachment already
-                        // checks that the span_id is in the mapping.
-                        relay_log::debug!(
-                            "span attachment missing associated span id after validation"
+                        relay_log::debug!("span attachment invalid associated span id");
+                        records.reject_err(
+                            Error::Invalid(DiscardReason::InvalidSpanAttachment),
+                            attachment,
                         );
-                        records.reject_err(Error::Invalid(DiscardReason::InvalidJson), attachment);
                     }
                 }
                 Err(err) => {
@@ -109,30 +108,20 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
 /// Parses and validates a span attachment, converting it into a structured type.
 fn parse_and_validate_span_attachment(
     item: &Item,
-    span_ids: &BTreeMap<SpanId, SpanWrapper>,
     records: &mut RecordKeeper<'_>,
 ) -> Result<(Option<SpanId>, ValidatedSpanAttachment)> {
     let associated_span_id = match item.parent_id() {
         Some(ParentId::SpanId(span_id)) => *span_id,
         None => {
             relay_log::debug!("span attachment missing associated span id");
-            return Err(Error::Invalid(DiscardReason::InvalidJson));
+            return Err(Error::Invalid(DiscardReason::InvalidSpanAttachment));
         }
-    };
-
-    // If the span attachment has a concrete associated span_id than the id needs to point to a span
-    // send in the same envelope.
-    if let Some(associated_span_id) = associated_span_id
-        && !span_ids.contains_key(&associated_span_id)
-    {
-        relay_log::debug!("span attachment invalid associated span id");
-        return Err(Error::Invalid(DiscardReason::InvalidJson));
     };
 
     let total_length = item.len();
     let meta_length = item.meta_length().ok_or_else(|| {
         relay_log::debug!("span attachment missing meta_length");
-        Error::Invalid(DiscardReason::InvalidJson)
+        Error::Invalid(DiscardReason::InvalidSpanAttachment)
     })? as usize;
 
     if meta_length > total_length {
@@ -141,7 +130,7 @@ fn parse_and_validate_span_attachment(
             meta_length,
             total_length
         );
-        return Err(Error::Invalid(DiscardReason::InvalidJson));
+        return Err(Error::Invalid(DiscardReason::InvalidSpanAttachment));
     }
 
     let payload = item.payload();

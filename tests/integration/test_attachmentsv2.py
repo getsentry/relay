@@ -90,15 +90,16 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "invalid_headers",
+    "invalid_headers,quantity",
     [
-        # Invalid sine there is no span with that id in the envelope
-        pytest.param({"span_id": "ABCDFDEAD5F74052"}, id="invalid_span_id"),
-        pytest.param({"meta_length": None}, id="missing_meta_length"),
-        pytest.param({"meta_length": 999}, id="meta_length_exceeds_payload"),
+        # Invalid since there is no span with that id in the envelope, also the quantity here is
+        # lower since only the body is already counted at this point and not the meta.
+        pytest.param({"span_id": "ABCDFDEAD5F74052"}, 36, id="invalid_span_id"),
+        pytest.param({"meta_length": None}, 227, id="missing_meta_length"),
+        pytest.param({"meta_length": 999}, 227, id="meta_length_exceeds_payload"),
     ],
 )
-def test_invalid_item_headers(mini_sentry, relay, invalid_headers):
+def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -135,8 +136,8 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers):
             "outcome": 3,
             "key_id": 123,
             "project_id": 42,
-            "reason": "invalid_json",
-            "quantity": len(combined_payload),
+            "reason": "invalid_span_attachment",
+            "quantity": quantity,
             "timestamp": time_within_delta(),
         },
         {
@@ -145,7 +146,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers):
             "outcome": 3,
             "key_id": 123,
             "project_id": 42,
-            "reason": "invalid_json",
+            "reason": "invalid_span_attachment",
             "quantity": 1,
             "timestamp": time_within_delta(),
         },
@@ -565,11 +566,8 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 (DataCategory.SPAN.value, 2): 1,
                 (DataCategory.SPAN_INDEXED.value, 2): 1,
                 # Rate limit associated span attachments
-                (DataCategory.ATTACHMENT.value, 2): 19,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 1,
-                # Don't Rate limit standalone attachments
-                (DataCategory.ATTACHMENT.value, 3): 45,
-                (DataCategory.ATTACHMENT_ITEM.value, 3): 1,
+                (DataCategory.ATTACHMENT.value, 2): 64,
+                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
             },
             id="span_quota_exceeded",
         ),
@@ -584,8 +582,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 }
             ],
             {
-                # Span make it through
-                (DataCategory.SPAN_INDEXED.value, 0): 1,
                 # Attachments don't make it through
                 (DataCategory.ATTACHMENT.value, 2): 446,
                 (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
@@ -622,7 +618,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
 )
 def test_span_attachment_independent_rate_limiting(
     mini_sentry,
-    relay_with_processing,
+    relay,
     outcomes_consumer,
     quota_config,
     expected_outcomes,
@@ -637,7 +633,7 @@ def test_span_attachment_independent_rate_limiting(
     ]
     project_config["config"]["quotas"] = quota_config
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay(mini_sentry, options=TEST_CONFIG)
     outcomes_consumer = outcomes_consumer()
 
     ts = datetime.now(timezone.utc)
@@ -702,7 +698,7 @@ def test_span_attachment_independent_rate_limiting(
 
     relay.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=3)
+    outcomes = mini_sentry.get_outcomes(n=len(expected_outcomes), timeout=3)
     outcome_counter = {}
     for outcome in outcomes:
         key = (outcome["category"], outcome["outcome"])

@@ -518,10 +518,8 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
 
                 // If there is a span quota reject all the spans and the associated attachments.
                 if !limits.is_empty() {
-             if !limits.is_empty() {
-                let error = Error::from(limits);
-                return Err(self.reject_err(error));
-            }
+                    let error = Error::from(limits);
+                    return Err(self.reject_err(error));
                 }
             } else if matches!(
                 category,
