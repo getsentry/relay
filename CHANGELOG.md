@@ -2,11 +2,19 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Switch Statsd histogram metrics to distribution metrics. ([#5378](https://github.com/getsentry/relay/pull/5378))
+
 **Features**:
 
 - Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
 - Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
 - Add `span_count` item header to the envelope protocol. ([#5392](https://github.com/getsentry/relay/pull/5392))
+- Add `event.name` attribute to OTLP logs. ([#5396](https://github.com/getsentry/relay/pull/5396))
+- Remove feature flag for Vercel Log Drain endpoint. ([#5406](https://github.com/getsentry/relay/pull/5406))
+- Add `http.request.header.cookie` to fields scrubbed by cookie rules. ([#5408](https://github.com/getsentry/relay/pull/5408))
+- Map `request_id` to `trace_id` in vercel log drain transform. ([#5333](https://github.com/getsentry/relay/pull/5333))
 
 **Internal**:
 
@@ -53,7 +61,6 @@
 - Remove sentry.timestamp_nanos for log items. ([#5295](https://github.com/getsentry/relay/pull/5295))
 - Remove the span kind from the Kafka span schema. ([#5368](https://github.com/getsentry/relay/pull/5368))
 - Unconditionally enable span extraction. ([#5308](https://github.com/getsentry/relay/pull/5308))
-
 
 ## 25.10.0
 
