@@ -415,7 +415,6 @@ impl Counted for ExpandedTransaction<Indexed> {
             extracted_spans,
             category: _,
         } = self;
-        debug_assert!(flags.metrics_extracted);
         let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1)];
         if !flags.spans_extracted {
             // TODO: encode this flag into the type and remove `extracted_spans` from the "BeforeSpanExtraction" type.
@@ -429,8 +428,6 @@ impl Counted for ExpandedTransaction<Indexed> {
 
         if !extracted_spans.0.is_empty() {
             debug_assert!(flags.spans_extracted);
-            // For now, span extraction always happens at the very end:
-            debug_assert!(flags.metrics_extracted);
             quantities.extend(extracted_spans.quantities());
         }
 
@@ -527,11 +524,6 @@ impl RateLimited for Managed<ExpandedTransaction<Indexed>> {
     {
         let scoping = self.scoping();
 
-        // These debug assertions are here because this function does not check indexed or extracted
-        // span limits.
-        // TODO: encode flags into types instead.
-        debug_assert!(self.flags.metrics_extracted);
-
         let ExpandedTransaction {
             headers: _,
             event,
@@ -543,10 +535,9 @@ impl RateLimited for Managed<ExpandedTransaction<Indexed>> {
         } = self.as_ref();
 
         // If there is a transaction limit, drop everything.
-        // This also affects profiles that lost their transaction due to sampling.
         let mut limits = rate_limiter
             .try_consume(scoping.item(DataCategory::Transaction), 0)
-            .await; // TODO: test if consume with 0 works
+            .await;
 
         if limits.is_empty() {
             let indexed_limits = rate_limiter
@@ -618,14 +609,6 @@ struct ExtractedSpans(Vec<Item>);
 
 impl Counted for ExtractedSpans {
     fn quantities(&self) -> Quantities {
-        // For now, extracted spans are always extracted after metrics extraction. This might change
-        // in the future.
-        debug_assert!(
-            self.0
-                .iter()
-                .all(|i| i.ty() == &ItemType::Span && i.metrics_extracted())
-        );
-
         if self.0.is_empty() {
             return smallvec![];
         }
