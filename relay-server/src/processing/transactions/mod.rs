@@ -13,6 +13,7 @@ use relay_quotas::{DataCategory, RateLimits};
 use relay_redis::AsyncRedisClient;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
+use sentry::Data;
 use smallvec::smallvec;
 
 use crate::Envelope;
@@ -26,8 +27,8 @@ use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
 use crate::processing::{
-    Context, Forward, ForwardContext, Output, Processor, QuotaRateLimiter, RateLimited,
-    RateLimiter, utils,
+    Context, CountRateLimited, Forward, ForwardContext, Output, Processor, QuotaRateLimiter,
+    RateLimited, RateLimiter, utils,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
@@ -472,6 +473,11 @@ impl RateLimited for Managed<ExpandedTransaction<TotalAndIndexed>> {
             .try_consume(scoping.item(DataCategory::Transaction), 1)
             .await;
 
+        if !limits.is_empty() {
+            let error = Error::from(limits);
+            return Err(self.reject_err(error));
+        }
+
         // We do not check indexed quota at this point, because metrics have not been extracted
         // from the transaction yet.
 
@@ -538,9 +544,21 @@ impl RateLimited for Managed<ExpandedTransaction<Indexed>> {
 
         // If there is a transaction limit, drop everything.
         // This also affects profiles that lost their transaction due to sampling.
-        let limits = rate_limiter
-            .try_consume(scoping.item(DataCategory::TransactionIndexed), 1)
-            .await;
+        let mut limits = rate_limiter
+            .try_consume(scoping.item(DataCategory::Transaction), 0)
+            .await; // TODO: test if consume with 0 works
+
+        if limits.is_empty() {
+            let indexed_limits = rate_limiter
+                .try_consume(scoping.item(DataCategory::TransactionIndexed), 1)
+                .await;
+            limits.merge(indexed_limits);
+        }
+
+        if !limits.is_empty() {
+            let error = Error::from(limits);
+            return Err(self.reject_err(error));
+        }
 
         let attachment_quantities = attachments.quantities();
         let span_quantities = extracted_spans.quantities();
