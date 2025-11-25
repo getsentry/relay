@@ -324,7 +324,7 @@ mod tests {
     }
 
     #[test]
-    fn test_otel_resource_to_attribute_with_unmapped_langauge() {
+    fn test_otel_resource_to_attribute_with_unmapped_language() {
         let resource = serde_json::from_value(serde_json::json!({
             "attributes": [{
                 "key": "telemetry.sdk.language",
@@ -336,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    fn test_otel_resource_to_attribute_with_mapped_langauge() {
+    fn test_otel_resource_to_attribute_with_mapped_language() {
         let resource = serde_json::from_value(serde_json::json!({
             "attributes": [{
                 "key": "telemetry.sdk.language",
