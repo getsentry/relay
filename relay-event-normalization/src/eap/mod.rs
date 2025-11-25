@@ -2,6 +2,7 @@
 //!
 //! A central place for all modifications/normalizations for attributes.
 
+use std::borrow::Cow;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
@@ -11,17 +12,16 @@ use relay_conventions::{AttributeInfo, WriteBehavior};
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Meta, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
+use relay_spans::derive_op_for_v2_span;
 
+use crate::span::TABLE_NAME_REGEX;
+use crate::span::description::scrub_db_query;
+use crate::span::tag_extraction::{sql_action_from_query, sql_tables_from_query};
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
 
 pub use self::ai::normalize_ai;
-use crate::span::TABLE_NAME_REGEX;
-use crate::span::description::scrub_db_query;
-use crate::span::tag_extraction::{sql_action_from_query, sql_tables_from_query};
-use relay_spans::derive_op_for_v2_span;
-use std::borrow::Cow;
 
 /// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
 pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
