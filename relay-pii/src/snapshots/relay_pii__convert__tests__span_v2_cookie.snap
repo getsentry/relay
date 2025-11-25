@@ -1,0 +1,30 @@
+---
+source: relay-pii/src/convert.rs
+expression: data
+---
+{
+  "attributes": {
+    "http.request.header.cookie": {
+      "value": "[Filtered]"
+    }
+  },
+  "_meta": {
+    "attributes": {
+      "http.request.header.cookie": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 20
+          }
+        }
+      }
+    }
+  }
+}
