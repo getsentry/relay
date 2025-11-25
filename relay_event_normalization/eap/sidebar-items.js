@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["normalize_ai","normalize_attribute_names","normalize_attribute_types","normalize_client_address","normalize_dsc","normalize_received","normalize_user_agent","normalize_user_geo"]};
+window.SIDEBAR_ITEMS = {"fn":["normalize_ai","normalize_attribute_names","normalize_attribute_types","normalize_attribute_values","normalize_client_address","normalize_db_attributes","normalize_dsc","normalize_received","normalize_sentry_op","normalize_user_agent","normalize_user_geo"]};

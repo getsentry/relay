@@ -30,7 +30,7 @@
 <a href=#30 id=30 data-nosnippet>30</a>    <span class="kw">let </span><span class="kw-2">mut </span>exclusive_time_ms = <span class="number">0f64</span>;
 <a href=#31 id=31 data-nosnippet>31</a>    <span class="kw">let </span><span class="kw-2">mut </span>data = Object::new();
 <a href=#32 id=32 data-nosnippet>32</a>
-<a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">let </span>inferred_op = derive_op_for_v2_span(<span class="kw-2">&amp;</span>span_v2);
+<a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">let </span>inferred_op = derive_op_for_v2_span(<span class="kw-2">&amp;</span>span_v2.attributes);
 <a href=#34 id=34 data-nosnippet>34</a>    <span class="comment">// NOTE: Inferring the description should happen after inferring the op, since the op may affect
 <a href=#35 id=35 data-nosnippet>35</a>    // how we infer the description.
 <a href=#36 id=36 data-nosnippet>36</a>    </span><span class="kw">let </span>inferred_description = derive_description_for_v2_span(<span class="kw-2">&amp;</span>span_v2);
@@ -223,11 +223,11 @@
 <a href=#223 id=223 data-nosnippet>223</a>/// SDK might have sent. Reliably infers an op for well-known OTel span kinds like database
 <a href=#224 id=224 data-nosnippet>224</a>/// operations. Does not infer an op for frontend and mobile spans sent by Sentry SDKs that don't
 <a href=#225 id=225 data-nosnippet>225</a>/// have an OTel equivalent (e.g., resource loads).
-<a href=#226 id=226 data-nosnippet>226</a></span><span class="kw">fn </span>derive_op_for_v2_span(span: <span class="kw-2">&amp;</span>SpanV2) -&gt; String {
+<a href=#226 id=226 data-nosnippet>226</a></span><span class="kw">pub fn </span>derive_op_for_v2_span(attributes: <span class="kw-2">&amp;</span>Annotated&lt;Attributes&gt;) -&gt; String {
 <a href=#227 id=227 data-nosnippet>227</a>    <span class="comment">// NOTE: `op` is not a required field in the SDK, so the fallback is an empty string.
 <a href=#228 id=228 data-nosnippet>228</a>    </span><span class="kw">let </span>op = String::from(<span class="string">"default"</span>);
 <a href=#229 id=229 data-nosnippet>229</a>
-<a href=#230 id=230 data-nosnippet>230</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(attributes) = span.attributes.value() <span class="kw">else </span>{
+<a href=#230 id=230 data-nosnippet>230</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(attributes) = attributes.value() <span class="kw">else </span>{
 <a href=#231 id=231 data-nosnippet>231</a>        <span class="kw">return </span>op;
 <a href=#232 id=232 data-nosnippet>232</a>    };
 <a href=#233 id=233 data-nosnippet>233</a>
