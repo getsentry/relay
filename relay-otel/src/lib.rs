@@ -133,7 +133,7 @@ pub fn otel_scope_into_attributes(
 
 /// Returns the telemetry language SDK from the resource, mapped into a `sentry.platform` value.
 pub fn otel_resource_to_platform(resource: &Resource) -> Option<&str> {
-    if let any_value::Value::StringValue(language) = resource
+    let any_value::Value::StringValue(language) = resource
         .attributes
         .iter()
         .find(|attr| attr.key == otel_semconv::TELEMETRY_SDK_LANGUAGE)?
@@ -141,20 +141,20 @@ pub fn otel_resource_to_platform(resource: &Resource) -> Option<&str> {
         .as_ref()?
         .value
         .as_ref()?
-    {
-        // Smooth out some naming differences between OTel
-        // (https://opentelemetry.io/docs/specs/semconv/resource/#telemetry-sdk)
-        // and Sentry
-        // (https://github.com/getsentry/relay/blob/8e6c963cdd79dc9ba2bebc21518a3553f70feeb3/relay-event-schema/src/protocol/event.rs#L251-L253).
-        Some(match language.as_str() {
-            "dotnet" => "csharp",
-            "nodejs" => "node",
-            "webjs" => "javascript",
-            _ => language,
-        })
-    } else {
-        None
-    }
+    else {
+        return None;
+    };
+
+    // Smooth out some naming differences between OTel
+    // (https://opentelemetry.io/docs/specs/semconv/resource/#telemetry-sdk)
+    // and Sentry
+    // (https://github.com/getsentry/relay/blob/8e6c963cdd79dc9ba2bebc21518a3553f70feeb3/relay-event-schema/src/protocol/event.rs#L251-L253).
+    Some(match language.as_str() {
+        "dotnet" => "csharp",
+        "nodejs" => "node",
+        "webjs" => "javascript",
+        _ => language,
+    })
 }
 
 #[cfg(test)]
