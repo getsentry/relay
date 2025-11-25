@@ -4194,6 +4194,7 @@ version = "25.11.0"
 dependencies = [
  "insta",
  "opentelemetry-proto",
+ "opentelemetry-semantic-conventions",
  "relay-event-schema",
  "relay-protocol",
  "serde_json",
@@ -4510,7 +4511,6 @@ dependencies = [
  "hex",
  "insta",
  "opentelemetry-proto",
- "opentelemetry-semantic-conventions",
  "relay-conventions",
  "relay-event-schema",
  "relay-otel",

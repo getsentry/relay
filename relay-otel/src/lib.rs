@@ -9,10 +9,12 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+use opentelemetry_proto::tonic::common::v1::any_value;
 use opentelemetry_proto::tonic::{
     common::v1::{InstrumentationScope, any_value::Value as OtelValue},
     resource::v1::Resource,
 };
+use opentelemetry_semantic_conventions::attribute as otel_semconv;
 use relay_event_schema::protocol::{Attribute, AttributeType, Attributes};
 use relay_protocol::{Annotated, Value};
 
@@ -126,6 +128,32 @@ pub fn otel_scope_into_attributes(
     if let Some(scope) = scope {
         attributes.insert("instrumentation.name".to_owned(), scope.name.clone());
         attributes.insert("instrumentation.version".to_owned(), scope.version.clone());
+    }
+}
+
+/// Returns the telemetry language SDK from the resource, mapped into a `sentry.platform` value.
+pub fn otel_resource_to_platform(resource: &Resource) -> Option<&str> {
+    if let any_value::Value::StringValue(language) = resource
+        .attributes
+        .iter()
+        .find(|attr| attr.key == otel_semconv::TELEMETRY_SDK_LANGUAGE)?
+        .value
+        .as_ref()?
+        .value
+        .as_ref()?
+    {
+        // Smooth out some naming differences between OTel
+        // (https://opentelemetry.io/docs/specs/semconv/resource/#telemetry-sdk)
+        // and Sentry
+        // (https://github.com/getsentry/relay/blob/8e6c963cdd79dc9ba2bebc21518a3553f70feeb3/relay-event-schema/src/protocol/event.rs#L251-L253).
+        Some(match language.as_str() {
+            "dotnet" => "csharp",
+            "nodejs" => "node",
+            "webjs" => "javascript",
+            _ => language,
+        })
+    } else {
+        None
     }
 }
 
@@ -287,5 +315,35 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_otel_resource_to_attribute_without_language() {
+        let resource = serde_json::from_value(serde_json::json!({"attributes": []})).unwrap();
+        assert_eq!(otel_resource_to_platform(&resource), None);
+    }
+
+    #[test]
+    fn test_otel_resource_to_attribute_with_unmapped_langauge() {
+        let resource = serde_json::from_value(serde_json::json!({
+            "attributes": [{
+                "key": "telemetry.sdk.language",
+                "value": {"stringValue": "foo"},
+            },
+        ]}))
+        .unwrap();
+        assert_eq!(otel_resource_to_platform(&resource), Some("foo"));
+    }
+
+    #[test]
+    fn test_otel_resource_to_attribute_with_mapped_langauge() {
+        let resource = serde_json::from_value(serde_json::json!({
+            "attributes": [{
+                "key": "telemetry.sdk.language",
+                "value": {"stringValue": "nodejs"},
+            },
+        ]}))
+        .unwrap();
+        assert_eq!(otel_resource_to_platform(&resource), Some("node"));
     }
 }

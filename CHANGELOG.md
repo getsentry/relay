@@ -15,6 +15,7 @@
 - Remove feature flag for Vercel Log Drain endpoint. ([#5406](https://github.com/getsentry/relay/pull/5406))
 - Add `http.request.header.cookie` to fields scrubbed by cookie rules. ([#5408](https://github.com/getsentry/relay/pull/5408))
 - Map `request_id` to `trace_id` in vercel log drain transform. ([#5333](https://github.com/getsentry/relay/pull/5333))
+- Populate `sentry.platform` during OTLP ingestion. ([#5411](https://github.com/getsentry/relay/pull/5411))
 
 **Internal**:
 

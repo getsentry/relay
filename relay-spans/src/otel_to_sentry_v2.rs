@@ -1,16 +1,15 @@
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
-use opentelemetry_proto::tonic::common::v1::any_value;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use opentelemetry_semantic_conventions::attribute as otel_semconv;
 use relay_conventions::IS_REMOTE;
 use relay_conventions::ORIGIN;
 use relay_conventions::PLATFORM;
 use relay_conventions::SPAN_KIND;
 use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
+use relay_otel::otel_resource_to_platform;
 use relay_otel::otel_value_to_attribute;
 use relay_protocol::ErrorKind;
 
@@ -196,31 +195,6 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
     };
 
     Ok(span_link)
-}
-
-fn otel_resource_to_platform(resource: &Resource) -> Option<&str> {
-    if let any_value::Value::StringValue(language) = resource
-        .attributes
-        .iter()
-        .find(|attr| attr.key == otel_semconv::TELEMETRY_SDK_LANGUAGE)?
-        .value
-        .as_ref()?
-        .value
-        .as_ref()?
-    {
-        // Smooth out some naming differences between OTel
-        // (https://opentelemetry.io/docs/specs/semconv/resource/#telemetry-sdk)
-        // and Sentry
-        // (https://github.com/getsentry/relay/blob/8e6c963cdd79dc9ba2bebc21518a3553f70feeb3/relay-event-schema/src/protocol/event.rs#L251-L253).
-        Some(match language.as_str() {
-            "dotnet" => "csharp",
-            "nodejs" => "node",
-            "webjs" => "javascript",
-            _ => language,
-        })
-    } else {
-        None
-    }
 }
 
 #[cfg(test)]
