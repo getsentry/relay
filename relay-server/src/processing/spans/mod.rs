@@ -604,7 +604,11 @@ struct IndexedSpan(SpanWrapper);
 #[cfg(feature = "processing")]
 impl Counted for IndexedSpan {
     fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
+        let mut quantities = smallvec::smallvec![(DataCategory::SpanIndexed, 1)];
+        if let Some(attachment) = &self.0.attachment {
+            quantities.extend(attachment.quantities());
+        }
+        quantities
     }
 }
 
