@@ -7,11 +7,11 @@ use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLogRecord;
-use relay_conventions::{EVENT_NAME, ORIGIN};
+use relay_conventions::{EVENT_NAME, ORIGIN, PLATFORM};
 
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
-use relay_otel::otel_value_to_attribute;
+use relay_otel::{otel_resource_to_platform, otel_value_to_attribute};
 use relay_protocol::{Annotated, Object};
 
 /// Maps OpenTelemetry severity number to Sentry log level.
@@ -81,6 +81,11 @@ pub fn otel_to_sentry_log(
     attribute_data.insert(ORIGIN, "auto.otlp.logs".to_owned());
     if !event_name.is_empty() {
         attribute_data.insert(EVENT_NAME, event_name.to_owned());
+    }
+    if let Some(resource) = resource
+        && let Some(platform) = otel_resource_to_platform(resource)
+    {
+        attribute_data.insert(PLATFORM, platform.to_owned());
     }
 
     relay_otel::otel_scope_into_attributes(&mut attribute_data, resource, scope);
@@ -186,6 +191,9 @@ mod tests {
             "attributes": [{
                 "key": "service.name",
                 "value": {"stringValue": "test-service"},
+            }, {
+              "key": "telemetry.sdk.language",
+              "value": {"stringValue": "nodejs"},
             }]
         }))
         .unwrap();
@@ -247,9 +255,17 @@ mod tests {
               "type": "string",
               "value": "test-service"
             },
+            "resource.telemetry.sdk.language": {
+              "type": "string",
+              "value": "nodejs"
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.logs"
+            },
+            "sentry.platform": {
+              "type": "string",
+              "value": "node"
             },
             "string.attribute": {
               "type": "string",

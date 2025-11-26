@@ -5,9 +5,11 @@ use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_conventions::IS_REMOTE;
 use relay_conventions::ORIGIN;
+use relay_conventions::PLATFORM;
 use relay_conventions::SPAN_KIND;
 use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
+use relay_otel::otel_resource_to_platform;
 use relay_otel::otel_value_to_attribute;
 use relay_protocol::ErrorKind;
 
@@ -68,6 +70,11 @@ pub fn otel_to_sentry_span(
     relay_otel::otel_scope_into_attributes(&mut sentry_attributes, resource, scope);
 
     sentry_attributes.insert(ORIGIN, "auto.otlp.spans".to_owned());
+    if let Some(resource) = resource
+        && let Some(platform) = otel_resource_to_platform(resource)
+    {
+        sentry_attributes.insert(PLATFORM, platform.to_owned());
+    }
 
     let mut name = if name.is_empty() { None } else { Some(name) };
     for (key, value) in attributes.into_iter().flat_map(|attribute| {
@@ -264,6 +271,9 @@ mod tests {
             "attributes": [{
                 "key": "service.name",
                 "value": {"stringValue": "test-service"},
+            }, {
+              "key": "telemetry.sdk.language",
+              "value": {"stringValue": "nodejs"},
             }]
         }))
         .unwrap();
@@ -313,6 +323,10 @@ mod tests {
               "type": "string",
               "value": "test-service"
             },
+            "resource.telemetry.sdk.language": {
+              "type": "string",
+              "value": "nodejs"
+            },
             "sentry.environment": {
               "type": "string",
               "value": "test"
@@ -332,6 +346,10 @@ mod tests {
             "sentry.parentSampled": {
               "type": "boolean",
               "value": true
+            },
+            "sentry.platform": {
+              "type": "string",
+              "value": "node"
             },
             "sentry.sample_rate": {
               "type": "integer",
