@@ -44,6 +44,7 @@ define_integrations!(
     "application/vnd.sentry.integration.otel.spans+protobuf" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Protobuf }),
     "application/vnd.sentry.integration.vercel.logs+json" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::Json }),
     "application/vnd.sentry.integration.vercel.logs+ndjson" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::NdJson }),
+    "application/vnd.sentry.integration.heroku.logs+logplex" => Integration::Logs(LogsIntegration::HerokuLogDrain),
 );
 
 /// An exhaustive list of all integrations supported by Relay.
@@ -80,6 +81,10 @@ pub enum LogsIntegration {
     ///
     /// Supports the [`relay_ourlogs::VercelLog`] format.
     VercelDrainLog { format: VercelLogDrainFormat },
+    /// The Heroku Log Drain integration.
+    ///
+    /// Supports Heroku's Logplex syslog format via HTTPS drains.
+    HerokuLogDrain,
 }
 
 /// All span integrations supported by Relay.

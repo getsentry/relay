@@ -29,6 +29,8 @@ pub enum ContentType {
     Envelope,
     /// `application/x-protobuf`
     Protobuf,
+    /// [`application/logplex-1`](https://devcenter.heroku.com/articles/log-drains#https-drains)
+    Logplex,
     /// `application/vnd.sentry.items.log+json`
     LogContainer,
     /// `application/vnd.sentry.items.span.v2+json`
@@ -54,6 +56,7 @@ impl ContentType {
             Self::Xml => "text/xml",
             Self::Envelope => CONTENT_TYPE,
             Self::Protobuf => "application/x-protobuf",
+            Self::Logplex => "application/logplex-1",
             Self::LogContainer => "application/vnd.sentry.items.log+json",
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
             Self::TraceMetricContainer => "application/vnd.sentry.items.trace-metric+json",
@@ -93,6 +96,8 @@ impl ContentType {
             Some(Self::Envelope)
         } else if ct.eq_ignore_ascii_case(Self::Protobuf.as_str()) {
             Some(Self::Protobuf)
+        } else if ct.eq_ignore_ascii_case(Self::Logplex.as_str()) {
+            Some(Self::Logplex)
         } else if ct.eq_ignore_ascii_case(Self::LogContainer.as_str()) {
             Some(Self::LogContainer)
         } else if ct.eq_ignore_ascii_case(Self::SpanV2Container.as_str()) {

@@ -2783,6 +2783,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nom-regex"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72e5c7731c4c1370b61604ed52a2475e861aac9e08dec9f23903d4ddfdc91c18"
+dependencies = [
+ "nom",
+ "regex",
+]
+
+[[package]]
 name = "ntapi"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4213,6 +4223,7 @@ dependencies = [
  "relay-event-schema",
  "relay-otel",
  "relay-protocol",
+ "rsyslog",
  "serde",
  "serde_json",
 ]
@@ -4704,6 +4715,17 @@ dependencies = [
  "spki",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "rsyslog"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f5963755808e34aea5b05a720a0044e2f10f39f61d69bbed56ecbb3369a1541"
+dependencies = [
+ "chrono",
+ "nom",
+ "nom-regex",
 ]
 
 [[package]]
