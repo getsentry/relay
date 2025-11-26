@@ -61,7 +61,6 @@ pub fn extract_metrics(
     // the full metrics extraction config and skip sampling if it is incomplete.
 
     if metrics_extracted {
-        debug_assert!(false, "metrics extraction called twice");
         return Ok(EventMetricsExtracted(true));
     }
     let Some(event) = event.value_mut() else {

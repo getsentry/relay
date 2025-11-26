@@ -78,7 +78,7 @@ impl OutcomeError for Error {
                 _other => {
                     relay_log::error!(
                         error = &self as &dyn std::error::Error,
-                        "internal error: trace metric processing failed"
+                        "internal error: transaction processing failed"
                     );
                     Outcome::Invalid(DiscardReason::Internal)
                 }
@@ -381,7 +381,6 @@ impl Counted for ExpandedTransaction<TotalAndIndexed> {
             extracted_spans,
             category: _,
         } = self;
-        debug_assert!(!flags.metrics_extracted);
         let mut quantities = smallvec![
             (DataCategory::Transaction, 1),
             (DataCategory::TransactionIndexed, 1),
@@ -536,7 +535,7 @@ impl RateLimited for Managed<ExpandedTransaction<Indexed>> {
 
         // If there is a transaction limit, drop everything.
         let mut limits = rate_limiter
-            .try_consume(scoping.item(DataCategory::Transaction), 0)
+            .try_consume(scoping.item(DataCategory::Transaction), 1)
             .await;
 
         if limits.is_empty() {

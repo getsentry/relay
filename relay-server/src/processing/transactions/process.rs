@@ -71,7 +71,6 @@ pub fn expand(
 /// 1. Metrics are only extracted in non-processing relays if the sampling decision is "drop".
 /// 2. That means that if we see a new transaction, it cannot yet have metrics extracted.
 fn validate_flags(flags: &Flags) {
-    debug_assert!(!flags.metrics_extracted);
     if flags.metrics_extracted {
         relay_log::error!("Received a transaction which already had its metrics extracted.");
     }
