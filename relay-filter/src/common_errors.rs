@@ -387,10 +387,7 @@ mod tests {
 
     #[test]
     fn test_filter_recursion_errors() {
-        let errors = [
-            "too much recursion",
-            "InternalError: too much recursion",
-        ];
+        let errors = ["too much recursion", "InternalError: too much recursion"];
 
         for error in errors {
             let event = get_event_with_exception_value(error);
@@ -474,10 +471,10 @@ mod tests {
     #[test]
     fn test_filter_cancelled_in_other_languages() {
         let errors = [
-            "annulé",        // French
-            "cancelado",     // Spanish
-            "Abgebrochen",   // German
-            "anulowane",     // Polish
+            "annulé",             // French
+            "cancelado",          // Spanish
+            "Abgebrochen",        // German
+            "anulowane",          // Polish
             "キャンセルしました", // Japanese
         ];
 
@@ -874,7 +871,11 @@ mod tests {
     fn test_dont_filter_empty_exception() {
         let event = get_event_with_exception(Exception::default());
         let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
-        assert_eq!(filter_result, Ok(()), "Empty exception should not be filtered");
+        assert_eq!(
+            filter_result,
+            Ok(()),
+            "Empty exception should not be filtered"
+        );
     }
 
     #[test]
@@ -899,4 +900,3 @@ mod tests {
         }
     }
 }
-
