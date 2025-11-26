@@ -38,27 +38,27 @@ static COMMON_ERROR_VALUES: LazyLock<Regex> = LazyLock::new(|| {
         # See: https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver#observation_errors
         ResizeObserver\sloop\s(limit\sexceeded|completed\swith\sundelivered\snotifications)|
 
-        # Chunk loading errors - typically caused by deployments or network issues
-        ChunkLoadError|
-        Loading\schunk\s.*\sfailed|
-        Loading\sCSS\schunk|
-
         # Non-Error promise rejections - often not useful for debugging
         Non-Error\spromise\srejection\scaptured|
         Non-Error\sexception\scaptured|
+        Object\scaptured\sas\s(promise\srejection|exception)|
 
         # Quota exceeded - user's browser storage is full
         QuotaExceededError|
 
         # Generic timeout errors
         timeout(\sof\s\d+ms)?\sexceeded|
+        TimeoutError|
 
-        # Maximum call stack - usually infinite recursion, but message alone isn't helpful
+        # Maximum call stack / recursion - usually infinite recursion, but message alone isn't helpful
         Maximum\scall\sstack\ssize\sexceeded|
+        too\smuch\srecursion|
 
         # JSON parsing errors from malformed responses
         Unexpected\stoken|
         Unexpected\send\sof\s(JSON\sinput|input|script)|
+        JSON\sParse\serror|
+        is\snot\svalid\sJSON|
 
         # HTTP status code errors - too generic without context
         Request\sfailed\swith\sstatus\scode|
@@ -66,45 +66,76 @@ static COMMON_ERROR_VALUES: LazyLock<Regex> = LazyLock::new(|| {
         # Mobile WebView and bridge errors
         Java\sobject\sis\sgone|
         Java\sbridge\smethod\sinvocation\serror|
+        Java\sexception\swas\sraised\sduring\smethod\sinvocation|
         _AutofillCallbackHandler|
         instantSearchSDKJSBridgeClearHighlight|
         ceCurrentVideo\.currentTime|
+        _pcmBridgeCallbackHandler|
+        setIOSParameters|
         # webkit messageHandlers errors from iOS
         window\.webkit\.messageHandlers|
+        # Symantec browser extension
+        SymBrowser_|
+        # Vietnamese Zalo app WebView
+        zaloJSV2|
 
         # CustomEvent promise rejections
-        Event\s`CustomEvent`\s\(type=unhandledrejection\)\scaptured\sas\spromise\srejection|
+        Event\s`(CustomEvent|Event|ErrorEvent|ProgressEvent)`.*captured\sas\s(promise\srejection|exception)|
 
         # Frame blocking errors - browser security, not actionable
         Blocked\sa\sframe\swith\sorigin|
+        SecurityError.*Blocked\sa\sframe|
 
         # Application not responding - mobile ANR
         ApplicationNotResponding|
         App\sHanging|
 
-        # Permission errors from browser APIs
+        # Permission/Security errors from browser APIs
         NotAllowedError|
+        SecurityError:\sThe\soperation\sis\sinsecure|
+        The\soperation\sis\sinsecure|
+        InvalidStateError|
+        NotFoundError:\sThe\sobject\scan\snot\sbe\sfound|
 
         # Illegal invocation - typically calling DOM methods incorrectly
         Illegal\sinvocation|
 
         # jQuery not loaded errors
         \$\sis\snot\sdefined|
+        jQuery\sis\snot\sdefined|
 
         # Empty or unknown error messages
         No\serror\smessage|
         <unknown>|
+        ^undefined$|
 
         # Cancelled requests (various languages)
         ^cancelled$|
+        ^annul(é|ato|eret)$|      # French/Italian/Danish
+        ^cancelado$|               # Spanish/Portuguese
+        ^Abgebrochen$|             # German
+        ^anulowane$|               # Polish
+        ^avbruten$|                # Swedish
+        ^キャンセルしました$|       # Japanese
+        ^取소됨$|                   # Korean
+        ^已取消$|                   # Chinese
 
         # Module import failures - deployment/network related
         Importing\sa\smodule\sscript\sfailed|
         Failed\sto\sfetch\sdynamically\simported\smodule|
+        error\sloading\sdynamically\simported\smodule|
+        Unable\sto\spreload\sCSS|
 
-        # Object is not defined errors from third-party scripts
-        UET\sis\snot\sdefined|
-        fbq\sis\snot\sdefined|
+        # Third-party script/SDK errors that aren't actionable
+        UET\sis\snot\sdefined|             # Microsoft UET
+        fbq\sis\snot\sdefined|             # Facebook pixel
+        gtag\sis\snot\sdefined|            # Google Analytics
+        _hsq\sis\snot\sdefined|            # HubSpot
+        pintrk\sis\snot\sdefined|          # Pinterest
+        ttd_dom_ready\sis\snot\sdefined|   # The Trade Desk
+        otBannerSdk|                        # OneTrust cookie banner
+        mraid|                              # Mobile ads SDK
+        googletag|                          # Google Publisher Tag (ad blocker)
 
         # WKWebView errors
         WKWebView\sAPI\sclient\sdid\snot\srespond\sto\sthis\spostMessage|
@@ -113,7 +144,44 @@ static COMMON_ERROR_VALUES: LazyLock<Regex> = LazyLock::new(|| {
         Out\sof\smemory|
 
         # Script error with no details
-        Script\serror\.?$
+        Script\serror\.?$|
+
+        # Database errors from browser
+        The\sdatabase\sconnection\sis\sclosing|
+        Database\sdeleted\sby\srequest\sof\sthe\suser|
+
+        # Media playback errors - user interaction required or media removed
+        The\splay\(\)\srequest\swas\sinterrupted|
+
+        # Context/port errors from extensions
+        Attempting\sto\suse\sa\sdisconnected\sport\sobject|
+
+        # Browser-specific non-actionable errors
+        can't\sredefine\snon-configurable\sproperty|
+        webkitExitFullScreen|
+        msDiscoverChatAvailable|
+
+        # Hydration errors - typically deployment/caching issues, not bugs
+        Hydration\sfailed|
+        There\swas\san\serror\swhile\shydrating|
+        Text\scontent\sdoes\snot\smatch\sserver-rendered\sHTML|
+
+        # Service worker errors - typically transient
+        Failed\sto\sregister\sa\sServiceWorker|
+        Failed\sto\supdate\sa\sServiceWorker|
+
+        # Cancel rendering - Next.js navigation
+        Cancel\srendering\sroute|
+
+        # Connection errors (various)
+        ERR_INTERNET_DISCONNECTED|
+        ERR_NETWORK_CHANGED|
+        ERR_CONNECTION_RESET|
+        ERR_NAME_NOT_RESOLVED|
+        ECONNREFUSED|
+        ETIMEDOUT|
+        ENOTFOUND|
+        socket\shang\sup
     "#,
     )
     .expect("Invalid common errors filter Regex")
@@ -318,13 +386,178 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_chunk_load_errors() {
+    fn test_filter_recursion_errors() {
         let errors = [
-            "ChunkLoadError",
-            "ChunkLoadError: Loading chunk 123 failed",
-            "Loading chunk 456 failed",
-            "Loading chunk 789 failed.",
-            "Loading CSS chunk 42 failed",
+            "too much recursion",
+            "InternalError: too much recursion",
+        ];
+
+        for error in errors {
+            let event = get_event_with_exception_value(error);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(
+                filter_result,
+                Err(FilterStatKey::CommonErrors),
+                "Event not filtered for error: '{error}'"
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_hydration_errors() {
+        let errors = [
+            "Hydration failed because the initial UI does not match what was rendered on the server",
+            "There was an error while hydrating",
+            "Text content does not match server-rendered HTML",
+        ];
+
+        for error in errors {
+            let event = get_event_with_exception_value(error);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(
+                filter_result,
+                Err(FilterStatKey::CommonErrors),
+                "Event not filtered for error: '{error}'"
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_connection_errors() {
+        let errors = [
+            "ERR_INTERNET_DISCONNECTED",
+            "net::ERR_INTERNET_DISCONNECTED",
+            "ERR_NETWORK_CHANGED",
+            "ERR_CONNECTION_RESET",
+            "ERR_NAME_NOT_RESOLVED",
+            "ECONNREFUSED",
+            "ETIMEDOUT",
+            "ENOTFOUND",
+            "socket hang up",
+        ];
+
+        for error in errors {
+            let event = get_event_with_exception_value(error);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(
+                filter_result,
+                Err(FilterStatKey::CommonErrors),
+                "Event not filtered for error: '{error}'"
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_third_party_sdk_errors() {
+        let errors = [
+            "gtag is not defined",
+            "ReferenceError: gtag is not defined",
+            "_hsq is not defined",
+            "pintrk is not defined",
+            "ttd_dom_ready is not defined",
+            "otBannerSdk is not defined",
+            "mraid is not defined",
+            "jQuery is not defined",
+        ];
+
+        for error in errors {
+            let event = get_event_with_exception_value(error);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(
+                filter_result,
+                Err(FilterStatKey::CommonErrors),
+                "Event not filtered for error: '{error}'"
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_cancelled_in_other_languages() {
+        let errors = [
+            "annulé",        // French
+            "cancelado",     // Spanish
+            "Abgebrochen",   // German
+            "anulowane",     // Polish
+            "キャンセルしました", // Japanese
+        ];
+
+        for error in errors {
+            let event = get_event_with_exception_value(error);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(
+                filter_result,
+                Err(FilterStatKey::CommonErrors),
+                "Event not filtered for error: '{error}'"
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_service_worker_errors() {
+        let errors = [
+            "Failed to register a ServiceWorker",
+            "Failed to register a ServiceWorker for scope",
+            "Failed to update a ServiceWorker",
+            "Failed to update a ServiceWorker for scope",
+        ];
+
+        for error in errors {
+            let event = get_event_with_exception_value(error);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(
+                filter_result,
+                Err(FilterStatKey::CommonErrors),
+                "Event not filtered for error: '{error}'"
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_security_errors() {
+        let errors = [
+            "SecurityError: The operation is insecure",
+            "The operation is insecure",
+            "InvalidStateError",
+            "InvalidStateError: The object is in an invalid state",
+            "NotFoundError: The object can not be found here",
+        ];
+
+        for error in errors {
+            let event = get_event_with_exception_value(error);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(
+                filter_result,
+                Err(FilterStatKey::CommonErrors),
+                "Event not filtered for error: '{error}'"
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_database_errors() {
+        let errors = [
+            "The database connection is closing",
+            "Database deleted by request of the user",
+            "UnknownError: Database deleted by request of the user",
+        ];
+
+        for error in errors {
+            let event = get_event_with_exception_value(error);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(
+                filter_result,
+                Err(FilterStatKey::CommonErrors),
+                "Event not filtered for error: '{error}'"
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_media_playback_errors() {
+        let errors = [
+            "The play() request was interrupted by a call to pause()",
+            "The play() request was interrupted because the media was removed from the document",
+            "AbortError: The play() request was interrupted by a call to pause()",
         ];
 
         for error in errors {
@@ -465,12 +698,17 @@ mod tests {
         let errors = [
             "Java object is gone",
             "Java bridge method invocation error",
+            "Java exception was raised during method invocation",
             "Can't find variable: _AutofillCallbackHandler",
             "ReferenceError: Can't find variable: _AutofillCallbackHandler",
             "instantSearchSDKJSBridgeClearHighlight is not defined",
             "ceCurrentVideo.currentTime is not defined",
             "undefined is not an object (evaluating 'window.webkit.messageHandlers')",
             "WKWebView API client did not respond to this postMessage",
+            "_pcmBridgeCallbackHandler is not defined",
+            "Can't find variable: setIOSParameters",
+            "SymBrowser_ModifyWindowOpenWithTarget is not defined",
+            "zaloJSV2 is not defined",
         ];
 
         for error in errors {
@@ -539,11 +777,25 @@ mod tests {
             "Importing a module script failed",
             "Importing a module script failed.",
             "Failed to fetch dynamically imported module",
+            "error loading dynamically imported module",
+            "Unable to preload CSS",
             "UET is not defined",
             "fbq is not defined",
             "Out of memory",
             "Script error",
             "Script error.",
+            "undefined",
+            "TimeoutError",
+            "TimeoutError: The operation timed out",
+            "JSON Parse error: Unexpected identifier",
+            "is not valid JSON",
+            "Attempting to use a disconnected port object",
+            "can't redefine non-configurable property \"userAgent\"",
+            "webkitExitFullScreen",
+            "msDiscoverChatAvailable",
+            "Cancel rendering route",
+            "Object captured as promise rejection with keys: message, status",
+            "Object captured as exception with keys: message",
         ];
 
         for error in errors {
