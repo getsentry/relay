@@ -6,6 +6,7 @@ use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
 use crate::processing::logs::Settings;
 
+mod heroku;
 mod integrity;
 mod nel;
 mod otel;
@@ -50,6 +51,7 @@ pub fn expand(
         LogsIntegration::Integrity => integrity::expand(&payload, headers, produce),
         LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
         LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
+        LogsIntegration::HerokuLogDrain => heroku::expand(&item, &payload, produce),
     };
     let settings = match settings {
         Ok(settings) => settings,

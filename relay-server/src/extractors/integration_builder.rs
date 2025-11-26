@@ -30,12 +30,30 @@ impl IntegrationBuilder<()> {
     /// Configures the [`Integration`] type.
     ///
     /// Setting the type is required.
-    pub fn with_type(mut self, integration: impl Into<Integration>) -> IntegrationBuilder<HasType> {
+    pub fn with_type(self, integration: impl Into<Integration>) -> IntegrationBuilder<HasType> {
+        self.with_type_and_headers(integration, [])
+    }
+
+    /// Configures the [`Integration`] type with additional headers.
+    ///
+    /// Headers are stored in the item's `other` field and can be retrieved
+    /// during processing via `item.get_header()`.
+    pub fn with_type_and_headers<I>(
+        mut self,
+        integration: impl Into<Integration>,
+        headers: I,
+    ) -> IntegrationBuilder<HasType>
+    where
+        I: IntoIterator<Item = (String, relay_protocol::Value)>,
+    {
         let integration = integration.into();
 
         self.envelope.add_item({
             let mut item = Item::new(ItemType::Integration);
             item.set_payload(integration.into(), self.payload.clone());
+            for (name, value) in headers {
+                item.set_header(name, value);
+            }
             item
         });
 
