@@ -108,6 +108,12 @@ impl UploadService {
             // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
             // We might want to have a less aggressive mechanism in the future.
 
+            relay_statsd::metric!(
+                counter(RelayCounters::AttachmentUpload) += 1,
+                result = "load-shed",
+                type = "envelope",
+            );
+
             // for now, this will just forward to the store endpoint without uploading attachments.
             self.inner.store.send(StoreEnvelope { envelope });
             return;
@@ -168,25 +174,26 @@ impl UploadServiceInner {
             .envelope_mut()
             .items_mut()
             .filter(|item| *item.ty() == ItemType::Attachment);
-        let upload_results = if let Ok(session) = session {
-            futures::future::join_all(
-                attachments.map(|attachment| self.handle_attachment(&session, attachment)),
-            )
-            .await
-        } else {
-            // if we have any kind of error constructing the upload session, we mark all attachments as failed
-            attachments.map(|_| Err(Error::UploadFailed)).collect()
-        };
 
-        for result in upload_results {
-            let result_msg = match result {
-                Ok(()) => "success",
-                Err(error) => error.as_str(),
-            };
-            relay_statsd::metric!(
-                counter(RelayCounters::AttachmentUpload) += 1,
-                result = result_msg
-            );
+        match session {
+            Err(error) => {
+                relay_statsd::metric!(
+                    counter(RelayCounters::AttachmentUpload) += attachments.count() as u64,
+                    result = error.to_string().as_str(),
+                );
+            }
+            Ok(session) => {
+                for attachment in attachments {
+                    let result = self.handle_attachment(&session, attachment).await;
+                    relay_statsd::metric!(
+                        counter(RelayCounters::AttachmentUpload) += 1,
+                        result = match result {
+                            Ok(()) => "success",
+                            Err(error) => error.as_str(),
+                        }
+                    );
+                }
+            }
         }
 
         // last but not least, forward the envelope to the store endpoint
