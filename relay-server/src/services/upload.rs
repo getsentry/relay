@@ -108,9 +108,14 @@ impl UploadService {
             // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
             // We might want to have a less aggressive mechanism in the future.
 
+            let attachment_count = envelope
+                .envelope()
+                .items()
+                .filter(|item| *item.ty() == ItemType::Attachment)
+                .count();
             relay_statsd::metric!(
-                counter(RelayCounters::AttachmentUpload) += 1,
-                result = "load-shed",
+                counter(RelayCounters::AttachmentUpload) += attachment_count as u64,
+                result = "load_shed",
                 type = "envelope",
             );
 
