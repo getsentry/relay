@@ -935,6 +935,11 @@ pub enum RelayCounters {
     /// - `result`: `success` or the failure reason.
     #[cfg(feature = "processing")]
     AttachmentUpload,
+    /// Whether a logs envelope has a trace context header or not
+    ///
+    /// This metric is tagged with:
+    /// - `dsc`: yes or no
+    EnvelopeWithLogs,
 }
 
 impl CounterMetric for RelayCounters {
@@ -991,6 +996,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::SamplingDecision => "sampling.decision",
             #[cfg(feature = "processing")]
             RelayCounters::AttachmentUpload => "attachment.upload",
+            RelayCounters::EnvelopeWithLogs => "logs.envelope",
         }
     }
 }
