@@ -180,6 +180,7 @@ impl UploadServiceInner {
                 relay_statsd::metric!(
                     counter(RelayCounters::AttachmentUpload) += attachments.count() as u64,
                     result = error.to_string().as_str(),
+                    type = "envelope",
                 );
             }
             Ok(session) => {
@@ -190,7 +191,8 @@ impl UploadServiceInner {
                         result = match result {
                             Ok(()) => "success",
                             Err(error) => error.as_str(),
-                        }
+                        },
+                        type = "envelope",
                     );
                 }
             }

@@ -933,6 +933,7 @@ pub enum RelayCounters {
     ///
     /// This metric is tagged with:
     /// - `result`: `success` or the failure reason.
+    /// - `type`: `envelope` or `attachment_v2`
     #[cfg(feature = "processing")]
     AttachmentUpload,
 }
