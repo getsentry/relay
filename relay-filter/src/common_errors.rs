@@ -21,7 +21,7 @@ static COMMON_ERROR_VALUES: LazyLock<Regex> = LazyLock::new(|| {
         r#"(?ix)
         # Network and fetch errors - these are typically caused by user network issues
         Failed\sto\sfetch|
-        Network\s[Ee]rror|
+        Network\serror|
         Load\sfailed|
         Network\srequest\sfailed|
         NetworkError(\swhen\sattempting\sto\sfetch\sresource)?|
@@ -46,19 +46,9 @@ static COMMON_ERROR_VALUES: LazyLock<Regex> = LazyLock::new(|| {
         # Quota exceeded - user's browser storage is full
         QuotaExceededError|
 
-        # Generic timeout errors
-        timeout(\sof\s\d+ms)?\sexceeded|
-        TimeoutError|
-
         # Maximum call stack / recursion - usually infinite recursion, but message alone isn't helpful
         Maximum\scall\sstack\ssize\sexceeded|
         too\smuch\srecursion|
-
-        # JSON parsing errors from malformed responses
-        Unexpected\stoken|
-        Unexpected\send\sof\s(JSON\sinput|input|script)|
-        JSON\sParse\serror|
-        is\snot\svalid\sJSON|
 
         # HTTP status code errors - too generic without context
         Request\sfailed\swith\sstatus\scode|
@@ -86,19 +76,12 @@ static COMMON_ERROR_VALUES: LazyLock<Regex> = LazyLock::new(|| {
         Blocked\sa\sframe\swith\sorigin|
         SecurityError.*Blocked\sa\sframe|
 
-        # Application not responding - mobile ANR
-        ApplicationNotResponding|
-        App\sHanging|
-
         # Permission/Security errors from browser APIs
         NotAllowedError|
         SecurityError:\sThe\soperation\sis\sinsecure|
         The\soperation\sis\sinsecure|
         InvalidStateError|
         NotFoundError:\sThe\sobject\scan\snot\sbe\sfound|
-
-        # Illegal invocation - typically calling DOM methods incorrectly
-        Illegal\sinvocation|
 
         # jQuery not loaded errors
         \$\sis\snot\sdefined|
@@ -140,15 +123,8 @@ static COMMON_ERROR_VALUES: LazyLock<Regex> = LazyLock::new(|| {
         # WKWebView errors
         WKWebView\sAPI\sclient\sdid\snot\srespond\sto\sthis\spostMessage|
 
-        # Out of memory errors
-        Out\sof\smemory|
-
         # Script error with no details
         Script\serror\.?$|
-
-        # Database errors from browser
-        The\sdatabase\sconnection\sis\sclosing|
-        Database\sdeleted\sby\srequest\sof\sthe\suser|
 
         # Media playback errors - user interaction required or media removed
         The\splay\(\)\srequest\swas\sinterrupted|
@@ -160,11 +136,6 @@ static COMMON_ERROR_VALUES: LazyLock<Regex> = LazyLock::new(|| {
         can't\sredefine\snon-configurable\sproperty|
         webkitExitFullScreen|
         msDiscoverChatAvailable|
-
-        # Hydration errors - typically deployment/caching issues, not bugs
-        Hydration\sfailed|
-        There\swas\san\serror\swhile\shydrating|
-        Text\scontent\sdoes\snot\smatch\sserver-rendered\sHTML|
 
         # Service worker errors - typically transient
         Failed\sto\sregister\sa\sServiceWorker|
@@ -401,25 +372,6 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_hydration_errors() {
-        let errors = [
-            "Hydration failed because the initial UI does not match what was rendered on the server",
-            "There was an error while hydrating",
-            "Text content does not match server-rendered HTML",
-        ];
-
-        for error in errors {
-            let event = get_event_with_exception_value(error);
-            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
-            assert_eq!(
-                filter_result,
-                Err(FilterStatKey::CommonErrors),
-                "Event not filtered for error: '{error}'"
-            );
-        }
-    }
-
-    #[test]
     fn test_filter_connection_errors() {
         let errors = [
             "ERR_INTERNET_DISCONNECTED",
@@ -531,25 +483,6 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_database_errors() {
-        let errors = [
-            "The database connection is closing",
-            "Database deleted by request of the user",
-            "UnknownError: Database deleted by request of the user",
-        ];
-
-        for error in errors {
-            let event = get_event_with_exception_value(error);
-            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
-            assert_eq!(
-                filter_result,
-                Err(FilterStatKey::CommonErrors),
-                "Event not filtered for error: '{error}'"
-            );
-        }
-    }
-
-    #[test]
     fn test_filter_media_playback_errors() {
         let errors = [
             "The play() request was interrupted by a call to pause()",
@@ -608,54 +541,11 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_timeout_errors() {
-        let errors = [
-            "timeout exceeded",
-            "timeout of 0ms exceeded",
-            "timeout of 5000ms exceeded",
-            "timeout of 30000ms exceeded",
-        ];
-
-        for error in errors {
-            let event = get_event_with_exception_value(error);
-            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
-            assert_eq!(
-                filter_result,
-                Err(FilterStatKey::CommonErrors),
-                "Event not filtered for error: '{error}'"
-            );
-        }
-    }
-
-    #[test]
     fn test_filter_call_stack_errors() {
         let errors = [
             "Maximum call stack size exceeded",
             "Maximum call stack size exceeded.",
             "RangeError: Maximum call stack size exceeded",
-        ];
-
-        for error in errors {
-            let event = get_event_with_exception_value(error);
-            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
-            assert_eq!(
-                filter_result,
-                Err(FilterStatKey::CommonErrors),
-                "Event not filtered for error: '{error}'"
-            );
-        }
-    }
-
-    #[test]
-    fn test_filter_json_parsing_errors() {
-        let errors = [
-            "Unexpected token",
-            "Unexpected token '<'",
-            "Unexpected token 'else'",
-            "Unexpected end of JSON input",
-            "Unexpected end of input",
-            "Unexpected end of script",
-            "SyntaxError: Unexpected token '<'",
         ];
 
         for error in errors {
@@ -720,26 +610,6 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_application_not_responding() {
-        let errors = [
-            "ApplicationNotResponding",
-            "ApplicationNotResponding: ANR for at least 5000ms",
-            "App Hanging",
-            "App Hanging: App hanging for at least 2000 ms",
-        ];
-
-        for error in errors {
-            let event = get_event_with_exception_value(error);
-            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
-            assert_eq!(
-                filter_result,
-                Err(FilterStatKey::CommonErrors),
-                "Event not filtered for error: '{error}'"
-            );
-        }
-    }
-
-    #[test]
     fn test_filter_frame_blocking_errors() {
         let errors = [
             "Blocked a frame with origin",
@@ -763,8 +633,6 @@ mod tests {
         let errors = [
             "NotAllowedError",
             "NotAllowedError: The request is not allowed by the user agent",
-            "Illegal invocation",
-            "TypeError: Illegal invocation",
             "$ is not defined",
             "ReferenceError: $ is not defined",
             "No error message",
@@ -778,14 +646,9 @@ mod tests {
             "Unable to preload CSS",
             "UET is not defined",
             "fbq is not defined",
-            "Out of memory",
             "Script error",
             "Script error.",
             "undefined",
-            "TimeoutError",
-            "TimeoutError: The operation timed out",
-            "JSON Parse error: Unexpected identifier",
-            "is not valid JSON",
             "Attempting to use a disconnected port object",
             "can't redefine non-configurable property \"userAgent\"",
             "webkitExitFullScreen",
