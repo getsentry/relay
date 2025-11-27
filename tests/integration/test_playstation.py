@@ -217,9 +217,38 @@ def test_playstation_no_feature_flag(
 
     # Get these outcomes since the feature flag is not enabled:
     outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 2
-    assert outcomes[0]["reason"] == "feature_disabled"
-    assert outcomes[1]["reason"] == "feature_disabled"
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "feature_disabled",
+            "category": 1,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "feature_disabled",
+            "category": 4,
+            "quantity": 209385,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "feature_disabled",
+            "category": 22,
+            "quantity": 1,
+        },
+    ]
 
 
 def test_playstation_wrong_file(
