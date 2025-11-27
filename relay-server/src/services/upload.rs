@@ -8,6 +8,7 @@ use futures::{FutureExt, StreamExt};
 use objectstore_client::{Client, ExpirationPolicy, Session, Usecase};
 use relay_config::UploadServiceConfig;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+use sentry_protos::snuba::v1::TraceItem;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{Item, ItemType};
@@ -15,7 +16,7 @@ use crate::managed::{Managed, ManagedResult, OutcomeError, Rejected, TypedEnvelo
 use crate::processing::spans::ValidatedSpanAttachment;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
-use crate::services::store::{Store, StoreEnvelope};
+use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
 use crate::statsd::{RelayCounters, RelayGauges};
 
 use super::outcome::Outcome;
@@ -285,8 +286,36 @@ impl UploadServiceInner {
         }
 
         // FIXME: Send metadata and payload size to Store service to write to EAP.
+        let trace_item = self.convert(managed);
+
+        self.store.send(trace_item);
 
         Ok(())
+    }
+
+    fn convert(&self, managed: Managed<ValidatedSpanAttachment>) -> Managed<StoreTraceItem> {
+        let scoping = managed.scoping();
+        managed.map(|attachment, record_keeper| {
+            let ValidatedSpanAttachment { meta, body: _ } = attachment;
+            let meta = meta.value().unwrap(); // FIXME
+            StoreTraceItem {
+                trace_item: TraceItem {
+                    organization_id: scoping.organization_id.value(),
+                    project_id: scoping.project_id.value(),
+                    trace_id: todo!(),
+                    item_id: meta.attachment_id.value().unwrap(), // FIXME
+                    item_type: TraceItemType::Attachment,
+                    timestamp: todo!(),
+                    attributes: todo!(),
+                    client_sample_rate: todo!(),
+                    server_sample_rate: todo!(),
+                    retention_days: todo!(),
+                    received: todo!(),
+                    downsampled_retention_days: todo!(),
+                },
+                quantities: todo!(),
+            }
+        })
     }
 
     async fn handle_envelope_attachment(
