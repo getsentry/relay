@@ -38,11 +38,6 @@ static COMMON_ERROR_VALUES: LazyLock<Regex> = LazyLock::new(|| {
         # See: https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver#observation_errors
         ResizeObserver\sloop\s(limit\sexceeded|completed\swith\sundelivered\snotifications)|
 
-        # Non-Error promise rejections - often not useful for debugging
-        Non-Error\spromise\srejection\scaptured|
-        Non-Error\sexception\scaptured|
-        Object\scaptured\sas\s(promise\srejection|exception)|
-
         # Quota exceeded - user's browser storage is full
         QuotaExceededError|
 
@@ -488,26 +483,6 @@ mod tests {
             "The play() request was interrupted by a call to pause()",
             "The play() request was interrupted because the media was removed from the document",
             "AbortError: The play() request was interrupted by a call to pause()",
-        ];
-
-        for error in errors {
-            let event = get_event_with_exception_value(error);
-            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
-            assert_eq!(
-                filter_result,
-                Err(FilterStatKey::CommonErrors),
-                "Event not filtered for error: '{error}'"
-            );
-        }
-    }
-
-    #[test]
-    fn test_filter_non_error_promise_rejections() {
-        let errors = [
-            "Non-Error promise rejection captured with value: undefined",
-            "Non-Error promise rejection captured with value: Timeout",
-            "Non-Error promise rejection captured with keys: currentTarget, detail, isTrusted, target",
-            "Non-Error exception captured with keys: message, name",
         ];
 
         for error in errors {
