@@ -2,6 +2,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
@@ -12,8 +13,9 @@ use sentry_protos::snuba::v1::TraceItem;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{Item, ItemType};
-use crate::managed::{Managed, ManagedResult, OutcomeError, Rejected, TypedEnvelope};
-use crate::processing::spans::ValidatedSpanAttachment;
+use crate::managed::{
+    Counted, Managed, ManagedResult, OutcomeError, Quantities, Rejected, TypedEnvelope,
+};
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
@@ -24,14 +26,14 @@ use super::outcome::Outcome;
 /// Messages that the upload service can handle.
 pub enum Upload {
     Envelope(StoreEnvelope),
-    Attachment(Managed<ValidatedSpanAttachment>),
+    Attachment(Managed<StoreAttachment>),
 }
 
 impl Upload {
     fn ty(&self) -> &str {
         match self {
-            Upload::Envelope(store_envelope) => "envelope",
-            Upload::Attachment(managed) => "attachment_v2",
+            Upload::Envelope(_) => "envelope",
+            Upload::Attachment(_) => "attachment_v2",
         }
     }
 }
@@ -46,11 +48,25 @@ impl FromMessage<StoreEnvelope> for Upload {
     }
 }
 
-impl FromMessage<Managed<ValidatedSpanAttachment>> for Upload {
+impl FromMessage<Managed<StoreAttachment>> for Upload {
     type Response = NoResponse;
 
-    fn from_message(message: Managed<ValidatedSpanAttachment>, _sender: ()) -> Self {
+    fn from_message(message: Managed<StoreAttachment>, _sender: ()) -> Self {
         Self::Attachment(message)
+    }
+}
+
+/// An attachment that is ready for upload / EAP storage.
+pub struct StoreAttachment {
+    /// The trace item to be published via Kafka.
+    pub trace_item: TraceItem,
+    /// The body to be uploaded to objectstore.
+    pub body: Bytes,
+}
+
+impl Counted for StoreAttachment {
+    fn quantities(&self) -> Quantities {
+        todo!()
     }
 }
 
@@ -61,6 +77,8 @@ pub enum Error {
     Timeout,
     #[error("upload failed: {0}")]
     UploadFailed(#[from] objectstore_client::Error),
+    #[error("invalid metadata")]
+    InvalidMetadata,
 }
 
 impl Error {
@@ -68,6 +86,7 @@ impl Error {
         match self {
             Error::Timeout => "timeout",
             Error::UploadFailed(_) => "upload_failed",
+            Error::InvalidMetadata => "invalid_metadata",
         }
     }
 }
@@ -189,7 +208,7 @@ impl UploadServiceInner {
             Upload::Envelope(StoreEnvelope { envelope }) => {
                 self.handle_envelope(envelope).await;
             }
-            Upload::Attachment(managed) => self.handle_managed(managed).await,
+            Upload::Attachment(attachment) => self.handle_attachment(attachment).await,
         }
     }
 
@@ -236,8 +255,8 @@ impl UploadServiceInner {
         self.store.send(StoreEnvelope { envelope });
     }
 
-    async fn handle_managed(&self, managed: Managed<ValidatedSpanAttachment>) {
-        let result = self.do_handle_managed(managed).await;
+    async fn handle_attachment(&self, managed: Managed<StoreAttachment>) {
+        let result = self.do_handle_store_attachment(managed).await;
 
         relay_statsd::metric!(
             counter(RelayCounters::AttachmentUpload) += 1,
@@ -249,9 +268,9 @@ impl UploadServiceInner {
         );
     }
 
-    async fn do_handle_managed(
+    async fn do_handle_store_attachment(
         &self,
-        managed: Managed<ValidatedSpanAttachment>,
+        managed: Managed<StoreAttachment>,
     ) -> Result<(), Rejected<Error>> {
         let scoping = managed.scoping();
         let session = self
@@ -261,8 +280,22 @@ impl UploadServiceInner {
             .map_err(Error::UploadFailed)
             .reject(&managed)?;
 
-        let ValidatedSpanAttachment { meta, body } = &*managed;
+        let quantities = managed.quantities();
+        let body = Bytes::clone(&managed.body);
 
+        // Make sure that the attachment can be converted into a trace item:
+        let trace_item = managed.try_map(|attachment, _record_keeper| {
+            let StoreAttachment {
+                trace_item,
+                body: _,
+            } = attachment;
+            Ok::<_, Error>(StoreTraceItem {
+                trace_item,
+                quantities,
+            })
+        })?;
+
+        // Upload the attachment:
         if !body.is_empty() {
             relay_log::trace!("Starting attachment upload");
             let future = async {
@@ -271,7 +304,7 @@ impl UploadServiceInner {
                     .send()
                     .await
                     .map_err(Error::UploadFailed)
-                    .reject(&managed)?;
+                    .reject(&trace_item)?;
                 Ok(result.key)
             };
 
@@ -279,43 +312,16 @@ impl UploadServiceInner {
             let stored_key = tokio::time::timeout(self.timeout, future)
                 .await
                 .map_err(|_elapsed| Error::Timeout)
-                .reject(&managed)??;
+                .reject(&trace_item)??;
 
             // attachment.set_stored_key(stored_key);
             relay_log::trace!("Finished attachment upload");
         }
 
-        // FIXME: Send metadata and payload size to Store service to write to EAP.
-        let trace_item = self.convert(managed);
-
+        // Only after successful upload forward the attachment to the store.
         self.store.send(trace_item);
 
         Ok(())
-    }
-
-    fn convert(&self, managed: Managed<ValidatedSpanAttachment>) -> Managed<StoreTraceItem> {
-        let scoping = managed.scoping();
-        managed.map(|attachment, record_keeper| {
-            let ValidatedSpanAttachment { meta, body: _ } = attachment;
-            let meta = meta.value().unwrap(); // FIXME
-            StoreTraceItem {
-                trace_item: TraceItem {
-                    organization_id: scoping.organization_id.value(),
-                    project_id: scoping.project_id.value(),
-                    trace_id: todo!(),
-                    item_id: meta.attachment_id.value().unwrap(), // FIXME
-                    item_type: TraceItemType::Attachment,
-                    timestamp: todo!(),
-                    attributes: todo!(),
-                    client_sample_rate: todo!(),
-                    server_sample_rate: todo!(),
-                    retention_days: todo!(),
-                    received: todo!(),
-                    downsampled_retention_days: todo!(),
-                },
-                quantities: todo!(),
-            }
-        })
     }
 
     async fn handle_envelope_attachment(

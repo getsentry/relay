@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use chrono::Utc;
 use relay_event_schema::protocol::Attributes;
 use relay_protocol::{Annotated, IntoValue, MetaTree};
 
@@ -119,4 +120,12 @@ fn size_of_meta_tree(meta: &MetaTree) -> usize {
     }
 
     size
+}
+
+/// Converts a [`chrono::DateTime`] into a [`prost_types::Timestamp`]
+pub fn proto_timestamp(dt: chrono::DateTime<Utc>) -> prost_types::Timestamp {
+    prost_types::Timestamp {
+        seconds: dt.timestamp(),
+        nanos: i32::try_from(dt.timestamp_subsec_nanos()).unwrap_or(0),
+    }
 }
