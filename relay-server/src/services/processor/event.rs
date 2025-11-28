@@ -22,14 +22,6 @@ use crate::services::processor::{
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
-/// Result of the extraction of the primary event payload from an envelope.
-#[derive(Debug)]
-pub struct ExtractionResult {
-    pub event: Annotated<Event>,
-    pub event_metrics_extracted: Option<EventMetricsExtracted>,
-    pub spans_extracted: Option<SpansExtracted>,
-}
-
 /// Extracts the primary event payload from an envelope.
 ///
 /// The event is obtained from only one source in the following precedence:
@@ -43,14 +35,13 @@ pub fn extract<Group: EventProcessing>(
     metrics: &mut Metrics,
     event_fully_normalized: EventFullyNormalized,
     config: &Config,
-) -> Result<ExtractionResult, ProcessingError> {
+) -> Result<Annotated<Event>, ProcessingError> {
     let envelope = managed_envelope.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
     // `process_event`.
     let event_item = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
-    let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
     let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
     let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
     let user_report_v2_item = envelope.take_item_by(|item| item.ty() == &ItemType::UserReportV2);
@@ -71,8 +62,6 @@ pub fn extract<Group: EventProcessing>(
 
     let skip_normalization = config.processing_enabled() && event_fully_normalized.0;
 
-    let mut event_metrics_extracted = None;
-    let mut spans_extracted = None;
     let (event, event_len) = if let Some(item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
@@ -85,17 +74,6 @@ pub fn extract<Group: EventProcessing>(
                 event.ty.set_value(None);
             }
             (annotated_event, len)
-        })
-    } else if let Some(item) = transaction_item {
-        relay_log::trace!("processing json transaction");
-
-        event_metrics_extracted = Some(EventMetricsExtracted(item.metrics_extracted()));
-        spans_extracted = Some(SpansExtracted(item.spans_extracted()));
-
-        metric!(timer(RelayTimers::EventProcessingDeserialize), {
-            // Transaction items can only contain transaction events. Force the event type to
-            // hint to normalization that we're dealing with a transaction now.
-            event_from_json_payload(item, Some(EventType::Transaction))?
         })
     } else if let Some(item) = user_report_v2_item {
         relay_log::trace!("processing user_report_v2");
@@ -130,11 +108,7 @@ pub fn extract<Group: EventProcessing>(
 
     metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
-    Ok(ExtractionResult {
-        event,
-        event_metrics_extracted,
-        spans_extracted,
-    })
+    Ok(event)
 }
 
 pub fn serialize<Group: EventProcessing>(
