@@ -166,7 +166,7 @@ impl Forward for TraceMetricOutput {
     ) -> Result<(), Rejected<()>> {
         let Self(metrics) = self;
 
-        let ctx = store::Context {
+        let ctx = processing::utils::store::Context {
             scoping: metrics.scoping(),
             received_at: metrics.received_at(),
             retention: ctx.retention(|r| r.trace_metric.as_ref()),

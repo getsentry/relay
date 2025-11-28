@@ -253,10 +253,28 @@ impl Forward for SpanOutput {
             inner
         });
 
-        for span in spans.split(|spans| spans.into_indexed_spans()) {
-            if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
-                s.send(span)
-            };
+        // let ExpandedSpans {
+        //     headers,
+        //     server_sample_rate,
+        //     spans,
+        //     stand_alone_attachments,
+        //     category,
+        // } = spans;
+
+        let spans_and_attachments = spans.split(|spans| spans.into_parts());
+        for either in spans_and_attachments {
+            match either.transpose() {
+                Either::Left(span) => {
+                    if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
+                        s.send(span);
+                    }
+                }
+                Either::Right(attachment) => {
+                    if let Ok(attachment) = store::convert_attachment(attachment, ctx.retention) {
+                        s.send(attachment); // FIXME: send to upload
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -450,8 +468,22 @@ impl ExpandedSpans<TotalAndIndexed> {
 
 impl ExpandedSpans<Indexed> {
     #[cfg(feature = "processing")]
-    fn into_indexed_spans(self) -> impl Iterator<Item = IndexedSpan> {
-        self.spans.into_iter().map(IndexedSpan)
+    fn into_parts(self) -> impl Iterator<Item = Either<IndexedSpanOnly, ExpandedAttachment>> {
+        let Self {
+            headers: _,
+            server_sample_rate: _,
+            spans,
+            stand_alone_attachments,
+            category: _,
+        } = self;
+        spans
+            .into_iter()
+            .flat_map(|span| {
+                let ExpandedSpan { span, attachment } = span;
+                std::iter::once(Either::Left(IndexedSpanOnly(span)))
+                    .chain(attachment.map(Either::Right))
+            })
+            .chain(stand_alone_attachments.into_iter().map(Either::Right))
     }
 }
 
@@ -625,6 +657,17 @@ impl Counted for IndexedSpan {
             quantities.extend(attachment.quantities());
         }
         quantities
+    }
+}
+
+#[cfg(feature = "processing")]
+#[derive(Debug)]
+struct IndexedSpanOnly(WithHeader<SpanV2>);
+
+#[cfg(feature = "processing")]
+impl Counted for IndexedSpanOnly {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
     }
 }
 

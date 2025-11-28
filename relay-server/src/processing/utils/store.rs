@@ -1,10 +1,15 @@
 use std::collections::HashMap;
 
-use relay_event_schema::protocol::Attributes;
-use relay_protocol::{Annotated, IntoValue, MetaTree};
+use chrono::{DateTime, Utc};
+use relay_conventions::CLIENT_SAMPLE_RATE;
+use relay_event_schema::protocol::{Attribute, Attributes};
+use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 
+use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, any_value};
 use serde::Serialize;
+
+use crate::processing::Retention;
 
 /// Represents metadata extracted from Relay's annotated model.
 ///
@@ -119,4 +124,31 @@ fn size_of_meta_tree(meta: &MetaTree) -> usize {
     }
 
     size
+}
+
+/// Converts a [`chrono::DateTime`] into a [`prost_types::Timestamp`]
+pub fn proto_timestamp(dt: chrono::DateTime<Utc>) -> prost_types::Timestamp {
+    prost_types::Timestamp {
+        seconds: dt.timestamp(),
+        nanos: i32::try_from(dt.timestamp_subsec_nanos()).unwrap_or(0),
+    }
+}
+
+/// Extracts the client sample rate from trace attributes.
+pub fn extract_client_sample_rate(attributes: &Attributes) -> Option<f64> {
+    attributes
+        .get_value(CLIENT_SAMPLE_RATE)
+        .and_then(|value| value.as_f64())
+        .filter(|v| *v > 0.0)
+        .filter(|v| *v <= 1.0)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Context {
+    /// Received time.
+    pub received_at: DateTime<Utc>,
+    /// Item scoping.
+    pub scoping: Scoping,
+    /// Item retention.
+    pub retention: Retention,
 }
