@@ -232,6 +232,118 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     }
 
 
+def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+        "projects:span-v2-attachment-processing",
+    ]
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    span_id = "eee19b7ec3c1b174"
+    trace_id = "5b8efff798038103d269b633813fc60c"
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "is_segment": True,
+            "name": "test span",
+            "status": "ok",
+        },
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    metadata = create_attachment_metadata()
+    body = b"span attachment content"
+    metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+    combined_payload = metadata_bytes + body
+
+    # Two attachments both pointing to the same span (one should be dropped)
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(metadata_bytes),
+                "span_id": span_id,
+                "length": len(combined_payload),
+            },
+        )
+    )
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(metadata_bytes),
+                "span_id": span_id,
+                "length": len(combined_payload),
+            },
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+    forwarded = mini_sentry.captured_events.get(timeout=5)
+
+    span_item = next(i for i in forwarded.items if i.type == "span")
+    spans = json.loads(span_item.payload.bytes.decode())["items"]
+    assert spans == [
+        {
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "name": "test span",
+            "status": "ok",
+            "is_segment": True,
+            "start_timestamp": time_within(ts),
+            "end_timestamp": time_within(ts.timestamp() + 0.5),
+            "attributes": mock.ANY,
+        }
+    ]
+
+    attachment = next(i for i in forwarded.items if i.type == "attachment")
+    assert attachment.payload.bytes == combined_payload
+    assert attachment.headers == {
+        "type": "attachment",
+        "length": 214,
+        "content_type": "application/vnd.sentry.attachment.v2",
+        "meta_length": 191,
+        "span_id": span_id,
+    }
+
+    assert mini_sentry.get_outcomes(n=2, timeout=3) == [
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "invalid_span_attachment",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": 23,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "invalid_span_attachment",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+    ]
+
+
 @pytest.mark.parametrize(
     "rule_type",
     ["project", "trace"],

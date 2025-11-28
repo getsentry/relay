@@ -1002,8 +1002,8 @@ def test_invalid_spans(mini_sentry, relay):
 
     # Need to exclude the `trace_id`, since this one is fundamentally required
     # for DSC validations. Envelopes with mismatching DSCs are entirely rejected.
-    required_keys = valid_span.keys() - {"trace_id", "span_id"}
-    nonempty_keys = valid_span.keys() - {"trace_id", "name", "status", "span_id"}
+    required_keys = valid_span.keys() - {"trace_id"}
+    nonempty_keys = valid_span.keys() - {"trace_id", "name", "status"}
 
     invalid_spans = []
     for key in required_keys:
@@ -1033,8 +1033,27 @@ def test_invalid_spans(mini_sentry, relay):
     )
     relay.send_envelope(project_id, envelope)
 
+    # Wait here till the event arrives at which point we know that all the outcomes should also be
+    # available as well to check afterwards.
+    envelope = mini_sentry.get_captured_event()
+    spans = json.loads(envelope.items[0].payload.bytes.decode())["items"]
+
+    assert len(spans) == 1
+    spans[0].pop("attributes")  # irrelevant for this test
+    assert spans[0] == valid_span
+
     outcomes = mini_sentry.get_aggregated_outcomes(timeout=5)
     assert outcomes == [
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 3,
+            "reason": "invalid_span",
+            "timestamp": time_within_delta(),
+        },
         {
             "category": DataCategory.SPAN.value,
             "key_id": 123,
@@ -1054,6 +1073,16 @@ def test_invalid_spans(mini_sentry, relay):
             "reason": "timestamp",
             "timestamp": time_within_delta(),
             "quantity": 6,
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 3,
+            "reason": "invalid_span",
+            "timestamp": time_within_delta(),
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
@@ -1076,12 +1105,5 @@ def test_invalid_spans(mini_sentry, relay):
             "quantity": 6,
         },
     ]
-
-    envelope = mini_sentry.get_captured_event()
-    spans = json.loads(envelope.items[0].payload.bytes.decode())["items"]
-
-    assert len(spans) == 1
-    spans[0].pop("attributes")  # irrelevant for this test
-    assert spans[0] == valid_span
 
     assert mini_sentry.captured_events.empty()

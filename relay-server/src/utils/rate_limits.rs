@@ -520,7 +520,7 @@ impl Enforcement {
         match item.ty() {
             ItemType::Attachment => {
                 // Drop span attachments if they have a span_id item header and span quota is null.
-                if matches!(item.content_type(), Some(ContentType::AttachmentV2)) && matches!(item.parent_id(), Some(ParentId::SpanId(_))) && (self.spans_indexed.is_active() || self.spans.is_active()) {
+                if item.is_attachment_v2() && matches!(item.parent_id(), Some(ParentId::SpanId(_))) && (self.spans_indexed.is_active() || self.spans.is_active()) {
                     return false;
                 }
                 if !(self.attachments.is_active() || self.attachment_items.is_active()) {

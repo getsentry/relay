@@ -460,6 +460,12 @@ impl Item {
         self.headers.parent_id = Some(parent_id);
     }
 
+    /// Returns `true` if this item is an attachment with AttachmentV2 content type.
+    pub fn is_attachment_v2(&self) -> bool {
+        self.ty() == &ItemType::Attachment
+            && self.content_type() == Some(&ContentType::AttachmentV2)
+    }
+
     /// Returns the specified header value, if present.
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
     where
