@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use chrono::Utc;
-use relay_event_schema::protocol::Attributes;
-use relay_protocol::{Annotated, IntoValue, MetaTree};
+use relay_event_schema::protocol::{Attribute, Attributes};
+use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 
 use sentry_protos::snuba::v1::{AnyValue, any_value};
 use serde::Serialize;

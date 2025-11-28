@@ -8,8 +8,10 @@ use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 use objectstore_client::{Client, ExpirationPolicy, Session, Usecase};
 use relay_config::UploadServiceConfig;
+use relay_quotas::DataCategory;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use sentry_protos::snuba::v1::TraceItem;
+use smallvec::smallvec;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{Item, ItemType};
@@ -66,7 +68,10 @@ pub struct StoreAttachment {
 
 impl Counted for StoreAttachment {
     fn quantities(&self) -> Quantities {
-        todo!()
+        smallvec![
+            (DataCategory::AttachmentItem, 1),
+            (DataCategory::Attachment, self.body.len()),
+        ]
     }
 }
 
@@ -124,9 +129,9 @@ impl UploadService {
         };
 
         let objectstore_client = Client::builder(objectstore_url).build()?;
-        let attachments_v1 = Usecase::new("attachments")
+        let event_attachments = Usecase::new("attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
-        let attachments_v2 = Usecase::new("trace_attachments")
+        let trace_attachments = Usecase::new("trace_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 
         let inner = UploadServiceInner {
@@ -135,8 +140,8 @@ impl UploadService {
             store,
 
             objectstore_client,
-            attachments_v1,
-            attachments_v2,
+            event_attachments,
+            trace_attachments,
         };
 
         Ok(Some(Self {
@@ -198,8 +203,8 @@ struct UploadServiceInner {
     store: Addr<Store>,
 
     objectstore_client: Client,
-    attachments_v1: Usecase,
-    attachments_v2: Usecase,
+    event_attachments: Usecase,
+    trace_attachments: Usecase,
 }
 
 impl UploadServiceInner {
@@ -219,7 +224,7 @@ impl UploadServiceInner {
     async fn handle_envelope(&self, mut envelope: TypedEnvelope<Processed>) -> () {
         let scoping = envelope.scoping();
         let session = self
-            .attachments_v1
+            .event_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client);
 
@@ -274,7 +279,7 @@ impl UploadServiceInner {
     ) -> Result<(), Rejected<Error>> {
         let scoping = managed.scoping();
         let session = self
-            .attachments_v1
+            .trace_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client)
             .map_err(Error::UploadFailed)

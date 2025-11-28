@@ -66,16 +66,15 @@ fn inject_server_sample_rate(span: &mut SpanV2, server_sample_rate: Option<f64>)
 
 fn convert_attachment(
     attachment: Managed<ValidatedSpanAttachment>,
-) -> Result<Managed<StoreAttachment>, Rejected<Outcome>> {
+) -> Result<Managed<StoreAttachment>, Rejected<()>> {
     let scoping = attachment.scoping();
-    let x = attachment.try_map(|attachment, record_keeper| {
+    attachment.try_map(|attachment, _record_keeper| {
         let ValidatedSpanAttachment { meta, body } = attachment;
         let trace_item = attachment_to_trace_item(scoping, meta)
             .ok_or(Outcome::Invalid(DiscardReason::InvalidSpanAttachment))?;
 
         Ok::<_, Outcome>(StoreAttachment { trace_item, body })
-    });
-    x
+    })
 }
 
 fn attachment_to_trace_item(
@@ -89,7 +88,7 @@ fn attachment_to_trace_item(
         filename,
         content_type,
         attributes,
-        other,
+        other: _,
     } = meta.into_value()?;
     let trace_item = TraceItem {
         organization_id: scoping.organization_id.value(),
