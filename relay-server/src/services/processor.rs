@@ -76,7 +76,7 @@ use {
     crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
-    crate::services::upload::UploadAttachments,
+    crate::services::upload::Upload,
     crate::utils::Enforcement,
     itertools::Itertools,
     relay_cardinality::{
@@ -1107,7 +1107,7 @@ pub struct Addrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    pub upload: Option<Addr<UploadAttachments>>,
+    pub upload: Option<Addr<Upload>>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
@@ -2320,7 +2320,7 @@ impl EnvelopeProcessorService {
                         && use_objectstore()
                     {
                         // the `UploadService` will upload all attachments, and then forward the envelope to the `StoreService`.
-                        upload.send(UploadAttachments { envelope })
+                        upload.send(StoreEnvelope { envelope })
                     } else {
                         store_forwarder.send(StoreEnvelope { envelope })
                     }
