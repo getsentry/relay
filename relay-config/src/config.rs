@@ -1284,7 +1284,7 @@ impl Default for UploadServiceConfig {
     fn default() -> Self {
         Self {
             objectstore_url: None,
-            max_concurrent_requests: 100,
+            max_concurrent_requests: 10,
             timeout: 60,
         }
     }
