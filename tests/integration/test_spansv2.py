@@ -206,6 +206,25 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
         },
     )
 
+    # Add legacy span to ensure that the v2 sampling deals with them correctly.
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                json={
+                    "start_timestamp": ts.timestamp(),
+                    "timestamp": ts.timestamp() + 0.5,
+                    "trace_id": "5b8efff798038103d269b633813fc60c",
+                    "span_id": "eee19b7ec3c1b176",
+                    "op": "some op",
+                    "description": "some description",
+                    "data": {"foo": "bar"},
+                }
+            ),
+            content_type="application/json",
+        )
+    )
+
     relay.send_envelope(project_id, envelope)
 
     assert mini_sentry.captured_outcomes.get(timeout=5).get("outcomes") == [
@@ -215,7 +234,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             "org_id": 1,
             "outcome": 1,
             "project_id": 42,
-            "quantity": 1,
+            "quantity": 2,
             "reason": "Sampled:0",
             "timestamp": time_within_delta(),
         },
@@ -232,7 +251,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             },
             "timestamp": time_within_delta(),
             "type": "c",
-            "value": 1.0,
+            "value": 2.0,
             "width": 1,
         },
         {
@@ -240,7 +259,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             "name": "c:spans/usage@none",
             "timestamp": time_within_delta(),
             "type": "c",
-            "value": 1.0,
+            "value": 2.0,
             "width": 1,
         },
     ]
