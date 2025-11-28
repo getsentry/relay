@@ -12,7 +12,9 @@ use uuid::Uuid;
 
 use crate::envelope::WithHeader;
 use crate::processing::trace_metrics::{Error, Result};
-use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes};
+use crate::processing::utils::store::{
+    AttributeMeta, Context, extract_client_sample_rate, extract_meta_attributes,
+};
 use crate::processing::{Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
@@ -30,16 +32,6 @@ macro_rules! required {
             }
         }
     }};
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Context {
-    /// Received time.
-    pub received_at: DateTime<Utc>,
-    /// Item scoping.
-    pub scoping: Scoping,
-    /// Item retention.
-    pub retention: Retention,
 }
 
 pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTraceItem> {
@@ -105,14 +97,6 @@ fn extract_numeric_value(value: Value) -> Result<f64> {
         Value::U64(v) => Ok(v as f64),
         _ => Err(Error::Invalid(DiscardReason::InvalidTraceMetric)),
     }
-}
-
-fn extract_client_sample_rate(attributes: &Attributes) -> Option<f64> {
-    attributes
-        .get_value(CLIENT_SAMPLE_RATE)
-        .and_then(|value| value.as_f64())
-        .filter(|v| *v > 0.0)
-        .filter(|v| *v <= 1.0)
 }
 
 fn attributes(
