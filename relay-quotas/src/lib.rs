@@ -23,6 +23,10 @@ mod global;
 pub use self::global::{GlobalLimiter, GlobalRateLimiter};
 
 #[cfg(feature = "redis")]
+mod cache;
+#[cfg(feature = "redis")]
 mod redis;
 #[cfg(feature = "redis")]
 pub use self::redis::*;
+#[cfg(feature = "redis")]
+mod statsd;

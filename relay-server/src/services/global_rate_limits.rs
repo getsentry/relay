@@ -12,7 +12,6 @@ use relay_system::{
 /// should be rate limited based on the current usage.
 pub struct CheckRateLimited {
     pub global_quotas: Vec<OwnedRedisQuota>,
-    pub quantity: usize,
 }
 
 /// Interface for global rate limiting operations.
@@ -53,7 +52,6 @@ impl GlobalLimiter for GlobalRateLimitsServiceHandle {
     async fn check_global_rate_limits<'a>(
         &self,
         global_quotas: &'a [RedisQuota<'a>],
-        quantity: usize,
     ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
         // We build the owned quotas to send over to the service.
         let owned_global_quotas = global_quotas
@@ -65,7 +63,6 @@ impl GlobalLimiter for GlobalRateLimitsServiceHandle {
             .tx
             .send(CheckRateLimited {
                 global_quotas: owned_global_quotas,
-                quantity,
             })
             .await
             .map_err(|_| RateLimitingError::UnreachableGlobalRateLimits)??;
@@ -152,7 +149,7 @@ impl GlobalRateLimitsService {
             .collect::<Vec<_>>();
 
         limiter
-            .filter_rate_limited(client, &quotas, check_rate_limited.quantity)
+            .filter_rate_limited(client, &quotas)
             .await
             .map(|q| q.into_iter().map(|q| q.build_owned()).collect::<Vec<_>>())
     }
@@ -206,9 +203,13 @@ mod tests {
         }
     }
 
-    fn build_redis_quota<'a>(quota: &'a Quota, scoping: &'a Scoping) -> RedisQuota<'a> {
+    fn build_redis_quota<'a>(
+        quota: &'a Quota,
+        quantity: usize,
+        scoping: &'a Scoping,
+    ) -> RedisQuota<'a> {
         let scoping = scoping.item(DataCategory::MetricBucket);
-        RedisQuota::new(quota, scoping, UnixTimestamp::now()).unwrap()
+        RedisQuota::new(quota, quantity, scoping, UnixTimestamp::now()).unwrap()
     }
 
     #[tokio::test]
@@ -229,13 +230,13 @@ mod tests {
         let quota3 = build_quota(10, 200);
         let quantity = 175;
 
-        let redis_quota_2 = build_redis_quota(&quota2, &scoping);
+        let redis_quota_2 = build_redis_quota(&quota2, quantity, &scoping);
         let redis_quotas = [
-            build_redis_quota(&quota1, &scoping),
+            build_redis_quota(&quota1, quantity, &scoping),
             // We add a duplicated quota, to make sure the reverse mapping works.
             redis_quota_2.clone(),
             redis_quota_2,
-            build_redis_quota(&quota3, &scoping),
+            build_redis_quota(&quota3, quantity, &scoping),
         ]
         .iter()
         .map(|q| q.build_owned())
@@ -243,7 +244,6 @@ mod tests {
 
         let check_rate_limited = CheckRateLimited {
             global_quotas: redis_quotas,
-            quantity,
         };
 
         let rate_limited_quotas = tx.send(check_rate_limited).await.unwrap().unwrap();
