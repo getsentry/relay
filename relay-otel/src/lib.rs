@@ -60,6 +60,7 @@ pub fn otel_value_to_attribute(otel_value: OtelValue) -> Option<Attribute> {
                 })
                 .collect();
 
+            // TODO: convert to array here to support arrays for otlp
             let json = serde_json::to_string(&safe_values).ok()?;
             (AttributeType::String, Value::String(json))
         }
