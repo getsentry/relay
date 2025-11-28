@@ -1,5 +1,6 @@
 use crate::processing::Managed;
 use crate::processing::logs::{Error, Result, SerializedLogs};
+use crate::statsd::RelayCounters;
 
 /// Validates that there is only a single log container processed at a time.
 ///
@@ -17,4 +18,18 @@ pub fn container(logs: &Managed<SerializedLogs>) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Validate that the envelope has no trace context header.
+///
+/// For now, this only emits a metric so we can verify that logs envelopes do not
+/// contain a trace context.
+pub fn dsc(logs: &Managed<SerializedLogs>) {
+    relay_statsd::metric!(
+        counter(RelayCounters::EnvelopeWithLogs) += 1,
+        dsc = match logs.headers.dsc() {
+            Some(_) => "yes",
+            None => "no",
+        }
+    )
 }

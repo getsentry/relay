@@ -138,6 +138,7 @@ impl processing::Processor for LogsProcessor {
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
         validate::container(&logs).reject(&logs)?;
+        validate::dsc(&logs);
 
         // Fast filters, which do not need expanded logs.
         filter::feature_flag(ctx).reject(&logs)?;

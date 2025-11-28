@@ -10,7 +10,9 @@ use sentry_protos::snuba::v1::{AnyValue, TraceItem, any_value};
 use crate::envelope::ContentType;
 use crate::managed::{Counted, Managed, Quantities, Rejected};
 use crate::processing::Retention;
-use crate::processing::spans::{Error, IndexedSpan, Result, ValidatedSpanAttachment};
+use crate::processing::spans::{
+    Error, ExpandedAttachment, ExpandedSpan, IndexedSpan, IndexedSpanOnly, Result,
+};
 use crate::processing::utils::store::{
     self, AttributeMeta, extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
 };
@@ -42,9 +44,8 @@ pub struct Context {
 }
 
 /// Converts a processed [`SpanV2`] into a [Kafka](crate::services::store::Store) compatible format.
-pub fn convert(span: IndexedSpan, ctx: &Context) -> Result<Box<StoreSpanV2>> {
-    // TODO: We are not doing anything with the attachment here.
-    let mut span = required!(span.0.span.value);
+pub fn convert(span: IndexedSpanOnly, ctx: &Context) -> Result<Box<StoreSpanV2>> {
+    let mut span = required!(span.0.value);
 
     let routing_key = span.trace_id.value().map(|v| *v.deref());
 
@@ -68,14 +69,15 @@ fn inject_server_sample_rate(span: &mut SpanV2, server_sample_rate: Option<f64>)
     attributes.insert("sentry.server_sample_rate", server_sample_rate.to_f64());
 }
 
-fn convert_attachment(
-    attachment: Managed<ValidatedSpanAttachment>,
+/// Converts an expanded attachment to a storable unit.
+pub fn convert_attachment(
+    attachment: Managed<ExpandedAttachment>,
     retention: Retention,
 ) -> Result<Managed<StoreAttachment>, Rejected<()>> {
     let scoping = attachment.scoping();
     let received_at = attachment.received_at();
     attachment.try_map(|attachment, _record_keeper| {
-        let ValidatedSpanAttachment { meta, body } = attachment;
+        let ExpandedAttachment { meta, body } = attachment;
         let ctx = store::Context {
             received_at,
             scoping,

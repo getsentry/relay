@@ -147,10 +147,7 @@ def test_vercel_logs_json_array(
     outcomes_consumer = outcomes_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:ourlogs-ingestion",
-        "organizations:relay-vercel-log-drain-endpoint",
-    ]
+    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
 
     relay = relay(relay_with_processing())
 
@@ -197,10 +194,7 @@ def test_vercel_logs_ndjson(
     outcomes_consumer = outcomes_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:ourlogs-ingestion",
-        "organizations:relay-vercel-log-drain-endpoint",
-    ]
+    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
 
     relay = relay(relay_with_processing())
 

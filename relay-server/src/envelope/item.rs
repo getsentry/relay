@@ -131,7 +131,7 @@ impl Item {
             ItemType::Nel => smallvec![],
             ItemType::UnrealReport => smallvec![(DataCategory::Error, item_count)],
             ItemType::Attachment => smallvec![
-                (DataCategory::Attachment, self.len().max(1)),
+                (DataCategory::Attachment, self.attachment_body_size()),
                 (DataCategory::AttachmentItem, item_count),
             ],
             ItemType::Session | ItemType::Sessions => {
@@ -458,6 +458,29 @@ impl Item {
     /// Sets the parent entity that this item is associated with.
     pub fn set_parent_id(&mut self, parent_id: ParentId) {
         self.headers.parent_id = Some(parent_id);
+    }
+
+    /// Returns `true` if this item is an attachment with AttachmentV2 content type.
+    pub fn is_attachment_v2(&self) -> bool {
+        self.ty() == &ItemType::Attachment
+            && self.content_type() == Some(&ContentType::AttachmentV2)
+    }
+
+    /// Returns the attachment payload size.
+    ///
+    /// For AttachmentV2, returns only the size of the actual payload, excluding the attachment meta.
+    /// For Attachment, returns the size of entire payload.
+    ///
+    /// **Note:** This relies on the `meta_length` header which might not be correct as such this
+    /// is best effort.
+    pub fn attachment_body_size(&self) -> usize {
+        if self.is_attachment_v2() {
+            self.len()
+                .saturating_sub(self.meta_length().unwrap_or(0) as usize)
+        } else {
+            self.len()
+        }
+        .max(1)
     }
 
     /// Returns the specified header value, if present.

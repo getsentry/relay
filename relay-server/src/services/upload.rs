@@ -157,7 +157,7 @@ impl UploadService {
             // We might want to have a less aggressive mechanism in the future.
             relay_statsd::metric!(
                 counter(RelayCounters::AttachmentUpload) += 1,
-                result = "load-shed",
+                result = "load_shed",
                 type = message.ty(),
             );
             if let Upload::Envelope(envelope) = message {
@@ -166,7 +166,6 @@ impl UploadService {
             }
             return;
         }
-
         let inner = self.inner.clone();
         self.pending_requests
             .push(async move { inner.handle_message(message).await }.boxed());
