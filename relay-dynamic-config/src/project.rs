@@ -19,6 +19,22 @@ use crate::metrics::{
 use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
+/// PlayStation-specific configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PlaystationConfig {
+    /// Whether to store the prosperodump as an attachment after processing.
+    /// When false, the prosperodump is still used for symbolication but not stored.
+    #[serde(default)]
+    pub store_prosperodump: bool,
+}
+
+impl PlaystationConfig {
+    fn is_empty(&self) -> bool {
+        !self.store_prosperodump
+    }
+}
+
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -96,6 +112,9 @@ pub struct ProjectConfig {
     /// Configuration for metrics.
     #[serde(default, skip_serializing_if = "skip_metrics")]
     pub metrics: ErrorBoundary<Metrics>,
+    /// PlayStation-specific configuration.
+    #[serde(default, skip_serializing_if = "PlaystationConfig::is_empty")]
+    pub playstation_config: PlaystationConfig,
 }
 
 impl ProjectConfig {
@@ -160,6 +179,7 @@ impl Default for ProjectConfig {
             tx_name_ready: false,
             span_description_rules: None,
             metrics: Default::default(),
+            playstation_config: PlaystationConfig::default(),
         }
     }
 }
