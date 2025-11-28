@@ -1,11 +1,10 @@
 //! Transforms Heroku Logplex syslog messages to Sentry Logs.
 
-use chrono::Utc;
+use chrono::{DateTime, FixedOffset, Utc};
 use relay_conventions::ORIGIN;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, Timestamp};
 use relay_protocol::Annotated;
-use rsyslog::parser::{DateTime, Skip};
-use rsyslog::{Message, Originator, ParseMsg, ParsePart};
+use syslog_loose::{ProcId, Protocol, SyslogFacility, SyslogSeverity, Variant};
 
 /// Header names for Heroku Logplex integration.
 ///
@@ -53,108 +52,98 @@ impl HerokuHeader {
     }
 }
 
-/// Parsed message body from a Logplex syslog message.
-///
-/// This struct stores the raw message body along with any logfmt key-value pairs
-/// that were parsed from it, using Sentry's message parameterization conventions.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LogplexMsgBody<'a> {
-    /// The raw message body.
-    pub msg: &'a str,
-    /// The parameterized template string (if logfmt pairs were found).
-    /// Example: `"source={source} sample#db_size={sample#db_size}"`
-    pub template: Option<String>,
-    /// The parsed logfmt parameters as (key, value) pairs.
-    /// Keys are the original logfmt keys, values are the parsed values.
-    pub parameters: Vec<(&'a str, &'a str)>,
-}
-
-impl<'a> ParseMsg<'a> for LogplexMsgBody<'a> {
-    fn parse(msg: &'a str, _: &Originator) -> Result<(&'a str, Self), rsyslog::Error<'a>> {
-        let mut template_parts = Vec::new();
-        let mut parameters = Vec::new();
-
-        for pair in msg.split_whitespace() {
-            if let Some((key, value)) = pair.split_once('=')
-                && !key.is_empty()
-            {
-                template_parts.push(format!("{key}={{{key}}}"));
-                parameters.push((key, value));
-            }
-        }
-
-        Ok((
-            "",
-            LogplexMsgBody {
-                msg,
-                template: (!parameters.is_empty()).then_some(template_parts.join(" ")),
-                parameters,
-            },
-        ))
-    }
-}
-
-/// A required timestamp that errors during parsing if missing.
-///
-/// Unlike `Option<DateTime>`, this type rejects the syslog nil value "-"
-/// and requires a valid RFC3339 timestamp.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequiredDateTime(pub DateTime);
-
-impl<'a> ParsePart<'a> for RequiredDateTime {
-    fn parse(part: &'a str) -> Result<(&'a str, Self), rsyslog::Error<'a>> {
-        let (rem, timestamp) = <Option<DateTime>>::parse(part)?;
-        match timestamp {
-            Some(dt) => Ok((rem, RequiredDateTime(dt))),
-            None => Err(rsyslog::Error::Custom("timestamp is required".to_owned())),
-        }
-    }
-}
-
-impl From<RequiredDateTime> for Timestamp {
-    fn from(value: RequiredDateTime) -> Self {
-        Timestamp(value.0.with_timezone(&Utc))
-    }
-}
-
 /// A parsed Logplex syslog message.
 ///
-/// This type uses rsyslog's generic Message type with:
-/// - `RequiredDateTime` for the timestamp (must be present, not "-")
-/// - `Skip` for the structured data (which Logplex omits per their docs)
-/// - `LogplexMsgBody<'a>` for the message body (with logfmt parsing)
-pub type LogplexMessage<'a> = Message<'a, RequiredDateTime, Skip, LogplexMsgBody<'a>>;
-
-/// Parse a Logplex-framed syslog message.
-///
-/// Logplex uses octet counting framing (RFC 6587 Section 3.4.1) where messages
-/// are prefixed with their length: `<length> <syslog_message>`. The rsyslog parser
-/// handles this by skipping any content before the first `<` when parsing the
-/// priority field.
-pub fn parse_logplex(msg: &str) -> Result<LogplexMessage<'_>, rsyslog::Error<'_>> {
-    LogplexMessage::parse(msg)
+/// This struct holds the parsed RFC5424 syslog fields from Heroku Logplex.
+#[derive(Debug)]
+pub struct LogplexMessage {
+    /// Syslog facility.
+    pub facility: Option<SyslogFacility>,
+    /// Syslog severity.
+    pub severity: Option<SyslogSeverity>,
+    /// Syslog protocol version.
+    pub protocol: Protocol,
+    /// Message timestamp (required for Logplex messages).
+    pub timestamp: DateTime<FixedOffset>,
+    /// Hostname from the syslog message.
+    pub hostname: Option<String>,
+    /// Application name from the syslog message.
+    pub app_name: Option<String>,
+    /// Process ID from the syslog message.
+    pub proc_id: Option<ProcId<String>>,
+    /// Message ID from the syslog message.
+    pub msg_id: Option<String>,
+    /// The message body.
+    pub msg: String,
 }
 
-/// Maps syslog severity (0-7) to Sentry log level.
-///
-/// Mapping follows [OpenTelemetry syslog semantic conventions](https://opentelemetry.io/docs/specs/otel/logs/data-model-appendix/#appendix-b-severitynumber-example-mappings)
-fn map_syslog_severity_to_level(severity: u8) -> OurLogLevel {
-    match severity {
-        0 => OurLogLevel::Fatal, // Emergency
-        1 => OurLogLevel::Fatal, // Alert
-        2 => OurLogLevel::Fatal, // Critical
-        3 => OurLogLevel::Error, // Error
-        4 => OurLogLevel::Warn,  // Warning
-        5 => OurLogLevel::Info,  // Notice
-        6 => OurLogLevel::Info,  // Informational
-        7 => OurLogLevel::Debug, // Debug
-        _ => OurLogLevel::Info,
+/// Error type for Logplex parsing failures.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseError(&'static str);
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
+}
+
+impl std::error::Error for ParseError {}
+
+/// Strip the octet counting frame from a syslog message.
+///
+/// Logplex uses octet counting framing (RFC 6587 Section 3.4.1) where messages
+/// are prefixed with their length: `<length> <syslog_message>`.
+/// This function returns the syslog message without the length prefix.
+fn strip_octet_frame(msg: &str) -> Option<&str> {
+    msg.find('<').map(|i| &msg[i..])
+}
+
+/// Parse a Heroku Logplex syslog message.
+///
+/// Logplex uses octet counting framing (RFC 6587 Section 3.4.1) where messages
+/// are prefixed with their length: `<length> <syslog_message>`.
+///
+/// # Message Format
+///
+/// Heroku Logplex always sends RFC5424 format messages. Note that Logplex omits the
+/// STRUCTURED-DATA field, sending messages like:
+/// `<PRI>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID MSG`
+///
+/// The parser uses `syslog_loose` which may not fully parse all fields due to
+/// the non-standard format. Missing fields will be None.
+///
+/// Example input: `83 <40>1 2012-11-30T06:45:29+00:00 host app web.3 - Hello`
+pub fn parse_logplex(msg: &str) -> Result<LogplexMessage, ParseError> {
+    // Strip octet counting frame (e.g., "83 <40>..." -> "<40>...")
+    let syslog_msg =
+        strip_octet_frame(msg).ok_or(ParseError("invalid syslog format: missing priority"))?;
+
+    let parsed = syslog_loose::parse_message(syslog_msg, Variant::Either);
+
+    // Timestamp is required - Logplex messages should always have timestamps
+    let timestamp = parsed
+        .timestamp
+        .ok_or(ParseError("timestamp is required"))?;
+
+    Ok(LogplexMessage {
+        facility: parsed.facility,
+        severity: parsed.severity,
+        protocol: parsed.protocol,
+        timestamp,
+        hostname: parsed.hostname.map(|s| s.to_owned()),
+        app_name: parsed.appname.map(|s| s.to_owned()),
+        proc_id: parsed.procid.map(|p| match p {
+            ProcId::PID(pid) => ProcId::PID(pid),
+            ProcId::Name(name) => ProcId::Name(name.to_owned()),
+        }),
+        msg_id: parsed.msgid.map(|s| s.to_owned()),
+        msg: parsed.msg.to_owned(),
+    })
 }
 
 /// Converts a parsed Logplex message to a Sentry log.
 pub fn logplex_message_to_sentry_log(
-    logplex_message: LogplexMessage<'_>,
+    logplex_message: LogplexMessage,
     frame_id: Option<&str>,
     drain_token: Option<&str>,
     user_agent: Option<&str>,
@@ -162,21 +151,14 @@ pub fn logplex_message_to_sentry_log(
     let LogplexMessage {
         facility,
         severity,
-        version,
+        protocol,
         timestamp,
         hostname,
         app_name,
         proc_id,
         msg_id,
         msg,
-        structured_data: _,
     } = logplex_message;
-
-    let LogplexMsgBody {
-        msg,
-        template,
-        parameters,
-    } = msg;
 
     let mut attributes = Attributes::default();
 
@@ -197,31 +179,101 @@ pub fn logplex_message_to_sentry_log(
 
     add_attribute!(ORIGIN, "auto.log_drain.heroku");
 
+    // Convert facility enum to numeric code for syslog attribute
+    let facility_code: i64 = match facility {
+        Some(SyslogFacility::LOG_KERN) => 0,
+        Some(SyslogFacility::LOG_USER) => 1,
+        Some(SyslogFacility::LOG_MAIL) => 2,
+        Some(SyslogFacility::LOG_DAEMON) => 3,
+        Some(SyslogFacility::LOG_AUTH) => 4,
+        Some(SyslogFacility::LOG_SYSLOG) => 5,
+        Some(SyslogFacility::LOG_LPR) => 6,
+        Some(SyslogFacility::LOG_NEWS) => 7,
+        Some(SyslogFacility::LOG_UUCP) => 8,
+        Some(SyslogFacility::LOG_CRON) => 9,
+        Some(SyslogFacility::LOG_AUTHPRIV) => 10,
+        Some(SyslogFacility::LOG_FTP) => 11,
+        Some(SyslogFacility::LOG_NTP) => 12,
+        Some(SyslogFacility::LOG_AUDIT) => 13,
+        Some(SyslogFacility::LOG_ALERT) => 14,
+        Some(SyslogFacility::LOG_CLOCKD) => 15,
+        Some(SyslogFacility::LOG_LOCAL0) => 16,
+        Some(SyslogFacility::LOG_LOCAL1) => 17,
+        Some(SyslogFacility::LOG_LOCAL2) => 18,
+        Some(SyslogFacility::LOG_LOCAL3) => 19,
+        Some(SyslogFacility::LOG_LOCAL4) => 20,
+        Some(SyslogFacility::LOG_LOCAL5) => 21,
+        Some(SyslogFacility::LOG_LOCAL6) => 22,
+        Some(SyslogFacility::LOG_LOCAL7) => 23,
+        None => 1, // Default to LOG_USER
+    };
+
+    // Convert protocol to version number
+    let version: i64 = match protocol {
+        Protocol::RFC5424(v) => v.into(),
+        Protocol::RFC3164 => 0,
+    };
+
+    // Convert severity enum to Sentry log level
+    // Mapping follows OpenTelemetry syslog semantic conventions:
+    // https://opentelemetry.io/docs/specs/otel/logs/data-model-appendix/#appendix-b-severitynumber-example-mappings
+    let level = match severity {
+        Some(SyslogSeverity::SEV_EMERG) => OurLogLevel::Fatal, // Emergency
+        Some(SyslogSeverity::SEV_ALERT) => OurLogLevel::Fatal, // Alert
+        Some(SyslogSeverity::SEV_CRIT) => OurLogLevel::Fatal,  // Critical
+        Some(SyslogSeverity::SEV_ERR) => OurLogLevel::Error,   // Error
+        Some(SyslogSeverity::SEV_WARNING) => OurLogLevel::Warn, // Warning
+        Some(SyslogSeverity::SEV_NOTICE) => OurLogLevel::Info, // Notice
+        Some(SyslogSeverity::SEV_INFO) => OurLogLevel::Info,   // Informational
+        Some(SyslogSeverity::SEV_DEBUG) => OurLogLevel::Debug, // Debug
+        None => OurLogLevel::Info,                             // Default to INFO
+    };
+
+    // Parse logfmt key-value pairs from message body for message parameterization
+    let mut template_parts = Vec::new();
+    let mut parameters = Vec::new();
+    for pair in msg.split_whitespace() {
+        if let Some((key, value)) = pair.split_once('=')
+            && !key.is_empty()
+        {
+            template_parts.push(format!("{key}={{{key}}}"));
+            parameters.push((key, value));
+        }
+    }
+    let template = (!parameters.is_empty()).then_some(template_parts.join(" "));
+
+    // Convert procid to string
+    let proc_id_str: Option<String> = match proc_id {
+        Some(ProcId::PID(pid)) => Some(pid.to_string()),
+        Some(ProcId::Name(name)) => Some(name),
+        None => None,
+    };
+
     // Add syslog fields following OpenTelemetry syslog semantic conventions
     // See: https://opentelemetry.io/docs/specs/otel/logs/data-model-appendix/#rfc5424-syslog
-    add_attribute!("syslog.facility", facility as i64);
-    add_attribute!("syslog.version", version as i64);
-    add_optional_attribute!("syslog.procid", proc_id);
-    add_optional_attribute!("syslog.msgid", msg_id);
-    add_optional_attribute!("resource.host.name", hostname);
-    add_optional_attribute!("resource.service.name", app_name);
+    add_attribute!("syslog.facility", facility_code);
+    add_attribute!("syslog.version", version);
+    add_optional_attribute!("syslog.procid", proc_id_str.as_deref());
+    add_optional_attribute!("syslog.msgid", msg_id.as_deref());
+    add_optional_attribute!("resource.host.name", hostname.as_deref());
+    add_optional_attribute!("resource.service.name", app_name.as_deref());
 
     // Add Heroku Logplex specific fields from log drain
     add_optional_attribute!("heroku.logplex.frame_id", frame_id);
     add_optional_attribute!("heroku.logplex.drain_token", drain_token);
     add_optional_attribute!("heroku.logplex.version", user_agent);
 
-    // Add pre-parsed logfmt parameters from the message body
-    add_optional_attribute!("sentry.message.template", template);
+    // Add logfmt parameters from the message body
+    add_optional_attribute!("sentry.message.template", template.as_deref());
     for (key, value) in parameters {
         let param_key = format!("sentry.message.parameter.{key}");
         add_attribute!(param_key, value);
     }
 
     OurLog {
-        timestamp: Annotated::new(timestamp.into()),
-        level: Annotated::new(map_syslog_severity_to_level(severity)),
-        body: Annotated::new(msg.to_owned()),
+        timestamp: Annotated::new(Timestamp(timestamp.with_timezone(&Utc))),
+        level: Annotated::new(level),
+        body: Annotated::new(msg),
         attributes: Annotated::new(attributes),
         ..Default::default()
     }
@@ -231,19 +283,24 @@ pub fn logplex_message_to_sentry_log(
 mod tests {
     use super::*;
     use relay_protocol::SerializableAnnotated;
+
     #[test]
     fn test_parse_logplex_basic_state_change() {
         let input =
             "83 <40>1 2012-11-30T06:45:29+00:00 host app web.3 - State changed from starting to up";
         let msg = parse_logplex(input).unwrap();
         insta::assert_debug_snapshot!(msg, @r#"
-        Message {
-            facility: 5,
-            severity: 0,
-            version: 1,
-            timestamp: RequiredDateTime(
-                2012-11-30T06:45:29+00:00,
+        LogplexMessage {
+            facility: Some(
+                LOG_SYSLOG,
             ),
+            severity: Some(
+                SEV_EMERG,
+            ),
+            protocol: RFC5424(
+                1,
+            ),
+            timestamp: 2012-11-30T06:45:29+00:00,
             hostname: Some(
                 "host",
             ),
@@ -251,15 +308,12 @@ mod tests {
                 "app",
             ),
             proc_id: Some(
+                Name(
                 "web.3",
+                ),
             ),
             msg_id: None,
-            structured_data: Skip,
-            msg: LogplexMsgBody {
                 msg: "State changed from starting to up",
-                template: None,
-                parameters: [],
-            },
         }
         "#);
     }
@@ -269,13 +323,17 @@ mod tests {
         let input = "119 <40>1 2012-11-30T06:45:26+00:00 host app web.3 - Starting process with command `bundle exec rackup config.ru -p 24405`";
         let msg = parse_logplex(input).unwrap();
         insta::assert_debug_snapshot!(msg, @r#"
-        Message {
-            facility: 5,
-            severity: 0,
-            version: 1,
-            timestamp: RequiredDateTime(
-                2012-11-30T06:45:26+00:00,
+        LogplexMessage {
+            facility: Some(
+                LOG_SYSLOG,
             ),
+            severity: Some(
+                SEV_EMERG,
+            ),
+            protocol: RFC5424(
+                1,
+            ),
+            timestamp: 2012-11-30T06:45:26+00:00,
             hostname: Some(
                 "host",
             ),
@@ -283,15 +341,12 @@ mod tests {
                 "app",
             ),
             proc_id: Some(
+                Name(
                 "web.3",
+                ),
             ),
             msg_id: None,
-            structured_data: Skip,
-            msg: LogplexMsgBody {
                 msg: "Starting process with command `bundle exec rackup config.ru -p 24405`",
-                template: None,
-                parameters: [],
-            },
         }
         "#);
     }
@@ -301,13 +356,17 @@ mod tests {
         let input = "156 <40>1 2012-11-30T06:45:26+00:00 heroku web.3 d.73ea7440-270a-435a-a0ea-adf50b4e5f5a - Starting process with command `bundle exec rackup config.ru -p 24405`";
         let msg = parse_logplex(input).unwrap();
         insta::assert_debug_snapshot!(msg, @r#"
-        Message {
-            facility: 5,
-            severity: 0,
-            version: 1,
-            timestamp: RequiredDateTime(
-                2012-11-30T06:45:26+00:00,
+        LogplexMessage {
+            facility: Some(
+                LOG_SYSLOG,
             ),
+            severity: Some(
+                SEV_EMERG,
+            ),
+            protocol: RFC5424(
+                1,
+            ),
+            timestamp: 2012-11-30T06:45:26+00:00,
             hostname: Some(
                 "heroku",
             ),
@@ -315,15 +374,12 @@ mod tests {
                 "web.3",
             ),
             proc_id: Some(
+                Name(
                 "d.73ea7440-270a-435a-a0ea-adf50b4e5f5a",
+                ),
             ),
             msg_id: None,
-            structured_data: Skip,
-            msg: LogplexMsgBody {
                 msg: "Starting process with command `bundle exec rackup config.ru -p 24405`",
-                template: None,
-                parameters: [],
-            },
         }
         "#);
     }
@@ -333,13 +389,17 @@ mod tests {
         let input = "530 <134>1 2016-02-13T21:20:25+00:00 host app heroku-postgres - source=DATABASE sample#current_transaction=15365 sample#db_size=4347350804bytes sample#tables=43 sample#active-connections=6 sample#waiting-connections=0 sample#index-cache-hit-rate=0.97116 sample#table-cache-hit-rate=0.73958 sample#load-avg-1m=0.05 sample#load-avg-5m=0.03 sample#load-avg-15m=0.035 sample#read-iops=0 sample#write-iops=112.73 sample#memory-total=15405636.0kB sample#memory-free=214004kB sample#memory-cached=14392920.0kB sample#memory-postgres=181644kB";
         let msg = parse_logplex(input).unwrap();
         insta::assert_debug_snapshot!(msg, @r#"
-        Message {
-            facility: 16,
-            severity: 6,
-            version: 1,
-            timestamp: RequiredDateTime(
-                2016-02-13T21:20:25+00:00,
+        LogplexMessage {
+            facility: Some(
+                LOG_LOCAL0,
             ),
+            severity: Some(
+                SEV_INFO,
+            ),
+            protocol: RFC5424(
+                1,
+            ),
+            timestamp: 2016-02-13T21:20:25+00:00,
             hostname: Some(
                 "host",
             ),
@@ -347,86 +407,12 @@ mod tests {
                 "app",
             ),
             proc_id: Some(
+                Name(
                 "heroku-postgres",
+                ),
             ),
             msg_id: None,
-            structured_data: Skip,
-            msg: LogplexMsgBody {
                 msg: "source=DATABASE sample#current_transaction=15365 sample#db_size=4347350804bytes sample#tables=43 sample#active-connections=6 sample#waiting-connections=0 sample#index-cache-hit-rate=0.97116 sample#table-cache-hit-rate=0.73958 sample#load-avg-1m=0.05 sample#load-avg-5m=0.03 sample#load-avg-15m=0.035 sample#read-iops=0 sample#write-iops=112.73 sample#memory-total=15405636.0kB sample#memory-free=214004kB sample#memory-cached=14392920.0kB sample#memory-postgres=181644kB",
-                template: Some(
-                    "source={source} sample#current_transaction={sample#current_transaction} sample#db_size={sample#db_size} sample#tables={sample#tables} sample#active-connections={sample#active-connections} sample#waiting-connections={sample#waiting-connections} sample#index-cache-hit-rate={sample#index-cache-hit-rate} sample#table-cache-hit-rate={sample#table-cache-hit-rate} sample#load-avg-1m={sample#load-avg-1m} sample#load-avg-5m={sample#load-avg-5m} sample#load-avg-15m={sample#load-avg-15m} sample#read-iops={sample#read-iops} sample#write-iops={sample#write-iops} sample#memory-total={sample#memory-total} sample#memory-free={sample#memory-free} sample#memory-cached={sample#memory-cached} sample#memory-postgres={sample#memory-postgres}",
-                ),
-                parameters: [
-                    (
-                        "source",
-                        "DATABASE",
-                    ),
-                    (
-                        "sample#current_transaction",
-                        "15365",
-                    ),
-                    (
-                        "sample#db_size",
-                        "4347350804bytes",
-                    ),
-                    (
-                        "sample#tables",
-                        "43",
-                    ),
-                    (
-                        "sample#active-connections",
-                        "6",
-                    ),
-                    (
-                        "sample#waiting-connections",
-                        "0",
-                    ),
-                    (
-                        "sample#index-cache-hit-rate",
-                        "0.97116",
-                    ),
-                    (
-                        "sample#table-cache-hit-rate",
-                        "0.73958",
-                    ),
-                    (
-                        "sample#load-avg-1m",
-                        "0.05",
-                    ),
-                    (
-                        "sample#load-avg-5m",
-                        "0.03",
-                    ),
-                    (
-                        "sample#load-avg-15m",
-                        "0.035",
-                    ),
-                    (
-                        "sample#read-iops",
-                        "0",
-                    ),
-                    (
-                        "sample#write-iops",
-                        "112.73",
-                    ),
-                    (
-                        "sample#memory-total",
-                        "15405636.0kB",
-                    ),
-                    (
-                        "sample#memory-free",
-                        "214004kB",
-                    ),
-                    (
-                        "sample#memory-cached",
-                        "14392920.0kB",
-                    ),
-                    (
-                        "sample#memory-postgres",
-                        "181644kB",
-                    ),
-                ],
-            },
         }
         "#);
     }
