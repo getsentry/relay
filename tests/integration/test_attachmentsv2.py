@@ -96,7 +96,7 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
         # lower since only the body is already counted at this point and not the meta.
         pytest.param({"span_id": "ABCDFDEAD5F74052"}, 36, id="invalid_span_id"),
         pytest.param({"meta_length": None}, 227, id="missing_meta_length"),
-        pytest.param({"meta_length": 999}, 227, id="meta_length_exceeds_payload"),
+        pytest.param({"meta_length": 999}, 1, id="meta_length_exceeds_payload"),
     ],
 )
 def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
@@ -411,7 +411,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
             "outcome": 1,
             "reason": "Sampled:0",
             "category": DataCategory.ATTACHMENT.value,
-            "quantity": len(combined_payload),
+            "quantity": len(body),
         },
         {
             "timestamp": time_within_delta(),
@@ -695,7 +695,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             ],
             {
                 # Attachments don't make it through
-                (DataCategory.ATTACHMENT.value, 2): 446,
+                (DataCategory.ATTACHMENT.value, 2): 64,
                 (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
             },
             id="attachment_quota_exceeded",
@@ -721,7 +721,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 # Nothing makes it through
                 (DataCategory.SPAN.value, 2): 1,
                 (DataCategory.SPAN_INDEXED.value, 2): 1,
-                (DataCategory.ATTACHMENT.value, 2): 446,
+                (DataCategory.ATTACHMENT.value, 2): 64,
                 (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
             },
             id="both_quotas_exceeded",

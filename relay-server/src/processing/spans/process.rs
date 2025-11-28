@@ -10,7 +10,7 @@ use relay_event_schema::protocol::{AttachmentV2Meta, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
-use crate::managed::{Managed, RecordKeeper};
+use crate::managed::Managed;
 use crate::processing::Context;
 use crate::processing::spans::{
     self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SampledSpans,
@@ -56,7 +56,7 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
 
         let mut stand_alone_attachments: Vec<ExpandedAttachment> = Vec::new();
         for attachment in spans.inner.attachments {
-            match parse_and_validate_span_attachment(&attachment, records) {
+            match parse_and_validate_span_attachment(&attachment) {
                 Ok((None, attachment)) => {
                     stand_alone_attachments.push(attachment);
                 }
@@ -120,10 +120,7 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
 }
 
 /// Parses and validates a span attachment, converting it into a structured type.
-fn parse_and_validate_span_attachment(
-    item: &Item,
-    records: &mut RecordKeeper<'_>,
-) -> Result<(Option<SpanId>, ExpandedAttachment)> {
+fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, ExpandedAttachment)> {
     let associated_span_id = match item.parent_id() {
         Some(ParentId::SpanId(span_id)) => *span_id,
         None => {
@@ -151,12 +148,6 @@ fn parse_and_validate_span_attachment(
         relay_log::debug!("failed to parse span attachment: {err}");
         Error::Invalid(DiscardReason::InvalidJson)
     })?;
-
-    // From here on only count the body of the attachment v2 not its meta data.
-    records.modify_by(
-        relay_quotas::DataCategory::Attachment,
-        -(item.meta_length().unwrap_or(0) as isize),
-    );
 
     Ok((
         associated_span_id,

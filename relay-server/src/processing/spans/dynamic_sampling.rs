@@ -313,7 +313,10 @@ impl Counted for UnsampledSpans {
         if !self.attachments.is_empty() {
             quantities.push((
                 DataCategory::Attachment,
-                self.attachments.iter().map(Item::len).sum(),
+                self.attachments
+                    .iter()
+                    .map(Item::attachment_body_size)
+                    .sum(),
             ));
             quantities.push((DataCategory::AttachmentItem, self.attachments.len()));
         }

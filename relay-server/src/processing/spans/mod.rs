@@ -215,10 +215,7 @@ impl Forward for SpanOutput {
             }
         };
 
-        spans.try_map(|spans, r| {
-            // SpanOutput counts only attachment body (excluding meta), while the serialized item
-            // body includes both, causing an expected discrepancy.
-            r.lenient(relay_quotas::DataCategory::Attachment);
+        spans.try_map(|spans, _| {
             spans
                 .serialize_envelope()
                 .map_err(drop)
@@ -300,7 +297,11 @@ impl Counted for SerializedSpans {
             + outcome_count(&self.legacy)
             + outcome_count(&self.integrations)) as usize;
 
-        let attachment_quantity = self.attachments.iter().map(Item::len).sum();
+        let attachment_quantity = self
+            .attachments
+            .iter()
+            .map(Item::attachment_body_size)
+            .sum();
 
         let mut quantities = smallvec::smallvec![];
 
