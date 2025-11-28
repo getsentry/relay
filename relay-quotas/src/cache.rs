@@ -106,13 +106,15 @@ where
                 } => (*consumed, *local_use),
             };
 
+            let total_local_use = local_use + quantity;
+
             // Can short circuit here already if consumed is already above or equal to the limit.
             //
             // We could also propagate this out to the caller as a definitive negative in the
             // future. This does require some additional consideration how this would interact with
             // refunds, which can reduce the consumed.
             if consumed >= quota.limit {
-                return CachedQuota::NeedsSync;
+                return CachedQuota::new_needs_sync(total_local_use);
             }
 
             let remaining = quota.limit.saturating_sub(consumed).max(0);
@@ -120,11 +122,8 @@ where
                 * PERCENT_PRECISION
                 / self.max_over_spend_divisor.get();
 
-            let total_local_use = local_use + quantity;
             match total_local_use > max_allowed_spend {
-                true => NonZeroUsize::new(total_local_use)
-                    .map(CachedQuota::NeedsSyncWithQuantity)
-                    .unwrap_or(CachedQuota::NeedsSync),
+                true => CachedQuota::new_needs_sync(total_local_use),
                 false => CachedQuota::Active {
                     consumed,
                     local_use: total_local_use,
@@ -247,6 +246,13 @@ enum CachedQuota {
 }
 
 impl CachedQuota {
+    /// Creates [`Self::NeedsSync`] for a quantity of `0`, [`Self::NeedsSyncWithQuantity`] otherwise.
+    pub fn new_needs_sync(quantity: usize) -> Self {
+        NonZeroUsize::new(quantity)
+            .map(Self::NeedsSyncWithQuantity)
+            .unwrap_or(Self::NeedsSync)
+    }
+
     /// Returns `true` when the entry is no longer needed in the cache.
     ///
     /// An item is no longer needed when it is expired or a sync is required.
@@ -318,6 +324,31 @@ mod tests {
         assert!(matches!(cache.check_quota(q1, 20), Action::Accept));
         // Too much, check the entire local usage.
         assert!(matches!(cache.check_quota(q1, 1), Action::Check(21)));
+    }
+
+    #[test]
+    fn test_opp_quota_limit_change() {
+        let cache = OpportunisticQuotaCache::new(0.1);
+
+        let q1 = Quota {
+            limit: 100,
+            key: "k1",
+            expiry: UnixTimestamp::from_secs(300),
+        };
+        let q2 = Quota {
+            limit: 50,
+            key: "k1",
+            expiry: UnixTimestamp::from_secs(300),
+        };
+
+        // Sync internal state to an initial value.
+        cache.update_quota(q1, 50);
+
+        // On q1 there is enough remaining.
+        assert!(matches!(cache.check_quota(q1, 3), Action::Accept));
+        // On q2 there is not enough remaining, the over accepted amount needs to be checked
+        // though.
+        assert!(matches!(cache.check_quota(q2, 1), Action::Check(4)));
     }
 
     /// Tests that even a cache with `0%` over spend acts correctly.
