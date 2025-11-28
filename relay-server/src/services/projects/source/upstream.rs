@@ -296,7 +296,7 @@ impl UpstreamProjectSourceService {
                         counter(RelayCounters::ProjectUpstreamCompleted) += 1,
                         result = "timeout",
                     );
-                    relay_log::error!(
+                    relay_log::warn!(
                         errors = channel.errors,
                         pending = channel.pending,
                         tags.did_error = channel.errors > 0,
