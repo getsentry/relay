@@ -30,7 +30,7 @@ where
     ///
     /// The cache is keyed with the individual quota, the value is the last known, currently
     /// consumed amount of the quota.
-    cache: papaya::HashMap<T, CachedQuota>,
+    cache: papaya::HashMap<T, CachedQuota, ahash::RandomState>,
 
     /// The amount the cache is allowed to opportunistically over-accept based on the remaining
     /// quota.
@@ -62,7 +62,14 @@ where
             NonZeroUsize::new(max_over_spend_divisor as usize).unwrap_or(NonZeroUsize::MIN);
 
         Self {
-            cache: Default::default(),
+            cache: papaya::HashMap::builder()
+                // `ahash` for a faster hasher
+                .hasher(ahash::RandomState::new())
+                // Blocking resizes help with iteration, which we need for cleanups,
+                // as well as our workload seems to match the description of `Blocking`
+                // very well.
+                .resize_mode(papaya::ResizeMode::Blocking)
+                .build(),
             max_over_spend_divisor,
             vacuum_interval: Duration::from_secs(30),
             // Initialize to 0, this means a vacuum run immediately, but it is going to be fast
