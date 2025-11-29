@@ -188,9 +188,44 @@ mod tests {
                     ]
                 }
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(should_filter(&event.0.unwrap(), &config) == Err(FilterStatKey::ErrorMessage));
+    }
+
+    #[test]
+    fn test_filter_hydration_errors_generic() {
+        let errors = [
+            "Hydration failed because the initial UI does not match what was rendered on the server",
+            "There was an error while hydrating",
+            "Text content does not match server-rendered HTML",
+            "Hydration failed",
+        ];
+
+        let config = ErrorMessagesFilterConfig {
+            patterns: TypedPatterns::from([
+                "*Hydration failed*".to_owned(),
+                "*error while hydrating*".to_owned(),
+                "*does not match server-rendered HTML*".to_owned(),
+            ]),
+        };
+
+        for error in errors {
+            let event = Event {
+                logentry: Annotated::new(LogEntry {
+                    formatted: Annotated::new(error.to_owned().into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+
+            assert_eq!(
+                should_filter(&event, &config),
+                Err(FilterStatKey::ErrorMessage),
+                "Event not filtered for error: '{error}'"
+            );
+        }
     }
 
     #[test]

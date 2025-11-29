@@ -21,6 +21,9 @@ pub enum FilterStatKey {
     /// Filtered by browser extension.
     BrowserExtensions,
 
+    /// Filtered by common error messages.
+    CommonErrors,
+
     /// Filtered by legacy browser version.
     LegacyBrowsers,
 
@@ -66,6 +69,7 @@ impl FilterStatKey {
             FilterStatKey::ReleaseVersion => "release-version",
             FilterStatKey::ErrorMessage => "error-message",
             FilterStatKey::BrowserExtensions => "browser-extensions",
+            FilterStatKey::CommonErrors => "common-errors",
             FilterStatKey::LegacyBrowsers => "legacy-browsers",
             FilterStatKey::Localhost => "localhost",
             FilterStatKey::WebCrawlers => "web-crawlers",
@@ -95,6 +99,7 @@ impl<'a> TryFrom<&'a str> for FilterStatKey {
             "release-version" => FilterStatKey::ReleaseVersion,
             "error-message" => FilterStatKey::ErrorMessage,
             "browser-extensions" => FilterStatKey::BrowserExtensions,
+            "common-errors" => FilterStatKey::CommonErrors,
             "legacy-browsers" => FilterStatKey::LegacyBrowsers,
             "localhost" => FilterStatKey::Localhost,
             "web-crawlers" => FilterStatKey::WebCrawlers,

@@ -509,6 +509,10 @@ pub struct ProjectFiltersConfig {
     #[serde(default, skip_serializing_if = "FilterConfig::is_empty")]
     pub browser_extensions: FilterConfig,
 
+    /// Configuration for the Common Errors filter.
+    #[serde(default, skip_serializing_if = "FilterConfig::is_empty")]
+    pub common_errors: FilterConfig,
+
     /// Configuration for the Client IPs filter.
     #[serde(default, skip_serializing_if = "ClientIpsFilterConfig::is_empty")]
     pub client_ips: ClientIpsFilterConfig,
@@ -553,6 +557,7 @@ impl ProjectFiltersConfig {
     /// Returns true if there are no filter configurations declared.
     pub fn is_empty(&self) -> bool {
         self.browser_extensions.is_empty()
+            && self.common_errors.is_empty()
             && self.client_ips.is_empty()
             && self.web_crawlers.is_empty()
             && self.csp.is_empty()
@@ -575,6 +580,9 @@ mod tests {
         insta::assert_debug_snapshot!(filters_config, @r###"
         ProjectFiltersConfig {
             browser_extensions: FilterConfig {
+                is_enabled: false,
+            },
+            common_errors: FilterConfig {
                 is_enabled: false,
             },
             client_ips: ClientIpsFilterConfig {
@@ -624,6 +632,7 @@ mod tests {
     fn test_serialize_full() {
         let filters_config = ProjectFiltersConfig {
             browser_extensions: FilterConfig { is_enabled: true },
+            common_errors: FilterConfig { is_enabled: true },
             client_ips: ClientIpsFilterConfig {
                 blacklisted_ips: vec!["127.0.0.1".to_owned()],
             },
@@ -663,6 +672,9 @@ mod tests {
         insta::assert_json_snapshot!(filters_config, @r###"
         {
           "browserExtensions": {
+            "isEnabled": true
+          },
+          "commonErrors": {
             "isEnabled": true
           },
           "clientIps": {

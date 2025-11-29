@@ -4,6 +4,7 @@
 //!
 //! * localhost (filter events originating from the local machine)
 //! * browser extensions (filter events caused by known problematic browser extensions)
+//! * common errors (filter events with commonly occurring error messages like network errors)
 //! * web crawlers (filter events sent by user agents known to be web crawlers)
 //! * legacy browsers (filter events originating from legacy browsers, can be configured)
 #![warn(missing_docs)]
@@ -18,6 +19,7 @@ use relay_protocol::Getter;
 
 pub mod browser_extensions;
 pub mod client_ips;
+pub mod common_errors;
 pub mod csp;
 pub mod error_messages;
 pub mod generic;
@@ -67,6 +69,7 @@ pub fn should_filter<F: Filterable + Getter>(
     error_messages::should_filter(item, &config.error_messages)?;
     localhost::should_filter(item, &config.localhost)?;
     browser_extensions::should_filter(item, &config.browser_extensions)?;
+    common_errors::should_filter(item, &config.common_errors)?;
     legacy_browsers::should_filter(item, &config.legacy_browsers)?;
     web_crawlers::should_filter(item, &config.web_crawlers)?;
     transaction_name::should_filter(item, &config.ignore_transactions)?;
