@@ -434,7 +434,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
         for (quota, state) in tracked_quotas.iter().zip(result.0) {
             if state.is_rejected {
                 // We can calculate the error by comparing how much the cache added to the
-                // quantity with remaining limit of the consumption and limit.
+                // quantity with remaining difference of the consumption and limit.
                 let cache_error = {
                     let remaining = quota.limit().saturating_sub(state.consumed).max(0) as usize;
                     let cache_quantity = quota.quantity.saturating_sub(quantity);
@@ -1456,7 +1456,6 @@ mod tests {
         );
     }
 
-    /// Cached rate limiting with
     #[tokio::test]
     async fn test_quota_with_cache_slightly_over_account() {
         let quotas = &[Quota {

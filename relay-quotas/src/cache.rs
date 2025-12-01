@@ -42,7 +42,7 @@ where
 
     /// Minimum interval between vacuum of the cache.
     vacuum_interval: Duration,
-    /// Last time then vacuum was ran.
+    /// Unix timestamp of the next time the vacuum should be run.
     ///
     /// This is a [`UnixTimestamp`] stored in an atomic.
     next_vacuum: AtomicU64,
@@ -113,11 +113,10 @@ where
             // We could also propagate this out to the caller as a definitive negative in the
             // future. This does require some additional consideration how this would interact with
             // refunds, which can reduce the consumed.
-            if consumed >= quota.limit {
+            let Some(remaining) = quota.limit.checked_sub(consumed) else {
                 return CachedQuota::new_needs_sync(total_local_use);
-            }
+            };
 
-            let remaining = quota.limit.saturating_sub(consumed).max(0);
             let max_allowed_spend = usize::try_from(remaining).unwrap_or(usize::MAX)
                 * PERCENT_PRECISION
                 / self.max_over_spend_divisor.get();
