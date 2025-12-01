@@ -33,7 +33,8 @@ pub struct Context {
 
 /// Converts a processed [`SpanV2`] into a [Kafka](crate::services::store::Store) compatible format.
 pub fn convert(span: IndexedSpan, ctx: &Context) -> Result<Box<StoreSpanV2>> {
-    let mut span = required!(span.0.value);
+    // TODO: We are not doing anything with the attachment here.
+    let mut span = required!(span.0.span.value);
 
     let routing_key = span.trace_id.value().map(|v| *v.deref());
 

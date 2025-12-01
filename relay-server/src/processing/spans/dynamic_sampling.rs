@@ -91,6 +91,7 @@ pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
     };
 
     for span in &spans.spans {
+        let span = &span.span;
         let trace_id = get_value!(span.trace_id);
 
         if trace_id != Some(&dsc.trace_id) {
@@ -293,6 +294,7 @@ struct UnsampledSpans {
     spans: Vec<Item>,
     legacy: Vec<Item>,
     integrations: Vec<Item>,
+    attachments: Vec<Item>,
 }
 
 impl From<SerializedSpans> for UnsampledSpans {
@@ -302,12 +304,14 @@ impl From<SerializedSpans> for UnsampledSpans {
             spans,
             legacy,
             integrations,
+            attachments,
         } = value;
 
         Self {
             spans,
             legacy,
             integrations,
+            attachments,
         }
     }
 }
@@ -318,6 +322,22 @@ impl Counted for UnsampledSpans {
             + outcome_count(&self.legacy)
             + outcome_count(&self.integrations)) as usize;
 
-        smallvec::smallvec![(DataCategory::SpanIndexed, quantity)]
+        let mut quantities = smallvec::smallvec![];
+
+        if quantity > 0 {
+            quantities.push((DataCategory::SpanIndexed, quantity));
+        }
+        if !self.attachments.is_empty() {
+            quantities.push((
+                DataCategory::Attachment,
+                self.attachments
+                    .iter()
+                    .map(Item::attachment_body_size)
+                    .sum(),
+            ));
+            quantities.push((DataCategory::AttachmentItem, self.attachments.len()));
+        }
+
+        quantities
     }
 }
