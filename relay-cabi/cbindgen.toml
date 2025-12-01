@@ -7,7 +7,7 @@ tab_width = 2
 language = "C"
 
 [parse]
-include = ["relay-base-schema"]
+include = ["relay-base-schema", "relay-quotas"]
 parse_deps = true
 
 [enum]
@@ -18,5 +18,6 @@ prefix_with_name = true
 include = ["SpanStatus"]
 
 [export.rename]
+"CategoryUnit" = "RelayCategoryUnit"
 "DataCategory" = "RelayDataCategory"
 "SpanStatus" = "RelaySpanStatus"
