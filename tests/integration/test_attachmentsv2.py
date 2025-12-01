@@ -310,10 +310,11 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
         }
     ]
 
-    for _ in range(2):
-        attachment = next(i for i in forwarded.items if i.type == "attachment")
-        assert attachment.payload.bytes == combined_payload
-        assert attachment.headers == {
+    attachment_items = [item for item in forwarded.items if item.type == "attachment"]
+    assert len(attachment_items) == 2
+    for item in attachment_items:
+        assert item.payload.bytes == combined_payload
+        assert item.headers == {
             "type": "attachment",
             "length": 214,
             "content_type": "application/vnd.sentry.attachment.v2",
