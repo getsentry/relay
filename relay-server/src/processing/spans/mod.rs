@@ -313,7 +313,7 @@ impl Counted for SerializedSpans {
         if attachment_quantity > 0 {
             quantities.push((DataCategory::Attachment, attachment_quantity));
         }
-        if self.attachments.len() > 0 {
+        if !self.attachments.is_empty() {
             quantities.push((DataCategory::AttachmentItem, self.attachments.len()));
         }
 
