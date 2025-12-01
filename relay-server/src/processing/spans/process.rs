@@ -46,7 +46,7 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
                 // want to drop one of the offending spans.
                 if let Some(old_span) = span_id_mapping.insert(id, ExpandedSpan::new(span)) {
                     relay_log::debug!("span id collision");
-                    records.reject_err(Error::Invalid(DiscardReason::InvalidSpan), old_span);
+                    records.reject_err(Error::Invalid(DiscardReason::Duplicate), old_span);
                 }
             } else {
                 relay_log::debug!("failed to extract span id from span");
@@ -62,15 +62,7 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
                 }
                 Ok((Some(span_id), attachment)) => {
                     if let Some(entry) = span_id_mapping.get_mut(&span_id) {
-                        if entry.attachment.is_some() {
-                            relay_log::debug!("multiple attachments associated with a span");
-                            records.reject_err(
-                                Error::Invalid(DiscardReason::InvalidSpanAttachment),
-                                attachment,
-                            );
-                        } else {
-                            entry.attachment = Some(attachment);
-                        }
+                        entry.attachments.push(attachment);
                     } else {
                         relay_log::debug!("span attachment invalid associated span id");
                         records.reject_err(
