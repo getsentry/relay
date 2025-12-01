@@ -176,18 +176,47 @@ impl ItemScoping {
 ///
 /// This enum specifies how quantities for different data categories are measured,
 /// which affects how quota limits are interpreted and enforced.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// Note: There is no `Unknown` variant. For categories without a defined unit
+/// (e.g., `DataCategory::Unknown`), methods return `Option::None`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[repr(i8)]
 pub enum CategoryUnit {
     /// Counts the number of discrete items.
-    Count,
+    Count = 0,
     /// Counts the number of bytes across items.
-    Bytes,
+    Bytes = 1,
     /// Counts the accumulated time in milliseconds across items.
-    Milliseconds,
+    Milliseconds = 2,
 }
 
 impl CategoryUnit {
-    fn from(category: &DataCategory) -> Option<Self> {
+    /// Returns the canonical name of this category unit.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Count => "count",
+            Self::Bytes => "bytes",
+            Self::Milliseconds => "milliseconds",
+        }
+    }
+
+    /// Returns the category unit corresponding to the given name string.
+    ///
+    /// Returns `None` if the string doesn't match any known unit.
+    pub fn from_name(string: &str) -> Option<Self> {
+        match string {
+            "count" => Some(Self::Count),
+            "bytes" => Some(Self::Bytes),
+            "milliseconds" => Some(Self::Milliseconds),
+            _ => None,
+        }
+    }
+
+    /// Returns the `CategoryUnit` for the given `DataCategory`.
+    ///
+    /// Returns `None` for `DataCategory::Unknown`.
+    pub fn from_category(category: DataCategory) -> Option<Self> {
         match category {
             DataCategory::Default
             | DataCategory::Error
@@ -220,13 +249,29 @@ impl CategoryUnit {
             | DataCategory::InstallableBuild
             | DataCategory::TraceMetric
             | DataCategory::SeerUser => Some(Self::Count),
+
             DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
+
             DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
                 Some(Self::Milliseconds)
             }
 
             DataCategory::Unknown => None,
         }
+    }
+}
+
+impl fmt::Display for CategoryUnit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+impl FromStr for CategoryUnit {
+    type Err = ();
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Self::from_name(string).ok_or(())
     }
 }
 
@@ -497,7 +542,11 @@ impl Quota {
             return false;
         }
 
-        let mut units = self.categories.iter().filter_map(CategoryUnit::from);
+        let mut units = self
+            .categories
+            .iter()
+            .copied()
+            .filter_map(CategoryUnit::from_category);
 
         match units.next() {
             // There are only unknown categories, which is always invalid
