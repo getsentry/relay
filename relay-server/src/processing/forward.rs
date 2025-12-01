@@ -2,10 +2,52 @@ use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 #[cfg(feature = "processing")]
 use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
+#[cfg(feature = "processing")]
+use relay_system::{Addr, FromMessage};
 
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
 use crate::services::projects::project::ProjectInfo;
+#[cfg(feature = "processing")]
+use crate::services::store::Store;
+#[cfg(feature = "processing")]
+use crate::services::upload::Upload;
+
+/// A transparent handle that dispatches between store-like services.
+#[cfg(feature = "processing")]
+#[derive(Debug, Clone, Copy)]
+pub struct StoreHandle<'a> {
+    store: &'a Addr<Store>,
+    upload: Option<&'a Addr<Upload>>,
+}
+
+#[cfg(feature = "processing")]
+impl<'a> StoreHandle<'a> {
+    pub fn new(store: &'a Addr<Store>, upload: Option<&'a Addr<Upload>>) -> Self {
+        Self { store, upload }
+    }
+
+    /// Sends a message to the [`Store`] service.
+    pub fn store<M>(&self, message: M)
+    where
+        Store: FromMessage<M>,
+    {
+        self.store.send(message);
+    }
+
+    /// Sends a message to the [`Upload`] service.
+    #[expect(unused)]
+    pub fn upload<M>(&self, message: M)
+    where
+        Upload: FromMessage<M>,
+    {
+        if let Some(upload) = self.upload {
+            upload.send(message);
+        } else {
+            relay_log::error!("Upload service not configured. Dropping message.");
+        }
+    }
+}
 
 /// A processor output which can be forwarded to a different destination.
 pub trait Forward {
@@ -21,11 +63,8 @@ pub trait Forward {
     ///
     /// This function must only be called when Relay is configured to be in processing mode.
     #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        s: &relay_system::Addr<crate::services::store::Store>,
-        ctx: ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>>;
+    fn forward_store(self, s: StoreHandle<'_>, ctx: ForwardContext<'_>)
+    -> Result<(), Rejected<()>>;
 }
 
 /// Context passed to [`Forward`].
@@ -80,11 +119,7 @@ impl Forward for Nothing {
     }
 
     #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        _: &relay_system::Addr<crate::services::store::Store>,
-        _: ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>> {
+    fn forward_store(self, _: StoreHandle<'_>, _: ForwardContext<'_>) -> Result<(), Rejected<()>> {
         match self {}
     }
 }

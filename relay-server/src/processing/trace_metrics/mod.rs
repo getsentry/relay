@@ -161,7 +161,7 @@ impl Forward for TraceMetricOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(metrics) = self;
@@ -174,7 +174,7 @@ impl Forward for TraceMetricOutput {
 
         for metric in metrics.split(|metrics| metrics.metrics) {
             if let Ok(metric) = metric.try_map(|metric, _| store::convert(metric, &ctx)) {
-                s.send(metric);
+                s.store(metric);
             }
         }
 

@@ -175,7 +175,7 @@ impl Forward for LogOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(logs) = self;
@@ -188,7 +188,7 @@ impl Forward for LogOutput {
 
         for log in logs.split(|logs| logs.logs) {
             if let Ok(log) = log.try_map(|log, _| store::convert(log, &ctx)) {
-                s.send(log)
+                s.store(log)
             };
         }
 

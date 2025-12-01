@@ -19,6 +19,10 @@ use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
+#[cfg(feature = "processing")]
+use crate::processing;
+#[cfg(feature = "processing")]
+use crate::processing::forward::StoreHandle;
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
@@ -592,13 +596,13 @@ impl Forward for TransactionOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: StoreHandle<'_>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         // TODO: split out spans into a separate message.
         let envelope: ManagedEnvelope = self.serialize_envelope(ctx)?.into();
 
-        s.send(StoreEnvelope {
+        s.store(StoreEnvelope {
             envelope: envelope.into_processed(),
         });
 
