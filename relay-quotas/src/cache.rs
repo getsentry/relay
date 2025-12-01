@@ -35,9 +35,9 @@ where
     /// The amount the cache is allowed to opportunistically over-accept based on the remaining
     /// quota.
     ///
-    /// For example: Setting this to `10` means, if there is 100 quota remaining, the cache will
-    /// opportunistically accept the next 10 items, if there is a quota of 90 remaining, the cache
-    /// will accept the next 9 items.
+    /// For example: Setting this to `10 * PERCENT_PRECISION` means, if there is 100 quota remaining,
+    /// the cache will opportunistically accept the next 10 items, if there is a quota of 90 remaining,
+    /// the cache will accept the next 9 items.
     max_over_spend_divisor: NonZeroUsize,
 
     /// Minimum interval between vacuum of the cache.
