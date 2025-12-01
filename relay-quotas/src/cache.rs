@@ -326,29 +326,30 @@ mod tests {
         assert!(matches!(cache.check_quota(q1, 1), Action::Check(21)));
     }
 
+    /// The test asserts the cache behaves correctly if the limit of a quota changes.
     #[test]
     fn test_opp_quota_limit_change() {
         let cache = OpportunisticQuotaCache::new(0.1);
 
-        let q1 = Quota {
+        let limit_100 = Quota {
             limit: 100,
             key: "k1",
             expiry: UnixTimestamp::from_secs(300),
         };
-        let q2 = Quota {
+        let limit_50 = Quota {
+            // Same quota, but a different limit.
             limit: 50,
-            key: "k1",
-            expiry: UnixTimestamp::from_secs(300),
+            ..limit_100
         };
 
         // Sync internal state to an initial value.
-        cache.update_quota(q1, 50);
+        cache.update_quota(limit_100, 50);
 
-        // On q1 there is enough remaining.
-        assert!(matches!(cache.check_quota(q1, 3), Action::Accept));
-        // On q2 there is not enough remaining, the over accepted amount needs to be checked
-        // though.
-        assert!(matches!(cache.check_quota(q2, 1), Action::Check(4)));
+        // With limit 100 there is enough (5) in the cache remaining.
+        assert!(matches!(cache.check_quota(limit_100, 3), Action::Accept));
+        // With limit 50 there is not enough in the cache remaining,  the over accepted amount needs
+        // to be checked though.
+        assert!(matches!(cache.check_quota(limit_50, 1), Action::Check(4)));
     }
 
     /// Tests that even a cache with `0%` over spend acts correctly.
