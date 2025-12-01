@@ -323,7 +323,6 @@ impl Counted for SerializedSpans {
 
 struct ExpandedSpansQuantities {
     span: usize,
-    span_indexed: usize,
     attachment: usize,
     attachment_item: usize,
 }
@@ -380,7 +379,7 @@ impl<C> ExpandedSpans<C> {
         Ok(Envelope::from_parts(self.headers, Items::from_vec(items)))
     }
 
-    fn quantities_helper(&self) -> ExpandedSpansQuantities {
+    fn span_quantities(&self) -> ExpandedSpansQuantities {
         let quantity = self.spans.len();
         let mut attachment_quantity = 0;
         let mut attachment_count = 0;
@@ -398,7 +397,6 @@ impl<C> ExpandedSpans<C> {
 
         ExpandedSpansQuantities {
             span: quantity,
-            span_indexed: quantity,
             attachment: attachment_quantity,
             attachment_item: attachment_count,
         }
@@ -477,18 +475,19 @@ impl Counted for ExpandedSpans<TotalAndIndexed> {
     fn quantities(&self) -> Quantities {
         let ExpandedSpansQuantities {
             span,
-            span_indexed,
             attachment,
             attachment_item,
-        } = self.quantities_helper();
+        } = self.span_quantities();
 
         let mut quantities = smallvec::smallvec![];
         if span > 0 {
             quantities.push((DataCategory::Span, span));
-            quantities.push((DataCategory::SpanIndexed, span_indexed));
+            quantities.push((DataCategory::SpanIndexed, span));
         }
         if attachment > 0 {
             quantities.push((DataCategory::Attachment, attachment));
+        }
+        if attachment_item > 0 {
             quantities.push((DataCategory::AttachmentItem, attachment_item));
         }
 
@@ -499,18 +498,19 @@ impl Counted for ExpandedSpans<TotalAndIndexed> {
 impl Counted for ExpandedSpans<Indexed> {
     fn quantities(&self) -> Quantities {
         let ExpandedSpansQuantities {
-            span: _,
-            span_indexed,
+            span,
             attachment,
             attachment_item,
-        } = self.quantities_helper();
+        } = self.span_quantities();
 
         let mut quantities = smallvec::smallvec![];
-        if span_indexed > 0 {
-            quantities.push((DataCategory::SpanIndexed, span_indexed));
+        if span > 0 {
+            quantities.push((DataCategory::SpanIndexed, span));
         }
         if attachment > 0 {
             quantities.push((DataCategory::Attachment, attachment));
+        }
+        if attachment_item > 0 {
             quantities.push((DataCategory::AttachmentItem, attachment_item));
         }
 
@@ -533,10 +533,9 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
 
         let ExpandedSpansQuantities {
             span,
-            span_indexed,
             attachment,
             attachment_item,
-        } = self.quantities_helper();
+        } = self.span_quantities();
 
         if span > 0 {
             let limits = rate_limiter
@@ -546,11 +545,10 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
                 // If there is a span quota reject all the spans and the associated attachments.
                 return Err(self.reject_err(Error::from(limits)));
             }
-        }
 
-        if span_indexed > 0 {
+            // TODO: always the same, so should
             let limits = rate_limiter
-                .try_consume(scoping.item(DataCategory::SpanIndexed), span_indexed)
+                .try_consume(scoping.item(DataCategory::SpanIndexed), span)
                 .await;
             if !limits.is_empty() {
                 // If there is a span quota reject all the spans and the associated attachments.
