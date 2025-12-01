@@ -226,7 +226,7 @@ impl Forward for SpanOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let spans = match self {
@@ -255,7 +255,7 @@ impl Forward for SpanOutput {
 
         for span in spans.split(|spans| spans.into_indexed_spans()) {
             if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
-                s.send(span)
+                s.store(span)
             };
         }
 

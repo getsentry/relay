@@ -112,13 +112,13 @@ impl Forward for CheckInsOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let envelope = self.serialize_envelope(ctx)?;
         let envelope = ManagedEnvelope::from(envelope).into_processed();
 
-        s.send(crate::services::store::StoreEnvelope { envelope });
+        s.store(crate::services::store::StoreEnvelope { envelope });
 
         Ok(())
     }

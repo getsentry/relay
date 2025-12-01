@@ -2305,6 +2305,9 @@ impl EnvelopeProcessorService {
         if self.inner.config.processing_enabled()
             && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
         {
+            use crate::processing::StoreHandle;
+
+            let upload = self.inner.addrs.upload.as_ref();
             match submit {
                 Submit::Envelope(envelope) => {
                     let envelope_has_attachments = envelope
@@ -2328,7 +2331,7 @@ impl EnvelopeProcessorService {
                     }
                 }
                 Submit::Output { output, ctx } => output
-                    .forward_store(store_forwarder, ctx)
+                    .forward_store(StoreHandle::new(store_forwarder, upload), ctx)
                     .unwrap_or_else(|err| err.into_inner()),
             }
             return;

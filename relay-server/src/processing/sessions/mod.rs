@@ -123,7 +123,7 @@ impl Forward for SessionsOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        _: &relay_system::Addr<crate::services::store::Store>,
+        _: processing::forward::StoreHandle<'_>,
         _: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let SessionsOutput(sessions) = self;
