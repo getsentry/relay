@@ -15,7 +15,7 @@ rename_variants = "ScreamingSnakeCase"
 prefix_with_name = true
 
 [export]
-include = ["SpanStatus"]
+include = ["CategoryUnit", "SpanStatus"]
 
 [export.rename]
 "CategoryUnit" = "RelayCategoryUnit"
