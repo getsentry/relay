@@ -175,7 +175,7 @@
 <a href=#175 id=175 data-nosnippet>175</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#176 id=176 data-nosnippet>176</a>    </span><span class="kw">fn </span>forward_store(
 <a href=#177 id=177 data-nosnippet>177</a>        <span class="self">self</span>,
-<a href=#178 id=178 data-nosnippet>178</a>        s: <span class="kw-2">&amp;</span>relay_system::Addr&lt;<span class="kw">crate</span>::services::store::Store&gt;,
+<a href=#178 id=178 data-nosnippet>178</a>        s: processing::StoreHandle&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#179 id=179 data-nosnippet>179</a>        ctx: processing::ForwardContext&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#180 id=180 data-nosnippet>180</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;()&gt;&gt; {
 <a href=#181 id=181 data-nosnippet>181</a>        <span class="kw">let </span><span class="self">Self</span>(logs) = <span class="self">self</span>;
@@ -188,7 +188,7 @@
 <a href=#188 id=188 data-nosnippet>188</a>
 <a href=#189 id=189 data-nosnippet>189</a>        <span class="kw">for </span>log <span class="kw">in </span>logs.split(|logs| logs.logs) {
 <a href=#190 id=190 data-nosnippet>190</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(log) = log.try_map(|log, <span class="kw">_</span>| store::convert(log, <span class="kw-2">&amp;</span>ctx)) {
-<a href=#191 id=191 data-nosnippet>191</a>                s.send(log)
+<a href=#191 id=191 data-nosnippet>191</a>                s.store(log)
 <a href=#192 id=192 data-nosnippet>192</a>            };
 <a href=#193 id=193 data-nosnippet>193</a>        }
 <a href=#194 id=194 data-nosnippet>194</a>
