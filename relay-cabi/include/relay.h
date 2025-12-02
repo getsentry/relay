@@ -301,6 +301,31 @@ enum RelayDataCategory {
 typedef int8_t RelayDataCategory;
 
 /**
+ * The unit in which a data category is measured.
+ *
+ * This enum specifies how quantities for different data categories are measured,
+ * which affects how quota limits are interpreted and enforced.
+ *
+ * Note: There is no `Unknown` variant. For categories without a defined unit
+ * (e.g., `DataCategory::Unknown`), methods return `Option::None`.
+ */
+enum RelayCategoryUnit {
+  /**
+   * Counts the number of discrete items.
+   */
+  RELAY_CATEGORY_UNIT_COUNT = 0,
+  /**
+   * Counts the number of bytes across items.
+   */
+  RELAY_CATEGORY_UNIT_BYTES = 1,
+  /**
+   * Counts the accumulated time in milliseconds across items.
+   */
+  RELAY_CATEGORY_UNIT_MILLISECONDS = 2,
+};
+typedef int8_t RelayCategoryUnit;
+
+/**
  * Represents all possible error codes.
  */
 enum RelayErrorCode {
@@ -344,31 +369,6 @@ enum GlobFlags {
   GLOB_FLAGS_ALLOW_NEWLINE = 8,
 };
 typedef uint32_t GlobFlags;
-
-/**
- * The unit in which a data category is measured.
- *
- * This enum specifies how quantities for different data categories are measured,
- * which affects how quota limits are interpreted and enforced.
- *
- * Note: There is no `Unknown` variant. For categories without a defined unit
- * (e.g., `DataCategory::Unknown`), methods return `Option::None`.
- */
-enum RelayCategoryUnit {
-  /**
-   * Counts the number of discrete items.
-   */
-  RELAY_CATEGORY_UNIT_COUNT = 0,
-  /**
-   * Counts the number of bytes across items.
-   */
-  RELAY_CATEGORY_UNIT_BYTES = 1,
-  /**
-   * Counts the accumulated time in milliseconds across items.
-   */
-  RELAY_CATEGORY_UNIT_MILLISECONDS = 2,
-};
-typedef int8_t RelayCategoryUnit;
 
 /**
  * Trace status.
@@ -669,10 +669,8 @@ RelayDataCategory relay_data_category_from_event_type(const struct RelayStr *eve
 
 /**
  * Returns the API name of the given `CategoryUnit`.
- *
- * If `unit` is `-1` (no unit), returns an empty string.
  */
-struct RelayStr relay_category_unit_name(int8_t unit);
+struct RelayStr relay_category_unit_name(RelayCategoryUnit unit);
 
 /**
  * Parses a `CategoryUnit` from its API name.
