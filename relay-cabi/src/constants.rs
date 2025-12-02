@@ -1,7 +1,6 @@
-pub use relay_base_schema::data_category::DataCategory;
+pub use relay_base_schema::data_category::{CategoryUnit, DataCategory};
 pub use relay_base_schema::events::EventType;
 pub use relay_base_schema::spans::SpanStatus;
-pub use relay_quotas::CategoryUnit;
 
 use crate::core::RelayStr;
 
@@ -37,17 +36,10 @@ pub unsafe extern "C" fn relay_data_category_from_event_type(
 const CATEGORY_UNIT_NONE: i8 = -1;
 
 /// Returns the API name of the given `CategoryUnit`.
-///
-/// If `unit` is `-1` (no unit), returns an empty string.
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_category_unit_name(unit: i8) -> RelayStr {
-    match unit {
-        0 => RelayStr::new("count"),
-        1 => RelayStr::new("bytes"),
-        2 => RelayStr::new("milliseconds"),
-        _ => RelayStr::new(""),
-    }
+pub unsafe extern "C" fn relay_category_unit_name(unit: CategoryUnit) -> RelayStr {
+    RelayStr::new(unit.name())
 }
 
 /// Parses a `CategoryUnit` from its API name.
@@ -70,7 +62,7 @@ pub unsafe extern "C" fn relay_category_unit_parse(name: *const RelayStr) -> i8 
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_data_category_unit(category: DataCategory) -> i8 {
-    match CategoryUnit::from_category(category) {
+    match CategoryUnit::from_category(&category) {
         Some(unit) => unit as i8,
         None => CATEGORY_UNIT_NONE,
     }
