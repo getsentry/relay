@@ -317,10 +317,10 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
     /// The opportunistic cache, opportunistically serves quotas from a local cache, reducing the
     /// load on Redis heavily.
     ///
-    /// Caching considers a percentage of the remaining quota to be available and periodically
+    /// Caching considers a ratio of the remaining quota to be available and periodically
     /// synchronizes with Redis.
-    pub fn cache(mut self, max_over_spend_percentage: Option<f32>) -> Self {
-        self.cache = max_over_spend_percentage
+    pub fn cache(mut self, max_over_spend_ratio: Option<f32>) -> Self {
+        self.cache = max_over_spend_ratio
             .map(OpportunisticQuotaCache::new)
             .map(Arc::new);
 

@@ -1195,7 +1195,7 @@ pub struct Processing {
     pub max_rate_limit: Option<u32>,
     /// Configures the quota cache ratio between `0.0` and `1.0`.
     ///
-    /// The quota cache, caches the specified percentage of remaining quota in memory to reduce the
+    /// The quota cache, caches the specified ratio of remaining quota in memory to reduce the
     /// amount of synchronizations required with Redis.
     ///
     /// The ratio is applied to the (per second) rate of the quota, not the total limit.

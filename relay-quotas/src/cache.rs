@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use relay_common::time::UnixTimestamp;
 
-/// A percentage is converted to a divisor to do integer arithmetic.
+/// A ratio is converted to a divisor to perform integer arithmetic, instead of floating point.
 ///
 /// This is done with the configured precision here.
-const PERCENT_PRECISION: usize = 10;
+const RATIO_PRECISION: usize = 10;
 
 /// A quota to be checked with the [`OpportunisticQuotaCache`].
 #[derive(Debug, Clone, Copy)]
@@ -57,9 +57,9 @@ where
     /// Creates a new [`Self`], with the configured maximum amount the cache accepts per quota
     /// until it requires synchronization.
     ///
-    /// The configured percentage must be in range 0..=1.
-    pub fn new(max_over_spend_percentage: f32) -> Self {
-        let max_over_spend_divisor = 1.0f32 / max_over_spend_percentage * PERCENT_PRECISION as f32;
+    /// The configured ratio must be in range `[0, 1]`.
+    pub fn new(max_over_spend_ratio: f32) -> Self {
+        let max_over_spend_divisor = 1.0f32 / max_over_spend_ratio * RATIO_PRECISION as f32;
         let max_over_spend_divisor =
             NonZeroUsize::new(max_over_spend_divisor as usize).unwrap_or(NonZeroUsize::MIN);
 
@@ -121,15 +121,15 @@ where
 
             let remaining = usize::try_from(quota.limit - consumed).unwrap_or(usize::MAX);
             let max_allowed_spend = remaining
-                // Normalize remaining with the window size, to apply the percentage/divisor to a
-                // rate instead of an absolute size.
+                // Normalize the remaining quota with the window size, to apply the ratio/divisor to the
+                // per second rate.
                 //
                 // This means we get a consistent behaviour for short (10s) quotas (e.g. abuse) as well
                 // as long (1h) quotas (e.g. spike protection) with a more predictable error.
                 / usize::try_from(quota.window).unwrap_or(1).max(1)
-                // Apply percent precision, which is already pre-multiplied into `max_over_spend_divisor`.
-                * PERCENT_PRECISION
-                // Apply the actual percentage with the pre-computed divisor.
+                // Apply ratio precision, which is already pre-multiplied into `max_over_spend_divisor`.
+                * RATIO_PRECISION
+                // Apply the actual ratio with the pre-computed divisor.
                 / self.max_over_spend_divisor.get();
 
             match total_local_use > max_allowed_spend {
