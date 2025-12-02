@@ -357,13 +357,13 @@
 <a href=#357 id=357 data-nosnippet>357</a>            <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Span);
 <a href=#358 id=358 data-nosnippet>358</a>            <span class="kw">let </span><span class="kw-2">mut </span>spans_without_attachments = Vec::new();
 <a href=#359 id=359 data-nosnippet>359</a>
-<a href=#360 id=360 data-nosnippet>360</a>            <span class="kw">for </span>span <span class="kw">in </span><span class="self">self</span>.spans {
-<a href=#361 id=361 data-nosnippet>361</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(attachment) = span.attachment {
-<a href=#362 id=362 data-nosnippet>362</a>                    <span class="kw">let </span>span_id = span.span.value().and_then(|s| s.span_id.value().copied());
+<a href=#360 id=360 data-nosnippet>360</a>            <span class="kw">for </span>ExpandedSpan { span, attachments } <span class="kw">in </span><span class="self">self</span>.spans {
+<a href=#361 id=361 data-nosnippet>361</a>                <span class="kw">for </span>attachment <span class="kw">in </span>attachments {
+<a href=#362 id=362 data-nosnippet>362</a>                    <span class="kw">let </span>span_id = span.value().and_then(|s| s.span_id.value().copied());
 <a href=#363 id=363 data-nosnippet>363</a>                    items.push(attachment_to_item(attachment, span_id)<span class="question-mark">?</span>);
 <a href=#364 id=364 data-nosnippet>364</a>                }
 <a href=#365 id=365 data-nosnippet>365</a>
-<a href=#366 id=366 data-nosnippet>366</a>                spans_without_attachments.push(span.span);
+<a href=#366 id=366 data-nosnippet>366</a>                spans_without_attachments.push(span);
 <a href=#367 id=367 data-nosnippet>367</a>            }
 <a href=#368 id=368 data-nosnippet>368</a>
 <a href=#369 id=369 data-nosnippet>369</a>            ItemContainer::from(spans_without_attachments)
@@ -385,7 +385,7 @@
 <a href=#385 id=385 data-nosnippet>385</a>        <span class="kw">let </span><span class="kw-2">mut </span>attachment_count = <span class="number">0</span>;
 <a href=#386 id=386 data-nosnippet>386</a>
 <a href=#387 id=387 data-nosnippet>387</a>        <span class="kw">for </span>span <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.spans {
-<a href=#388 id=388 data-nosnippet>388</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(attachment) = <span class="kw-2">&amp;</span>span.attachment {
+<a href=#388 id=388 data-nosnippet>388</a>            <span class="kw">for </span>attachment <span class="kw">in </span><span class="kw-2">&amp;</span>span.attachments {
 <a href=#389 id=389 data-nosnippet>389</a>                attachment_quantity += attachment.body.len();
 <a href=#390 id=390 data-nosnippet>390</a>                attachment_count += <span class="number">1</span>;
 <a href=#391 id=391 data-nosnippet>391</a>            }
@@ -546,164 +546,159 @@
 <a href=#546 id=546 data-nosnippet>546</a>                </span><span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.reject_err(Error::from(limits)));
 <a href=#547 id=547 data-nosnippet>547</a>            }
 <a href=#548 id=548 data-nosnippet>548</a>
-<a href=#549 id=549 data-nosnippet>549</a>            <span class="comment">// TODO: always the same, so should
-<a href=#550 id=550 data-nosnippet>550</a>            </span><span class="kw">let </span>limits = rate_limiter
-<a href=#551 id=551 data-nosnippet>551</a>                .try_consume(scoping.item(DataCategory::SpanIndexed), span)
-<a href=#552 id=552 data-nosnippet>552</a>                .<span class="kw">await</span>;
-<a href=#553 id=553 data-nosnippet>553</a>            <span class="kw">if </span>!limits.is_empty() {
-<a href=#554 id=554 data-nosnippet>554</a>                <span class="comment">// If there is a span quota reject all the spans and the associated attachments.
-<a href=#555 id=555 data-nosnippet>555</a>                </span><span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.reject_err(Error::from(limits)));
-<a href=#556 id=556 data-nosnippet>556</a>            }
-<a href=#557 id=557 data-nosnippet>557</a>        }
-<a href=#558 id=558 data-nosnippet>558</a>
-<a href=#559 id=559 data-nosnippet>559</a>        <span class="kw">if </span>attachment &gt; <span class="number">0 </span>{
-<a href=#560 id=560 data-nosnippet>560</a>            <span class="self">self</span>.enforce_attachment_limits(
-<a href=#561 id=561 data-nosnippet>561</a>                <span class="kw-2">&amp;mut </span>rate_limiter,
-<a href=#562 id=562 data-nosnippet>562</a>                scoping,
-<a href=#563 id=563 data-nosnippet>563</a>                DataCategory::Attachment,
-<a href=#564 id=564 data-nosnippet>564</a>                attachment,
-<a href=#565 id=565 data-nosnippet>565</a>            )
-<a href=#566 id=566 data-nosnippet>566</a>            .<span class="kw">await</span>;
-<a href=#567 id=567 data-nosnippet>567</a>        }
-<a href=#568 id=568 data-nosnippet>568</a>
-<a href=#569 id=569 data-nosnippet>569</a>        <span class="kw">if </span>attachment_item &gt; <span class="number">0 </span>{
-<a href=#570 id=570 data-nosnippet>570</a>            <span class="self">self</span>.enforce_attachment_limits(
-<a href=#571 id=571 data-nosnippet>571</a>                <span class="kw-2">&amp;mut </span>rate_limiter,
-<a href=#572 id=572 data-nosnippet>572</a>                scoping,
-<a href=#573 id=573 data-nosnippet>573</a>                DataCategory::AttachmentItem,
-<a href=#574 id=574 data-nosnippet>574</a>                attachment_item,
-<a href=#575 id=575 data-nosnippet>575</a>            )
-<a href=#576 id=576 data-nosnippet>576</a>            .<span class="kw">await</span>;
-<a href=#577 id=577 data-nosnippet>577</a>        }
-<a href=#578 id=578 data-nosnippet>578</a>
-<a href=#579 id=579 data-nosnippet>579</a>        <span class="prelude-val">Ok</span>(())
-<a href=#580 id=580 data-nosnippet>580</a>    }
-<a href=#581 id=581 data-nosnippet>581</a>}
-<a href=#582 id=582 data-nosnippet>582</a>
-<a href=#583 id=583 data-nosnippet>583</a><span class="kw">impl </span>Managed&lt;ExpandedSpans&lt;TotalAndIndexed&gt;&gt; {
-<a href=#584 id=584 data-nosnippet>584</a>    <span class="kw">async fn </span>enforce_attachment_limits&lt;T&gt;(
-<a href=#585 id=585 data-nosnippet>585</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#586 id=586 data-nosnippet>586</a>        rate_limiter: <span class="kw-2">&amp;mut </span>T,
-<a href=#587 id=587 data-nosnippet>587</a>        scoping: relay_quotas::Scoping,
-<a href=#588 id=588 data-nosnippet>588</a>        category: DataCategory,
-<a href=#589 id=589 data-nosnippet>589</a>        quantity: usize,
-<a href=#590 id=590 data-nosnippet>590</a>    ) <span class="kw">where
-<a href=#591 id=591 data-nosnippet>591</a>        </span>T: processing::RateLimiter,
-<a href=#592 id=592 data-nosnippet>592</a>    {
-<a href=#593 id=593 data-nosnippet>593</a>        <span class="kw">let </span>limits = rate_limiter
-<a href=#594 id=594 data-nosnippet>594</a>            .try_consume(scoping.item(category), quantity)
-<a href=#595 id=595 data-nosnippet>595</a>            .<span class="kw">await</span>;
-<a href=#596 id=596 data-nosnippet>596</a>
-<a href=#597 id=597 data-nosnippet>597</a>        <span class="kw">if </span>!limits.is_empty() {
-<a href=#598 id=598 data-nosnippet>598</a>            <span class="self">self</span>.modify(|this, record_keeper| {
-<a href=#599 id=599 data-nosnippet>599</a>                <span class="comment">// Reject both associated attachments and standalone.
-<a href=#600 id=600 data-nosnippet>600</a>                </span><span class="kw">for </span>span <span class="kw">in </span><span class="kw-2">&amp;mut </span>this.spans {
-<a href=#601 id=601 data-nosnippet>601</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(attachment) = span.attachment.take() {
-<a href=#602 id=602 data-nosnippet>602</a>                        record_keeper.reject_err(Error::from(limits.clone()), attachment);
-<a href=#603 id=603 data-nosnippet>603</a>                    }
-<a href=#604 id=604 data-nosnippet>604</a>                }
-<a href=#605 id=605 data-nosnippet>605</a>
-<a href=#606 id=606 data-nosnippet>606</a>                record_keeper.reject_err(
-<a href=#607 id=607 data-nosnippet>607</a>                    Error::from(limits),
-<a href=#608 id=608 data-nosnippet>608</a>                    std::mem::take(<span class="kw-2">&amp;mut </span>this.stand_alone_attachments),
-<a href=#609 id=609 data-nosnippet>609</a>                );
-<a href=#610 id=610 data-nosnippet>610</a>            });
-<a href=#611 id=611 data-nosnippet>611</a>        }
-<a href=#612 id=612 data-nosnippet>612</a>    }
-<a href=#613 id=613 data-nosnippet>613</a>}
-<a href=#614 id=614 data-nosnippet>614</a>
-<a href=#615 id=615 data-nosnippet>615</a><span class="doccomment">/// A Span which only represents the indexed category.
-<a href=#616 id=616 data-nosnippet>616</a></span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#617 id=617 data-nosnippet>617</a>#[derive(Debug)]
-<a href=#618 id=618 data-nosnippet>618</a></span><span class="kw">struct </span>IndexedSpan(ExpandedSpan);
-<a href=#619 id=619 data-nosnippet>619</a>
-<a href=#620 id=620 data-nosnippet>620</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#621 id=621 data-nosnippet>621</a></span><span class="kw">impl </span>Counted <span class="kw">for </span>IndexedSpan {
-<a href=#622 id=622 data-nosnippet>622</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
-<a href=#623 id=623 data-nosnippet>623</a>        <span class="kw">let </span><span class="kw-2">mut </span>quantities = <span class="macro">smallvec::smallvec!</span>[(DataCategory::SpanIndexed, <span class="number">1</span>)];
-<a href=#624 id=624 data-nosnippet>624</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(attachment) = <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.attachment {
-<a href=#625 id=625 data-nosnippet>625</a>            quantities.extend(attachment.quantities());
-<a href=#626 id=626 data-nosnippet>626</a>        }
-<a href=#627 id=627 data-nosnippet>627</a>        quantities
-<a href=#628 id=628 data-nosnippet>628</a>    }
-<a href=#629 id=629 data-nosnippet>629</a>}
-<a href=#630 id=630 data-nosnippet>630</a>
-<a href=#631 id=631 data-nosnippet>631</a><span class="doccomment">/// A validated and parsed span attachment.
-<a href=#632 id=632 data-nosnippet>632</a></span><span class="attr">#[derive(Debug)]
-<a href=#633 id=633 data-nosnippet>633</a></span><span class="kw">pub struct </span>ExpandedAttachment {
-<a href=#634 id=634 data-nosnippet>634</a>    <span class="doccomment">/// The parsed metadata from the attachment.
-<a href=#635 id=635 data-nosnippet>635</a>    </span><span class="kw">pub </span>meta: Annotated&lt;AttachmentV2Meta&gt;,
+<a href=#549 id=549 data-nosnippet>549</a>            <span class="kw">let </span>limits = rate_limiter
+<a href=#550 id=550 data-nosnippet>550</a>                .try_consume(scoping.item(DataCategory::SpanIndexed), span)
+<a href=#551 id=551 data-nosnippet>551</a>                .<span class="kw">await</span>;
+<a href=#552 id=552 data-nosnippet>552</a>            <span class="kw">if </span>!limits.is_empty() {
+<a href=#553 id=553 data-nosnippet>553</a>                <span class="comment">// If there is a span quota reject all the spans and the associated attachments.
+<a href=#554 id=554 data-nosnippet>554</a>                </span><span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.reject_err(Error::from(limits)));
+<a href=#555 id=555 data-nosnippet>555</a>            }
+<a href=#556 id=556 data-nosnippet>556</a>        }
+<a href=#557 id=557 data-nosnippet>557</a>
+<a href=#558 id=558 data-nosnippet>558</a>        <span class="kw">if </span>attachment &gt; <span class="number">0 </span>{
+<a href=#559 id=559 data-nosnippet>559</a>            <span class="self">self</span>.enforce_attachment_limits(
+<a href=#560 id=560 data-nosnippet>560</a>                <span class="kw-2">&amp;mut </span>rate_limiter,
+<a href=#561 id=561 data-nosnippet>561</a>                scoping,
+<a href=#562 id=562 data-nosnippet>562</a>                DataCategory::Attachment,
+<a href=#563 id=563 data-nosnippet>563</a>                attachment,
+<a href=#564 id=564 data-nosnippet>564</a>            )
+<a href=#565 id=565 data-nosnippet>565</a>            .<span class="kw">await</span>;
+<a href=#566 id=566 data-nosnippet>566</a>        }
+<a href=#567 id=567 data-nosnippet>567</a>
+<a href=#568 id=568 data-nosnippet>568</a>        <span class="kw">if </span>attachment_item &gt; <span class="number">0 </span>{
+<a href=#569 id=569 data-nosnippet>569</a>            <span class="self">self</span>.enforce_attachment_limits(
+<a href=#570 id=570 data-nosnippet>570</a>                <span class="kw-2">&amp;mut </span>rate_limiter,
+<a href=#571 id=571 data-nosnippet>571</a>                scoping,
+<a href=#572 id=572 data-nosnippet>572</a>                DataCategory::AttachmentItem,
+<a href=#573 id=573 data-nosnippet>573</a>                attachment_item,
+<a href=#574 id=574 data-nosnippet>574</a>            )
+<a href=#575 id=575 data-nosnippet>575</a>            .<span class="kw">await</span>;
+<a href=#576 id=576 data-nosnippet>576</a>        }
+<a href=#577 id=577 data-nosnippet>577</a>
+<a href=#578 id=578 data-nosnippet>578</a>        <span class="prelude-val">Ok</span>(())
+<a href=#579 id=579 data-nosnippet>579</a>    }
+<a href=#580 id=580 data-nosnippet>580</a>}
+<a href=#581 id=581 data-nosnippet>581</a>
+<a href=#582 id=582 data-nosnippet>582</a><span class="kw">impl </span>Managed&lt;ExpandedSpans&lt;TotalAndIndexed&gt;&gt; {
+<a href=#583 id=583 data-nosnippet>583</a>    <span class="kw">async fn </span>enforce_attachment_limits&lt;T&gt;(
+<a href=#584 id=584 data-nosnippet>584</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#585 id=585 data-nosnippet>585</a>        rate_limiter: <span class="kw-2">&amp;mut </span>T,
+<a href=#586 id=586 data-nosnippet>586</a>        scoping: relay_quotas::Scoping,
+<a href=#587 id=587 data-nosnippet>587</a>        category: DataCategory,
+<a href=#588 id=588 data-nosnippet>588</a>        quantity: usize,
+<a href=#589 id=589 data-nosnippet>589</a>    ) <span class="kw">where
+<a href=#590 id=590 data-nosnippet>590</a>        </span>T: processing::RateLimiter,
+<a href=#591 id=591 data-nosnippet>591</a>    {
+<a href=#592 id=592 data-nosnippet>592</a>        <span class="kw">let </span>limits = rate_limiter
+<a href=#593 id=593 data-nosnippet>593</a>            .try_consume(scoping.item(category), quantity)
+<a href=#594 id=594 data-nosnippet>594</a>            .<span class="kw">await</span>;
+<a href=#595 id=595 data-nosnippet>595</a>
+<a href=#596 id=596 data-nosnippet>596</a>        <span class="kw">if </span>!limits.is_empty() {
+<a href=#597 id=597 data-nosnippet>597</a>            <span class="self">self</span>.modify(|this, record_keeper| {
+<a href=#598 id=598 data-nosnippet>598</a>                <span class="comment">// Reject both associated attachments and standalone.
+<a href=#599 id=599 data-nosnippet>599</a>                </span><span class="kw">for </span>span <span class="kw">in </span><span class="kw-2">&amp;mut </span>this.spans {
+<a href=#600 id=600 data-nosnippet>600</a>                    <span class="kw">let </span>attachments = std::mem::take(<span class="kw-2">&amp;mut </span>span.attachments);
+<a href=#601 id=601 data-nosnippet>601</a>                    record_keeper.reject_err(Error::from(limits.clone()), attachments);
+<a href=#602 id=602 data-nosnippet>602</a>                }
+<a href=#603 id=603 data-nosnippet>603</a>
+<a href=#604 id=604 data-nosnippet>604</a>                record_keeper.reject_err(
+<a href=#605 id=605 data-nosnippet>605</a>                    Error::from(limits),
+<a href=#606 id=606 data-nosnippet>606</a>                    std::mem::take(<span class="kw-2">&amp;mut </span>this.stand_alone_attachments),
+<a href=#607 id=607 data-nosnippet>607</a>                );
+<a href=#608 id=608 data-nosnippet>608</a>            });
+<a href=#609 id=609 data-nosnippet>609</a>        }
+<a href=#610 id=610 data-nosnippet>610</a>    }
+<a href=#611 id=611 data-nosnippet>611</a>}
+<a href=#612 id=612 data-nosnippet>612</a>
+<a href=#613 id=613 data-nosnippet>613</a><span class="doccomment">/// A Span which only represents the indexed category.
+<a href=#614 id=614 data-nosnippet>614</a></span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#615 id=615 data-nosnippet>615</a>#[derive(Debug)]
+<a href=#616 id=616 data-nosnippet>616</a></span><span class="kw">struct </span>IndexedSpan(ExpandedSpan);
+<a href=#617 id=617 data-nosnippet>617</a>
+<a href=#618 id=618 data-nosnippet>618</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#619 id=619 data-nosnippet>619</a></span><span class="kw">impl </span>Counted <span class="kw">for </span>IndexedSpan {
+<a href=#620 id=620 data-nosnippet>620</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
+<a href=#621 id=621 data-nosnippet>621</a>        <span class="kw">let </span><span class="kw-2">mut </span>quantities = <span class="macro">smallvec::smallvec!</span>[(DataCategory::SpanIndexed, <span class="number">1</span>)];
+<a href=#622 id=622 data-nosnippet>622</a>        quantities.extend(<span class="self">self</span>.<span class="number">0</span>.attachments.quantities());
+<a href=#623 id=623 data-nosnippet>623</a>        quantities
+<a href=#624 id=624 data-nosnippet>624</a>    }
+<a href=#625 id=625 data-nosnippet>625</a>}
+<a href=#626 id=626 data-nosnippet>626</a>
+<a href=#627 id=627 data-nosnippet>627</a><span class="doccomment">/// A validated and parsed span attachment.
+<a href=#628 id=628 data-nosnippet>628</a></span><span class="attr">#[derive(Debug)]
+<a href=#629 id=629 data-nosnippet>629</a></span><span class="kw">pub struct </span>ExpandedAttachment {
+<a href=#630 id=630 data-nosnippet>630</a>    <span class="doccomment">/// The parsed metadata from the attachment.
+<a href=#631 id=631 data-nosnippet>631</a>    </span><span class="kw">pub </span>meta: Annotated&lt;AttachmentV2Meta&gt;,
+<a href=#632 id=632 data-nosnippet>632</a>
+<a href=#633 id=633 data-nosnippet>633</a>    <span class="doccomment">/// The raw attachment body.
+<a href=#634 id=634 data-nosnippet>634</a>    </span><span class="kw">pub </span>body: Bytes,
+<a href=#635 id=635 data-nosnippet>635</a>}
 <a href=#636 id=636 data-nosnippet>636</a>
-<a href=#637 id=637 data-nosnippet>637</a>    <span class="doccomment">/// The raw attachment body.
-<a href=#638 id=638 data-nosnippet>638</a>    </span><span class="kw">pub </span>body: Bytes,
-<a href=#639 id=639 data-nosnippet>639</a>}
-<a href=#640 id=640 data-nosnippet>640</a>
-<a href=#641 id=641 data-nosnippet>641</a><span class="kw">impl </span>Counted <span class="kw">for </span>ExpandedAttachment {
-<a href=#642 id=642 data-nosnippet>642</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
-<a href=#643 id=643 data-nosnippet>643</a>        <span class="macro">smallvec::smallvec!</span>[
-<a href=#644 id=644 data-nosnippet>644</a>            (DataCategory::Attachment, <span class="self">self</span>.body.len()),
-<a href=#645 id=645 data-nosnippet>645</a>            (DataCategory::AttachmentItem, <span class="number">1</span>)
-<a href=#646 id=646 data-nosnippet>646</a>        ]
-<a href=#647 id=647 data-nosnippet>647</a>    }
-<a href=#648 id=648 data-nosnippet>648</a>}
-<a href=#649 id=649 data-nosnippet>649</a>
-<a href=#650 id=650 data-nosnippet>650</a><span class="doccomment">/// Wrapper around a SpanV2 and an optional associated attachment.
-<a href=#651 id=651 data-nosnippet>651</a>///
-<a href=#652 id=652 data-nosnippet>652</a>/// Allows for dropping the attachment together with the Span.
-<a href=#653 id=653 data-nosnippet>653</a></span><span class="attr">#[derive(Debug)]
-<a href=#654 id=654 data-nosnippet>654</a></span><span class="kw">struct </span>ExpandedSpan {
-<a href=#655 id=655 data-nosnippet>655</a>    span: WithHeader&lt;SpanV2&gt;,
-<a href=#656 id=656 data-nosnippet>656</a>    attachment: <span class="prelude-ty">Option</span>&lt;ExpandedAttachment&gt;,
-<a href=#657 id=657 data-nosnippet>657</a>}
-<a href=#658 id=658 data-nosnippet>658</a>
-<a href=#659 id=659 data-nosnippet>659</a><span class="kw">impl </span>ExpandedSpan {
-<a href=#660 id=660 data-nosnippet>660</a>    <span class="kw">fn </span>new(span: WithHeader&lt;SpanV2&gt;) -&gt; <span class="self">Self </span>{
-<a href=#661 id=661 data-nosnippet>661</a>        <span class="self">Self </span>{
-<a href=#662 id=662 data-nosnippet>662</a>            span,
-<a href=#663 id=663 data-nosnippet>663</a>            attachment: <span class="prelude-val">None</span>,
-<a href=#664 id=664 data-nosnippet>664</a>        }
-<a href=#665 id=665 data-nosnippet>665</a>    }
-<a href=#666 id=666 data-nosnippet>666</a>}
-<a href=#667 id=667 data-nosnippet>667</a>
-<a href=#668 id=668 data-nosnippet>668</a><span class="kw">impl </span>Counted <span class="kw">for </span>ExpandedSpan {
-<a href=#669 id=669 data-nosnippet>669</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
-<a href=#670 id=670 data-nosnippet>670</a>        <span class="kw">let </span><span class="kw-2">mut </span>quantities = <span class="self">self</span>.span.quantities();
-<a href=#671 id=671 data-nosnippet>671</a>
-<a href=#672 id=672 data-nosnippet>672</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(attachment) = <span class="kw-2">&amp;</span><span class="self">self</span>.attachment {
-<a href=#673 id=673 data-nosnippet>673</a>            quantities.extend(attachment.quantities());
-<a href=#674 id=674 data-nosnippet>674</a>        }
-<a href=#675 id=675 data-nosnippet>675</a>
-<a href=#676 id=676 data-nosnippet>676</a>        quantities
-<a href=#677 id=677 data-nosnippet>677</a>    }
-<a href=#678 id=678 data-nosnippet>678</a>}
-<a href=#679 id=679 data-nosnippet>679</a>
-<a href=#680 id=680 data-nosnippet>680</a><span class="doccomment">/// Spans which have been sampled by dynamic sampling.
-<a href=#681 id=681 data-nosnippet>681</a>///
-<a href=#682 id=682 data-nosnippet>682</a>/// Note: Spans where dynamic sampling could not yet make a sampling decision,
-<a href=#683 id=683 data-nosnippet>683</a>/// are considered sampled.
-<a href=#684 id=684 data-nosnippet>684</a></span><span class="kw">struct </span>SampledSpans {
-<a href=#685 id=685 data-nosnippet>685</a>    <span class="doccomment">/// Sampled spans.
-<a href=#686 id=686 data-nosnippet>686</a>    </span>inner: SerializedSpans,
-<a href=#687 id=687 data-nosnippet>687</a>
-<a href=#688 id=688 data-nosnippet>688</a>    <span class="doccomment">/// Server side applied (dynamic) sample rate.
-<a href=#689 id=689 data-nosnippet>689</a>    </span>server_sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-<a href=#690 id=690 data-nosnippet>690</a>}
-<a href=#691 id=691 data-nosnippet>691</a>
-<a href=#692 id=692 data-nosnippet>692</a><span class="kw">impl </span>Counted <span class="kw">for </span>SampledSpans {
-<a href=#693 id=693 data-nosnippet>693</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
-<a href=#694 id=694 data-nosnippet>694</a>        <span class="self">self</span>.inner.quantities()
-<a href=#695 id=695 data-nosnippet>695</a>    }
-<a href=#696 id=696 data-nosnippet>696</a>}
-<a href=#697 id=697 data-nosnippet>697</a>
-<a href=#698 id=698 data-nosnippet>698</a><span class="doccomment">/// Returns the amount of contained spans, this count is best effort and can be used for outcomes.
-<a href=#699 id=699 data-nosnippet>699</a>///
-<a href=#700 id=700 data-nosnippet>700</a>/// The function expects all passed items to only contain spans.
-<a href=#701 id=701 data-nosnippet>701</a></span><span class="kw">fn </span>outcome_count(spans: <span class="kw-2">&amp;</span>[Item]) -&gt; u32 {
-<a href=#702 id=702 data-nosnippet>702</a>    <span class="comment">// We rely here on the invariant that all items in `self.spans` are actually spans,
-<a href=#703 id=703 data-nosnippet>703</a>    // that's why sum up `item_count`'s blindly instead of checking again for the item type
-<a href=#704 id=704 data-nosnippet>704</a>    // or using `Item::quantities`.
-<a href=#705 id=705 data-nosnippet>705</a>    </span>spans
-<a href=#706 id=706 data-nosnippet>706</a>        .iter()
-<a href=#707 id=707 data-nosnippet>707</a>        .map(|item| item.item_count().unwrap_or(<span class="number">1</span>))
-<a href=#708 id=708 data-nosnippet>708</a>        .sum()
-<a href=#709 id=709 data-nosnippet>709</a>}</code></pre></div></section></main></body></html>
+<a href=#637 id=637 data-nosnippet>637</a><span class="kw">impl </span>Counted <span class="kw">for </span>ExpandedAttachment {
+<a href=#638 id=638 data-nosnippet>638</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
+<a href=#639 id=639 data-nosnippet>639</a>        <span class="macro">smallvec::smallvec!</span>[
+<a href=#640 id=640 data-nosnippet>640</a>            (DataCategory::Attachment, <span class="self">self</span>.body.len()),
+<a href=#641 id=641 data-nosnippet>641</a>            (DataCategory::AttachmentItem, <span class="number">1</span>)
+<a href=#642 id=642 data-nosnippet>642</a>        ]
+<a href=#643 id=643 data-nosnippet>643</a>    }
+<a href=#644 id=644 data-nosnippet>644</a>}
+<a href=#645 id=645 data-nosnippet>645</a>
+<a href=#646 id=646 data-nosnippet>646</a><span class="doccomment">/// Wrapper around a SpanV2 and an optional associated attachment.
+<a href=#647 id=647 data-nosnippet>647</a>///
+<a href=#648 id=648 data-nosnippet>648</a>/// Allows for dropping the attachment together with the Span.
+<a href=#649 id=649 data-nosnippet>649</a></span><span class="attr">#[derive(Debug)]
+<a href=#650 id=650 data-nosnippet>650</a></span><span class="kw">struct </span>ExpandedSpan {
+<a href=#651 id=651 data-nosnippet>651</a>    span: WithHeader&lt;SpanV2&gt;,
+<a href=#652 id=652 data-nosnippet>652</a>    attachments: Vec&lt;ExpandedAttachment&gt;,
+<a href=#653 id=653 data-nosnippet>653</a>}
+<a href=#654 id=654 data-nosnippet>654</a>
+<a href=#655 id=655 data-nosnippet>655</a><span class="kw">impl </span>ExpandedSpan {
+<a href=#656 id=656 data-nosnippet>656</a>    <span class="kw">fn </span>new(span: WithHeader&lt;SpanV2&gt;) -&gt; <span class="self">Self </span>{
+<a href=#657 id=657 data-nosnippet>657</a>        <span class="self">Self </span>{
+<a href=#658 id=658 data-nosnippet>658</a>            span,
+<a href=#659 id=659 data-nosnippet>659</a>            attachments: <span class="macro">vec!</span>[],
+<a href=#660 id=660 data-nosnippet>660</a>        }
+<a href=#661 id=661 data-nosnippet>661</a>    }
+<a href=#662 id=662 data-nosnippet>662</a>}
+<a href=#663 id=663 data-nosnippet>663</a>
+<a href=#664 id=664 data-nosnippet>664</a><span class="kw">impl </span>Counted <span class="kw">for </span>ExpandedSpan {
+<a href=#665 id=665 data-nosnippet>665</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
+<a href=#666 id=666 data-nosnippet>666</a>        <span class="kw">let </span><span class="self">Self </span>{ span, attachments } = <span class="self">self</span>;
+<a href=#667 id=667 data-nosnippet>667</a>        <span class="kw">let </span><span class="kw-2">mut </span>quantities = span.quantities();
+<a href=#668 id=668 data-nosnippet>668</a>
+<a href=#669 id=669 data-nosnippet>669</a>        quantities.extend(attachments.quantities());
+<a href=#670 id=670 data-nosnippet>670</a>
+<a href=#671 id=671 data-nosnippet>671</a>        quantities
+<a href=#672 id=672 data-nosnippet>672</a>    }
+<a href=#673 id=673 data-nosnippet>673</a>}
+<a href=#674 id=674 data-nosnippet>674</a>
+<a href=#675 id=675 data-nosnippet>675</a><span class="doccomment">/// Spans which have been sampled by dynamic sampling.
+<a href=#676 id=676 data-nosnippet>676</a>///
+<a href=#677 id=677 data-nosnippet>677</a>/// Note: Spans where dynamic sampling could not yet make a sampling decision,
+<a href=#678 id=678 data-nosnippet>678</a>/// are considered sampled.
+<a href=#679 id=679 data-nosnippet>679</a></span><span class="kw">struct </span>SampledSpans {
+<a href=#680 id=680 data-nosnippet>680</a>    <span class="doccomment">/// Sampled spans.
+<a href=#681 id=681 data-nosnippet>681</a>    </span>inner: SerializedSpans,
+<a href=#682 id=682 data-nosnippet>682</a>
+<a href=#683 id=683 data-nosnippet>683</a>    <span class="doccomment">/// Server side applied (dynamic) sample rate.
+<a href=#684 id=684 data-nosnippet>684</a>    </span>server_sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
+<a href=#685 id=685 data-nosnippet>685</a>}
+<a href=#686 id=686 data-nosnippet>686</a>
+<a href=#687 id=687 data-nosnippet>687</a><span class="kw">impl </span>Counted <span class="kw">for </span>SampledSpans {
+<a href=#688 id=688 data-nosnippet>688</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
+<a href=#689 id=689 data-nosnippet>689</a>        <span class="self">self</span>.inner.quantities()
+<a href=#690 id=690 data-nosnippet>690</a>    }
+<a href=#691 id=691 data-nosnippet>691</a>}
+<a href=#692 id=692 data-nosnippet>692</a>
+<a href=#693 id=693 data-nosnippet>693</a><span class="doccomment">/// Returns the amount of contained spans, this count is best effort and can be used for outcomes.
+<a href=#694 id=694 data-nosnippet>694</a>///
+<a href=#695 id=695 data-nosnippet>695</a>/// The function expects all passed items to only contain spans.
+<a href=#696 id=696 data-nosnippet>696</a></span><span class="kw">fn </span>outcome_count(spans: <span class="kw-2">&amp;</span>[Item]) -&gt; u32 {
+<a href=#697 id=697 data-nosnippet>697</a>    <span class="comment">// We rely here on the invariant that all items in `self.spans` are actually spans,
+<a href=#698 id=698 data-nosnippet>698</a>    // that's why sum up `item_count`'s blindly instead of checking again for the item type
+<a href=#699 id=699 data-nosnippet>699</a>    // or using `Item::quantities`.
+<a href=#700 id=700 data-nosnippet>700</a>    </span>spans
+<a href=#701 id=701 data-nosnippet>701</a>        .iter()
+<a href=#702 id=702 data-nosnippet>702</a>        .map(|item| item.item_count().unwrap_or(<span class="number">1</span>))
+<a href=#703 id=703 data-nosnippet>703</a>        .sum()
+<a href=#704 id=704 data-nosnippet>704</a>}</code></pre></div></section></main></body></html>
