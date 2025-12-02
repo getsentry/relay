@@ -7,7 +7,7 @@ tab_width = 2
 language = "C"
 
 [parse]
-include = ["relay-base-schema", "relay-quotas"]
+include = ["relay-base-schema"]
 parse_deps = true
 
 [enum]
