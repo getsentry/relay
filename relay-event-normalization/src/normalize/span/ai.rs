@@ -369,4 +369,45 @@ mod tests {
         }
         ");
     }
+
+    /// Test that an AI span is detected from a gen_ai.operation.name attribute.
+    #[test]
+    fn test_is_ai_span_from_gen_ai_operation_name() {
+        let span = r#"{
+            "data": {
+                "gen_ai.operation.name": "chat"
+            }
+        }"#;
+        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        assert!(is_ai_span(&span));
+    }
+
+    /// Test that an AI span is detected from a span.op starting with "ai.".
+    #[test]
+    fn test_is_ai_span_from_span_op_ai() {
+        let span = r#"{
+            "op": "ai.chat"
+        }"#;
+        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        assert!(is_ai_span(&span));
+    }
+
+    /// Test that an AI span is detected from a span.op starting with "gen_ai.".
+    #[test]
+    fn test_is_ai_span_from_span_op_gen_ai() {
+        let span = r#"{
+            "op": "gen_ai.chat"
+        }"#;
+        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        assert!(is_ai_span(&span));
+    }
+
+    /// Test that a non-AI span is detected.
+    #[test]
+    fn test_is_ai_span_negative() {
+        let span = r#"{
+        }"#;
+        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        assert!(!is_ai_span(&span));
+    }
 }
