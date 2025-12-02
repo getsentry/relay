@@ -258,11 +258,18 @@ fn infer_ai_operation_type(span: &mut Span, operation_type_map: &AiOperationType
 }
 
 /// Returns true if the span is an AI span.
-/// AI spans are spans with op starting with "ai." (legacy) or "gen_ai." (new).
-fn is_ai_span(span: &Span) -> bool {
-    span.op
+/// AI spans are spans with either a gen_ai.operation.name attribute or op starting with "ai."
+/// (legacy) or "gen_ai." (new).
+fn is_ai_span(span: &mut Span) -> bool {
+    span.data
+        .get_or_insert_with(SpanData::default)
+        .gen_ai_operation_name
         .value()
-        .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."))
+        .is_some()
+        || span
+            .op
+            .value()
+            .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."))
 }
 
 #[cfg(test)]
