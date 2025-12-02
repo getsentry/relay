@@ -423,6 +423,115 @@ impl TryFrom<u8> for DataCategory {
     }
 }
 
+/// The unit in which a data category is measured.
+///
+/// This enum specifies how quantities for different data categories are measured,
+/// which affects how quota limits are interpreted and enforced.
+///
+/// Note: There is no `Unknown` variant. For categories without a defined unit
+/// (e.g., `DataCategory::Unknown`), methods return `Option::None`.
+//
+// IMPORTANT: After adding a new entry to CategoryUnit, go to the `relay-cabi` subfolder and run
+// `make header` to regenerate the C-binding. This allows using the category unit from Python.
+//
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[repr(i8)]
+pub enum CategoryUnit {
+    /// Counts the number of discrete items.
+    Count = 0,
+    /// Counts the number of bytes across items.
+    Bytes = 1,
+    /// Counts the accumulated time in milliseconds across items.
+    Milliseconds = 2,
+}
+
+impl CategoryUnit {
+    /// Returns the canonical name of this category unit.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Count => "count",
+            Self::Bytes => "bytes",
+            Self::Milliseconds => "milliseconds",
+        }
+    }
+
+    /// Returns the category unit corresponding to the given name string.
+    ///
+    /// Returns `None` if the string doesn't match any known unit.
+    pub fn from_name(string: &str) -> Option<Self> {
+        match string {
+            "count" => Some(Self::Count),
+            "bytes" => Some(Self::Bytes),
+            "milliseconds" => Some(Self::Milliseconds),
+            _ => None,
+        }
+    }
+
+    /// Returns the `CategoryUnit` for the given `DataCategory`.
+    ///
+    /// Returns `None` for `DataCategory::Unknown`.
+    ///
+    /// Note: Takes a reference to avoid unnecessary copying and allow direct use with iterators.
+    pub fn from_category(category: &DataCategory) -> Option<Self> {
+        match category {
+            DataCategory::Default
+            | DataCategory::Error
+            | DataCategory::Transaction
+            | DataCategory::Replay
+            | DataCategory::DoNotUseReplayVideo
+            | DataCategory::Security
+            | DataCategory::Profile
+            | DataCategory::ProfileIndexed
+            | DataCategory::TransactionProcessed
+            | DataCategory::TransactionIndexed
+            | DataCategory::LogItem
+            | DataCategory::Span
+            | DataCategory::SpanIndexed
+            | DataCategory::MonitorSeat
+            | DataCategory::Monitor
+            | DataCategory::MetricBucket
+            | DataCategory::UserReportV2
+            | DataCategory::ProfileChunk
+            | DataCategory::ProfileChunkUi
+            | DataCategory::Uptime
+            | DataCategory::MetricSecond
+            | DataCategory::AttachmentItem
+            | DataCategory::SeerAutofix
+            | DataCategory::SeerScanner
+            | DataCategory::PreventUser
+            | DataCategory::PreventReview
+            | DataCategory::Session
+            | DataCategory::SizeAnalysis
+            | DataCategory::InstallableBuild
+            | DataCategory::TraceMetric
+            | DataCategory::SeerUser => Some(Self::Count),
+
+            DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
+
+            DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
+                Some(Self::Milliseconds)
+            }
+
+            DataCategory::Unknown => None,
+        }
+    }
+}
+
+impl fmt::Display for CategoryUnit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+impl FromStr for CategoryUnit {
+    type Err = ();
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Self::from_name(string).ok_or(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
