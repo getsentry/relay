@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Updates Legacy Browser inbound filters. ([#5326](https://github.com/getsentry/relay/pull/5326))
+
 ## 25.11.1
 
 **Breaking Changes**:
