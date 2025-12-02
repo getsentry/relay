@@ -310,38 +310,19 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
         }
     ]
 
-    attachment = next(i for i in forwarded.items if i.type == "attachment")
-    assert attachment.payload.bytes == combined_payload
-    assert attachment.headers == {
-        "type": "attachment",
-        "length": 214,
-        "content_type": "application/vnd.sentry.attachment.v2",
-        "meta_length": 191,
-        "span_id": span_id,
-    }
+    attachment_items = [item for item in forwarded.items if item.type == "attachment"]
+    assert len(attachment_items) == 2
+    for item in attachment_items:
+        assert item.payload.bytes == combined_payload
+        assert item.headers == {
+            "type": "attachment",
+            "length": 214,
+            "content_type": "application/vnd.sentry.attachment.v2",
+            "meta_length": 191,
+            "span_id": span_id,
+        }
 
-    assert mini_sentry.get_outcomes(n=2, timeout=3) == [
-        {
-            "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 3,
-            "reason": "invalid_span_attachment",
-            "category": DataCategory.ATTACHMENT.value,
-            "quantity": 23,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 3,
-            "reason": "invalid_span_attachment",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
-            "quantity": 1,
-        },
-    ]
+    assert mini_sentry.captured_outcomes.empty()
 
 
 @pytest.mark.parametrize(

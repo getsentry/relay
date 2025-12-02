@@ -357,13 +357,13 @@ impl<C> ExpandedSpans<C> {
             let mut item = Item::new(ItemType::Span);
             let mut spans_without_attachments = Vec::new();
 
-            for span in self.spans {
-                if let Some(attachment) = span.attachment {
-                    let span_id = span.span.value().and_then(|s| s.span_id.value().copied());
+            for ExpandedSpan { span, attachments } in self.spans {
+                for attachment in attachments {
+                    let span_id = span.value().and_then(|s| s.span_id.value().copied());
                     items.push(attachment_to_item(attachment, span_id)?);
                 }
 
-                spans_without_attachments.push(span.span);
+                spans_without_attachments.push(span);
             }
 
             ItemContainer::from(spans_without_attachments)
@@ -385,7 +385,7 @@ impl<C> ExpandedSpans<C> {
         let mut attachment_count = 0;
 
         for span in &self.spans {
-            if let Some(attachment) = &span.attachment {
+            for attachment in &span.attachments {
                 attachment_quantity += attachment.body.len();
                 attachment_count += 1;
             }
@@ -546,7 +546,6 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
                 return Err(self.reject_err(Error::from(limits)));
             }
 
-            // TODO: always the same, so should
             let limits = rate_limiter
                 .try_consume(scoping.item(DataCategory::SpanIndexed), span)
                 .await;
@@ -598,9 +597,8 @@ impl Managed<ExpandedSpans<TotalAndIndexed>> {
             self.modify(|this, record_keeper| {
                 // Reject both associated attachments and standalone.
                 for span in &mut this.spans {
-                    if let Some(attachment) = span.attachment.take() {
-                        record_keeper.reject_err(Error::from(limits.clone()), attachment);
-                    }
+                    let attachments = std::mem::take(&mut span.attachments);
+                    record_keeper.reject_err(Error::from(limits.clone()), attachments);
                 }
 
                 record_keeper.reject_err(
@@ -621,9 +619,7 @@ struct IndexedSpan(ExpandedSpan);
 impl Counted for IndexedSpan {
     fn quantities(&self) -> Quantities {
         let mut quantities = smallvec::smallvec![(DataCategory::SpanIndexed, 1)];
-        if let Some(attachment) = &self.0.attachment {
-            quantities.extend(attachment.quantities());
-        }
+        quantities.extend(self.0.attachments.quantities());
         quantities
     }
 }
@@ -653,25 +649,24 @@ impl Counted for ExpandedAttachment {
 #[derive(Debug)]
 struct ExpandedSpan {
     span: WithHeader<SpanV2>,
-    attachment: Option<ExpandedAttachment>,
+    attachments: Vec<ExpandedAttachment>,
 }
 
 impl ExpandedSpan {
     fn new(span: WithHeader<SpanV2>) -> Self {
         Self {
             span,
-            attachment: None,
+            attachments: vec![],
         }
     }
 }
 
 impl Counted for ExpandedSpan {
     fn quantities(&self) -> Quantities {
-        let mut quantities = self.span.quantities();
+        let Self { span, attachments } = self;
+        let mut quantities = span.quantities();
 
-        if let Some(attachment) = &self.attachment {
-            quantities.extend(attachment.quantities());
-        }
+        quantities.extend(attachments.quantities());
 
         quantities
     }
