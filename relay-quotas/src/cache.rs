@@ -14,6 +14,8 @@ const PERCENT_PRECISION: usize = 10;
 pub struct Quota<T> {
     /// The quota limit.
     pub limit: i64,
+    /// The quota window size in seconds.
+    pub window: u64,
     /// A unique identifier for the quota bucket.
     pub key: T,
     /// The expiry of the bucket.
@@ -117,9 +119,17 @@ where
                 return CachedQuota::new_needs_sync(total_local_use);
             }
 
-            let remaining = quota.limit - consumed;
-            let max_allowed_spend = usize::try_from(remaining).unwrap_or(usize::MAX)
+            let remaining = usize::try_from(quota.limit - consumed).unwrap_or(usize::MAX);
+            let max_allowed_spend = remaining
+                // Normalize remaining with the window size, to apply the percentage/divisor to a
+                // rate instead of an absolute size.
+                //
+                // This means we get a consistent behaviour for short (10s) quotas (e.g. abuse) as well
+                // as long (1h) quotas (e.g. spike protection) with a more predictable error.
+                / usize::try_from(quota.window).unwrap_or(1).max(1)
+                // Apply percent precision, which is already pre-multiplied into `max_over_spend_divisor`.
                 * PERCENT_PRECISION
+                // Apply the actual percentage with the pre-computed divisor.
                 / self.max_over_spend_divisor.get();
 
             match total_local_use > max_allowed_spend {
@@ -275,11 +285,13 @@ mod tests {
 
         let q1 = Quota {
             limit: 100,
+            window: 1,
             key: "k1",
             expiry: UnixTimestamp::from_secs(300),
         };
         let q2 = Quota {
             limit: 50,
+            window: 1,
             key: "k2",
             expiry: UnixTimestamp::from_secs(300),
         };
@@ -326,24 +338,77 @@ mod tests {
         assert_eq!(cache.check_quota(q1, 1), Action::Check(21));
     }
 
+    #[test]
+    fn test_opp_quota_normalized_to_window() {
+        let cache = OpportunisticQuotaCache::new(0.1);
+
+        let q1 = Quota {
+            limit: 1000,
+            window: 10,
+            key: "k1",
+            expiry: UnixTimestamp::from_secs(300),
+        };
+
+        // First access always needs synchronization.
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+
+        // 700 remaining -> 70 per second -> 7 (10%).
+        cache.update_quota(q1, 300);
+
+        // 7 is the exact synchronization breakpoint.
+        assert_eq!(cache.check_quota(q1, 8), Action::Check(8));
+        // Under 7, but already over consumed before.
+        assert_eq!(cache.check_quota(q1, 6), Action::Check(6));
+
+        // Reset.
+        cache.update_quota(q1, 300);
+        // Under 7 -> that's fine.
+        assert_eq!(cache.check_quota(q1, 7), Action::Accept);
+        // Way over the limit now.
+        assert_eq!(cache.check_quota(q1, 90), Action::Check(97));
+
+        // 100 remaining -> 10 per second -> 1 (10%).
+        cache.update_quota(q1, 900);
+        assert_eq!(cache.check_quota(q1, 1), Action::Accept);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(2));
+
+        // 90 remaining -> 9 per second -> 0 (10% floored).
+        cache.update_quota(q1, 910);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+
+        // Same for even less remaining.
+        cache.update_quota(q1, 999);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+
+        // Same for nothing remaining.
+        cache.update_quota(q1, 1000);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+
+        // Same for less than nothing remaining.
+        cache.update_quota(q1, 1001);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+    }
+
     /// The test asserts the cache behaves correctly if the limit of a quota changes.
     #[test]
     fn test_opp_quota_limit_change() {
         let cache = OpportunisticQuotaCache::new(0.1);
+        let window = 3;
 
         let limit_100 = Quota {
-            limit: 100,
+            limit: 100 * window,
+            window: window as u64,
             key: "k1",
             expiry: UnixTimestamp::from_secs(300),
         };
         let limit_50 = Quota {
             // Same quota, but a different limit.
-            limit: 50,
+            limit: 50 * window,
             ..limit_100
         };
 
         // Sync internal state to an initial value.
-        cache.update_quota(limit_100, 50);
+        cache.update_quota(limit_100, 50 * window);
 
         // With limit 100 there is enough (5) in the cache remaining.
         assert_eq!(cache.check_quota(limit_100, 3), Action::Accept);
@@ -359,6 +424,7 @@ mod tests {
 
         let q1 = Quota {
             limit: 100,
+            window: 1,
             key: "k1",
             expiry: UnixTimestamp::from_secs(300),
         };
@@ -379,11 +445,13 @@ mod tests {
 
         let q1 = Quota {
             limit: 100,
+            window: 1,
             key: "k1",
             expiry: UnixTimestamp::from_secs(100),
         };
         let q2 = Quota {
             limit: 100,
+            window: 1,
             key: "k2",
             expiry: UnixTimestamp::from_secs(200),
         };
