@@ -126,7 +126,7 @@ where
                 //
                 // This means we get a consistent behaviour for short (10s) quotas (e.g. abuse) as well
                 // as long (1h) quotas (e.g. spike protection) with a more predictable error.
-                / usize::try_from(quota.window).unwrap_or(1).max(1)
+                / usize::try_from(quota.window).unwrap_or(usize::MAX).max(1)
                 // Apply ratio precision, which is already pre-multiplied into `max_over_spend_divisor`.
                 * RATIO_PRECISION
                 // Apply the actual ratio with the pre-computed divisor.

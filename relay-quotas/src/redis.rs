@@ -1405,7 +1405,7 @@ mod tests {
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
-            limit: Some(50 * 60),
+            limit: Some(50),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
