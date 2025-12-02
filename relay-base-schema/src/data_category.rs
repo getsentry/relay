@@ -564,4 +564,89 @@ mod tests {
             r#""feedback""#
         )
     }
+
+    #[test]
+    fn test_category_unit_name() {
+        assert_eq!(CategoryUnit::Count.name(), "count");
+        assert_eq!(CategoryUnit::Bytes.name(), "bytes");
+        assert_eq!(CategoryUnit::Milliseconds.name(), "milliseconds");
+    }
+
+    #[test]
+    fn test_category_unit_from_name() {
+        assert_eq!(CategoryUnit::from_name("count"), Some(CategoryUnit::Count));
+        assert_eq!(CategoryUnit::from_name("bytes"), Some(CategoryUnit::Bytes));
+        assert_eq!(
+            CategoryUnit::from_name("milliseconds"),
+            Some(CategoryUnit::Milliseconds)
+        );
+        assert_eq!(CategoryUnit::from_name("unknown"), None);
+        assert_eq!(CategoryUnit::from_name(""), None);
+    }
+
+    #[test]
+    fn test_category_unit_from_category() {
+        // Count categories
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::Error),
+            Some(CategoryUnit::Count)
+        );
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::Transaction),
+            Some(CategoryUnit::Count)
+        );
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::Span),
+            Some(CategoryUnit::Count)
+        );
+
+        // Bytes categories
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::Attachment),
+            Some(CategoryUnit::Bytes)
+        );
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::LogByte),
+            Some(CategoryUnit::Bytes)
+        );
+
+        // Milliseconds categories
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::ProfileDuration),
+            Some(CategoryUnit::Milliseconds)
+        );
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::ProfileDurationUi),
+            Some(CategoryUnit::Milliseconds)
+        );
+
+        // Unknown returns None
+        assert_eq!(CategoryUnit::from_category(&DataCategory::Unknown), None);
+    }
+
+    #[test]
+    fn test_category_unit_display() {
+        assert_eq!(format!("{}", CategoryUnit::Count), "count");
+        assert_eq!(format!("{}", CategoryUnit::Bytes), "bytes");
+        assert_eq!(format!("{}", CategoryUnit::Milliseconds), "milliseconds");
+    }
+
+    #[test]
+    fn test_category_unit_from_str() {
+        assert_eq!("count".parse::<CategoryUnit>(), Ok(CategoryUnit::Count));
+        assert_eq!("bytes".parse::<CategoryUnit>(), Ok(CategoryUnit::Bytes));
+        assert_eq!(
+            "milliseconds".parse::<CategoryUnit>(),
+            Ok(CategoryUnit::Milliseconds)
+        );
+        assert!("invalid".parse::<CategoryUnit>().is_err());
+    }
+
+    #[test]
+    fn test_category_unit_repr_values() {
+        // Verify the repr(i8) values are correct for FFI
+        assert_eq!(CategoryUnit::Count as i8, 0);
+        assert_eq!(CategoryUnit::Bytes as i8, 1);
+        assert_eq!(CategoryUnit::Milliseconds as i8, 2);
+    }
 }
