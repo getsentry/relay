@@ -35,12 +35,12 @@ fn matches(user_agent: &UserAgent<'_>, browsers: &BTreeSet<LegacyBrowser>) -> bo
             LegacyBrowser::OperaMini => {
                 filter_browser(family, user_agent, "Opera Mini", |x| x < 35)
             }
-            LegacyBrowser::Opera => filter_browser(family, user_agent, "Opera", |x| x < 51),
+            LegacyBrowser::Opera => filter_browser(family, user_agent, "Opera", |x| x < 100),
             LegacyBrowser::Android => filter_browser(family, user_agent, "Android", |x| x < 4),
-            LegacyBrowser::Safari => filter_browser(family, user_agent, "Safari", |x| x < 12),
-            LegacyBrowser::Edge => filter_browser(family, user_agent, "Edge", |x| x < 79),
-            LegacyBrowser::Chrome => filter_browser(family, user_agent, "Chrome", |x| x < 64),
-            LegacyBrowser::Firefox => filter_browser(family, user_agent, "Firefox", |x| x < 67),
+            LegacyBrowser::Safari => filter_browser(family, user_agent, "Safari", |x| x < 16),
+            LegacyBrowser::Edge => filter_browser(family, user_agent, "Edge", |x| x < 111),
+            LegacyBrowser::Chrome => filter_browser(family, user_agent, "Chrome", |x| x < 111),
+            LegacyBrowser::Firefox => filter_browser(family, user_agent, "Firefox", |x| x < 111),
             LegacyBrowser::Unknown(_) => {
                 // unknown browsers should not be filtered
                 false
