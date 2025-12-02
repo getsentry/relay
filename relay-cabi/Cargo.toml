@@ -32,7 +32,6 @@ relay-event-schema = { workspace = true }
 relay-ffi = { workspace = true }
 relay-pii = { workspace = true }
 relay-protocol = { workspace = true }
-relay-quotas = { workspace = true }
 relay-sampling = { workspace = true }
 sentry-release-parser = { workspace = true, features = ["serde", "semver-1"] }
 serde = { workspace = true }

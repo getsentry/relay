@@ -3881,7 +3881,6 @@ dependencies = [
  "relay-ffi",
  "relay-pii",
  "relay-protocol",
- "relay-quotas",
  "relay-sampling",
  "sentry-release-parser",
  "serde",
