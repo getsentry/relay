@@ -4,6 +4,7 @@ import json
 
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from objectstore_client import Client, Usecase
 
 from .test_store import make_transaction
 
@@ -116,6 +117,77 @@ def test_mixed_attachments_with_processing(
     }
 
 
+def test_attachments_with_objectstore(
+    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+):
+    project_id = 42
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+    mini_sentry.add_full_project_config(project_id)
+
+    options = {
+        "processing": {
+            "attachment_chunk_size": "100KB",
+            "upload": {"objectstore_url": "http://127.0.0.1:8888/"},
+        }
+    }
+    relay = relay_with_processing(options)
+    attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    chunked_contents = b"heavens no" * 20_000
+    attachments = [
+        ("att_1", "foo.txt", chunked_contents),
+        ("att_2", "foobar.txt", b""),
+    ]
+    relay.send_attachments(project_id, event_id, attachments)
+
+    attachment = attachments_consumer.get_individual_attachment()
+
+    objectstore_key = attachment["attachment"].pop("stored_id")
+    objectstore_session = Client("http://127.0.0.1:8888/").session(
+        Usecase("attachments"), org=1, project=project_id
+    )
+    assert objectstore_session.get(objectstore_key).payload.read() == chunked_contents
+
+    assert attachment["attachment"].pop("id")
+    assert attachment == {
+        "type": "attachment",
+        "attachment": {
+            "name": "foo.txt",
+            "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": len(chunked_contents),
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }
+
+    outcomes_consumer.assert_empty()
+
+    # An empty attachment
+    attachment = attachments_consumer.get_individual_attachment()
+    assert attachment["attachment"].pop("id")
+
+    assert attachment == {
+        "type": "attachment",
+        "attachment": {
+            "name": "foobar.txt",
+            "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": 0,
+            # empty attachments are still transmitted with zero chunks,
+            # and not stored on objectstore
+            "chunks": 0,
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }
+
+
 @pytest.mark.parametrize("rate_limits", [[], ["attachment"], ["attachment_item"]])
 def test_attachments_ratelimit(
     mini_sentry, relay_with_processing, outcomes_consumer, rate_limits
@@ -172,8 +244,7 @@ def test_attachments_pii(mini_sentry, relay):
         relay.send_attachments(project_id, event_id, [attachment])
 
     payloads = {
-        mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
-        for _ in range(2)
+        mini_sentry.get_captured_event().items[0].payload.bytes for _ in range(2)
     }
     assert payloads == {
         b"here's an IP that should get masked -> ********* <-",
@@ -217,9 +288,7 @@ def test_view_hierarchy_scrubbing(mini_sentry, relay, feature_flags, expected):
     relay.send_envelope(project_id, envelope)
 
     relay.send_envelope(project_id, envelope)
-    payload = json.loads(
-        mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
-    )
+    payload = json.loads(mini_sentry.get_captured_event().items[0].payload.bytes)
     assert payload == {"rendering_system": "UIKIT", "identifier": expected}
 
 
@@ -270,7 +339,7 @@ def test_attachment_scrubbing_with_fallback(
 
     relay.send_envelope(project_id, envelope)
 
-    payload = mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
+    payload = mini_sentry.get_captured_event().items[0].payload.bytes
     assert payload == expected
 
 
@@ -294,9 +363,7 @@ def test_view_hierarchy_not_scrubbed_without_config(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    payload = json.loads(
-        mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
-    )
+    payload = json.loads(mini_sentry.get_captured_event().items[0].payload.bytes)
     assert payload == json_payload
 
 
@@ -330,7 +397,7 @@ password=mysupersecretpassword123"""
 
     relay.send_envelope(project_id, envelope)
 
-    scrubbed_payload = mini_sentry.captured_events.get(timeout=5).items[0].payload.bytes
+    scrubbed_payload = mini_sentry.get_captured_event().items[0].payload.bytes
 
     assert (
         scrubbed_payload

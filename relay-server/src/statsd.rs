@@ -1,4 +1,4 @@
-use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+use relay_statsd::{CounterMetric, DistributionMetric, GaugeMetric, TimerMetric};
 #[cfg(doc)]
 use relay_system::RuntimeMetrics;
 
@@ -77,6 +77,9 @@ pub enum RelayGauges {
     /// - `service`: the service name.
     /// - `instance_id`: a for the service name unique identifier for the running service
     ServiceUtilization,
+    /// Number of attachment uploads currently in flight.
+    #[cfg(feature = "processing")]
+    ConcurrentAttachmentUploads,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -106,6 +109,8 @@ impl GaugeMetric for RelayGauges {
             #[cfg(feature = "processing")]
             RelayGauges::MetricDelayMax => "metrics.delay.max",
             RelayGauges::ServiceUtilization => "service.utilization",
+            #[cfg(feature = "processing")]
+            RelayGauges::ConcurrentAttachmentUploads => "attachment.upload.concurrent",
         }
     }
 }
@@ -214,7 +219,7 @@ impl CounterMetric for RuntimeCounters {
 }
 
 /// Histogram metrics used by Relay.
-pub enum RelayHistograms {
+pub enum RelayDistributions {
     /// The number of bytes received by Relay for each individual envelope item type.
     ///
     /// This metric is tagged with:
@@ -331,37 +336,33 @@ pub enum RelayHistograms {
     PartitionSplits,
 }
 
-impl HistogramMetric for RelayHistograms {
+impl DistributionMetric for RelayDistributions {
     fn name(&self) -> &'static str {
         match self {
-            RelayHistograms::EnvelopeItemSize => "event.item_size",
-            RelayHistograms::EventSpans => "event.spans",
-            RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
-            RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
-            RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
-            RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
-            RelayHistograms::BufferEnvelopeSize => "buffer.envelope_size",
-            RelayHistograms::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
-            RelayHistograms::ProjectStatePending => "project_state.pending",
-            RelayHistograms::ProjectStateAttempts => "project_state.attempts",
-            RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
-            RelayHistograms::ProjectStateReceived => "project_state.received",
-            RelayHistograms::ProjectStateCacheSize => "project_cache.size",
+            Self::EnvelopeItemSize => "event.item_size",
+            Self::EventSpans => "event.spans",
+            Self::BatchesPerPartition => "metrics.buckets.batches_per_partition",
+            Self::BucketsPerBatch => "metrics.buckets.per_batch",
+            Self::BufferEnvelopesCount => "buffer.envelopes_count",
+            Self::BufferEnvelopeBodySize => "buffer.envelope_body_size",
+            Self::BufferEnvelopeSize => "buffer.envelope_size",
+            Self::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
+            Self::ProjectStatePending => "project_state.pending",
+            Self::ProjectStateAttempts => "project_state.attempts",
+            Self::ProjectStateRequestBatchSize => "project_state.request.batch_size",
+            Self::ProjectStateReceived => "project_state.received",
+            Self::ProjectStateCacheSize => "project_cache.size",
             #[cfg(feature = "processing")]
-            RelayHistograms::ProjectStateSizeBytesCompressed => {
-                "project_state.size_bytes.compressed"
-            }
+            Self::ProjectStateSizeBytesCompressed => "project_state.size_bytes.compressed",
             #[cfg(feature = "processing")]
-            RelayHistograms::ProjectStateSizeBytesDecompressed => {
-                "project_state.size_bytes.decompressed"
-            }
-            RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
-            RelayHistograms::UpstreamRetries => "upstream.retries",
-            RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
-            RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
-            RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
-            RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
-            RelayHistograms::PartitionSplits => "partition_splits",
+            Self::ProjectStateSizeBytesDecompressed => "project_state.size_bytes.decompressed",
+            Self::UpstreamMessageQueueSize => "http_queue.size",
+            Self::UpstreamRetries => "upstream.retries",
+            Self::UpstreamQueryBodySize => "upstream.query.body_size",
+            Self::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            Self::UpstreamMetricsBodySize => "upstream.metrics.body_size",
+            Self::PartitionKeys => "metrics.buckets.partition_keys",
+            Self::PartitionSplits => "partition_splits",
         }
     }
 }
@@ -381,6 +382,11 @@ pub enum RelayTimers {
     /// Not all events reach this point. After an event is rate limited for the first time, the rate
     /// limit is cached. Events coming in after this will be discarded earlier in the request queue
     /// and do not reach the processing queue.
+    ///
+    /// This metric is tagged with:
+    ///  - `type`: The type of limiter executed, `cached` or `consistent`.
+    ///  - `unit`: The item/unit of work which is being rate limited, only available for new
+    ///    processing pipelines.
     EventProcessingRateLimiting,
     /// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens
     /// last before serializing the event back to JSON.
@@ -919,7 +925,22 @@ pub enum RelayCounters {
     #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
     /// The number of times a sampling decision was made.
+    ///
+    /// This metric is tagged with:
+    /// - `item`: what item the decision is taken for (transaction vs span).
     SamplingDecision,
+    /// The number of times an upload of an attachment occurs.
+    ///
+    /// This metric is tagged with:
+    /// - `result`: `success` or the failure reason.
+    /// - `type`: `envelope` or `attachment_v2`
+    #[cfg(feature = "processing")]
+    AttachmentUpload,
+    /// Whether a logs envelope has a trace context header or not
+    ///
+    /// This metric is tagged with:
+    /// - `dsc`: yes or no
+    EnvelopeWithLogs,
 }
 
 impl CounterMetric for RelayCounters {
@@ -974,6 +995,9 @@ impl CounterMetric for RelayCounters {
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
             RelayCounters::SamplingDecision => "sampling.decision",
+            #[cfg(feature = "processing")]
+            RelayCounters::AttachmentUpload => "attachment.upload",
+            RelayCounters::EnvelopeWithLogs => "logs.envelope",
         }
     }
 }

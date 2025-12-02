@@ -16,7 +16,7 @@ def load_dump_file(base_file_name: str):
         return f.read()
 
 
-def event_json(response):
+def user_data_event_json(response):
     return {
         "event_id": response.text.replace("-", ""),
         "timestamp": mock.ANY,
@@ -95,6 +95,114 @@ def event_json(response):
     }
 
 
+def playstation_event_json(sdk=mock.ANY):
+    return {
+        "event_id": mock.ANY,
+        "level": "fatal",
+        "version": mock.ANY,
+        "type": "error",
+        "logger": "",
+        "platform": "native",
+        "timestamp": mock.ANY,
+        "received": time_within_delta(),
+        "contexts": {
+            "app": {"app_version": "", "type": "app"},
+            "device": {
+                "name": "",
+                "model": "PS5",
+                "model_id": "5be3652dd663dbdcd044da0f2144b17f",
+                "arch": "x86_64",
+                "manufacturer": "Sony",
+                "type": "device",
+            },
+            "os": {
+                "os": "PlayStation 9.20.00.05-00.00.00.0.1",
+                "name": "PlayStation",
+                "version": "9.20.00.05-00.00.00.0.1",
+                "type": "os",
+            },
+            "runtime": {
+                "runtime": "PS5 9.20.00.05-00.00.00.0.1",
+                "name": "PS5",
+                "version": "9.20.00.05-00.00.00.0.1",
+                "type": "runtime",
+            },
+        },
+        "exception": {
+            "values": [
+                {
+                    "type": "Minidump",
+                    "value": "Invalid Minidump",
+                    "mechanism": {
+                        "type": "minidump",
+                        "synthetic": True,
+                        "handled": False,
+                    },
+                }
+            ]
+        },
+        "tags": [
+            ["cpu_vendor", "Sony"],
+            ["os.name", "PlayStation"],
+            ["cpu_brand", "PS5 CPU"],
+            ["runtime.name", "PS5"],
+            ["os", "PlayStation 9.20.00.05-00.00.00.0.1"],
+            ["runtime", "9.20.00.05-00.00.00.0.1"],
+            ["runtime.version", "9.20.00.05-00.00.00.0.1"],
+            ["titleId", "NPXS29997"],
+            ["server_name", "5be3652dd663dbdcd044da0f2144b17f"],
+        ],
+        "sdk": sdk,
+        "errors": [
+            {
+                "type": "past_timestamp",
+                "name": "timestamp",
+                "sdk_time": "2025-02-20T10:23:01+00:00",
+                "server_time": mock.ANY,
+            }
+        ],
+        "key_id": "123",
+        "project": 42,
+        "grouping_config": mock.ANY,
+        "_metrics": mock.ANY,
+        "_meta": mock.ANY,
+    }
+
+
+def attachments(
+    log_size=mock.ANY, generated_dump_size=mock.ANY, playstation_dump_size=mock.ANY
+):
+    return [
+        {
+            "id": mock.ANY,
+            "name": "console.log",
+            "rate_limited": False,
+            "content_type": "text/plain",
+            "attachment_type": "event.attachment",
+            "size": log_size,
+            "chunks": 1,
+        },
+        {
+            "id": mock.ANY,
+            "name": "generated_minidump.dmp",
+            "rate_limited": False,
+            "content_type": "application/x-dmp",
+            "attachment_type": "event.minidump",
+            "size": generated_dump_size,
+            "chunks": 1,
+        },
+        {
+            "id": mock.ANY,
+            "name": "playstation.prosperodmp",
+            "rate_limited": False,
+            "content_type": "application/octet-stream",
+            "attachment_type": "playstation.prosperodump",
+            "size": playstation_dump_size,
+            "chunks": 1,
+        },
+    ]
+
+
 def test_playstation_no_feature_flag(
     mini_sentry, relay_processing_with_playstation, outcomes_consumer
 ):
@@ -109,9 +217,38 @@ def test_playstation_no_feature_flag(
 
     # Get these outcomes since the feature flag is not enabled:
     outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 2
-    assert outcomes[0]["reason"] == "feature_disabled"
-    assert outcomes[1]["reason"] == "feature_disabled"
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "feature_disabled",
+            "category": 1,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "feature_disabled",
+            "category": 4,
+            "quantity": 209385,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "feature_disabled",
+            "category": 22,
+            "quantity": 1,
+        },
+    ]
 
 
 def test_playstation_wrong_file(
@@ -184,45 +321,13 @@ def test_playstation_with_feature_flag(
     assert len(outcomes) == 0
 
     event, payload = attachments_consumer.get_event_only()
-    assert event
-    assert payload
 
-    assert payload["type"] == "error"
-    assert payload["level"] == "fatal"
-
-    assert "contexts" in payload
-    assert "device" in payload["contexts"]
-    assert "os" in payload["contexts"]
-    assert "runtime" in payload["contexts"]
-
-    assert payload["contexts"]["device"]["model"] == "PS5"
-    assert payload["contexts"]["device"]["manufacturer"] == "Sony"
-    assert payload["contexts"]["device"]["arch"] == "x86_64"
-
-    assert payload["contexts"]["os"]["name"] == "PlayStation"
-    assert payload["contexts"]["runtime"]["name"] == "PS5"
-
-    tags_dict = dict(payload["tags"])
-    assert tags_dict["cpu_vendor"] == "Sony"
-    assert tags_dict["os.name"] == "PlayStation"
-    assert tags_dict["cpu_brand"] == "PS5 CPU"
-    assert "titleId" in tags_dict
-
-    assert "exception" in payload
-    assert len(payload["exception"]["values"]) == 1
-    assert payload["exception"]["values"][0]["type"] == "Minidump"
-    assert payload["exception"]["values"][0]["mechanism"]["type"] == "minidump"
-
-    assert "_metrics" in payload
-    assert payload["_metrics"]["bytes.ingested.event.minidump"] > 0
-    assert payload["_metrics"]["bytes.ingested.event.attachment"] > 0
-
-    assert len(event["attachments"]) == 3
-    assert "playstation.prosperodmp" in [
-        attachment["name"] for attachment in event["attachments"]
-    ]
-
-    assert payload["sdk"]["name"] == "sentry.playstation.devkit"
+    assert payload == playstation_event_json(
+        {"name": "sentry.playstation.devkit", "version": "0.0.1"},
+    )
+    assert sorted(event["attachments"], key=lambda x: x["name"]) == attachments(
+        155829, 78050, 209385
+    )
 
 
 def test_playstation_user_data_extraction(
@@ -248,7 +353,7 @@ def test_playstation_user_data_extraction(
     assert len(outcomes) == 0
 
     event, payload = attachments_consumer.get_event_only()
-    assert payload == event_json(response)
+    assert payload == user_data_event_json(response)
     assert len(event["attachments"]) == 3
 
 
@@ -290,8 +395,7 @@ def test_playstation_ignore_large_fields(
         }
     ]
     assert [
-        item.headers["filename"]
-        for item in mini_sentry.captured_events.get(timeout=5).items
+        item.headers["filename"] for item in mini_sentry.get_captured_event().items
     ] == ["playstation.prosperodmp"]
 
 
@@ -341,45 +445,13 @@ def test_playstation_attachment(
     assert len(outcomes) == 0
 
     event, payload = attachments_consumer.get_event_only()
-    assert event
-    assert payload
 
-    assert payload["type"] == "error"
-    assert payload["level"] == "fatal"
-
-    assert "contexts" in payload
-    assert "device" in payload["contexts"]
-    assert "os" in payload["contexts"]
-    assert "runtime" in payload["contexts"]
-
-    assert payload["contexts"]["device"]["model"] == "PS5"
-    assert payload["contexts"]["device"]["manufacturer"] == "Sony"
-    assert payload["contexts"]["device"]["arch"] == "x86_64"
-
-    assert payload["contexts"]["os"]["name"] == "PlayStation"
-    assert payload["contexts"]["runtime"]["name"] == "PS5"
-
-    tags_dict = dict(payload["tags"])
-    assert tags_dict["cpu_vendor"] == "Sony"
-    assert tags_dict["os.name"] == "PlayStation"
-    assert tags_dict["cpu_brand"] == "PS5 CPU"
-    assert "titleId" in tags_dict
-
-    assert "exception" in payload
-    assert len(payload["exception"]["values"]) == 1
-    assert payload["exception"]["values"][0]["type"] == "Minidump"
-    assert payload["exception"]["values"][0]["mechanism"]["type"] == "minidump"
-
-    assert "_metrics" in payload
-    assert payload["_metrics"]["bytes.ingested.event.minidump"] > 0
-    assert payload["_metrics"]["bytes.ingested.event.attachment"] > 0
-
-    assert len(event["attachments"]) == 3
-    assert "playstation.prosperodmp" in [
-        attachment["name"] for attachment in event["attachments"]
-    ]
-
-    assert payload["sdk"]["name"] == "sentry.native.playstation"
+    assert payload == playstation_event_json(
+        {"name": "sentry.native.playstation", "version": "0.1.0"}
+    )
+    assert sorted(event["attachments"], key=lambda x: x["name"]) == attachments(
+        155829, 78050, 209385
+    )
 
 
 def test_playstation_attachment_no_feature_flag(
@@ -420,17 +492,38 @@ def test_playstation_attachment_no_feature_flag(
     relay.send_envelope(PROJECT_ID, envelope)
 
     event, payload = attachments_consumer.get_event_only()
-    assert event
-    assert payload
 
-    assert len(event["attachments"]) == 1
-    attachment = event["attachments"][0]
-    assert attachment["attachment_type"] == "playstation.prosperodump"
+    assert payload == {
+        "event_id": mock.ANY,
+        "level": "error",
+        "version": "5",
+        "type": "error",
+        "logger": "",
+        "platform": "other",
+        "timestamp": mock.ANY,
+        "received": time_within_delta(),
+        "exception": {"values": [{"type": "ValueError", "value": "Should not happen"}]},
+        "sdk": {"name": "raven-node", "version": "2.6.3"},
+        "key_id": "123",
+        "project": 42,
+        "grouping_config": {
+            "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
+            "id": "legacy:2019-03-12",
+        },
+        "_metrics": {"bytes.ingested.event": 137},
+    }
 
-    assert payload["type"] == "error"
-    assert "exception" in payload
-    assert payload["exception"]["values"][0]["type"] == "ValueError"
-    assert payload["exception"]["values"][0]["value"] == "Should not happen"
+    assert event["attachments"] == (
+        {
+            "id": mock.ANY,
+            "name": "playstation.prosperodmp",
+            "rate_limited": False,
+            "content_type": "application/octet-stream",
+            "attachment_type": "playstation.prosperodump",
+            "size": 209385,
+            "chunks": 1,
+        },
+    )
 
 
 def test_data_request(mini_sentry, relay_processing_with_playstation):
@@ -594,32 +687,6 @@ def test_event_merging(
         },
     }
 
-    assert event["attachments"] == (
-        {
-            "id": mock.ANY,
-            "name": "playstation.prosperodmp",
-            "rate_limited": False,
-            "content_type": "application/octet-stream",
-            "attachment_type": "playstation.prosperodump",
-            "size": 210174,
-            "chunks": 1,
-        },
-        {
-            "id": mock.ANY,
-            "name": "console.log",
-            "rate_limited": False,
-            "content_type": "text/plain",
-            "attachment_type": "event.attachment",
-            "size": 158008,
-            "chunks": 1,
-        },
-        {
-            "id": mock.ANY,
-            "name": "generated_minidump.dmp",
-            "rate_limited": False,
-            "content_type": "application/x-dmp",
-            "attachment_type": "event.minidump",
-            "size": 60446,
-            "chunks": 1,
-        },
+    assert sorted(event["attachments"], key=lambda x: x["name"]) == attachments(
+        158008, 60446, 210174
     )

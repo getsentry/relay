@@ -61,10 +61,7 @@ impl crate::managed::OutcomeError for Error {
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::ProcessingFailed(_) => {
-                relay_log::error!(
-                    error = &self as &dyn std::error::Error,
-                    "internal error: trace metric processing failed"
-                );
+                relay_log::error!("internal error: trace metric processing failed");
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
             Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
@@ -151,7 +148,12 @@ impl Forward for TraceMetricOutput {
         self.0.try_map(|metrics, _| {
             metrics
                 .serialize_envelope()
-                .map_err(drop)
+                .map_err(|error| {
+                    relay_log::error!(
+                        error = %error,
+                        "internal error: failed to serialize trace metrics envelope"
+                    );
+                })
                 .with_outcome(Outcome::Invalid(DiscardReason::Internal))
         })
     }
@@ -159,7 +161,7 @@ impl Forward for TraceMetricOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(metrics) = self;
@@ -172,7 +174,7 @@ impl Forward for TraceMetricOutput {
 
         for metric in metrics.split(|metrics| metrics.metrics) {
             if let Ok(metric) = metric.try_map(|metric, _| store::convert(metric, &ctx)) {
-                s.send(metric);
+                s.store(metric);
             }
         }
 

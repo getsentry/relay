@@ -61,11 +61,6 @@ pub enum Feature {
     /// Serialized as `organizations:relay-otel-logs-endpoint`.
     #[serde(rename = "organizations:relay-otel-logs-endpoint")]
     OtelLogsEndpoint,
-    /// Enable logs ingestion via the Vercel Log Drain endpoint.
-    ///
-    /// Serialized as `organizations:relay-vercel-log-drain-endpoint`.
-    #[serde(rename = "organizations:relay-vercel-log-drain-endpoint")]
-    VercelLogDrainEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.
@@ -134,6 +129,9 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:indexed-spans-extraction")]
     DeprecatedExtractSpansFromEvent,
+    /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
+    #[serde(rename = "projects:span-v2-attachment-processing")]
+    SpanV2AttachmentProcessing,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

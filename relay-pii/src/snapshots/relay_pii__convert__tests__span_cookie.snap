@@ -1,0 +1,61 @@
+---
+source: relay-pii/src/convert.rs
+expression: data
+---
+{
+  "contexts": {
+    "trace": {
+      "data": {
+        "http.request.header.cookie": "[Filtered]"
+      },
+      "type": "trace"
+    }
+  },
+  "spans": [
+    {
+      "data": {
+        "http.request.header.cookie": "[Filtered]"
+      }
+    }
+  ],
+  "_meta": {
+    "contexts": {
+      "trace": {
+        "data": {
+          "http.request.header.cookie": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 20
+            }
+          }
+        }
+      }
+    },
+    "spans": {
+      "0": {
+        "data": {
+          "http.request.header.cookie": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 20
+            }
+          }
+        }
+      }
+    }
+  }
+}

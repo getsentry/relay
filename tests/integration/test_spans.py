@@ -32,7 +32,6 @@ TEST_CONFIG = {
 
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
-@pytest.mark.parametrize("discard_transaction", [False, True])
 def test_span_extraction(
     mini_sentry,
     relay_with_processing,
@@ -40,7 +39,6 @@ def test_span_extraction(
     transactions_consumer,
     events_consumer,
     metrics_consumer,
-    discard_transaction,
     performance_issues_spans,
 ):
     spans_consumer = spans_consumer()
@@ -56,8 +54,6 @@ def test_span_extraction(
     }
 
     project_config["config"].setdefault("features", [])
-    if discard_transaction:
-        project_config["config"]["features"].append("projects:discard-transaction")
     if performance_issues_spans:
         project_config["config"]["features"].append(
             "organizations:performance-issues-spans"
@@ -115,26 +111,15 @@ def test_span_extraction(
 
     relay.send_event(project_id, event)
 
-    if discard_transaction:
-        assert transactions_consumer.poll(timeout=2.0) is None
-
-        # We do not accidentally produce to the events topic:
-        assert events_consumer.poll(timeout=2.0) is None
-
-        # We _do_ extract span metrics:
-        assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
-            ("namespace", b"spans")
-        }
-    else:
-        received_event, _ = transactions_consumer.get_event(timeout=2.0)
-        assert received_event["event_id"] == event["event_id"]
-        assert received_event.get("_performance_issues_spans") == (
-            performance_issues_spans or None
-        )
-        assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
-            ("namespace", b"spans"),
-            ("namespace", b"transactions"),
-        }
+    received_event, _ = transactions_consumer.get_event(timeout=2.0)
+    assert received_event["event_id"] == event["event_id"]
+    assert received_event.get("_performance_issues_spans") == (
+        performance_issues_spans or None
+    )
+    assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
+        ("namespace", b"spans"),
+        ("namespace", b"transactions"),
+    }
 
     child_span = spans_consumer.get_span()
 
@@ -167,13 +152,13 @@ def test_span_extraction(
                 "type": "string",
                 "value": "GET /api/0/organizations/?member=1",
             },
-            "sentry.is_segment": {"type": "boolean", "value": False},
+            "sentry.is_remote": {"type": "boolean", "value": False},
             "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
         },
         "downsampled_retention_days": 90,
         "end_timestamp": end.timestamp(),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "is_remote": False,
+        "is_segment": False,
         "links": [
             {
                 "trace_id": "0f62a8b040f340bda5d830223def1d82",
@@ -219,7 +204,7 @@ def test_span_extraction(
         "attributes": {
             "sentry.description": {"type": "string", "value": "hi"},
             "sentry.exclusive_time": {"type": "double", "value": 1500.0},
-            "sentry.is_segment": {"type": "boolean", "value": True},
+            "sentry.is_remote": {"type": "boolean", "value": True},
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
@@ -244,7 +229,7 @@ def test_span_extraction(
         "downsampled_retention_days": 90,
         "end_timestamp": end_timestamp.timestamp(),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "is_remote": True,
+        "is_segment": True,
         "links": [
             {
                 "trace_id": "1f62a8b040f340bda5d830223def1d83",
@@ -368,10 +353,10 @@ def test_duplicate_performance_score(mini_sentry, relay):
 
     score_total_seen = 0
     for _ in range(3):  # 2 client reports and the actual item we're interested in
-        envelope = mini_sentry.captured_events.get(timeout=5)
+        envelope = mini_sentry.get_captured_event()
         for item in envelope.items:
             if item.type == "metric_buckets":
-                for metric in item.payload.json:
+                for metric in json.loads(item.payload.get_bytes()):
                     if (
                         metric["name"]
                         == "d:transactions/measurements.score.total@ratio"
@@ -677,7 +662,6 @@ def test_span_ingestion(
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
                 "sentry.file_extension": {"type": "string", "value": "js"},
                 "sentry.group": {"type": "string", "value": "8a97a9e43588e2bd"},
-                "sentry.is_segment": {"type": "boolean", "value": True},
                 "sentry.normalized_description": {
                     "type": "string",
                     "value": "https://example.com/*/blah.js",
@@ -690,7 +674,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp() + 1,
-            "is_remote": False,
+            "is_segment": True,
             "links": [
                 {
                     "trace_id": "99143b0763095bd9c9955e8175d1fb25",
@@ -720,7 +704,6 @@ def test_span_ingestion(
                     "value": 'test \\" with \\" escaped \\" chars',
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
-                "sentry.is_segment": {"type": "boolean", "value": False},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
                 "user_agent.original": {
@@ -729,7 +712,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp() + 1,
-            "is_remote": False,
+            "is_segment": False,
             "name": "default",
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp": start.timestamp(),
@@ -748,7 +731,7 @@ def test_span_ingestion(
                 "sentry.browser.name": {"type": "string", "value": "Python Requests"},
                 "sentry.description": {"type": "string", "value": "my 2nd OTel span"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
-                "sentry.is_segment": {"type": "boolean", "value": True},
+                "sentry.kind": {"type": "string", "value": "producer"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.segment.id": {"type": "string", "value": "d342abb1214ca182"},
@@ -759,8 +742,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp(),
-            "is_remote": False,
-            "kind": "producer",
+            "is_segment": True,
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -786,7 +768,6 @@ def test_span_ingestion(
                 "client.address": {"type": "string", "value": "127.0.0.1"},
                 "sentry.browser.name": {"type": "string", "value": "Chrome"},
                 "sentry.exclusive_time": {"type": "double", "value": 345.0},
-                "sentry.is_segment": {"type": "boolean", "value": False},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
                 "user_agent.original": {
@@ -795,7 +776,7 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp() + 1,
-            "is_remote": False,
+            "is_segment": False,
             "name": "default",
             "span_id": "ed429c44b67a3eb1",
             "start_timestamp": start.timestamp(),
@@ -818,6 +799,7 @@ def test_span_ingestion(
                     "value": "my 3rd protobuf OTel span",
                 },
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.kind": {"type": "string", "value": "consumer"},
                 "sentry.op": {"type": "string", "value": "default"},
                 "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
                 "sentry.status": {"type": "string", "value": "ok"},
@@ -828,8 +810,6 @@ def test_span_ingestion(
                 },
             },
             "end_timestamp": end.timestamp(),
-            "is_remote": False,
-            "kind": "consumer",
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -1328,6 +1308,7 @@ def test_rate_limit_spans_in_envelope(
 
 
 @pytest.mark.parametrize("category", ["transaction", "transaction_indexed"])
+@pytest.mark.parametrize("span_count_header", [None, 666])
 def test_rate_limit_is_consistent_between_transaction_and_spans(
     mini_sentry,
     relay_with_processing,
@@ -1336,6 +1317,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     metrics_consumer,
     outcomes_consumer,
     category,
+    span_count_header,
 ):
     """
     Rate limits are consistent between transactions and nested spans.
@@ -1386,6 +1368,8 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     end = start + timedelta(seconds=1)
 
     envelope = envelope_with_transaction_and_spans(start, end)
+    if span_count_header is not None:
+        envelope.items[0].headers["span_count"] = span_count_header
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
@@ -1427,19 +1411,25 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     with maybe_raises:
         relay.send_envelope(project_id, envelope)
 
+    # The fast path now trusts the span_count item header
+    expected_span_count = 2 if span_count_header is None else 667
+
     if category == "transaction":
         assert summarize_outcomes() == {
             (2, 2): 1,  # Transaction, Rate Limited
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 2): 2,  # Span, Rate Limited
-            (16, 2): 2,  # SpanIndexed, Rate Limited
+            (12, 2): expected_span_count,  # Span, Rate Limited
+            (16, 2): expected_span_count,  # SpanIndexed, Rate Limited
         }
         assert usage_metrics() == (0, 0)
     elif category == "transaction_indexed":
+        # We do not check indexed limits on the fast path,
+        # so we count the correct number of spans (ignoring the span_count header):
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
+        # Metrics are always correct:
         assert usage_metrics() == (1, 2)
 
 

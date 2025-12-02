@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 
 use chrono::Utc;
+use either::Either;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
 use relay_protocol::get_value;
@@ -15,7 +16,7 @@ use crate::managed::{Counted, Managed, Quantities};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::Context;
 use crate::processing::spans::{
-    Error, ExpandedSpans, Result, SampledSpans, SerializedSpans, outcome_count,
+    Error, ExpandedSpans, Indexed, Result, SampledSpans, SerializedSpans, outcome_count,
 };
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
@@ -90,6 +91,7 @@ pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
     };
 
     for span in &spans.spans {
+        let span = &span.span;
         let trace_id = get_value!(span.trace_id);
 
         if trace_id != Some(&dsc.trace_id) {
@@ -125,7 +127,9 @@ pub async fn run(
     };
 
     // At this point the decision is to drop the spans.
-    let span_count = outcome_count(&spans.spans);
+    let span_count = outcome_count(&spans.spans)
+        + outcome_count(&spans.legacy)
+        + outcome_count(&spans.integrations);
     let metrics = create_metrics(
         spans.scoping(),
         span_count,
@@ -140,34 +144,36 @@ pub async fn run(
     Err(metrics)
 }
 
+/// Type returned by [`create_indexed_metrics`].
+///
+/// Contains the indexed spans and the metrics extracted from the spans.
+type SpansAndMetrics = (Managed<ExpandedSpans<Indexed>>, Managed<ExtractedMetrics>);
+
 /// Creates/extracts metrics for spans which have been determined to be kept by dynamic sampling.
 ///
 /// Indexed metrics can only be extracted from the Relay making the final sampling decision,
-/// if the current Relay is not the final Relay, the function returns `None`.
+/// if the current Relay is not the final Relay, the function returns the original spans unchanged.
 pub fn create_indexed_metrics(
-    spans: &Managed<ExpandedSpans>,
+    spans: Managed<ExpandedSpans>,
     ctx: Context<'_>,
-) -> Option<Managed<ExtractedMetrics>> {
+) -> Either<Managed<ExpandedSpans>, SpansAndMetrics> {
     if !ctx.is_processing() {
-        return None;
+        return Either::Left(spans);
     }
 
-    let metrics = create_metrics(
-        spans.scoping(),
-        spans.spans.len() as u32,
-        spans.headers.dsc(),
-        SamplingDecision::Keep,
-    );
+    let scoping = spans.scoping();
+    let (indexed, metrics) = spans.split_once(|spans| {
+        let metrics = create_metrics(
+            scoping,
+            spans.spans.len() as u32,
+            spans.headers.dsc(),
+            SamplingDecision::Keep,
+        );
 
-    // Metrics are extracted from indexed spans, they should not emit any span outcomes.
-    debug_assert!(
-        metrics
-            .quantities()
-            .into_iter()
-            .all(|(c, _)| c == DataCategory::MetricBucket)
-    );
+        (spans.into_indexed(), metrics)
+    });
 
-    Some(spans.wrap(metrics))
+    Either::Right((indexed, metrics))
 }
 
 async fn compute(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> SamplingResult {
@@ -286,17 +292,52 @@ fn create_metrics(
 /// as the total category is counted from now in in metrics.
 struct UnsampledSpans {
     spans: Vec<Item>,
+    legacy: Vec<Item>,
+    integrations: Vec<Item>,
+    attachments: Vec<Item>,
 }
 
 impl From<SerializedSpans> for UnsampledSpans {
     fn from(value: SerializedSpans) -> Self {
-        Self { spans: value.spans }
+        let SerializedSpans {
+            headers: _,
+            spans,
+            legacy,
+            integrations,
+            attachments,
+        } = value;
+
+        Self {
+            spans,
+            legacy,
+            integrations,
+            attachments,
+        }
     }
 }
 
 impl Counted for UnsampledSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = outcome_count(&self.spans) as usize;
-        smallvec::smallvec![(DataCategory::SpanIndexed, quantity),]
+        let quantity = (outcome_count(&self.spans)
+            + outcome_count(&self.legacy)
+            + outcome_count(&self.integrations)) as usize;
+
+        let mut quantities = smallvec::smallvec![];
+
+        if quantity > 0 {
+            quantities.push((DataCategory::SpanIndexed, quantity));
+        }
+        if !self.attachments.is_empty() {
+            quantities.push((
+                DataCategory::Attachment,
+                self.attachments
+                    .iter()
+                    .map(Item::attachment_body_size)
+                    .sum(),
+            ));
+            quantities.push((DataCategory::AttachmentItem, self.attachments.len()));
+        }
+
+        quantities
     }
 }

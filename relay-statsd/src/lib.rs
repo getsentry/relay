@@ -3,7 +3,7 @@
 //! ## Defining Metrics
 //!
 //! In order to use metrics, one needs to first define one of the metric traits on a custom enum.
-//! The following types of metrics are available: `counter`, `timer`, `gauge`, `histogram`, and
+//! The following types of metrics are available: `counter`, `timer`, `gauge`, `distribution`, and
 //! `set`. For explanations on what that means see [Metric Types].
 //!
 //! The metric traits serve only to provide a type safe metric name. All metric types have exactly
@@ -141,6 +141,9 @@ impl MetricsClient {
 
         for (k, v) in &self.default_tags {
             metric = metric.with_tag(k, v);
+        }
+        if self.sample_rate > 0.0 && self.sample_rate < 1.0 {
+            metric = metric.with_sampling_rate(self.sample_rate.into());
         }
 
         if let Err(error) = metric.try_send() {
@@ -445,20 +448,19 @@ pub trait CounterMetric {
     fn name(&self) -> &'static str;
 }
 
-/// A metric for capturing histograms.
+/// A metric for capturing distributions.
 ///
-/// Histograms are values whose distribution is calculated by the server. The distribution
-/// calculated for histograms is often similar to that of timers. Histograms can be thought of as a
+/// A distribution is often similar to timers. Distributions can be thought of as a
 /// more general (not limited to timing things) form of timers.
 ///
 /// ## Example
 ///
 /// ```
-/// use relay_statsd::{metric, HistogramMetric};
+/// use relay_statsd::{metric, DistributionMetric};
 ///
 /// struct QueueSize;
 ///
-/// impl HistogramMetric for QueueSize {
+/// impl DistributionMetric for QueueSize {
 ///     fn name(&self) -> &'static str {
 ///         "queue_size"
 ///     }
@@ -468,18 +470,18 @@ pub trait CounterMetric {
 /// let queue = VecDeque::new();
 /// # let _hint: &VecDeque<()> = &queue;
 ///
-/// // record a histogram value
-/// metric!(histogram(QueueSize) = queue.len() as u64);
+/// // record a distribution value
+/// metric!(distribution(QueueSize) = queue.len() as u64);
 ///
 /// // record with tags
 /// metric!(
-///     histogram(QueueSize) = queue.len() as u64,
+///     distribution(QueueSize) = queue.len() as u64,
 ///     server = "server1",
 ///     host = "host1",
 /// );
 /// ```
-pub trait HistogramMetric {
-    /// Returns the histogram metric name that will be sent to statsd.
+pub trait DistributionMetric {
+    /// Returns the distribution metric name that will be sent to statsd.
     fn name(&self) -> &'static str;
 }
 
@@ -612,12 +614,12 @@ macro_rules! metric {
         })
     };
 
-    // histogram
-    (histogram($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
+    // distribution
+    (distribution($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
-                client.histogram_with_tags(&$crate::HistogramMetric::name(&$id), $value)
+                client.distribution_with_tags(&$crate::DistributionMetric::name(&$id), $value)
                     $(.with_tag(stringify!($($k).*), $v))*
             )
         })
@@ -639,9 +641,9 @@ macro_rules! metric {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
-                // NOTE: cadence histograms support Duration out of the box and converts it to nanos,
+                // NOTE: cadence distribution support Duration out of the box and converts it to nanos,
                 // but we want milliseconds for historical reasons.
-                client.histogram_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
+                client.distribution_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
                     $(.with_tag(stringify!($($k).*), $v))*
             )
         })
@@ -663,7 +665,7 @@ mod tests {
     use cadence::{NopMetricSink, StatsdClient};
 
     use crate::{
-        CounterMetric, GaugeMetric, HistogramMetric, MetricsClient, SetMetric, TimerMetric,
+        CounterMetric, DistributionMetric, GaugeMetric, MetricsClient, SetMetric, TimerMetric,
         set_client, with_capturing_test_client, with_client,
     };
 
@@ -689,11 +691,11 @@ mod tests {
         }
     }
 
-    struct TestHistogram;
+    struct TestDistribution;
 
-    impl HistogramMetric for TestHistogram {
+    impl DistributionMetric for TestDistribution {
         fn name(&self) -> &'static str {
-            "histogram"
+            "distribution"
         }
     }
 
@@ -788,17 +790,17 @@ mod tests {
     }
 
     #[test]
-    fn test_histogram_tags_with_dots() {
+    fn test_distribution_tags_with_dots() {
         let captures = with_capturing_test_client(|| {
             metric!(
-                histogram(TestHistogram) = 123,
+                distribution(TestDistribution) = 123,
                 hc.project_id = "567",
                 server = "server1",
             );
         });
         assert_eq!(
             captures,
-            ["histogram:123|h|#hc.project_id:567,server:server1"]
+            ["distribution:123|d|#hc.project_id:567,server:server1"]
         );
     }
 
@@ -826,7 +828,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["timer:100000|h|#hc.project_id:567,server:server1"]
+            ["timer:100000|d|#hc.project_id:567,server:server1"]
         );
     }
 
@@ -843,7 +845,7 @@ mod tests {
             )
         });
         // just check the tags to not make this flaky
-        assert!(captures[0].ends_with("|h|#hc.project_id:567,server:server1"));
+        assert!(captures[0].ends_with("|d|#hc.project_id:567,server:server1"));
     }
 
     #[test]
@@ -854,7 +856,7 @@ mod tests {
         });
 
         // for "short" durations, precision is preserved:
-        assert_eq!(captures, ["timer:86400000.000001|h"]); // h is for histogram, not hours
+        assert_eq!(captures, ["timer:86400000.000001|d"]);
 
         let one_year = Duration::from_secs(60 * 60 * 24 * 365);
         let captures = with_capturing_test_client(|| {
@@ -862,6 +864,6 @@ mod tests {
         });
 
         // for very long durations, precision is lost:
-        assert_eq!(captures, ["timer:31536000000|h"]);
+        assert_eq!(captures, ["timer:31536000000|d"]);
     }
 }

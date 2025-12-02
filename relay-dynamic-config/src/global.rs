@@ -186,6 +186,17 @@ pub struct Options {
     )]
     pub replay_relay_snuba_publish_disabled_sample_rate: f32,
 
+    /// Instructs relay to store attachments in objectstore instead of sending chunks via kafka.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    /// If set to `1.0` all attachments will be stored in objectstore.
+    #[serde(
+        rename = "relay.objectstore-attachments.sample-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub objectstore_attachments_sample_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

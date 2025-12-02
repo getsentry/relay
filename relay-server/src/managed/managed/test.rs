@@ -132,6 +132,12 @@ impl ManagedTestHandle {
 
 impl Drop for ManagedTestHandle {
     fn drop(&mut self) {
+        // If there is already an ongoing panic, we're possible in an inconsistent state already
+        // and adding another panic to it makes it just more confusing.
+        if std::thread::panicking() {
+            return;
+        }
+
         match self.outcomes.try_recv() {
             Ok(next) => panic!("expected no more outcomes, got {next:?}"),
             Err(TryRecvError::Empty) => {

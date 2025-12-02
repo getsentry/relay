@@ -8,11 +8,11 @@ use std::sync::OnceLock;
 use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
+use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_config::NormalizationLevel;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::GeoIpLookup;
-use relay_event_normalization::span::tag_extraction;
 use relay_event_normalization::{
     ClockDriftProcessor, normalize_event as normalize_event_inner, validate_event,
 };
@@ -22,9 +22,10 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::IpAddr;
-use relay_event_schema::protocol::Span;
 use relay_event_schema::protocol::{Event, Metrics, OtelContext, RelayInfo};
+use relay_filter::FilterStatKey;
 use relay_metrics::MetricNamespace;
+use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
 use relay_protocol::Empty;
 use relay_quotas::DataCategory;
@@ -34,8 +35,9 @@ use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{Envelope, EnvelopeHeaders, Item};
 use crate::processing::Context;
 use crate::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingError};
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self};
+use crate::services::projects::project::ProjectInfo;
+use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
+use crate::utils;
 
 /// Returns the data category if there is an event.
 ///
@@ -128,7 +130,7 @@ pub fn finalize<'a>(
 
             let span_count = inner_event.spans.value().map(Vec::len).unwrap_or(0) as u64;
             metric!(
-                histogram(RelayHistograms::EventSpans) = span_count,
+                distribution(RelayDistributions::EventSpans) = span_count,
                 sdk = client_name,
                 platform = platform,
             );
@@ -156,8 +158,13 @@ pub fn finalize<'a>(
 
     let mut processor = ClockDriftProcessor::new(headers.sent_at(), headers.meta().received_at())
         .at_least(MINIMUM_CLOCK_DRIFT);
-    processor::process_value(event, &mut processor, ProcessingState::root())
-        .map_err(|_| ProcessingError::InvalidTransaction)?;
+    processor::process_value(event, &mut processor, ProcessingState::root()).map_err(|err| {
+        relay_log::debug!(
+            error = &err as &dyn std::error::Error,
+            "invalid transaction"
+        );
+        ProcessingError::InvalidTransaction
+    })?;
 
     // Log timestamp delays for all events after clock drift correction. This happens before
     // store processing, which could modify the timestamp if it exceeds a threshold. We are
@@ -181,7 +188,8 @@ pub fn normalize(
     headers: &EnvelopeHeaders,
     event: &mut Annotated<Event>,
     mut event_fully_normalized: EventFullyNormalized,
-    ctx: &Context,
+    project_id: ProjectId,
+    ctx: Context,
     geoip_lookup: &GeoIpLookup,
 ) -> Result<EventFullyNormalized, ProcessingError> {
     if event.value().is_empty() {
@@ -240,13 +248,6 @@ pub fn normalize(
             );
         }
 
-        // TODO: duplicated from `EnvelopeProcessorService::process`. We should pass project_id
-        // in the Context instead since it's already guaranteed to exist at this point.
-        let project_id = ctx
-            .project_info
-            .project_id
-            .or_else(|| headers.meta().project_id())
-            .ok_or(ProcessingError::MissingProjectId)?;
         let normalization_config = NormalizationConfig {
             project_id: Some(project_id.value()),
             client: request_meta.client().map(str::to_owned),
@@ -303,8 +304,13 @@ pub fn normalize(
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {
-            validate_event(event, &event_validation_config)
-                .map_err(|_| ProcessingError::InvalidTransaction)?;
+            validate_event(event, &event_validation_config).map_err(|err| {
+                relay_log::debug!(
+                    error = &err as &dyn std::error::Error,
+                    "invalid transaction"
+                );
+                ProcessingError::InvalidTransaction
+            })?;
             normalize_event_inner(event, &normalization_config);
             if full_normalization && has_unprintable_fields(event) {
                 metric!(counter(RelayCounters::EventCorrupted) += 1);
@@ -316,6 +322,67 @@ pub fn normalize(
     event_fully_normalized.0 |= full_normalization;
 
     Ok(event_fully_normalized)
+}
+
+/// Status for applying some filters that don't drop the event.
+///
+/// The enum represents either the success of running all filters and keeping
+/// the event, [`FiltersStatus::Ok`], or not running all the filters because
+/// some are unsupported, [`FiltersStatus::Unsupported`].
+///
+/// If there are unsuppported filters, Relay should forward the event upstream
+/// so that a more up-to-date Relay can apply filters appropriately. Actions
+/// that depend on the outcome of event filtering, such as metric extraction,
+/// should be postponed until a filtering decision is made.
+#[must_use]
+pub enum FiltersStatus {
+    /// All filters have been applied and the event should be kept.
+    Ok,
+    /// Some filters are not supported and were not applied.
+    ///
+    /// Relay should forward events upstream for a more up-to-date Relay to apply these filters.
+    /// Supported filters were applied and they don't reject the event.
+    Unsupported,
+}
+
+pub fn filter(
+    headers: &EnvelopeHeaders,
+    event: &Annotated<Event>,
+    ctx: &Context,
+) -> Result<FiltersStatus, FilterStatKey> {
+    let event = match event.value() {
+        Some(event) => event,
+        // Some events are created by processing relays (e.g. unreal), so they do not yet
+        // exist at this point in non-processing relays.
+        None => return Ok(FiltersStatus::Ok),
+    };
+
+    let client_ip = headers.meta().client_addr();
+    let filter_settings = &ctx.project_info.config.filter_settings;
+
+    metric!(timer(RelayTimers::EventProcessingFiltering), {
+        relay_filter::should_filter(
+            event,
+            client_ip,
+            filter_settings,
+            ctx.global_config.filters(),
+        )
+    })?;
+
+    // Don't extract metrics if relay can't apply generic filters.  A filter
+    // applied in another up-to-date relay in chain may need to drop the event,
+    // and there should not be metrics from dropped events.
+    // In processing relays, always extract metrics to avoid losing them.
+    let supported_generic_filters = ctx.global_config.filters.is_ok()
+        && relay_filter::are_generic_filters_supported(
+            ctx.global_config.filters().map(|f| f.version),
+            ctx.project_info.config.filter_settings.generic.version,
+        );
+    if supported_generic_filters {
+        Ok(FiltersStatus::Ok)
+    } else {
+        Ok(FiltersStatus::Unsupported)
+    }
 }
 
 /// New type representing the normalization state of the event.
@@ -342,22 +409,6 @@ pub struct EventMetricsExtracted(pub bool);
 #[derive(Debug, Copy, Clone)]
 pub struct SpansExtracted(pub bool);
 
-/// Creates a span from the transaction and applies tag extraction on it.
-///
-/// Returns `None` when [`tag_extraction::extract_span_tags`] clears the span, which it shouldn't.
-pub fn extract_transaction_span(
-    event: &Event,
-    max_tag_value_size: usize,
-    span_allowed_hosts: &[String],
-) -> Option<Span> {
-    let mut spans = [Span::from(event).into()];
-
-    tag_extraction::extract_span_tags(event, &mut spans, max_tag_value_size, span_allowed_hosts);
-    tag_extraction::extract_segment_span_tags(event, &mut spans);
-
-    spans.into_iter().next().and_then(Annotated::into_value)
-}
-
 /// Checks if the Event includes unprintable fields.
 fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     fn is_unprintable(value: &&str) -> bool {
@@ -373,6 +424,39 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     } else {
         false
     }
+}
+
+/// Apply data privacy rules to the event payload.
+///
+/// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
+pub fn scrub(
+    event: &mut Annotated<Event>,
+    project_info: &ProjectInfo,
+) -> Result<(), ProcessingError> {
+    let config = &project_info.config;
+
+    if config.datascrubbing_settings.scrub_data
+        && let Some(event) = event.value_mut()
+    {
+        relay_pii::scrub_graphql(event);
+    }
+
+    metric!(timer(RelayTimers::EventProcessingPii), {
+        if let Some(ref config) = config.pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            processor::process_value(event, &mut processor, ProcessingState::root())?;
+        }
+        let pii_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+        if let Some(config) = pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            processor::process_value(event, &mut processor, ProcessingState::root())?;
+        }
+    });
+
+    Ok(())
 }
 
 #[cfg(feature = "processing")]

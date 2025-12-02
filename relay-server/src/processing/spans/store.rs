@@ -3,9 +3,8 @@ use std::ops::Deref;
 use relay_event_schema::protocol::SpanV2;
 use relay_protocol::{Annotated, FiniteF64};
 
-use crate::envelope::WithHeader;
 use crate::processing::Retention;
-use crate::processing::spans::{Error, Result};
+use crate::processing::spans::{Error, IndexedSpan, Result};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreSpanV2;
 
@@ -33,8 +32,9 @@ pub struct Context {
 }
 
 /// Converts a processed [`SpanV2`] into a [Kafka](crate::services::store::Store) compatible format.
-pub fn convert(span: WithHeader<SpanV2>, ctx: &Context) -> Result<Box<StoreSpanV2>> {
-    let mut span = required!(span.value);
+pub fn convert(span: IndexedSpan, ctx: &Context) -> Result<Box<StoreSpanV2>> {
+    // TODO: We are not doing anything with the attachment here.
+    let mut span = required!(span.0.span.value);
 
     let routing_key = span.trace_id.value().map(|v| *v.deref());
 

@@ -48,7 +48,7 @@ def test_uses_origins(mini_sentry, relay, json_fixture_provider, allowed_origins
     )
 
     if should_be_allowed:
-        mini_sentry.captured_events.get(timeout=10).get_event()
+        assert mini_sentry.get_captured_event() is not None
     assert mini_sentry.captured_events.empty()
 
 
@@ -266,7 +266,7 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
 
     assert resp.status_code == 200
 
-    envelope = mini_sentry.captured_events.get(timeout=10)
+    envelope = mini_sentry.get_captured_event()
     event = get_security_report(envelope)
     for x in ignored_properties:
         event.pop(x, None)
@@ -364,7 +364,7 @@ def test_adds_origin_header(mini_sentry, relay, json_fixture_provider):
         origin="http://valid.com",
     )
 
-    envelope = mini_sentry.captured_events.get(timeout=10)
+    envelope = mini_sentry.get_captured_event()
     event = get_security_report(envelope)
 
     assert ["Origin", "http://valid.com/"] in event["request"]["headers"]

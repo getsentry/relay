@@ -101,7 +101,7 @@ pub struct ProjectConfig {
 impl ProjectConfig {
     /// Validates fields in this project config and removes values that are partially invalid.
     pub fn sanitize(&mut self) {
-        self.quotas.retain(Quota::is_valid);
+        self.remove_invalid_quotas();
 
         metrics::convert_conditional_tagging(self);
         defaults::add_span_metrics(self);
@@ -117,8 +117,8 @@ impl ProjectConfig {
         // Check if indexed and non-indexed are double-counting towards the same ID.
         // This is probably not intended behavior.
         for quota in &self.quotas {
-            if let Some(id) = &quota.id {
-                for category in &quota.categories {
+            if let Some(id) = quota.id.as_deref() {
+                for category in &*quota.categories {
                     if let Some(indexed) = category.index_category()
                         && quota.categories.contains(&indexed)
                     {
@@ -128,6 +128,18 @@ impl ProjectConfig {
                         );
                     }
                 }
+            }
+        }
+    }
+
+    fn remove_invalid_quotas(&mut self) {
+        let invalid_quotas: Vec<_> = self.quotas.extract_if(.., |q| !q.is_valid()).collect();
+        if !invalid_quotas.is_empty() {
+            {
+                relay_log::error!(
+                    invalid_quotas = ?invalid_quotas,
+                    "Found an invalid quota definition",
+                );
             }
         }
     }

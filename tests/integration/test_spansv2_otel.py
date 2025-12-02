@@ -97,14 +97,14 @@ def test_span_ingestion(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.op": {"type": "string", "value": "default"},
             "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
+            "sentry.kind": {"type": "string", "value": "server"},
             "ui.component_name": {"type": "string", "value": "MyComponent"},
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts.timestamp() - 0.5),
-        "is_remote": False,
         "key_id": 123,
-        "kind": "server",
         "links": [
             {
                 "attributes": {

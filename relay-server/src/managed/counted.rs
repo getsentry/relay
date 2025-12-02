@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use relay_event_schema::protocol::{
     OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2, TraceMetric,
 };
@@ -29,6 +31,15 @@ impl Counted for () {
     }
 }
 
+impl<T: Counted> Counted for Option<T> {
+    fn quantities(&self) -> Quantities {
+        match self {
+            Some(inner) => inner.quantities(),
+            None => Quantities::new(),
+        }
+    }
+}
+
 impl Counted for Item {
     fn quantities(&self) -> Quantities {
         self.quantities()
@@ -50,6 +61,10 @@ impl Counted for Box<Envelope> {
 
         let data = [
             (DataCategory::Attachment, summary.attachment_quantity),
+            (
+                DataCategory::AttachmentItem,
+                summary.attachment_item_quantity,
+            ),
             (DataCategory::Profile, summary.profile_quantity),
             (DataCategory::ProfileIndexed, summary.profile_quantity),
             (DataCategory::Span, summary.span_quantity),
@@ -101,12 +116,6 @@ impl Counted for WithHeader<TraceMetric> {
 }
 
 impl Counted for WithHeader<SpanV2> {
-    fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
-    }
-}
-
-impl Counted for SpanV2 {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
     }
@@ -173,5 +182,29 @@ where
 {
     fn quantities(&self) -> Quantities {
         self.as_ref().quantities()
+    }
+}
+
+impl<T: Counted> Counted for Vec<T> {
+    fn quantities(&self) -> Quantities {
+        let mut quantities = BTreeMap::new();
+        for element in self {
+            for (category, size) in element.quantities() {
+                *quantities.entry(category).or_default() += size;
+            }
+        }
+        quantities.into_iter().collect()
+    }
+}
+
+impl<T: Counted, const N: usize> Counted for SmallVec<[T; N]> {
+    fn quantities(&self) -> Quantities {
+        let mut quantities = BTreeMap::new();
+        for element in self {
+            for (category, size) in element.quantities() {
+                *quantities.entry(category).or_default() += size;
+            }
+        }
+        quantities.into_iter().collect()
     }
 }

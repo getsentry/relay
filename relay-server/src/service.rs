@@ -25,6 +25,8 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
+#[cfg(feature = "processing")]
+use crate::services::upload::UploadService;
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
 #[cfg(feature = "processing")]
@@ -234,6 +236,9 @@ impl ServiceState {
             .transpose()?;
 
         #[cfg(feature = "processing")]
+        let upload = UploadService::new(config.upload(), store.clone())?.map(|s| services.start(s));
+
+        #[cfg(feature = "processing")]
         let global_rate_limits = redis_clients
             .as_ref()
             .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
@@ -293,7 +298,9 @@ impl ServiceState {
                             outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
                             #[cfg(feature = "processing")]
-                            store_forwarder: store.clone(),
+                            upload,
+                            #[cfg(feature = "processing")]
+                            store_forwarder: store,
                             aggregator: aggregator.clone(),
                             #[cfg(feature = "processing")]
                             global_rate_limits,
@@ -437,9 +444,14 @@ impl ServiceState {
 /// is created for each use case.
 #[cfg(feature = "processing")]
 pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients, RedisError> {
+    const CARDINALITY_REDIS_CLIENT: &str = "cardinality";
+    const PROJECT_CONFIG_REDIS_CLIENT: &str = "projectconfig";
+    const QUOTA_REDIS_CLIENT: &str = "quotas";
+    const UNIFIED_REDIS_CLIENT: &str = "unified";
+
     match configs {
         RedisConfigsRef::Unified(unified) => {
-            let client = create_async_redis_client(&unified)?;
+            let client = create_async_redis_client(UNIFIED_REDIS_CLIENT, &unified)?;
 
             Ok(RedisClients {
                 project_configs: client.clone(),
@@ -452,9 +464,10 @@ pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients
             cardinality,
             quotas,
         } => {
-            let project_configs = create_async_redis_client(&project_configs)?;
-            let cardinality = create_async_redis_client(&cardinality)?;
-            let quotas = create_async_redis_client(&quotas)?;
+            let project_configs =
+                create_async_redis_client(PROJECT_CONFIG_REDIS_CLIENT, &project_configs)?;
+            let cardinality = create_async_redis_client(CARDINALITY_REDIS_CLIENT, &cardinality)?;
+            let quotas = create_async_redis_client(QUOTA_REDIS_CLIENT, &quotas)?;
 
             Ok(RedisClients {
                 project_configs,
@@ -466,13 +479,18 @@ pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients
 }
 
 #[cfg(feature = "processing")]
-fn create_async_redis_client(config: &RedisConfigRef<'_>) -> Result<AsyncRedisClient, RedisError> {
+fn create_async_redis_client(
+    name: &'static str,
+    config: &RedisConfigRef<'_>,
+) -> Result<AsyncRedisClient, RedisError> {
     match config {
         RedisConfigRef::Cluster {
             cluster_nodes,
             options,
-        } => AsyncRedisClient::cluster(cluster_nodes.iter().map(|s| s.as_str()), options),
-        RedisConfigRef::Single { server, options } => AsyncRedisClient::single(server, options),
+        } => AsyncRedisClient::cluster(name, cluster_nodes.iter().map(|s| s.as_str()), options),
+        RedisConfigRef::Single { server, options } => {
+            AsyncRedisClient::single(name, server, options)
+        }
     }
 }
 

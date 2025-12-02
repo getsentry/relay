@@ -36,7 +36,7 @@ def test_sessions(mini_sentry, relay_chain, metric_extraction):
 
     relay.send_session(project_id, session_payload)
 
-    envelope = mini_sentry.captured_events.get(timeout=5)
+    envelope = mini_sentry.get_captured_event()
     assert len(envelope.items) == 1
 
     if metric_extraction:

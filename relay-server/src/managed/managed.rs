@@ -493,14 +493,26 @@ impl<T: Counted> Managed<T> {
         debug_assert!(!self.is_done());
 
         let (outcome, error) = error.consume();
-        if let Some(outcome) = outcome {
-            self.do_reject(outcome);
-        }
+        self.do_reject(outcome);
         Rejected(error)
     }
 
-    fn do_reject(&self, outcome: Outcome) {
-        if !self.done.fetch_or(true, Ordering::Relaxed) {
+    fn do_reject(&self, outcome: Option<Outcome>) {
+        // Always set the internal state to `done`, even if there is no outcome to be emitted.
+        // All bookkeeping has been done.
+        let is_done = self.done.fetch_or(true, Ordering::Relaxed);
+
+        // No outcome to emit, we're done.
+        let Some(outcome) = outcome else {
+            return;
+        };
+
+        // Only emit outcomes if we were not yet done.
+        //
+        // Callers should guard against accidentally calling `do_reject` when the `is_done` flag is
+        // already set, but internal uses (like `Drop`) can rely on this double emission
+        // prevention.
+        if !is_done {
             for (category, quantity) in self.value.quantities() {
                 self.meta.track_outcome(outcome.clone(), category, quantity);
             }
@@ -510,6 +522,9 @@ impl<T: Counted> Managed<T> {
     /// De-structures this managed instance into its own parts.
     ///
     /// While de-structured no outcomes will be emitted on drop.
+    ///
+    /// Currently no `Managed`, which already has outcomes emitted, should be de-structured
+    /// as this status is lost.
     fn destructure(self) -> (T, Arc<Meta>) {
         // SAFETY: this follows an approach mentioned in the RFC
         // <https://github.com/rust-lang/rfcs/pull/3466> to move fields out of
@@ -521,8 +536,18 @@ impl<T: Counted> Managed<T> {
         // And the original type is forgotten, de-structuring the original type
         // without running its drop implementation.
         let this = ManuallyDrop::new(self);
-        let value = unsafe { std::ptr::read(&this.value) };
-        let meta = unsafe { std::ptr::read(&this.meta) };
+        let Managed { value, meta, done } = &*this;
+
+        let value = unsafe { std::ptr::read(value) };
+        let meta = unsafe { std::ptr::read(meta) };
+        let done = unsafe { std::ptr::read(done) };
+        // This is a current invariant, if we ever need to change the invariant,
+        // the done status should be preserved and returned instead.
+        debug_assert!(
+            !done.load(Ordering::Relaxed),
+            "a `done` managed should never be destructured"
+        );
+
         (value, meta)
     }
 
@@ -541,7 +566,7 @@ impl<T: Counted> Managed<T> {
 
 impl<T: Counted> Drop for Managed<T> {
     fn drop(&mut self) {
-        self.do_reject(Outcome::Invalid(DiscardReason::Internal));
+        self.do_reject(Some(Outcome::Invalid(DiscardReason::Internal)));
     }
 }
 
@@ -557,6 +582,14 @@ impl<T: Counted + fmt::Debug> fmt::Debug for Managed<T> {
         write!(f, "](")?;
         self.value.fmt(f)?;
         write!(f, ")")
+    }
+}
+
+impl<T: Counted> Managed<Option<T>> {
+    /// Turns a managed option into an optional [`Managed`].
+    pub fn transpose(self) -> Option<Managed<T>> {
+        let (o, meta) = self.destructure();
+        o.map(|t| Managed::from_parts(t, meta))
     }
 }
 
@@ -990,6 +1023,20 @@ mod tests {
         fn quantities(&self) -> Quantities {
             smallvec::smallvec![(DataCategory::Error, 1)]
         }
+    }
+
+    #[test]
+    fn test_reject_err_no_outcome() {
+        let value = CountedVec(vec![0, 1, 2, 3, 4, 5]);
+        let (managed, mut handle) = Managed::for_test(value).build();
+
+        // Rejecting with no outcome, should not emit any outcomes.
+        let _ = managed.reject_err((None, ()));
+        handle.assert_no_outcomes();
+
+        // Now dropping the manged instance, should not record any (internal) outcomes either.
+        drop(managed);
+        handle.assert_no_outcomes();
     }
 
     #[test]

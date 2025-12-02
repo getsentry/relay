@@ -4,13 +4,10 @@ use std::error::Error;
 
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::GlobalConfig;
-use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
     SecurityReportType, Values,
 };
-use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
@@ -18,12 +15,10 @@ use serde_json::Value as SerdeValue;
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::TypedEnvelope;
-use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent, ProcessingError,
     SpansExtracted, event_type,
 };
-use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
@@ -142,100 +137,6 @@ pub fn extract<Group: EventProcessing>(
     })
 }
 
-/// Status for applying some filters that don't drop the event.
-///
-/// The enum represents either the success of running all filters and keeping
-/// the event, [`FiltersStatus::Ok`], or not running all the filters because
-/// some are unsupported, [`FiltersStatus::Unsupported`].
-///
-/// If there are unsuppported filters, Relay should forward the event upstream
-/// so that a more up-to-date Relay can apply filters appropriately. Actions
-/// that depend on the outcome of event filtering, such as metric extraction,
-/// should be postponed until a filtering decision is made.
-#[must_use]
-pub enum FiltersStatus {
-    /// All filters have been applied and the event should be kept.
-    Ok,
-    /// Some filters are not supported and were not applied.
-    ///
-    /// Relay should forward events upstream for a more up-to-date Relay to apply these filters.
-    /// Supported filters were applied and they don't reject the event.
-    Unsupported,
-}
-
-pub fn filter<Group: EventProcessing>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    event: &mut Annotated<Event>,
-    project_info: &ProjectInfo,
-    global_config: &GlobalConfig,
-) -> Result<FiltersStatus, ProcessingError> {
-    let event = match event.value_mut() {
-        Some(event) => event,
-        // Some events are created by processing relays (e.g. unreal), so they do not yet
-        // exist at this point in non-processing relays.
-        None => return Ok(FiltersStatus::Ok),
-    };
-
-    let client_ip = managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &project_info.config.filter_settings;
-
-    metric!(timer(RelayTimers::EventProcessingFiltering), {
-        relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
-            .map_err(|err| {
-                managed_envelope.reject(Outcome::Filtered(err.clone()));
-                ProcessingError::EventFiltered(err)
-            })
-    })?;
-
-    // Don't extract metrics if relay can't apply generic filters.  A filter
-    // applied in another up-to-date relay in chain may need to drop the event,
-    // and there should not be metrics from dropped events.
-    // In processing relays, always extract metrics to avoid losing them.
-    let supported_generic_filters = global_config.filters.is_ok()
-        && relay_filter::are_generic_filters_supported(
-            global_config.filters().map(|f| f.version),
-            project_info.config.filter_settings.generic.version,
-        );
-    if supported_generic_filters {
-        Ok(FiltersStatus::Ok)
-    } else {
-        Ok(FiltersStatus::Unsupported)
-    }
-}
-
-/// Apply data privacy rules to the event payload.
-///
-/// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-pub fn scrub(
-    event: &mut Annotated<Event>,
-    project_info: &ProjectInfo,
-) -> Result<(), ProcessingError> {
-    let config = &project_info.config;
-
-    if config.datascrubbing_settings.scrub_data
-        && let Some(event) = event.value_mut()
-    {
-        relay_pii::scrub_graphql(event);
-    }
-
-    metric!(timer(RelayTimers::EventProcessingPii), {
-        if let Some(ref config) = config.pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-        let pii_config = config
-            .datascrubbing_settings
-            .pii_config()
-            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
-        if let Some(config) = pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-    });
-
-    Ok(())
-}
-
 pub fn serialize<Group: EventProcessing>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
@@ -261,6 +162,7 @@ pub fn serialize<Group: EventProcessing>(
     event_item.set_metrics_extracted(event_metrics_extracted.0);
     event_item.set_spans_extracted(spans_extracted.0);
     event_item.set_fully_normalized(event_fully_normalized.0);
+    event_item.set_span_count(event.value().and_then(|e| e.spans.value()).map(Vec::len));
 
     managed_envelope.envelope_mut().add_item(event_item);
 

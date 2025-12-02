@@ -63,53 +63,28 @@ pub(crate) fn scrub_span_description(
         .map(|op| op.split_once('.').unwrap_or((op, "")))
         .and_then(|(op, sub)| match (op, sub) {
             ("http", _) => scrub_http(description, span_allowed_hosts),
-            ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
-            ("db", _) if db_system == Some("redis") => scrub_redis_keys(description),
-            ("db", _) if db_system == Some("mongodb") => {
-                let command = data
+            ("cache", _) => scrub_redis_keys(description),
+            ("db", sub) => {
+                let db_operation = data
                     .and_then(|data| data.db_operation.value())
-                    .and_then(|command| command.as_str());
+                    .and_then(|op| op.as_str());
 
-                let collection = data
+                let collection_name = data
                     .and_then(|data| data.db_collection_name.value())
                     .and_then(|collection| collection.as_str());
 
-                if let (Some(command), Some(collection)) = (command, collection) {
-                    scrub_mongodb_query(description, command, collection)
-                } else {
-                    None
-                }
-            }
-            ("db", sub) => {
-                if sub.contains("clickhouse")
-                    || sub.contains("mongodb")
-                    || sub.contains("redis")
-                    || is_legacy_activerecord(sub, db_system)
-                    || is_sql_mongodb(description, db_system)
-                {
-                    None
-                // spans coming from CoreData need to be scrubbed differently.
-                } else if span_origin == Some("auto.db.core_data") {
-                    scrub_core_data(description)
-                } else if sub.contains("prisma") {
-                    // We're not able to extract the exact query ran.
-                    // The description will only contain the entity queried and
-                    // the query type ("User find" for example).
-                    Some(description.to_owned())
-                } else if span_origin == Some("auto.db.supabase")
-                    && description.starts_with("from(")
-                {
-                    // The description only contains the table name, e.g. `"from(users)`.
-                    // In the future, we might want to parse `data.query` as well.
-                    // See https://github.com/supabase-community/sentry-integration-js/blob/master/index.js#L259
-                    scrub_supabase(description)
-                } else {
-                    let (scrubbed, mode) = sql::scrub_queries(db_system, description);
-                    if let sql::Mode::Parsed(ast) = mode {
-                        parsed_sql = Some(ast);
-                    }
-                    scrubbed
-                }
+                let (scrubbed, parsed_sql_statement) = scrub_db_query(
+                    description,
+                    sub,
+                    db_system,
+                    db_operation,
+                    collection_name,
+                    span_origin,
+                );
+
+                parsed_sql = parsed_sql_statement;
+
+                scrubbed
             }
             ("resource", ty) => scrub_resource(ty, description),
             ("ai", sub) => match sub.split_once('.').unwrap_or((sub, "")) {
@@ -160,6 +135,58 @@ pub(crate) fn scrub_span_description(
             _ => None,
         });
     (scrubbed_description, parsed_sql)
+}
+
+/// Scrubs a DB query string based on relevant attributes within DB spans.
+///
+/// Returns (None, None) if the query cannot be scrubbed.
+pub fn scrub_db_query(
+    raw_query: &str,
+    sub_op: &str,
+    db_system: Option<&str>,
+    db_operation: Option<&str>,
+    collection_name: Option<&str>,
+    span_origin: Option<&str>,
+) -> (Option<String>, Option<Vec<sqlparser::ast::Statement>>) {
+    let mut parsed_sql = None;
+
+    let scrubbed = if db_system == Some("redis") || sub_op == "redis" {
+        scrub_redis_keys(raw_query)
+    } else if db_system == Some("mongodb") {
+        if let (Some(command), Some(collection)) = (db_operation, collection_name) {
+            scrub_mongodb_query(raw_query, command, collection)
+        } else {
+            None
+        }
+    } else if sub_op.contains("clickhouse")
+        || sub_op.contains("mongodb")
+        || sub_op.contains("redis")
+        || is_legacy_activerecord(sub_op, db_system)
+        || is_sql_mongodb(raw_query, db_system)
+    {
+        None
+    } else if span_origin == Some("auto.db.core_data") {
+        // spans coming from CoreData need to be scrubbed differently.
+        scrub_core_data(raw_query)
+    } else if sub_op.contains("prisma") {
+        // We're not able to extract the exact query ran.
+        // The description will only contain the entity queried and
+        // the query type ("User find" for example).
+        Some(raw_query.to_owned())
+    } else if span_origin == Some("auto.db.supabase") && raw_query.starts_with("from(") {
+        // The description only contains the table name, e.g. `"from(users)`.
+        // In the future, we might want to parse `data.query` as well.
+        // See https://github.com/supabase-community/sentry-integration-js/blob/master/index.js#L259
+        scrub_supabase(raw_query)
+    } else {
+        let (scrubbed, mode) = sql::scrub_queries(db_system, raw_query);
+        if let sql::Mode::Parsed(ast) = mode {
+            parsed_sql = Some(ast);
+        }
+        scrubbed
+    };
+
+    (scrubbed, parsed_sql)
 }
 
 /// A span declares `op: db.sql.query`, but contains mongodb.

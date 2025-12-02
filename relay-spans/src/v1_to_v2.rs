@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use relay_conventions::{IS_REMOTE, SPAN_KIND};
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
     SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
@@ -38,7 +39,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         was_transaction,
         kind,
         performance_issues_spans,
-        other,
+        other: _,
     } = span_v1;
 
     let mut annotated_attributes = attributes_from_data(data);
@@ -49,7 +50,6 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     attributes.insert("sentry.op", op);
 
     attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string()));
-    attributes.insert("sentry.is_segment", is_segment);
     attributes.insert("sentry.description", description);
     attributes.insert("sentry.origin", origin);
     attributes.insert("sentry.profile_id", profile_id.map_value(|v| v.to_string()));
@@ -108,6 +108,16 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         .and_then(|name| name.map_value(|attr| attr.into_string()).transpose())
         .unwrap_or_else(|| name_for_attributes(attributes).into());
 
+    if let Some(is_remote) = is_remote.value() {
+        attributes.insert(IS_REMOTE, *is_remote);
+    }
+    attributes.insert(SPAN_KIND, kind.map_value(|kind| kind.to_string()));
+
+    let is_segment = match (is_segment.value(), is_remote.value()) {
+        (None, Some(true)) => is_remote,
+        _ => is_segment,
+    };
+
     SpanV2 {
         trace_id,
         parent_span_id,
@@ -115,13 +125,12 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         name,
         status: Annotated::map_value(status, span_v1_status_to_span_v2_status)
             .or_else(|| SpanV2Status::Ok.into()),
-        is_remote: is_remote.or_else(|| false.into()),
-        kind,
+        is_segment,
         start_timestamp,
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
         attributes: annotated_attributes,
-        other,
+        other: Default::default(), // cannot carry over because of schema mismatch
     }
 }
 
@@ -198,7 +207,7 @@ fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
         Value::F64(v) => AttributeValue::from(v),
         Value::String(v) => AttributeValue::from(v),
         Value::Array(_) | Value::Object(_) => {
-            return match Annotated::new(value).to_json() {
+            return match serde_json::to_string(&NoMeta(&value)) {
                 Ok(s) => Annotated(
                     Some(AttributeValue {
                         ty: AttributeType::String.into(),
@@ -216,10 +225,26 @@ fn attribute_value_from_value(value: Value) -> Annotated<AttributeValue> {
     .into()
 }
 
+/// A wrapper for [`IntoValue`] types which allows serde serialization and discards metadata.
+struct NoMeta<'a, T>(&'a T);
+
+impl<T> serde::Serialize for NoMeta<'_, T>
+where
+    T: IntoValue,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize_payload(serializer, Default::default())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_event_schema::protocol::Event;
+    use chrono::DateTime;
+    use relay_event_schema::protocol::{Event, Timestamp};
     use relay_protocol::{FromValue, SerializableAnnotated};
 
     #[test]
@@ -262,6 +287,7 @@ mod tests {
           },
           "data": {
             "my.data.field": "my.data.value",
+            "my.array": ["str", 123],
             "my.nested": {
               "numbers": [
                 1,
@@ -300,8 +326,7 @@ mod tests {
           "span_id": "fa90fdead5f74052",
           "name": "operation",
           "status": "ok",
-          "is_remote": true,
-          "kind": "server",
+          "is_segment": true,
           "start_timestamp": -63158400.0,
           "end_timestamp": 0.0,
           "links": [
@@ -334,6 +359,10 @@ mod tests {
               "type": "double",
               "value": 9001.0
             },
+            "my.array": {
+              "type": "string",
+              "value": "[\"str\",123]"
+            },
             "my.data.field": {
               "type": "string",
               "value": "my.data.value"
@@ -358,9 +387,13 @@ mod tests {
               "type": "double",
               "value": 1.23
             },
-            "sentry.is_segment": {
+            "sentry.is_remote": {
               "type": "boolean",
               "value": true
+            },
+            "sentry.kind": {
+              "type": "string",
+              "value": "server"
             },
             "sentry.normalized_description": {
               "type": "string",
@@ -399,9 +432,20 @@ mod tests {
               "value": true
             }
           },
-          "additional_field": "additional field value",
           "_meta": {
             "attributes": {
+              "my.array": {
+                "": {
+                  "err": [
+                    [
+                      "invalid_data",
+                      {
+                        "reason": "expected scalar attribute"
+                      }
+                    ]
+                  ]
+                }
+              },
               "my.nested": {
                 "": {
                   "err": [
@@ -441,6 +485,25 @@ mod tests {
                 .get_value("sentry.segment.name")
                 .and_then(Value::as_str),
             Some("hi")
+        );
+    }
+
+    #[test]
+    fn start_timestamp() {
+        let json = r#"{"timestamp": 123, "end_timestamp": "invalid data"}"#;
+        let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
+        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap());
+
+        // Parsed version is still fine:
+        assert_eq!(
+            span_v2.end_timestamp.value().unwrap(),
+            &Timestamp(DateTime::from_timestamp_secs(123).unwrap())
+        );
+
+        let serialized = Annotated::from(span_v2).payload_to_json().unwrap();
+        assert_eq!(
+            &serialized,
+            r#"{"status":"ok","end_timestamp":123.0,"attributes":{}}"#
         );
     }
 }

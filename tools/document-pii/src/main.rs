@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 use std::fs::File;
 use std::path::PathBuf;
 
-use clap::{Parser, command};
+use clap::Parser;
 use serde::Serialize;
 use syn::{ItemEnum, ItemStruct};
 use walkdir::WalkDir;

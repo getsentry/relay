@@ -5,7 +5,7 @@ use relay_protocol::Annotated;
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::processing::Context;
-use crate::processing::spans::{Error, ExpandedSpans, Result};
+use crate::processing::spans::{Error, ExpandedSpans, Result, SerializedSpans};
 
 /// Filters standalone spans sent for a project which does not allow standalone span ingestion.
 pub fn feature_flag(ctx: Context<'_>) -> Result<()> {
@@ -15,11 +15,25 @@ pub fn feature_flag(ctx: Context<'_>) -> Result<()> {
     }
 }
 
+// Filters span attachments for a project which does not allow for span attachment ingestion.
+pub fn feature_flag_attachment(
+    spans: Managed<SerializedSpans>,
+    ctx: Context<'_>,
+) -> Managed<SerializedSpans> {
+    spans.map(|mut spans, r| {
+        if ctx.should_filter(Feature::SpanV2AttachmentProcessing) {
+            let attachments = std::mem::take(&mut spans.attachments);
+            r.reject_err(Error::FilterFeatureFlag, attachments);
+        }
+        spans
+    })
+}
+
 /// Applies inbound filters to individual spans.
 pub fn filter(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
     spans.retain_with_context(
         |spans| (&mut spans.spans, spans.headers.meta()),
-        |span, meta, _| filter_span(span, meta, ctx),
+        |span, meta, _| filter_span(&span.span, meta, ctx),
     );
 }
 

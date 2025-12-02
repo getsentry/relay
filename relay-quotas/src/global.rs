@@ -16,7 +16,6 @@ pub trait GlobalLimiter {
     fn check_global_rate_limits<'a>(
         &self,
         global_quotas: &'a [RedisQuota<'a>],
-        quantity: usize,
     ) -> impl Future<Output = Result<Vec<&'a RedisQuota<'a>>, RateLimitingError>> + Send;
 }
 
@@ -41,7 +40,6 @@ impl GlobalRateLimiter {
         &mut self,
         client: &AsyncRedisClient,
         quotas: &'a [RedisQuota<'a>],
-        quantity: usize,
     ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
         let mut connection = client.get_connection().await?;
 
@@ -57,7 +55,7 @@ impl GlobalRateLimiter {
             let global_rate_limit = self.limits.entry_ref(&key).or_default();
 
             if global_rate_limit
-                .check_rate_limited(&mut connection, quota, key, quantity as u64)
+                .check_rate_limited(&mut connection, quota, key)
                 .await?
             {
                 rate_limited.push(quota);
@@ -69,7 +67,7 @@ impl GlobalRateLimiter {
         if rate_limited.is_empty() {
             for quota in not_rate_limited {
                 if let Some(val) = self.limits.get_mut(&KeyRef::new(quota)) {
-                    val.budget -= quantity as u64;
+                    val.budget -= quota.quantity() as u64;
                 }
             }
         }
@@ -189,9 +187,9 @@ impl GlobalRateLimit {
         connection: &mut AsyncRedisConnection,
         quota: &RedisQuota<'_>,
         key: KeyRef<'_>,
-        quantity: u64,
     ) -> Result<bool, RateLimitingError> {
         let quota_slot = quota.slot();
+        let quantity = quota.quantity() as u64;
 
         // There is 2 cases we are handling here:
         //
@@ -297,12 +295,12 @@ mod tests {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-        AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap()
+        AsyncRedisClient::single("test", &url, &RedisConfigOptions::default()).unwrap()
     }
 
     fn build_quota(window: u64, limit: impl Into<Option<u64>>) -> Quota {
         Quota {
-            id: Some(uuid::Uuid::new_v4().to_string()),
+            id: Some(uuid::Uuid::new_v4().to_string().into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Global,
             scope_id: None,
@@ -322,9 +320,13 @@ mod tests {
         }
     }
 
-    fn build_redis_quota<'a>(quota: &'a Quota, scoping: &'a Scoping) -> RedisQuota<'a> {
+    fn build_redis_quota<'a>(
+        quota: &'a Quota,
+        scoping: &'a Scoping,
+        quantity: usize,
+    ) -> RedisQuota<'a> {
         let scoping = scoping.item(DataCategory::MetricBucket);
-        RedisQuota::new(quota, scoping, UnixTimestamp::now()).unwrap()
+        RedisQuota::new(quota, quantity, scoping, UnixTimestamp::now()).unwrap()
     }
 
     #[tokio::test]
@@ -334,19 +336,19 @@ mod tests {
         let quota1 = build_quota(10, 100);
         let quota2 = build_quota(10, 150);
         let quota3 = build_quota(10, 200);
-        let quantity = 175;
 
+        let quantity = 175;
         let redis_quotas = [
-            build_redis_quota(&quota1, &scoping),
-            build_redis_quota(&quota2, &scoping),
-            build_redis_quota(&quota3, &scoping),
+            build_redis_quota(&quota1, &scoping, quantity),
+            build_redis_quota(&quota2, &scoping, quantity),
+            build_redis_quota(&quota3, &scoping, quantity),
         ];
 
         let client = build_redis_client();
         let mut counter = GlobalRateLimiter::default();
 
         let rate_limited_quotas = counter
-            .filter_rate_limited(&client, &redis_quotas, quantity)
+            .filter_rate_limited(&client, &redis_quotas)
             .await
             .unwrap();
 
@@ -375,16 +377,17 @@ mod tests {
         smaller_quota.id = Some("foobar".into());
         bigger_quota.id = Some("foobar".into());
 
+        let quantity = (bigger_limit * 2) as usize;
         let redis_quotas = [
-            build_redis_quota(&smaller_quota, &scoping),
-            build_redis_quota(&bigger_quota, &scoping),
+            build_redis_quota(&smaller_quota, &scoping, quantity),
+            build_redis_quota(&bigger_quota, &scoping, quantity),
         ];
 
         let client = build_redis_client();
         let mut counter = GlobalRateLimiter::default();
 
         let rate_limited_quotas = counter
-            .filter_rate_limited(&client, &redis_quotas, (bigger_limit * 2) as usize)
+            .filter_rate_limited(&client, &redis_quotas)
             .await
             .unwrap();
 
@@ -402,7 +405,7 @@ mod tests {
 
         let quota = build_quota(10, limit);
         let scoping = build_scoping();
-        let redis_quota = [build_redis_quota(&quota, &scoping)];
+        let redis_quota = [build_redis_quota(&quota, &scoping, 90)];
 
         let client = build_redis_client();
         let mut counter = GlobalRateLimiter::default();
@@ -413,7 +416,7 @@ mod tests {
         // still be under the limit. 90 < 200 -> 180 < 200 -> 270 > 200 -> 360 > 200.
         for should_rate_limit in expected_rate_limit_result {
             let is_rate_limited = counter
-                .filter_rate_limited(&client, &redis_quota, 90)
+                .filter_rate_limited(&client, &redis_quota)
                 .await
                 .unwrap();
 
@@ -431,16 +434,17 @@ mod tests {
         let client = build_redis_client();
         let mut rl = GlobalRateLimiter::default();
 
-        let redis_quota = [build_redis_quota(&quota, &scoping)];
+        let redis_quota = [build_redis_quota(&quota, &scoping, 11)];
         assert!(
-            !rl.filter_rate_limited(&client, &redis_quota, 11)
+            !rl.filter_rate_limited(&client, &redis_quota)
                 .await
                 .unwrap()
                 .is_empty()
         );
 
+        let redis_quota = [build_redis_quota(&quota, &scoping, 10)];
         assert!(
-            rl.filter_rate_limited(&client, &redis_quota, 10)
+            rl.filter_rate_limited(&client, &redis_quota)
                 .await
                 .unwrap()
                 .is_empty()
@@ -453,7 +457,6 @@ mod tests {
 
         let quota = build_quota(10, limit as u64);
         let scoping = build_scoping();
-        let quota = [build_redis_quota(&quota, &scoping)];
 
         let client = build_redis_client();
 
@@ -466,8 +469,9 @@ mod tests {
         for i in 0.. {
             let quantity = i % 17;
 
+            let quota = [build_redis_quota(&quota, &scoping, quantity)];
             if counter1
-                .filter_rate_limited(&client, &quota, quantity)
+                .filter_rate_limited(&client, &quota)
                 .await
                 .unwrap()
                 .is_empty()
@@ -477,7 +481,7 @@ mod tests {
             }
 
             if counter2
-                .filter_rate_limited(&client, &quota, quantity)
+                .filter_rate_limited(&client, &quota)
                 .await
                 .unwrap()
                 .is_empty()
@@ -514,36 +518,46 @@ mod tests {
 
         let mut rl = GlobalRateLimiter::default();
 
-        let redis_quota = [RedisQuota::new(&quota, item_scoping, ts).unwrap()];
+        let redis_quota = [RedisQuota::new(&quota, 200, item_scoping, ts).unwrap()];
         assert!(
-            rl.filter_rate_limited(&client, &redis_quota, 200)
+            rl.filter_rate_limited(&client, &redis_quota)
                 .await
                 .unwrap()
                 .is_empty()
         );
 
+        let redis_quota = [RedisQuota::new(&quota, 1, item_scoping, ts).unwrap()];
         assert!(
-            !rl.filter_rate_limited(&client, &redis_quota, 1)
+            !rl.filter_rate_limited(&client, &redis_quota)
                 .await
                 .unwrap()
                 .is_empty()
         );
 
         // Fast forward time.
-        let redis_quota =
-            [
-                RedisQuota::new(&quota, item_scoping, ts + Duration::from_secs(window + 1))
-                    .unwrap(),
-            ];
+        let redis_quota = RedisQuota::new(
+            &quota,
+            200,
+            item_scoping,
+            ts + Duration::from_secs(window + 1),
+        )
+        .unwrap();
         assert!(
-            rl.filter_rate_limited(&client, &redis_quota, 200)
+            rl.filter_rate_limited(&client, &[redis_quota])
                 .await
                 .unwrap()
                 .is_empty()
         );
 
+        let redis_quota = RedisQuota::new(
+            &quota,
+            1,
+            item_scoping,
+            ts + Duration::from_secs(window + 1),
+        )
+        .unwrap();
         assert!(
-            !rl.filter_rate_limited(&client, &redis_quota, 1)
+            !rl.filter_rate_limited(&client, &[redis_quota])
                 .await
                 .unwrap()
                 .is_empty()
@@ -567,9 +581,9 @@ mod tests {
         let quantity = 2;
         let redis_threshold = (quantity as f32 / DEFAULT_BUDGET_RATIO) as u64;
         for _ in 0..redis_threshold + 10 {
-            let redis_quota = RedisQuota::new(&quota, item_scoping, timestamp).unwrap();
+            let redis_quota = RedisQuota::new(&quota, quantity, item_scoping, timestamp).unwrap();
             assert!(
-                rl.filter_rate_limited(&client, &[redis_quota], quantity)
+                rl.filter_rate_limited(&client, &[redis_quota])
                     .await
                     .unwrap()
                     .is_empty()
@@ -581,10 +595,10 @@ mod tests {
         let mut rl = GlobalRateLimiter::default();
 
         quota.limit = Some(redis_threshold);
-        let redis_quota = RedisQuota::new(&quota, item_scoping, timestamp).unwrap();
+        let redis_quota = RedisQuota::new(&quota, quantity, item_scoping, timestamp).unwrap();
 
         assert!(
-            !rl.filter_rate_limited(&client, &[redis_quota], quantity)
+            !rl.filter_rate_limited(&client, &[redis_quota])
                 .await
                 .unwrap()
                 .is_empty()

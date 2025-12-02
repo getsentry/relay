@@ -3,9 +3,13 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
+use relay_conventions::IS_REMOTE;
 use relay_conventions::ORIGIN;
+use relay_conventions::PLATFORM;
+use relay_conventions::SPAN_KIND;
 use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
+use relay_otel::otel_resource_to_platform;
 use relay_otel::otel_value_to_attribute;
 use relay_protocol::ErrorKind;
 
@@ -66,6 +70,11 @@ pub fn otel_to_sentry_span(
     relay_otel::otel_scope_into_attributes(&mut sentry_attributes, resource, scope);
 
     sentry_attributes.insert(ORIGIN, "auto.otlp.spans".to_owned());
+    if let Some(resource) = resource
+        && let Some(platform) = otel_resource_to_platform(resource)
+    {
+        sentry_attributes.insert(PLATFORM, platform.to_owned());
+    }
 
     let mut name = if name.is_empty() { None } else { Some(name) };
     for (key, value) in attributes.into_iter().flat_map(|attribute| {
@@ -101,19 +110,35 @@ pub fn otel_to_sentry_span(
         sentry_attributes.insert(STATUS_MESSAGE.to_owned(), status_message);
     }
 
+    let is_remote = otel_flags_is_remote(flags);
+    if let Some(is_remote) = is_remote {
+        sentry_attributes.insert(IS_REMOTE, is_remote);
+    }
+
+    sentry_attributes.insert(
+        SPAN_KIND,
+        otel_to_sentry_kind(kind).map_value(|v| v.to_string()),
+    );
+
+    // A remote span is a segment span, but not every segment span is remote:
+    let is_segment = match is_remote {
+        Some(true) => Some(true),
+        _ => None,
+    }
+    .into();
+
     SentrySpanV2 {
         name: name.into(),
         trace_id,
         span_id,
         parent_span_id,
-        is_remote: otel_flags_is_remote(flags).unwrap_or(false).into(),
+        is_segment,
         start_timestamp: Timestamp(start_timestamp).into(),
         end_timestamp: Timestamp(end_timestamp).into(),
         status: status
             .map(|status| otel_to_sentry_status(status.code))
             .unwrap_or(SpanV2Status::Ok)
             .into(),
-        kind: otel_to_sentry_kind(kind),
         links: sentry_links.into(),
         attributes: Annotated::new(sentry_attributes),
         ..Default::default()
@@ -246,6 +271,9 @@ mod tests {
             "attributes": [{
                 "key": "service.name",
                 "value": {"stringValue": "test-service"},
+            }, {
+              "key": "telemetry.sdk.language",
+              "value": {"stringValue": "nodejs"},
             }]
         }))
         .unwrap();
@@ -267,8 +295,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "middleware - fastify -> @fastify/multipart",
           "status": "ok",
-          "is_remote": false,
-          "kind": "internal",
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -297,6 +323,10 @@ mod tests {
               "type": "string",
               "value": "test-service"
             },
+            "resource.telemetry.sdk.language": {
+              "type": "string",
+              "value": "nodejs"
+            },
             "sentry.environment": {
               "type": "string",
               "value": "test"
@@ -305,6 +335,10 @@ mod tests {
               "type": "double",
               "value": 1000.0
             },
+            "sentry.kind": {
+              "type": "string",
+              "value": "internal"
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
@@ -312,6 +346,10 @@ mod tests {
             "sentry.parentSampled": {
               "type": "boolean",
               "value": true
+            },
+            "sentry.platform": {
+              "type": "string",
+              "value": "node"
             },
             "sentry.sample_rate": {
               "type": "integer",
@@ -355,8 +393,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "middleware - fastify -> @fastify/multipart",
           "status": "ok",
-          "is_remote": false,
-          "kind": "internal",
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -364,6 +400,10 @@ mod tests {
             "sentry.exclusive_time": {
               "type": "double",
               "value": 3200.0
+            },
+            "sentry.kind": {
+              "type": "string",
+              "value": "internal"
             },
             "sentry.origin": {
               "type": "string",
@@ -415,8 +455,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "database query",
           "status": "ok",
-          "is_remote": false,
-          "kind": "client",
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -432,6 +470,10 @@ mod tests {
             "db.type": {
               "type": "string",
               "value": "sql"
+            },
+            "sentry.kind": {
+              "type": "string",
+              "value": "client"
             },
             "sentry.origin": {
               "type": "string",
@@ -489,8 +531,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "database query",
           "status": "ok",
-          "is_remote": false,
-          "kind": "client",
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -510,6 +550,10 @@ mod tests {
             "sentry.description": {
               "type": "string",
               "value": "index view query"
+            },
+            "sentry.kind": {
+              "type": "string",
+              "value": "client"
             },
             "sentry.origin": {
               "type": "string",
@@ -555,8 +599,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "http client request",
           "status": "ok",
-          "is_remote": false,
-          "kind": "client",
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -564,6 +606,10 @@ mod tests {
             "http.request.method": {
               "type": "string",
               "value": "GET"
+            },
+            "sentry.kind": {
+              "type": "string",
+              "value": "client"
             },
             "sentry.origin": {
               "type": "string",
@@ -721,7 +767,6 @@ mod tests {
           "span_id": "fa90fdead5f74052",
           "name": "myname",
           "status": "ok",
-          "is_remote": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -802,11 +847,15 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "status": "ok",
-          "is_remote": true,
+          "is_segment": true,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
           "attributes": {
+            "sentry.is_remote": {
+              "type": "boolean",
+              "value": true
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
@@ -835,11 +884,14 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "status": "ok",
-          "is_remote": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
           "attributes": {
+            "sentry.is_remote": {
+              "type": "boolean",
+              "value": false
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
@@ -868,12 +920,14 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "status": "ok",
-          "is_remote": false,
-          "kind": "client",
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
           "attributes": {
+            "sentry.kind": {
+              "type": "string",
+              "value": "client"
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
@@ -931,7 +985,6 @@ mod tests {
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "span_id": "e342abb1214ca181",
           "status": "ok",
-          "is_remote": false,
           "start_timestamp": 0.0,
           "end_timestamp": 0.0,
           "links": [
@@ -987,7 +1040,6 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "span_id": "e342abb1214ca181",
           "status": "error",
-          "is_remote": false,
           "start_timestamp": 0.0,
           "end_timestamp": 0.0,
           "links": [],

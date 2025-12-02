@@ -5,71 +5,122 @@ use crate::{ModelCostV2, ModelCosts};
 use relay_event_schema::protocol::{Event, Span, SpanData};
 use relay_protocol::{Annotated, Getter, Value};
 
+/// Amount of used tokens for a model call.
+#[derive(Debug, Copy, Clone)]
+pub struct UsedTokens {
+    /// Total amount of input tokens used.
+    pub input_tokens: f64,
+    /// Amount of cached tokens used.
+    ///
+    /// This is a subset of [`Self::input_tokens`].
+    pub input_cached_tokens: f64,
+    /// Total amount of output tokens.
+    pub output_tokens: f64,
+    /// Total amount of reasoning tokens.
+    ///
+    /// This is a subset of [`Self::output_tokens`].
+    pub output_reasoning_tokens: f64,
+}
+
+impl UsedTokens {
+    /// Extracts [`UsedTokens`] from [`SpanData`] attributes.
+    pub fn from_span_data(data: &SpanData) -> Self {
+        macro_rules! get_value {
+            ($e:expr) => {
+                $e.value().and_then(Value::as_f64).unwrap_or(0.0)
+            };
+        }
+
+        Self {
+            input_tokens: get_value!(data.gen_ai_usage_input_tokens),
+            output_tokens: get_value!(data.gen_ai_usage_output_tokens),
+            output_reasoning_tokens: get_value!(data.gen_ai_usage_output_tokens_reasoning),
+            input_cached_tokens: get_value!(data.gen_ai_usage_input_tokens_cached),
+        }
+    }
+
+    /// Returns `true` if any tokens were used.
+    pub fn has_usage(&self) -> bool {
+        self.input_tokens > 0.0 || self.output_tokens > 0.0
+    }
+
+    /// Calculates the total amount of uncached input tokens.
+    ///
+    /// Subtracts cached tokens from the total token count.
+    pub fn raw_input_tokens(&self) -> f64 {
+        self.input_tokens - self.input_cached_tokens
+    }
+
+    /// Calculates the total amount of raw, non-reasoning output tokens.
+    ///
+    /// Subtracts reasoning tokens from the total token count.
+    pub fn raw_output_tokens(&self) -> f64 {
+        self.output_tokens - self.output_reasoning_tokens
+    }
+}
+
+/// Calculated model call costs.
+#[derive(Debug, Copy, Clone)]
+pub struct CalculatedCost {
+    /// The cost of input tokens used.
+    pub input: f64,
+    /// The cost of output tokens used.
+    pub output: f64,
+}
+
+impl CalculatedCost {
+    /// The total, input and output, cost.
+    pub fn total(&self) -> f64 {
+        self.input + self.output
+    }
+}
+
+/// Calculates the total cost for a model call.
+///
+/// Returns `None` if no tokens were used.
+pub fn calculate_costs(model_cost: &ModelCostV2, tokens: UsedTokens) -> Option<CalculatedCost> {
+    if !tokens.has_usage() {
+        return None;
+    }
+
+    let input = (tokens.raw_input_tokens() * model_cost.input_per_token)
+        + (tokens.input_cached_tokens * model_cost.input_cached_per_token);
+
+    // For now most of the models do not differentiate between reasoning and output token cost,
+    // it costs the same.
+    let reasoning_cost = match model_cost.output_reasoning_per_token {
+        reasoning_cost if reasoning_cost > 0.0 => reasoning_cost,
+        _ => model_cost.output_per_token,
+    };
+
+    let output = (tokens.raw_output_tokens() * model_cost.output_per_token)
+        + (tokens.output_reasoning_tokens * reasoning_cost);
+
+    Some(CalculatedCost { input, output })
+}
+
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
 /// Calculated cost is in US dollars.
 fn extract_ai_model_cost_data(model_cost: Option<&ModelCostV2>, data: &mut SpanData) {
-    let cost_per_token = match model_cost {
-        Some(v) => v,
-        None => return,
+    let Some(model_cost) = model_cost else { return };
+
+    let used_tokens = UsedTokens::from_span_data(&*data);
+    let Some(costs) = calculate_costs(model_cost, used_tokens) else {
+        return;
     };
 
-    let input_tokens_used = data
-        .gen_ai_usage_input_tokens
-        .value()
-        .and_then(Value::as_f64);
-
-    let output_tokens_used = data
-        .gen_ai_usage_output_tokens
-        .value()
-        .and_then(Value::as_f64);
-    let output_reasoning_tokens_used = data
-        .gen_ai_usage_output_tokens_reasoning
-        .value()
-        .and_then(Value::as_f64);
-    let input_cached_tokens_used = data
-        .gen_ai_usage_input_tokens_cached
-        .value()
-        .and_then(Value::as_f64);
-
-    if input_tokens_used.is_none() && output_tokens_used.is_none() {
-        return;
-    }
-
-    let mut input_cost = 0.0;
-    let mut output_cost = 0.0;
-    // Cached tokens are subset of the input tokens, so we need to subtract them
-    // from the input tokens
-    input_cost += cost_per_token.input_per_token
-        * (input_tokens_used.unwrap_or(0.0) - input_cached_tokens_used.unwrap_or(0.0));
-    input_cost += cost_per_token.input_cached_per_token * input_cached_tokens_used.unwrap_or(0.0);
-    // Reasoning tokens are subset of the output tokens, so we need to subtract
-    // them from the output tokens
-    output_cost += cost_per_token.output_per_token
-        * (output_tokens_used.unwrap_or(0.0) - output_reasoning_tokens_used.unwrap_or(0.0));
-
-    if cost_per_token.output_reasoning_per_token > 0.0 {
-        // for now most of the models do not differentiate between reasoning and output token cost,
-        // it costs the same
-        output_cost +=
-            cost_per_token.output_reasoning_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
-    } else {
-        output_cost +=
-            cost_per_token.output_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
-    }
-
-    let result = input_cost + output_cost;
     // double write during migration period
     // 'gen_ai_usage_total_cost' is deprecated and will be removed in the future
     data.gen_ai_usage_total_cost
-        .set_value(Value::F64(result).into());
+        .set_value(Value::F64(costs.total()).into());
     data.gen_ai_cost_total_tokens
-        .set_value(Value::F64(result).into());
+        .set_value(Value::F64(costs.total()).into());
 
     // Set individual cost components
     data.gen_ai_cost_input_tokens
-        .set_value(Value::F64(input_cost).into());
+        .set_value(Value::F64(costs.input).into());
     data.gen_ai_cost_output_tokens
-        .set_value(Value::F64(output_cost).into());
+        .set_value(Value::F64(costs.output).into());
 }
 
 /// Maps AI-related measurements (legacy) to span data.
@@ -93,6 +144,10 @@ fn map_ai_measurements_to_data(span: &mut Span) {
         &mut data.gen_ai_usage_output_tokens,
         "ai_completion_tokens_used",
     );
+}
+
+fn set_total_tokens(span: &mut Span) {
+    let data = span.data.get_or_insert_with(SpanData::default);
 
     // It might be that 'total_tokens' is not set in which case we need to calculate it
     if data.gen_ai_usage_total_tokens.value().is_none() {
@@ -163,6 +218,8 @@ pub fn enrich_ai_span_data(
     }
 
     map_ai_measurements_to_data(span);
+    set_total_tokens(span);
+
     if let Some(model_costs) = model_costs {
         extract_ai_data(span, model_costs);
     }
@@ -206,4 +263,105 @@ fn is_ai_span(span: &Span) -> bool {
     span.op
         .value()
         .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_cost_no_tokens() {
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 1.0,
+                output_per_token: 1.0,
+                output_reasoning_per_token: 1.0,
+                input_cached_per_token: 1.0,
+            },
+            UsedTokens::from_span_data(&SpanData::default()),
+        );
+        assert!(cost.is_none());
+    }
+
+    #[test]
+    fn test_calculate_cost_full() {
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 1.0,
+                output_per_token: 2.0,
+                output_reasoning_per_token: 3.0,
+                input_cached_per_token: 0.5,
+            },
+            UsedTokens {
+                input_tokens: 8.0,
+                input_cached_tokens: 5.0,
+                output_tokens: 15.0,
+                output_reasoning_tokens: 9.0,
+            },
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(cost, @r"
+        CalculatedCost {
+            input: 5.5,
+            output: 39.0,
+        }
+        ");
+    }
+
+    #[test]
+    fn test_calculate_cost_no_reasoning_cost() {
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 1.0,
+                output_per_token: 2.0,
+                // Should fallback to output token cost for reasoning.
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.5,
+            },
+            UsedTokens {
+                input_tokens: 8.0,
+                input_cached_tokens: 5.0,
+                output_tokens: 15.0,
+                output_reasoning_tokens: 9.0,
+            },
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(cost, @r"
+        CalculatedCost {
+            input: 5.5,
+            output: 30.0,
+        }
+        ");
+    }
+
+    /// This test shows it is possible to produce negative costs if tokens are not aligned properly.
+    ///
+    /// The behaviour was desired when initially implemented.
+    #[test]
+    fn test_calculate_cost_negative() {
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 2.0,
+                output_per_token: 2.0,
+                output_reasoning_per_token: 1.0,
+                input_cached_per_token: 1.0,
+            },
+            UsedTokens {
+                input_tokens: 1.0,
+                input_cached_tokens: 11.0,
+                output_tokens: 1.0,
+                output_reasoning_tokens: 9.0,
+            },
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(cost, @r"
+        CalculatedCost {
+            input: -9.0,
+            output: -7.0,
+        }
+        ");
+    }
 }
