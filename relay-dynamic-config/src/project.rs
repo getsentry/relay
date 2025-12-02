@@ -133,15 +133,7 @@ impl ProjectConfig {
     }
 
     fn remove_invalid_quotas(&mut self) {
-        let mut invalid_quotas = vec![];
-        self.quotas.retain_mut(|q| {
-            if q.is_valid() {
-                true
-            } else {
-                invalid_quotas.push(q.clone());
-                false
-            }
-        });
+        let invalid_quotas: Vec<_> = self.quotas.extract_if(.., |q| !q.is_valid()).collect();
         if !invalid_quotas.is_empty() {
             {
                 relay_log::error!(
