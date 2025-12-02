@@ -285,60 +285,65 @@
 <a href=#285 id=285 data-nosnippet>285</a>
 <a href=#286 id=286 data-nosnippet>286</a>    <span class="doccomment">/// Validates data in this project state and removes values that are partially invalid.
 <a href=#287 id=287 data-nosnippet>287</a>    </span><span class="kw">pub fn </span>sanitized(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-<a href=#288 id=288 data-nosnippet>288</a>        <span class="self">self</span>.config.sanitize();
-<a href=#289 id=289 data-nosnippet>289</a>        <span class="self">self
-<a href=#290 id=290 data-nosnippet>290</a>    </span>}
-<a href=#291 id=291 data-nosnippet>291</a>
-<a href=#292 id=292 data-nosnippet>292</a>    <span class="doccomment">/// Returns `true` if the given feature is enabled for this project.
-<a href=#293 id=293 data-nosnippet>293</a>    </span><span class="kw">pub fn </span>has_feature(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature) -&gt; bool {
-<a href=#294 id=294 data-nosnippet>294</a>        <span class="self">self</span>.config.features.has(feature)
-<a href=#295 id=295 data-nosnippet>295</a>    }
-<a href=#296 id=296 data-nosnippet>296</a>}
-<a href=#297 id=297 data-nosnippet>297</a>
-<a href=#298 id=298 data-nosnippet>298</a><span class="doccomment">/// Represents a public key received from the projectconfig endpoint.
-<a href=#299 id=299 data-nosnippet>299</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-<a href=#300 id=300 data-nosnippet>300</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
-<a href=#301 id=301 data-nosnippet>301</a></span><span class="kw">pub struct </span>PublicKeyConfig {
-<a href=#302 id=302 data-nosnippet>302</a>    <span class="doccomment">/// Public part of key (random hash).
-<a href=#303 id=303 data-nosnippet>303</a>    </span><span class="kw">pub </span>public_key: ProjectKey,
-<a href=#304 id=304 data-nosnippet>304</a>
-<a href=#305 id=305 data-nosnippet>305</a>    <span class="doccomment">/// The primary key of the DSN in Sentry's main database.
-<a href=#306 id=306 data-nosnippet>306</a>    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#307 id=307 data-nosnippet>307</a>    </span><span class="kw">pub </span>numeric_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-<a href=#308 id=308 data-nosnippet>308</a>}
+<a href=#288 id=288 data-nosnippet>288</a>        relay_log::with_scope(
+<a href=#289 id=289 data-nosnippet>289</a>            |scope| scope.set_tag(<span class="string">"project_id"</span>, <span class="self">self</span>.project_id.map_or(<span class="number">0</span>, ProjectId::value)),
+<a href=#290 id=290 data-nosnippet>290</a>            || {
+<a href=#291 id=291 data-nosnippet>291</a>                <span class="self">self</span>.config.sanitize();
+<a href=#292 id=292 data-nosnippet>292</a>            },
+<a href=#293 id=293 data-nosnippet>293</a>        );
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="self">self
+<a href=#295 id=295 data-nosnippet>295</a>    </span>}
+<a href=#296 id=296 data-nosnippet>296</a>
+<a href=#297 id=297 data-nosnippet>297</a>    <span class="doccomment">/// Returns `true` if the given feature is enabled for this project.
+<a href=#298 id=298 data-nosnippet>298</a>    </span><span class="kw">pub fn </span>has_feature(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature) -&gt; bool {
+<a href=#299 id=299 data-nosnippet>299</a>        <span class="self">self</span>.config.features.has(feature)
+<a href=#300 id=300 data-nosnippet>300</a>    }
+<a href=#301 id=301 data-nosnippet>301</a>}
+<a href=#302 id=302 data-nosnippet>302</a>
+<a href=#303 id=303 data-nosnippet>303</a><span class="doccomment">/// Represents a public key received from the projectconfig endpoint.
+<a href=#304 id=304 data-nosnippet>304</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
+<a href=#305 id=305 data-nosnippet>305</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
+<a href=#306 id=306 data-nosnippet>306</a></span><span class="kw">pub struct </span>PublicKeyConfig {
+<a href=#307 id=307 data-nosnippet>307</a>    <span class="doccomment">/// Public part of key (random hash).
+<a href=#308 id=308 data-nosnippet>308</a>    </span><span class="kw">pub </span>public_key: ProjectKey,
 <a href=#309 id=309 data-nosnippet>309</a>
-<a href=#310 id=310 data-nosnippet>310</a><span class="doccomment">/// Represents a project info revision.
-<a href=#311 id=311 data-nosnippet>311</a>///
-<a href=#312 id=312 data-nosnippet>312</a>/// A revision can be missing, a missing revision never compares equal
-<a href=#313 id=313 data-nosnippet>313</a>/// to any other revision.
-<a href=#314 id=314 data-nosnippet>314</a>///
-<a href=#315 id=315 data-nosnippet>315</a>/// Revisions are internally reference counted and cheap to create.
-<a href=#316 id=316 data-nosnippet>316</a></span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-<a href=#317 id=317 data-nosnippet>317</a>#[serde(transparent)]
-<a href=#318 id=318 data-nosnippet>318</a></span><span class="kw">pub struct </span>Revision(<span class="prelude-ty">Option</span>&lt;Arc&lt;str&gt;&gt;);
-<a href=#319 id=319 data-nosnippet>319</a>
-<a href=#320 id=320 data-nosnippet>320</a><span class="kw">impl </span>Revision {
-<a href=#321 id=321 data-nosnippet>321</a>    <span class="doccomment">/// Returns the revision as a string reference.
-<a href=#322 id=322 data-nosnippet>322</a>    ///
-<a href=#323 id=323 data-nosnippet>323</a>    /// `None` is a revision that does not match any other revision,
-<a href=#324 id=324 data-nosnippet>324</a>    /// not even another revision which is represented as `None`.
-<a href=#325 id=325 data-nosnippet>325</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-<a href=#326 id=326 data-nosnippet>326</a>        <span class="self">self</span>.<span class="number">0</span>.as_deref()
-<a href=#327 id=327 data-nosnippet>327</a>    }
-<a href=#328 id=328 data-nosnippet>328</a>}
-<a href=#329 id=329 data-nosnippet>329</a>
-<a href=#330 id=330 data-nosnippet>330</a><span class="kw">impl </span>PartialEq <span class="kw">for </span>Revision {
-<a href=#331 id=331 data-nosnippet>331</a>    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-<a href=#332 id=332 data-nosnippet>332</a>        <span class="kw">match </span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>other.<span class="number">0</span>) {
-<a href=#333 id=333 data-nosnippet>333</a>            (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-<a href=#334 id=334 data-nosnippet>334</a>            (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="bool-val">false</span>,
-<a href=#335 id=335 data-nosnippet>335</a>            (<span class="prelude-val">Some</span>(left), <span class="prelude-val">Some</span>(right)) =&gt; left == right,
-<a href=#336 id=336 data-nosnippet>336</a>        }
-<a href=#337 id=337 data-nosnippet>337</a>    }
-<a href=#338 id=338 data-nosnippet>338</a>}
-<a href=#339 id=339 data-nosnippet>339</a>
-<a href=#340 id=340 data-nosnippet>340</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>str&gt; <span class="kw">for </span>Revision {
-<a href=#341 id=341 data-nosnippet>341</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
-<a href=#342 id=342 data-nosnippet>342</a>        <span class="self">Self</span>(<span class="prelude-val">Some</span>(value.into()))
-<a href=#343 id=343 data-nosnippet>343</a>    }
-<a href=#344 id=344 data-nosnippet>344</a>}</code></pre></div></section></main></body></html>
+<a href=#310 id=310 data-nosnippet>310</a>    <span class="doccomment">/// The primary key of the DSN in Sentry's main database.
+<a href=#311 id=311 data-nosnippet>311</a>    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#312 id=312 data-nosnippet>312</a>    </span><span class="kw">pub </span>numeric_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+<a href=#313 id=313 data-nosnippet>313</a>}
+<a href=#314 id=314 data-nosnippet>314</a>
+<a href=#315 id=315 data-nosnippet>315</a><span class="doccomment">/// Represents a project info revision.
+<a href=#316 id=316 data-nosnippet>316</a>///
+<a href=#317 id=317 data-nosnippet>317</a>/// A revision can be missing, a missing revision never compares equal
+<a href=#318 id=318 data-nosnippet>318</a>/// to any other revision.
+<a href=#319 id=319 data-nosnippet>319</a>///
+<a href=#320 id=320 data-nosnippet>320</a>/// Revisions are internally reference counted and cheap to create.
+<a href=#321 id=321 data-nosnippet>321</a></span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+<a href=#322 id=322 data-nosnippet>322</a>#[serde(transparent)]
+<a href=#323 id=323 data-nosnippet>323</a></span><span class="kw">pub struct </span>Revision(<span class="prelude-ty">Option</span>&lt;Arc&lt;str&gt;&gt;);
+<a href=#324 id=324 data-nosnippet>324</a>
+<a href=#325 id=325 data-nosnippet>325</a><span class="kw">impl </span>Revision {
+<a href=#326 id=326 data-nosnippet>326</a>    <span class="doccomment">/// Returns the revision as a string reference.
+<a href=#327 id=327 data-nosnippet>327</a>    ///
+<a href=#328 id=328 data-nosnippet>328</a>    /// `None` is a revision that does not match any other revision,
+<a href=#329 id=329 data-nosnippet>329</a>    /// not even another revision which is represented as `None`.
+<a href=#330 id=330 data-nosnippet>330</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+<a href=#331 id=331 data-nosnippet>331</a>        <span class="self">self</span>.<span class="number">0</span>.as_deref()
+<a href=#332 id=332 data-nosnippet>332</a>    }
+<a href=#333 id=333 data-nosnippet>333</a>}
+<a href=#334 id=334 data-nosnippet>334</a>
+<a href=#335 id=335 data-nosnippet>335</a><span class="kw">impl </span>PartialEq <span class="kw">for </span>Revision {
+<a href=#336 id=336 data-nosnippet>336</a>    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+<a href=#337 id=337 data-nosnippet>337</a>        <span class="kw">match </span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>other.<span class="number">0</span>) {
+<a href=#338 id=338 data-nosnippet>338</a>            (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+<a href=#339 id=339 data-nosnippet>339</a>            (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="bool-val">false</span>,
+<a href=#340 id=340 data-nosnippet>340</a>            (<span class="prelude-val">Some</span>(left), <span class="prelude-val">Some</span>(right)) =&gt; left == right,
+<a href=#341 id=341 data-nosnippet>341</a>        }
+<a href=#342 id=342 data-nosnippet>342</a>    }
+<a href=#343 id=343 data-nosnippet>343</a>}
+<a href=#344 id=344 data-nosnippet>344</a>
+<a href=#345 id=345 data-nosnippet>345</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>str&gt; <span class="kw">for </span>Revision {
+<a href=#346 id=346 data-nosnippet>346</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+<a href=#347 id=347 data-nosnippet>347</a>        <span class="self">Self</span>(<span class="prelude-val">Some</span>(value.into()))
+<a href=#348 id=348 data-nosnippet>348</a>    }
+<a href=#349 id=349 data-nosnippet>349</a>}</code></pre></div></section></main></body></html>
