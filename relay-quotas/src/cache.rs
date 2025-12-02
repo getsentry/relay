@@ -220,7 +220,7 @@ where
 }
 
 /// Action to take when accessing cached quotas via [`OpportunisticQuotaCache::check_quota`].
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Action {
     /// Accept the quota request.
     Accept,
@@ -285,45 +285,45 @@ mod tests {
         };
 
         // First access must always go to synchronized store.
-        assert!(matches!(cache.check_quota(q1, 10), Action::Check(10)));
+        assert_eq!(cache.check_quota(q1, 10), Action::Check(10));
         // So does any following access until there was a sync.
-        assert!(matches!(cache.check_quota(q1, 9), Action::Check(9)));
+        assert_eq!(cache.check_quota(q1, 9), Action::Check(9));
 
         // Same for other keys.
-        assert!(matches!(cache.check_quota(q2, 12), Action::Check(12)));
+        assert_eq!(cache.check_quota(q2, 12), Action::Check(12));
 
         // Sync internal state to 30, for this test, there will be 70 remaining, meaning the cache
         // is expected to accept 7 more items without requiring another sync.
         cache.update_quota(q1, 30);
 
         // A different key still needs a sync.
-        assert!(matches!(cache.check_quota(q2, 12), Action::Check(12)));
+        assert_eq!(cache.check_quota(q2, 12), Action::Check(12));
 
         // 70 remaining, 10% -> 7 accepted.
-        assert!(matches!(cache.check_quota(q1, 5), Action::Accept));
-        assert!(matches!(cache.check_quota(q1, 2), Action::Accept));
+        assert_eq!(cache.check_quota(q1, 5), Action::Accept);
+        assert_eq!(cache.check_quota(q1, 2), Action::Accept);
         // This one goes over the limit, we need to now check a total of 8.
-        assert!(matches!(cache.check_quota(q1, 1), Action::Check(8)));
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(8));
 
         // A new sync is required
-        assert!(matches!(cache.check_quota(q1, 1), Action::Check(1)));
-        assert!(matches!(cache.check_quota(q1, 2), Action::Check(2)));
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+        assert_eq!(cache.check_quota(q1, 2), Action::Check(2));
         // A different key is still a different key.
-        assert!(matches!(cache.check_quota(q2, 3), Action::Check(3)));
+        assert_eq!(cache.check_quota(q2, 3), Action::Check(3));
 
         // Consumed state is absolute not relative.
         cache.update_quota(q1, 50);
         // This is too much.
-        assert!(matches!(cache.check_quota(q2, 6), Action::Check(6)));
+        assert_eq!(cache.check_quota(q2, 6), Action::Check(6));
         // Need another sync again.
-        assert!(matches!(cache.check_quota(q2, 1), Action::Check(1)));
+        assert_eq!(cache.check_quota(q2, 1), Action::Check(1));
 
         // Negative state can exist due to refunds.
         cache.update_quota(q1, -100);
         // We now have `200` remaining quota -> 20 (= 10%).
-        assert!(matches!(cache.check_quota(q1, 20), Action::Accept));
+        assert_eq!(cache.check_quota(q1, 20), Action::Accept);
         // Too much, check the entire local usage.
-        assert!(matches!(cache.check_quota(q1, 1), Action::Check(21)));
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(21));
     }
 
     /// The test asserts the cache behaves correctly if the limit of a quota changes.
@@ -346,10 +346,10 @@ mod tests {
         cache.update_quota(limit_100, 50);
 
         // With limit 100 there is enough (5) in the cache remaining.
-        assert!(matches!(cache.check_quota(limit_100, 3), Action::Accept));
+        assert_eq!(cache.check_quota(limit_100, 3), Action::Accept);
         // With limit 50 there is not enough in the cache remaining,  the over accepted amount needs
         // to be checked though.
-        assert!(matches!(cache.check_quota(limit_50, 1), Action::Check(4)));
+        assert_eq!(cache.check_quota(limit_50, 1), Action::Check(4));
     }
 
     /// Tests that even a cache with `0%` over spend acts correctly.
@@ -364,13 +364,13 @@ mod tests {
         };
 
         // Not synchronized -> always check.
-        assert!(matches!(cache.check_quota(q1, 1), Action::Check(1)));
-        assert!(matches!(cache.check_quota(q1, 1), Action::Check(1)));
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
 
         cache.update_quota(q1, 30_000_000_000);
 
         // Even after synchronization, we need to check immediately.
-        assert!(matches!(cache.check_quota(q1, 1), Action::Check(1)));
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
     }
 
     #[test]
@@ -393,8 +393,8 @@ mod tests {
         cache.update_quota(q2, 0);
 
         // Make sure some elements are stored in the cache.
-        assert!(matches!(cache.check_quota(q1, 9), Action::Accept));
-        assert!(matches!(cache.check_quota(q2, 9), Action::Accept));
+        assert_eq!(cache.check_quota(q1, 9), Action::Accept);
+        assert_eq!(cache.check_quota(q2, 9), Action::Accept);
 
         // This vacuum should succeed, no concurrent vacuums.
         assert!(cache.try_vacuum(UnixTimestamp::from_secs(150)));
@@ -403,8 +403,8 @@ mod tests {
 
         // This entry was purged from the cache, now with the same quota, we should no longer have
         // an old entry.
-        assert!(matches!(cache.check_quota(q1, 6), Action::Check(6)));
+        assert_eq!(cache.check_quota(q1, 6), Action::Check(6));
         // This entry was not purged (different expiry) and should therefor return the full amount.
-        assert!(matches!(cache.check_quota(q2, 6), Action::Check(15)));
+        assert_eq!(cache.check_quota(q2, 6), Action::Check(15));
     }
 }
