@@ -4,407 +4,475 @@
 <a href=#4 id=4 data-nosnippet>4</a>
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <a href=#6 id=6 data-nosnippet>6</a>
-<a href=#7 id=7 data-nosnippet>7</a><span class="doccomment">/// A percentage is converted to a divisor to do integer arithmetic.
+<a href=#7 id=7 data-nosnippet>7</a><span class="doccomment">/// A ratio is converted to a divisor to perform integer arithmetic, instead of floating point.
 <a href=#8 id=8 data-nosnippet>8</a>///
 <a href=#9 id=9 data-nosnippet>9</a>/// This is done with the configured precision here.
-<a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">const </span>PERCENT_PRECISION: usize = <span class="number">10</span>;
+<a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">const </span>RATIO_PRECISION: usize = <span class="number">10</span>;
 <a href=#11 id=11 data-nosnippet>11</a>
 <a href=#12 id=12 data-nosnippet>12</a><span class="doccomment">/// A quota to be checked with the [`OpportunisticQuotaCache`].
 <a href=#13 id=13 data-nosnippet>13</a></span><span class="attr">#[derive(Debug, Clone, Copy)]
 <a href=#14 id=14 data-nosnippet>14</a></span><span class="kw">pub struct </span>Quota&lt;T&gt; {
 <a href=#15 id=15 data-nosnippet>15</a>    <span class="doccomment">/// The quota limit.
 <a href=#16 id=16 data-nosnippet>16</a>    </span><span class="kw">pub </span>limit: i64,
-<a href=#17 id=17 data-nosnippet>17</a>    <span class="doccomment">/// A unique identifier for the quota bucket.
-<a href=#18 id=18 data-nosnippet>18</a>    </span><span class="kw">pub </span>key: T,
-<a href=#19 id=19 data-nosnippet>19</a>    <span class="doccomment">/// The expiry of the bucket.
-<a href=#20 id=20 data-nosnippet>20</a>    </span><span class="kw">pub </span>expiry: UnixTimestamp,
-<a href=#21 id=21 data-nosnippet>21</a>}
-<a href=#22 id=22 data-nosnippet>22</a>
-<a href=#23 id=23 data-nosnippet>23</a><span class="doccomment">/// An opportunistic cache for quotas.
-<a href=#24 id=24 data-nosnippet>24</a></span><span class="attr">#[derive(Debug)]
-<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">pub struct </span>OpportunisticQuotaCache&lt;T&gt;
-<a href=#26 id=26 data-nosnippet>26</a><span class="kw">where
-<a href=#27 id=27 data-nosnippet>27</a>    </span>T: std::hash::Hash + Eq,
-<a href=#28 id=28 data-nosnippet>28</a>{
-<a href=#29 id=29 data-nosnippet>29</a>    <span class="doccomment">/// A cache for all currently consumed quotas.
-<a href=#30 id=30 data-nosnippet>30</a>    ///
-<a href=#31 id=31 data-nosnippet>31</a>    /// The cache is keyed with the individual quota, the value is the last known, currently
-<a href=#32 id=32 data-nosnippet>32</a>    /// consumed amount of the quota.
-<a href=#33 id=33 data-nosnippet>33</a>    </span>cache: papaya::HashMap&lt;T, CachedQuota&gt;,
-<a href=#34 id=34 data-nosnippet>34</a>
-<a href=#35 id=35 data-nosnippet>35</a>    <span class="doccomment">/// The amount the cache is allowed to opportunistically over-accept based on the remaining
-<a href=#36 id=36 data-nosnippet>36</a>    /// quota.
-<a href=#37 id=37 data-nosnippet>37</a>    ///
-<a href=#38 id=38 data-nosnippet>38</a>    /// For example: Setting this to `10 * PERCENT_PRECISION` means, if there is 100 quota remaining,
-<a href=#39 id=39 data-nosnippet>39</a>    /// the cache will opportunistically accept the next 10 items, if there is a quota of 90 remaining,
-<a href=#40 id=40 data-nosnippet>40</a>    /// the cache will accept the next 9 items.
-<a href=#41 id=41 data-nosnippet>41</a>    </span>max_over_spend_divisor: NonZeroUsize,
-<a href=#42 id=42 data-nosnippet>42</a>
-<a href=#43 id=43 data-nosnippet>43</a>    <span class="doccomment">/// Minimum interval between vacuum of the cache.
-<a href=#44 id=44 data-nosnippet>44</a>    </span>vacuum_interval: Duration,
-<a href=#45 id=45 data-nosnippet>45</a>    <span class="doccomment">/// Unix timestamp of the next time the vacuum should be run.
-<a href=#46 id=46 data-nosnippet>46</a>    ///
-<a href=#47 id=47 data-nosnippet>47</a>    /// This is a [`UnixTimestamp`] stored in an atomic.
-<a href=#48 id=48 data-nosnippet>48</a>    </span>next_vacuum: AtomicU64,
-<a href=#49 id=49 data-nosnippet>49</a>}
-<a href=#50 id=50 data-nosnippet>50</a>
-<a href=#51 id=51 data-nosnippet>51</a><span class="kw">impl</span>&lt;T&gt; OpportunisticQuotaCache&lt;T&gt;
-<a href=#52 id=52 data-nosnippet>52</a><span class="kw">where
-<a href=#53 id=53 data-nosnippet>53</a>    </span>T: std::hash::Hash + Eq,
-<a href=#54 id=54 data-nosnippet>54</a>{
-<a href=#55 id=55 data-nosnippet>55</a>    <span class="doccomment">/// Creates a new [`Self`], with the configured maximum amount the cache accepts per quota
-<a href=#56 id=56 data-nosnippet>56</a>    /// until it requires synchronization.
-<a href=#57 id=57 data-nosnippet>57</a>    ///
-<a href=#58 id=58 data-nosnippet>58</a>    /// The configured percentage must be in range 0..=1.
-<a href=#59 id=59 data-nosnippet>59</a>    </span><span class="kw">pub fn </span>new(max_over_spend_percentage: f32) -&gt; <span class="self">Self </span>{
-<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">let </span>max_over_spend_divisor = <span class="number">1.0f32 </span>/ max_over_spend_percentage * PERCENT_PRECISION <span class="kw">as </span>f32;
-<a href=#61 id=61 data-nosnippet>61</a>        <span class="kw">let </span>max_over_spend_divisor =
-<a href=#62 id=62 data-nosnippet>62</a>            NonZeroUsize::new(max_over_spend_divisor <span class="kw">as </span>usize).unwrap_or(NonZeroUsize::MIN);
-<a href=#63 id=63 data-nosnippet>63</a>
-<a href=#64 id=64 data-nosnippet>64</a>        <span class="self">Self </span>{
-<a href=#65 id=65 data-nosnippet>65</a>            cache: Default::default(),
-<a href=#66 id=66 data-nosnippet>66</a>            max_over_spend_divisor,
-<a href=#67 id=67 data-nosnippet>67</a>            vacuum_interval: Duration::from_secs(<span class="number">30</span>),
-<a href=#68 id=68 data-nosnippet>68</a>            <span class="comment">// Initialize to 0, this means a vacuum run immediately, but it is going to be fast
-<a href=#69 id=69 data-nosnippet>69</a>            // (empty cache) and it requires us to be time/environment independent, time is purely
-<a href=#70 id=70 data-nosnippet>70</a>            // driven by the user of the cache.
-<a href=#71 id=71 data-nosnippet>71</a>            </span>next_vacuum: AtomicU64::new(<span class="number">0</span>),
-<a href=#72 id=72 data-nosnippet>72</a>        }
-<a href=#73 id=73 data-nosnippet>73</a>    }
-<a href=#74 id=74 data-nosnippet>74</a>
-<a href=#75 id=75 data-nosnippet>75</a>    <span class="doccomment">/// Checks a quota with quantity against the cache.
-<a href=#76 id=76 data-nosnippet>76</a>    ///
-<a href=#77 id=77 data-nosnippet>77</a>    /// The cache may return [`Action::Accept`] indicating the quantity should be accepted.
-<a href=#78 id=78 data-nosnippet>78</a>    /// If the cache can not make a decision it returns [`Action::Check`] indicating the returned
-<a href=#79 id=79 data-nosnippet>79</a>    /// quantity needs to be synchronized with a centralized store.
-<a href=#80 id=80 data-nosnippet>80</a>    ///
-<a href=#81 id=81 data-nosnippet>81</a>    /// Whenever the cache returns [`Action::Check`], the cache requires a call to [`Self::update_quota`],
-<a href=#82 id=82 data-nosnippet>82</a>    /// with a synchronized 'consumed' amount.
-<a href=#83 id=83 data-nosnippet>83</a>    </span><span class="kw">pub fn </span>check_quota(<span class="kw-2">&amp;</span><span class="self">self</span>, quota: Quota&lt;T&gt;, quantity: usize) -&gt; Action {
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">let </span>cache = <span class="self">self</span>.cache.pin();
-<a href=#85 id=85 data-nosnippet>85</a>
-<a href=#86 id=86 data-nosnippet>86</a>        <span class="comment">// We can potentially short circuit here with a simple read, the cases:
-<a href=#87 id=87 data-nosnippet>87</a>        // 1. `NeedsSync`
-<a href=#88 id=88 data-nosnippet>88</a>        // 2. Active with `consumed &gt;= limit`
-<a href=#89 id=89 data-nosnippet>89</a>        // 3. No entry.
-<a href=#90 id=90 data-nosnippet>90</a>        //
-<a href=#91 id=91 data-nosnippet>91</a>        // This may be faster because the map does not require a mutation.
-<a href=#92 id=92 data-nosnippet>92</a>        // Needs more investigation if the additional lookup is worth it.
-<a href=#93 id=93 data-nosnippet>93</a>
-<a href=#94 id=94 data-nosnippet>94</a>        </span><span class="kw">let </span>value = cache.update(quota.key, |q| {
-<a href=#95 id=95 data-nosnippet>95</a>            <span class="kw">let </span>(consumed, local_use) = <span class="kw">match </span>q {
-<a href=#96 id=96 data-nosnippet>96</a>                <span class="comment">// There is already a sync requested which we need to wait for to get consistent
-<a href=#97 id=97 data-nosnippet>97</a>                // data, we cannot make a decision here at this time.
-<a href=#98 id=98 data-nosnippet>98</a>                </span>CachedQuota::NeedsSync =&gt; <span class="kw">return </span>CachedQuota::NeedsSync,
-<a href=#99 id=99 data-nosnippet>99</a>                <span class="comment">// This variant only exists as a way of returning a quantity on the first
-<a href=#100 id=100 data-nosnippet>100</a>                // `NeedsSync` decision. We can safely erase it into `NeedsSync` without a value.
-<a href=#101 id=101 data-nosnippet>101</a>                </span>CachedQuota::NeedsSyncWithQuantity(<span class="kw">_</span>) =&gt; <span class="kw">return </span>CachedQuota::NeedsSync,
-<a href=#102 id=102 data-nosnippet>102</a>                CachedQuota::Active {
-<a href=#103 id=103 data-nosnippet>103</a>                    consumed,
-<a href=#104 id=104 data-nosnippet>104</a>                    local_use,
-<a href=#105 id=105 data-nosnippet>105</a>                    expiry: <span class="kw">_</span>,
-<a href=#106 id=106 data-nosnippet>106</a>                } =&gt; (<span class="kw-2">*</span>consumed, <span class="kw-2">*</span>local_use),
-<a href=#107 id=107 data-nosnippet>107</a>            };
-<a href=#108 id=108 data-nosnippet>108</a>
-<a href=#109 id=109 data-nosnippet>109</a>            <span class="kw">let </span>total_local_use = local_use + quantity;
+<a href=#17 id=17 data-nosnippet>17</a>    <span class="doccomment">/// The quota window size in seconds.
+<a href=#18 id=18 data-nosnippet>18</a>    </span><span class="kw">pub </span>window: u64,
+<a href=#19 id=19 data-nosnippet>19</a>    <span class="doccomment">/// A unique identifier for the quota bucket.
+<a href=#20 id=20 data-nosnippet>20</a>    </span><span class="kw">pub </span>key: T,
+<a href=#21 id=21 data-nosnippet>21</a>    <span class="doccomment">/// The expiry of the bucket.
+<a href=#22 id=22 data-nosnippet>22</a>    </span><span class="kw">pub </span>expiry: UnixTimestamp,
+<a href=#23 id=23 data-nosnippet>23</a>}
+<a href=#24 id=24 data-nosnippet>24</a>
+<a href=#25 id=25 data-nosnippet>25</a><span class="doccomment">/// An opportunistic cache for quotas.
+<a href=#26 id=26 data-nosnippet>26</a></span><span class="attr">#[derive(Debug)]
+<a href=#27 id=27 data-nosnippet>27</a></span><span class="kw">pub struct </span>OpportunisticQuotaCache&lt;T&gt;
+<a href=#28 id=28 data-nosnippet>28</a><span class="kw">where
+<a href=#29 id=29 data-nosnippet>29</a>    </span>T: std::hash::Hash + Eq,
+<a href=#30 id=30 data-nosnippet>30</a>{
+<a href=#31 id=31 data-nosnippet>31</a>    <span class="doccomment">/// A cache for all currently consumed quotas.
+<a href=#32 id=32 data-nosnippet>32</a>    ///
+<a href=#33 id=33 data-nosnippet>33</a>    /// The cache is keyed with the individual quota, the value is the last known, currently
+<a href=#34 id=34 data-nosnippet>34</a>    /// consumed amount of the quota.
+<a href=#35 id=35 data-nosnippet>35</a>    </span>cache: papaya::HashMap&lt;T, CachedQuota&gt;,
+<a href=#36 id=36 data-nosnippet>36</a>
+<a href=#37 id=37 data-nosnippet>37</a>    <span class="doccomment">/// The amount the cache is allowed to opportunistically over-accept based on the remaining
+<a href=#38 id=38 data-nosnippet>38</a>    /// quota.
+<a href=#39 id=39 data-nosnippet>39</a>    ///
+<a href=#40 id=40 data-nosnippet>40</a>    /// For example: Setting this to `10 * RATIO_PRECISION` means, if there is 100 quota remaining,
+<a href=#41 id=41 data-nosnippet>41</a>    /// the cache will opportunistically accept the next 10 items, if there is a quota of 90 remaining,
+<a href=#42 id=42 data-nosnippet>42</a>    /// the cache will accept the next 9 items.
+<a href=#43 id=43 data-nosnippet>43</a>    </span>max_over_spend_divisor: NonZeroUsize,
+<a href=#44 id=44 data-nosnippet>44</a>
+<a href=#45 id=45 data-nosnippet>45</a>    <span class="doccomment">/// Minimum interval between vacuum of the cache.
+<a href=#46 id=46 data-nosnippet>46</a>    </span>vacuum_interval: Duration,
+<a href=#47 id=47 data-nosnippet>47</a>    <span class="doccomment">/// Unix timestamp of the next time the vacuum should be run.
+<a href=#48 id=48 data-nosnippet>48</a>    ///
+<a href=#49 id=49 data-nosnippet>49</a>    /// This is a [`UnixTimestamp`] stored in an atomic.
+<a href=#50 id=50 data-nosnippet>50</a>    </span>next_vacuum: AtomicU64,
+<a href=#51 id=51 data-nosnippet>51</a>}
+<a href=#52 id=52 data-nosnippet>52</a>
+<a href=#53 id=53 data-nosnippet>53</a><span class="kw">impl</span>&lt;T&gt; OpportunisticQuotaCache&lt;T&gt;
+<a href=#54 id=54 data-nosnippet>54</a><span class="kw">where
+<a href=#55 id=55 data-nosnippet>55</a>    </span>T: std::hash::Hash + Eq,
+<a href=#56 id=56 data-nosnippet>56</a>{
+<a href=#57 id=57 data-nosnippet>57</a>    <span class="doccomment">/// Creates a new [`Self`], with the configured maximum amount the cache accepts per quota
+<a href=#58 id=58 data-nosnippet>58</a>    /// until it requires synchronization.
+<a href=#59 id=59 data-nosnippet>59</a>    ///
+<a href=#60 id=60 data-nosnippet>60</a>    /// The configured ratio must be in range `[0, 1]`.
+<a href=#61 id=61 data-nosnippet>61</a>    </span><span class="kw">pub fn </span>new(max_over_spend_ratio: f32) -&gt; <span class="self">Self </span>{
+<a href=#62 id=62 data-nosnippet>62</a>        <span class="kw">let </span>max_over_spend_divisor = <span class="number">1.0f32 </span>/ max_over_spend_ratio * RATIO_PRECISION <span class="kw">as </span>f32;
+<a href=#63 id=63 data-nosnippet>63</a>        <span class="kw">let </span>max_over_spend_divisor =
+<a href=#64 id=64 data-nosnippet>64</a>            NonZeroUsize::new(max_over_spend_divisor <span class="kw">as </span>usize).unwrap_or(NonZeroUsize::MIN);
+<a href=#65 id=65 data-nosnippet>65</a>
+<a href=#66 id=66 data-nosnippet>66</a>        <span class="self">Self </span>{
+<a href=#67 id=67 data-nosnippet>67</a>            cache: Default::default(),
+<a href=#68 id=68 data-nosnippet>68</a>            max_over_spend_divisor,
+<a href=#69 id=69 data-nosnippet>69</a>            vacuum_interval: Duration::from_secs(<span class="number">30</span>),
+<a href=#70 id=70 data-nosnippet>70</a>            <span class="comment">// Initialize to 0, this means a vacuum run immediately, but it is going to be fast
+<a href=#71 id=71 data-nosnippet>71</a>            // (empty cache) and it requires us to be time/environment independent, time is purely
+<a href=#72 id=72 data-nosnippet>72</a>            // driven by the user of the cache.
+<a href=#73 id=73 data-nosnippet>73</a>            </span>next_vacuum: AtomicU64::new(<span class="number">0</span>),
+<a href=#74 id=74 data-nosnippet>74</a>        }
+<a href=#75 id=75 data-nosnippet>75</a>    }
+<a href=#76 id=76 data-nosnippet>76</a>
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="doccomment">/// Checks a quota with quantity against the cache.
+<a href=#78 id=78 data-nosnippet>78</a>    ///
+<a href=#79 id=79 data-nosnippet>79</a>    /// The cache may return [`Action::Accept`] indicating the quantity should be accepted.
+<a href=#80 id=80 data-nosnippet>80</a>    /// If the cache can not make a decision it returns [`Action::Check`] indicating the returned
+<a href=#81 id=81 data-nosnippet>81</a>    /// quantity needs to be synchronized with a centralized store.
+<a href=#82 id=82 data-nosnippet>82</a>    ///
+<a href=#83 id=83 data-nosnippet>83</a>    /// Whenever the cache returns [`Action::Check`], the cache requires a call to [`Self::update_quota`],
+<a href=#84 id=84 data-nosnippet>84</a>    /// with a synchronized 'consumed' amount.
+<a href=#85 id=85 data-nosnippet>85</a>    </span><span class="kw">pub fn </span>check_quota(<span class="kw-2">&amp;</span><span class="self">self</span>, quota: Quota&lt;T&gt;, quantity: usize) -&gt; Action {
+<a href=#86 id=86 data-nosnippet>86</a>        <span class="kw">let </span>cache = <span class="self">self</span>.cache.pin();
+<a href=#87 id=87 data-nosnippet>87</a>
+<a href=#88 id=88 data-nosnippet>88</a>        <span class="comment">// We can potentially short circuit here with a simple read, the cases:
+<a href=#89 id=89 data-nosnippet>89</a>        // 1. `NeedsSync`
+<a href=#90 id=90 data-nosnippet>90</a>        // 2. Active with `consumed &gt;= limit`
+<a href=#91 id=91 data-nosnippet>91</a>        // 3. No entry.
+<a href=#92 id=92 data-nosnippet>92</a>        //
+<a href=#93 id=93 data-nosnippet>93</a>        // This may be faster because the map does not require a mutation.
+<a href=#94 id=94 data-nosnippet>94</a>        // Needs more investigation if the additional lookup is worth it.
+<a href=#95 id=95 data-nosnippet>95</a>
+<a href=#96 id=96 data-nosnippet>96</a>        </span><span class="kw">let </span>value = cache.update(quota.key, |q| {
+<a href=#97 id=97 data-nosnippet>97</a>            <span class="kw">let </span>(consumed, local_use) = <span class="kw">match </span>q {
+<a href=#98 id=98 data-nosnippet>98</a>                <span class="comment">// There is already a sync requested which we need to wait for to get consistent
+<a href=#99 id=99 data-nosnippet>99</a>                // data, we cannot make a decision here at this time.
+<a href=#100 id=100 data-nosnippet>100</a>                </span>CachedQuota::NeedsSync =&gt; <span class="kw">return </span>CachedQuota::NeedsSync,
+<a href=#101 id=101 data-nosnippet>101</a>                <span class="comment">// This variant only exists as a way of returning a quantity on the first
+<a href=#102 id=102 data-nosnippet>102</a>                // `NeedsSync` decision. We can safely erase it into `NeedsSync` without a value.
+<a href=#103 id=103 data-nosnippet>103</a>                </span>CachedQuota::NeedsSyncWithQuantity(<span class="kw">_</span>) =&gt; <span class="kw">return </span>CachedQuota::NeedsSync,
+<a href=#104 id=104 data-nosnippet>104</a>                CachedQuota::Active {
+<a href=#105 id=105 data-nosnippet>105</a>                    consumed,
+<a href=#106 id=106 data-nosnippet>106</a>                    local_use,
+<a href=#107 id=107 data-nosnippet>107</a>                    expiry: <span class="kw">_</span>,
+<a href=#108 id=108 data-nosnippet>108</a>                } =&gt; (<span class="kw-2">*</span>consumed, <span class="kw-2">*</span>local_use),
+<a href=#109 id=109 data-nosnippet>109</a>            };
 <a href=#110 id=110 data-nosnippet>110</a>
-<a href=#111 id=111 data-nosnippet>111</a>            <span class="comment">// Can short circuit here already if consumed is already above or equal to the limit.
-<a href=#112 id=112 data-nosnippet>112</a>            //
-<a href=#113 id=113 data-nosnippet>113</a>            // We could also propagate this out to the caller as a definitive negative in the
-<a href=#114 id=114 data-nosnippet>114</a>            // future. This does require some additional consideration how this would interact with
-<a href=#115 id=115 data-nosnippet>115</a>            // refunds, which can reduce the consumed.
-<a href=#116 id=116 data-nosnippet>116</a>            </span><span class="kw">if </span>consumed &gt;= quota.limit {
-<a href=#117 id=117 data-nosnippet>117</a>                <span class="kw">return </span>CachedQuota::new_needs_sync(total_local_use);
-<a href=#118 id=118 data-nosnippet>118</a>            }
-<a href=#119 id=119 data-nosnippet>119</a>
-<a href=#120 id=120 data-nosnippet>120</a>            <span class="kw">let </span>remaining = quota.limit - consumed;
-<a href=#121 id=121 data-nosnippet>121</a>            <span class="kw">let </span>max_allowed_spend = usize::try_from(remaining).unwrap_or(usize::MAX)
-<a href=#122 id=122 data-nosnippet>122</a>                * PERCENT_PRECISION
-<a href=#123 id=123 data-nosnippet>123</a>                / <span class="self">self</span>.max_over_spend_divisor.get();
-<a href=#124 id=124 data-nosnippet>124</a>
-<a href=#125 id=125 data-nosnippet>125</a>            <span class="kw">match </span>total_local_use &gt; max_allowed_spend {
-<a href=#126 id=126 data-nosnippet>126</a>                <span class="bool-val">true </span>=&gt; CachedQuota::new_needs_sync(total_local_use),
-<a href=#127 id=127 data-nosnippet>127</a>                <span class="bool-val">false </span>=&gt; CachedQuota::Active {
-<a href=#128 id=128 data-nosnippet>128</a>                    consumed,
-<a href=#129 id=129 data-nosnippet>129</a>                    local_use: total_local_use,
-<a href=#130 id=130 data-nosnippet>130</a>                    expiry: quota.expiry,
-<a href=#131 id=131 data-nosnippet>131</a>                },
-<a href=#132 id=132 data-nosnippet>132</a>            }
-<a href=#133 id=133 data-nosnippet>133</a>        });
+<a href=#111 id=111 data-nosnippet>111</a>            <span class="kw">let </span>total_local_use = local_use + quantity;
+<a href=#112 id=112 data-nosnippet>112</a>
+<a href=#113 id=113 data-nosnippet>113</a>            <span class="comment">// Can short circuit here already if consumed is already above or equal to the limit.
+<a href=#114 id=114 data-nosnippet>114</a>            //
+<a href=#115 id=115 data-nosnippet>115</a>            // We could also propagate this out to the caller as a definitive negative in the
+<a href=#116 id=116 data-nosnippet>116</a>            // future. This does require some additional consideration how this would interact with
+<a href=#117 id=117 data-nosnippet>117</a>            // refunds, which can reduce the consumed.
+<a href=#118 id=118 data-nosnippet>118</a>            </span><span class="kw">if </span>consumed &gt;= quota.limit {
+<a href=#119 id=119 data-nosnippet>119</a>                <span class="kw">return </span>CachedQuota::new_needs_sync(total_local_use);
+<a href=#120 id=120 data-nosnippet>120</a>            }
+<a href=#121 id=121 data-nosnippet>121</a>
+<a href=#122 id=122 data-nosnippet>122</a>            <span class="kw">let </span>remaining = usize::try_from(quota.limit - consumed).unwrap_or(usize::MAX);
+<a href=#123 id=123 data-nosnippet>123</a>            <span class="kw">let </span>max_allowed_spend = remaining
+<a href=#124 id=124 data-nosnippet>124</a>                <span class="comment">// Normalize the remaining quota with the window size, to apply the ratio/divisor to the
+<a href=#125 id=125 data-nosnippet>125</a>                // per second rate.
+<a href=#126 id=126 data-nosnippet>126</a>                //
+<a href=#127 id=127 data-nosnippet>127</a>                // This means we get a consistent behaviour for short (10s) quotas (e.g. abuse) as well
+<a href=#128 id=128 data-nosnippet>128</a>                // as long (1h) quotas (e.g. spike protection) with a more predictable error.
+<a href=#129 id=129 data-nosnippet>129</a>                </span>/ usize::try_from(quota.window).unwrap_or(usize::MAX).max(<span class="number">1</span>)
+<a href=#130 id=130 data-nosnippet>130</a>                <span class="comment">// Apply ratio precision, which is already pre-multiplied into `max_over_spend_divisor`.
+<a href=#131 id=131 data-nosnippet>131</a>                </span>* RATIO_PRECISION
+<a href=#132 id=132 data-nosnippet>132</a>                <span class="comment">// Apply the actual ratio with the pre-computed divisor.
+<a href=#133 id=133 data-nosnippet>133</a>                </span>/ <span class="self">self</span>.max_over_spend_divisor.get();
 <a href=#134 id=134 data-nosnippet>134</a>
-<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">match </span>value {
-<a href=#136 id=136 data-nosnippet>136</a>            <span class="prelude-val">Some</span>(CachedQuota::NeedsSyncWithQuantity(q)) =&gt; Action::Check(q.get()),
-<a href=#137 id=137 data-nosnippet>137</a>            <span class="prelude-val">Some</span>(CachedQuota::NeedsSync) | <span class="prelude-val">None </span>=&gt; Action::Check(quantity),
-<a href=#138 id=138 data-nosnippet>138</a>            <span class="prelude-val">Some</span>(CachedQuota::Active { .. }) =&gt; Action::Accept,
-<a href=#139 id=139 data-nosnippet>139</a>        }
-<a href=#140 id=140 data-nosnippet>140</a>    }
-<a href=#141 id=141 data-nosnippet>141</a>
-<a href=#142 id=142 data-nosnippet>142</a>    <span class="doccomment">/// Updates the quota state in the cache for the specified quota.
-<a href=#143 id=143 data-nosnippet>143</a>    ///
-<a href=#144 id=144 data-nosnippet>144</a>    /// The cache will use the synchronized `consumed` value to derive future decisions whether it
-<a href=#145 id=145 data-nosnippet>145</a>    /// can accept quota requests.
-<a href=#146 id=146 data-nosnippet>146</a>    </span><span class="kw">pub fn </span>update_quota(<span class="kw-2">&amp;</span><span class="self">self</span>, quota: Quota&lt;T&gt;, consumed: i64) {
-<a href=#147 id=147 data-nosnippet>147</a>        <span class="kw">let </span>cache = <span class="self">self</span>.cache.pin();
-<a href=#148 id=148 data-nosnippet>148</a>
-<a href=#149 id=149 data-nosnippet>149</a>        cache.update_or_insert(
-<a href=#150 id=150 data-nosnippet>150</a>            quota.key,
-<a href=#151 id=151 data-nosnippet>151</a>            |q| <span class="kw">match </span>q {
-<a href=#152 id=152 data-nosnippet>152</a>                <span class="comment">// We got the sync, start fresh!
-<a href=#153 id=153 data-nosnippet>153</a>                </span>CachedQuota::NeedsSync | CachedQuota::NeedsSyncWithQuantity(<span class="kw">_</span>) =&gt; {
-<a href=#154 id=154 data-nosnippet>154</a>                    CachedQuota::Active {
-<a href=#155 id=155 data-nosnippet>155</a>                        consumed,
-<a href=#156 id=156 data-nosnippet>156</a>                        local_use: <span class="number">0</span>,
-<a href=#157 id=157 data-nosnippet>157</a>                        expiry: quota.expiry,
-<a href=#158 id=158 data-nosnippet>158</a>                    }
-<a href=#159 id=159 data-nosnippet>159</a>                }
-<a href=#160 id=160 data-nosnippet>160</a>                <span class="comment">// This is slightly tricky, one could assume quotas are only growing and we should use
-<a href=#161 id=161 data-nosnippet>161</a>                // the bigger `consumed` count here. The problem is refunds, a quota may decrease again
-<a href=#162 id=162 data-nosnippet>162</a>                // due to refunds.
-<a href=#163 id=163 data-nosnippet>163</a>                //
-<a href=#164 id=164 data-nosnippet>164</a>                // Without a way to differentiate which `consumed` value is actually more recent, we
-<a href=#165 id=165 data-nosnippet>165</a>                // just have the implicit assumption that the value arriving last is the most recent.
-<a href=#166 id=166 data-nosnippet>166</a>                //
-<a href=#167 id=167 data-nosnippet>167</a>                // This is not perfect, but for our best effort opportunistic cache, this is not a big
-<a href=#168 id=168 data-nosnippet>168</a>                // problem, at worst, we over accept a little bit more for the next synchronization
-<a href=#169 id=169 data-nosnippet>169</a>                // round.
-<a href=#170 id=170 data-nosnippet>170</a>                </span>CachedQuota::Active {
-<a href=#171 id=171 data-nosnippet>171</a>                    consumed: <span class="kw">_</span>,
-<a href=#172 id=172 data-nosnippet>172</a>                    local_use,
-<a href=#173 id=173 data-nosnippet>173</a>                    expiry: <span class="kw">_</span>,
-<a href=#174 id=174 data-nosnippet>174</a>                } =&gt; CachedQuota::Active {
-<a href=#175 id=175 data-nosnippet>175</a>                    consumed,
-<a href=#176 id=176 data-nosnippet>176</a>                    local_use: <span class="kw-2">*</span>local_use,
-<a href=#177 id=177 data-nosnippet>177</a>                    expiry: quota.expiry,
-<a href=#178 id=178 data-nosnippet>178</a>                },
-<a href=#179 id=179 data-nosnippet>179</a>            },
-<a href=#180 id=180 data-nosnippet>180</a>            CachedQuota::Active {
-<a href=#181 id=181 data-nosnippet>181</a>                consumed,
-<a href=#182 id=182 data-nosnippet>182</a>                local_use: <span class="number">0</span>,
-<a href=#183 id=183 data-nosnippet>183</a>                expiry: quota.expiry,
-<a href=#184 id=184 data-nosnippet>184</a>            },
-<a href=#185 id=185 data-nosnippet>185</a>        );
-<a href=#186 id=186 data-nosnippet>186</a>    }
-<a href=#187 id=187 data-nosnippet>187</a>
-<a href=#188 id=188 data-nosnippet>188</a>    <span class="doccomment">/// Attempts to run a vacuum on the internal cache.
-<a href=#189 id=189 data-nosnippet>189</a>    ///
-<a href=#190 id=190 data-nosnippet>190</a>    /// The vacuum is internally debounced and may not run. Callers should call attempt to vacuum
-<a href=#191 id=191 data-nosnippet>191</a>    /// periodically.
-<a href=#192 id=192 data-nosnippet>192</a>    ///
-<a href=#193 id=193 data-nosnippet>193</a>    /// Returns `true` if a vacuum was performed.
-<a href=#194 id=194 data-nosnippet>194</a>    </span><span class="kw">pub fn </span>try_vacuum(<span class="kw-2">&amp;</span><span class="self">self</span>, now: UnixTimestamp) -&gt; bool {
-<a href=#195 id=195 data-nosnippet>195</a>        <span class="comment">// Check for the lucky winner to run an expiration.
-<a href=#196 id=196 data-nosnippet>196</a>        </span><span class="kw">let </span>next_vacuum = <span class="self">self</span>.next_vacuum.load(Ordering::Relaxed);
+<a href=#135 id=135 data-nosnippet>135</a>            <span class="kw">match </span>total_local_use &gt; max_allowed_spend {
+<a href=#136 id=136 data-nosnippet>136</a>                <span class="bool-val">true </span>=&gt; CachedQuota::new_needs_sync(total_local_use),
+<a href=#137 id=137 data-nosnippet>137</a>                <span class="bool-val">false </span>=&gt; CachedQuota::Active {
+<a href=#138 id=138 data-nosnippet>138</a>                    consumed,
+<a href=#139 id=139 data-nosnippet>139</a>                    local_use: total_local_use,
+<a href=#140 id=140 data-nosnippet>140</a>                    expiry: quota.expiry,
+<a href=#141 id=141 data-nosnippet>141</a>                },
+<a href=#142 id=142 data-nosnippet>142</a>            }
+<a href=#143 id=143 data-nosnippet>143</a>        });
+<a href=#144 id=144 data-nosnippet>144</a>
+<a href=#145 id=145 data-nosnippet>145</a>        <span class="kw">match </span>value {
+<a href=#146 id=146 data-nosnippet>146</a>            <span class="prelude-val">Some</span>(CachedQuota::NeedsSyncWithQuantity(q)) =&gt; Action::Check(q.get()),
+<a href=#147 id=147 data-nosnippet>147</a>            <span class="prelude-val">Some</span>(CachedQuota::NeedsSync) | <span class="prelude-val">None </span>=&gt; Action::Check(quantity),
+<a href=#148 id=148 data-nosnippet>148</a>            <span class="prelude-val">Some</span>(CachedQuota::Active { .. }) =&gt; Action::Accept,
+<a href=#149 id=149 data-nosnippet>149</a>        }
+<a href=#150 id=150 data-nosnippet>150</a>    }
+<a href=#151 id=151 data-nosnippet>151</a>
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="doccomment">/// Updates the quota state in the cache for the specified quota.
+<a href=#153 id=153 data-nosnippet>153</a>    ///
+<a href=#154 id=154 data-nosnippet>154</a>    /// The cache will use the synchronized `consumed` value to derive future decisions whether it
+<a href=#155 id=155 data-nosnippet>155</a>    /// can accept quota requests.
+<a href=#156 id=156 data-nosnippet>156</a>    </span><span class="kw">pub fn </span>update_quota(<span class="kw-2">&amp;</span><span class="self">self</span>, quota: Quota&lt;T&gt;, consumed: i64) {
+<a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">let </span>cache = <span class="self">self</span>.cache.pin();
+<a href=#158 id=158 data-nosnippet>158</a>
+<a href=#159 id=159 data-nosnippet>159</a>        cache.update_or_insert(
+<a href=#160 id=160 data-nosnippet>160</a>            quota.key,
+<a href=#161 id=161 data-nosnippet>161</a>            |q| <span class="kw">match </span>q {
+<a href=#162 id=162 data-nosnippet>162</a>                <span class="comment">// We got the sync, start fresh!
+<a href=#163 id=163 data-nosnippet>163</a>                </span>CachedQuota::NeedsSync | CachedQuota::NeedsSyncWithQuantity(<span class="kw">_</span>) =&gt; {
+<a href=#164 id=164 data-nosnippet>164</a>                    CachedQuota::Active {
+<a href=#165 id=165 data-nosnippet>165</a>                        consumed,
+<a href=#166 id=166 data-nosnippet>166</a>                        local_use: <span class="number">0</span>,
+<a href=#167 id=167 data-nosnippet>167</a>                        expiry: quota.expiry,
+<a href=#168 id=168 data-nosnippet>168</a>                    }
+<a href=#169 id=169 data-nosnippet>169</a>                }
+<a href=#170 id=170 data-nosnippet>170</a>                <span class="comment">// This is slightly tricky, one could assume quotas are only growing and we should use
+<a href=#171 id=171 data-nosnippet>171</a>                // the bigger `consumed` count here. The problem is refunds, a quota may decrease again
+<a href=#172 id=172 data-nosnippet>172</a>                // due to refunds.
+<a href=#173 id=173 data-nosnippet>173</a>                //
+<a href=#174 id=174 data-nosnippet>174</a>                // Without a way to differentiate which `consumed` value is actually more recent, we
+<a href=#175 id=175 data-nosnippet>175</a>                // just have the implicit assumption that the value arriving last is the most recent.
+<a href=#176 id=176 data-nosnippet>176</a>                //
+<a href=#177 id=177 data-nosnippet>177</a>                // This is not perfect, but for our best effort opportunistic cache, this is not a big
+<a href=#178 id=178 data-nosnippet>178</a>                // problem, at worst, we over accept a little bit more for the next synchronization
+<a href=#179 id=179 data-nosnippet>179</a>                // round.
+<a href=#180 id=180 data-nosnippet>180</a>                </span>CachedQuota::Active {
+<a href=#181 id=181 data-nosnippet>181</a>                    consumed: <span class="kw">_</span>,
+<a href=#182 id=182 data-nosnippet>182</a>                    local_use,
+<a href=#183 id=183 data-nosnippet>183</a>                    expiry: <span class="kw">_</span>,
+<a href=#184 id=184 data-nosnippet>184</a>                } =&gt; CachedQuota::Active {
+<a href=#185 id=185 data-nosnippet>185</a>                    consumed,
+<a href=#186 id=186 data-nosnippet>186</a>                    local_use: <span class="kw-2">*</span>local_use,
+<a href=#187 id=187 data-nosnippet>187</a>                    expiry: quota.expiry,
+<a href=#188 id=188 data-nosnippet>188</a>                },
+<a href=#189 id=189 data-nosnippet>189</a>            },
+<a href=#190 id=190 data-nosnippet>190</a>            CachedQuota::Active {
+<a href=#191 id=191 data-nosnippet>191</a>                consumed,
+<a href=#192 id=192 data-nosnippet>192</a>                local_use: <span class="number">0</span>,
+<a href=#193 id=193 data-nosnippet>193</a>                expiry: quota.expiry,
+<a href=#194 id=194 data-nosnippet>194</a>            },
+<a href=#195 id=195 data-nosnippet>195</a>        );
+<a href=#196 id=196 data-nosnippet>196</a>    }
 <a href=#197 id=197 data-nosnippet>197</a>
-<a href=#198 id=198 data-nosnippet>198</a>        <span class="kw">if </span>next_vacuum &gt; now.as_secs() {
-<a href=#199 id=199 data-nosnippet>199</a>            <span class="comment">// It's not yet time to vacuum.
-<a href=#200 id=200 data-nosnippet>200</a>            </span><span class="kw">return </span><span class="bool-val">false</span>;
-<a href=#201 id=201 data-nosnippet>201</a>        }
-<a href=#202 id=202 data-nosnippet>202</a>
-<a href=#203 id=203 data-nosnippet>203</a>        <span class="kw">let </span>exchange = <span class="self">self</span>.next_vacuum.compare_exchange(
-<a href=#204 id=204 data-nosnippet>204</a>            next_vacuum,
-<a href=#205 id=205 data-nosnippet>205</a>            now.as_secs() + <span class="self">self</span>.vacuum_interval.as_secs(),
-<a href=#206 id=206 data-nosnippet>206</a>            Ordering::Relaxed,
-<a href=#207 id=207 data-nosnippet>207</a>            Ordering::Relaxed,
-<a href=#208 id=208 data-nosnippet>208</a>        );
-<a href=#209 id=209 data-nosnippet>209</a>
-<a href=#210 id=210 data-nosnippet>210</a>        <span class="kw">if </span>exchange.is_err() {
-<a href=#211 id=211 data-nosnippet>211</a>            <span class="comment">// Somebody else took the vacuum, that's fine.
-<a href=#212 id=212 data-nosnippet>212</a>            </span><span class="kw">return </span><span class="bool-val">false</span>;
-<a href=#213 id=213 data-nosnippet>213</a>        }
-<a href=#214 id=214 data-nosnippet>214</a>
-<a href=#215 id=215 data-nosnippet>215</a>        <span class="kw">let </span><span class="kw-2">mut </span>cache = <span class="self">self</span>.cache.pin();
-<a href=#216 id=216 data-nosnippet>216</a>        cache.retain(|<span class="kw">_</span>, v| v.is_still_needed(now));
-<a href=#217 id=217 data-nosnippet>217</a>
-<a href=#218 id=218 data-nosnippet>218</a>        <span class="bool-val">true
-<a href=#219 id=219 data-nosnippet>219</a>    </span>}
-<a href=#220 id=220 data-nosnippet>220</a>}
-<a href=#221 id=221 data-nosnippet>221</a>
-<a href=#222 id=222 data-nosnippet>222</a><span class="doccomment">/// Action to take when accessing cached quotas via [`OpportunisticQuotaCache::check_quota`].
-<a href=#223 id=223 data-nosnippet>223</a></span><span class="attr">#[derive(Debug, PartialEq, Eq)]
-<a href=#224 id=224 data-nosnippet>224</a></span><span class="kw">pub enum </span>Action {
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="doccomment">/// Accept the quota request.
-<a href=#226 id=226 data-nosnippet>226</a>    </span>Accept,
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="doccomment">/// Synchronize the quota with the returned quantity.
-<a href=#228 id=228 data-nosnippet>228</a>    </span>Check(usize),
-<a href=#229 id=229 data-nosnippet>229</a>}
-<a href=#230 id=230 data-nosnippet>230</a>
-<a href=#231 id=231 data-nosnippet>231</a><span class="doccomment">/// State of a cached quota.
-<a href=#232 id=232 data-nosnippet>232</a></span><span class="attr">#[derive(Debug)]
-<a href=#233 id=233 data-nosnippet>233</a></span><span class="kw">enum </span>CachedQuota {
-<a href=#234 id=234 data-nosnippet>234</a>    <span class="doccomment">/// The cache currently cannot make a decision and needs an updated consumption value from the
-<a href=#235 id=235 data-nosnippet>235</a>    /// synchronized store.
-<a href=#236 id=236 data-nosnippet>236</a>    </span>NeedsSync,
-<a href=#237 id=237 data-nosnippet>237</a>    <span class="doccomment">/// Like [`Self::NeedsSync`], but also carries a total quantity which needs to be synchronized
-<a href=#238 id=238 data-nosnippet>238</a>    /// with the store.
-<a href=#239 id=239 data-nosnippet>239</a>    </span>NeedsSyncWithQuantity(NonZeroUsize),
-<a href=#240 id=240 data-nosnippet>240</a>    <span class="doccomment">/// The cache is active and can still make decisions without a synchronization.
-<a href=#241 id=241 data-nosnippet>241</a>    </span>Active {
-<a href=#242 id=242 data-nosnippet>242</a>        consumed: i64,
-<a href=#243 id=243 data-nosnippet>243</a>        local_use: usize,
-<a href=#244 id=244 data-nosnippet>244</a>        expiry: UnixTimestamp,
-<a href=#245 id=245 data-nosnippet>245</a>    },
-<a href=#246 id=246 data-nosnippet>246</a>}
-<a href=#247 id=247 data-nosnippet>247</a>
-<a href=#248 id=248 data-nosnippet>248</a><span class="kw">impl </span>CachedQuota {
-<a href=#249 id=249 data-nosnippet>249</a>    <span class="doccomment">/// Creates [`Self::NeedsSync`] for a quantity of `0`, [`Self::NeedsSyncWithQuantity`] otherwise.
-<a href=#250 id=250 data-nosnippet>250</a>    </span><span class="kw">pub fn </span>new_needs_sync(quantity: usize) -&gt; <span class="self">Self </span>{
-<a href=#251 id=251 data-nosnippet>251</a>        NonZeroUsize::new(quantity)
-<a href=#252 id=252 data-nosnippet>252</a>            .map(<span class="self">Self</span>::NeedsSyncWithQuantity)
-<a href=#253 id=253 data-nosnippet>253</a>            .unwrap_or(<span class="self">Self</span>::NeedsSync)
-<a href=#254 id=254 data-nosnippet>254</a>    }
-<a href=#255 id=255 data-nosnippet>255</a>
-<a href=#256 id=256 data-nosnippet>256</a>    <span class="doccomment">/// Returns `true` when the entry is no longer needed in the cache.
-<a href=#257 id=257 data-nosnippet>257</a>    ///
-<a href=#258 id=258 data-nosnippet>258</a>    /// An item is no longer needed when it is expired or a sync is required.
-<a href=#259 id=259 data-nosnippet>259</a>    </span><span class="kw">fn </span>is_still_needed(<span class="kw-2">&amp;</span><span class="self">self</span>, now: UnixTimestamp) -&gt; bool {
-<a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#261 id=261 data-nosnippet>261</a>            <span class="self">Self</span>::NeedsSync =&gt; <span class="bool-val">false</span>,
-<a href=#262 id=262 data-nosnippet>262</a>            <span class="self">Self</span>::NeedsSyncWithQuantity(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-<a href=#263 id=263 data-nosnippet>263</a>            <span class="self">Self</span>::Active { expiry, .. } =&gt; now &lt;= <span class="kw-2">*</span>expiry,
-<a href=#264 id=264 data-nosnippet>264</a>        }
-<a href=#265 id=265 data-nosnippet>265</a>    }
-<a href=#266 id=266 data-nosnippet>266</a>}
-<a href=#267 id=267 data-nosnippet>267</a>
-<a href=#268 id=268 data-nosnippet>268</a><span class="attr">#[cfg(test)]
-<a href=#269 id=269 data-nosnippet>269</a></span><span class="kw">mod </span>tests {
-<a href=#270 id=270 data-nosnippet>270</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#271 id=271 data-nosnippet>271</a>
-<a href=#272 id=272 data-nosnippet>272</a>    <span class="attr">#[test]
-<a href=#273 id=273 data-nosnippet>273</a>    </span><span class="kw">fn </span>test_opp_quota() {
-<a href=#274 id=274 data-nosnippet>274</a>        <span class="kw">let </span>cache = OpportunisticQuotaCache::new(<span class="number">0.1</span>);
-<a href=#275 id=275 data-nosnippet>275</a>
-<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">let </span>q1 = Quota {
-<a href=#277 id=277 data-nosnippet>277</a>            limit: <span class="number">100</span>,
-<a href=#278 id=278 data-nosnippet>278</a>            key: <span class="string">"k1"</span>,
-<a href=#279 id=279 data-nosnippet>279</a>            expiry: UnixTimestamp::from_secs(<span class="number">300</span>),
-<a href=#280 id=280 data-nosnippet>280</a>        };
-<a href=#281 id=281 data-nosnippet>281</a>        <span class="kw">let </span>q2 = Quota {
-<a href=#282 id=282 data-nosnippet>282</a>            limit: <span class="number">50</span>,
-<a href=#283 id=283 data-nosnippet>283</a>            key: <span class="string">"k2"</span>,
-<a href=#284 id=284 data-nosnippet>284</a>            expiry: UnixTimestamp::from_secs(<span class="number">300</span>),
-<a href=#285 id=285 data-nosnippet>285</a>        };
-<a href=#286 id=286 data-nosnippet>286</a>
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="comment">// First access must always go to synchronized store.
-<a href=#288 id=288 data-nosnippet>288</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">10</span>), Action::Check(<span class="number">10</span>));
-<a href=#289 id=289 data-nosnippet>289</a>        <span class="comment">// So does any following access until there was a sync.
-<a href=#290 id=290 data-nosnippet>290</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">9</span>), Action::Check(<span class="number">9</span>));
-<a href=#291 id=291 data-nosnippet>291</a>
-<a href=#292 id=292 data-nosnippet>292</a>        <span class="comment">// Same for other keys.
-<a href=#293 id=293 data-nosnippet>293</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">12</span>), Action::Check(<span class="number">12</span>));
-<a href=#294 id=294 data-nosnippet>294</a>
-<a href=#295 id=295 data-nosnippet>295</a>        <span class="comment">// Sync internal state to 30, for this test, there will be 70 remaining, meaning the cache
-<a href=#296 id=296 data-nosnippet>296</a>        // is expected to accept 7 more items without requiring another sync.
-<a href=#297 id=297 data-nosnippet>297</a>        </span>cache.update_quota(q1, <span class="number">30</span>);
+<a href=#198 id=198 data-nosnippet>198</a>    <span class="doccomment">/// Attempts to run a vacuum on the internal cache.
+<a href=#199 id=199 data-nosnippet>199</a>    ///
+<a href=#200 id=200 data-nosnippet>200</a>    /// The vacuum is internally debounced and may not run. Callers should call attempt to vacuum
+<a href=#201 id=201 data-nosnippet>201</a>    /// periodically.
+<a href=#202 id=202 data-nosnippet>202</a>    ///
+<a href=#203 id=203 data-nosnippet>203</a>    /// Returns `true` if a vacuum was performed.
+<a href=#204 id=204 data-nosnippet>204</a>    </span><span class="kw">pub fn </span>try_vacuum(<span class="kw-2">&amp;</span><span class="self">self</span>, now: UnixTimestamp) -&gt; bool {
+<a href=#205 id=205 data-nosnippet>205</a>        <span class="comment">// Check for the lucky winner to run an expiration.
+<a href=#206 id=206 data-nosnippet>206</a>        </span><span class="kw">let </span>next_vacuum = <span class="self">self</span>.next_vacuum.load(Ordering::Relaxed);
+<a href=#207 id=207 data-nosnippet>207</a>
+<a href=#208 id=208 data-nosnippet>208</a>        <span class="kw">if </span>next_vacuum &gt; now.as_secs() {
+<a href=#209 id=209 data-nosnippet>209</a>            <span class="comment">// It's not yet time to vacuum.
+<a href=#210 id=210 data-nosnippet>210</a>            </span><span class="kw">return </span><span class="bool-val">false</span>;
+<a href=#211 id=211 data-nosnippet>211</a>        }
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a>        <span class="kw">let </span>exchange = <span class="self">self</span>.next_vacuum.compare_exchange(
+<a href=#214 id=214 data-nosnippet>214</a>            next_vacuum,
+<a href=#215 id=215 data-nosnippet>215</a>            now.as_secs() + <span class="self">self</span>.vacuum_interval.as_secs(),
+<a href=#216 id=216 data-nosnippet>216</a>            Ordering::Relaxed,
+<a href=#217 id=217 data-nosnippet>217</a>            Ordering::Relaxed,
+<a href=#218 id=218 data-nosnippet>218</a>        );
+<a href=#219 id=219 data-nosnippet>219</a>
+<a href=#220 id=220 data-nosnippet>220</a>        <span class="kw">if </span>exchange.is_err() {
+<a href=#221 id=221 data-nosnippet>221</a>            <span class="comment">// Somebody else took the vacuum, that's fine.
+<a href=#222 id=222 data-nosnippet>222</a>            </span><span class="kw">return </span><span class="bool-val">false</span>;
+<a href=#223 id=223 data-nosnippet>223</a>        }
+<a href=#224 id=224 data-nosnippet>224</a>
+<a href=#225 id=225 data-nosnippet>225</a>        <span class="kw">let </span><span class="kw-2">mut </span>cache = <span class="self">self</span>.cache.pin();
+<a href=#226 id=226 data-nosnippet>226</a>        cache.retain(|<span class="kw">_</span>, v| v.is_still_needed(now));
+<a href=#227 id=227 data-nosnippet>227</a>
+<a href=#228 id=228 data-nosnippet>228</a>        <span class="bool-val">true
+<a href=#229 id=229 data-nosnippet>229</a>    </span>}
+<a href=#230 id=230 data-nosnippet>230</a>}
+<a href=#231 id=231 data-nosnippet>231</a>
+<a href=#232 id=232 data-nosnippet>232</a><span class="doccomment">/// Action to take when accessing cached quotas via [`OpportunisticQuotaCache::check_quota`].
+<a href=#233 id=233 data-nosnippet>233</a></span><span class="attr">#[derive(Debug, PartialEq, Eq)]
+<a href=#234 id=234 data-nosnippet>234</a></span><span class="kw">pub enum </span>Action {
+<a href=#235 id=235 data-nosnippet>235</a>    <span class="doccomment">/// Accept the quota request.
+<a href=#236 id=236 data-nosnippet>236</a>    </span>Accept,
+<a href=#237 id=237 data-nosnippet>237</a>    <span class="doccomment">/// Synchronize the quota with the returned quantity.
+<a href=#238 id=238 data-nosnippet>238</a>    </span>Check(usize),
+<a href=#239 id=239 data-nosnippet>239</a>}
+<a href=#240 id=240 data-nosnippet>240</a>
+<a href=#241 id=241 data-nosnippet>241</a><span class="doccomment">/// State of a cached quota.
+<a href=#242 id=242 data-nosnippet>242</a></span><span class="attr">#[derive(Debug)]
+<a href=#243 id=243 data-nosnippet>243</a></span><span class="kw">enum </span>CachedQuota {
+<a href=#244 id=244 data-nosnippet>244</a>    <span class="doccomment">/// The cache currently cannot make a decision and needs an updated consumption value from the
+<a href=#245 id=245 data-nosnippet>245</a>    /// synchronized store.
+<a href=#246 id=246 data-nosnippet>246</a>    </span>NeedsSync,
+<a href=#247 id=247 data-nosnippet>247</a>    <span class="doccomment">/// Like [`Self::NeedsSync`], but also carries a total quantity which needs to be synchronized
+<a href=#248 id=248 data-nosnippet>248</a>    /// with the store.
+<a href=#249 id=249 data-nosnippet>249</a>    </span>NeedsSyncWithQuantity(NonZeroUsize),
+<a href=#250 id=250 data-nosnippet>250</a>    <span class="doccomment">/// The cache is active and can still make decisions without a synchronization.
+<a href=#251 id=251 data-nosnippet>251</a>    </span>Active {
+<a href=#252 id=252 data-nosnippet>252</a>        consumed: i64,
+<a href=#253 id=253 data-nosnippet>253</a>        local_use: usize,
+<a href=#254 id=254 data-nosnippet>254</a>        expiry: UnixTimestamp,
+<a href=#255 id=255 data-nosnippet>255</a>    },
+<a href=#256 id=256 data-nosnippet>256</a>}
+<a href=#257 id=257 data-nosnippet>257</a>
+<a href=#258 id=258 data-nosnippet>258</a><span class="kw">impl </span>CachedQuota {
+<a href=#259 id=259 data-nosnippet>259</a>    <span class="doccomment">/// Creates [`Self::NeedsSync`] for a quantity of `0`, [`Self::NeedsSyncWithQuantity`] otherwise.
+<a href=#260 id=260 data-nosnippet>260</a>    </span><span class="kw">pub fn </span>new_needs_sync(quantity: usize) -&gt; <span class="self">Self </span>{
+<a href=#261 id=261 data-nosnippet>261</a>        NonZeroUsize::new(quantity)
+<a href=#262 id=262 data-nosnippet>262</a>            .map(<span class="self">Self</span>::NeedsSyncWithQuantity)
+<a href=#263 id=263 data-nosnippet>263</a>            .unwrap_or(<span class="self">Self</span>::NeedsSync)
+<a href=#264 id=264 data-nosnippet>264</a>    }
+<a href=#265 id=265 data-nosnippet>265</a>
+<a href=#266 id=266 data-nosnippet>266</a>    <span class="doccomment">/// Returns `true` when the entry is no longer needed in the cache.
+<a href=#267 id=267 data-nosnippet>267</a>    ///
+<a href=#268 id=268 data-nosnippet>268</a>    /// An item is no longer needed when it is expired or a sync is required.
+<a href=#269 id=269 data-nosnippet>269</a>    </span><span class="kw">fn </span>is_still_needed(<span class="kw-2">&amp;</span><span class="self">self</span>, now: UnixTimestamp) -&gt; bool {
+<a href=#270 id=270 data-nosnippet>270</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#271 id=271 data-nosnippet>271</a>            <span class="self">Self</span>::NeedsSync =&gt; <span class="bool-val">false</span>,
+<a href=#272 id=272 data-nosnippet>272</a>            <span class="self">Self</span>::NeedsSyncWithQuantity(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+<a href=#273 id=273 data-nosnippet>273</a>            <span class="self">Self</span>::Active { expiry, .. } =&gt; now &lt;= <span class="kw-2">*</span>expiry,
+<a href=#274 id=274 data-nosnippet>274</a>        }
+<a href=#275 id=275 data-nosnippet>275</a>    }
+<a href=#276 id=276 data-nosnippet>276</a>}
+<a href=#277 id=277 data-nosnippet>277</a>
+<a href=#278 id=278 data-nosnippet>278</a><span class="attr">#[cfg(test)]
+<a href=#279 id=279 data-nosnippet>279</a></span><span class="kw">mod </span>tests {
+<a href=#280 id=280 data-nosnippet>280</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#281 id=281 data-nosnippet>281</a>
+<a href=#282 id=282 data-nosnippet>282</a>    <span class="attr">#[test]
+<a href=#283 id=283 data-nosnippet>283</a>    </span><span class="kw">fn </span>test_opp_quota() {
+<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span>cache = OpportunisticQuotaCache::new(<span class="number">0.1</span>);
+<a href=#285 id=285 data-nosnippet>285</a>
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="kw">let </span>q1 = Quota {
+<a href=#287 id=287 data-nosnippet>287</a>            limit: <span class="number">100</span>,
+<a href=#288 id=288 data-nosnippet>288</a>            window: <span class="number">1</span>,
+<a href=#289 id=289 data-nosnippet>289</a>            key: <span class="string">"k1"</span>,
+<a href=#290 id=290 data-nosnippet>290</a>            expiry: UnixTimestamp::from_secs(<span class="number">300</span>),
+<a href=#291 id=291 data-nosnippet>291</a>        };
+<a href=#292 id=292 data-nosnippet>292</a>        <span class="kw">let </span>q2 = Quota {
+<a href=#293 id=293 data-nosnippet>293</a>            limit: <span class="number">50</span>,
+<a href=#294 id=294 data-nosnippet>294</a>            window: <span class="number">1</span>,
+<a href=#295 id=295 data-nosnippet>295</a>            key: <span class="string">"k2"</span>,
+<a href=#296 id=296 data-nosnippet>296</a>            expiry: UnixTimestamp::from_secs(<span class="number">300</span>),
+<a href=#297 id=297 data-nosnippet>297</a>        };
 <a href=#298 id=298 data-nosnippet>298</a>
-<a href=#299 id=299 data-nosnippet>299</a>        <span class="comment">// A different key still needs a sync.
-<a href=#300 id=300 data-nosnippet>300</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">12</span>), Action::Check(<span class="number">12</span>));
-<a href=#301 id=301 data-nosnippet>301</a>
-<a href=#302 id=302 data-nosnippet>302</a>        <span class="comment">// 70 remaining, 10% -&gt; 7 accepted.
-<a href=#303 id=303 data-nosnippet>303</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">5</span>), Action::Accept);
-<a href=#304 id=304 data-nosnippet>304</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">2</span>), Action::Accept);
-<a href=#305 id=305 data-nosnippet>305</a>        <span class="comment">// This one goes over the limit, we need to now check a total of 8.
-<a href=#306 id=306 data-nosnippet>306</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">8</span>));
-<a href=#307 id=307 data-nosnippet>307</a>
-<a href=#308 id=308 data-nosnippet>308</a>        <span class="comment">// A new sync is required
-<a href=#309 id=309 data-nosnippet>309</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
-<a href=#310 id=310 data-nosnippet>310</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">2</span>), Action::Check(<span class="number">2</span>));
-<a href=#311 id=311 data-nosnippet>311</a>        <span class="comment">// A different key is still a different key.
-<a href=#312 id=312 data-nosnippet>312</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">3</span>), Action::Check(<span class="number">3</span>));
+<a href=#299 id=299 data-nosnippet>299</a>        <span class="comment">// First access must always go to synchronized store.
+<a href=#300 id=300 data-nosnippet>300</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">10</span>), Action::Check(<span class="number">10</span>));
+<a href=#301 id=301 data-nosnippet>301</a>        <span class="comment">// So does any following access until there was a sync.
+<a href=#302 id=302 data-nosnippet>302</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">9</span>), Action::Check(<span class="number">9</span>));
+<a href=#303 id=303 data-nosnippet>303</a>
+<a href=#304 id=304 data-nosnippet>304</a>        <span class="comment">// Same for other keys.
+<a href=#305 id=305 data-nosnippet>305</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">12</span>), Action::Check(<span class="number">12</span>));
+<a href=#306 id=306 data-nosnippet>306</a>
+<a href=#307 id=307 data-nosnippet>307</a>        <span class="comment">// Sync internal state to 30, for this test, there will be 70 remaining, meaning the cache
+<a href=#308 id=308 data-nosnippet>308</a>        // is expected to accept 7 more items without requiring another sync.
+<a href=#309 id=309 data-nosnippet>309</a>        </span>cache.update_quota(q1, <span class="number">30</span>);
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a>        <span class="comment">// A different key still needs a sync.
+<a href=#312 id=312 data-nosnippet>312</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">12</span>), Action::Check(<span class="number">12</span>));
 <a href=#313 id=313 data-nosnippet>313</a>
-<a href=#314 id=314 data-nosnippet>314</a>        <span class="comment">// Consumed state is absolute not relative.
-<a href=#315 id=315 data-nosnippet>315</a>        </span>cache.update_quota(q1, <span class="number">50</span>);
-<a href=#316 id=316 data-nosnippet>316</a>        <span class="comment">// This is too much.
-<a href=#317 id=317 data-nosnippet>317</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">6</span>), Action::Check(<span class="number">6</span>));
-<a href=#318 id=318 data-nosnippet>318</a>        <span class="comment">// Need another sync again.
-<a href=#319 id=319 data-nosnippet>319</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
-<a href=#320 id=320 data-nosnippet>320</a>
-<a href=#321 id=321 data-nosnippet>321</a>        <span class="comment">// Negative state can exist due to refunds.
-<a href=#322 id=322 data-nosnippet>322</a>        </span>cache.update_quota(q1, -<span class="number">100</span>);
-<a href=#323 id=323 data-nosnippet>323</a>        <span class="comment">// We now have `200` remaining quota -&gt; 20 (= 10%).
-<a href=#324 id=324 data-nosnippet>324</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">20</span>), Action::Accept);
-<a href=#325 id=325 data-nosnippet>325</a>        <span class="comment">// Too much, check the entire local usage.
-<a href=#326 id=326 data-nosnippet>326</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">21</span>));
-<a href=#327 id=327 data-nosnippet>327</a>    }
-<a href=#328 id=328 data-nosnippet>328</a>
-<a href=#329 id=329 data-nosnippet>329</a>    <span class="doccomment">/// The test asserts the cache behaves correctly if the limit of a quota changes.
-<a href=#330 id=330 data-nosnippet>330</a>    </span><span class="attr">#[test]
-<a href=#331 id=331 data-nosnippet>331</a>    </span><span class="kw">fn </span>test_opp_quota_limit_change() {
-<a href=#332 id=332 data-nosnippet>332</a>        <span class="kw">let </span>cache = OpportunisticQuotaCache::new(<span class="number">0.1</span>);
-<a href=#333 id=333 data-nosnippet>333</a>
-<a href=#334 id=334 data-nosnippet>334</a>        <span class="kw">let </span>limit_100 = Quota {
-<a href=#335 id=335 data-nosnippet>335</a>            limit: <span class="number">100</span>,
-<a href=#336 id=336 data-nosnippet>336</a>            key: <span class="string">"k1"</span>,
-<a href=#337 id=337 data-nosnippet>337</a>            expiry: UnixTimestamp::from_secs(<span class="number">300</span>),
-<a href=#338 id=338 data-nosnippet>338</a>        };
-<a href=#339 id=339 data-nosnippet>339</a>        <span class="kw">let </span>limit_50 = Quota {
-<a href=#340 id=340 data-nosnippet>340</a>            <span class="comment">// Same quota, but a different limit.
-<a href=#341 id=341 data-nosnippet>341</a>            </span>limit: <span class="number">50</span>,
-<a href=#342 id=342 data-nosnippet>342</a>            ..limit_100
-<a href=#343 id=343 data-nosnippet>343</a>        };
+<a href=#314 id=314 data-nosnippet>314</a>        <span class="comment">// 70 remaining, 10% -&gt; 7 accepted.
+<a href=#315 id=315 data-nosnippet>315</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">5</span>), Action::Accept);
+<a href=#316 id=316 data-nosnippet>316</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">2</span>), Action::Accept);
+<a href=#317 id=317 data-nosnippet>317</a>        <span class="comment">// This one goes over the limit, we need to now check a total of 8.
+<a href=#318 id=318 data-nosnippet>318</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">8</span>));
+<a href=#319 id=319 data-nosnippet>319</a>
+<a href=#320 id=320 data-nosnippet>320</a>        <span class="comment">// A new sync is required
+<a href=#321 id=321 data-nosnippet>321</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
+<a href=#322 id=322 data-nosnippet>322</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">2</span>), Action::Check(<span class="number">2</span>));
+<a href=#323 id=323 data-nosnippet>323</a>        <span class="comment">// A different key is still a different key.
+<a href=#324 id=324 data-nosnippet>324</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">3</span>), Action::Check(<span class="number">3</span>));
+<a href=#325 id=325 data-nosnippet>325</a>
+<a href=#326 id=326 data-nosnippet>326</a>        <span class="comment">// Consumed state is absolute not relative.
+<a href=#327 id=327 data-nosnippet>327</a>        </span>cache.update_quota(q1, <span class="number">50</span>);
+<a href=#328 id=328 data-nosnippet>328</a>        <span class="comment">// This is too much.
+<a href=#329 id=329 data-nosnippet>329</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">6</span>), Action::Check(<span class="number">6</span>));
+<a href=#330 id=330 data-nosnippet>330</a>        <span class="comment">// Need another sync again.
+<a href=#331 id=331 data-nosnippet>331</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
+<a href=#332 id=332 data-nosnippet>332</a>
+<a href=#333 id=333 data-nosnippet>333</a>        <span class="comment">// Negative state can exist due to refunds.
+<a href=#334 id=334 data-nosnippet>334</a>        </span>cache.update_quota(q1, -<span class="number">100</span>);
+<a href=#335 id=335 data-nosnippet>335</a>        <span class="comment">// We now have `200` remaining quota -&gt; 20 (= 10%).
+<a href=#336 id=336 data-nosnippet>336</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">20</span>), Action::Accept);
+<a href=#337 id=337 data-nosnippet>337</a>        <span class="comment">// Too much, check the entire local usage.
+<a href=#338 id=338 data-nosnippet>338</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">21</span>));
+<a href=#339 id=339 data-nosnippet>339</a>    }
+<a href=#340 id=340 data-nosnippet>340</a>
+<a href=#341 id=341 data-nosnippet>341</a>    <span class="attr">#[test]
+<a href=#342 id=342 data-nosnippet>342</a>    </span><span class="kw">fn </span>test_opp_quota_normalized_to_window() {
+<a href=#343 id=343 data-nosnippet>343</a>        <span class="kw">let </span>cache = OpportunisticQuotaCache::new(<span class="number">0.1</span>);
 <a href=#344 id=344 data-nosnippet>344</a>
-<a href=#345 id=345 data-nosnippet>345</a>        <span class="comment">// Sync internal state to an initial value.
-<a href=#346 id=346 data-nosnippet>346</a>        </span>cache.update_quota(limit_100, <span class="number">50</span>);
-<a href=#347 id=347 data-nosnippet>347</a>
-<a href=#348 id=348 data-nosnippet>348</a>        <span class="comment">// With limit 100 there is enough (5) in the cache remaining.
-<a href=#349 id=349 data-nosnippet>349</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(limit_100, <span class="number">3</span>), Action::Accept);
-<a href=#350 id=350 data-nosnippet>350</a>        <span class="comment">// With limit 50 there is not enough in the cache remaining,  the over accepted amount needs
-<a href=#351 id=351 data-nosnippet>351</a>        // to be checked though.
-<a href=#352 id=352 data-nosnippet>352</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(limit_50, <span class="number">1</span>), Action::Check(<span class="number">4</span>));
-<a href=#353 id=353 data-nosnippet>353</a>    }
+<a href=#345 id=345 data-nosnippet>345</a>        <span class="kw">let </span>q1 = Quota {
+<a href=#346 id=346 data-nosnippet>346</a>            limit: <span class="number">1000</span>,
+<a href=#347 id=347 data-nosnippet>347</a>            window: <span class="number">10</span>,
+<a href=#348 id=348 data-nosnippet>348</a>            key: <span class="string">"k1"</span>,
+<a href=#349 id=349 data-nosnippet>349</a>            expiry: UnixTimestamp::from_secs(<span class="number">300</span>),
+<a href=#350 id=350 data-nosnippet>350</a>        };
+<a href=#351 id=351 data-nosnippet>351</a>
+<a href=#352 id=352 data-nosnippet>352</a>        <span class="comment">// First access always needs synchronization.
+<a href=#353 id=353 data-nosnippet>353</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
 <a href=#354 id=354 data-nosnippet>354</a>
-<a href=#355 id=355 data-nosnippet>355</a>    <span class="doccomment">/// Tests that even a cache with `0%` over spend acts correctly.
-<a href=#356 id=356 data-nosnippet>356</a>    </span><span class="attr">#[test]
-<a href=#357 id=357 data-nosnippet>357</a>    </span><span class="kw">fn </span>test_opp_quota_zero() {
-<a href=#358 id=358 data-nosnippet>358</a>        <span class="kw">let </span>cache = OpportunisticQuotaCache::new(<span class="number">0.0</span>);
-<a href=#359 id=359 data-nosnippet>359</a>
-<a href=#360 id=360 data-nosnippet>360</a>        <span class="kw">let </span>q1 = Quota {
-<a href=#361 id=361 data-nosnippet>361</a>            limit: <span class="number">100</span>,
-<a href=#362 id=362 data-nosnippet>362</a>            key: <span class="string">"k1"</span>,
-<a href=#363 id=363 data-nosnippet>363</a>            expiry: UnixTimestamp::from_secs(<span class="number">300</span>),
-<a href=#364 id=364 data-nosnippet>364</a>        };
-<a href=#365 id=365 data-nosnippet>365</a>
-<a href=#366 id=366 data-nosnippet>366</a>        <span class="comment">// Not synchronized -&gt; always check.
-<a href=#367 id=367 data-nosnippet>367</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
-<a href=#368 id=368 data-nosnippet>368</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
+<a href=#355 id=355 data-nosnippet>355</a>        <span class="comment">// 700 remaining -&gt; 70 per second -&gt; 7 (10%).
+<a href=#356 id=356 data-nosnippet>356</a>        </span>cache.update_quota(q1, <span class="number">300</span>);
+<a href=#357 id=357 data-nosnippet>357</a>
+<a href=#358 id=358 data-nosnippet>358</a>        <span class="comment">// 7 is the exact synchronization breakpoint.
+<a href=#359 id=359 data-nosnippet>359</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">8</span>), Action::Check(<span class="number">8</span>));
+<a href=#360 id=360 data-nosnippet>360</a>        <span class="comment">// Under 7, but already over consumed before.
+<a href=#361 id=361 data-nosnippet>361</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">6</span>), Action::Check(<span class="number">6</span>));
+<a href=#362 id=362 data-nosnippet>362</a>
+<a href=#363 id=363 data-nosnippet>363</a>        <span class="comment">// Reset.
+<a href=#364 id=364 data-nosnippet>364</a>        </span>cache.update_quota(q1, <span class="number">300</span>);
+<a href=#365 id=365 data-nosnippet>365</a>        <span class="comment">// Under 7 -&gt; that's fine.
+<a href=#366 id=366 data-nosnippet>366</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">7</span>), Action::Accept);
+<a href=#367 id=367 data-nosnippet>367</a>        <span class="comment">// Way over the limit now.
+<a href=#368 id=368 data-nosnippet>368</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">90</span>), Action::Check(<span class="number">97</span>));
 <a href=#369 id=369 data-nosnippet>369</a>
-<a href=#370 id=370 data-nosnippet>370</a>        cache.update_quota(q1, <span class="number">30_000_000_000</span>);
-<a href=#371 id=371 data-nosnippet>371</a>
-<a href=#372 id=372 data-nosnippet>372</a>        <span class="comment">// Even after synchronization, we need to check immediately.
-<a href=#373 id=373 data-nosnippet>373</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
-<a href=#374 id=374 data-nosnippet>374</a>    }
-<a href=#375 id=375 data-nosnippet>375</a>
-<a href=#376 id=376 data-nosnippet>376</a>    <span class="attr">#[test]
-<a href=#377 id=377 data-nosnippet>377</a>    </span><span class="kw">fn </span>test_opp_quota_vacuum() {
-<a href=#378 id=378 data-nosnippet>378</a>        <span class="kw">let </span>cache = OpportunisticQuotaCache::new(<span class="number">0.1</span>);
-<a href=#379 id=379 data-nosnippet>379</a>
-<a href=#380 id=380 data-nosnippet>380</a>        <span class="kw">let </span>q1 = Quota {
-<a href=#381 id=381 data-nosnippet>381</a>            limit: <span class="number">100</span>,
-<a href=#382 id=382 data-nosnippet>382</a>            key: <span class="string">"k1"</span>,
-<a href=#383 id=383 data-nosnippet>383</a>            expiry: UnixTimestamp::from_secs(<span class="number">100</span>),
-<a href=#384 id=384 data-nosnippet>384</a>        };
-<a href=#385 id=385 data-nosnippet>385</a>        <span class="kw">let </span>q2 = Quota {
-<a href=#386 id=386 data-nosnippet>386</a>            limit: <span class="number">100</span>,
-<a href=#387 id=387 data-nosnippet>387</a>            key: <span class="string">"k2"</span>,
-<a href=#388 id=388 data-nosnippet>388</a>            expiry: UnixTimestamp::from_secs(<span class="number">200</span>),
-<a href=#389 id=389 data-nosnippet>389</a>        };
-<a href=#390 id=390 data-nosnippet>390</a>
-<a href=#391 id=391 data-nosnippet>391</a>        <span class="comment">// Initialize the cache.
-<a href=#392 id=392 data-nosnippet>392</a>        </span>cache.update_quota(q1, <span class="number">0</span>);
-<a href=#393 id=393 data-nosnippet>393</a>        cache.update_quota(q2, <span class="number">0</span>);
-<a href=#394 id=394 data-nosnippet>394</a>
-<a href=#395 id=395 data-nosnippet>395</a>        <span class="comment">// Make sure some elements are stored in the cache.
-<a href=#396 id=396 data-nosnippet>396</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">9</span>), Action::Accept);
-<a href=#397 id=397 data-nosnippet>397</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">9</span>), Action::Accept);
-<a href=#398 id=398 data-nosnippet>398</a>
-<a href=#399 id=399 data-nosnippet>399</a>        <span class="comment">// This vacuum should succeed, no concurrent vacuums.
-<a href=#400 id=400 data-nosnippet>400</a>        </span><span class="macro">assert!</span>(cache.try_vacuum(UnixTimestamp::from_secs(<span class="number">150</span>)));
-<a href=#401 id=401 data-nosnippet>401</a>        <span class="comment">// A vacuum was just ran, there is no need to run it again.
-<a href=#402 id=402 data-nosnippet>402</a>        </span><span class="macro">assert!</span>(!cache.try_vacuum(UnixTimestamp::from_secs(<span class="number">150</span>)));
-<a href=#403 id=403 data-nosnippet>403</a>
-<a href=#404 id=404 data-nosnippet>404</a>        <span class="comment">// This entry was purged from the cache, now with the same quota, we should no longer have
-<a href=#405 id=405 data-nosnippet>405</a>        // an old entry.
-<a href=#406 id=406 data-nosnippet>406</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">6</span>), Action::Check(<span class="number">6</span>));
-<a href=#407 id=407 data-nosnippet>407</a>        <span class="comment">// This entry was not purged (different expiry) and should therefor return the full amount.
-<a href=#408 id=408 data-nosnippet>408</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">6</span>), Action::Check(<span class="number">15</span>));
-<a href=#409 id=409 data-nosnippet>409</a>    }
-<a href=#410 id=410 data-nosnippet>410</a>}</code></pre></div></section></main></body></html>
+<a href=#370 id=370 data-nosnippet>370</a>        <span class="comment">// 100 remaining -&gt; 10 per second -&gt; 1 (10%).
+<a href=#371 id=371 data-nosnippet>371</a>        </span>cache.update_quota(q1, <span class="number">900</span>);
+<a href=#372 id=372 data-nosnippet>372</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Accept);
+<a href=#373 id=373 data-nosnippet>373</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">2</span>));
+<a href=#374 id=374 data-nosnippet>374</a>
+<a href=#375 id=375 data-nosnippet>375</a>        <span class="comment">// 90 remaining -&gt; 9 per second -&gt; 0 (10% floored).
+<a href=#376 id=376 data-nosnippet>376</a>        </span>cache.update_quota(q1, <span class="number">910</span>);
+<a href=#377 id=377 data-nosnippet>377</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
+<a href=#378 id=378 data-nosnippet>378</a>
+<a href=#379 id=379 data-nosnippet>379</a>        <span class="comment">// Same for even less remaining.
+<a href=#380 id=380 data-nosnippet>380</a>        </span>cache.update_quota(q1, <span class="number">999</span>);
+<a href=#381 id=381 data-nosnippet>381</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
+<a href=#382 id=382 data-nosnippet>382</a>
+<a href=#383 id=383 data-nosnippet>383</a>        <span class="comment">// Same for nothing remaining.
+<a href=#384 id=384 data-nosnippet>384</a>        </span>cache.update_quota(q1, <span class="number">1000</span>);
+<a href=#385 id=385 data-nosnippet>385</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
+<a href=#386 id=386 data-nosnippet>386</a>
+<a href=#387 id=387 data-nosnippet>387</a>        <span class="comment">// Same for less than nothing remaining.
+<a href=#388 id=388 data-nosnippet>388</a>        </span>cache.update_quota(q1, <span class="number">1001</span>);
+<a href=#389 id=389 data-nosnippet>389</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
+<a href=#390 id=390 data-nosnippet>390</a>    }
+<a href=#391 id=391 data-nosnippet>391</a>
+<a href=#392 id=392 data-nosnippet>392</a>    <span class="doccomment">/// The test asserts the cache behaves correctly if the limit of a quota changes.
+<a href=#393 id=393 data-nosnippet>393</a>    </span><span class="attr">#[test]
+<a href=#394 id=394 data-nosnippet>394</a>    </span><span class="kw">fn </span>test_opp_quota_limit_change() {
+<a href=#395 id=395 data-nosnippet>395</a>        <span class="kw">let </span>cache = OpportunisticQuotaCache::new(<span class="number">0.1</span>);
+<a href=#396 id=396 data-nosnippet>396</a>        <span class="kw">let </span>window = <span class="number">3</span>;
+<a href=#397 id=397 data-nosnippet>397</a>
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="kw">let </span>limit_100 = Quota {
+<a href=#399 id=399 data-nosnippet>399</a>            limit: <span class="number">100 </span>* window,
+<a href=#400 id=400 data-nosnippet>400</a>            window: window <span class="kw">as </span>u64,
+<a href=#401 id=401 data-nosnippet>401</a>            key: <span class="string">"k1"</span>,
+<a href=#402 id=402 data-nosnippet>402</a>            expiry: UnixTimestamp::from_secs(<span class="number">300</span>),
+<a href=#403 id=403 data-nosnippet>403</a>        };
+<a href=#404 id=404 data-nosnippet>404</a>        <span class="kw">let </span>limit_50 = Quota {
+<a href=#405 id=405 data-nosnippet>405</a>            <span class="comment">// Same quota, but a different limit.
+<a href=#406 id=406 data-nosnippet>406</a>            </span>limit: <span class="number">50 </span>* window,
+<a href=#407 id=407 data-nosnippet>407</a>            ..limit_100
+<a href=#408 id=408 data-nosnippet>408</a>        };
+<a href=#409 id=409 data-nosnippet>409</a>
+<a href=#410 id=410 data-nosnippet>410</a>        <span class="comment">// Sync internal state to an initial value.
+<a href=#411 id=411 data-nosnippet>411</a>        </span>cache.update_quota(limit_100, <span class="number">50 </span>* window);
+<a href=#412 id=412 data-nosnippet>412</a>
+<a href=#413 id=413 data-nosnippet>413</a>        <span class="comment">// With limit 100 there is enough (5) in the cache remaining.
+<a href=#414 id=414 data-nosnippet>414</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(limit_100, <span class="number">3</span>), Action::Accept);
+<a href=#415 id=415 data-nosnippet>415</a>        <span class="comment">// With limit 50 there is not enough in the cache remaining,  the over accepted amount needs
+<a href=#416 id=416 data-nosnippet>416</a>        // to be checked though.
+<a href=#417 id=417 data-nosnippet>417</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(limit_50, <span class="number">1</span>), Action::Check(<span class="number">4</span>));
+<a href=#418 id=418 data-nosnippet>418</a>    }
+<a href=#419 id=419 data-nosnippet>419</a>
+<a href=#420 id=420 data-nosnippet>420</a>    <span class="doccomment">/// Tests that even a cache with `0%` over spend acts correctly.
+<a href=#421 id=421 data-nosnippet>421</a>    </span><span class="attr">#[test]
+<a href=#422 id=422 data-nosnippet>422</a>    </span><span class="kw">fn </span>test_opp_quota_zero() {
+<a href=#423 id=423 data-nosnippet>423</a>        <span class="kw">let </span>cache = OpportunisticQuotaCache::new(<span class="number">0.0</span>);
+<a href=#424 id=424 data-nosnippet>424</a>
+<a href=#425 id=425 data-nosnippet>425</a>        <span class="kw">let </span>q1 = Quota {
+<a href=#426 id=426 data-nosnippet>426</a>            limit: <span class="number">100</span>,
+<a href=#427 id=427 data-nosnippet>427</a>            window: <span class="number">1</span>,
+<a href=#428 id=428 data-nosnippet>428</a>            key: <span class="string">"k1"</span>,
+<a href=#429 id=429 data-nosnippet>429</a>            expiry: UnixTimestamp::from_secs(<span class="number">300</span>),
+<a href=#430 id=430 data-nosnippet>430</a>        };
+<a href=#431 id=431 data-nosnippet>431</a>
+<a href=#432 id=432 data-nosnippet>432</a>        <span class="comment">// Not synchronized -&gt; always check.
+<a href=#433 id=433 data-nosnippet>433</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
+<a href=#435 id=435 data-nosnippet>435</a>
+<a href=#436 id=436 data-nosnippet>436</a>        cache.update_quota(q1, <span class="number">30_000_000_000</span>);
+<a href=#437 id=437 data-nosnippet>437</a>
+<a href=#438 id=438 data-nosnippet>438</a>        <span class="comment">// Even after synchronization, we need to check immediately.
+<a href=#439 id=439 data-nosnippet>439</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">1</span>), Action::Check(<span class="number">1</span>));
+<a href=#440 id=440 data-nosnippet>440</a>    }
+<a href=#441 id=441 data-nosnippet>441</a>
+<a href=#442 id=442 data-nosnippet>442</a>    <span class="attr">#[test]
+<a href=#443 id=443 data-nosnippet>443</a>    </span><span class="kw">fn </span>test_opp_quota_vacuum() {
+<a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">let </span>cache = OpportunisticQuotaCache::new(<span class="number">0.1</span>);
+<a href=#445 id=445 data-nosnippet>445</a>
+<a href=#446 id=446 data-nosnippet>446</a>        <span class="kw">let </span>q1 = Quota {
+<a href=#447 id=447 data-nosnippet>447</a>            limit: <span class="number">100</span>,
+<a href=#448 id=448 data-nosnippet>448</a>            window: <span class="number">1</span>,
+<a href=#449 id=449 data-nosnippet>449</a>            key: <span class="string">"k1"</span>,
+<a href=#450 id=450 data-nosnippet>450</a>            expiry: UnixTimestamp::from_secs(<span class="number">100</span>),
+<a href=#451 id=451 data-nosnippet>451</a>        };
+<a href=#452 id=452 data-nosnippet>452</a>        <span class="kw">let </span>q2 = Quota {
+<a href=#453 id=453 data-nosnippet>453</a>            limit: <span class="number">100</span>,
+<a href=#454 id=454 data-nosnippet>454</a>            window: <span class="number">1</span>,
+<a href=#455 id=455 data-nosnippet>455</a>            key: <span class="string">"k2"</span>,
+<a href=#456 id=456 data-nosnippet>456</a>            expiry: UnixTimestamp::from_secs(<span class="number">200</span>),
+<a href=#457 id=457 data-nosnippet>457</a>        };
+<a href=#458 id=458 data-nosnippet>458</a>
+<a href=#459 id=459 data-nosnippet>459</a>        <span class="comment">// Initialize the cache.
+<a href=#460 id=460 data-nosnippet>460</a>        </span>cache.update_quota(q1, <span class="number">0</span>);
+<a href=#461 id=461 data-nosnippet>461</a>        cache.update_quota(q2, <span class="number">0</span>);
+<a href=#462 id=462 data-nosnippet>462</a>
+<a href=#463 id=463 data-nosnippet>463</a>        <span class="comment">// Make sure some elements are stored in the cache.
+<a href=#464 id=464 data-nosnippet>464</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">9</span>), Action::Accept);
+<a href=#465 id=465 data-nosnippet>465</a>        <span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">9</span>), Action::Accept);
+<a href=#466 id=466 data-nosnippet>466</a>
+<a href=#467 id=467 data-nosnippet>467</a>        <span class="comment">// This vacuum should succeed, no concurrent vacuums.
+<a href=#468 id=468 data-nosnippet>468</a>        </span><span class="macro">assert!</span>(cache.try_vacuum(UnixTimestamp::from_secs(<span class="number">150</span>)));
+<a href=#469 id=469 data-nosnippet>469</a>        <span class="comment">// A vacuum was just ran, there is no need to run it again.
+<a href=#470 id=470 data-nosnippet>470</a>        </span><span class="macro">assert!</span>(!cache.try_vacuum(UnixTimestamp::from_secs(<span class="number">150</span>)));
+<a href=#471 id=471 data-nosnippet>471</a>
+<a href=#472 id=472 data-nosnippet>472</a>        <span class="comment">// This entry was purged from the cache, now with the same quota, we should no longer have
+<a href=#473 id=473 data-nosnippet>473</a>        // an old entry.
+<a href=#474 id=474 data-nosnippet>474</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q1, <span class="number">6</span>), Action::Check(<span class="number">6</span>));
+<a href=#475 id=475 data-nosnippet>475</a>        <span class="comment">// This entry was not purged (different expiry) and should therefor return the full amount.
+<a href=#476 id=476 data-nosnippet>476</a>        </span><span class="macro">assert_eq!</span>(cache.check_quota(q2, <span class="number">6</span>), Action::Check(<span class="number">15</span>));
+<a href=#477 id=477 data-nosnippet>477</a>    }
+<a href=#478 id=478 data-nosnippet>478</a>}</code></pre></div></section></main></body></html>
