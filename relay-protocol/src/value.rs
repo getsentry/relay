@@ -88,6 +88,15 @@ impl Value {
         }
     }
 
+    /// Returns an `i64` if the value is an integer type, otherwise `None`.
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            Value::I64(v) => Some(*v),
+            Value::U64(v) => Some(*v as i64),
+            _ => None,
+        }
+    }
+
     /// Constructs a `Value` from a `serde_json::Value` object.
     fn from_json(value: serde_json::Value) -> Option<Self> {
         Some(match value {
