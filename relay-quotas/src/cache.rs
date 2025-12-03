@@ -46,8 +46,8 @@ where
 
     /// The maximum amount of quota the cache considers for activation.
     ///
-    /// See also: [`Self::with_limit_threshold`].
-    limit_threshold_divisor: Option<NonZeroU64>,
+    /// See also: [`Self::with_max`].
+    limit_max_divisor: Option<NonZeroU64>,
 
     /// Minimum interval between vacuum of the cache.
     vacuum_interval: Duration,
@@ -73,7 +73,7 @@ where
         Self {
             cache: Default::default(),
             max_over_spend_divisor,
-            limit_threshold_divisor: None,
+            limit_max_divisor: None,
             vacuum_interval: Duration::from_secs(30),
             // Initialize to 0, this means a vacuum run immediately, but it is going to be fast
             // (empty cache) and it requires us to be time/environment independent, time is purely
@@ -82,20 +82,17 @@ where
         }
     }
 
-    /// Configures an optional limit threshold ratio.
+    /// Relative amount of the total quota limit to which caching is applied.
     ///
-    /// The limit threshold is a cut-off applied to the quota limit, if exceeded the cache will no
-    /// longer cache the quota.
-    ///
-    /// Lowering the limit threshold reduces the amount of quota which may incorrectly be
-    /// over-accepted.
+    /// If exceeded the cache will no longer cache values for the quota.
+    /// Lowering this value reduces the probability of incorrectly over-accepting.
     ///
     /// For example: A quota with limit `100` and a configured limit threshold of `0.7` (70%),
     /// will no longer be considered for caching if 70% (70) of the quota is consumed.
     ///
-    /// By default, no limit threshold is configured.
-    pub fn with_limit_threshold(mut self, limit_threshold: Option<f32>) -> Self {
-        self.limit_threshold_divisor = limit_threshold.map(|v| {
+    /// By default, no maximum is configured and the entire quota is cached.
+    pub fn with_max(mut self, max: Option<f32>) -> Self {
+        self.limit_max_divisor = max.map(|v| {
             // Inverting the threshold here simplifies the checking code, but also retains more
             // precision for the integer division, since we can expect this value to be large.
             //
@@ -104,9 +101,8 @@ where
             //
             // 100 * 10 / 10 = 100
             // 100 - (100 * 10 / 200) = 95
-            let min_remaining_divisor =
-                1.0f32 / (1.0f32 - v.clamp(0.0, 1.0)) * RATIO_PRECISION as f32;
-            NonZeroU64::new(min_remaining_divisor as u64).unwrap_or(NonZeroU64::MAX)
+            let max_div = 1.0f32 / (1.0f32 - v.clamp(0.0, 1.0)) * RATIO_PRECISION as f32;
+            NonZeroU64::new(max_div as u64).unwrap_or(NonZeroU64::MAX)
         });
 
         self
@@ -153,7 +149,7 @@ where
 
             let total_local_use = local_use + quantity;
 
-            let threshold = match self.limit_threshold_divisor.map(NonZeroU64::get) {
+            let threshold = match self.limit_max_divisor.map(NonZeroU64::get) {
                 Some(div) => limit * RATIO_PRECISION / div,
                 None => 0,
             };
@@ -468,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_opp_quota_limit_threshold() {
-        let cache = OpportunisticQuotaCache::new(0.1).with_limit_threshold(Some(0.7));
+        let cache = OpportunisticQuotaCache::new(0.1).with_max(Some(0.7));
 
         let q1 = simple_quota(100);
 
@@ -503,7 +499,7 @@ mod tests {
 
     #[test]
     fn test_opp_quota_limit_threshold_very_large() {
-        let cache = OpportunisticQuotaCache::new(0.1).with_limit_threshold(Some(420.0));
+        let cache = OpportunisticQuotaCache::new(0.1).with_max(Some(420.0));
 
         let q1 = simple_quota(100);
 
@@ -514,7 +510,7 @@ mod tests {
 
     #[test]
     fn test_opp_quota_limit_threshold_very_small() {
-        let cache = OpportunisticQuotaCache::new(0.1).with_limit_threshold(Some(-1.0));
+        let cache = OpportunisticQuotaCache::new(0.1).with_max(Some(-1.0));
 
         let q1 = simple_quota(100);
 

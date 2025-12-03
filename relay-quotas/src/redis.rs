@@ -319,14 +319,10 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
     ///
     /// Caching considers a ratio of the remaining quota to be available and periodically
     /// synchronizes with Redis.
-    pub fn cache(
-        mut self,
-        max_over_spend_ratio: Option<f32>,
-        limit_threshold: Option<f32>,
-    ) -> Self {
-        self.cache = max_over_spend_ratio
+    pub fn cache(mut self, cache_ratio: Option<f32>, max: Option<f32>) -> Self {
+        self.cache = cache_ratio
             .map(OpportunisticQuotaCache::new)
-            .map(|c| c.with_limit_threshold(limit_threshold))
+            .map(|c| c.with_max(max))
             .map(Arc::new);
 
         self
