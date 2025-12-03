@@ -393,7 +393,7 @@ pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>)
             normalized_db_query_hash.truncate(16);
 
             attributes.insert(NORMALIZED_DB_QUERY, normalized_db_query);
-            attributes.insert("sentry.normalized_db_query.hash", normalized_db_query_hash);
+            attributes.insert(NORMALIZED_DB_QUERY_HASH, normalized_db_query_hash);
         }
         if let Some(db_operation_name) = db_operation {
             attributes.insert(DB_OPERATION_NAME, db_operation_name)
