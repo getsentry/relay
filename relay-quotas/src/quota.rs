@@ -585,18 +585,18 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: None,
           categories: [
-            transaction,
+            "transaction",
           ],
           scope: organization,
           limit: Some(0),
           namespace: None,
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -718,11 +718,11 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("f"),
           categories: [
-            unknown,
+            "unknown",
           ],
           scope: unknown,
           scopeId: Some("1"),
@@ -731,7 +731,7 @@ mod tests {
           namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
