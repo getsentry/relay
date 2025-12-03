@@ -1204,6 +1204,13 @@ pub struct Processing {
     ///
     /// By default quota caching is disabled.
     pub quota_cache_ratio: Option<f32>,
+    /// Relative amount of the total quota limit to which quota caching is applied.
+    ///
+    /// If exceeded, the rate limiter will no longer cache the quota and sync with Redis on every call instead.
+    /// Lowering this value reduces the probability of incorrectly over-accepting.
+    ///
+    /// Must be between `0.0` and `1.0`, by default there is no limit configured.
+    pub quota_cache_max: Option<f32>,
     /// Configuration for attachment uploads.
     #[serde(default)]
     pub upload: UploadServiceConfig,
@@ -1226,6 +1233,7 @@ impl Default for Processing {
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
             quota_cache_ratio: None,
+            quota_cache_max: None,
             upload: UploadServiceConfig::default(),
         }
     }
@@ -2616,6 +2624,11 @@ impl Config {
     /// Amount of remaining quota which is cached in memory.
     pub fn quota_cache_ratio(&self) -> Option<f32> {
         self.values.processing.quota_cache_ratio
+    }
+
+    /// Maximum limit (ratio) for the in memory quota cache.
+    pub fn quota_cache_max(&self) -> Option<f32> {
+        self.values.processing.quota_cache_max
     }
 
     /// Cache vacuum interval for the cardinality limiter in memory cache.

@@ -67,7 +67,7 @@ impl GlobalRateLimiter {
         if rate_limited.is_empty() {
             for quota in not_rate_limited {
                 if let Some(val) = self.limits.get_mut(&KeyRef::new(quota)) {
-                    val.budget -= quota.quantity() as u64;
+                    val.budget -= quota.quantity();
                 }
             }
         }
@@ -189,7 +189,7 @@ impl GlobalRateLimit {
         key: KeyRef<'_>,
     ) -> Result<bool, RateLimitingError> {
         let quota_slot = quota.slot();
-        let quantity = quota.quantity() as u64;
+        let quantity = quota.quantity();
 
         // There is 2 cases we are handling here:
         //
@@ -323,7 +323,7 @@ mod tests {
     fn build_redis_quota<'a>(
         quota: &'a Quota,
         scoping: &'a Scoping,
-        quantity: usize,
+        quantity: u64,
     ) -> RedisQuota<'a> {
         let scoping = scoping.item(DataCategory::MetricBucket);
         RedisQuota::new(quota, quantity, scoping, UnixTimestamp::now()).unwrap()
@@ -377,7 +377,7 @@ mod tests {
         smaller_quota.id = Some("foobar".into());
         bigger_quota.id = Some("foobar".into());
 
-        let quantity = (bigger_limit * 2) as usize;
+        let quantity = bigger_limit * 2;
         let redis_quotas = [
             build_redis_quota(&smaller_quota, &scoping, quantity),
             build_redis_quota(&bigger_quota, &scoping, quantity),
@@ -455,7 +455,7 @@ mod tests {
     async fn test_multiple_global_rate_limit() {
         let limit = 91_337;
 
-        let quota = build_quota(10, limit as u64);
+        let quota = build_quota(10, limit);
         let scoping = build_scoping();
 
         let client = build_redis_client();
