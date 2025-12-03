@@ -69,7 +69,7 @@ pub struct OwnedRedisQuota {
     scoping: ItemScoping,
     /// The Redis key prefix mapped from the quota id.
     prefix: Arc<str>,
-    /// The redis window in seconds mapped from the quota.
+    /// The Redis window in seconds mapped from the quota.
     window: u64,
     /// The quantity being checked.
     quantity: usize,
@@ -224,6 +224,16 @@ impl<'a> RedisQuota<'a> {
             slot: self.slot(),
         }
     }
+
+    /// Returns a [`cache::Quota`] built from this [`RedisQuota`].
+    fn for_cache(&self) -> cache::Quota<QuotaCacheKey> {
+        cache::Quota {
+            limit: self.limit(),
+            window: self.window,
+            key: self.key(),
+            expiry: UnixTimestamp::from_secs(self.key_expiry()),
+        }
+    }
 }
 
 impl std::ops::Deref for RedisQuota<'_> {
@@ -307,10 +317,10 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
     /// The opportunistic cache, opportunistically serves quotas from a local cache, reducing the
     /// load on Redis heavily.
     ///
-    /// Caching considers a percentage of the remaining quota to be available and periodically
+    /// Caching considers a ratio of the remaining quota to be available and periodically
     /// synchronizes with Redis.
-    pub fn cache(mut self, max_over_spend_percentage: Option<f32>) -> Self {
-        self.cache = max_over_spend_percentage
+    pub fn cache(mut self, max_over_spend_ratio: Option<f32>) -> Self {
+        self.cache = max_over_spend_ratio
             .map(OpportunisticQuotaCache::new)
             .map(Arc::new);
 
@@ -362,22 +372,15 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
                 if quota.scope == QuotaScope::Global {
                     global_quotas.push(quota);
                 } else {
-                    let key = quota.key();
-                    let redis_key = key.to_string();
-
                     if let Some(cache) = &self.cache {
-                        let k = cache::Quota {
-                            limit: quota.limit(),
-                            key,
-                            expiry: UnixTimestamp::from_secs(quota.key_expiry()),
-                        };
-                        quota.quantity = match cache.check_quota(k, quantity) {
+                        quota.quantity = match cache.check_quota(quota.for_cache(), quantity) {
                             cache::Action::Accept => continue,
                             cache::Action::Check(quantity) => quantity,
                         };
                     }
 
-                    // Remaining quotas are expected to be trackable in Redis.
+                    let redis_key = quota.key().to_string();
+                    // Remaining quotas are expected to be track-able in Redis.
                     let refund_key = get_refunded_quota_key(&redis_key);
 
                     invocation.key(redis_key);
@@ -451,14 +454,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
             } else if let Some(cache) = &self.cache {
                 // Only update the cache if it's really necessary. Quotas which are being rejected,
                 // will not be able to be handled from the cache anyways.
-                cache.update_quota(
-                    cache::Quota {
-                        limit: quota.limit(),
-                        key: quota.key(),
-                        expiry: UnixTimestamp::from_secs(quota.key_expiry()),
-                    },
-                    state.consumed,
-                );
+                cache.update_quota(quota.for_cache(), state.consumed);
             }
         }
 
@@ -1458,13 +1454,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_quota_with_cache_slightly_over_account() {
+        let window = 60;
+        let limit = 50 * window;
+
         let quotas = &[Quota {
             id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
-            limit: Some(50),
-            window: Some(60),
+            limit: Some(limit),
+            window: Some(window),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
         }];
@@ -1499,7 +1498,7 @@ mod tests {
 
         // Consume right up to the limit on the other limiter
         let rate_limits = rate_limiter2
-            .is_rate_limited(quotas, scoping, 49, false)
+            .is_rate_limited(quotas, scoping, limit as usize - 1, false)
             .await
             .unwrap();
         assert!(rate_limits.is_empty());
