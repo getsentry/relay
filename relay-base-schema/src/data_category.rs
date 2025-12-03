@@ -3,6 +3,8 @@
 use std::fmt;
 use std::str::FromStr;
 
+use serde::{Deserialize, Serialize};
+
 use crate::events::EventType;
 
 /// An error that occurs if a number cannot be converted into a [`DataCategory`].
