@@ -585,18 +585,18 @@
 <a href=#585 id=585 data-nosnippet>585</a>
 <a href=#586 id=586 data-nosnippet>586</a>        <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">"parse quota"</span>);
 <a href=#587 id=587 data-nosnippet>587</a>
-<a href=#588 id=588 data-nosnippet>588</a>        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###"
+<a href=#588 id=588 data-nosnippet>588</a>        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#"
 <a href=#589 id=589 data-nosnippet>589</a>        Quota(
 <a href=#590 id=590 data-nosnippet>590</a>          id: None,
 <a href=#591 id=591 data-nosnippet>591</a>          categories: [
-<a href=#592 id=592 data-nosnippet>592</a>            transaction,
+<a href=#592 id=592 data-nosnippet>592</a>            "transaction",
 <a href=#593 id=593 data-nosnippet>593</a>          ],
 <a href=#594 id=594 data-nosnippet>594</a>          scope: organization,
 <a href=#595 id=595 data-nosnippet>595</a>          limit: Some(0),
 <a href=#596 id=596 data-nosnippet>596</a>          namespace: None,
 <a href=#597 id=597 data-nosnippet>597</a>          reasonCode: Some(ReasonCode("not_yet")),
 <a href=#598 id=598 data-nosnippet>598</a>        )
-<a href=#599 id=599 data-nosnippet>599</a>        "###</span>);
+<a href=#599 id=599 data-nosnippet>599</a>        "#</span>);
 <a href=#600 id=600 data-nosnippet>600</a>    }
 <a href=#601 id=601 data-nosnippet>601</a>
 <a href=#602 id=602 data-nosnippet>602</a>    <span class="attr">#[test]
@@ -718,11 +718,11 @@
 <a href=#718 id=718 data-nosnippet>718</a>
 <a href=#719 id=719 data-nosnippet>719</a>        <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">"parse quota"</span>);
 <a href=#720 id=720 data-nosnippet>720</a>
-<a href=#721 id=721 data-nosnippet>721</a>        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###"
+<a href=#721 id=721 data-nosnippet>721</a>        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#"
 <a href=#722 id=722 data-nosnippet>722</a>        Quota(
 <a href=#723 id=723 data-nosnippet>723</a>          id: Some("f"),
 <a href=#724 id=724 data-nosnippet>724</a>          categories: [
-<a href=#725 id=725 data-nosnippet>725</a>            unknown,
+<a href=#725 id=725 data-nosnippet>725</a>            "unknown",
 <a href=#726 id=726 data-nosnippet>726</a>          ],
 <a href=#727 id=727 data-nosnippet>727</a>          scope: unknown,
 <a href=#728 id=728 data-nosnippet>728</a>          scopeId: Some("1"),
@@ -731,7 +731,7 @@
 <a href=#731 id=731 data-nosnippet>731</a>          namespace: None,
 <a href=#732 id=732 data-nosnippet>732</a>          reasonCode: Some(ReasonCode("not_so_fast")),
 <a href=#733 id=733 data-nosnippet>733</a>        )
-<a href=#734 id=734 data-nosnippet>734</a>        "###</span>);
+<a href=#734 id=734 data-nosnippet>734</a>        "#</span>);
 <a href=#735 id=735 data-nosnippet>735</a>    }
 <a href=#736 id=736 data-nosnippet>736</a>
 <a href=#737 id=737 data-nosnippet>737</a>    <span class="attr">#[test]

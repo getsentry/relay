@@ -835,13 +835,13 @@
 <a href=#835 id=835 data-nosnippet>835</a>            namespaces: <span class="macro">smallvec!</span>[],
 <a href=#836 id=836 data-nosnippet>836</a>        });
 <a href=#837 id=837 data-nosnippet>837</a>
-<a href=#838 id=838 data-nosnippet>838</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
+<a href=#838 id=838 data-nosnippet>838</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r#"
 <a href=#839 id=839 data-nosnippet>839</a>        RateLimits(
 <a href=#840 id=840 data-nosnippet>840</a>          limits: [
 <a href=#841 id=841 data-nosnippet>841</a>            RateLimit(
 <a href=#842 id=842 data-nosnippet>842</a>              categories: [
-<a href=#843 id=843 data-nosnippet>843</a>                default,
-<a href=#844 id=844 data-nosnippet>844</a>                error,
+<a href=#843 id=843 data-nosnippet>843</a>                "default",
+<a href=#844 id=844 data-nosnippet>844</a>                "error",
 <a href=#845 id=845 data-nosnippet>845</a>              ],
 <a href=#846 id=846 data-nosnippet>846</a>              scope: Organization(OrganizationId(42)),
 <a href=#847 id=847 data-nosnippet>847</a>              reason_code: Some(ReasonCode("second")),
@@ -850,7 +850,7 @@
 <a href=#850 id=850 data-nosnippet>850</a>            ),
 <a href=#851 id=851 data-nosnippet>851</a>          ],
 <a href=#852 id=852 data-nosnippet>852</a>        )
-<a href=#853 id=853 data-nosnippet>853</a>        "###</span>);
+<a href=#853 id=853 data-nosnippet>853</a>        "#</span>);
 <a href=#854 id=854 data-nosnippet>854</a>    }
 <a href=#855 id=855 data-nosnippet>855</a>
 <a href=#856 id=856 data-nosnippet>856</a>    <span class="attr">#[test]
@@ -874,13 +874,13 @@
 <a href=#874 id=874 data-nosnippet>874</a>            namespaces: <span class="macro">smallvec!</span>[],
 <a href=#875 id=875 data-nosnippet>875</a>        });
 <a href=#876 id=876 data-nosnippet>876</a>
-<a href=#877 id=877 data-nosnippet>877</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
+<a href=#877 id=877 data-nosnippet>877</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r#"
 <a href=#878 id=878 data-nosnippet>878</a>        RateLimits(
 <a href=#879 id=879 data-nosnippet>879</a>          limits: [
 <a href=#880 id=880 data-nosnippet>880</a>            RateLimit(
 <a href=#881 id=881 data-nosnippet>881</a>              categories: [
-<a href=#882 id=882 data-nosnippet>882</a>                default,
-<a href=#883 id=883 data-nosnippet>883</a>                error,
+<a href=#882 id=882 data-nosnippet>882</a>                "default",
+<a href=#883 id=883 data-nosnippet>883</a>                "error",
 <a href=#884 id=884 data-nosnippet>884</a>              ],
 <a href=#885 id=885 data-nosnippet>885</a>              scope: Organization(OrganizationId(42)),
 <a href=#886 id=886 data-nosnippet>886</a>              reason_code: Some(ReasonCode("first")),
@@ -889,7 +889,7 @@
 <a href=#889 id=889 data-nosnippet>889</a>            ),
 <a href=#890 id=890 data-nosnippet>890</a>          ],
 <a href=#891 id=891 data-nosnippet>891</a>        )
-<a href=#892 id=892 data-nosnippet>892</a>        "###</span>);
+<a href=#892 id=892 data-nosnippet>892</a>        "#</span>);
 <a href=#893 id=893 data-nosnippet>893</a>    }
 <a href=#894 id=894 data-nosnippet>894</a>
 <a href=#895 id=895 data-nosnippet>895</a>    <span class="attr">#[test]
@@ -922,12 +922,12 @@
 <a href=#922 id=922 data-nosnippet>922</a>            namespaces: <span class="macro">smallvec!</span>[],
 <a href=#923 id=923 data-nosnippet>923</a>        });
 <a href=#924 id=924 data-nosnippet>924</a>
-<a href=#925 id=925 data-nosnippet>925</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
+<a href=#925 id=925 data-nosnippet>925</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r#"
 <a href=#926 id=926 data-nosnippet>926</a>        RateLimits(
 <a href=#927 id=927 data-nosnippet>927</a>          limits: [
 <a href=#928 id=928 data-nosnippet>928</a>            RateLimit(
 <a href=#929 id=929 data-nosnippet>929</a>              categories: [
-<a href=#930 id=930 data-nosnippet>930</a>                error,
+<a href=#930 id=930 data-nosnippet>930</a>                "error",
 <a href=#931 id=931 data-nosnippet>931</a>              ],
 <a href=#932 id=932 data-nosnippet>932</a>              scope: Organization(OrganizationId(42)),
 <a href=#933 id=933 data-nosnippet>933</a>              reason_code: None,
@@ -936,7 +936,7 @@
 <a href=#936 id=936 data-nosnippet>936</a>            ),
 <a href=#937 id=937 data-nosnippet>937</a>            RateLimit(
 <a href=#938 id=938 data-nosnippet>938</a>              categories: [
-<a href=#939 id=939 data-nosnippet>939</a>                transaction,
+<a href=#939 id=939 data-nosnippet>939</a>                "transaction",
 <a href=#940 id=940 data-nosnippet>940</a>              ],
 <a href=#941 id=941 data-nosnippet>941</a>              scope: Organization(OrganizationId(42)),
 <a href=#942 id=942 data-nosnippet>942</a>              reason_code: None,
@@ -945,7 +945,7 @@
 <a href=#945 id=945 data-nosnippet>945</a>            ),
 <a href=#946 id=946 data-nosnippet>946</a>            RateLimit(
 <a href=#947 id=947 data-nosnippet>947</a>              categories: [
-<a href=#948 id=948 data-nosnippet>948</a>                error,
+<a href=#948 id=948 data-nosnippet>948</a>                "error",
 <a href=#949 id=949 data-nosnippet>949</a>              ],
 <a href=#950 id=950 data-nosnippet>950</a>              scope: Project(ProjectId(21)),
 <a href=#951 id=951 data-nosnippet>951</a>              reason_code: None,
@@ -954,7 +954,7 @@
 <a href=#954 id=954 data-nosnippet>954</a>            ),
 <a href=#955 id=955 data-nosnippet>955</a>          ],
 <a href=#956 id=956 data-nosnippet>956</a>        )
-<a href=#957 id=957 data-nosnippet>957</a>        "###</span>);
+<a href=#957 id=957 data-nosnippet>957</a>        "#</span>);
 <a href=#958 id=958 data-nosnippet>958</a>    }
 <a href=#959 id=959 data-nosnippet>959</a>
 <a href=#960 id=960 data-nosnippet>960</a>    <span class="doccomment">/// Regression test that ensures namespaces are correctly added to rate limits.
@@ -979,12 +979,12 @@
 <a href=#979 id=979 data-nosnippet>979</a>            namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Spans],
 <a href=#980 id=980 data-nosnippet>980</a>        });
 <a href=#981 id=981 data-nosnippet>981</a>
-<a href=#982 id=982 data-nosnippet>982</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
+<a href=#982 id=982 data-nosnippet>982</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r#"
 <a href=#983 id=983 data-nosnippet>983</a>        RateLimits(
 <a href=#984 id=984 data-nosnippet>984</a>          limits: [
 <a href=#985 id=985 data-nosnippet>985</a>            RateLimit(
 <a href=#986 id=986 data-nosnippet>986</a>              categories: [
-<a href=#987 id=987 data-nosnippet>987</a>                metric_bucket,
+<a href=#987 id=987 data-nosnippet>987</a>                "metric_bucket",
 <a href=#988 id=988 data-nosnippet>988</a>              ],
 <a href=#989 id=989 data-nosnippet>989</a>              scope: Organization(OrganizationId(42)),
 <a href=#990 id=990 data-nosnippet>990</a>              reason_code: None,
@@ -995,7 +995,7 @@
 <a href=#995 id=995 data-nosnippet>995</a>            ),
 <a href=#996 id=996 data-nosnippet>996</a>            RateLimit(
 <a href=#997 id=997 data-nosnippet>997</a>              categories: [
-<a href=#998 id=998 data-nosnippet>998</a>                metric_bucket,
+<a href=#998 id=998 data-nosnippet>998</a>                "metric_bucket",
 <a href=#999 id=999 data-nosnippet>999</a>              ],
 <a href=#1000 id=1000 data-nosnippet>1000</a>              scope: Organization(OrganizationId(42)),
 <a href=#1001 id=1001 data-nosnippet>1001</a>              reason_code: None,
@@ -1006,7 +1006,7 @@
 <a href=#1006 id=1006 data-nosnippet>1006</a>            ),
 <a href=#1007 id=1007 data-nosnippet>1007</a>          ],
 <a href=#1008 id=1008 data-nosnippet>1008</a>        )
-<a href=#1009 id=1009 data-nosnippet>1009</a>        "###</span>);
+<a href=#1009 id=1009 data-nosnippet>1009</a>        "#</span>);
 <a href=#1010 id=1010 data-nosnippet>1010</a>    }
 <a href=#1011 id=1011 data-nosnippet>1011</a>
 <a href=#1012 id=1012 data-nosnippet>1012</a>    <span class="attr">#[test]
@@ -1031,17 +1031,17 @@
 <a href=#1031 id=1031 data-nosnippet>1031</a>        });
 <a href=#1032 id=1032 data-nosnippet>1032</a>
 <a href=#1033 id=1033 data-nosnippet>1033</a>        <span class="kw">let </span>rate_limit = rate_limits.longest().unwrap();
-<a href=#1034 id=1034 data-nosnippet>1034</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limit, @<span class="string">r###"
+<a href=#1034 id=1034 data-nosnippet>1034</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limit, @<span class="string">r#"
 <a href=#1035 id=1035 data-nosnippet>1035</a>        RateLimit(
 <a href=#1036 id=1036 data-nosnippet>1036</a>          categories: [
-<a href=#1037 id=1037 data-nosnippet>1037</a>            transaction,
+<a href=#1037 id=1037 data-nosnippet>1037</a>            "transaction",
 <a href=#1038 id=1038 data-nosnippet>1038</a>          ],
 <a href=#1039 id=1039 data-nosnippet>1039</a>          scope: Organization(OrganizationId(42)),
 <a href=#1040 id=1040 data-nosnippet>1040</a>          reason_code: Some(ReasonCode("second")),
 <a href=#1041 id=1041 data-nosnippet>1041</a>          retry_after: RetryAfter(10),
 <a href=#1042 id=1042 data-nosnippet>1042</a>          namespaces: [],
 <a href=#1043 id=1043 data-nosnippet>1043</a>        )
-<a href=#1044 id=1044 data-nosnippet>1044</a>        "###</span>);
+<a href=#1044 id=1044 data-nosnippet>1044</a>        "#</span>);
 <a href=#1045 id=1045 data-nosnippet>1045</a>    }
 <a href=#1046 id=1046 data-nosnippet>1046</a>
 <a href=#1047 id=1047 data-nosnippet>1047</a>    <span class="attr">#[test]
@@ -1072,12 +1072,12 @@
 <a href=#1072 id=1072 data-nosnippet>1072</a>        rate_limits.clean_expired(Instant::now());
 <a href=#1073 id=1073 data-nosnippet>1073</a>
 <a href=#1074 id=1074 data-nosnippet>1074</a>        <span class="comment">// Check that the expired limit has been removed
-<a href=#1075 id=1075 data-nosnippet>1075</a>        </span><span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
+<a href=#1075 id=1075 data-nosnippet>1075</a>        </span><span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r#"
 <a href=#1076 id=1076 data-nosnippet>1076</a>        RateLimits(
 <a href=#1077 id=1077 data-nosnippet>1077</a>          limits: [
 <a href=#1078 id=1078 data-nosnippet>1078</a>            RateLimit(
 <a href=#1079 id=1079 data-nosnippet>1079</a>              categories: [
-<a href=#1080 id=1080 data-nosnippet>1080</a>                error,
+<a href=#1080 id=1080 data-nosnippet>1080</a>                "error",
 <a href=#1081 id=1081 data-nosnippet>1081</a>              ],
 <a href=#1082 id=1082 data-nosnippet>1082</a>              scope: Organization(OrganizationId(42)),
 <a href=#1083 id=1083 data-nosnippet>1083</a>              reason_code: None,
@@ -1086,7 +1086,7 @@
 <a href=#1086 id=1086 data-nosnippet>1086</a>            ),
 <a href=#1087 id=1087 data-nosnippet>1087</a>          ],
 <a href=#1088 id=1088 data-nosnippet>1088</a>        )
-<a href=#1089 id=1089 data-nosnippet>1089</a>        "###</span>);
+<a href=#1089 id=1089 data-nosnippet>1089</a>        "#</span>);
 <a href=#1090 id=1090 data-nosnippet>1090</a>    }
 <a href=#1091 id=1091 data-nosnippet>1091</a>
 <a href=#1092 id=1092 data-nosnippet>1092</a>    <span class="attr">#[test]
@@ -1183,12 +1183,12 @@
 <a href=#1183 id=1183 data-nosnippet>1183</a>        });
 <a href=#1184 id=1184 data-nosnippet>1184</a>
 <a href=#1185 id=1185 data-nosnippet>1185</a>        <span class="comment">// Check that the error limit is applied
-<a href=#1186 id=1186 data-nosnippet>1186</a>        </span><span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r###"
+<a href=#1186 id=1186 data-nosnippet>1186</a>        </span><span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r#"
 <a href=#1187 id=1187 data-nosnippet>1187</a>        RateLimits(
 <a href=#1188 id=1188 data-nosnippet>1188</a>          limits: [
 <a href=#1189 id=1189 data-nosnippet>1189</a>            RateLimit(
 <a href=#1190 id=1190 data-nosnippet>1190</a>              categories: [
-<a href=#1191 id=1191 data-nosnippet>1191</a>                error,
+<a href=#1191 id=1191 data-nosnippet>1191</a>                "error",
 <a href=#1192 id=1192 data-nosnippet>1192</a>              ],
 <a href=#1193 id=1193 data-nosnippet>1193</a>              scope: Organization(OrganizationId(42)),
 <a href=#1194 id=1194 data-nosnippet>1194</a>              reason_code: None,
@@ -1197,7 +1197,7 @@
 <a href=#1197 id=1197 data-nosnippet>1197</a>            ),
 <a href=#1198 id=1198 data-nosnippet>1198</a>          ],
 <a href=#1199 id=1199 data-nosnippet>1199</a>        )
-<a href=#1200 id=1200 data-nosnippet>1200</a>        "###</span>);
+<a href=#1200 id=1200 data-nosnippet>1200</a>        "#</span>);
 <a href=#1201 id=1201 data-nosnippet>1201</a>    }
 <a href=#1202 id=1202 data-nosnippet>1202</a>
 <a href=#1203 id=1203 data-nosnippet>1203</a>    <span class="attr">#[test]
@@ -1246,12 +1246,12 @@
 <a href=#1246 id=1246 data-nosnippet>1246</a>
 <a href=#1247 id=1247 data-nosnippet>1247</a>        <span class="kw">let </span>applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
 <a href=#1248 id=1248 data-nosnippet>1248</a>
-<a href=#1249 id=1249 data-nosnippet>1249</a>        <span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r###"
+<a href=#1249 id=1249 data-nosnippet>1249</a>        <span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r#"
 <a href=#1250 id=1250 data-nosnippet>1250</a>        RateLimits(
 <a href=#1251 id=1251 data-nosnippet>1251</a>          limits: [
 <a href=#1252 id=1252 data-nosnippet>1252</a>            RateLimit(
 <a href=#1253 id=1253 data-nosnippet>1253</a>              categories: [
-<a href=#1254 id=1254 data-nosnippet>1254</a>                error,
+<a href=#1254 id=1254 data-nosnippet>1254</a>                "error",
 <a href=#1255 id=1255 data-nosnippet>1255</a>              ],
 <a href=#1256 id=1256 data-nosnippet>1256</a>              scope: Organization(OrganizationId(42)),
 <a href=#1257 id=1257 data-nosnippet>1257</a>              reason_code: Some(ReasonCode("zero")),
@@ -1260,7 +1260,7 @@
 <a href=#1260 id=1260 data-nosnippet>1260</a>            ),
 <a href=#1261 id=1261 data-nosnippet>1261</a>          ],
 <a href=#1262 id=1262 data-nosnippet>1262</a>        )
-<a href=#1263 id=1263 data-nosnippet>1263</a>        "###</span>);
+<a href=#1263 id=1263 data-nosnippet>1263</a>        "#</span>);
 <a href=#1264 id=1264 data-nosnippet>1264</a>    }
 <a href=#1265 id=1265 data-nosnippet>1265</a>
 <a href=#1266 id=1266 data-nosnippet>1266</a>    <span class="attr">#[test]
@@ -1294,12 +1294,12 @@
 <a href=#1294 id=1294 data-nosnippet>1294</a>
 <a href=#1295 id=1295 data-nosnippet>1295</a>        rate_limits1.merge(rate_limits2);
 <a href=#1296 id=1296 data-nosnippet>1296</a>
-<a href=#1297 id=1297 data-nosnippet>1297</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits1, @<span class="string">r###"
+<a href=#1297 id=1297 data-nosnippet>1297</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits1, @<span class="string">r#"
 <a href=#1298 id=1298 data-nosnippet>1298</a>        RateLimits(
 <a href=#1299 id=1299 data-nosnippet>1299</a>          limits: [
 <a href=#1300 id=1300 data-nosnippet>1300</a>            RateLimit(
 <a href=#1301 id=1301 data-nosnippet>1301</a>              categories: [
-<a href=#1302 id=1302 data-nosnippet>1302</a>                error,
+<a href=#1302 id=1302 data-nosnippet>1302</a>                "error",
 <a href=#1303 id=1303 data-nosnippet>1303</a>              ],
 <a href=#1304 id=1304 data-nosnippet>1304</a>              scope: Organization(OrganizationId(42)),
 <a href=#1305 id=1305 data-nosnippet>1305</a>              reason_code: Some(ReasonCode("second")),
@@ -1308,7 +1308,7 @@
 <a href=#1308 id=1308 data-nosnippet>1308</a>            ),
 <a href=#1309 id=1309 data-nosnippet>1309</a>            RateLimit(
 <a href=#1310 id=1310 data-nosnippet>1310</a>              categories: [
-<a href=#1311 id=1311 data-nosnippet>1311</a>                transaction_indexed,
+<a href=#1311 id=1311 data-nosnippet>1311</a>                "transaction_indexed",
 <a href=#1312 id=1312 data-nosnippet>1312</a>              ],
 <a href=#1313 id=1313 data-nosnippet>1313</a>              scope: Organization(OrganizationId(42)),
 <a href=#1314 id=1314 data-nosnippet>1314</a>              reason_code: None,
@@ -1317,7 +1317,7 @@
 <a href=#1317 id=1317 data-nosnippet>1317</a>            ),
 <a href=#1318 id=1318 data-nosnippet>1318</a>          ],
 <a href=#1319 id=1319 data-nosnippet>1319</a>        )
-<a href=#1320 id=1320 data-nosnippet>1320</a>        "###</span>);
+<a href=#1320 id=1320 data-nosnippet>1320</a>        "#</span>);
 <a href=#1321 id=1321 data-nosnippet>1321</a>    }
 <a href=#1322 id=1322 data-nosnippet>1322</a>
 <a href=#1323 id=1323 data-nosnippet>1323</a>    <span class="attr">#[test]
@@ -1344,12 +1344,12 @@
 <a href=#1344 id=1344 data-nosnippet>1344</a>
 <a href=#1345 id=1345 data-nosnippet>1345</a>        <span class="kw">let </span>rate_limits = cached.current_limits();
 <a href=#1346 id=1346 data-nosnippet>1346</a>
-<a href=#1347 id=1347 data-nosnippet>1347</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
+<a href=#1347 id=1347 data-nosnippet>1347</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r#"
 <a href=#1348 id=1348 data-nosnippet>1348</a>        RateLimits(
 <a href=#1349 id=1349 data-nosnippet>1349</a>          limits: [
 <a href=#1350 id=1350 data-nosnippet>1350</a>            RateLimit(
 <a href=#1351 id=1351 data-nosnippet>1351</a>              categories: [
-<a href=#1352 id=1352 data-nosnippet>1352</a>                error,
+<a href=#1352 id=1352 data-nosnippet>1352</a>                "error",
 <a href=#1353 id=1353 data-nosnippet>1353</a>              ],
 <a href=#1354 id=1354 data-nosnippet>1354</a>              scope: Organization(OrganizationId(42)),
 <a href=#1355 id=1355 data-nosnippet>1355</a>              reason_code: None,
@@ -1358,6 +1358,6 @@
 <a href=#1358 id=1358 data-nosnippet>1358</a>            ),
 <a href=#1359 id=1359 data-nosnippet>1359</a>          ],
 <a href=#1360 id=1360 data-nosnippet>1360</a>        )
-<a href=#1361 id=1361 data-nosnippet>1361</a>        "###</span>);
+<a href=#1361 id=1361 data-nosnippet>1361</a>        "#</span>);
 <a href=#1362 id=1362 data-nosnippet>1362</a>    }
 <a href=#1363 id=1363 data-nosnippet>1363</a>}</code></pre></div></section></main></body></html>
