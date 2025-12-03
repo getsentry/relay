@@ -14,7 +14,7 @@ use relay_redis::AsyncRedisClient;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use sentry::Data;
-use smallvec::smallvec;
+use smallvec::{SmallVec, smallvec};
 
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
@@ -143,15 +143,15 @@ impl Processor for TransactionProcessor {
             .envelope_mut()
             .take_items_by(|item| matches!(*item.ty(), ItemType::Attachment));
 
-        let profile = envelope
+        let profiles = envelope
             .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::Profile));
+            .take_items_by(|item| matches!(*item.ty(), ItemType::Profile));
 
         let work = SerializedTransaction {
             headers,
             event,
             attachments,
-            profile,
+            profiles,
         };
 
         Some(Managed::from_envelope(envelope, work))
@@ -260,7 +260,7 @@ pub struct SerializedTransaction {
     headers: EnvelopeHeaders,
     event: Item,
     attachments: Items,
-    profile: Option<Item>,
+    profiles: SmallVec<[Item; 3]>,
 }
 
 impl Counted for SerializedTransaction {
@@ -269,12 +269,12 @@ impl Counted for SerializedTransaction {
             headers: _,
             event,
             attachments,
-            profile,
+            profiles,
         } = self;
         debug_assert!(!event.spans_extracted());
         let mut quantities = event.quantities(); // counts spans based on `span_count` header.
         quantities.extend(attachments.quantities());
-        quantities.extend(profile.quantities());
+        quantities.extend(profiles.quantities());
 
         quantities
     }

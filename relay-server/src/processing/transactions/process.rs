@@ -4,6 +4,7 @@ use relay_base_schema::events::EventType;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics, SpanV2};
+use relay_profiling::ProfileError;
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_redis::AsyncRedisClient;
@@ -34,12 +35,12 @@ use crate::utils::SamplingResult;
 pub fn expand(
     work: Managed<SerializedTransaction>,
 ) -> Result<Managed<ExpandedTransaction<TotalAndIndexed>>, Rejected<Error>> {
-    work.try_map(|work, _| {
+    work.try_map(|work, record_keeper| {
         let SerializedTransaction {
             headers,
             event: transaction_item,
             attachments,
-            profile,
+            profiles,
         } = work;
         let mut event = metric!(timer(RelayTimers::EventProcessingDeserialize), {
             Annotated::<Event>::from_json_bytes(&transaction_item.payload())
@@ -54,6 +55,19 @@ pub fn expand(
                 && transaction_item.fully_normalized(),
         };
         validate_flags(&flags);
+
+        let mut profiles = profiles.into_iter();
+
+        // Accept at most one profile:
+        let profile = profiles.next();
+        for additional_profile in profiles {
+            record_keeper.reject_err(
+                Outcome::Invalid(DiscardReason::Profiling(relay_profiling::discard_reason(
+                    ProfileError::TooManyProfiles,
+                ))),
+                additional_profile,
+            );
+        }
 
         Ok::<_, Error>(ExpandedTransaction {
             headers,
