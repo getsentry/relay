@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Fix parsing of data categories/quotas when using an aliased data category name. ([#5435](https://github.com/getsentry/relay/pull/5435))
+
+## 25.11.1
+
 **Breaking Changes**:
 
 - Switch Statsd histogram metrics to distribution metrics. ([#5378](https://github.com/getsentry/relay/pull/5378))
@@ -13,6 +19,11 @@
 - Add `span_count` item header to the envelope protocol. ([#5392](https://github.com/getsentry/relay/pull/5392))
 - Add `event.name` attribute to OTLP logs. ([#5396](https://github.com/getsentry/relay/pull/5396))
 - Remove feature flag for Vercel Log Drain endpoint. ([#5406](https://github.com/getsentry/relay/pull/5406))
+- Add `http.request.header.cookie` to fields scrubbed by cookie rules. ([#5408](https://github.com/getsentry/relay/pull/5408))
+- Map `request_id` to `trace_id` in vercel log drain transform. ([#5333](https://github.com/getsentry/relay/pull/5333))
+- Populate `sentry.platform` during OTLP ingestion. ([#5411](https://github.com/getsentry/relay/pull/5411))
+- Implement optional opportunistic caching for quotas. ([#5416](https://github.com/getsentry/relay/pull/5416))
+- Add db attribute normalization to V2 spans. ([#5399](https://github.com/getsentry/relay/pull/5399))
 
 **Internal**:
 

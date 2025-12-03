@@ -84,6 +84,9 @@ if not failed then
                 -- Only expire on the first invocation of `INCRBY`.
                 redis.call('EXPIREAT', KEYS[k], expiry)
             end
+
+            -- Adjust the consumed value with the just increased quantity.
+            results[k + 1] = results[k + 1] + quantity;
         end
     end
 end

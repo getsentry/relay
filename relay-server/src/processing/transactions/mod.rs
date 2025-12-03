@@ -21,6 +21,8 @@ use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
+#[cfg(feature = "processing")]
+use crate::processing::StoreHandle;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
 use crate::processing::utils::event::{
@@ -680,12 +682,12 @@ impl Forward for TransactionOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: StoreHandle<'_>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let envelope: ManagedEnvelope = self.serialize_envelope(ctx)?.into();
 
-        s.send(StoreEnvelope {
+        s.store(StoreEnvelope {
             envelope: envelope.into_processed(),
         });
 

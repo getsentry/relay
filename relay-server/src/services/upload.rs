@@ -19,19 +19,18 @@ use crate::statsd::{RelayCounters, RelayGauges};
 
 use super::outcome::Outcome;
 
-/// Message that requests all attachments of the [`Envelope`](crate::envelope::Envelope) to be uploaded.
-pub struct UploadAttachments {
-    /// The envelope containing attachments for upload.
-    pub envelope: TypedEnvelope<Processed>,
+/// Messages that the upload service can handle.
+pub enum Upload {
+    Envelope(StoreEnvelope),
 }
 
-impl Interface for UploadAttachments {}
+impl Interface for Upload {}
 
-impl FromMessage<UploadAttachments> for UploadAttachments {
+impl FromMessage<StoreEnvelope> for Upload {
     type Response = NoResponse;
 
-    fn from_message(message: UploadAttachments, _sender: ()) -> Self {
-        message
+    fn from_message(message: StoreEnvelope, _sender: ()) -> Self {
+        Self::Envelope(message)
     }
 }
 
@@ -103,11 +102,22 @@ impl UploadService {
         }))
     }
 
-    fn handle_message(&self, message: UploadAttachments) {
-        let UploadAttachments { envelope } = message;
+    fn handle_message(&self, message: Upload) {
+        let Upload::Envelope(StoreEnvelope { envelope }) = message;
         if self.pending_requests.len() >= self.max_concurrent_requests {
             // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
             // We might want to have a less aggressive mechanism in the future.
+
+            let attachment_count = envelope
+                .envelope()
+                .items()
+                .filter(|item| *item.ty() == ItemType::Attachment)
+                .count();
+            relay_statsd::metric!(
+                counter(RelayCounters::AttachmentUpload) += attachment_count as u64,
+                result = "load_shed",
+                type = "envelope",
+            );
 
             // for now, this will just forward to the store endpoint without uploading attachments.
             self.inner.store.send(StoreEnvelope { envelope });
@@ -121,7 +131,7 @@ impl UploadService {
 }
 
 impl Service for UploadService {
-    type Interface = UploadAttachments;
+    type Interface = Upload;
 
     async fn run(mut self, mut rx: Receiver<Self::Interface>) {
         relay_log::info!("Upload service started");
@@ -169,25 +179,28 @@ impl UploadServiceInner {
             .envelope_mut()
             .items_mut()
             .filter(|item| *item.ty() == ItemType::Attachment);
-        let upload_results = if let Ok(session) = session {
-            futures::future::join_all(
-                attachments.map(|attachment| self.handle_attachment(&session, attachment)),
-            )
-            .await
-        } else {
-            // if we have any kind of error constructing the upload session, we mark all attachments as failed
-            attachments.map(|_| Err(Error::UploadFailed)).collect()
-        };
 
-        for result in upload_results {
-            let result_msg = match result {
-                Ok(()) => "success",
-                Err(error) => error.as_str(),
-            };
-            relay_statsd::metric!(
-                counter(RelayCounters::AttachmentUpload) += 1,
-                result = result_msg
-            );
+        match session {
+            Err(error) => {
+                relay_statsd::metric!(
+                    counter(RelayCounters::AttachmentUpload) += attachments.count() as u64,
+                    result = error.to_string().as_str(),
+                    type = "envelope",
+                );
+            }
+            Ok(session) => {
+                for attachment in attachments {
+                    let result = self.handle_attachment(&session, attachment).await;
+                    relay_statsd::metric!(
+                        counter(RelayCounters::AttachmentUpload) += 1,
+                        result = match result {
+                            Ok(()) => "success",
+                            Err(error) => error.as_str(),
+                        },
+                        type = "envelope",
+                    );
+                }
+            }
         }
 
         // last but not least, forward the envelope to the store endpoint

@@ -92,7 +92,7 @@ mod tests {
 
         let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
 
-        let mut project_info = ProjectInfo::default().sanitized();
+        let mut project_info = ProjectInfo::default().sanitized(false);
         project_info.config.transaction_metrics =
             Some(ErrorBoundary::Ok(TransactionMetricsConfig::new()));
         project_info.config.features.0.insert(Feature::Profiling);

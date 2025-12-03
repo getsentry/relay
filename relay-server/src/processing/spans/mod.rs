@@ -1,21 +1,24 @@
 use std::sync::Arc;
 
+use bytes::Bytes;
 use either::Either;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::SpanV2;
+use relay_event_schema::protocol::{AttachmentV2Meta, SpanId, SpanV2};
 use relay_pii::PiiConfigError;
+use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{
-    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
+    ContainerWriteError, ContentType, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
+    ParentId, WithHeader,
 };
 use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
-use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
+use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter, RateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod dynamic_sampling;
@@ -131,11 +134,17 @@ impl processing::Processor for SpansProcessor {
             .take_items_by(|item| matches!(item.integration(), Some(Integration::Spans(_))))
             .into_vec();
 
+        let attachments = envelope
+            .envelope_mut()
+            .take_items_by(|item| item.is_attachment_v2())
+            .to_vec();
+
         let work = SerializedSpans {
             headers,
             spans,
             legacy,
             integrations,
+            attachments,
         };
         Some(Managed::from_envelope(envelope, work))
     }
@@ -145,6 +154,7 @@ impl processing::Processor for SpansProcessor {
         spans: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
+        let spans = filter::feature_flag_attachment(spans, ctx);
         filter::feature_flag(ctx).reject(&spans)?;
         validate::container(&spans).reject(&spans)?;
 
@@ -216,7 +226,7 @@ impl Forward for SpanOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let spans = match self {
@@ -232,9 +242,20 @@ impl Forward for SpanOutput {
             retention: ctx.retention(|r| r.span.as_ref()),
         };
 
+        // Explicitly drop standalone attachments before splitting
+        // They are not stored for now.
+        // This must be fixed before enabling the feature flag.
+        let spans = spans.map(|mut inner, record_keeper| {
+            if !inner.stand_alone_attachments.is_empty() {
+                let standalone = std::mem::take(&mut inner.stand_alone_attachments);
+                record_keeper.reject_err(Outcome::Invalid(DiscardReason::Internal), standalone);
+            }
+            inner
+        });
+
         for span in spans.split(|spans| spans.into_indexed_spans()) {
             if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
-                s.send(span)
+                s.store(span)
             };
         }
 
@@ -256,6 +277,9 @@ pub struct SerializedSpans {
 
     /// Spans which Relay received from arbitrary integrations.
     integrations: Vec<Item>,
+
+    /// A list of span attachments.
+    attachments: Vec<Item>,
 }
 
 impl SerializedSpans {
@@ -269,19 +293,38 @@ impl SerializedSpans {
 
 impl Counted for SerializedSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = (outcome_count(&self.spans)
+        let span_quantity = (outcome_count(&self.spans)
             + outcome_count(&self.legacy)
             + outcome_count(&self.integrations)) as usize;
 
-        smallvec::smallvec![
-            (DataCategory::Span, quantity),
-            (DataCategory::SpanIndexed, quantity),
-        ]
+        let attachment_quantity = self
+            .attachments
+            .iter()
+            .map(Item::attachment_body_size)
+            .sum();
+
+        let mut quantities = smallvec::smallvec![];
+
+        if span_quantity > 0 {
+            quantities.push((DataCategory::Span, span_quantity));
+            quantities.push((DataCategory::SpanIndexed, span_quantity));
+        }
+
+        if attachment_quantity > 0 {
+            quantities.push((DataCategory::Attachment, attachment_quantity));
+        }
+        if !self.attachments.is_empty() {
+            quantities.push((DataCategory::AttachmentItem, self.attachments.len()));
+        }
+
+        quantities
     }
 }
 
-impl CountRateLimited for Managed<SerializedSpans> {
-    type Error = Error;
+struct ExpandedSpansQuantities {
+    span: usize,
+    attachment: usize,
+    attachment_item: usize,
 }
 
 /// Spans which have been parsed and expanded from their serialized state.
@@ -293,8 +336,11 @@ pub struct ExpandedSpans<C = TotalAndIndexed> {
     /// Server side applied (dynamic) sample rate.
     server_sample_rate: Option<f64>,
 
-    /// Expanded and parsed spans.
-    spans: ContainerItems<SpanV2>,
+    /// Expanded and parsed spans, with optional associated attachments.
+    spans: Vec<ExpandedSpan>,
+
+    /// Span attachments that are not associated with any one specific span.
+    stand_alone_attachments: Vec<ExpandedAttachment>,
 
     /// Category of the contained spans.
     ///
@@ -305,18 +351,78 @@ pub struct ExpandedSpans<C = TotalAndIndexed> {
 
 impl<C> ExpandedSpans<C> {
     fn serialize_envelope(self) -> Result<Box<Envelope>, ContainerWriteError> {
-        let mut spans = Vec::new();
+        let mut items = Vec::new();
 
         if !self.spans.is_empty() {
             let mut item = Item::new(ItemType::Span);
-            ItemContainer::from(self.spans)
+            let mut spans_without_attachments = Vec::new();
+
+            for ExpandedSpan { span, attachments } in self.spans {
+                for attachment in attachments {
+                    let span_id = span.value().and_then(|s| s.span_id.value().copied());
+                    items.push(attachment_to_item(attachment, span_id)?);
+                }
+
+                spans_without_attachments.push(span);
+            }
+
+            ItemContainer::from(spans_without_attachments)
                 .write_to(&mut item)
                 .inspect_err(|err| relay_log::error!("failed to serialize spans: {err}"))?;
-            spans.push(item);
+            items.push(item);
         }
 
-        Ok(Envelope::from_parts(self.headers, Items::from_vec(spans)))
+        for attachment in self.stand_alone_attachments {
+            items.push(attachment_to_item(attachment, None)?);
+        }
+
+        Ok(Envelope::from_parts(self.headers, Items::from_vec(items)))
     }
+
+    fn span_quantities(&self) -> ExpandedSpansQuantities {
+        let quantity = self.spans.len();
+        let mut attachment_quantity = 0;
+        let mut attachment_count = 0;
+
+        for span in &self.spans {
+            for attachment in &span.attachments {
+                attachment_quantity += attachment.body.len();
+                attachment_count += 1;
+            }
+        }
+        for attachment in &self.stand_alone_attachments {
+            attachment_quantity += attachment.body.len();
+            attachment_count += 1;
+        }
+
+        ExpandedSpansQuantities {
+            span: quantity,
+            attachment: attachment_quantity,
+            attachment_item: attachment_count,
+        }
+    }
+}
+
+fn attachment_to_item(
+    attachment: ExpandedAttachment,
+    span_id: Option<SpanId>,
+) -> Result<Item, ContainerWriteError> {
+    let ExpandedAttachment { meta, body } = attachment;
+
+    let meta_json = meta.to_json()?;
+    let meta_bytes = meta_json.into_bytes();
+    let meta_length = meta_bytes.len();
+
+    let mut payload = bytes::BytesMut::with_capacity(meta_length + body.len());
+    payload.extend_from_slice(&meta_bytes);
+    payload.extend_from_slice(&body);
+
+    let mut item = Item::new(ItemType::Attachment);
+    item.set_payload(ContentType::AttachmentV2, payload.freeze());
+    item.set_meta_length(meta_length as u32);
+    item.set_parent_id(ParentId::SpanId(span_id));
+
+    Ok(item)
 }
 
 impl ExpandedSpans<TotalAndIndexed> {
@@ -328,6 +434,7 @@ impl ExpandedSpans<TotalAndIndexed> {
             headers,
             server_sample_rate,
             spans,
+            stand_alone_attachments,
             category: _,
         } = self;
 
@@ -335,6 +442,7 @@ impl ExpandedSpans<TotalAndIndexed> {
             headers,
             server_sample_rate,
             spans,
+            stand_alone_attachments,
             category: Indexed,
         }
     }
@@ -365,33 +473,202 @@ pub struct Indexed;
 
 impl Counted for ExpandedSpans<TotalAndIndexed> {
     fn quantities(&self) -> Quantities {
-        let quantity = self.spans.len();
-        smallvec::smallvec![
-            (DataCategory::Span, quantity),
-            (DataCategory::SpanIndexed, quantity),
-        ]
+        let ExpandedSpansQuantities {
+            span,
+            attachment,
+            attachment_item,
+        } = self.span_quantities();
+
+        let mut quantities = smallvec::smallvec![];
+        if span > 0 {
+            quantities.push((DataCategory::Span, span));
+            quantities.push((DataCategory::SpanIndexed, span));
+        }
+        if attachment > 0 {
+            quantities.push((DataCategory::Attachment, attachment));
+        }
+        if attachment_item > 0 {
+            quantities.push((DataCategory::AttachmentItem, attachment_item));
+        }
+
+        quantities
     }
 }
 
 impl Counted for ExpandedSpans<Indexed> {
     fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::SpanIndexed, self.spans.len())]
+        let ExpandedSpansQuantities {
+            span,
+            attachment,
+            attachment_item,
+        } = self.span_quantities();
+
+        let mut quantities = smallvec::smallvec![];
+        if span > 0 {
+            quantities.push((DataCategory::SpanIndexed, span));
+        }
+        if attachment > 0 {
+            quantities.push((DataCategory::Attachment, attachment));
+        }
+        if attachment_item > 0 {
+            quantities.push((DataCategory::AttachmentItem, attachment_item));
+        }
+
+        quantities
     }
 }
 
-impl CountRateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
+impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
     type Error = Error;
+
+    async fn enforce<T>(
+        &mut self,
+        mut rate_limiter: T,
+        _: Context<'_>,
+    ) -> std::result::Result<(), Rejected<Self::Error>>
+    where
+        T: processing::RateLimiter,
+    {
+        let scoping = self.scoping();
+
+        let ExpandedSpansQuantities {
+            span,
+            attachment,
+            attachment_item,
+        } = self.span_quantities();
+
+        if span > 0 {
+            let limits = rate_limiter
+                .try_consume(scoping.item(DataCategory::Span), span)
+                .await;
+            if !limits.is_empty() {
+                // If there is a span quota reject all the spans and the associated attachments.
+                return Err(self.reject_err(Error::from(limits)));
+            }
+
+            let limits = rate_limiter
+                .try_consume(scoping.item(DataCategory::SpanIndexed), span)
+                .await;
+            if !limits.is_empty() {
+                // If there is a span quota reject all the spans and the associated attachments.
+                return Err(self.reject_err(Error::from(limits)));
+            }
+        }
+
+        if attachment > 0 {
+            self.enforce_attachment_limits(
+                &mut rate_limiter,
+                scoping,
+                DataCategory::Attachment,
+                attachment,
+            )
+            .await;
+        }
+
+        if attachment_item > 0 {
+            self.enforce_attachment_limits(
+                &mut rate_limiter,
+                scoping,
+                DataCategory::AttachmentItem,
+                attachment_item,
+            )
+            .await;
+        }
+
+        Ok(())
+    }
+}
+
+impl Managed<ExpandedSpans<TotalAndIndexed>> {
+    async fn enforce_attachment_limits<T>(
+        &mut self,
+        rate_limiter: &mut T,
+        scoping: relay_quotas::Scoping,
+        category: DataCategory,
+        quantity: usize,
+    ) where
+        T: processing::RateLimiter,
+    {
+        let limits = rate_limiter
+            .try_consume(scoping.item(category), quantity)
+            .await;
+
+        if !limits.is_empty() {
+            self.modify(|this, record_keeper| {
+                // Reject both associated attachments and standalone.
+                for span in &mut this.spans {
+                    let attachments = std::mem::take(&mut span.attachments);
+                    record_keeper.reject_err(Error::from(limits.clone()), attachments);
+                }
+
+                record_keeper.reject_err(
+                    Error::from(limits),
+                    std::mem::take(&mut this.stand_alone_attachments),
+                );
+            });
+        }
+    }
 }
 
 /// A Span which only represents the indexed category.
 #[cfg(feature = "processing")]
 #[derive(Debug)]
-struct IndexedSpan(crate::envelope::WithHeader<SpanV2>);
+struct IndexedSpan(ExpandedSpan);
 
 #[cfg(feature = "processing")]
 impl Counted for IndexedSpan {
     fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
+        let mut quantities = smallvec::smallvec![(DataCategory::SpanIndexed, 1)];
+        quantities.extend(self.0.attachments.quantities());
+        quantities
+    }
+}
+
+/// A validated and parsed span attachment.
+#[derive(Debug)]
+pub struct ExpandedAttachment {
+    /// The parsed metadata from the attachment.
+    pub meta: Annotated<AttachmentV2Meta>,
+
+    /// The raw attachment body.
+    pub body: Bytes,
+}
+
+impl Counted for ExpandedAttachment {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![
+            (DataCategory::Attachment, self.body.len()),
+            (DataCategory::AttachmentItem, 1)
+        ]
+    }
+}
+
+/// Wrapper around a SpanV2 and an optional associated attachment.
+///
+/// Allows for dropping the attachment together with the Span.
+#[derive(Debug)]
+struct ExpandedSpan {
+    span: WithHeader<SpanV2>,
+    attachments: Vec<ExpandedAttachment>,
+}
+
+impl ExpandedSpan {
+    fn new(span: WithHeader<SpanV2>) -> Self {
+        Self {
+            span,
+            attachments: vec![],
+        }
+    }
+}
+
+impl Counted for ExpandedSpan {
+    fn quantities(&self) -> Quantities {
+        let Self { span, attachments } = self;
+        let mut quantities = span.quantities();
+
+        quantities.extend(attachments.quantities());
+
+        quantities
     }
 }
 

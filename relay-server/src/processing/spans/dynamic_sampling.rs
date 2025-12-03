@@ -91,6 +91,7 @@ pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
     };
 
     for span in &spans.spans {
+        let span = &span.span;
         let trace_id = get_value!(span.trace_id);
 
         if trace_id != Some(&dsc.trace_id) {
@@ -126,7 +127,9 @@ pub async fn run(
     };
 
     // At this point the decision is to drop the spans.
-    let span_count = outcome_count(&spans.spans);
+    let span_count = outcome_count(&spans.spans)
+        + outcome_count(&spans.legacy)
+        + outcome_count(&spans.integrations);
     let metrics = create_metrics(
         spans.scoping(),
         span_count,
@@ -289,17 +292,52 @@ fn create_metrics(
 /// as the total category is counted from now in in metrics.
 struct UnsampledSpans {
     spans: Vec<Item>,
+    legacy: Vec<Item>,
+    integrations: Vec<Item>,
+    attachments: Vec<Item>,
 }
 
 impl From<SerializedSpans> for UnsampledSpans {
     fn from(value: SerializedSpans) -> Self {
-        Self { spans: value.spans }
+        let SerializedSpans {
+            headers: _,
+            spans,
+            legacy,
+            integrations,
+            attachments,
+        } = value;
+
+        Self {
+            spans,
+            legacy,
+            integrations,
+            attachments,
+        }
     }
 }
 
 impl Counted for UnsampledSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = outcome_count(&self.spans) as usize;
-        smallvec::smallvec![(DataCategory::SpanIndexed, quantity),]
+        let quantity = (outcome_count(&self.spans)
+            + outcome_count(&self.legacy)
+            + outcome_count(&self.integrations)) as usize;
+
+        let mut quantities = smallvec::smallvec![];
+
+        if quantity > 0 {
+            quantities.push((DataCategory::SpanIndexed, quantity));
+        }
+        if !self.attachments.is_empty() {
+            quantities.push((
+                DataCategory::Attachment,
+                self.attachments
+                    .iter()
+                    .map(Item::attachment_body_size)
+                    .sum(),
+            ));
+            quantities.push((DataCategory::AttachmentItem, self.attachments.len()));
+        }
+
+        quantities
     }
 }

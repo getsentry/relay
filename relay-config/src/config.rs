@@ -1193,6 +1193,17 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
+    /// Configures the quota cache ratio between `0.0` and `1.0`.
+    ///
+    /// The quota cache, caches the specified ratio of remaining quota in memory to reduce the
+    /// amount of synchronizations required with Redis.
+    ///
+    /// The ratio is applied to the (per second) rate of the quota, not the total limit.
+    /// For example a quota with limit 100 with a 10 second window is treated equally to a quota of
+    /// 10 with a 1 second window.
+    ///
+    /// By default quota caching is disabled.
+    pub quota_cache_ratio: Option<f32>,
     /// Configuration for attachment uploads.
     #[serde(default)]
     pub upload: UploadServiceConfig,
@@ -1214,6 +1225,7 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
+            quota_cache_ratio: None,
             upload: UploadServiceConfig::default(),
         }
     }
@@ -1284,7 +1296,7 @@ impl Default for UploadServiceConfig {
     fn default() -> Self {
         Self {
             objectstore_url: None,
-            max_concurrent_requests: 100,
+            max_concurrent_requests: 10,
             timeout: 60,
         }
     }
@@ -2599,6 +2611,11 @@ impl Config {
     /// Maximum rate limit to report to clients in seconds.
     pub fn max_rate_limit(&self) -> Option<u64> {
         self.values.processing.max_rate_limit.map(u32::into)
+    }
+
+    /// Amount of remaining quota which is cached in memory.
+    pub fn quota_cache_ratio(&self) -> Option<f32> {
+        self.values.processing.quota_cache_ratio
     }
 
     /// Cache vacuum interval for the cardinality limiter in memory cache.

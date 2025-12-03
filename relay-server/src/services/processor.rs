@@ -76,7 +76,7 @@ use {
     crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
-    crate::services::upload::UploadAttachments,
+    crate::services::upload::Upload,
     crate::utils::Enforcement,
     itertools::Itertools,
     relay_cardinality::{
@@ -289,10 +289,12 @@ impl ProcessingGroup {
                 Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
             );
             let is_span = matches!(item.ty(), &ItemType::Span);
+            let is_span_attachment = item.is_attachment_v2();
 
             ItemContainer::<SpanV2>::is_container(item)
                 || (exp_feature && is_span)
                 || (exp_feature && is_supported_integration)
+                || (exp_feature && is_span_attachment)
         });
 
         if !span_v2_items.is_empty() {
@@ -1105,7 +1107,7 @@ pub struct Addrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    pub upload: Option<Addr<UploadAttachments>>,
+    pub upload: Option<Addr<Upload>>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
@@ -1195,9 +1197,11 @@ impl EnvelopeProcessorService {
 
         #[cfg(feature = "processing")]
         let rate_limiter = match (quotas.clone(), global_rate_limits) {
-            (Some(redis), Some(global)) => {
-                Some(RedisRateLimiter::new(redis, global).max_limit(config.max_rate_limit()))
-            }
+            (Some(redis), Some(global)) => Some(
+                RedisRateLimiter::new(redis, global)
+                    .max_limit(config.max_rate_limit())
+                    .cache(config.quota_cache_ratio()),
+            ),
             _ => None,
         };
 
@@ -2052,6 +2056,9 @@ impl EnvelopeProcessorService {
         if self.inner.config.processing_enabled()
             && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
         {
+            use crate::processing::StoreHandle;
+
+            let upload = self.inner.addrs.upload.as_ref();
             match submit {
                 Submit::Envelope(envelope) => {
                     let envelope_has_attachments = envelope
@@ -2069,13 +2076,13 @@ impl EnvelopeProcessorService {
                         && use_objectstore()
                     {
                         // the `UploadService` will upload all attachments, and then forward the envelope to the `StoreService`.
-                        upload.send(UploadAttachments { envelope })
+                        upload.send(StoreEnvelope { envelope })
                     } else {
                         store_forwarder.send(StoreEnvelope { envelope })
                     }
                 }
                 Submit::Output { output, ctx } => output
-                    .forward_store(store_forwarder, ctx)
+                    .forward_store(StoreHandle::new(store_forwarder, upload), ctx)
                     .unwrap_or_else(|err| err.into_inner()),
             }
             return;

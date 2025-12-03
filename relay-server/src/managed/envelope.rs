@@ -362,6 +362,14 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.attachment_item_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::AttachmentItem,
+                self.context.summary.attachment_item_quantity,
+            );
+        }
+
         if self.context.summary.monitor_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),

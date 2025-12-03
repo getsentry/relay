@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Sentry quotas and rate limiting"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.11.0"
+version = "25.11.1"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -19,11 +19,13 @@ workspace = true
 [dependencies]
 async-trait = { workspace = true }
 hashbrown = { workspace = true }
+papaya = { workspace = true }
 itertools = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
 relay-log = { workspace = true, optional = true }
 relay-redis = { workspace = true, optional = true }
+relay-statsd = { workspace = true }
 serde = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true, optional = true }
