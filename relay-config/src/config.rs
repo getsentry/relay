@@ -1204,6 +1204,16 @@ pub struct Processing {
     ///
     /// By default quota caching is disabled.
     pub quota_cache_ratio: Option<f32>,
+    /// Configures a quota limit threshold for the quota cache.
+    ///
+    /// The limit threshold is a cut-off applied to the quota limit, if exceeded the cache will no
+    /// longer cache the quota.
+    ///
+    /// Lowering the limit threshold reduces the amount of quota which may incorrectly be
+    /// over-accepted.
+    ///
+    /// Must be between `0.0` and `1.0`, by default there is no limit configured.
+    pub quota_cache_limit_threshold: Option<f32>,
     /// Configuration for attachment uploads.
     #[serde(default)]
     pub upload: UploadServiceConfig,
@@ -1226,6 +1236,7 @@ impl Default for Processing {
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
             quota_cache_ratio: None,
+            quota_cache_limit_threshold: None,
             upload: UploadServiceConfig::default(),
         }
     }
@@ -2616,6 +2627,11 @@ impl Config {
     /// Amount of remaining quota which is cached in memory.
     pub fn quota_cache_ratio(&self) -> Option<f32> {
         self.values.processing.quota_cache_ratio
+    }
+
+    /// Limit threshold for the in memory quota cache.
+    pub fn quota_cache_limit_threshold(&self) -> Option<f32> {
+        self.values.processing.quota_cache_limit_threshold
     }
 
     /// Cache vacuum interval for the cardinality limiter in memory cache.

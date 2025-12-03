@@ -1201,7 +1201,10 @@ impl EnvelopeProcessorService {
             (Some(redis), Some(global)) => Some(
                 RedisRateLimiter::new(redis, global)
                     .max_limit(config.max_rate_limit())
-                    .cache(config.quota_cache_ratio()),
+                    .cache(
+                        config.quota_cache_ratio(),
+                        config.quota_cache_limit_threshold(),
+                    ),
             ),
             _ => None,
         };

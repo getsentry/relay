@@ -72,7 +72,7 @@ pub struct OwnedRedisQuota {
     /// The Redis window in seconds mapped from the quota.
     window: u64,
     /// The quantity being checked.
-    quantity: usize,
+    quantity: u64,
     /// The ingestion timestamp determining the rate limiting bucket.
     timestamp: UnixTimestamp,
 }
@@ -103,7 +103,7 @@ pub struct RedisQuota<'a> {
     /// The Redis window in seconds mapped from the quota.
     window: u64,
     /// The quantity being checked.
-    quantity: usize,
+    quantity: u64,
     /// The ingestion timestamp determining the rate limiting bucket.
     timestamp: UnixTimestamp,
 }
@@ -116,7 +116,7 @@ impl<'a> RedisQuota<'a> {
     /// future quota types.
     pub fn new(
         quota: &'a Quota,
-        quantity: usize,
+        quantity: u64,
         scoping: ItemScoping,
         timestamp: UnixTimestamp,
     ) -> Option<Self> {
@@ -158,7 +158,7 @@ impl<'a> RedisQuota<'a> {
     }
 
     /// Returns the quantity to rate limit.
-    pub fn quantity(&self) -> usize {
+    pub fn quantity(&self) -> u64 {
         self.quantity
     }
 
@@ -319,9 +319,14 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
     ///
     /// Caching considers a ratio of the remaining quota to be available and periodically
     /// synchronizes with Redis.
-    pub fn cache(mut self, max_over_spend_ratio: Option<f32>) -> Self {
+    pub fn cache(
+        mut self,
+        max_over_spend_ratio: Option<f32>,
+        limit_threshold: Option<f32>,
+    ) -> Self {
         self.cache = max_over_spend_ratio
             .map(OpportunisticQuotaCache::new)
+            .map(|c| c.with_limit_threshold(limit_threshold))
             .map(Arc::new);
 
         self
@@ -356,6 +361,8 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
         let mut rate_limits = RateLimits::new();
 
         let mut global_quotas = vec![];
+
+        let quantity = u64::try_from(quantity).unwrap_or(u64::MAX);
 
         for quota in quotas {
             if !quota.matches(item_scoping) {
@@ -439,13 +446,13 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
                 // We can calculate the error by comparing how much the cache added to the
                 // quantity with remaining difference of the consumption and limit.
                 let cache_error = {
-                    let remaining = quota.limit().saturating_sub(state.consumed).max(0) as usize;
+                    let remaining = quota.limit().saturating_sub(state.consumed).max(0) as u64;
                     let cache_quantity = quota.quantity.saturating_sub(quantity);
 
                     cache_quantity.saturating_sub(remaining)
                 };
                 relay_statsd::metric!(
-                    counter(QuotaCounters::CacheError) += cache_error as u64,
+                    counter(QuotaCounters::CacheError) += cache_error,
                     category = item_scoping.category.name(),
                 );
 
@@ -1422,7 +1429,9 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let rate_limiter = build_rate_limiter().cache(Some(0.1));
+        // For this test, with only a single rate limiter accessing Redis and always a quantity of
+        // `1`, the parameters for the cache should not make any difference.
+        let rate_limiter = build_rate_limiter().cache(Some(0.1), Some(0.9));
 
         for _ in 0..50 {
             let rate_limits = rate_limiter
@@ -1480,8 +1489,8 @@ mod tests {
         };
 
         // 10% Quota cache.
-        let rate_limiter1 = build_rate_limiter().cache(Some(0.1));
-        let rate_limiter2 = build_rate_limiter().cache(Some(0.1));
+        let rate_limiter1 = build_rate_limiter().cache(Some(0.1), None);
+        let rate_limiter2 = build_rate_limiter().cache(Some(0.1), None);
 
         // Prime the cache.
         let rate_limits = rate_limiter1
