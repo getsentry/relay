@@ -284,11 +284,11 @@
 <a href=#284 id=284 data-nosnippet>284</a>    }
 <a href=#285 id=285 data-nosnippet>285</a>
 <a href=#286 id=286 data-nosnippet>286</a>    <span class="doccomment">/// Validates data in this project state and removes values that are partially invalid.
-<a href=#287 id=287 data-nosnippet>287</a>    </span><span class="kw">pub fn </span>sanitized(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+<a href=#287 id=287 data-nosnippet>287</a>    </span><span class="kw">pub fn </span>sanitized(<span class="kw-2">mut </span><span class="self">self</span>, report_errors: bool) -&gt; <span class="self">Self </span>{
 <a href=#288 id=288 data-nosnippet>288</a>        relay_log::with_scope(
 <a href=#289 id=289 data-nosnippet>289</a>            |scope| scope.set_tag(<span class="string">"project_id"</span>, <span class="self">self</span>.project_id.map_or(<span class="number">0</span>, ProjectId::value)),
 <a href=#290 id=290 data-nosnippet>290</a>            || {
-<a href=#291 id=291 data-nosnippet>291</a>                <span class="self">self</span>.config.sanitize();
+<a href=#291 id=291 data-nosnippet>291</a>                <span class="self">self</span>.config.sanitize(report_errors);
 <a href=#292 id=292 data-nosnippet>292</a>            },
 <a href=#293 id=293 data-nosnippet>293</a>        );
 <a href=#294 id=294 data-nosnippet>294</a>        <span class="self">self
