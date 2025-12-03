@@ -1201,7 +1201,7 @@
 <a href=#1201 id=1201 data-nosnippet>1201</a>            (<span class="prelude-val">Some</span>(redis), <span class="prelude-val">Some</span>(global)) =&gt; <span class="prelude-val">Some</span>(
 <a href=#1202 id=1202 data-nosnippet>1202</a>                RedisRateLimiter::new(redis, global)
 <a href=#1203 id=1203 data-nosnippet>1203</a>                    .max_limit(config.max_rate_limit())
-<a href=#1204 id=1204 data-nosnippet>1204</a>                    .cache(config.quota_cache_ratio()),
+<a href=#1204 id=1204 data-nosnippet>1204</a>                    .cache(config.quota_cache_ratio(), config.quota_cache_max()),
 <a href=#1205 id=1205 data-nosnippet>1205</a>            ),
 <a href=#1206 id=1206 data-nosnippet>1206</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
 <a href=#1207 id=1207 data-nosnippet>1207</a>        };
