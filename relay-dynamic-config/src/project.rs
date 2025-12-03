@@ -136,7 +136,7 @@ impl ProjectConfig {
         let invalid_quotas: Vec<_> = self.quotas.extract_if(.., |q| !q.is_valid()).collect();
         if !invalid_quotas.is_empty() && report {
             {
-                relay_log::error!(
+                relay_log::warn!(
                     invalid_quotas = ?invalid_quotas,
                     "Found an invalid quota definition",
                 );
