@@ -389,7 +389,11 @@ pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>)
 
     if let Some(attributes) = annotated_attributes.value_mut() {
         if let Some(normalized_db_query) = normalized_db_query {
+            let mut normalized_db_query_hash = format!("{:?}", md5::compute(&normalized_db_query));
+            normalized_db_query_hash.truncate(16);
+
             attributes.insert(NORMALIZED_DB_QUERY, normalized_db_query);
+            attributes.insert("sentry.normalized_db_query.hash", normalized_db_query_hash);
         }
         if let Some(db_operation_name) = db_operation {
             attributes.insert(DB_OPERATION_NAME, db_operation_name)
@@ -929,6 +933,10 @@ mod tests {
             "type": "string",
             "value": "SELECT %s"
           },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "3a377dcc490b1690"
+          },
           "sentry.op": {
             "type": "string",
             "value": "db.query"
@@ -994,6 +1002,10 @@ mod tests {
           "sentry.normalized_db_query": {
             "type": "string",
             "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
           },
           "sentry.op": {
             "type": "string",
