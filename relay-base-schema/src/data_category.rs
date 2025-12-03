@@ -3,8 +3,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
-
 use crate::events::EventType;
 
 /// An error that occurs if a number cannot be converted into a [`DataCategory`].
@@ -13,8 +11,7 @@ use crate::events::EventType;
 pub struct UnknownDataCategory(pub u8);
 
 /// Classifies the type of data that is being ingested.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(i8)]
 pub enum DataCategory {
     /// Reserved and unused.
@@ -230,14 +227,12 @@ pub enum DataCategory {
     // Rerun this step every time the **code name** of the variant is updated.
     //
     /// Any other data category not known by this Relay.
-    #[serde(other)]
     Unknown = -1,
 }
 
 impl DataCategory {
     /// Returns the data category corresponding to the given name.
     pub fn from_name(string: &str) -> Self {
-        // TODO: This should probably use serde.
         match string {
             "default" => Self::Default,
             "error" => Self::Error,
@@ -281,7 +276,6 @@ impl DataCategory {
 
     /// Returns the canonical name of this data category.
     pub fn name(self) -> &'static str {
-        // TODO: This should probably use serde.
         match self {
             Self::Default => "default",
             Self::Error => "error",
@@ -355,6 +349,8 @@ impl DataCategory {
     }
 }
 
+relay_common::impl_str_serde!(DataCategory, "a data category");
+
 impl fmt::Display for DataCategory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
@@ -362,7 +358,7 @@ impl fmt::Display for DataCategory {
 }
 
 impl FromStr for DataCategory {
-    type Err = ();
+    type Err = std::convert::Infallible;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         Ok(Self::from_name(string))
@@ -432,11 +428,31 @@ mod tests {
     use super::*;
 
     #[test]
-    pub fn test_last_variant_conversion() {
+    fn test_last_variant_conversion() {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
         assert_eq!(DataCategory::try_from(34), Ok(DataCategory::SeerUser));
         assert_eq!(DataCategory::try_from(35), Err(UnknownDataCategory(35)));
+    }
+
+    #[test]
+    fn test_data_category_alias() {
+        assert_eq!("feedback".parse(), Ok(DataCategory::UserReportV2));
+        assert_eq!("user_report_v2".parse(), Ok(DataCategory::UserReportV2));
+        assert_eq!(&DataCategory::UserReportV2.to_string(), "feedback");
+
+        assert_eq!(
+            serde_json::from_str::<DataCategory>(r#""feedback""#).unwrap(),
+            DataCategory::UserReportV2,
+        );
+        assert_eq!(
+            serde_json::from_str::<DataCategory>(r#""user_report_v2""#).unwrap(),
+            DataCategory::UserReportV2,
+        );
+        assert_eq!(
+            &serde_json::to_string(&DataCategory::UserReportV2).unwrap(),
+            r#""feedback""#
+        )
     }
 }
