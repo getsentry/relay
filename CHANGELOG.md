@@ -6,6 +6,10 @@
 
 - Fix parsing of data categories/quotas when using an aliased data category name. ([#5435](https://github.com/getsentry/relay/pull/5435))
 
+**Features**:
+
+- Add functionality to process and store span attachments. ([#5423](https://github.com/getsentry/relay/pull/5423), [#5363](https://github.com/getsentry/relay/pull/5363))
+
 ## 25.11.1
 
 **Breaking Changes**:
