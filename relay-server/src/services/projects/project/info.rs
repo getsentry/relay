@@ -284,11 +284,11 @@ impl ProjectInfo {
     }
 
     /// Validates data in this project state and removes values that are partially invalid.
-    pub fn sanitized(mut self, is_processing: bool) -> Self {
+    pub fn sanitized(mut self, report_errors: bool) -> Self {
         relay_log::with_scope(
             |scope| scope.set_tag("project_id", self.project_id.map_or(0, ProjectId::value)),
             || {
-                self.config.sanitize(is_processing);
+                self.config.sanitize(report_errors);
             },
         );
         self
