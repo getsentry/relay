@@ -73,7 +73,6 @@ where
         Self {
             cache: Default::default(),
             max_over_spend_divisor,
-            // Can invert the percentage here to loose less precision (95% -> 5%)
             limit_threshold_divisor: None,
             vacuum_interval: Duration::from_secs(30),
             // Initialize to 0, this means a vacuum run immediately, but it is going to be fast
@@ -154,7 +153,6 @@ where
 
             let total_local_use = local_use + quantity;
 
-            // Upper limit threshold, where the cache is no longer active
             let threshold = match self.limit_threshold_divisor.map(NonZeroU64::get) {
                 Some(div) => limit * RATIO_PRECISION / div,
                 None => 0,
