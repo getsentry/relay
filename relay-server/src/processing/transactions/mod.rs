@@ -214,6 +214,14 @@ impl Processor for TransactionProcessor {
 
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {
+            if !work.flags.fully_normalized {
+                relay_log::error!(
+                    tags.project = %project_id,
+                    tags.ty = event_type(&work.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                    "ingested event without normalizing"
+                );
+            };
+
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             relay_log::trace!("Process transaction profile");
             let work = process::process_profile(work, ctx, SamplingDecision::Keep);
@@ -226,19 +234,22 @@ impl Processor for TransactionProcessor {
             let mut indexed = process::extract_spans(indexed, ctx, server_sample_rate);
 
             relay_log::trace!("Enforce quotas (processing)");
-            self.limiter.enforce_quotas(&mut indexed, ctx).await?;
-
-            if !indexed.flags.fully_normalized {
-                relay_log::error!(
-                    tags.project = %project_id,
-                    tags.ty = event_type(&indexed.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
-                    "ingested event without normalizing"
-                );
+            let main = match self.limiter.enforce_quotas(&mut indexed, ctx).await {
+                Err(e) => {
+                    if let Error::RateLimited(rate_limits) = e.inner() {
+                        if rate_limits.is_any_limited(&[scoping.item(DataCategory::Transaction)]) {
+                            // If the total category is limited, drop everything.
+                            return Err(e);
+                        }
+                    }
+                    None
+                }
+                Ok(_) => Some(TransactionOutput::Indexed(indexed)),
             };
 
             relay_log::trace!("Done");
             return Ok(Output {
-                main: Some(TransactionOutput::Indexed(indexed)),
+                main,
                 metrics: Some(extracted_metrics),
             });
         }
