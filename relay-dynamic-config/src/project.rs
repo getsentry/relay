@@ -100,8 +100,8 @@ pub struct ProjectConfig {
 
 impl ProjectConfig {
     /// Validates fields in this project config and removes values that are partially invalid.
-    pub fn sanitize(&mut self) {
-        self.remove_invalid_quotas();
+    pub fn sanitize(&mut self, is_processing: bool) {
+        self.remove_invalid_quotas(is_processing);
 
         metrics::convert_conditional_tagging(self);
         defaults::add_span_metrics(self);
@@ -132,9 +132,9 @@ impl ProjectConfig {
         }
     }
 
-    fn remove_invalid_quotas(&mut self) {
+    fn remove_invalid_quotas(&mut self, report: bool) {
         let invalid_quotas: Vec<_> = self.quotas.extract_if(.., |q| !q.is_valid()).collect();
-        if !invalid_quotas.is_empty() {
+        if !invalid_quotas.is_empty() && report {
             {
                 relay_log::error!(
                     invalid_quotas = ?invalid_quotas,
@@ -286,7 +286,7 @@ mod tests {
     fn graduated_feature_flag_gets_inserted() {
         let mut project_config = ProjectConfig::default();
         assert!(!project_config.features.has(Feature::UserReportV2Ingest));
-        project_config.sanitize();
+        project_config.sanitize(false);
         assert!(project_config.features.has(Feature::UserReportV2Ingest));
     }
 }
