@@ -114,7 +114,7 @@ where
     /// If the cache can not make a decision it returns [`Action::Check`] indicating the returned
     /// quantity needs to be synchronized with a centralized store.
     ///
-    /// Whenever the cache returns [`Action::Check`], the cache requires a call to [`Self::update_quota`],
+    /// Whenever the cache returns [`Action::Check`], the cache requires a call to [`Self::set_quota`],
     /// with a synchronized 'consumed' amount.
     pub fn check_quota(&self, quota: Quota<T>, quantity: u64) -> Action {
         let cache = self.cache.pin();
@@ -193,11 +193,14 @@ where
         }
     }
 
-    /// Updates the quota state in the cache for the specified quota.
+    /// Sets the quota state in the cache for the specified quota.
+    ///
+    /// `consumed` is the absolute value reported by the synchronized store (Redis) not a relative
+    /// change. The value may also be negative, this may happen with refunded quotas.
     ///
     /// The cache will use the synchronized `consumed` value to derive future decisions whether it
     /// can accept quota requests.
-    pub fn update_quota(&self, quota: Quota<T>, consumed: i64) {
+    pub fn set_quota(&self, quota: Quota<T>, consumed: i64) {
         let cache = self.cache.pin();
 
         // Consumed quota can be negative due to refunds, we choose to deal with negative quotas
@@ -366,7 +369,7 @@ mod tests {
 
         // Sync internal state to 30, for this test, there will be 70 remaining, meaning the cache
         // is expected to accept 7 more items without requiring another sync.
-        cache.update_quota(q1, 30);
+        cache.set_quota(q1, 30);
 
         // A different key still needs a sync.
         assert_eq!(cache.check_quota(q2, 12), Action::Check(12));
@@ -384,14 +387,14 @@ mod tests {
         assert_eq!(cache.check_quota(q2, 3), Action::Check(3));
 
         // Consumed state is absolute not relative.
-        cache.update_quota(q1, 50);
+        cache.set_quota(q1, 50);
         // This is too much.
         assert_eq!(cache.check_quota(q2, 6), Action::Check(6));
         // Need another sync again.
         assert_eq!(cache.check_quota(q2, 1), Action::Check(1));
 
         // Negative state can exist due to refunds.
-        cache.update_quota(q1, -123);
+        cache.set_quota(q1, -123);
         // The cache considers a negative quota like `0`, `100` remaining quota -> 10 (= 10%).
         assert_eq!(cache.check_quota(q1, 10), Action::Accept);
         // Too much, check the entire local usage.
@@ -404,7 +407,7 @@ mod tests {
 
         let q1 = simple_quota(100);
 
-        cache.update_quota(q1, 0);
+        cache.set_quota(q1, 0);
         for _ in 0..100 {
             assert_eq!(cache.check_quota(q1, 1), Action::Accept,);
         }
@@ -426,7 +429,7 @@ mod tests {
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
 
         // 700 remaining -> 70 per second -> 7 (10%).
-        cache.update_quota(q1, 300);
+        cache.set_quota(q1, 300);
 
         // 7 is the exact synchronization breakpoint.
         assert_eq!(cache.check_quota(q1, 8), Action::Check(8));
@@ -434,31 +437,31 @@ mod tests {
         assert_eq!(cache.check_quota(q1, 6), Action::Check(6));
 
         // Reset.
-        cache.update_quota(q1, 300);
+        cache.set_quota(q1, 300);
         // Under 7 -> that's fine.
         assert_eq!(cache.check_quota(q1, 7), Action::Accept);
         // Way over the limit now.
         assert_eq!(cache.check_quota(q1, 90), Action::Check(97));
 
         // 100 remaining -> 10 per second -> 1 (10%).
-        cache.update_quota(q1, 900);
+        cache.set_quota(q1, 900);
         assert_eq!(cache.check_quota(q1, 1), Action::Accept);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(2));
 
         // 90 remaining -> 9 per second -> 0 (10% floored).
-        cache.update_quota(q1, 910);
+        cache.set_quota(q1, 910);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
 
         // Same for even less remaining.
-        cache.update_quota(q1, 999);
+        cache.set_quota(q1, 999);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
 
         // Same for nothing remaining.
-        cache.update_quota(q1, 1000);
+        cache.set_quota(q1, 1000);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
 
         // Same for less than nothing remaining.
-        cache.update_quota(q1, 1001);
+        cache.set_quota(q1, 1001);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
     }
 
@@ -472,7 +475,7 @@ mod tests {
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
 
         // 50 remaining -> 5 (10%), consumption still under limit threshold (70).
-        cache.update_quota(q1, 50);
+        cache.set_quota(q1, 50);
         // Nothing special here.
         assert_eq!(cache.check_quota(q1, 5), Action::Accept);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(6));
@@ -480,19 +483,19 @@ mod tests {
         // 31 remaining -> 3 (10%), consumption still under limit threshold (70),
         // but maximum cached consumption would be *above* the threshold, this is currently
         // explicitly not considered (but this behaviour may be changed in the future).
-        cache.update_quota(q1, 69);
+        cache.set_quota(q1, 69);
         assert_eq!(cache.check_quota(q1, 3), Action::Accept);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(4));
 
         // 30 remaining -> 3 (10%), *but* threshold (70%) is now reached.
-        cache.update_quota(q1, 70);
+        cache.set_quota(q1, 70);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
         // Sanity check, that exhausting the limit fully, still works.
-        cache.update_quota(q1, 100);
+        cache.set_quota(q1, 100);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
 
         // Resetting consumption to a lower value (refunds) should still work.
-        cache.update_quota(q1, 50);
+        cache.set_quota(q1, 50);
         assert_eq!(cache.check_quota(q1, 5), Action::Accept);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(6));
     }
@@ -503,7 +506,7 @@ mod tests {
 
         let q1 = simple_quota(100);
 
-        cache.update_quota(q1, 90);
+        cache.set_quota(q1, 90);
         assert_eq!(cache.check_quota(q1, 1), Action::Accept);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(2));
     }
@@ -515,7 +518,7 @@ mod tests {
         let q1 = simple_quota(100);
 
         // A negative or `0` limit threshold essentially disables the cache.
-        cache.update_quota(q1, 0);
+        cache.set_quota(q1, 0);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
     }
 
@@ -553,7 +556,7 @@ mod tests {
         };
 
         // Sync internal state to an initial value.
-        cache.update_quota(limit_100, 50 * window);
+        cache.set_quota(limit_100, 50 * window);
 
         // With limit 100 there is enough (5) in the cache remaining.
         assert_eq!(cache.check_quota(limit_100, 3), Action::Accept);
@@ -573,7 +576,7 @@ mod tests {
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
 
-        cache.update_quota(q1, 30_000_000_000);
+        cache.set_quota(q1, 30_000_000_000);
 
         // Even after synchronization, we need to check immediately.
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
@@ -597,8 +600,8 @@ mod tests {
         };
 
         // Initialize the cache.
-        cache.update_quota(q1, 0);
-        cache.update_quota(q2, 0);
+        cache.set_quota(q1, 0);
+        cache.set_quota(q2, 0);
 
         // Make sure some elements are stored in the cache.
         assert_eq!(cache.check_quota(q1, 9), Action::Accept);

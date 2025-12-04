@@ -457,7 +457,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
             } else if let Some(cache) = &self.cache {
                 // Only update the cache if it's really necessary. Quotas which are being rejected,
                 // will not be able to be handled from the cache anyways.
-                cache.update_quota(quota.for_cache(), state.consumed);
+                cache.set_quota(quota.for_cache(), state.consumed);
             }
         }
 
