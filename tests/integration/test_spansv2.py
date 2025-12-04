@@ -1071,7 +1071,6 @@ def test_invalid_spans(mini_sentry, relay):
             "project_id": 42,
             "quantity": 3,
             "reason": "invalid_span",
-            "timestamp": time_within_delta(),
         },
         {
             "category": DataCategory.SPAN.value,
@@ -1080,7 +1079,6 @@ def test_invalid_spans(mini_sentry, relay):
             "outcome": 3,
             "project_id": 42,
             "reason": "no_data",
-            "timestamp": time_within_delta(),
             "quantity": 4,
         },
         {
@@ -1090,7 +1088,6 @@ def test_invalid_spans(mini_sentry, relay):
             "outcome": 3,
             "project_id": 42,
             "reason": "timestamp",
-            "timestamp": time_within_delta(),
             "quantity": 6,
         },
         {
@@ -1101,7 +1098,6 @@ def test_invalid_spans(mini_sentry, relay):
             "project_id": 42,
             "quantity": 3,
             "reason": "invalid_span",
-            "timestamp": time_within_delta(),
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
@@ -1110,7 +1106,6 @@ def test_invalid_spans(mini_sentry, relay):
             "outcome": 3,
             "project_id": 42,
             "reason": "no_data",
-            "timestamp": time_within_delta(),
             "quantity": 4,
         },
         {
@@ -1120,7 +1115,6 @@ def test_invalid_spans(mini_sentry, relay):
             "outcome": 3,
             "project_id": 42,
             "reason": "timestamp",
-            "timestamp": time_within_delta(),
             "quantity": 6,
         },
     ]

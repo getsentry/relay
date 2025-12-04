@@ -78,7 +78,7 @@ impl ProjectSource {
                 //
                 // If it is pending, we must fallback to fetching from the upstream.
                 Ok(SourceProjectState::New(state)) => {
-                    let state = state.sanitized();
+                    let state = state.sanitized(self.config.processing_enabled());
                     if !state.is_pending() {
                         return Ok(state.into());
                     }
@@ -105,7 +105,9 @@ impl ProjectSource {
             .await?;
 
         Ok(match state {
-            SourceProjectState::New(state) => SourceProjectState::New(state.sanitized()),
+            SourceProjectState::New(state) => {
+                SourceProjectState::New(state.sanitized(self.config.processing_enabled()))
+            }
             SourceProjectState::NotModified => SourceProjectState::NotModified,
         })
     }
