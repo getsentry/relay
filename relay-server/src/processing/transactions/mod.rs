@@ -25,6 +25,11 @@ use crate::managed::{
 use crate::processing::StoreHandle;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
+use crate::processing::transactions::types::Flags;
+#[cfg(feature = "processing")]
+use crate::processing::transactions::types::Payload;
+#[cfg(feature = "processing")]
+use crate::processing::transactions::types::SampledPayload;
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -48,6 +53,7 @@ pub mod extraction;
 mod process;
 pub mod profile;
 pub mod spans;
+mod types;
 
 /// Errors that occur during transaction processing.
 #[derive(Debug, thiserror::Error)]
@@ -189,24 +195,11 @@ impl Processor for TransactionProcessor {
         #[cfg(feature = "processing")]
         let server_sample_rate = sampling_result.sample_rate();
 
-        if let Some(outcome) = sampling_result.into_dropped_outcome() {
-            relay_log::trace!("Process profile transaction");
-            let work = process::process_profile(work, ctx, SamplingDecision::Drop);
-            relay_log::trace!("Extract transaction metrics");
-            let (work, extracted_metrics) =
-                process::extract_metrics(work, ctx, SamplingDecision::Drop)?;
+        // FIXME: Make sure that profiles are processed in processing relays (standalone pipeline).
+        // Add a test for it.
 
-            let headers = work.headers.clone();
-            let mut profile = process::drop_after_sampling(work, ctx, outcome);
-            if let Some(profile) = profile.as_mut() {
-                self.limiter.enforce_quotas(profile, ctx).await?;
-            }
-
-            return Ok(Output {
-                main: profile.map(TransactionOutput::OnlyProfile),
-                metrics: Some(extracted_metrics),
-            });
-        }
+        relay_log::trace!("Extract transaction metrics");
+        let work = process::extract_metrics(work, ctx, sampling_result.into_dropped_outcome())?;
 
         // Need to scrub the transaction before extracting spans.
         relay_log::trace!("Scrubbing transaction");
@@ -214,44 +207,18 @@ impl Processor for TransactionProcessor {
 
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {
-            if !work.flags.fully_normalized {
-                relay_log::error!(
-                    tags.project = %project_id,
-                    tags.ty = event_type(&work.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
-                    "ingested event without normalizing"
-                );
-            };
-
-            // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            relay_log::trace!("Process transaction profile");
-            let work = process::process_profile(work, ctx, SamplingDecision::Keep);
-
-            relay_log::trace!("Extract transaction metrics");
-            let (indexed, extracted_metrics) =
-                process::extract_metrics(work, ctx, SamplingDecision::Keep)?;
+            if let SampledPayload::Keep { payload } = &work.payload {
+                if !payload.flags.fully_normalized {
+                    relay_log::error!(
+                        tags.project = %project_id,
+                        tags.ty = event_type(&payload.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                        "ingested event without normalizing"
+                    );
+                };
+            }
 
             relay_log::trace!("Extract spans");
-            let mut indexed = process::extract_spans(indexed, ctx, server_sample_rate);
-
-            relay_log::trace!("Enforce quotas (processing)");
-            let main = match self.limiter.enforce_quotas(&mut indexed, ctx).await {
-                Err(e) => {
-                    if let Error::RateLimited(rate_limits) = e.inner() {
-                        if rate_limits.is_any_limited(&[scoping.item(DataCategory::Transaction)]) {
-                            // If the total category is limited, drop everything.
-                            return Err(e);
-                        }
-                    }
-                    None
-                }
-                Ok(_) => Some(TransactionOutput::Indexed(indexed)),
-            };
-
-            relay_log::trace!("Done");
-            return Ok(Output {
-                main,
-                metrics: Some(extracted_metrics),
-            });
+            work = process::extract_spans(work, ctx, server_sample_rate);
         }
 
         relay_log::trace!("Enforce quotas");
@@ -629,35 +596,24 @@ impl Counted for ExtractedSpans {
     }
 }
 
-/// Flags extracted from transaction item headers.
-///
-/// Ideally `metrics_extracted` and `spans_extracted` will not be needed in the future. Unsure
-/// about `fully_normalized`.
-#[derive(Debug, Default)]
-struct Flags {
-    metrics_extracted: bool,
-    spans_extracted: bool,
-    fully_normalized: bool,
-}
+// /// Output of the transaction processor.
+// #[derive(Debug)]
+// pub enum TransactionOutput {
+//     TotalAndIndexed(Managed<ExpandedTransaction<TotalAndIndexed>>),
+//     Indexed(Managed<ExpandedTransaction<Indexed>>),
+//     OnlyProfile(Managed<ProfileWithHeaders>),
+// }
 
-/// Output of the transaction processor.
-#[derive(Debug)]
-pub enum TransactionOutput {
-    TotalAndIndexed(Managed<ExpandedTransaction<TotalAndIndexed>>),
-    Indexed(Managed<ExpandedTransaction<Indexed>>),
-    OnlyProfile(Managed<ProfileWithHeaders>),
-}
-
-impl TransactionOutput {
-    #[cfg(test)]
-    pub fn event(self) -> Option<Annotated<Event>> {
-        match self {
-            Self::TotalAndIndexed(managed) => Some(managed.accept(|x| x).event),
-            Self::Indexed(managed) => Some(managed.accept(|x| x).event),
-            Self::OnlyProfile(managed) => None,
-        }
-    }
-}
+// impl TransactionOutput {
+//     #[cfg(test)]
+//     pub fn event(self) -> Option<Annotated<Event>> {
+//         match self {
+//             Self::TotalAndIndexed(managed) => Some(managed.accept(|x| x).event),
+//             Self::Indexed(managed) => Some(managed.accept(|x| x).event),
+//             Self::OnlyProfile(managed) => None,
+//         }
+//     }
+// }
 
 impl Forward for TransactionOutput {
     fn serialize_envelope(

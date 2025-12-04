@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use hyper::ext;
 use relay_base_schema::events::EventType;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_normalization::GeoIpLookup;
@@ -18,6 +19,7 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
+use crate::processing::transactions::types::{Payload, SampledPayload, WithMetrics};
 use crate::processing::transactions::{
     Error, ExpandedTransaction, ExtractedSpans, Flags, SerializedTransaction, TransactionOutput,
     profile, spans,
@@ -247,12 +249,17 @@ type IndexedWithMetrics = (
 pub fn extract_metrics(
     work: Managed<ExpandedTransaction<TotalAndIndexed>>,
     ctx: Context<'_>,
-    sampling_decision: SamplingDecision,
-) -> Result<IndexedWithMetrics, Rejected<Error>> {
+    drop_with_outcome: Option<Outcome>,
+) -> Result<Managed<WithMetrics>, Rejected<Error>> {
     let project_id = work.scoping().project_id;
 
-    let mut metrics = ProcessingExtractedMetrics::new();
-    let indexed = work.try_map(|mut work, record_keeper| {
+    let sampling_decision = match drop_with_outcome {
+        Some(_) => SamplingDecision::Drop,
+        None => SamplingDecision::Keep,
+    };
+
+    work.try_map(|mut work, record_keeper| {
+        let mut metrics = ProcessingExtractedMetrics::new();
         work.flags.metrics_extracted = extraction::extract_metrics(
             &mut work.event,
             &mut metrics,
@@ -267,68 +274,111 @@ pub fn extract_metrics(
         )?
         .0;
 
-        // TODO: remove `(SpanIndexed, 0)` from bookkeeping.
+        let payload = match drop_with_outcome {
+            Some(outcome) => {
+                let profile = work.profile.take();
+                // FIXME: make sure profile is marked as sampled
+                record_keeper.reject_err(outcome, work);
+                SampledPayload::Drop { profile }
+            }
+            None => {
+                let ExpandedTransaction {
+                    headers,
+                    event,
+                    flags,
+                    attachments,
+                    profile,
+                    extracted_spans,
+                    category,
+                } = work;
+                SampledPayload::Keep {
+                    payload: Payload {
+                        event,
+                        flags,
+                        attachments,
+                        profile,
+                        extracted_spans: extracted_spans.0,
+                    },
+                }
+            }
+        };
 
-        // The extracted metrics now take over the "total" data categories.
-        record_keeper.modify_by(DataCategory::Transaction, -1);
-        record_keeper.modify_by(
-            DataCategory::Span,
-            -work
-                .count_embedded_spans_and_self()
-                .try_into()
-                .unwrap_or(isize::MAX),
-        );
-
-        Ok::<_, Error>(ExpandedTransaction::<Indexed>::from(work))
-    })?;
-
-    let metrics = indexed.wrap(metrics.into_inner());
-    Ok((indexed, metrics))
+        let metrics = metrics.into_inner();
+        Ok(WithMetrics {
+            headers,
+            payload,
+            metrics,
+        })
+    })
 }
 
 /// Converts the spans embedded in the transaction into top-level span items.
 #[cfg(feature = "processing")]
 pub fn extract_spans(
-    work: Managed<ExpandedTransaction<Indexed>>,
+    work: Managed<WithMetrics>,
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
-) -> Managed<ExpandedTransaction<Indexed>> {
-    work.map(|mut work, r| {
-        if let Some(results) = spans::extract_from_event(
-            work.headers.dsc(),
-            &work.event,
-            ctx.global_config,
-            ctx.config,
-            server_sample_rate,
-            EventMetricsExtracted(work.flags.metrics_extracted),
-            SpansExtracted(work.flags.spans_extracted),
-        ) {
-            work.flags.spans_extracted = true;
-            for result in results {
-                match result {
-                    Ok(item) => work.extracted_spans.0.push(item),
-                    Err(_) => r.reject_err(
-                        Outcome::Invalid(DiscardReason::InvalidSpan),
-                        IndexedSpans(1),
-                    ),
+) -> Managed<WithMetrics> {
+    work.modify(|mut work, r| {
+        let WithMetrics {
+            headers,
+            payload,
+            metrics,
+        } = work;
+        match payload {
+            SampledPayload::Keep { payload } => {
+                if let Some(results) = spans::extract_from_event(
+                    headers.dsc(),
+                    &payload.event,
+                    ctx.global_config,
+                    ctx.config,
+                    server_sample_rate,
+                    EventMetricsExtracted(payload.flags.metrics_extracted),
+                    SpansExtracted(payload.flags.spans_extracted),
+                ) {
+                    payload.flags.spans_extracted = true;
+                    for result in results {
+                        match result {
+                            Ok(item) => payload.extracted_spans.push(item),
+                            Err(_) => {
+                                r.reject_err(
+                                    Outcome::Invalid(DiscardReason::InvalidSpan),
+                                    IndexedSpans(1),
+                                );
+                            }
+                        }
+                    }
                 }
             }
+            SampledPayload::Drop { profile } => {}
         }
-        work
-    })
+    });
+    work
 }
 
 /// Runs PiiProcessors on the event and its attachments.
-pub fn scrub<T>(
-    work: Managed<ExpandedTransaction<T>>,
+pub fn scrub(
+    work: Managed<WithMetrics>,
     ctx: Context<'_>,
-) -> Result<Managed<ExpandedTransaction<T>>, Rejected<Error>>
+) -> Result<Managed<WithMetrics>, Rejected<Error>>
 where
-    ExpandedTransaction<T>: Counted,
 {
     work.try_map(|mut work, _| {
-        utils::event::scrub(&mut work.event, ctx.project_info)?;
-        utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
+        let WithMetrics {
+            headers,
+            payload,
+            metrics,
+        } = &mut work;
+        match payload {
+            SampledPayload::Keep { payload } => {
+                utils::event::scrub(&mut payload.event, ctx.project_info)?;
+                utils::attachments::scrub(payload.attachments.iter_mut(), ctx.project_info);
+            }
+            SampledPayload::Drop { profile } => {
+                // Profiles are not scrubbed
+            }
+        }
+
         Ok::<_, Error>(work)
     })
 }
