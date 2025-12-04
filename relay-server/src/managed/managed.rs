@@ -595,7 +595,7 @@ impl<T: Counted> Managed<Option<T>> {
 }
 
 impl<L: Counted, R: Counted> Managed<Either<L, R>> {
-    /// Turns a managed option into an optional [`Managed`].
+    /// Turns a managed [`Either`] into an [`Either`] of [`Managed`].
     pub fn transpose(self) -> Either<Managed<L>, Managed<R>> {
         let (either, meta) = self.destructure();
         match either {
