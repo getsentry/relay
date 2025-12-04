@@ -406,7 +406,7 @@ mod tests {
             }
         }"#;
         let mut span = Annotated::from_json(span).unwrap();
-        infer_ai_operation_type(&mut span.value_mut().as_mut().unwrap(), &operation_type_map);
+        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
         assert_eq!(
             get_value!(span.data.gen_ai_operation_type!).as_str(),
             "agent"
@@ -433,7 +433,7 @@ mod tests {
             "op": "gen_ai.invoke_agent"
         }"#;
         let mut span = Annotated::from_json(span).unwrap();
-        infer_ai_operation_type(&mut span.value_mut().as_mut().unwrap(), &operation_type_map);
+        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
         assert_eq!(
             get_value!(span.data.gen_ai_operation_type!).as_str(),
             "agent"
@@ -463,7 +463,7 @@ mod tests {
             }
         }"#;
         let mut span = Annotated::from_json(span).unwrap();
-        infer_ai_operation_type(&mut span.value_mut().as_mut().unwrap(), &operation_type_map);
+        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
         assert_eq!(
             get_value!(span.data.gen_ai_operation_type!).as_str(),
             "ai_client"
