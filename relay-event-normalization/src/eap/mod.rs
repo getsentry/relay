@@ -389,7 +389,7 @@ pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>)
 
     if let Some(attributes) = annotated_attributes.value_mut() {
         if let Some(normalized_db_query) = normalized_db_query {
-            let mut normalized_db_query_hash = format!("{:?}", md5::compute(&normalized_db_query));
+            let mut normalized_db_query_hash = format!("{:x}", md5::compute(&normalized_db_query));
             normalized_db_query_hash.truncate(16);
 
             attributes.insert(NORMALIZED_DB_QUERY, normalized_db_query);
