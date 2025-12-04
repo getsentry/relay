@@ -48,6 +48,7 @@ use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::processing::check_ins::CheckInsProcessor;
+use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
@@ -1155,6 +1156,7 @@ struct Processing {
     spans: SpansProcessor,
     check_ins: CheckInsProcessor,
     sessions: SessionsProcessor,
+    client_report: ClientReportsProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1215,6 +1217,7 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")]
         let rate_limiter = rate_limiter.map(Arc::new);
 
+        let outcome_aggregator = addrs.outcome_aggregator.clone();
         let inner = InnerProcessor {
             pool,
             global_config,
@@ -1243,7 +1246,8 @@ impl EnvelopeProcessorService {
                 trace_metrics: TraceMetricsProcessor::new(Arc::clone(&quota_limiter)),
                 spans: SpansProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 check_ins: CheckInsProcessor::new(Arc::clone(&quota_limiter)),
-                sessions: SessionsProcessor::new(quota_limiter),
+                sessions: SessionsProcessor::new(Arc::clone(&quota_limiter)),
+                client_report: ClientReportsProcessor::new(outcome_aggregator),
             },
             geoip_lookup,
             config,
@@ -1738,32 +1742,6 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
-    /// Processes user and client reports.
-    async fn process_client_reports(
-        &self,
-        managed_envelope: &mut TypedEnvelope<ClientReportGroup>,
-        ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            ctx,
-        )
-        .await?;
-
-        report::process_client_reports(
-            managed_envelope,
-            ctx.config,
-            ctx.project_info,
-            self.inner.addrs.outcome_aggregator.clone(),
-        );
-
-        Ok(Some(extracted_metrics))
-    }
-
     /// Processes replays.
     async fn process_replays(
         &self,
@@ -1954,7 +1932,14 @@ impl EnvelopeProcessorService {
                     .await
             }
             ProcessingGroup::Standalone => run!(process_standalone, project_id, ctx),
-            ProcessingGroup::ClientReport => run!(process_client_reports, ctx),
+            ProcessingGroup::ClientReport => {
+                self.process_with_processor(
+                    &self.inner.processing.client_report,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
+            }
             ProcessingGroup::Replay => {
                 run!(process_replays, ctx)
             }
