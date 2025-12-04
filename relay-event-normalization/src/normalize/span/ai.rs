@@ -283,6 +283,7 @@ mod tests {
     use std::collections::HashMap;
 
     use relay_pattern::Pattern;
+    use relay_protocol::get_value;
 
     use super::*;
 
@@ -404,16 +405,10 @@ mod tests {
                 "gen_ai.operation.name": "invoke_agent"
             }
         }"#;
-        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        infer_ai_operation_type(&mut span, &operation_type_map);
+        let mut span = Annotated::from_json(span).unwrap();
+        infer_ai_operation_type(&mut span.value_mut().as_mut().unwrap(), &operation_type_map);
         assert_eq!(
-            span.data
-                .value()
-                .unwrap()
-                .gen_ai_operation_type
-                .value()
-                .unwrap()
-                .as_str(),
+            get_value!(span.data.gen_ai_operation_type!).as_str(),
             "agent"
         );
     }
@@ -421,14 +416,14 @@ mod tests {
     /// Test that the AI operation type is inferred from a span.op attribute.
     #[test]
     fn test_infer_ai_operation_type_from_span_op() {
-        let mut operation_types = HashMap::new();
-        operation_types.insert(Pattern::new("*").unwrap(), "ai_client".to_owned());
-        operation_types.insert(Pattern::new("invoke_agent").unwrap(), "agent".to_owned());
-        operation_types.insert(
-            Pattern::new("gen_ai.invoke_agent").unwrap(),
-            "agent".to_owned(),
-        );
-
+        let operation_types = HashMap::from([
+            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
+            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
+            (
+                Pattern::new("gen_ai.invoke_agent").unwrap(),
+                "agent".to_owned(),
+            ),
+        ]);
         let operation_type_map = AiOperationTypeMap {
             version: 1,
             operation_types,
@@ -437,16 +432,10 @@ mod tests {
         let span = r#"{
             "op": "gen_ai.invoke_agent"
         }"#;
-        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        infer_ai_operation_type(&mut span, &operation_type_map);
+        let mut span = Annotated::from_json(span).unwrap();
+        infer_ai_operation_type(&mut span.value_mut().as_mut().unwrap(), &operation_type_map);
         assert_eq!(
-            span.data
-                .value()
-                .unwrap()
-                .gen_ai_operation_type
-                .value()
-                .unwrap()
-                .as_str(),
+            get_value!(span.data.gen_ai_operation_type!).as_str(),
             "agent"
         );
     }
@@ -454,13 +443,14 @@ mod tests {
     /// Test that the AI operation type is inferred from a fallback.
     #[test]
     fn test_infer_ai_operation_type_from_fallback() {
-        let mut operation_types = HashMap::new();
-        operation_types.insert(Pattern::new("*").unwrap(), "ai_client".to_owned());
-        operation_types.insert(Pattern::new("invoke_agent").unwrap(), "agent".to_owned());
-        operation_types.insert(
-            Pattern::new("gen_ai.invoke_agent").unwrap(),
-            "agent".to_owned(),
-        );
+        let operation_types = HashMap::from([
+            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
+            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
+            (
+                Pattern::new("gen_ai.invoke_agent").unwrap(),
+                "agent".to_owned(),
+            ),
+        ]);
 
         let operation_type_map = AiOperationTypeMap {
             version: 1,
@@ -472,16 +462,10 @@ mod tests {
                 "gen_ai.operation.name": "embeddings"
             }
         }"#;
-        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        infer_ai_operation_type(&mut span, &operation_type_map);
+        let mut span = Annotated::from_json(span).unwrap();
+        infer_ai_operation_type(&mut span.value_mut().as_mut().unwrap(), &operation_type_map);
         assert_eq!(
-            span.data
-                .value()
-                .unwrap()
-                .gen_ai_operation_type
-                .value()
-                .unwrap()
-                .as_str(),
+            get_value!(span.data.gen_ai_operation_type!).as_str(),
             "ai_client"
         );
     }
