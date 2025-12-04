@@ -24,6 +24,7 @@ use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
 ///  - `max_session_count`
 ///  - `max_span_size`
 ///  - `max_statsd_size`
+///  - `max_trace_metric_size`
 ///  - `max_container_size`
 pub fn check_envelope_size_limits(
     config: &Config,

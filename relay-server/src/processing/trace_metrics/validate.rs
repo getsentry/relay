@@ -27,15 +27,15 @@ pub fn container(metrics: &Managed<SerializedTraceMetrics>) -> Result<(), Reject
     Ok(())
 }
 
-/// Validates contained logs do not exceed the maximum size limit.
+/// Validates contained metrics do not exceed the maximum size limit.
 ///
-/// Currently this only considers the maximum log size configured in the configuration.
+/// Currently this only considers the maximum metric size configured in the configuration.
 ///
 /// In the future we may want to increase the limit or start trimming excessive
-/// attributes/payloads. For now we drop logs which exceed our size limit.
+/// attributes/payloads. For now we drop metrics which exceed our size limit.
 ///
 /// This matches the logic defined in [`check_envelope_size_limits`](crate::utils::check_envelope_size_limits),
-/// when validating envelope sizes, the actual size of individual logs is not known and therefore
+/// when validating envelope sizes, the actual size of individual metrics is not known and therefore
 /// must be enforced consistently after parsing again.
 pub fn size(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
     let max_size_bytes = ctx.config.max_trace_metric_size();
@@ -71,7 +71,7 @@ fn calculate_size(metric: &WithHeader<TraceMetric>) -> usize {
         size += relay_event_normalization::eap::attributes_size(attributes);
     }
 
-    size
+    size.max(1)
 }
 
 /// Validates the semantic validity of a trace metric.
