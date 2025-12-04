@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Update `is_ai_span` and `infer_ai_operation_type` to use `gen_ai.operation.name`. ([#5433](https://github.com/getsentry/relay/pull/5433))
+
 **Bug Fixes**:
 
 - Fix parsing of data categories/quotas when using an aliased data category name. ([#5435](https://github.com/getsentry/relay/pull/5435))
