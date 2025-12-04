@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["DataCategory"],"struct":["UnknownDataCategory"]};
+window.SIDEBAR_ITEMS = {"enum":["CategoryUnit","DataCategory"],"struct":["UnknownDataCategory"]};
