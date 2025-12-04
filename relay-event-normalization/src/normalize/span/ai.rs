@@ -382,13 +382,14 @@ mod tests {
     /// Test that the AI operation type is inferred from a gen_ai.operation.name attribute.
     #[test]
     fn test_infer_ai_operation_type_from_gen_ai_operation_name() {
-        let mut operation_types = HashMap::new();
-        operation_types.insert(Pattern::new("*").unwrap(), "ai_client".to_owned());
-        operation_types.insert(Pattern::new("invoke_agent").unwrap(), "agent".to_owned());
-        operation_types.insert(
-            Pattern::new("gen_ai.invoke_agent").unwrap(),
-            "agent".to_owned(),
-        );
+        let operation_types = HashMap::from([
+            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
+            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
+            (
+                Pattern::new("gen_ai.invoke_agent").unwrap(),
+                "agent".to_owned(),
+            ),
+        ]);
 
         let operation_type_map = AiOperationTypeMap {
             version: 1,
