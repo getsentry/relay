@@ -34,7 +34,7 @@ where
     ///
     /// The cache is keyed with the individual quota, the value is the last known, currently
     /// consumed amount of the quota.
-    cache: papaya::HashMap<T, CachedQuota>,
+    cache: papaya::HashMap<T, CachedQuota, ahash::RandomState>,
 
     /// The amount the cache is allowed to opportunistically over-accept based on the remaining
     /// quota.
