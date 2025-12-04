@@ -2,10 +2,6 @@
 
 ## Unreleased
 
-**Internal**:
-
-- Update `is_ai_span` and `infer_ai_operation_type` to use `gen_ai.operation.name`. ([#5433](https://github.com/getsentry/relay/pull/5433))
-
 **Bug Fixes**:
 
 - Fix parsing of data categories/quotas when using an aliased data category name. ([#5435](https://github.com/getsentry/relay/pull/5435))
@@ -13,6 +9,7 @@
 **Internal**:
 
 - Revise trace metric and log size limits. ([#5440](https://github.com/getsentry/relay/pull/5440))
+- Update `is_ai_span` and `infer_ai_operation_type` to use `gen_ai.operation.name`. ([#5433](https://github.com/getsentry/relay/pull/5433))
 
 ## 25.11.1
 
