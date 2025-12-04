@@ -621,12 +621,6 @@ pub struct Limits {
     pub max_envelope_size: ByteSize,
     /// The maximum number of session items per envelope.
     pub max_session_count: usize,
-    /// The maximum number of standalone span items per envelope.
-    pub max_span_count: usize,
-    /// The maximum number of log items per envelope.
-    pub max_log_count: usize,
-    /// The maximum number of trace metrics per envelope.
-    pub max_trace_metric_count: usize,
     /// The maximum payload size for general API requests.
     pub max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
@@ -711,9 +705,6 @@ impl Default for Limits {
             max_check_in_size: ByteSize::kibibytes(100),
             max_envelope_size: ByteSize::mebibytes(200),
             max_session_count: 100,
-            max_span_count: 1000,
-            max_log_count: 1000,
-            max_trace_metric_count: 1000,
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
@@ -2387,6 +2378,18 @@ impl Config {
         self.values.limits.max_container_size.as_bytes()
     }
 
+    /// Returns the maximum payload size for logs integration items in bytes.
+    pub fn max_logs_integration_size(&self) -> usize {
+        // Not explicitly configured, inherited from the maximum size of a log container.
+        self.max_container_size()
+    }
+
+    /// Returns the maximum payload size for spans integration items in bytes.
+    pub fn max_spans_integration_size(&self) -> usize {
+        // Not explicitly configured, inherited from the maximum size of a span container.
+        self.max_container_size()
+    }
+
     /// Returns the maximum size of an envelope payload in bytes.
     ///
     /// Individual item size limits still apply.
@@ -2397,21 +2400,6 @@ impl Config {
     /// Returns the maximum number of sessions per envelope.
     pub fn max_session_count(&self) -> usize {
         self.values.limits.max_session_count
-    }
-
-    /// Returns the maximum number of standalone spans per envelope.
-    pub fn max_span_count(&self) -> usize {
-        self.values.limits.max_span_count
-    }
-
-    /// Returns the maximum number of logs per envelope.
-    pub fn max_log_count(&self) -> usize {
-        self.values.limits.max_log_count
-    }
-
-    /// Returns the maximum number of trace metrics per envelope.
-    pub fn max_trace_metric_count(&self) -> usize {
-        self.values.limits.max_trace_metric_count
     }
 
     /// Returns the maximum payload size of a statsd metric in bytes.

@@ -1,5 +1,4 @@
-use relay_event_schema::protocol::{Attribute, OurLog};
-use relay_protocol::{Annotated, Value};
+use relay_event_schema::protocol::OurLog;
 
 /// Calculates a canonical size of a log item.
 ///
@@ -25,113 +24,17 @@ pub fn calculate_size(log: &OurLog) -> u64 {
     total_size += log.body.value().map_or(0, |s| s.len());
 
     if let Some(attributes) = log.attributes.value() {
-        total_size += attributes
-            .0
-            .iter()
-            .map(|(k, v)| k.len() + attribute_size(v))
-            .sum::<usize>();
+        total_size += relay_event_normalization::eap::attributes_size(attributes);
     }
 
     u64::try_from(total_size).unwrap_or(u64::MAX).max(1)
 }
 
-/// Calculates the size of a single attribute.
-///
-/// As described in [`calculate_size`], only the value of the attribute is considered for the size
-/// of an attribute.
-fn attribute_size(v: &Annotated<Attribute>) -> usize {
-    v.value()
-        .and_then(|v| v.value.value.value())
-        .map_or(0, value_size)
-}
-
-/// Recursively calculates the size of a [`Value`], using the rules described in [`calculate_size`].
-fn value_size(v: &Value) -> usize {
-    match v {
-        Value::Bool(_) => 1,
-        Value::I64(_) => 8,
-        Value::U64(_) => 8,
-        Value::F64(_) => 8,
-        Value::String(v) => v.len(),
-        Value::Array(v) => v.iter().filter_map(|v| v.value().map(value_size)).sum(),
-        Value::Object(v) => v
-            .iter()
-            .map(|(k, v)| k.len() + v.value().map_or(0, value_size))
-            .sum(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use relay_protocol::{Error, Object};
+    use relay_protocol::Annotated;
 
     use super::*;
-
-    #[test]
-    fn test_value_size_basic() {
-        assert_eq!(value_size(&Value::Bool(true)), 1);
-        assert_eq!(value_size(&Value::Bool(false)), 1);
-        assert_eq!(value_size(&Value::I64(0)), 8);
-        assert_eq!(value_size(&Value::I64(i64::MIN)), 8);
-        assert_eq!(value_size(&Value::I64(i64::MAX)), 8);
-        assert_eq!(value_size(&Value::U64(0)), 8);
-        assert_eq!(value_size(&Value::U64(u64::MIN)), 8);
-        assert_eq!(value_size(&Value::U64(u64::MAX)), 8);
-        assert_eq!(value_size(&Value::F64(123.42)), 8);
-        assert_eq!(value_size(&Value::F64(f64::MAX)), 8);
-        assert_eq!(value_size(&Value::F64(f64::MIN)), 8);
-        assert_eq!(value_size(&Value::F64(f64::NAN)), 8);
-        assert_eq!(value_size(&Value::F64(f64::NEG_INFINITY)), 8);
-        assert_eq!(value_size(&Value::String("foobar".to_owned())), 6);
-        assert_eq!(value_size(&Value::String("ඞ".to_owned())), 3);
-        assert_eq!(value_size(&Value::String("".to_owned())), 0);
-    }
-
-    #[test]
-    fn test_value_size_array() {
-        let array = Value::Array(vec![
-            Annotated::empty(),
-            Annotated::new(Value::Bool(true)),
-            Annotated::new(Value::Bool(false)),
-            Annotated::from_error(Error::invalid("oops"), Some(Value::U64(0))),
-            Annotated::new(Value::String("42".to_owned())),
-            Annotated::new(Value::Array(vec![])),
-            Annotated::new(Value::Array(vec![
-                Annotated::new(Value::Array(vec![Annotated::new(Value::Bool(false))])),
-                Annotated::new(Value::Object(Object::from([
-                    ("ඞ".to_owned(), Annotated::new(Value::I64(3))),
-                    ("empty_key".to_owned(), Annotated::empty()),
-                ]))),
-                Annotated::empty(),
-            ])),
-        ]);
-
-        assert_eq!(value_size(&array), 25);
-    }
-
-    #[test]
-    fn test_value_size_object() {
-        let obj = Value::Object(Object::from([
-            ("".to_owned(), Annotated::new(Value::Bool(false))),
-            ("1".to_owned(), Annotated::new(Value::Bool(false))),
-            ("ඞ".to_owned(), Annotated::empty()),
-            (
-                "key".to_owned(),
-                Annotated::new(Value::Object(Object::from([
-                    (
-                        "foo".to_owned(),
-                        Annotated::new(Value::Array(vec![
-                            Annotated::new(Value::I64(21)),
-                            Annotated::new(Value::F64(42.0)),
-                        ])),
-                    ),
-                    ("bar".to_owned(), Annotated::empty()),
-                ]))),
-            ),
-        ]));
-
-        assert_eq!(value_size(&obj), 31);
-    }
 
     macro_rules! assert_calculated_size_of {
         ($expected:expr, $json:expr) => {{

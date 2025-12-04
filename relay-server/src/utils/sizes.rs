@@ -25,9 +25,6 @@ use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
 ///  - `max_span_size`
 ///  - `max_statsd_size`
 ///  - `max_container_size`
-///  - `max_span_count`
-///  - `max_log_count`
-///  - `max_trace_metric_size`
 pub fn check_envelope_size_limits(
     config: &Config,
     envelope: &Envelope,
@@ -37,10 +34,7 @@ pub fn check_envelope_size_limits(
     let mut event_size = 0;
     let mut attachments_size = 0;
     let mut session_count = 0;
-    let mut span_count = 0;
-    let mut log_count = 0;
     let mut client_reports_size = 0;
-    let mut trace_metric_count = 0;
 
     for item in envelope.items() {
         if item.is_container() && item.len() > config.max_container_size() {
@@ -77,27 +71,12 @@ pub fn check_envelope_size_limits(
             ItemType::CheckIn => config.max_check_in_size(),
             ItemType::Statsd => config.max_statsd_size(),
             ItemType::MetricBuckets => config.max_metric_buckets_size(),
-            ItemType::Log => {
-                log_count += item.item_count().unwrap_or(1) as usize;
-                config.max_log_size()
-            }
-            ItemType::TraceMetric => {
-                trace_metric_count += item.item_count().unwrap_or(1) as usize;
-                config.max_trace_metric_size()
-            }
-            ItemType::Span => {
-                span_count += item.item_count().unwrap_or(1) as usize;
-                config.max_span_size()
-            }
+            ItemType::Log => config.max_log_size(),
+            ItemType::TraceMetric => config.max_trace_metric_size(),
+            ItemType::Span => config.max_span_size(),
             ItemType::Integration => match item.integration() {
-                Some(Integration::Logs(_)) => {
-                    log_count += item.item_count().unwrap_or(1) as usize;
-                    config.max_log_size()
-                }
-                Some(Integration::Spans(_)) => {
-                    span_count += item.item_count().unwrap_or(1) as usize;
-                    config.max_event_size()
-                }
+                Some(Integration::Logs(_)) => config.max_logs_integration_size(),
+                Some(Integration::Spans(_)) => config.max_spans_integration_size(),
                 None => NO_LIMIT,
             },
             ItemType::ProfileChunk => config.max_profile_size(),
@@ -126,15 +105,6 @@ pub fn check_envelope_size_limits(
     }
     if session_count > config.max_session_count() {
         return Err(DiscardItemType::Session);
-    }
-    if span_count > config.max_span_count() {
-        return Err(DiscardItemType::Span);
-    }
-    if log_count > config.max_log_count() {
-        return Err(DiscardItemType::Log);
-    }
-    if trace_metric_count > config.max_trace_metric_count() {
-        return Err(DiscardItemType::TraceMetric);
     }
     if client_reports_size > config.max_client_reports_size() {
         return Err(DiscardItemType::ClientReport);

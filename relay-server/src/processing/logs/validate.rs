@@ -1,5 +1,7 @@
-use crate::processing::Managed;
-use crate::processing::logs::{Error, Result, SerializedLogs};
+use crate::processing::logs::{
+    Error, ExpandedLogs, Result, SerializedLogs, get_calculated_byte_size,
+};
+use crate::processing::{Context, Managed};
 use crate::statsd::RelayCounters;
 
 /// Validates that there is only a single log container processed at a time.
@@ -32,4 +34,30 @@ pub fn dsc(logs: &Managed<SerializedLogs>) {
             None => "no",
         }
     )
+}
+
+/// Validates contained logs do not exceed the maximum size limit.
+///
+/// Currently this only considers the maximum log size configured in the configuration.
+///
+/// In the future we may want to increase the limit or start trimming excessive
+/// attributes/payloads. For now we drop logs which exceed our size limit.
+///
+/// This matches the logic defined in [`check_envelope_size_limits`](crate::utils::check_envelope_size_limits),
+/// when validating envelope sizes, the actual size of individual logs is not known and therefore
+/// must be enforced consistently after parsing again.
+pub fn size(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
+    let max_size_bytes = ctx.config.max_log_size();
+
+    logs.retain(
+        |logs| &mut logs.logs,
+        |log, _| {
+            let size = get_calculated_byte_size(log);
+
+            match size > max_size_bytes {
+                true => Err(Error::TooLarge),
+                false => Ok(()),
+            }
+        },
+    );
 }

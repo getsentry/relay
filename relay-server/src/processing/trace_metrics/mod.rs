@@ -11,7 +11,7 @@ use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
 use crate::envelope::{ContainerWriteError, ItemContainer};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use smallvec::smallvec;
 
 mod filter;
@@ -26,6 +26,9 @@ pub enum Error {
     /// Internal error, Pii config could not be loaded.
     #[error("Pii configuration error")]
     PiiConfig(PiiConfigError),
+    /// Received trace metric exceeds the configured size limit.
+    #[error("trace metric exeeds size limit")]
+    TooLarge,
     /// The trace metrics are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
@@ -60,6 +63,9 @@ impl crate::managed::OutcomeError for Error {
             Self::FilterFeatureFlag => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
+                DiscardItemType::TraceMetric,
+            ))),
             Self::ProcessingFailed(_) => {
                 relay_log::error!("internal error: trace metric processing failed");
                 Some(Outcome::Invalid(DiscardReason::Internal))
@@ -125,6 +131,7 @@ impl processing::Processor for TraceMetricsProcessor {
         filter::feature_flag(ctx).reject(&metrics)?;
 
         let mut metrics = process::expand(metrics);
+        validate::size(&mut metrics, ctx);
         validate::validate(&mut metrics);
         process::normalize(&mut metrics, ctx);
         filter::filter(&mut metrics, ctx);
@@ -196,7 +203,13 @@ pub struct SerializedTraceMetrics {
 
 impl Counted for SerializedTraceMetrics {
     fn quantities(&self) -> Quantities {
-        smallvec![(DataCategory::TraceMetric, self.metrics.len())]
+        let count = self
+            .metrics
+            .iter()
+            .map(|item| item.item_count().unwrap_or(1) as usize)
+            .sum();
+
+        smallvec![(DataCategory::TraceMetric, count)]
     }
 }
 
