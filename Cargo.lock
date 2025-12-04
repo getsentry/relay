@@ -4210,6 +4210,7 @@ dependencies = [
  "opentelemetry-proto",
  "relay-common",
  "relay-conventions",
+ "relay-event-normalization",
  "relay-event-schema",
  "relay-otel",
  "relay-protocol",

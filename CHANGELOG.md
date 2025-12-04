@@ -6,6 +6,10 @@
 
 - Fix parsing of data categories/quotas when using an aliased data category name. ([#5435](https://github.com/getsentry/relay/pull/5435))
 
+**Internal**:
+
+- Revise trace metric and log size limits. ([#5440](https://github.com/getsentry/relay/pull/5440))
+
 ## 25.11.1
 
 **Breaking Changes**:
