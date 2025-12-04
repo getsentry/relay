@@ -248,15 +248,13 @@ pub fn enrich_ai_event_data(
 /// gen_ai.operation.name or span.op based on the provided operation type map configuration.
 fn infer_ai_operation_type(span: &mut Span, operation_type_map: &AiOperationTypeMap) {
     let data = span.data.get_or_insert_with(SpanData::default);
+    let op_type = data
+        .gen_ai_operation_name
+        .value()
+        .or(span.op.value())
+        .and_then(|op| operation_type_map.get_operation_type(op));
 
-    if let Some(operation_name) = data.gen_ai_operation_name.value()
-        && let Some(operation_type) = operation_type_map.get_operation_type(operation_name)
-    {
-        data.gen_ai_operation_type
-            .set_value(Some(operation_type.to_owned()));
-    } else if let Some(op) = span.op.value()
-        && let Some(operation_type) = operation_type_map.get_operation_type(op)
-    {
+    if let Some(operation_type) = op_type {
         data.gen_ai_operation_type
             .set_value(Some(operation_type.to_owned()));
     }
