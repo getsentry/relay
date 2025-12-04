@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a>    ///
 <a href=#35 id=35 data-nosnippet>35</a>    /// The cache is keyed with the individual quota, the value is the last known, currently
 <a href=#36 id=36 data-nosnippet>36</a>    /// consumed amount of the quota.
-<a href=#37 id=37 data-nosnippet>37</a>    </span>cache: papaya::HashMap&lt;T, CachedQuota&gt;,
+<a href=#37 id=37 data-nosnippet>37</a>    </span>cache: papaya::HashMap&lt;T, CachedQuota, ahash::RandomState&gt;,
 <a href=#38 id=38 data-nosnippet>38</a>
 <a href=#39 id=39 data-nosnippet>39</a>    <span class="doccomment">/// The amount the cache is allowed to opportunistically over-accept based on the remaining
 <a href=#40 id=40 data-nosnippet>40</a>    /// quota.
