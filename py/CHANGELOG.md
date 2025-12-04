@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `CategoryUnit` enum to expose data category measurement units (count, bytes, milliseconds) for quota validation. ([#5427](https://github.com/getsentry/relay/pull/5427))
+
 ## 0.9.22
 
 - Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
