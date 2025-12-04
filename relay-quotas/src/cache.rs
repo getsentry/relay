@@ -1,4 +1,4 @@
-use std::num::NonZeroUsize;
+use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -7,12 +7,14 @@ use relay_common::time::UnixTimestamp;
 /// A ratio is converted to a divisor to perform integer arithmetic, instead of floating point.
 ///
 /// This is done with the configured precision here.
-const RATIO_PRECISION: usize = 10;
+const RATIO_PRECISION: u64 = 10;
 
 /// A quota to be checked with the [`OpportunisticQuotaCache`].
 #[derive(Debug, Clone, Copy)]
 pub struct Quota<T> {
     /// The quota limit.
+    ///
+    /// A negative limit is treated as infinite/unlimited.
     pub limit: i64,
     /// The quota window size in seconds.
     pub window: u64,
@@ -40,7 +42,12 @@ where
     /// For example: Setting this to `10 * RATIO_PRECISION` means, if there is 100 quota remaining,
     /// the cache will opportunistically accept the next 10 items, if there is a quota of 90 remaining,
     /// the cache will accept the next 9 items.
-    max_over_spend_divisor: NonZeroUsize,
+    max_over_spend_divisor: NonZeroU64,
+
+    /// The maximum amount of quota the cache considers for activation.
+    ///
+    /// See also: [`Self::with_max`].
+    limit_max_divisor: Option<NonZeroU64>,
 
     /// Minimum interval between vacuum of the cache.
     vacuum_interval: Duration,
@@ -58,20 +65,47 @@ where
     /// until it requires synchronization.
     ///
     /// The configured ratio must be in range `[0, 1]`.
-    pub fn new(max_over_spend_ratio: f32) -> Self {
-        let max_over_spend_divisor = 1.0f32 / max_over_spend_ratio * RATIO_PRECISION as f32;
+    pub fn new(max_over_spend: f32) -> Self {
+        let max_over_spend_divisor = 1.0f32 / max_over_spend * RATIO_PRECISION as f32;
         let max_over_spend_divisor =
-            NonZeroUsize::new(max_over_spend_divisor as usize).unwrap_or(NonZeroUsize::MIN);
+            NonZeroU64::new(max_over_spend_divisor as u64).unwrap_or(NonZeroU64::MIN);
 
         Self {
             cache: Default::default(),
             max_over_spend_divisor,
+            limit_max_divisor: None,
             vacuum_interval: Duration::from_secs(30),
             // Initialize to 0, this means a vacuum run immediately, but it is going to be fast
             // (empty cache) and it requires us to be time/environment independent, time is purely
             // driven by the user of the cache.
             next_vacuum: AtomicU64::new(0),
         }
+    }
+
+    /// Relative amount of the total quota limit to which caching is applied.
+    ///
+    /// If exceeded the cache will no longer cache values for the quota.
+    /// Lowering this value reduces the probability of incorrectly over-accepting.
+    ///
+    /// For example: A quota with limit `100` and a configured limit threshold of `0.7` (70%),
+    /// will no longer be considered for caching if 70% (70) of the quota is consumed.
+    ///
+    /// By default, no maximum is configured and the entire quota is cached.
+    pub fn with_max(mut self, max: Option<f32>) -> Self {
+        self.limit_max_divisor = max.map(|v| {
+            // Inverting the threshold here simplifies the checking code, but also retains more
+            // precision for the integer division, since we can expect this value to be large.
+            //
+            // 1.0 / 0.95 * 10 = 10
+            // 1.0 / (1.0 - 0.95) * 10 = 200
+            //
+            // 100 * 10 / 10 = 100
+            // 100 - (100 * 10 / 200) = 95
+            let max_div = 1.0f32 / (1.0f32 - v.clamp(0.0, 1.0)) * RATIO_PRECISION as f32;
+            NonZeroU64::new(max_div as u64).unwrap_or(NonZeroU64::MAX)
+        });
+
+        self
     }
 
     /// Checks a quota with quantity against the cache.
@@ -82,8 +116,13 @@ where
     ///
     /// Whenever the cache returns [`Action::Check`], the cache requires a call to [`Self::update_quota`],
     /// with a synchronized 'consumed' amount.
-    pub fn check_quota(&self, quota: Quota<T>, quantity: usize) -> Action {
+    pub fn check_quota(&self, quota: Quota<T>, quantity: u64) -> Action {
         let cache = self.cache.pin();
+
+        let Ok(limit) = u64::try_from(quota.limit) else {
+            // Negative limits are infinite.
+            return Action::Accept;
+        };
 
         // We can potentially short circuit here with a simple read, the cases:
         // 1. `NeedsSync`
@@ -110,23 +149,28 @@ where
 
             let total_local_use = local_use + quantity;
 
+            let threshold = match self.limit_max_divisor.map(NonZeroU64::get) {
+                Some(div) => limit * RATIO_PRECISION / div,
+                None => 0,
+            };
+
             // Can short circuit here already if consumed is already above or equal to the limit.
             //
             // We could also propagate this out to the caller as a definitive negative in the
             // future. This does require some additional consideration how this would interact with
             // refunds, which can reduce the consumed.
-            if consumed >= quota.limit {
+            if consumed >= limit.saturating_sub(threshold) {
                 return CachedQuota::new_needs_sync(total_local_use);
             }
 
-            let remaining = usize::try_from(quota.limit - consumed).unwrap_or(usize::MAX);
+            let remaining = limit.saturating_sub(consumed);
             let max_allowed_spend = remaining
                 // Normalize the remaining quota with the window size, to apply the ratio/divisor to the
                 // per second rate.
                 //
                 // This means we get a consistent behaviour for short (10s) quotas (e.g. abuse) as well
                 // as long (1h) quotas (e.g. spike protection) with a more predictable error.
-                / usize::try_from(quota.window).unwrap_or(usize::MAX).max(1)
+                / quota.window.max(1)
                 // Apply ratio precision, which is already pre-multiplied into `max_over_spend_divisor`.
                 * RATIO_PRECISION
                 // Apply the actual ratio with the pre-computed divisor.
@@ -155,6 +199,12 @@ where
     /// can accept quota requests.
     pub fn update_quota(&self, quota: Quota<T>, consumed: i64) {
         let cache = self.cache.pin();
+
+        // Consumed quota can be negative due to refunds, we choose to deal with negative quotas
+        // like they are simply unused.
+        //
+        // This only makes the cache stricter and less likely to over accept.
+        let consumed = u64::try_from(consumed).unwrap_or(0);
 
         cache.update_or_insert(
             quota.key,
@@ -235,7 +285,7 @@ pub enum Action {
     /// Accept the quota request.
     Accept,
     /// Synchronize the quota with the returned quantity.
-    Check(usize),
+    Check(u64),
 }
 
 /// State of a cached quota.
@@ -246,19 +296,19 @@ enum CachedQuota {
     NeedsSync,
     /// Like [`Self::NeedsSync`], but also carries a total quantity which needs to be synchronized
     /// with the store.
-    NeedsSyncWithQuantity(NonZeroUsize),
+    NeedsSyncWithQuantity(NonZeroU64),
     /// The cache is active and can still make decisions without a synchronization.
     Active {
-        consumed: i64,
-        local_use: usize,
+        consumed: u64,
+        local_use: u64,
         expiry: UnixTimestamp,
     },
 }
 
 impl CachedQuota {
     /// Creates [`Self::NeedsSync`] for a quantity of `0`, [`Self::NeedsSyncWithQuantity`] otherwise.
-    pub fn new_needs_sync(quantity: usize) -> Self {
-        NonZeroUsize::new(quantity)
+    pub fn new_needs_sync(quantity: u64) -> Self {
+        NonZeroU64::new(quantity)
             .map(Self::NeedsSyncWithQuantity)
             .unwrap_or(Self::NeedsSync)
     }
@@ -278,6 +328,16 @@ impl CachedQuota {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Returns a simple quota with a limit and a window of 1 second.
+    fn simple_quota(limit: i64) -> Quota<&'static str> {
+        Quota {
+            limit,
+            window: 1,
+            key: "simple_quota_key",
+            expiry: UnixTimestamp::from_secs(300),
+        }
+    }
 
     #[test]
     fn test_opp_quota() {
@@ -331,11 +391,24 @@ mod tests {
         assert_eq!(cache.check_quota(q2, 1), Action::Check(1));
 
         // Negative state can exist due to refunds.
-        cache.update_quota(q1, -100);
-        // We now have `200` remaining quota -> 20 (= 10%).
-        assert_eq!(cache.check_quota(q1, 20), Action::Accept);
+        cache.update_quota(q1, -123);
+        // The cache considers a negative quota like `0`, `100` remaining quota -> 10 (= 10%).
+        assert_eq!(cache.check_quota(q1, 10), Action::Accept);
         // Too much, check the entire local usage.
-        assert_eq!(cache.check_quota(q1, 1), Action::Check(21));
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(11));
+    }
+
+    #[test]
+    fn test_opp_quota_100_percent() {
+        let cache = OpportunisticQuotaCache::new(1.0);
+
+        let q1 = simple_quota(100);
+
+        cache.update_quota(q1, 0);
+        for _ in 0..100 {
+            assert_eq!(cache.check_quota(q1, 1), Action::Accept,);
+        }
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(101));
     }
 
     #[test]
@@ -389,6 +462,78 @@ mod tests {
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
     }
 
+    #[test]
+    fn test_opp_quota_limit_threshold() {
+        let cache = OpportunisticQuotaCache::new(0.1).with_max(Some(0.7));
+
+        let q1 = simple_quota(100);
+
+        // First access always needs synchronization.
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+
+        // 50 remaining -> 5 (10%), consumption still under limit threshold (70).
+        cache.update_quota(q1, 50);
+        // Nothing special here.
+        assert_eq!(cache.check_quota(q1, 5), Action::Accept);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(6));
+
+        // 31 remaining -> 3 (10%), consumption still under limit threshold (70),
+        // but maximum cached consumption would be *above* the threshold, this is currently
+        // explicitly not considered (but this behaviour may be changed in the future).
+        cache.update_quota(q1, 69);
+        assert_eq!(cache.check_quota(q1, 3), Action::Accept);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(4));
+
+        // 30 remaining -> 3 (10%), *but* threshold (70%) is now reached.
+        cache.update_quota(q1, 70);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+        // Sanity check, that exhausting the limit fully, still works.
+        cache.update_quota(q1, 100);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+
+        // Resetting consumption to a lower value (refunds) should still work.
+        cache.update_quota(q1, 50);
+        assert_eq!(cache.check_quota(q1, 5), Action::Accept);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(6));
+    }
+
+    #[test]
+    fn test_opp_quota_limit_threshold_very_large() {
+        let cache = OpportunisticQuotaCache::new(0.1).with_max(Some(420.0));
+
+        let q1 = simple_quota(100);
+
+        cache.update_quota(q1, 90);
+        assert_eq!(cache.check_quota(q1, 1), Action::Accept);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(2));
+    }
+
+    #[test]
+    fn test_opp_quota_limit_threshold_very_small() {
+        let cache = OpportunisticQuotaCache::new(0.1).with_max(Some(-1.0));
+
+        let q1 = simple_quota(100);
+
+        // A negative or `0` limit threshold essentially disables the cache.
+        cache.update_quota(q1, 0);
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
+    }
+
+    /// Negative limits should be considered as infinite.
+    #[test]
+    fn test_opp_quota_negative_limit() {
+        let cache = OpportunisticQuotaCache::new(0.1);
+
+        let q1 = Quota {
+            limit: -1,
+            window: 10,
+            key: "k1",
+            expiry: UnixTimestamp::from_secs(300),
+        };
+
+        assert_eq!(cache.check_quota(q1, 99999), Action::Accept);
+    }
+
     /// The test asserts the cache behaves correctly if the limit of a quota changes.
     #[test]
     fn test_opp_quota_limit_change() {
@@ -422,12 +567,7 @@ mod tests {
     fn test_opp_quota_zero() {
         let cache = OpportunisticQuotaCache::new(0.0);
 
-        let q1 = Quota {
-            limit: 100,
-            window: 1,
-            key: "k1",
-            expiry: UnixTimestamp::from_secs(300),
-        };
+        let q1 = simple_quota(100);
 
         // Not synchronized -> always check.
         assert_eq!(cache.check_quota(q1, 1), Action::Check(1));
