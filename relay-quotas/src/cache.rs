@@ -480,7 +480,8 @@ mod tests {
         assert_eq!(cache.check_quota(q1, 5), Action::Accept);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(6));
 
-        // 31 remaining -> 3 (10%), consumption still under limit threshold (70)
+        // 31 remaining -> 3 (10%), consumption still under limit threshold (70),
+        // but a request of `2` (71) exceeds the limit.
         cache.set_quota(q1, 69);
         assert_eq!(cache.check_quota(q1, 2), Action::Check(2));
 
