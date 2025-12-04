@@ -9,6 +9,7 @@
 **Internal**:
 
 - Revise trace metric and log size limits. ([#5440](https://github.com/getsentry/relay/pull/5440))
+- Update `is_ai_span` and `infer_ai_operation_type` to use `gen_ai.operation.name`. ([#5433](https://github.com/getsentry/relay/pull/5433))
 
 ## 25.11.1
 
