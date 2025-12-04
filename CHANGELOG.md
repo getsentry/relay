@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Increases log size limits to better support log drains. ([#5441](https://github.com/getsentry/relay/pull/5441))
+
 **Bug Fixes**:
 
 - Fix parsing of data categories/quotas when using an aliased data category name. ([#5435](https://github.com/getsentry/relay/pull/5435))
