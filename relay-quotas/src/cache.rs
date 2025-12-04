@@ -159,7 +159,7 @@ where
             // We could also propagate this out to the caller as a definitive negative in the
             // future. This does require some additional consideration how this would interact with
             // refunds, which can reduce the consumed.
-            if consumed >= limit.saturating_sub(threshold) {
+            if consumed + total_local_use >= limit.saturating_sub(threshold) {
                 return CachedQuota::new_needs_sync(total_local_use);
             }
 
@@ -408,10 +408,10 @@ mod tests {
         let q1 = simple_quota(100);
 
         cache.set_quota(q1, 0);
-        for _ in 0..100 {
-            assert_eq!(cache.check_quota(q1, 1), Action::Accept,);
+        for _ in 0..99 {
+            assert_eq!(cache.check_quota(q1, 1), Action::Accept);
         }
-        assert_eq!(cache.check_quota(q1, 1), Action::Check(101));
+        assert_eq!(cache.check_quota(q1, 1), Action::Check(100));
     }
 
     #[test]
@@ -466,7 +466,7 @@ mod tests {
     }
 
     #[test]
-    fn test_opp_quota_limit_threshold() {
+    fn test_opp_quota_limit_max() {
         let cache = OpportunisticQuotaCache::new(0.1).with_max(Some(0.7));
 
         let q1 = simple_quota(100);
@@ -480,12 +480,9 @@ mod tests {
         assert_eq!(cache.check_quota(q1, 5), Action::Accept);
         assert_eq!(cache.check_quota(q1, 1), Action::Check(6));
 
-        // 31 remaining -> 3 (10%), consumption still under limit threshold (70),
-        // but maximum cached consumption would be *above* the threshold, this is currently
-        // explicitly not considered (but this behaviour may be changed in the future).
+        // 31 remaining -> 3 (10%), consumption still under limit threshold (70)
         cache.set_quota(q1, 69);
-        assert_eq!(cache.check_quota(q1, 3), Action::Accept);
-        assert_eq!(cache.check_quota(q1, 1), Action::Check(4));
+        assert_eq!(cache.check_quota(q1, 2), Action::Check(2));
 
         // 30 remaining -> 3 (10%), *but* threshold (70%) is now reached.
         cache.set_quota(q1, 70);
@@ -501,7 +498,7 @@ mod tests {
     }
 
     #[test]
-    fn test_opp_quota_limit_threshold_very_large() {
+    fn test_opp_quota_limit_max_very_large() {
         let cache = OpportunisticQuotaCache::new(0.1).with_max(Some(420.0));
 
         let q1 = simple_quota(100);
@@ -512,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn test_opp_quota_limit_threshold_very_small() {
+    fn test_opp_quota_limit_max_very_small() {
         let cache = OpportunisticQuotaCache::new(0.1).with_max(Some(-1.0));
 
         let q1 = simple_quota(100);
