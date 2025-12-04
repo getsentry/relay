@@ -87,6 +87,11 @@ impl OutcomeError for Infallible {
 pub struct Rejected<T>(T);
 
 impl<T> Rejected<T> {
+    /// Returns a reference to the underlying error.
+    pub fn inner(&self) -> &T {
+        &self.0
+    }
+
     /// Extracts the underlying error.
     pub fn into_inner(self) -> T {
         self.0
