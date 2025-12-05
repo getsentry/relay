@@ -169,7 +169,7 @@ impl UploadService {
     fn handle_message(&self, message: Upload) {
         if self.pending_requests.len() >= self.max_concurrent_requests {
             relay_statsd::metric!(
-                counter(RelayCounters::AttachmentUpload) += message.attachment_count(),
+                counter(RelayCounters::AttachmentUpload) += message.attachment_count() as u64,
                 result = "load_shed",
                 type = message.ty(),
             );
