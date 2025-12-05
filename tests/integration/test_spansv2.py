@@ -967,6 +967,10 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": "SELECT id FROM users WHERE id = %s AND name = %s",
             },
+            "sentry.normalized_db_query.hash": {
+                "type": "string",
+                "value": "f79af0ba3d26284c",
+            },
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),

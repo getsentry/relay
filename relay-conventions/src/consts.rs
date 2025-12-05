@@ -54,6 +54,7 @@ convention_attributes!(
     IS_REMOTE => "sentry.is_remote",
     MESSAGING_SYSTEM => "messaging.system",
     NORMALIZED_DB_QUERY => "sentry.normalized_db_query",
+    NORMALIZED_DB_QUERY_HASH => "sentry.normalized_db_query.hash",
     OBSERVED_TIMESTAMP_NANOS => "sentry.observed_timestamp_nanos",
     OP => "sentry.op",
     ORIGIN => "sentry.origin",
