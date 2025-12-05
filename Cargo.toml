@@ -142,7 +142,7 @@ minidump = "0.26.0"
 multer = "3.1.0"
 num-traits = "0.2.19"
 num_cpus = "1.17.0"
-objectstore-client = "0.0.11"
+objectstore-client = "0.0.14"
 opentelemetry-semantic-conventions = { version = "0.31.0" }
 opentelemetry-proto = { version = "0.30.0", default-features = false }
 papaya = "0.2.3"
