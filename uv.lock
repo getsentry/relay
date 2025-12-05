@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.13"
 resolution-markers = [
     "sys_platform == 'darwin' or sys_platform == 'linux'",
@@ -313,7 +313,7 @@ wheels = [
 
 [[package]]
 name = "objectstore-client"
-version = "0.0.11"
+version = "0.0.14"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
     { name = "filetype", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -322,7 +322,7 @@ dependencies = [
     { name = "zstandard", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/objectstore_client-0.0.11-py3-none-any.whl", hash = "sha256:ed435c7a0297a5b75bfc6a6a90257d1c54e7e2a10ff6b03085faacf604c1eb8b" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/objectstore_client-0.0.14-py3-none-any.whl", hash = "sha256:ca2edd8733bfcfce5463d5f6078ca70b838cb40a74f628fc37fac431e63515f6" },
 ]
 
 [[package]]
@@ -552,7 +552,7 @@ dev = [
     { name = "milksnake", specifier = ">=0.1.6" },
     { name = "msgpack", specifier = ">=1.1.0" },
     { name = "mypy", specifier = ">=1.10.0" },
-    { name = "objectstore-client", specifier = "==0.0.11" },
+    { name = "objectstore-client", specifier = "==0.0.14" },
     { name = "opentelemetry-proto", specifier = ">=1.32.1" },
     { name = "packaging", specifier = "==25.0" },
     { name = "pre-commit", specifier = ">=4.2.0" },

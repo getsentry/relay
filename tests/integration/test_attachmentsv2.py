@@ -3,7 +3,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from unittest import mock
 
-from .asserts import time_within_delta, time_within
+from .asserts import time_within_delta, time_is
 from .test_spansv2 import envelope_with_spans
 
 from .test_dynamic_sampling import _add_sampling_config
@@ -215,8 +215,8 @@ def test_attachment_with_matching_span(mini_sentry, relay):
             "name": "test span",
             "status": "ok",
             "is_segment": True,
-            "start_timestamp": time_within(ts),
-            "end_timestamp": time_within(ts.timestamp() + 0.5),
+            "start_timestamp": time_is(ts),
+            "end_timestamp": time_is(ts.timestamp() + 0.5),
             "attributes": mock.ANY,
         }
     ]
@@ -304,8 +304,8 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
             "name": "test span",
             "status": "ok",
             "is_segment": True,
-            "start_timestamp": time_within(ts),
-            "end_timestamp": time_within(ts.timestamp() + 0.5),
+            "start_timestamp": time_is(ts),
+            "end_timestamp": time_is(ts.timestamp() + 0.5),
             "attributes": mock.ANY,
         }
     ]

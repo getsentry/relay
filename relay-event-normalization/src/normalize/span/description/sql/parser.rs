@@ -884,6 +884,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))] // Causes a `STATUS_STACK_OVERFLOW` when compiled with opt-level=1 on windows
     fn visit_deep_expression() {
         struct TestVisitor;
         impl Visitor for TestVisitor {

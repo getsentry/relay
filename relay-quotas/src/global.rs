@@ -466,10 +466,14 @@ mod tests {
         let mut total = 0;
         let mut total_counter_1 = 0;
         let mut total_counter_2 = 0;
+
+        let scoping = scoping.item(DataCategory::MetricBucket);
+        let ts = UnixTimestamp::now();
+
         for i in 0.. {
             let quantity = i % 17;
 
-            let quota = [build_redis_quota(&quota, &scoping, quantity)];
+            let quota = [RedisQuota::new(&quota, quantity, scoping, ts).unwrap()];
             if counter1
                 .filter_rate_limited(&client, &quota)
                 .await
