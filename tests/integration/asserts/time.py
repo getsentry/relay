@@ -52,6 +52,19 @@ def _truncate(dt, resolution=None):
     }[resolution](dt)
 
 
+def _resolution_to_timedelta(resolution):
+    if resolution is None:
+        return timedelta(microseconds=1)
+
+    return {
+        Resolution.Seconds: timedelta(seconds=1),
+        Resolution.MilliSeconds: timedelta(milliseconds=1),
+        Resolution.MicroSeconds: timedelta(microseconds=1),
+        # Resolution of the Python datetime itself is just in microseconds
+        Resolution.NanoSeconds: timedelta(microseconds=1),
+    }[resolution]
+
+
 def _format_resolution(dt: datetime, resolution):
     match resolution:
         case Resolution.Seconds:
@@ -75,7 +88,9 @@ class _WithinBounds:
         precision=None,
     ):
         self._lower_bound = _truncate(lower_bound, precision)
-        self._upper_bound = _truncate(upper_bound, precision)
+        self._upper_bound = _truncate(
+            upper_bound, precision
+        ) + _resolution_to_timedelta(precision)
         self._expect_resolution = expect_resolution
 
     def __eq__(self, other):
@@ -94,22 +109,40 @@ class _WithinBounds:
         return str(self)
 
 
+def time_is(time, **kwargs):
+    """
+    Assertion helper which compares the actual time against the expected time.
+    """
+    return time_within(time, time, **kwargs)
+
+
 def time_after(lower_bound, **kwargs):
+    """
+    Assertion helper which ensures the actual time is after the specified time.
+    """
     upper_bound = datetime.now(tz=timezone.utc)
     return time_within(lower_bound, upper_bound, **kwargs)
 
 
 def time_within(lower_bound, upper_bound=None, **kwargs):
+    """
+    Assertion helper which ensures the actual time is between the specified lower and upper bound.
+
+    If no upper bound is specified, the current time is used as an upper bound.
+    """
     lower_bound = _to_datetime(lower_bound)
     upper_bound = (
         _to_datetime(upper_bound)
         if upper_bound is not None
         else datetime.now(tz=timezone.utc)
     )
-    assert lower_bound <= upper_bound
+    assert lower_bound <= upper_bound, f"{lower_bound} <= {upper_bound}"
     return _WithinBounds(lower_bound, upper_bound, **kwargs)
 
 
 def time_within_delta(time=None, delta=timedelta(seconds=30), **kwargs):
+    """
+    Assertion helper which ensures the actual time is between the specified time and a delta.
+    """
     time = _to_datetime(time) if time is not None else datetime.now(tz=timezone.utc)
     return _WithinBounds(time - delta, time + delta, **kwargs)

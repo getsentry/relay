@@ -4,7 +4,7 @@ from unittest import mock
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, time_within
+from .asserts import time_within_delta, time_within, time_is
 
 from .test_dynamic_sampling import _add_sampling_config
 
@@ -125,8 +125,8 @@ def test_spansv2_basic(
         },
         "name": "some op",
         "received": time_within(ts),
-        "start_timestamp": time_within(ts),
-        "end_timestamp": time_within(ts.timestamp() + 0.5),
+        "start_timestamp": time_is(ts),
+        "end_timestamp": time_is(ts.timestamp() + 0.5),
         "is_segment": True,
         "status": "ok",
         "retention_days": 42,
@@ -141,7 +141,7 @@ def test_spansv2_basic(
             "name": "c:spans/count_per_root_project@none",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_within_delta(),
+            "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
@@ -156,7 +156,7 @@ def test_spansv2_basic(
             "name": "c:spans/usage@none",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_within_delta(),
+            "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
             "tags": {},
             "timestamp": time_within_delta(),
@@ -329,7 +329,7 @@ def test_spansv2_ds_sampled(
             "name": "c:spans/count_per_root_project@none",
             "org_id": 1,
             "project_id": 43,
-            "received_at": time_within_delta(),
+            "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
@@ -344,7 +344,7 @@ def test_spansv2_ds_sampled(
             "name": "c:spans/usage@none",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_within_delta(),
+            "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
             "tags": {},
             "timestamp": time_within_delta(),
@@ -425,7 +425,7 @@ def test_spansv2_ds_root_in_different_org(
             "name": "c:spans/count_per_root_project@none",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_within_delta(),
+            "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
             "tags": {"decision": "drop", "target_project_id": "42"},
             "timestamp": time_within_delta(),
@@ -436,7 +436,7 @@ def test_spansv2_ds_root_in_different_org(
             "name": "c:spans/usage@none",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_within_delta(),
+            "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
             "tags": {},
             "timestamp": time_within_delta(),
@@ -815,8 +815,8 @@ def test_spanv2_with_string_pii_scrubbing(
             },
         },
         "name": "Test span",
-        "start_timestamp": time_within(ts),
-        "end_timestamp": time_within(ts.timestamp() + 0.5),
+        "start_timestamp": time_is(ts),
+        "end_timestamp": time_is(ts.timestamp() + 0.5),
         "is_segment": False,
         "status": "ok",
     }
@@ -974,8 +974,8 @@ def test_spansv2_attribute_normalization(
         },
         "name": "some op",
         "received": time_within(ts),
-        "start_timestamp": time_within(ts),
-        "end_timestamp": time_within(ts.timestamp() + 0.5),
+        "start_timestamp": time_is(ts),
+        "end_timestamp": time_is(ts.timestamp() + 0.5),
         "is_segment": True,
         "status": "ok",
         "retention_days": 42,
