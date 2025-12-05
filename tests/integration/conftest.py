@@ -44,6 +44,7 @@ from .fixtures.processing import (  # noqa
     items_consumer,
     profiles_consumer,
     feedback_consumer,
+    objectstore,
 )
 
 

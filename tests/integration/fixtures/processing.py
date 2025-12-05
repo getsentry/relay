@@ -4,6 +4,7 @@ from google.protobuf.json_format import MessageToDict
 import msgpack
 import uuid
 
+from objectstore_client import Client, Usecase
 import pytest
 import os
 import confluent_kafka as kafka
@@ -126,6 +127,16 @@ def relay_with_playstation(mini_sentry, relay):
     except Exception:
         pytest.skip("Test requires Relay compiled with PlayStation support")
     return relay
+
+
+@pytest.fixture
+def objectstore():
+    def inner(usecase: str, project_id: int):
+        return Client("http://127.0.0.1:8888/").session(
+            Usecase(usecase), org=1, project=project_id
+        )
+
+    return inner
 
 
 def kafka_producer(options):
@@ -302,7 +313,7 @@ class OutcomesConsumer(ConsumerBase):
         key_id=None,
         categories=None,
         quantity=None,
-        timeout=1,
+        timeout=None,
         ignore_other=False,
     ):
         expected_categories = (

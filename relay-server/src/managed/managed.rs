@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
+use itertools::Either;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
@@ -590,6 +591,17 @@ impl<T: Counted> Managed<Option<T>> {
     pub fn transpose(self) -> Option<Managed<T>> {
         let (o, meta) = self.destructure();
         o.map(|t| Managed::from_parts(t, meta))
+    }
+}
+
+impl<L: Counted, R: Counted> Managed<Either<L, R>> {
+    /// Turns a managed [`Either`] into an [`Either`] of [`Managed`].
+    pub fn transpose(self) -> Either<Managed<L>, Managed<R>> {
+        let (either, meta) = self.destructure();
+        match either {
+            Either::Left(value) => Either::Left(Managed::from_parts(value, meta)),
+            Either::Right(value) => Either::Right(Managed::from_parts(value, meta)),
+        }
     }
 }
 

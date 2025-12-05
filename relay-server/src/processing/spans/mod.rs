@@ -4,7 +4,7 @@ use bytes::Bytes;
 use either::Either;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{AttachmentV2Meta, SpanId, SpanV2};
+use relay_event_schema::protocol::{AttachmentV2Meta, SpanV2};
 use relay_pii::PiiConfigError;
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
@@ -242,21 +242,24 @@ impl Forward for SpanOutput {
             retention: ctx.retention(|r| r.span.as_ref()),
         };
 
-        // Explicitly drop standalone attachments before splitting
-        // They are not stored for now.
-        // This must be fixed before enabling the feature flag.
-        let spans = spans.map(|mut inner, record_keeper| {
-            if !inner.stand_alone_attachments.is_empty() {
-                let standalone = std::mem::take(&mut inner.stand_alone_attachments);
-                record_keeper.reject_err(Outcome::Invalid(DiscardReason::Internal), standalone);
+        let spans_and_attachments = spans.split(|spans| spans.into_parts());
+        for either in spans_and_attachments {
+            match either.transpose() {
+                Either::Left(span) => {
+                    if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
+                        s.store(span);
+                    }
+                }
+                Either::Right(attachment) => {
+                    if let Ok(attachment) = store::attachment::convert(
+                        attachment,
+                        ctx.retention,
+                        ctx.server_sample_rate,
+                    ) {
+                        s.upload(attachment);
+                    }
+                }
             }
-            inner
-        });
-
-        for span in spans.split(|spans| spans.into_indexed_spans()) {
-            if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
-                s.store(span)
-            };
         }
 
         Ok(())
@@ -359,8 +362,7 @@ impl<C> ExpandedSpans<C> {
 
             for ExpandedSpan { span, attachments } in self.spans {
                 for attachment in attachments {
-                    let span_id = span.value().and_then(|s| s.span_id.value().copied());
-                    items.push(attachment_to_item(attachment, span_id)?);
+                    items.push(attachment_to_item(attachment)?);
                 }
 
                 spans_without_attachments.push(span);
@@ -373,7 +375,7 @@ impl<C> ExpandedSpans<C> {
         }
 
         for attachment in self.stand_alone_attachments {
-            items.push(attachment_to_item(attachment, None)?);
+            items.push(attachment_to_item(attachment)?);
         }
 
         Ok(Envelope::from_parts(self.headers, Items::from_vec(items)))
@@ -403,11 +405,12 @@ impl<C> ExpandedSpans<C> {
     }
 }
 
-fn attachment_to_item(
-    attachment: ExpandedAttachment,
-    span_id: Option<SpanId>,
-) -> Result<Item, ContainerWriteError> {
-    let ExpandedAttachment { meta, body } = attachment;
+fn attachment_to_item(attachment: ExpandedAttachment) -> Result<Item, ContainerWriteError> {
+    let ExpandedAttachment {
+        parent_id,
+        meta,
+        body,
+    } = attachment;
 
     let meta_json = meta.to_json()?;
     let meta_bytes = meta_json.into_bytes();
@@ -420,7 +423,7 @@ fn attachment_to_item(
     let mut item = Item::new(ItemType::Attachment);
     item.set_payload(ContentType::AttachmentV2, payload.freeze());
     item.set_meta_length(meta_length as u32);
-    item.set_parent_id(ParentId::SpanId(span_id));
+    item.set_parent_id(parent_id);
 
     Ok(item)
 }
@@ -450,8 +453,22 @@ impl ExpandedSpans<TotalAndIndexed> {
 
 impl ExpandedSpans<Indexed> {
     #[cfg(feature = "processing")]
-    fn into_indexed_spans(self) -> impl Iterator<Item = IndexedSpan> {
-        self.spans.into_iter().map(IndexedSpan)
+    fn into_parts(self) -> impl Iterator<Item = Either<IndexedSpanOnly, ExpandedAttachment>> {
+        let Self {
+            headers: _,
+            server_sample_rate: _,
+            spans,
+            stand_alone_attachments,
+            category: _,
+        } = self;
+        spans
+            .into_iter()
+            .flat_map(|span| {
+                let ExpandedSpan { span, attachments } = span;
+                std::iter::once(Either::Left(IndexedSpanOnly(span)))
+                    .chain(attachments.into_iter().map(Either::Right))
+            })
+            .chain(stand_alone_attachments.into_iter().map(Either::Right))
     }
 }
 
@@ -610,23 +627,23 @@ impl Managed<ExpandedSpans<TotalAndIndexed>> {
     }
 }
 
-/// A Span which only represents the indexed category.
 #[cfg(feature = "processing")]
 #[derive(Debug)]
-struct IndexedSpan(ExpandedSpan);
+struct IndexedSpanOnly(WithHeader<SpanV2>);
 
 #[cfg(feature = "processing")]
-impl Counted for IndexedSpan {
+impl Counted for IndexedSpanOnly {
     fn quantities(&self) -> Quantities {
-        let mut quantities = smallvec::smallvec![(DataCategory::SpanIndexed, 1)];
-        quantities.extend(self.0.attachments.quantities());
-        quantities
+        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
     }
 }
 
 /// A validated and parsed span attachment.
 #[derive(Debug)]
 pub struct ExpandedAttachment {
+    /// The ID of the log / span / metric that owns the span.
+    pub parent_id: ParentId,
+
     /// The parsed metadata from the attachment.
     pub meta: Annotated<AttachmentV2Meta>,
 
