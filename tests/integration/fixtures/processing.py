@@ -195,11 +195,11 @@ class ConsumerBase:
         self.consumer = consumer
         self.test_producer = kafka_producer(options)
         self.topic_name = topic_name
-        self.timeout = timeout or 5
+        self.timeout = timeout or 10
 
         # Connect to the topic and poll a first test message.
         # First poll takes forever, the next ones are fast.
-        self.assert_empty(timeout=5)
+        self.assert_empty()
 
     def poll(self, timeout=None):
         if timeout is None:
