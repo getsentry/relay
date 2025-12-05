@@ -28,7 +28,7 @@ jobs:
       }')[matrix.build-arch] }}
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.0
         with:
           submodules: recursive
 
@@ -70,7 +70,7 @@ jobs:
     runs-on: macos-14
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.0
         with:
           submodules: recursive
 
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.0
         with:
           submodules: recursive
 
