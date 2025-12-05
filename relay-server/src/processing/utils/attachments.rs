@@ -108,7 +108,7 @@ fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::Pi
     }
 }
 
-fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {
+pub fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {
     for application in &config.applications {
         if let SelectorSpec::Path(vec) = &application.0 {
             let Some([a, b]) = vec.get(0..2) else {

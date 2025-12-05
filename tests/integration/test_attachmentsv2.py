@@ -800,3 +800,351 @@ def test_span_attachment_independent_rate_limiting(
     assert outcome_counter == expected_outcomes
 
     outcomes_consumer.assert_empty()
+
+
+def test_attachment_default_pii_scrubbing_meta(
+    mini_sentry,
+    relay,
+    secret_attribute,
+):
+    attribute_key, attribute_value, expected_value, rule_type = secret_attribute
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+        "projects:span-v2-attachment-processing",
+    ]
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    span_id = "eee19b7ec3c1b174"
+    trace_id = "5b8efff798038103d269b633813fc60c"
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "is_segment": True,
+            "name": "test span",
+            "status": "ok",
+        },
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    metadata = {
+        "attachment_id": str(uuid.uuid4()),
+        "timestamp": ts.timestamp(),
+        "filename": "data.txt",
+        "content_type": "text/plain",
+        "attributes": {
+            attribute_key: {"type": "string", "value": attribute_value},
+        },
+    }
+    body = b"Some content"
+    metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+    combined_payload = metadata_bytes + body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(metadata_bytes),
+                "span_id": span_id,
+                "length": len(combined_payload),
+            },
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+    forwarded = mini_sentry.get_captured_event()
+
+    attachment = next(i for i in forwarded.items if i.type == "attachment")
+    meta_length = attachment.headers.get("meta_length")
+    payload = attachment.payload.bytes
+    metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
+
+    assert metadata_part == {
+        "attachment_id": mock.ANY,
+        "timestamp": time_within_delta(ts),
+        "filename": "data.txt",
+        "content_type": "text/plain",
+        "attributes": {
+            attribute_key: {"type": "string", "value": expected_value},
+        },
+        "_meta": {
+            "attributes": {
+                attribute_key: {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                        }
+                    }
+                }
+            }
+        },
+    }
+
+
+def test_attachment_pii_scrubbing_meta_attribute(
+    mini_sentry,
+    relay,
+    scrubbing_rule,
+):
+    rule_type, test_value, expected_scrubbed = scrubbing_rule
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+        "projects:span-v2-attachment-processing",
+    ]
+    project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    span_id = "eee19b7ec3c1b174"
+    trace_id = "5b8efff798038103d269b633813fc60c"
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "is_segment": True,
+            "name": "test span",
+            "status": "ok",
+        },
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    metadata = {
+        "attachment_id": str(uuid.uuid4()),
+        "timestamp": ts.timestamp(),
+        "filename": "data.txt",
+        "content_type": "text/plain",
+        "attributes": {
+            "test_pii": {"type": "string", "value": test_value},
+        },
+    }
+    body = b"Some attachment content"
+    metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+    combined_payload = metadata_bytes + body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(metadata_bytes),
+                "span_id": span_id,
+                "length": len(combined_payload),
+            },
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+    forwarded = mini_sentry.get_captured_event()
+
+    attachment = next(i for i in forwarded.items if i.type == "attachment")
+    meta_length = attachment.headers.get("meta_length")
+    payload = attachment.payload.bytes
+    metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
+
+    assert metadata_part == {
+        "attachment_id": mock.ANY,
+        "timestamp": time_within_delta(ts),
+        "filename": "data.txt",
+        "content_type": "text/plain",
+        "attributes": {
+            "test_pii": {"type": "string", "value": expected_scrubbed},
+        },
+        "_meta": {
+            "attributes": {
+                "test_pii": {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                        }
+                    }
+                }
+            }
+        },
+    }
+
+
+def test_attachment_pii_scrubbing_body(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+        "projects:span-v2-attachment-processing",
+    ]
+    project_config["config"]["piiConfig"] = {
+        "rules": {"0": {"type": "ip", "redaction": {"method": "remove"}}},
+        "applications": {"$attachments.'log.txt'": ["0"]},
+    }
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    span_id = "eee19b7ec3c1b174"
+    trace_id = "5b8efff798038103d269b633813fc60c"
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "is_segment": True,
+            "name": "test span",
+            "status": "ok",
+        },
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    metadata = {
+        "attachment_id": str(uuid.uuid4()),
+        "timestamp": ts.timestamp(),
+        "filename": "log.txt",
+        "content_type": "text/plain",
+    }
+    body = b"before 127.0.0.1 after"
+    metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+    combined_payload = metadata_bytes + body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(metadata_bytes),
+                "span_id": span_id,
+                "length": len(combined_payload),
+            },
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+    forwarded = mini_sentry.get_captured_event()
+
+    attachment = next(i for i in forwarded.items if i.type == "attachment")
+    meta_length = attachment.headers.get("meta_length")
+    payload = attachment.payload.bytes
+    body_part = payload[meta_length:]
+
+    assert body_part == b"before ********* after"
+
+
+def test_attachment_pii_selector_on_attachment_meta_data(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+        "projects:span-v2-attachment-processing",
+    ]
+
+    # TODO: Decide if this is the most sensible selector
+    project_config["config"]["piiConfig"] = {
+        "applications": {"$attachments.**": ["@ip:replace"]},
+    }
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    span_id = "eee19b7ec3c1b174"
+    trace_id = "5b8efff798038103d269b633813fc60c"
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "is_segment": True,
+            "name": "test span",
+            "status": "ok",
+        },
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    metadata = {
+        "attachment_id": str(uuid.uuid4()),
+        "timestamp": ts.timestamp(),
+        "filename": "data.txt",
+        "content_type": "text/plain",
+        "attributes": {
+            "test_pii": {"type": "string", "value": "127.0.0.1"},
+        },
+    }
+    body = b"Some content"
+    metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+    combined_payload = metadata_bytes + body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(metadata_bytes),
+                "span_id": span_id,
+                "length": len(combined_payload),
+            },
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+    forwarded = mini_sentry.get_captured_event()
+
+    attachment = next(i for i in forwarded.items if i.type == "attachment")
+    meta_length = attachment.headers.get("meta_length")
+    payload = attachment.payload.bytes
+    metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
+
+    assert metadata_part == {
+        "attachment_id": mock.ANY,
+        "timestamp": time_within_delta(ts),
+        "filename": "data.txt",
+        "content_type": "text/plain",
+        "attributes": {"test_pii": {"type": "string", "value": "[ip]"}},
+        "_meta": {
+            "attributes": {
+                "test_pii": {
+                    "value": {"": {"rem": [["@ip:replace", "s", 0, 4]], "len": 9}}
+                }
+            }
+        },
+    }
