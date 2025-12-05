@@ -14,6 +14,7 @@ opt-level = 1
 # debugging.
 inherits = "dev"
 debug = true
+opt-level = 0
 
 [profile.release]
 # In release, however, we do want full debug information to report
