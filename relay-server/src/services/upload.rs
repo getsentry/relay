@@ -39,6 +39,17 @@ impl Upload {
             Upload::Attachment(_) => "attachment_v2",
         }
     }
+
+    fn attachment_count(&self) -> usize {
+        match self {
+            Self::Envelope(StoreEnvelope { envelope }) => envelope
+                .envelope()
+                .items()
+                .filter(|item| *item.ty() == ItemType::Attachment)
+                .count(),
+            Self::Attachment(_) => 1,
+        }
+    }
 }
 
 impl Interface for Upload {}
@@ -157,22 +168,23 @@ impl UploadService {
 
     fn handle_message(&self, message: Upload) {
         if self.pending_requests.len() >= self.max_concurrent_requests {
-            // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
-            // We might want to have a less aggressive mechanism in the future.
             relay_statsd::metric!(
-                counter(RelayCounters::AttachmentUpload) += 1,
+                counter(RelayCounters::AttachmentUpload) += message.attachment_count(),
                 result = "load_shed",
                 type = message.ty(),
             );
             match message {
                 Upload::Envelope(envelope) => {
                     // Event attachments can still go the old route.
+
                     self.inner.store.send(envelope);
                 }
                 Upload::Attachment(managed) => {
+                    // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
+                    // TODO: After the experimental phase, implement backpressure instead.
                     let _ = managed.reject_err(Error::LoadShed);
                 }
-            }
+            };
             return;
         }
         let inner = self.inner.clone();
