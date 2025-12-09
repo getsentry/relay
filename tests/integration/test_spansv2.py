@@ -8,6 +8,7 @@ from .asserts import time_within_delta, time_within, time_is
 
 from .test_dynamic_sampling import add_sampling_config
 
+import uuid
 import json
 import pytest
 
@@ -265,6 +266,106 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
     ]
 
     assert mini_sentry.captured_envelopes.empty()
+    assert mini_sentry.captured_outcomes.empty()
+
+
+@pytest.mark.parametrize("rate_limit", [DataCategory.SPAN, DataCategory.SPAN_INDEXED])
+def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
+    """
+    The test asserts that dynamic sampling correctly drops items, based on different rule types
+    and makes sure the correct outcomes and metrics are emitted.
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+
+    ts = datetime.now(timezone.utc)
+
+    project_config["config"]["quotas"] = [
+        {
+            "categories": [rate_limit.name.lower()],
+            "limit": 0,
+            "window": int(ts.timestamp()),
+            "id": uuid.uuid4(),
+            "reasonCode": "rate_limit_exceeded",
+        }
+    ]
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "is_segment": True,
+            "name": "some op",
+            "status": "ok",
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        *(
+            [
+                {
+                    "category": 12,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 2,
+                    "project_id": 42,
+                    "quantity": 1,
+                    "reason": "rate_limit_exceeded",
+                }
+            ]
+            if rate_limit == DataCategory.SPAN
+            else []
+        ),
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "rate_limit_exceeded",
+        },
+    ]
+
+    if rate_limit == DataCategory.SPAN_INDEXED:
+        assert mini_sentry.get_metrics() == [
+            {
+                "metadata": mock.ANY,
+                "name": "c:spans/count_per_root_project@none",
+                "tags": {
+                    "decision": "keep",
+                    "target_project_id": "42",
+                },
+                "timestamp": time_within_delta(),
+                "type": "c",
+                "value": 1.0,
+                "width": 1,
+            },
+            {
+                "metadata": mock.ANY,
+                "name": "c:spans/usage@none",
+                "timestamp": time_within_delta(),
+                "type": "c",
+                "value": 1.0,
+                "width": 1,
+            },
+        ]
+
+    assert mini_sentry.captured_events.empty()
     assert mini_sentry.captured_outcomes.empty()
 
 
