@@ -1067,100 +1067,109 @@
 <a href=#1067 id=1067 data-nosnippet>1067</a>    SpanId(<span class="prelude-ty">Option</span>&lt;SpanId&gt;),
 <a href=#1068 id=1068 data-nosnippet>1068</a>}
 <a href=#1069 id=1069 data-nosnippet>1069</a>
-<a href=#1070 id=1070 data-nosnippet>1070</a><span class="attr">#[cfg(test)]
-<a href=#1071 id=1071 data-nosnippet>1071</a></span><span class="kw">mod </span>tests {
-<a href=#1072 id=1072 data-nosnippet>1072</a>    <span class="kw">use </span><span class="kw">crate</span>::integrations::OtelFormat;
-<a href=#1073 id=1073 data-nosnippet>1073</a>
-<a href=#1074 id=1074 data-nosnippet>1074</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#1075 id=1075 data-nosnippet>1075</a>
-<a href=#1076 id=1076 data-nosnippet>1076</a>    <span class="attr">#[test]
-<a href=#1077 id=1077 data-nosnippet>1077</a>    </span><span class="kw">fn </span>test_item_empty() {
-<a href=#1078 id=1078 data-nosnippet>1078</a>        <span class="kw">let </span>item = Item::new(ItemType::Attachment);
-<a href=#1079 id=1079 data-nosnippet>1079</a>
-<a href=#1080 id=1080 data-nosnippet>1080</a>        <span class="macro">assert_eq!</span>(item.payload(), Bytes::new());
-<a href=#1081 id=1081 data-nosnippet>1081</a>        <span class="macro">assert_eq!</span>(item.len(), <span class="number">0</span>);
-<a href=#1082 id=1082 data-nosnippet>1082</a>        <span class="macro">assert!</span>(item.is_empty());
-<a href=#1083 id=1083 data-nosnippet>1083</a>
-<a href=#1084 id=1084 data-nosnippet>1084</a>        <span class="macro">assert_eq!</span>(item.content_type(), <span class="prelude-val">None</span>);
-<a href=#1085 id=1085 data-nosnippet>1085</a>    }
-<a href=#1086 id=1086 data-nosnippet>1086</a>
-<a href=#1087 id=1087 data-nosnippet>1087</a>    <span class="attr">#[test]
-<a href=#1088 id=1088 data-nosnippet>1088</a>    </span><span class="kw">fn </span>test_item_set_payload() {
-<a href=#1089 id=1089 data-nosnippet>1089</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
-<a href=#1090 id=1090 data-nosnippet>1090</a>
-<a href=#1091 id=1091 data-nosnippet>1091</a>        <span class="kw">let </span>payload = Bytes::from(<span class="kw-2">&amp;</span><span class="string">br#"{"event_id":"3adcb99a1be84a5d8057f2eb9a0161ce"}"#</span>[..]);
-<a href=#1092 id=1092 data-nosnippet>1092</a>        item.set_payload(ContentType::Json, payload.clone());
-<a href=#1093 id=1093 data-nosnippet>1093</a>
-<a href=#1094 id=1094 data-nosnippet>1094</a>        <span class="comment">// Payload
-<a href=#1095 id=1095 data-nosnippet>1095</a>        </span><span class="macro">assert_eq!</span>(item.payload(), payload);
-<a href=#1096 id=1096 data-nosnippet>1096</a>        <span class="macro">assert_eq!</span>(item.len(), payload.len());
-<a href=#1097 id=1097 data-nosnippet>1097</a>        <span class="macro">assert!</span>(!item.is_empty());
-<a href=#1098 id=1098 data-nosnippet>1098</a>
-<a href=#1099 id=1099 data-nosnippet>1099</a>        <span class="comment">// Meta data
-<a href=#1100 id=1100 data-nosnippet>1100</a>        </span><span class="macro">assert_eq!</span>(item.content_type(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ContentType::Json));
-<a href=#1101 id=1101 data-nosnippet>1101</a>    }
+<a href=#1070 id=1070 data-nosnippet>1070</a><span class="kw">impl </span>ParentId {
+<a href=#1071 id=1071 data-nosnippet>1071</a>    <span class="doccomment">/// Converts the ID to a span ID (if applicable).
+<a href=#1072 id=1072 data-nosnippet>1072</a>    </span><span class="kw">pub fn </span>as_span_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;SpanId&gt; {
+<a href=#1073 id=1073 data-nosnippet>1073</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1074 id=1074 data-nosnippet>1074</a>            ParentId::SpanId(span_id) =&gt; <span class="kw-2">*</span>span_id,
+<a href=#1075 id=1075 data-nosnippet>1075</a>        }
+<a href=#1076 id=1076 data-nosnippet>1076</a>    }
+<a href=#1077 id=1077 data-nosnippet>1077</a>}
+<a href=#1078 id=1078 data-nosnippet>1078</a>
+<a href=#1079 id=1079 data-nosnippet>1079</a><span class="attr">#[cfg(test)]
+<a href=#1080 id=1080 data-nosnippet>1080</a></span><span class="kw">mod </span>tests {
+<a href=#1081 id=1081 data-nosnippet>1081</a>    <span class="kw">use </span><span class="kw">crate</span>::integrations::OtelFormat;
+<a href=#1082 id=1082 data-nosnippet>1082</a>
+<a href=#1083 id=1083 data-nosnippet>1083</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#1084 id=1084 data-nosnippet>1084</a>
+<a href=#1085 id=1085 data-nosnippet>1085</a>    <span class="attr">#[test]
+<a href=#1086 id=1086 data-nosnippet>1086</a>    </span><span class="kw">fn </span>test_item_empty() {
+<a href=#1087 id=1087 data-nosnippet>1087</a>        <span class="kw">let </span>item = Item::new(ItemType::Attachment);
+<a href=#1088 id=1088 data-nosnippet>1088</a>
+<a href=#1089 id=1089 data-nosnippet>1089</a>        <span class="macro">assert_eq!</span>(item.payload(), Bytes::new());
+<a href=#1090 id=1090 data-nosnippet>1090</a>        <span class="macro">assert_eq!</span>(item.len(), <span class="number">0</span>);
+<a href=#1091 id=1091 data-nosnippet>1091</a>        <span class="macro">assert!</span>(item.is_empty());
+<a href=#1092 id=1092 data-nosnippet>1092</a>
+<a href=#1093 id=1093 data-nosnippet>1093</a>        <span class="macro">assert_eq!</span>(item.content_type(), <span class="prelude-val">None</span>);
+<a href=#1094 id=1094 data-nosnippet>1094</a>    }
+<a href=#1095 id=1095 data-nosnippet>1095</a>
+<a href=#1096 id=1096 data-nosnippet>1096</a>    <span class="attr">#[test]
+<a href=#1097 id=1097 data-nosnippet>1097</a>    </span><span class="kw">fn </span>test_item_set_payload() {
+<a href=#1098 id=1098 data-nosnippet>1098</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
+<a href=#1099 id=1099 data-nosnippet>1099</a>
+<a href=#1100 id=1100 data-nosnippet>1100</a>        <span class="kw">let </span>payload = Bytes::from(<span class="kw-2">&amp;</span><span class="string">br#"{"event_id":"3adcb99a1be84a5d8057f2eb9a0161ce"}"#</span>[..]);
+<a href=#1101 id=1101 data-nosnippet>1101</a>        item.set_payload(ContentType::Json, payload.clone());
 <a href=#1102 id=1102 data-nosnippet>1102</a>
-<a href=#1103 id=1103 data-nosnippet>1103</a>    <span class="attr">#[test]
-<a href=#1104 id=1104 data-nosnippet>1104</a>    </span><span class="kw">fn </span>test_item_set_header() {
-<a href=#1105 id=1105 data-nosnippet>1105</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
-<a href=#1106 id=1106 data-nosnippet>1106</a>        item.set_header(<span class="string">"custom"</span>, <span class="number">42u64</span>);
+<a href=#1103 id=1103 data-nosnippet>1103</a>        <span class="comment">// Payload
+<a href=#1104 id=1104 data-nosnippet>1104</a>        </span><span class="macro">assert_eq!</span>(item.payload(), payload);
+<a href=#1105 id=1105 data-nosnippet>1105</a>        <span class="macro">assert_eq!</span>(item.len(), payload.len());
+<a href=#1106 id=1106 data-nosnippet>1106</a>        <span class="macro">assert!</span>(!item.is_empty());
 <a href=#1107 id=1107 data-nosnippet>1107</a>
-<a href=#1108 id=1108 data-nosnippet>1108</a>        <span class="macro">assert_eq!</span>(item.get_header(<span class="string">"custom"</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::from(<span class="number">42u64</span>)));
-<a href=#1109 id=1109 data-nosnippet>1109</a>        <span class="macro">assert_eq!</span>(item.get_header(<span class="string">"anything"</span>), <span class="prelude-val">None</span>);
+<a href=#1108 id=1108 data-nosnippet>1108</a>        <span class="comment">// Meta data
+<a href=#1109 id=1109 data-nosnippet>1109</a>        </span><span class="macro">assert_eq!</span>(item.content_type(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ContentType::Json));
 <a href=#1110 id=1110 data-nosnippet>1110</a>    }
 <a href=#1111 id=1111 data-nosnippet>1111</a>
 <a href=#1112 id=1112 data-nosnippet>1112</a>    <span class="attr">#[test]
-<a href=#1113 id=1113 data-nosnippet>1113</a>    #[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#1114 id=1114 data-nosnippet>1114</a>    </span><span class="kw">fn </span>test_item_set_routing_hint() {
-<a href=#1115 id=1115 data-nosnippet>1115</a>        <span class="kw">let </span>uuid = Uuid::parse_str(<span class="string">"8a4ab00f-fba2-4f7b-a164-b58199d55c95"</span>).unwrap();
+<a href=#1113 id=1113 data-nosnippet>1113</a>    </span><span class="kw">fn </span>test_item_set_header() {
+<a href=#1114 id=1114 data-nosnippet>1114</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
+<a href=#1115 id=1115 data-nosnippet>1115</a>        item.set_header(<span class="string">"custom"</span>, <span class="number">42u64</span>);
 <a href=#1116 id=1116 data-nosnippet>1116</a>
-<a href=#1117 id=1117 data-nosnippet>1117</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
-<a href=#1118 id=1118 data-nosnippet>1118</a>        item.set_routing_hint(uuid);
-<a href=#1119 id=1119 data-nosnippet>1119</a>
-<a href=#1120 id=1120 data-nosnippet>1120</a>        <span class="macro">assert_eq!</span>(item.routing_hint(), <span class="prelude-val">Some</span>(uuid));
-<a href=#1121 id=1121 data-nosnippet>1121</a>    }
-<a href=#1122 id=1122 data-nosnippet>1122</a>
-<a href=#1123 id=1123 data-nosnippet>1123</a>    <span class="attr">#[test]
-<a href=#1124 id=1124 data-nosnippet>1124</a>    </span><span class="kw">fn </span>test_item_source_quantities() {
-<a href=#1125 id=1125 data-nosnippet>1125</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
-<a href=#1126 id=1126 data-nosnippet>1126</a>        <span class="macro">assert!</span>(item.source_quantities().is_none());
-<a href=#1127 id=1127 data-nosnippet>1127</a>
-<a href=#1128 id=1128 data-nosnippet>1128</a>        <span class="kw">let </span>source_quantities = SourceQuantities {
-<a href=#1129 id=1129 data-nosnippet>1129</a>            transactions: <span class="number">12</span>,
-<a href=#1130 id=1130 data-nosnippet>1130</a>            ..Default::default()
-<a href=#1131 id=1131 data-nosnippet>1131</a>        };
-<a href=#1132 id=1132 data-nosnippet>1132</a>        item.set_source_quantities(source_quantities);
-<a href=#1133 id=1133 data-nosnippet>1133</a>
-<a href=#1134 id=1134 data-nosnippet>1134</a>        <span class="macro">assert_eq!</span>(item.source_quantities(), <span class="prelude-val">Some</span>(source_quantities));
-<a href=#1135 id=1135 data-nosnippet>1135</a>    }
+<a href=#1117 id=1117 data-nosnippet>1117</a>        <span class="macro">assert_eq!</span>(item.get_header(<span class="string">"custom"</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::from(<span class="number">42u64</span>)));
+<a href=#1118 id=1118 data-nosnippet>1118</a>        <span class="macro">assert_eq!</span>(item.get_header(<span class="string">"anything"</span>), <span class="prelude-val">None</span>);
+<a href=#1119 id=1119 data-nosnippet>1119</a>    }
+<a href=#1120 id=1120 data-nosnippet>1120</a>
+<a href=#1121 id=1121 data-nosnippet>1121</a>    <span class="attr">#[test]
+<a href=#1122 id=1122 data-nosnippet>1122</a>    #[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#1123 id=1123 data-nosnippet>1123</a>    </span><span class="kw">fn </span>test_item_set_routing_hint() {
+<a href=#1124 id=1124 data-nosnippet>1124</a>        <span class="kw">let </span>uuid = Uuid::parse_str(<span class="string">"8a4ab00f-fba2-4f7b-a164-b58199d55c95"</span>).unwrap();
+<a href=#1125 id=1125 data-nosnippet>1125</a>
+<a href=#1126 id=1126 data-nosnippet>1126</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
+<a href=#1127 id=1127 data-nosnippet>1127</a>        item.set_routing_hint(uuid);
+<a href=#1128 id=1128 data-nosnippet>1128</a>
+<a href=#1129 id=1129 data-nosnippet>1129</a>        <span class="macro">assert_eq!</span>(item.routing_hint(), <span class="prelude-val">Some</span>(uuid));
+<a href=#1130 id=1130 data-nosnippet>1130</a>    }
+<a href=#1131 id=1131 data-nosnippet>1131</a>
+<a href=#1132 id=1132 data-nosnippet>1132</a>    <span class="attr">#[test]
+<a href=#1133 id=1133 data-nosnippet>1133</a>    </span><span class="kw">fn </span>test_item_source_quantities() {
+<a href=#1134 id=1134 data-nosnippet>1134</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
+<a href=#1135 id=1135 data-nosnippet>1135</a>        <span class="macro">assert!</span>(item.source_quantities().is_none());
 <a href=#1136 id=1136 data-nosnippet>1136</a>
-<a href=#1137 id=1137 data-nosnippet>1137</a>    <span class="attr">#[test]
-<a href=#1138 id=1138 data-nosnippet>1138</a>    </span><span class="kw">fn </span>test_internal_content_type_does_parse() {
-<a href=#1139 id=1139 data-nosnippet>1139</a>        <span class="kw">let </span>(item, <span class="kw">_</span>) = Item::parse(Bytes::from_static(<span class="macro">concat!</span>(
-<a href=#1140 id=1140 data-nosnippet>1140</a>            <span class="string">r#"{"type":"attachment","content_type":"application/vnd.sentry.integration.otel.logs+json","length":5}"#</span>,
-<a href=#1141 id=1141 data-nosnippet>1141</a>            <span class="string">"\n"</span>,
-<a href=#1142 id=1142 data-nosnippet>1142</a>            <span class="string">"12345"
-<a href=#1143 id=1143 data-nosnippet>1143</a>        </span>).as_bytes()))
-<a href=#1144 id=1144 data-nosnippet>1144</a>        .unwrap();
+<a href=#1137 id=1137 data-nosnippet>1137</a>        <span class="kw">let </span>source_quantities = SourceQuantities {
+<a href=#1138 id=1138 data-nosnippet>1138</a>            transactions: <span class="number">12</span>,
+<a href=#1139 id=1139 data-nosnippet>1139</a>            ..Default::default()
+<a href=#1140 id=1140 data-nosnippet>1140</a>        };
+<a href=#1141 id=1141 data-nosnippet>1141</a>        item.set_source_quantities(source_quantities);
+<a href=#1142 id=1142 data-nosnippet>1142</a>
+<a href=#1143 id=1143 data-nosnippet>1143</a>        <span class="macro">assert_eq!</span>(item.source_quantities(), <span class="prelude-val">Some</span>(source_quantities));
+<a href=#1144 id=1144 data-nosnippet>1144</a>    }
 <a href=#1145 id=1145 data-nosnippet>1145</a>
-<a href=#1146 id=1146 data-nosnippet>1146</a>        <span class="macro">assert_eq!</span>(
-<a href=#1147 id=1147 data-nosnippet>1147</a>            item.content_type(),
-<a href=#1148 id=1148 data-nosnippet>1148</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ContentType::Integration(Integration::Logs(
-<a href=#1149 id=1149 data-nosnippet>1149</a>                LogsIntegration::OtelV1 {
-<a href=#1150 id=1150 data-nosnippet>1150</a>                    format: OtelFormat::Json
-<a href=#1151 id=1151 data-nosnippet>1151</a>                }
-<a href=#1152 id=1152 data-nosnippet>1152</a>            )))
-<a href=#1153 id=1153 data-nosnippet>1153</a>        );
-<a href=#1154 id=1154 data-nosnippet>1154</a>        <span class="macro">assert_eq!</span>(item.integration(), <span class="prelude-val">None</span>);
-<a href=#1155 id=1155 data-nosnippet>1155</a>    }
-<a href=#1156 id=1156 data-nosnippet>1156</a>
-<a href=#1157 id=1157 data-nosnippet>1157</a>    <span class="attr">#[test]
-<a href=#1158 id=1158 data-nosnippet>1158</a>    </span><span class="kw">fn </span>test_item_type_names() {
-<a href=#1159 id=1159 data-nosnippet>1159</a>        <span class="macro">assert_eq!</span>(ItemType::Span.name(), <span class="string">"span"</span>);
-<a href=#1160 id=1160 data-nosnippet>1160</a>        <span class="macro">assert_eq!</span>(ItemType::Unknown(<span class="string">"test"</span>.to_owned()).name(), <span class="string">"unknown"</span>);
-<a href=#1161 id=1161 data-nosnippet>1161</a>        <span class="macro">assert_eq!</span>(ItemType::Span.as_str(), <span class="string">"span"</span>);
-<a href=#1162 id=1162 data-nosnippet>1162</a>        <span class="macro">assert_eq!</span>(ItemType::Unknown(<span class="string">"test"</span>.to_owned()).as_str(), <span class="string">"test"</span>);
-<a href=#1163 id=1163 data-nosnippet>1163</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>ItemType::Span.to_string(), <span class="string">"span"</span>);
-<a href=#1164 id=1164 data-nosnippet>1164</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>ItemType::Unknown(<span class="string">"test"</span>.to_owned()).to_string(), <span class="string">"test"</span>);
-<a href=#1165 id=1165 data-nosnippet>1165</a>    }
-<a href=#1166 id=1166 data-nosnippet>1166</a>}</code></pre></div></section></main></body></html>
+<a href=#1146 id=1146 data-nosnippet>1146</a>    <span class="attr">#[test]
+<a href=#1147 id=1147 data-nosnippet>1147</a>    </span><span class="kw">fn </span>test_internal_content_type_does_parse() {
+<a href=#1148 id=1148 data-nosnippet>1148</a>        <span class="kw">let </span>(item, <span class="kw">_</span>) = Item::parse(Bytes::from_static(<span class="macro">concat!</span>(
+<a href=#1149 id=1149 data-nosnippet>1149</a>            <span class="string">r#"{"type":"attachment","content_type":"application/vnd.sentry.integration.otel.logs+json","length":5}"#</span>,
+<a href=#1150 id=1150 data-nosnippet>1150</a>            <span class="string">"\n"</span>,
+<a href=#1151 id=1151 data-nosnippet>1151</a>            <span class="string">"12345"
+<a href=#1152 id=1152 data-nosnippet>1152</a>        </span>).as_bytes()))
+<a href=#1153 id=1153 data-nosnippet>1153</a>        .unwrap();
+<a href=#1154 id=1154 data-nosnippet>1154</a>
+<a href=#1155 id=1155 data-nosnippet>1155</a>        <span class="macro">assert_eq!</span>(
+<a href=#1156 id=1156 data-nosnippet>1156</a>            item.content_type(),
+<a href=#1157 id=1157 data-nosnippet>1157</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ContentType::Integration(Integration::Logs(
+<a href=#1158 id=1158 data-nosnippet>1158</a>                LogsIntegration::OtelV1 {
+<a href=#1159 id=1159 data-nosnippet>1159</a>                    format: OtelFormat::Json
+<a href=#1160 id=1160 data-nosnippet>1160</a>                }
+<a href=#1161 id=1161 data-nosnippet>1161</a>            )))
+<a href=#1162 id=1162 data-nosnippet>1162</a>        );
+<a href=#1163 id=1163 data-nosnippet>1163</a>        <span class="macro">assert_eq!</span>(item.integration(), <span class="prelude-val">None</span>);
+<a href=#1164 id=1164 data-nosnippet>1164</a>    }
+<a href=#1165 id=1165 data-nosnippet>1165</a>
+<a href=#1166 id=1166 data-nosnippet>1166</a>    <span class="attr">#[test]
+<a href=#1167 id=1167 data-nosnippet>1167</a>    </span><span class="kw">fn </span>test_item_type_names() {
+<a href=#1168 id=1168 data-nosnippet>1168</a>        <span class="macro">assert_eq!</span>(ItemType::Span.name(), <span class="string">"span"</span>);
+<a href=#1169 id=1169 data-nosnippet>1169</a>        <span class="macro">assert_eq!</span>(ItemType::Unknown(<span class="string">"test"</span>.to_owned()).name(), <span class="string">"unknown"</span>);
+<a href=#1170 id=1170 data-nosnippet>1170</a>        <span class="macro">assert_eq!</span>(ItemType::Span.as_str(), <span class="string">"span"</span>);
+<a href=#1171 id=1171 data-nosnippet>1171</a>        <span class="macro">assert_eq!</span>(ItemType::Unknown(<span class="string">"test"</span>.to_owned()).as_str(), <span class="string">"test"</span>);
+<a href=#1172 id=1172 data-nosnippet>1172</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>ItemType::Span.to_string(), <span class="string">"span"</span>);
+<a href=#1173 id=1173 data-nosnippet>1173</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>ItemType::Unknown(<span class="string">"test"</span>.to_owned()).to_string(), <span class="string">"test"</span>);
+<a href=#1174 id=1174 data-nosnippet>1174</a>    }
+<a href=#1175 id=1175 data-nosnippet>1175</a>}</code></pre></div></section></main></body></html>
