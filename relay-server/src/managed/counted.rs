@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use itertools::Either;
 use relay_event_schema::protocol::{
     OurLog, SessionAggregateItem, SessionAggregates, SessionUpdate, Span, SpanV2, TraceMetric,
 };
@@ -36,6 +37,19 @@ impl<T: Counted> Counted for Option<T> {
         match self {
             Some(inner) => inner.quantities(),
             None => Quantities::new(),
+        }
+    }
+}
+
+impl<L, R> Counted for Either<L, R>
+where
+    L: Counted,
+    R: Counted,
+{
+    fn quantities(&self) -> Quantities {
+        match self {
+            Either::Left(value) => value.quantities(),
+            Either::Right(value) => value.quantities(),
         }
     }
 }
