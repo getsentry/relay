@@ -2,6 +2,7 @@ import pytest
 import uuid
 import json
 
+from unittest import mock
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -154,10 +155,10 @@ def test_attachments_with_objectstore(
     objectstore = objectstore("attachments", project_id)
     assert objectstore.get(objectstore_key).payload.read() == chunked_contents
 
-    assert attachment["attachment"].pop("id")
     assert attachment == {
         "type": "attachment",
         "attachment": {
+            "id": mock.ANY,
             "name": "foo.txt",
             "rate_limited": False,
             "attachment_type": "event.attachment",
@@ -171,11 +172,10 @@ def test_attachments_with_objectstore(
 
     # An empty attachment
     attachment = attachments_consumer.get_individual_attachment()
-    assert attachment["attachment"].pop("id")
-
     assert attachment == {
         "type": "attachment",
         "attachment": {
+            "id": mock.ANY,
             "name": "foobar.txt",
             "rate_limited": False,
             "attachment_type": "event.attachment",
