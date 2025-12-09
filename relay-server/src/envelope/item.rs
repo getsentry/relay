@@ -461,9 +461,19 @@ impl Item {
     }
 
     /// Returns `true` if this item is an attachment with AttachmentV2 content type.
-    pub fn is_attachment_v2(&self) -> bool {
+    fn is_attachment_v2(&self) -> bool {
         self.ty() == &ItemType::Attachment
             && self.content_type() == Some(&ContentType::AttachmentV2)
+    }
+
+    /// Returns `true` if this item is a V2 attachment without any span/log/etc. association.
+    pub fn is_span_attachment(&self) -> bool {
+        self.is_attachment_v2() && matches!(self.parent_id(), Some(ParentId::SpanId(_)))
+    }
+
+    /// Returns `true` if this item is a V2 attachment without any span/log/etc. association.
+    pub fn is_trace_attachment(&self) -> bool {
+        self.is_attachment_v2() && self.parent_id().is_none()
     }
 
     /// Returns the attachment payload size.

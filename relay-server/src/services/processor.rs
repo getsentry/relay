@@ -284,17 +284,19 @@ impl ProcessingGroup {
 
         let span_v2_items = envelope.take_items_by(|item| {
             let exp_feature = project_info.has_feature(Feature::SpanV2ExperimentalProcessing);
-            let is_supported_integration = matches!(
-                item.integration(),
-                Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
-            );
-            let is_span = matches!(item.ty(), &ItemType::Span);
-            let is_span_attachment = item.is_attachment_v2();
+            let is_supported_integration = || {
+                matches!(
+                    item.integration(),
+                    Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
+                )
+            };
+            let is_span = || matches!(item.ty(), &ItemType::Span);
+            let is_span_attachment = || item.is_span_attachment();
 
             ItemContainer::<SpanV2>::is_container(item)
-                || (exp_feature && is_span)
-                || (exp_feature && is_supported_integration)
-                || (exp_feature && is_span_attachment)
+                || (exp_feature && is_span())
+                || (exp_feature && is_supported_integration())
+                || (exp_feature && is_span_attachment())
         });
 
         if !span_v2_items.is_empty() {

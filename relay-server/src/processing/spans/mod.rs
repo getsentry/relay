@@ -136,7 +136,7 @@ impl processing::Processor for SpansProcessor {
 
         let attachments = envelope
             .envelope_mut()
-            .take_items_by(|item| item.is_attachment_v2())
+            .take_items_by(|item| item.is_span_attachment())
             .to_vec();
 
         let work = SerializedSpans {
