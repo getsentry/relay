@@ -908,10 +908,13 @@ impl StoreService {
             key_id,
             received: safe_timestamp(received_at),
             retention_days,
-            headers: BTreeMap::from([(
-                "sampled".to_owned(),
-                if item.sampled() { "true" } else { "false" }.to_owned(),
-            )]),
+            headers: BTreeMap::from([
+                (
+                    "sampled".to_owned(),
+                    if item.sampled() { "true" } else { "false" }.to_owned(),
+                ),
+                ("project_id".to_owned(), project_id.to_string()),
+            ]),
             payload: item.payload(),
         };
         self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
@@ -1159,6 +1162,7 @@ impl StoreService {
             project_id,
             received: safe_timestamp(received_at),
             retention_days,
+            headers: BTreeMap::from([("project_id".to_owned(), project_id.to_string())]),
             payload: item.payload(),
         };
         self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))?;
