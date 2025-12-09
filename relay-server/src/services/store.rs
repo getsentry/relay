@@ -1596,14 +1596,14 @@ impl Message for KafkaMessage<'_> {
             | KafkaMessage::SpanRaw { headers, .. }
             | KafkaMessage::SpanV2 { headers, .. }
             | KafkaMessage::Item { headers, .. }
-            | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) => Some(headers),
+            | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. })
+            | KafkaMessage::ProfileChunk(ProfileChunkKafkaMessage { headers, .. })=> Some(headers),
 
             KafkaMessage::Event(_)
             | KafkaMessage::UserReport(_)
             | KafkaMessage::CheckIn(_)
             | KafkaMessage::Attachment(_)
             | KafkaMessage::AttachmentChunk(_)
-            | KafkaMessage::ProfileChunk(_)
             | KafkaMessage::ReplayEvent(_)
             | KafkaMessage::ReplayRecordingNotChunked(_) => None,
         }
