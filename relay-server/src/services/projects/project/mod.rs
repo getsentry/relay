@@ -44,9 +44,11 @@ impl ProjectState {
     }
 
     /// Runs a post-deserialization step to normalize the project config (e.g. legacy fields).
-    pub fn sanitized(self) -> Self {
+    pub fn sanitized(self, is_processing: bool) -> Self {
         match self {
-            Self::Enabled(state) => Self::Enabled(Arc::new(state.as_ref().clone().sanitized())),
+            Self::Enabled(state) => {
+                Self::Enabled(Arc::new(state.as_ref().clone().sanitized(is_processing)))
+            }
             Self::Disabled => Self::Disabled,
             Self::Pending => Self::Pending,
         }

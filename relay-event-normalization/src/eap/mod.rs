@@ -20,8 +20,10 @@ use crate::span::tag_extraction::{sql_action_from_query, sql_tables_from_query};
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
+mod size;
 
 pub use self::ai::normalize_ai;
+pub use self::size::*;
 
 /// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
 pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {

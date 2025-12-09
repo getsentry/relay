@@ -100,8 +100,8 @@ pub struct ProjectConfig {
 
 impl ProjectConfig {
     /// Validates fields in this project config and removes values that are partially invalid.
-    pub fn sanitize(&mut self) {
-        self.remove_invalid_quotas();
+    pub fn sanitize(&mut self, report_errors: bool) {
+        self.remove_invalid_quotas(report_errors);
 
         metrics::convert_conditional_tagging(self);
         defaults::add_span_metrics(self);
@@ -113,33 +113,34 @@ impl ProjectConfig {
         for flag in GRADUATED_FEATURE_FLAGS {
             self.features.0.insert(*flag);
         }
-
-        // Check if indexed and non-indexed are double-counting towards the same ID.
-        // This is probably not intended behavior.
-        for quota in &self.quotas {
-            if let Some(id) = quota.id.as_deref() {
-                for category in &*quota.categories {
-                    if let Some(indexed) = category.index_category()
-                        && quota.categories.contains(&indexed)
-                    {
-                        relay_log::error!(
-                            tags.id = id,
-                            "Categories {category} and {indexed} share the same quota ID. This will double-count items.",
-                        );
-                    }
-                }
-            }
-        }
     }
 
-    fn remove_invalid_quotas(&mut self) {
+    fn remove_invalid_quotas(&mut self, report_errors: bool) {
         let invalid_quotas: Vec<_> = self.quotas.extract_if(.., |q| !q.is_valid()).collect();
-        if !invalid_quotas.is_empty() {
-            {
-                relay_log::error!(
-                    invalid_quotas = ?invalid_quotas,
-                    "Found an invalid quota definition",
-                );
+        if report_errors {
+            if !invalid_quotas.is_empty() {
+                {
+                    relay_log::warn!(
+                        invalid_quotas = ?invalid_quotas,
+                        "Found an invalid quota definition",
+                    );
+                }
+            }
+            // Check if indexed and non-indexed are double-counting towards the same ID.
+            // This is probably not intended behavior.
+            for quota in &self.quotas {
+                if let Some(id) = quota.id.as_deref() {
+                    for category in &*quota.categories {
+                        if let Some(indexed) = category.index_category()
+                            && quota.categories.contains(&indexed)
+                        {
+                            relay_log::error!(
+                                tags.id = id,
+                                "Categories {category} and {indexed} share the same quota ID. This will double-count items.",
+                            );
+                        }
+                    }
+                }
             }
         }
     }
@@ -286,7 +287,7 @@ mod tests {
     fn graduated_feature_flag_gets_inserted() {
         let mut project_config = ProjectConfig::default();
         assert!(!project_config.features.has(Feature::UserReportV2Ingest));
-        project_config.sanitize();
+        project_config.sanitize(false);
         assert!(project_config.features.has(Feature::UserReportV2Ingest));
     }
 }

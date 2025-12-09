@@ -49,7 +49,7 @@ mod traces {
     }
 
     pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-        post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
+        post(handle).route_layer(DefaultBodyLimit::max(config.max_spans_integration_size()))
     }
 }
 
@@ -78,6 +78,6 @@ mod logs {
     }
 
     pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-        post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
+        post(handle).route_layer(DefaultBodyLimit::max(config.max_logs_integration_size()))
     }
 }

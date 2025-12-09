@@ -13,8 +13,7 @@ use crate::events::EventType;
 pub struct UnknownDataCategory(pub u8);
 
 /// Classifies the type of data that is being ingested.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(i8)]
 pub enum DataCategory {
     /// Reserved and unused.
@@ -230,14 +229,12 @@ pub enum DataCategory {
     // Rerun this step every time the **code name** of the variant is updated.
     //
     /// Any other data category not known by this Relay.
-    #[serde(other)]
     Unknown = -1,
 }
 
 impl DataCategory {
     /// Returns the data category corresponding to the given name.
     pub fn from_name(string: &str) -> Self {
-        // TODO: This should probably use serde.
         match string {
             "default" => Self::Default,
             "error" => Self::Error,
@@ -281,7 +278,6 @@ impl DataCategory {
 
     /// Returns the canonical name of this data category.
     pub fn name(self) -> &'static str {
-        // TODO: This should probably use serde.
         match self {
             Self::Default => "default",
             Self::Error => "error",
@@ -355,6 +351,8 @@ impl DataCategory {
     }
 }
 
+relay_common::impl_str_serde!(DataCategory, "a data category");
+
 impl fmt::Display for DataCategory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
@@ -362,7 +360,7 @@ impl fmt::Display for DataCategory {
 }
 
 impl FromStr for DataCategory {
-    type Err = ();
+    type Err = std::convert::Infallible;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         Ok(Self::from_name(string))
@@ -427,16 +425,230 @@ impl TryFrom<u8> for DataCategory {
     }
 }
 
+/// The unit in which a data category is measured.
+///
+/// This enum specifies how quantities for different data categories are measured,
+/// which affects how quota limits are interpreted and enforced.
+///
+/// Note: There is no `Unknown` variant. For categories without a defined unit
+/// (e.g., `DataCategory::Unknown`), methods return `Option::None`.
+//
+// IMPORTANT: After adding a new entry to CategoryUnit, go to the `relay-cabi` subfolder and run
+// `make header` to regenerate the C-binding. This allows using the category unit from Python.
+//
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[repr(i8)]
+pub enum CategoryUnit {
+    /// Counts the number of discrete items.
+    Count = 0,
+    /// Counts the number of bytes across items.
+    Bytes = 1,
+    /// Counts the accumulated time in milliseconds across items.
+    Milliseconds = 2,
+}
+
+impl CategoryUnit {
+    /// Returns the canonical name of this category unit.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Count => "count",
+            Self::Bytes => "bytes",
+            Self::Milliseconds => "milliseconds",
+        }
+    }
+
+    /// Returns the category unit corresponding to the given name string.
+    ///
+    /// Returns `None` if the string doesn't match any known unit.
+    pub fn from_name(string: &str) -> Option<Self> {
+        match string {
+            "count" => Some(Self::Count),
+            "bytes" => Some(Self::Bytes),
+            "milliseconds" => Some(Self::Milliseconds),
+            _ => None,
+        }
+    }
+
+    /// Returns the `CategoryUnit` for the given `DataCategory`.
+    ///
+    /// Returns `None` for `DataCategory::Unknown`.
+    ///
+    /// Note: Takes a reference to avoid unnecessary copying and allow direct use with iterators.
+    pub fn from_category(category: &DataCategory) -> Option<Self> {
+        match category {
+            DataCategory::Default
+            | DataCategory::Error
+            | DataCategory::Transaction
+            | DataCategory::Replay
+            | DataCategory::DoNotUseReplayVideo
+            | DataCategory::Security
+            | DataCategory::Profile
+            | DataCategory::ProfileIndexed
+            | DataCategory::TransactionProcessed
+            | DataCategory::TransactionIndexed
+            | DataCategory::LogItem
+            | DataCategory::Span
+            | DataCategory::SpanIndexed
+            | DataCategory::MonitorSeat
+            | DataCategory::Monitor
+            | DataCategory::MetricBucket
+            | DataCategory::UserReportV2
+            | DataCategory::ProfileChunk
+            | DataCategory::ProfileChunkUi
+            | DataCategory::Uptime
+            | DataCategory::MetricSecond
+            | DataCategory::AttachmentItem
+            | DataCategory::SeerAutofix
+            | DataCategory::SeerScanner
+            | DataCategory::PreventUser
+            | DataCategory::PreventReview
+            | DataCategory::Session
+            | DataCategory::SizeAnalysis
+            | DataCategory::InstallableBuild
+            | DataCategory::TraceMetric
+            | DataCategory::SeerUser => Some(Self::Count),
+
+            DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
+
+            DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
+                Some(Self::Milliseconds)
+            }
+
+            DataCategory::Unknown => None,
+        }
+    }
+}
+
+impl fmt::Display for CategoryUnit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+impl FromStr for CategoryUnit {
+    type Err = ();
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Self::from_name(string).ok_or(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    pub fn test_last_variant_conversion() {
+    fn test_last_variant_conversion() {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
         assert_eq!(DataCategory::try_from(34), Ok(DataCategory::SeerUser));
         assert_eq!(DataCategory::try_from(35), Err(UnknownDataCategory(35)));
+    }
+
+    #[test]
+    fn test_data_category_alias() {
+        assert_eq!("feedback".parse(), Ok(DataCategory::UserReportV2));
+        assert_eq!("user_report_v2".parse(), Ok(DataCategory::UserReportV2));
+        assert_eq!(&DataCategory::UserReportV2.to_string(), "feedback");
+
+        assert_eq!(
+            serde_json::from_str::<DataCategory>(r#""feedback""#).unwrap(),
+            DataCategory::UserReportV2,
+        );
+        assert_eq!(
+            serde_json::from_str::<DataCategory>(r#""user_report_v2""#).unwrap(),
+            DataCategory::UserReportV2,
+        );
+        assert_eq!(
+            &serde_json::to_string(&DataCategory::UserReportV2).unwrap(),
+            r#""feedback""#
+        )
+    }
+
+    #[test]
+    fn test_category_unit_name() {
+        assert_eq!(CategoryUnit::Count.name(), "count");
+        assert_eq!(CategoryUnit::Bytes.name(), "bytes");
+        assert_eq!(CategoryUnit::Milliseconds.name(), "milliseconds");
+    }
+
+    #[test]
+    fn test_category_unit_from_name() {
+        assert_eq!(CategoryUnit::from_name("count"), Some(CategoryUnit::Count));
+        assert_eq!(CategoryUnit::from_name("bytes"), Some(CategoryUnit::Bytes));
+        assert_eq!(
+            CategoryUnit::from_name("milliseconds"),
+            Some(CategoryUnit::Milliseconds)
+        );
+        assert_eq!(CategoryUnit::from_name("unknown"), None);
+        assert_eq!(CategoryUnit::from_name(""), None);
+    }
+
+    #[test]
+    fn test_category_unit_from_category() {
+        // Count categories
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::Error),
+            Some(CategoryUnit::Count)
+        );
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::Transaction),
+            Some(CategoryUnit::Count)
+        );
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::Span),
+            Some(CategoryUnit::Count)
+        );
+
+        // Bytes categories
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::Attachment),
+            Some(CategoryUnit::Bytes)
+        );
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::LogByte),
+            Some(CategoryUnit::Bytes)
+        );
+
+        // Milliseconds categories
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::ProfileDuration),
+            Some(CategoryUnit::Milliseconds)
+        );
+        assert_eq!(
+            CategoryUnit::from_category(&DataCategory::ProfileDurationUi),
+            Some(CategoryUnit::Milliseconds)
+        );
+
+        // Unknown returns None
+        assert_eq!(CategoryUnit::from_category(&DataCategory::Unknown), None);
+    }
+
+    #[test]
+    fn test_category_unit_display() {
+        assert_eq!(format!("{}", CategoryUnit::Count), "count");
+        assert_eq!(format!("{}", CategoryUnit::Bytes), "bytes");
+        assert_eq!(format!("{}", CategoryUnit::Milliseconds), "milliseconds");
+    }
+
+    #[test]
+    fn test_category_unit_from_str() {
+        assert_eq!("count".parse::<CategoryUnit>(), Ok(CategoryUnit::Count));
+        assert_eq!("bytes".parse::<CategoryUnit>(), Ok(CategoryUnit::Bytes));
+        assert_eq!(
+            "milliseconds".parse::<CategoryUnit>(),
+            Ok(CategoryUnit::Milliseconds)
+        );
+        assert!("invalid".parse::<CategoryUnit>().is_err());
+    }
+
+    #[test]
+    fn test_category_unit_repr_values() {
+        // Verify the repr(i8) values are correct for FFI
+        assert_eq!(CategoryUnit::Count as i8, 0);
+        assert_eq!(CategoryUnit::Bytes as i8, 1);
+        assert_eq!(CategoryUnit::Milliseconds as i8, 2);
     }
 }

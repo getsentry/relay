@@ -3,7 +3,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from unittest import mock
 
-from .asserts import time_within_delta, time_within
+from .asserts import time_within_delta, time_is
 from .test_spansv2 import envelope_with_spans
 
 from .test_dynamic_sampling import _add_sampling_config
@@ -73,7 +73,7 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
     envelope.add_item(attachment_item)
     relay.send_envelope(project_id, envelope)
 
-    forwarded_envelope = mini_sentry.captured_events.get(timeout=1)
+    forwarded_envelope = mini_sentry.get_captured_event()
     attachment_item = forwarded_envelope.items[0]
     assert attachment_item.type == "attachment"
 
@@ -129,7 +129,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
     envelope.add_item(Item(payload=PayloadRef(bytes=combined_payload), headers=headers))
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.get_outcomes(n=2, timeout=1) == [
+    assert mini_sentry.get_outcomes(n=2) == [
         {
             "category": DataCategory.ATTACHMENT.value,
             "org_id": 1,
@@ -204,7 +204,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.captured_events.get(timeout=5)
+    forwarded = mini_sentry.get_captured_event()
 
     span_item = next(i for i in forwarded.items if i.type == "span")
     spans = json.loads(span_item.payload.bytes.decode())["items"]
@@ -215,8 +215,8 @@ def test_attachment_with_matching_span(mini_sentry, relay):
             "name": "test span",
             "status": "ok",
             "is_segment": True,
-            "start_timestamp": time_within(ts),
-            "end_timestamp": time_within(ts.timestamp() + 0.5),
+            "start_timestamp": time_is(ts),
+            "end_timestamp": time_is(ts.timestamp() + 0.5),
             "attributes": mock.ANY,
         }
     ]
@@ -293,7 +293,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.captured_events.get(timeout=5)
+    forwarded = mini_sentry.get_captured_event()
 
     span_item = next(i for i in forwarded.items if i.type == "span")
     spans = json.loads(span_item.payload.bytes.decode())["items"]
@@ -304,8 +304,8 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
             "name": "test span",
             "status": "ok",
             "is_segment": True,
-            "start_timestamp": time_within(ts),
-            "end_timestamp": time_within(ts.timestamp() + 0.5),
+            "start_timestamp": time_is(ts),
+            "end_timestamp": time_is(ts.timestamp() + 0.5),
             "attributes": mock.ANY,
         }
     ]
@@ -383,7 +383,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
 
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.get_outcomes(n=3, timeout=3) == [
+    assert mini_sentry.get_outcomes(n=3) == [
         {
             "timestamp": time_within_delta(),
             "org_id": 1,
@@ -502,7 +502,7 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope, headers=headers)
-    assert mini_sentry.get_outcomes(n=4, timeout=3) == [
+    assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
             "org_id": 1,
@@ -595,7 +595,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    assert mini_sentry.get_outcomes(n=4, timeout=3) == [
+    assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
             "org_id": 1,
@@ -791,7 +791,7 @@ def test_span_attachment_independent_rate_limiting(
 
     relay.send_envelope(project_id, envelope)
 
-    outcomes = mini_sentry.get_outcomes(n=len(expected_outcomes), timeout=3)
+    outcomes = mini_sentry.get_outcomes(n=len(expected_outcomes))
     outcome_counter = {}
     for outcome in outcomes:
         key = (outcome["category"], outcome["outcome"])
