@@ -1651,6 +1651,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                         "http.request.header.cookie.xsrf_token": "foobar",
                         "http.request.header.cookie.fastcsrf": "foobar",
                         "http.request.header.cookie._iris_csrf": "foobar",
+                        "http.request.header.cookie.dark-mode": "foobar",
                 },
                     "type": "trace"
                   }
@@ -1680,6 +1681,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                     "http.request.header.cookie.xsrf_token": "foobar",
                     "http.request.header.cookie.fastcsrf": "foobar",
                     "http.request.header.cookie._iris_csrf": "foobar",
+                    "http.request.header.cookie.dark-mode": "foobar",
                 },
               }]
             })
@@ -1720,6 +1722,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 "http.request.header.cookie.xsrf_token": {"value": "foobar"},
                 "http.request.header.cookie.fastcsrf": {"value": "foobar"},
                 "http.request.header.cookie._iris_csrf": {"value": "foobar"},
+                "http.request.header.cookie.dark-mode": {"value": "foobar"},
               }
             })
             .into(),

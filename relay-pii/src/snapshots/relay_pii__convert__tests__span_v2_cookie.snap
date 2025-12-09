@@ -28,6 +28,9 @@ expression: data
     "http.request.header.cookie.csrf_token": {
       "value": "[Filtered]"
     },
+    "http.request.header.cookie.dark-mode": {
+      "value": "foobar"
+    },
     "http.request.header.cookie.fastcsrf": {
       "value": "[Filtered]"
     },
