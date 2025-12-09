@@ -4,7 +4,7 @@ from unittest import mock
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta
+from .asserts import time_within_delta, only_items
 
 
 TEST_CONFIG = {
@@ -262,4 +262,56 @@ def test_trace_metric_pii_scrubbing(
             "project_id": 42,
             "quantity": 1,
         }
+    ]
+
+
+def test_trace_metric_size_limits(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+
+    relay = relay(
+        mini_sentry, options={"limits": {"max_trace_metric_size": 600}, **TEST_CONFIG}
+    )
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {},
+        },
+        # Specifically crafted that attributes + name + value breach the limit
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "a" * 200,
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "b" * 300: {"value": "c" * 100, "type": "string"},
+            },
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_captured_event() == only_items("trace_metric")
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 33,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:trace_metric",
+        },
     ]

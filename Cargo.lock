@@ -2977,9 +2977,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-client"
-version = "0.0.11"
+version = "0.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b8042b686597a4697640ac3c5d8541d8510afae1be5fedb12efded9f7e2ca2d"
+checksum = "260ccf94ed55dc83c0a5b470a4d9404d9f15e4b975d6c6e734e89296eef75b59"
 dependencies = [
  "async-compression",
  "bytes",
@@ -2997,9 +2997,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-types"
-version = "0.0.11"
+version = "0.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13e8ef8ad5b9ba35f5f63c2d60bd98d4656ac1d693916667cce6e56409242b9c"
+checksum = "da8b79e6156554da409ff350f06dea1b5ea0b1f863ca753fe9222a74e917592b"
 dependencies = [
  "http",
  "humantime",
@@ -4210,6 +4210,7 @@ dependencies = [
  "opentelemetry-proto",
  "relay-common",
  "relay-conventions",
+ "relay-event-normalization",
  "relay-event-schema",
  "relay-otel",
  "relay-protocol",
@@ -4337,6 +4338,7 @@ dependencies = [
 name = "relay-quotas"
 version = "25.11.1"
 dependencies = [
+ "ahash",
  "async-trait",
  "hashbrown",
  "insta",

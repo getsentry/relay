@@ -252,6 +252,7 @@ class Sentry(SentryLike):
                 ).get("outcomes")
                 timeout = 0.1  # only wait the first time
                 for outcome in outcomes:
+                    del outcome["timestamp"]
                     quantity = outcome.pop("quantity")
                     aggregated[tuple(sorted(outcome.items()))] += quantity
         except Empty:
