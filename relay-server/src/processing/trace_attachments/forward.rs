@@ -44,7 +44,7 @@ impl Forward for Managed<ExpandedAttachments> {
         for attachment in self.split(|work| work.attachments) {
             match store::convert(attachment, retention, server_sample_rate) {
                 Ok(message) => s.upload(message),
-                Err(e) => drop(e),
+                Err(_) => {} // already rejected
             }
         }
         Ok(())

@@ -4,7 +4,7 @@ use crate::envelope::{EnvelopeHeaders, Item, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::Processor;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
-use crate::services::outcome::{DiscardReason, Outcome, RuleCategories};
+use crate::services::outcome::{DiscardReason, Outcome};
 
 use super::{Context, Output};
 
@@ -24,7 +24,7 @@ pub enum Error {
     SerializeFailed(#[from] serde_json::Error),
 
     #[error("dropped by server-side sampling")]
-    Sampled(RuleCategories),
+    Sampled(Outcome),
 }
 
 impl OutcomeError for Error {
@@ -34,7 +34,7 @@ impl OutcomeError for Error {
         let outcome = match &self {
             Error::FeatureDisabled(f) => Outcome::Invalid(DiscardReason::FeatureDisabled(*f)),
             Error::SerializeFailed(_) => Outcome::Invalid(DiscardReason::Internal),
-            Error::Sampled(rule_categories) => Outcome::FilteredSampling(rule_categories.clone()),
+            Error::Sampled(outcome) => outcome.clone(),
         };
         (Some(outcome), self)
     }
@@ -73,11 +73,9 @@ impl Processor for TraceAttachmentsProcessor {
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let work = filter::feature_flag(work, ctx)?;
 
-        let work = process::sample(work, ctx)?;
+        let work = process::sample(work, ctx).await?;
 
         let work = process::expand(work);
-
-        // TODO: DS
 
         // TODO: rate limit
 
@@ -102,7 +100,7 @@ impl Counted for SerializedAttachments {
 
 /// Unprocessed attachments, after dynamic sampling.
 #[derive(Debug)]
-struct SampledAttachments {
+pub struct SampledAttachments {
     headers: EnvelopeHeaders,
     server_sample_rate: Option<f64>,
     items: Items,

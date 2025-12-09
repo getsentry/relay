@@ -8,7 +8,7 @@ use relay_quotas::{
     Scoping,
 };
 
-use crate::envelope::{Envelope, Item, ItemType, ParentId};
+use crate::envelope::{Envelope, Item, ItemType};
 use crate::integrations::Integration;
 use crate::managed::ManagedEnvelope;
 use crate::services::outcome::Outcome;

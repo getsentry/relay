@@ -1,12 +1,11 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use bytes::Bytes;
 use relay_event_normalization::{
     GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
 };
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{Span, SpanId, SpanV2, TraceAttachmentMeta};
+use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};

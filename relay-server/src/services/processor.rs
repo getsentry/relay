@@ -1537,7 +1537,7 @@ impl EnvelopeProcessorService {
                 }
                 processing::utils::dynamic_sampling::run(
                     managed_envelope.envelope().headers().dsc(),
-                    &event,
+                    event.value(),
                     &ctx,
                     Some(&reservoir),
                 )

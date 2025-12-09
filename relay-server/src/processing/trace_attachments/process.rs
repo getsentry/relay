@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use relay_dynamic_config::ErrorBoundary;
 use relay_protocol::Annotated;
 
 use crate::envelope::Item;
@@ -9,6 +8,7 @@ use crate::processing::trace_attachments::types::ExpandedAttachment;
 use crate::processing::trace_attachments::{
     Error, ExpandedAttachments, SampledAttachments, SerializedAttachments,
 };
+use crate::processing::utils::dynamic_sampling;
 use crate::services::outcome::{DiscardReason, Outcome};
 
 /// Parses serialized attachments into attachments with expanded metadata.
@@ -68,24 +68,25 @@ pub fn parse_and_validate(item: &Item) -> Result<ExpandedAttachment, DiscardReas
     })
 }
 
-pub fn sample(
+/// Runs dynamic-sampling on the attachments.
+pub async fn sample(
     work: Managed<SerializedAttachments>,
     ctx: Context<'_>,
 ) -> Result<Managed<SampledAttachments>, Rejected<Error>> {
-    work.try_map(|work, record_keeper| {
+    let event = None; // only apply trace-based rules.
+    let reservoir = None; // legacy
+
+    let result = dynamic_sampling::run(work.headers.dsc(), event, &ctx, reservoir).await;
+    let server_sample_rate = result.sample_rate();
+
+    work.try_map(|work, _| {
+        if let Some(outcome) = result.into_dropped_outcome() {
+            return Err(Error::Sampled(outcome));
+        }
+
         let SerializedAttachments { headers, items } = work;
-        let Some(ErrorBoundary::Ok(config)) = &ctx.project_info.config.sampling else {
-            return Ok::<_, Error>(SampledAttachments {
-                headers,
-                server_sample_rate: None,
-                items,
-            });
-        };
 
-        // FIXME: do like spans does.
-
-        let server_sample_rate = Some(1.0); //FIXME
-        Ok(SampledAttachments {
+        Ok::<_, Error>(SampledAttachments {
             headers,
             server_sample_rate,
             items,

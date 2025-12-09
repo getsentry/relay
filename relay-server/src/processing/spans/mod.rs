@@ -1,18 +1,15 @@
 use std::sync::Arc;
 
-use bytes::Bytes;
 use either::Either;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{SpanV2, TraceAttachmentMeta};
+use relay_event_schema::protocol::SpanV2;
 use relay_pii::PiiConfigError;
-use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{
-    ContainerWriteError, ContentType, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
-    ParentId, WithHeader,
+    ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items, WithHeader,
 };
 use crate::integrations::Integration;
 use crate::managed::{

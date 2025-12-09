@@ -6,7 +6,6 @@ use relay_protocol::{Annotated, IntoValue, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 
-use crate::envelope::ParentId;
 use crate::managed::{Managed, Rejected};
 use crate::processing::Retention;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
