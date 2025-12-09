@@ -4,7 +4,7 @@ use bytes::Bytes;
 use either::Either;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{AttachmentV2Meta, SpanV2};
+use relay_event_schema::protocol::{SpanV2, TraceAttachmentMeta};
 use relay_pii::PiiConfigError;
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
@@ -18,6 +18,8 @@ use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
+use crate::processing::trace_attachments::forward::attachment_to_item;
+use crate::processing::trace_attachments::types::ExpandedAttachment;
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter, RateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -251,7 +253,9 @@ impl Forward for SpanOutput {
                     }
                 }
                 Either::Right(attachment) => {
-                    if let Ok(attachment) = store::attachment::convert(
+                    use crate::processing::trace_attachments;
+
+                    if let Ok(attachment) = trace_attachments::store::convert(
                         attachment,
                         ctx.retention,
                         ctx.server_sample_rate,
@@ -403,29 +407,6 @@ impl<C> ExpandedSpans<C> {
             attachment_item: attachment_count,
         }
     }
-}
-
-fn attachment_to_item(attachment: ExpandedAttachment) -> Result<Item, ContainerWriteError> {
-    let ExpandedAttachment {
-        parent_id,
-        meta,
-        body,
-    } = attachment;
-
-    let meta_json = meta.to_json()?;
-    let meta_bytes = meta_json.into_bytes();
-    let meta_length = meta_bytes.len();
-
-    let mut payload = bytes::BytesMut::with_capacity(meta_length + body.len());
-    payload.extend_from_slice(&meta_bytes);
-    payload.extend_from_slice(&body);
-
-    let mut item = Item::new(ItemType::Attachment);
-    item.set_payload(ContentType::AttachmentV2, payload.freeze());
-    item.set_meta_length(meta_length as u32);
-    item.set_parent_id(parent_id);
-
-    Ok(item)
 }
 
 impl ExpandedSpans<TotalAndIndexed> {
@@ -635,28 +616,6 @@ struct IndexedSpanOnly(WithHeader<SpanV2>);
 impl Counted for IndexedSpanOnly {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
-    }
-}
-
-/// A validated and parsed span attachment.
-#[derive(Debug)]
-pub struct ExpandedAttachment {
-    /// The ID of the log / span / metric that owns the span.
-    pub parent_id: ParentId,
-
-    /// The parsed metadata from the attachment.
-    pub meta: Annotated<AttachmentV2Meta>,
-
-    /// The raw attachment body.
-    pub body: Bytes,
-}
-
-impl Counted for ExpandedAttachment {
-    fn quantities(&self) -> Quantities {
-        smallvec::smallvec![
-            (DataCategory::Attachment, self.body.len()),
-            (DataCategory::AttachmentItem, 1)
-        ]
     }
 }
 

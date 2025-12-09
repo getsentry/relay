@@ -1,41 +1,53 @@
 use relay_dynamic_config::Feature;
 
 use crate::envelope::{EnvelopeHeaders, Item, Items};
-use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Rejected};
+use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::Processor;
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::processing::trace_attachments::types::ExpandedAttachment;
+use crate::services::outcome::{DiscardReason, Outcome, RuleCategories};
 
 use super::{Context, Output};
 
 mod filter;
-mod forward;
-mod process;
+pub mod forward;
+pub mod process;
+pub mod store;
+pub mod types;
 
-/// Processor for trace attachments (attachment V2 without span association).
-#[derive(Debug)]
-pub struct TraceAttachmentsProcessor;
-
+/// Any error that can occur during trace attachment processing.
 #[derive(Debug, thiserror::Error)]
-enum Error {
+pub enum Error {
     #[error("feature disabled")]
     FeatureDisabled(Feature),
+
+    #[error("failed to serialize")]
+    SerializeFailed(#[from] serde_json::Error),
+
+    #[error("dropped by server-side sampling")]
+    Sampled(RuleCategories),
 }
 
 impl OutcomeError for Error {
     type Error = Self;
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
-        let outcome = match self {
-            Error::FeatureDisabled(f) => Outcome::Invalid(DiscardReason::FeatureDisabled(f)),
+        let outcome = match &self {
+            Error::FeatureDisabled(f) => Outcome::Invalid(DiscardReason::FeatureDisabled(*f)),
+            Error::SerializeFailed(_) => Outcome::Invalid(DiscardReason::Internal),
+            Error::Sampled(rule_categories) => Outcome::FilteredSampling(rule_categories.clone()),
         };
         (Some(outcome), self)
     }
 }
 
-impl Processor for TraceAttachmentsProcessor {
-    type UnitOfWork = Attachments;
+/// Processor for trace attachments (attachment V2 without span association).
+#[derive(Debug)]
+pub struct TraceAttachmentsProcessor;
 
-    type Output = Managed<Attachments>;
+impl Processor for TraceAttachmentsProcessor {
+    type UnitOfWork = SerializedAttachments;
+
+    type Output = Managed<ExpandedAttachments>;
 
     type Error = Error;
 
@@ -49,7 +61,7 @@ impl Processor for TraceAttachmentsProcessor {
             .take_items_by(Item::is_trace_attachment);
 
         (!items.is_empty()).then(|| {
-            let work = Attachments { headers, items };
+            let work = SerializedAttachments { headers, items };
             Managed::from_envelope(envelope, work)
         })
     }
@@ -61,6 +73,10 @@ impl Processor for TraceAttachmentsProcessor {
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let work = filter::feature_flag(work, ctx)?;
 
+        let work = process::sample(work, ctx)?;
+
+        let work = process::expand(work);
+
         // TODO: DS
 
         // TODO: rate limit
@@ -70,15 +86,54 @@ impl Processor for TraceAttachmentsProcessor {
     }
 }
 
+/// The attachments coming out of an envelope.
 #[derive(Debug)]
-struct Attachments {
+pub struct SerializedAttachments {
     headers: EnvelopeHeaders,
     items: Items,
 }
 
-impl Counted for Attachments {
-    fn quantities(&self) -> crate::managed::Quantities {
-        let Self { headers, items } = self;
+impl Counted for SerializedAttachments {
+    fn quantities(&self) -> Quantities {
+        let Self { headers: _, items } = self;
         items.quantities()
+    }
+}
+
+/// Unprocessed attachments, after dynamic sampling.
+#[derive(Debug)]
+struct SampledAttachments {
+    headers: EnvelopeHeaders,
+    server_sample_rate: Option<f64>,
+    items: Items,
+}
+
+impl Counted for SampledAttachments {
+    fn quantities(&self) -> Quantities {
+        let Self {
+            headers: _,
+            server_sample_rate: _,
+            items: attachments,
+        } = self;
+        attachments.quantities()
+    }
+}
+
+/// Processed attachments.
+#[derive(Debug)]
+pub struct ExpandedAttachments {
+    headers: EnvelopeHeaders,
+    server_sample_rate: Option<f64>,
+    attachments: Vec<ExpandedAttachment>,
+}
+
+impl Counted for ExpandedAttachments {
+    fn quantities(&self) -> Quantities {
+        let Self {
+            headers: _,
+            server_sample_rate: _,
+            attachments,
+        } = self;
+        attachments.quantities()
     }
 }

@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-use relay_event_schema::protocol::{AttachmentV2Meta, Attributes, SpanId};
+use relay_event_schema::protocol::{Attributes, SpanId, TraceAttachmentMeta};
 use relay_protocol::{Annotated, IntoValue, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 
+use crate::envelope::ParentId;
 use crate::managed::{Managed, Rejected};
 use crate::processing::Retention;
-use crate::processing::spans::{ExpandedAttachment, Result};
+use crate::processing::trace_attachments::types::ExpandedAttachment;
 use crate::processing::utils::store::{
     AttributeMeta, extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
 };
@@ -30,7 +31,7 @@ pub fn convert(
             body,
         } = attachment;
         let ctx = Context {
-            span_id: parent_id.as_span_id(),
+            span_id: parent_id.and_then(|p| p.as_span_id()),
             received_at,
             scoping,
             retention,
@@ -58,10 +59,13 @@ struct Context {
     span_id: Option<SpanId>,
 }
 
-fn attachment_to_trace_item(meta: Annotated<AttachmentV2Meta>, ctx: Context) -> Option<TraceItem> {
+fn attachment_to_trace_item(
+    meta: Annotated<TraceAttachmentMeta>,
+    ctx: Context,
+) -> Option<TraceItem> {
     let meta = meta.into_value()?;
     let annotated_meta = extract_meta_attributes(&meta, &meta.attributes);
-    let AttachmentV2Meta {
+    let TraceAttachmentMeta {
         trace_id,
         attachment_id,
         timestamp,

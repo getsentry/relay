@@ -456,8 +456,8 @@ impl Item {
     }
 
     /// Sets the parent entity that this item is associated with.
-    pub fn set_parent_id(&mut self, parent_id: ParentId) {
-        self.headers.parent_id = Some(parent_id);
+    pub fn set_parent_id(&mut self, parent_id: Option<ParentId>) {
+        self.headers.parent_id = parent_id;
     }
 
     /// Returns `true` if this item is an attachment with AttachmentV2 content type.

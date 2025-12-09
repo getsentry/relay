@@ -6,15 +6,15 @@ use relay_event_normalization::{
     GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
 };
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{AttachmentV2Meta, Span, SpanId, SpanV2};
+use relay_event_schema::protocol::{Span, SpanId, SpanV2, TraceAttachmentMeta};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
 use crate::managed::Managed;
-use crate::processing::Context;
 use crate::processing::spans::{
     self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SampledSpans,
 };
+use crate::processing::{Context, trace_attachments};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized spans.
@@ -121,34 +121,10 @@ fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, Ex
         }
     };
 
-    let meta_length = item.meta_length().ok_or_else(|| {
-        relay_log::debug!("span attachment missing meta_length");
-        Error::Invalid(DiscardReason::InvalidSpanAttachment)
-    })? as usize;
+    let expanded_attachment =
+        trace_attachments::process::parse_and_validate(item).map_err(Error::Invalid)?;
 
-    let payload = item.payload();
-    let Some((meta_bytes, body)) = payload.split_at_checked(meta_length) else {
-        relay_log::debug!(
-            "span attachment meta_length ({}) exceeds total length ({})",
-            meta_length,
-            payload.len()
-        );
-        return Err(Error::Invalid(DiscardReason::InvalidSpanAttachment));
-    };
-
-    let meta = Annotated::<AttachmentV2Meta>::from_json_bytes(meta_bytes).map_err(|err| {
-        relay_log::debug!("failed to parse span attachment: {err}");
-        Error::Invalid(DiscardReason::InvalidJson)
-    })?;
-
-    Ok((
-        associated_span_id,
-        ExpandedAttachment {
-            parent_id: ParentId::SpanId(associated_span_id),
-            meta,
-            body: Bytes::copy_from_slice(body),
-        },
-    ))
+    Ok((associated_span_id, expanded_attachment))
 }
 
 /// Normalizes individual spans.

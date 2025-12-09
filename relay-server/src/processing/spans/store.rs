@@ -9,8 +9,6 @@ use crate::processing::spans::{Error, IndexedSpanOnly, Result};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreSpanV2;
 
-pub mod attachment;
-
 macro_rules! required {
     ($value:expr) => {{
         match $value {
