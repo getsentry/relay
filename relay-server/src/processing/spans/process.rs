@@ -282,21 +282,13 @@ fn scrub_attachment(attachment: &mut ExpandedAttachment, ctx: Context<'_>) -> Re
     let ExpandedAttachment { meta, body } = attachment;
 
     relay_pii::eap::scrub(
-        ValueType::Attachments, // TODO: How do we event want to allow people to filter here?
+        ValueType::Attachments,
         meta,
         ctx.project_info.config.pii_config.as_ref(),
         pii_config_from_scrubbing.as_ref(),
     )?;
 
-    if let Some(config) = ctx.project_info.config.pii_config.as_ref()
-        // FIXME: Not a fan of this at all, the fact that the UI is misleading around this does not help IMO.
-        //  Also also kind of weird since you can add a bogus rule to get around this (or even add a rule by accident to get around this).
-        // From attachments.rs:
-        // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
-        // such as `$attachments.'foo.txt'`.
-        // After we have assessed the impact on performance we can relax this condition.
-        && utils::attachments::has_simple_attachment_selector(config)
-    {
+    if let Some(config) = ctx.project_info.config.pii_config.as_ref() {
         let filename = meta
             .value()
             .and_then(|m| m.filename.as_str())
