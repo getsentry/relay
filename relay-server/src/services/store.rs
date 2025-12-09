@@ -1483,6 +1483,8 @@ struct ProfileChunkKafkaMessage {
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
+    #[serde(skip)]
+    headers: BTreeMap<String, String>,
     payload: Bytes,
 }
 
@@ -1597,7 +1599,7 @@ impl Message for KafkaMessage<'_> {
             | KafkaMessage::SpanV2 { headers, .. }
             | KafkaMessage::Item { headers, .. }
             | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. })
-            | KafkaMessage::ProfileChunk(ProfileChunkKafkaMessage { headers, .. })=> Some(headers),
+            | KafkaMessage::ProfileChunk(ProfileChunkKafkaMessage { headers, .. }) => Some(headers),
 
             KafkaMessage::Event(_)
             | KafkaMessage::UserReport(_)
