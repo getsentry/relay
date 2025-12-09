@@ -6,7 +6,29 @@ expression: data
   "contexts": {
     "trace": {
       "data": {
-        "http.request.header.cookie": "[Filtered]"
+        "http.request.header.cookie": "[Filtered]",
+        "http.request.header.cookie.__session": "foobar",
+        "http.request.header.cookie._csrf": "foobar",
+        "http.request.header.cookie._iris_csrf": "foobar",
+        "http.request.header.cookie._xsrf": "foobar",
+        "http.request.header.cookie.csrf": "foobar",
+        "http.request.header.cookie.csrf-token": "[Filtered]",
+        "http.request.header.cookie.csrf_token": "[Filtered]",
+        "http.request.header.cookie.fastcsrf": "foobar",
+        "http.request.header.cookie.fasthttpsessionid": "foobar",
+        "http.request.header.cookie.irissessionid": "foobar",
+        "http.request.header.cookie.mysession": "foobar",
+        "http.request.header.cookie.phpsessid": "foobar",
+        "http.request.header.cookie.sentrysid": "foobar",
+        "http.request.header.cookie.session": "foobar",
+        "http.request.header.cookie.sessionid": "foobar",
+        "http.request.header.cookie.su": "foobar",
+        "http.request.header.cookie.sudo": "foobar",
+        "http.request.header.cookie.symfony": "foobar",
+        "http.request.header.cookie.user_session": "foobar",
+        "http.request.header.cookie.xsrf": "foobar",
+        "http.request.header.cookie.xsrf-token": "[Filtered]",
+        "http.request.header.cookie.xsrf_token": "[Filtered]"
       },
       "type": "trace"
     }
@@ -14,7 +36,29 @@ expression: data
   "spans": [
     {
       "data": {
-        "http.request.header.cookie": "[Filtered]"
+        "http.request.header.cookie": "[Filtered]",
+        "http.request.header.cookie.__session": "foobar",
+        "http.request.header.cookie._csrf": "foobar",
+        "http.request.header.cookie._iris_csrf": "foobar",
+        "http.request.header.cookie._xsrf": "foobar",
+        "http.request.header.cookie.csrf": "foobar",
+        "http.request.header.cookie.csrf-token": "[Filtered]",
+        "http.request.header.cookie.csrf_token": "[Filtered]",
+        "http.request.header.cookie.fastcsrf": "foobar",
+        "http.request.header.cookie.fasthttpsessionid": "foobar",
+        "http.request.header.cookie.irissessionid": "foobar",
+        "http.request.header.cookie.mysession": "foobar",
+        "http.request.header.cookie.phpsessid": "foobar",
+        "http.request.header.cookie.sentrysid": "foobar",
+        "http.request.header.cookie.session": "foobar",
+        "http.request.header.cookie.sessionid": "foobar",
+        "http.request.header.cookie.su": "foobar",
+        "http.request.header.cookie.sudo": "foobar",
+        "http.request.header.cookie.symfony": "foobar",
+        "http.request.header.cookie.user_session": "foobar",
+        "http.request.header.cookie.xsrf": "foobar",
+        "http.request.header.cookie.xsrf-token": "[Filtered]",
+        "http.request.header.cookie.xsrf_token": "[Filtered]"
       }
     }
   ],
@@ -26,13 +70,65 @@ expression: data
             "": {
               "rem": [
                 [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 14
+            }
+          },
+          "http.request.header.cookie.csrf-token": {
+            "": {
+              "rem": [
+                [
                   "@password:filter",
                   "s",
                   0,
                   10
                 ]
               ],
-              "len": 20
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.csrf_token": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.xsrf-token": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.xsrf_token": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
             }
           }
         }
@@ -45,13 +141,65 @@ expression: data
             "": {
               "rem": [
                 [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 14
+            }
+          },
+          "http.request.header.cookie.csrf-token": {
+            "": {
+              "rem": [
+                [
                   "@password:filter",
                   "s",
                   0,
                   10
                 ]
               ],
-              "len": 20
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.csrf_token": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.xsrf-token": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.xsrf_token": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
             }
           }
         }
