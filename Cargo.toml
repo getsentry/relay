@@ -7,12 +7,14 @@ resolver = "2"
 # Debug information slows down the build and increases caches in the
 # target folder, but we don't require stack traces in most cases.
 debug = false
+opt-level = 1
 
 [profile.dev-debug]
 # A version of the dev profile with debug information enabled, for e.g. local
 # debugging.
 inherits = "dev"
 debug = true
+opt-level = 0
 
 [profile.release]
 # In release, however, we do want full debug information to report
@@ -133,7 +135,7 @@ json-forensics = "0.1.1"
 libc = "0.2.177"
 liblzma = "0.4.5"
 lru = "0.16.1"
-maxminddb = "0.26.0"
+maxminddb = "0.27.0"
 md5 = "0.8.0"
 memchr = "2.7.6"
 mimalloc = { version = "0.1.48", features = ["v3"] }
@@ -142,7 +144,7 @@ minidump = "0.26.0"
 multer = "3.1.0"
 num-traits = "0.2.19"
 num_cpus = "1.17.0"
-objectstore-client = "0.0.11"
+objectstore-client = "0.0.14"
 opentelemetry-semantic-conventions = { version = "0.31.0" }
 opentelemetry-proto = { version = "0.30.0", default-features = false }
 papaya = "0.2.3"
@@ -180,9 +182,11 @@ sentry = { version = "0.41.0", default-features = false, features = [
 ] }
 sentry-core = "0.41.0"
 sentry-kafka-schemas = { version = "2.1.14", default-features = false }
-sentry-release-parser = { version = "1.4.0", default-features = false, features = ["semver-1"] }
+sentry-release-parser = { version = "1.4.0", default-features = false, features = [
+  "semver-1",
+] }
 sentry-types = "0.41.0"
-sentry_protos = "0.4.2"
+sentry_protos = "0.4.8"
 serde = { version = "=1.0.228", features = ["derive", "rc"] }
 serde-transcode = "1.1.1"
 serde-vars = "0.2.0"

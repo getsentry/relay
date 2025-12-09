@@ -205,7 +205,7 @@ mod tests {
 
     fn build_redis_quota<'a>(
         quota: &'a Quota,
-        quantity: usize,
+        quantity: u64,
         scoping: &'a Scoping,
     ) -> RedisQuota<'a> {
         let scoping = scoping.item(DataCategory::MetricBucket);

@@ -180,12 +180,12 @@ ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
     RateLimitBehavior(
         "user_report",
         PayloadType.BINARY,
-        [{"category": "user_report_v2", "quantity": 1, "reason": "generic"}],
+        [{"category": "feedback", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "feedback",
         PayloadType.BINARY,
-        [{"category": "user_report_v2", "quantity": 1, "reason": "generic"}],
+        [{"category": "feedback", "quantity": 1, "reason": "generic"}],
     ),
     RateLimitBehavior(
         "profile",

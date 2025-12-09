@@ -244,29 +244,47 @@ pub fn enrich_ai_event_data(
 
 ///  Infer AI operation type mapping to a span.
 ///
-/// This function maps span.op values to gen_ai.operation.type based on the provided
-/// operation type map configuration.
+/// This function sets the gen_ai.operation.type attribute based on the value of either
+/// gen_ai.operation.name or span.op based on the provided operation type map configuration.
 fn infer_ai_operation_type(span: &mut Span, operation_type_map: &AiOperationTypeMap) {
     let data = span.data.get_or_insert_with(SpanData::default);
+    let op_type = data
+        .gen_ai_operation_name
+        .value()
+        .or(span.op.value())
+        .and_then(|op| operation_type_map.get_operation_type(op));
 
-    if let Some(op) = span.op.value()
-        && let Some(operation_type) = operation_type_map.get_operation_type(op)
-    {
+    if let Some(operation_type) = op_type {
         data.gen_ai_operation_type
             .set_value(Some(operation_type.to_owned()));
     }
 }
 
 /// Returns true if the span is an AI span.
-/// AI spans are spans with op starting with "ai." (legacy) or "gen_ai." (new).
+/// AI spans are spans with either a gen_ai.operation.name attribute or op starting with "ai."
+/// (legacy) or "gen_ai." (new).
 fn is_ai_span(span: &Span) -> bool {
-    span.op
+    let has_ai_op = span
+        .data
         .value()
-        .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."))
+        .and_then(|data| data.gen_ai_operation_name.value())
+        .is_some();
+
+    let is_ai_span_op = span
+        .op
+        .value()
+        .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."));
+
+    has_ai_op || is_ai_span_op
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use relay_pattern::Pattern;
+    use relay_protocol::get_value;
+
     use super::*;
 
     #[test]
@@ -363,5 +381,133 @@ mod tests {
             output: -7.0,
         }
         ");
+    }
+
+    /// Test that the AI operation type is inferred from a gen_ai.operation.name attribute.
+    #[test]
+    fn test_infer_ai_operation_type_from_gen_ai_operation_name() {
+        let operation_types = HashMap::from([
+            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
+            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
+            (
+                Pattern::new("gen_ai.invoke_agent").unwrap(),
+                "agent".to_owned(),
+            ),
+        ]);
+
+        let operation_type_map = AiOperationTypeMap {
+            version: 1,
+            operation_types,
+        };
+
+        let span = r#"{
+            "data": {
+                "gen_ai.operation.name": "invoke_agent"
+            }
+        }"#;
+        let mut span = Annotated::from_json(span).unwrap();
+        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
+        assert_eq!(
+            get_value!(span.data.gen_ai_operation_type!).as_str(),
+            "agent"
+        );
+    }
+
+    /// Test that the AI operation type is inferred from a span.op attribute.
+    #[test]
+    fn test_infer_ai_operation_type_from_span_op() {
+        let operation_types = HashMap::from([
+            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
+            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
+            (
+                Pattern::new("gen_ai.invoke_agent").unwrap(),
+                "agent".to_owned(),
+            ),
+        ]);
+        let operation_type_map = AiOperationTypeMap {
+            version: 1,
+            operation_types,
+        };
+
+        let span = r#"{
+            "op": "gen_ai.invoke_agent"
+        }"#;
+        let mut span = Annotated::from_json(span).unwrap();
+        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
+        assert_eq!(
+            get_value!(span.data.gen_ai_operation_type!).as_str(),
+            "agent"
+        );
+    }
+
+    /// Test that the AI operation type is inferred from a fallback.
+    #[test]
+    fn test_infer_ai_operation_type_from_fallback() {
+        let operation_types = HashMap::from([
+            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
+            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
+            (
+                Pattern::new("gen_ai.invoke_agent").unwrap(),
+                "agent".to_owned(),
+            ),
+        ]);
+
+        let operation_type_map = AiOperationTypeMap {
+            version: 1,
+            operation_types,
+        };
+
+        let span = r#"{
+            "data": {
+                "gen_ai.operation.name": "embeddings"
+            }
+        }"#;
+        let mut span = Annotated::from_json(span).unwrap();
+        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
+        assert_eq!(
+            get_value!(span.data.gen_ai_operation_type!).as_str(),
+            "ai_client"
+        );
+    }
+
+    /// Test that an AI span is detected from a gen_ai.operation.name attribute.
+    #[test]
+    fn test_is_ai_span_from_gen_ai_operation_name() {
+        let span = r#"{
+            "data": {
+                "gen_ai.operation.name": "chat"
+            }
+        }"#;
+        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        assert!(is_ai_span(&span));
+    }
+
+    /// Test that an AI span is detected from a span.op starting with "ai.".
+    #[test]
+    fn test_is_ai_span_from_span_op_ai() {
+        let span = r#"{
+            "op": "ai.chat"
+        }"#;
+        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        assert!(is_ai_span(&span));
+    }
+
+    /// Test that an AI span is detected from a span.op starting with "gen_ai.".
+    #[test]
+    fn test_is_ai_span_from_span_op_gen_ai() {
+        let span = r#"{
+            "op": "gen_ai.chat"
+        }"#;
+        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        assert!(is_ai_span(&span));
+    }
+
+    /// Test that a non-AI span is detected.
+    #[test]
+    fn test_is_ai_span_negative() {
+        let span = r#"{
+        }"#;
+        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        assert!(!is_ai_span(&span));
     }
 }

@@ -1,9 +1,10 @@
+import base64
 from datetime import datetime, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from unittest import mock
 
-from .asserts import time_within_delta, time_within
+from .asserts import time_within_delta, time_is
 from .test_spansv2 import envelope_with_spans
 
 from .test_dynamic_sampling import _add_sampling_config
@@ -21,6 +22,7 @@ TEST_CONFIG = {
 
 def create_attachment_metadata():
     return {
+        "trace_id": uuid.uuid4().hex,
         "attachment_id": str(uuid.uuid4()),
         "timestamp": 1760520026.781239,
         "filename": "myfile.txt",
@@ -73,7 +75,7 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
     envelope.add_item(attachment_item)
     relay.send_envelope(project_id, envelope)
 
-    forwarded_envelope = mini_sentry.captured_events.get(timeout=1)
+    forwarded_envelope = mini_sentry.get_captured_event()
     attachment_item = forwarded_envelope.items[0]
     assert attachment_item.type == "attachment"
 
@@ -89,13 +91,78 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
     assert attachment_item.headers == headers
 
 
+def test_standalone_attachment_store(
+    mini_sentry, relay_with_processing, items_consumer, objectstore
+):
+    items_consumer = items_consumer()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+        "projects:span-v2-attachment-processing",
+    ]
+    relay = relay_with_processing(
+        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
+    )
+
+    attachment_metadata = create_attachment_metadata()
+    attachment_body = b"This is some mock attachment content"
+    metadata_bytes = json.dumps(attachment_metadata, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    combined_payload = metadata_bytes + attachment_body
+
+    envelope = create_attachment_envelope(project_config)
+    headers = {
+        "content_type": "application/vnd.sentry.attachment.v2",
+        "meta_length": len(metadata_bytes),
+        "span_id": None,
+        "length": len(combined_payload),
+        "type": "attachment",
+    }
+
+    attachment_item = Item(payload=PayloadRef(bytes=combined_payload), headers=headers)
+    envelope.add_item(attachment_item)
+    relay.send_envelope(project_id, envelope)
+
+    produced_item = items_consumer.get_item()
+    expected_item_id = base64.b64encode(
+        uuid.UUID(hex=attachment_metadata["attachment_id"]).bytes
+    ).decode("utf-8")
+    assert produced_item == {
+        "attributes": {
+            "file.name": {"stringValue": "myfile.txt"},
+            "foo": {"stringValue": "bar"},
+            "sentry.content-type": {"stringValue": "text/plain"},
+        },
+        "clientSampleRate": 1.0,
+        "downsampledRetentionDays": 90,
+        "itemId": expected_item_id,
+        "itemType": 10,
+        "organizationId": "1",
+        "projectId": "42",
+        "received": mock.ANY,
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": mock.ANY,
+        "traceId": attachment_metadata["trace_id"].replace("-", ""),
+    }
+
+    objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
+    assert (
+        objectstore.get(attachment_metadata["attachment_id"]).payload.read()
+        == attachment_body
+    )
+
+
 @pytest.mark.parametrize(
     "invalid_headers,quantity",
     [
         # Invalid since there is no span with that id in the envelope, also the quantity here is
         # lower since only the body is already counted at this point and not the meta.
         pytest.param({"span_id": "ABCDFDEAD5F74052"}, 36, id="invalid_span_id"),
-        pytest.param({"meta_length": None}, 227, id="missing_meta_length"),
+        pytest.param({"meta_length": None}, 273, id="missing_meta_length"),
         pytest.param({"meta_length": 999}, 1, id="meta_length_exceeds_payload"),
     ],
 )
@@ -129,7 +196,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
     envelope.add_item(Item(payload=PayloadRef(bytes=combined_payload), headers=headers))
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.get_outcomes(n=2, timeout=1) == [
+    assert mini_sentry.get_outcomes(n=2) == [
         {
             "category": DataCategory.ATTACHMENT.value,
             "org_id": 1,
@@ -204,7 +271,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.captured_events.get(timeout=5)
+    forwarded = mini_sentry.get_captured_event()
 
     span_item = next(i for i in forwarded.items if i.type == "span")
     spans = json.loads(span_item.payload.bytes.decode())["items"]
@@ -215,8 +282,8 @@ def test_attachment_with_matching_span(mini_sentry, relay):
             "name": "test span",
             "status": "ok",
             "is_segment": True,
-            "start_timestamp": time_within(ts),
-            "end_timestamp": time_within(ts.timestamp() + 0.5),
+            "start_timestamp": time_is(ts),
+            "end_timestamp": time_is(ts.timestamp() + 0.5),
             "attributes": mock.ANY,
         }
     ]
@@ -225,11 +292,93 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     assert attachment.payload.bytes == combined_payload
     assert attachment.headers == {
         "type": "attachment",
-        "length": 214,
+        "length": 260,
         "content_type": "application/vnd.sentry.attachment.v2",
-        "meta_length": 191,
+        "meta_length": 237,
         "span_id": span_id,
     }
+
+
+def test_attachment_with_matching_span_store(
+    mini_sentry, relay_with_processing, items_consumer, objectstore
+):
+    items_consumer = items_consumer()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+        "projects:span-v2-attachment-processing",
+    ]
+    relay = relay_with_processing(
+        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
+    )
+
+    ts = datetime.now(timezone.utc)
+    span_id = "eee19b7ec3c1b174"
+    trace_id = "5b8efff798038103d269b633813fc60c"
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "is_segment": True,
+            "name": "test span",
+            "status": "ok",
+        },
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    metadata = create_attachment_metadata()
+    body = b"span attachment content"
+    metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+    combined_payload = metadata_bytes + body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(metadata_bytes),
+                "span_id": span_id,
+                "length": len(combined_payload),
+            },
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    attachment_item = items_consumer.get_item()
+    expected_item_id = base64.b64encode(
+        uuid.UUID(hex=metadata["attachment_id"]).bytes
+    ).decode("utf-8")
+    assert attachment_item == {
+        "attributes": {
+            "file.name": {"stringValue": "myfile.txt"},
+            "foo": {"stringValue": "bar"},
+            "sentry.content-type": {"stringValue": "text/plain"},
+            "sentry.span_id": {"stringValue": span_id},
+        },
+        "clientSampleRate": 1.0,
+        "downsampledRetentionDays": 90,
+        "itemId": expected_item_id,
+        "itemType": 10,
+        "organizationId": "1",
+        "projectId": "42",
+        "received": mock.ANY,
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": mock.ANY,
+        "traceId": metadata["trace_id"],
+    }
+
+    objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
+    assert objectstore.get(metadata["attachment_id"]).payload.read() == body
 
 
 def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
@@ -293,7 +442,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.captured_events.get(timeout=5)
+    forwarded = mini_sentry.get_captured_event()
 
     span_item = next(i for i in forwarded.items if i.type == "span")
     spans = json.loads(span_item.payload.bytes.decode())["items"]
@@ -304,8 +453,8 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
             "name": "test span",
             "status": "ok",
             "is_segment": True,
-            "start_timestamp": time_within(ts),
-            "end_timestamp": time_within(ts.timestamp() + 0.5),
+            "start_timestamp": time_is(ts),
+            "end_timestamp": time_is(ts.timestamp() + 0.5),
             "attributes": mock.ANY,
         }
     ]
@@ -316,9 +465,9 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
         assert item.payload.bytes == combined_payload
         assert item.headers == {
             "type": "attachment",
-            "length": 214,
+            "length": 260,
             "content_type": "application/vnd.sentry.attachment.v2",
-            "meta_length": 191,
+            "meta_length": 237,
             "span_id": span_id,
         }
 
@@ -383,7 +532,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
 
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.get_outcomes(n=3, timeout=3) == [
+    assert mini_sentry.get_outcomes(n=3) == [
         {
             "timestamp": time_within_delta(),
             "org_id": 1,
@@ -502,7 +651,7 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope, headers=headers)
-    assert mini_sentry.get_outcomes(n=4, timeout=3) == [
+    assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
             "org_id": 1,
@@ -595,7 +744,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    assert mini_sentry.get_outcomes(n=4, timeout=3) == [
+    assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
             "org_id": 1,
@@ -791,7 +940,7 @@ def test_span_attachment_independent_rate_limiting(
 
     relay.send_envelope(project_id, envelope)
 
-    outcomes = mini_sentry.get_outcomes(n=len(expected_outcomes), timeout=3)
+    outcomes = mini_sentry.get_outcomes(n=len(expected_outcomes))
     outcome_counter = {}
     for outcome in outcomes:
         key = (outcome["category"], outcome["outcome"])

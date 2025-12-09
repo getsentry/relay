@@ -1067,6 +1067,15 @@ pub enum ParentId {
     SpanId(Option<SpanId>),
 }
 
+impl ParentId {
+    /// Converts the ID to a span ID (if applicable).
+    pub fn as_span_id(&self) -> Option<SpanId> {
+        match self {
+            ParentId::SpanId(span_id) => *span_id,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::integrations::OtelFormat;
