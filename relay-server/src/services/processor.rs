@@ -51,6 +51,7 @@ use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
+use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::extraction::ExtractMetricsContext;
 use crate::processing::utils::event::{
@@ -242,6 +243,8 @@ pub enum ProcessingGroup {
     Metrics,
     /// ProfileChunk.
     ProfileChunk,
+    /// V2 attachments without span / log association.
+    TraceAttachment,
     /// Unknown item types will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
     ForwardUnknown,
@@ -372,6 +375,14 @@ impl ProcessingGroup {
             ))
         }
 
+        let trace_attachment_items = envelope.take_items_by(Item::is_trace_attachment);
+        if !trace_attachment_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::TraceAttachment,
+                Envelope::from_parts(headers.clone(), trace_attachment_items),
+            ))
+        }
+
         // Extract all standalone items.
         //
         // Note: only if there are no items in the envelope which can create events, otherwise they
@@ -458,6 +469,7 @@ impl ProcessingGroup {
             ProcessingGroup::SpanV2 => "span_v2",
             ProcessingGroup::Metrics => "metrics",
             ProcessingGroup::ProfileChunk => "profile_chunk",
+            ProcessingGroup::TraceAttachment => "trace_attachment",
             ProcessingGroup::ForwardUnknown => "forward_unknown",
             ProcessingGroup::Ungrouped => "ungrouped",
         }
@@ -483,6 +495,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::ProfileChunk => AppFeature::Profiles,
             ProcessingGroup::ForwardUnknown => AppFeature::UnattributedEnvelope,
             ProcessingGroup::Ungrouped => AppFeature::UnattributedEnvelope,
+            ProcessingGroup::TraceAttachment => AppFeature::TraceAttachments,
         }
     }
 }
@@ -1157,6 +1170,7 @@ struct Processing {
     spans: SpansProcessor,
     check_ins: CheckInsProcessor,
     sessions: SessionsProcessor,
+    trace_attachments: TraceAttachmentsProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1246,6 +1260,7 @@ impl EnvelopeProcessorService {
                 spans: SpansProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 check_ins: CheckInsProcessor::new(Arc::clone(&quota_limiter)),
                 sessions: SessionsProcessor::new(quota_limiter),
+                trace_attachments: TraceAttachmentsProcessor,
             },
             geoip_lookup,
             config,
@@ -1980,6 +1995,14 @@ impl EnvelopeProcessorService {
             ProcessingGroup::SpanV2 => {
                 self.process_with_processor(&self.inner.processing.spans, managed_envelope, ctx)
                     .await
+            }
+            ProcessingGroup::TraceAttachment => {
+                self.process_with_processor(
+                    &self.inner.processing.trace_attachments,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
             }
             ProcessingGroup::Span => run!(process_standalone_spans, project_id, ctx),
             ProcessingGroup::ProfileChunk => {

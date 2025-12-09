@@ -132,6 +132,9 @@ pub enum Feature {
     /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
     #[serde(rename = "projects:span-v2-attachment-processing")]
     SpanV2AttachmentProcessing,
+    /// Enable the experimental Trace Attachment pipeline in Relay.
+    #[serde(rename = "projects:trace-attachment-processing")]
+    TraceAttachmentProcessing,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
