@@ -5,6 +5,7 @@
 **Features**:
 
 - Increases log size limits to better support log drains. ([#5441](https://github.com/getsentry/relay/pull/5441))
+- Apply existing cookie rules to `http.request.header.cookie.<key>` fields. ([#5456](https://github.com/getsentry/relay/pull/5456))
 
 **Bug Fixes**:
 
