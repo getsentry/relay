@@ -67,7 +67,7 @@ def test_standalone_attachment_forwarding(mini_sentry, relay, owned_by):
 
     envelope = create_attachment_envelope(project_config)
     headers = {
-        "content_type": "application/vnd.sentry.attachment.v2",
+        "content_type": "application/vnd.sentry.trace-attachment",
         "meta_length": len(metadata_bytes),
         "length": len(combined_payload),
         "type": "attachment",
@@ -121,7 +121,7 @@ def test_standalone_attachment_store(
 
     envelope = create_attachment_envelope(project_config)
     headers = {
-        "content_type": "application/vnd.sentry.attachment.v2",
+        "content_type": "application/vnd.sentry.trace-attachment",
         "meta_length": len(metadata_bytes),
         "length": len(combined_payload),
         "type": "attachment",
@@ -192,7 +192,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
 
     envelope = create_attachment_envelope(project_config)
     headers = {
-        "content_type": "application/vnd.sentry.attachment.v2",
+        "content_type": "application/vnd.sentry.trace-attachment",
         "meta_length": len(metadata_bytes),
         "span_id": None,
         "length": len(combined_payload),
@@ -269,7 +269,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -300,7 +300,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     assert attachment.headers == {
         "type": "attachment",
         "length": 260,
-        "content_type": "application/vnd.sentry.attachment.v2",
+        "content_type": "application/vnd.sentry.trace-attachment",
         "meta_length": 237,
         "span_id": span_id,
     }
@@ -350,7 +350,7 @@ def test_attachment_with_matching_span_store(
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -428,7 +428,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -440,7 +440,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -473,7 +473,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
         assert item.headers == {
             "type": "attachment",
             "length": 260,
-            "content_type": "application/vnd.sentry.attachment.v2",
+            "content_type": "application/vnd.sentry.trace-attachment",
             "meta_length": 237,
             "span_id": span_id,
         }
@@ -529,7 +529,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -635,7 +635,7 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "length": len(combined_payload),
             },
@@ -707,7 +707,7 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": None,
                 "length": len(combined_payload),
@@ -792,7 +792,7 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -885,7 +885,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -1060,7 +1060,7 @@ def test_span_attachment_independent_rate_limiting(
             payload=PayloadRef(bytes=per_span_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(per_span_metadata_bytes),
                 "span_id": span_id,
                 "length": len(per_span_payload),
@@ -1081,7 +1081,7 @@ def test_span_attachment_independent_rate_limiting(
             payload=PayloadRef(bytes=standalone_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(standalone_metadata_bytes),
                 "span_id": None,  # Not attached to any span
                 "length": len(standalone_payload),
@@ -1102,7 +1102,7 @@ def test_span_attachment_independent_rate_limiting(
             payload=PayloadRef(bytes=trace_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(trace_metadata_bytes),
                 "length": len(trace_payload),
             },
@@ -1180,7 +1180,7 @@ def test_attachment_default_pii_scrubbing_meta(
     combined_payload = metadata_bytes + body
 
     headers = {
-        "content_type": "application/vnd.sentry.attachment.v2",
+        "content_type": "application/vnd.sentry.trace-attachment",
         "meta_length": len(metadata_bytes),
         "length": len(combined_payload),
     }
@@ -1288,7 +1288,7 @@ def test_attachment_pii_scrubbing_meta_attribute(
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -1376,7 +1376,7 @@ def test_attachment_pii_scrubbing_body(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
