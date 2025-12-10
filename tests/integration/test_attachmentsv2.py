@@ -1,4 +1,5 @@
 import base64
+from collections import Counter
 from datetime import datetime, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
@@ -831,8 +832,8 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             ],
             {
                 # Attachments don't make it through
-                (DataCategory.ATTACHMENT.value, 2): 64,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+                (DataCategory.ATTACHMENT.value, 2): 104,
+                (DataCategory.ATTACHMENT_ITEM.value, 2): 3,
             },
             id="attachment_quota_exceeded",
         ),
@@ -857,8 +858,8 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 # Nothing makes it through
                 (DataCategory.SPAN.value, 2): 1,
                 (DataCategory.SPAN_INDEXED.value, 2): 1,
-                (DataCategory.ATTACHMENT.value, 2): 64,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+                (DataCategory.ATTACHMENT.value, 2): 104,
+                (DataCategory.ATTACHMENT_ITEM.value, 2): 3,
             },
             id="both_quotas_exceeded",
         ),
@@ -867,7 +868,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
 def test_span_attachment_independent_rate_limiting(
     mini_sentry,
     relay,
-    outcomes_consumer,
     quota_config,
     expected_outcomes,
 ):
@@ -878,11 +878,11 @@ def test_span_attachment_independent_rate_limiting(
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "projects:trace-attachment-processing",
     ]
     project_config["config"]["quotas"] = quota_config
 
     relay = relay(mini_sentry, options=TEST_CONFIG)
-    outcomes_consumer = outcomes_consumer()
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -904,6 +904,7 @@ def test_span_attachment_independent_rate_limiting(
         },
     )
 
+    # Attachment owned by single span
     per_span_metadata = create_attachment_metadata()
     per_span_body = b"per-span attachment"
     per_span_metadata_bytes = json.dumps(
@@ -924,6 +925,7 @@ def test_span_attachment_independent_rate_limiting(
         )
     )
 
+    # Attachment owned by multiple spans
     standalone_metadata = create_attachment_metadata()
     standalone_body = b"standalone attachment - should be independent"
     standalone_metadata_bytes = json.dumps(
@@ -944,17 +946,37 @@ def test_span_attachment_independent_rate_limiting(
         )
     )
 
+    # Attachment owned by trace
+    trace_metadata = create_attachment_metadata()
+    trace_body = b"trace attachment - should be independent"
+    trace_metadata_bytes = json.dumps(trace_metadata, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    trace_payload = trace_metadata_bytes + trace_body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=trace_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(standalone_metadata_bytes),
+                "length": len(standalone_payload),
+            },
+        )
+    )
+
     relay.send_envelope(project_id, envelope)
 
     outcomes = mini_sentry.get_outcomes(n=len(expected_outcomes))
-    outcome_counter = {}
+    outcome_counter = Counter()
     for outcome in outcomes:
         key = (outcome["category"], outcome["outcome"])
-        outcome_counter[key] = outcome_counter.get(key, 0) + outcome["quantity"]
+        outcome_counter[key] += outcome["quantity"]
 
     assert outcome_counter == expected_outcomes
 
-    outcomes_consumer.assert_empty()
+    assert mini_sentry.captured_outcomes.empty()
 
 
 @pytest.mark.parametrize("owned_by", ["single_span", "multiple_spans", "trace"])
