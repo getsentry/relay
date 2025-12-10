@@ -45,7 +45,7 @@ def test_span_allowed(mini_sentry, relay):
 
     relay.send_envelope(42, envelope)
 
-    assert mini_sentry.get_captured_event() is not None
+    assert mini_sentry.get_captured_envelope() is not None
 
 
 def test_profile_allowed(mini_sentry, relay):
@@ -83,7 +83,7 @@ def test_profile_allowed(mini_sentry, relay):
     )
     relay.send_envelope(42, envelope)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert {item.type for item in envelope.items} == {"transaction", "profile"}
 
 
@@ -103,7 +103,7 @@ def test_replay_allowed(mini_sentry, relay):
     )
     relay.send_envelope(42, envelope)
 
-    assert mini_sentry.get_captured_event() is not None
+    assert mini_sentry.get_captured_envelope() is not None
 
 
 class PayloadType(Enum):
@@ -268,7 +268,7 @@ def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior: RateLimitBeh
     )
 
     relay.send_envelope(project_id, envelope)
-    captured = mini_sentry.get_captured_event()
+    captured = mini_sentry.get_captured_envelope()
     (item,) = captured.items
     assert item.payload.get_bytes() == payload
 
@@ -285,14 +285,14 @@ def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior: RateLimitBeh
         assert rate_limited_events == behavior.expected_outcomes
 
         if behavior.expected_forward:
-            captured = mini_sentry.get_captured_event()
+            captured = mini_sentry.get_captured_envelope()
             (item,) = captured.items
             assert item.payload.get_bytes() == payload
     else:
         # If there is no outcome than they should just be forwarded
         relay.send_envelope(project_id, envelope)
-        captured = mini_sentry.get_captured_event()
+        captured = mini_sentry.get_captured_envelope()
         (item,) = captured.items
         assert item.payload.get_bytes() == payload
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()

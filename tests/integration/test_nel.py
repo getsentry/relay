@@ -13,7 +13,7 @@ def test_nel_converted_to_logs(mini_sentry, relay):
 
     relay.send_nel_event(project_id)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     # Time is corrected by the `age` specified in the NEL report
     expected_ts = datetime.now(tz=timezone.utc) - timedelta(milliseconds=1200000)
@@ -77,4 +77,4 @@ def test_nel_converted_to_logs(mini_sentry, relay):
             }
         ],
     }
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()

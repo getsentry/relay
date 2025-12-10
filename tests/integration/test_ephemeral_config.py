@@ -87,7 +87,7 @@ def test_store_via_ephemeral_relay(
 
     raw_payload = {"message": "Hello, World!"}
     relay.send_event(project_id, payload=raw_payload)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
 
     if mode == "proxy":
         assert event == raw_payload
