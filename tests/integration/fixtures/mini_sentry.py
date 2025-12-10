@@ -50,7 +50,7 @@ class Sentry(SentryLike):
         self.project_config_simulate_pending = False
         self.project_config_ignore_revision = False
 
-        self.timeout = 5
+        self.timeout = 10
 
     @property
     def internal_error_dsn(self):
