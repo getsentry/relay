@@ -4,7 +4,12 @@ from enum import IntEnum
 from sentry_relay._lowlevel import lib
 from sentry_relay.utils import decode_str, encode_str
 
-__all__ = ["DataCategory", "SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE"]
+__all__ = [
+    "DataCategory",
+    "CategoryUnit",
+    "SPAN_STATUS_CODE_TO_NAME",
+    "SPAN_STATUS_NAME_TO_CODE",
+]
 
 
 class DataCategory(IntEnum):
@@ -115,6 +120,85 @@ def _check_generated():
 
 
 _check_generated()
+
+
+class CategoryUnit(IntEnum):
+    """
+    The unit in which a data category is measured.
+
+    This enum specifies how quantities for different data categories are measured,
+    which affects how quota limits are interpreted and enforced.
+
+    Note: There is no UNKNOWN member. Methods return None for categories without
+    a defined unit (e.g., DataCategory.UNKNOWN).
+    """
+
+    # See _check_category_unit_generated below.
+    # begin generated
+    COUNT = 0
+    BYTES = 1
+    MILLISECONDS = 2
+    # end generated
+
+    @classmethod
+    def parse(cls, name):
+        """
+        Parses a `CategoryUnit` from its API name.
+
+        Returns the CategoryUnit, or None for unknown/invalid names.
+        """
+        result = lib.relay_category_unit_parse(encode_str(name or ""))
+        if result == -1:
+            return None
+        return CategoryUnit(result)
+
+    @classmethod
+    def from_category(cls, category):
+        """
+        Returns the `CategoryUnit` for a given `DataCategory`.
+
+        Args:
+            category: Either a DataCategory enum value or its integer value.
+
+        Returns:
+            The CategoryUnit for the given category, or None if the category
+            has no defined unit (e.g., DataCategory.UNKNOWN).
+        """
+        if isinstance(category, DataCategory):
+            category = category.value
+        result = lib.relay_data_category_unit(category)
+        if result == -1:
+            return None
+        return CategoryUnit(result)
+
+    def api_name(self):
+        """
+        Returns the API name of the given `CategoryUnit`.
+        """
+        return decode_str(lib.relay_category_unit_name(self.value), free=True)
+
+
+def _check_category_unit_generated():
+    """Validates that the Python CategoryUnit enum matches the C constants."""
+    prefix = "RELAY_CATEGORY_UNIT_"
+
+    attrs = {}
+    for attr in dir(lib):
+        if attr.startswith(prefix):
+            unit_name = attr[len(prefix) :]
+            attrs[unit_name] = getattr(lib, attr)
+
+    if attrs != CategoryUnit.__members__:
+        values = sorted(attrs.items(), key=lambda kv: kv[1])
+        generated = "".join(f"    {k} = {v}\n" for k, v in values)
+        raise AssertionError(
+            f"CategoryUnit enum does not match source!\n\n"
+            f"Paste this into `class CategoryUnit` in py/sentry_relay/consts.py:\n\n"
+            f"{generated}"
+        )
+
+
+_check_category_unit_generated()
 
 SPAN_STATUS_CODE_TO_NAME = {}
 SPAN_STATUS_NAME_TO_CODE = {}

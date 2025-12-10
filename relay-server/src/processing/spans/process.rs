@@ -147,6 +147,7 @@ fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, Ex
     Ok((
         associated_span_id,
         ExpandedAttachment {
+            parent_id: ParentId::SpanId(associated_span_id),
             meta,
             body: Bytes::copy_from_slice(body),
         },

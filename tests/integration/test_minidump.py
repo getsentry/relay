@@ -3,7 +3,6 @@ import os
 import msgpack
 
 import pytest
-from objectstore_client import Client, Usecase
 from requests import HTTPError
 from uuid import UUID
 
@@ -381,6 +380,7 @@ def test_minidump_with_processing(
     rate_limit,
     minidump_filename,
     use_objectstore,
+    objectstore,
 ):
     dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
     with open(dmp_path, "rb") as f:
@@ -481,10 +481,8 @@ def test_minidump_with_processing(
         (attachment,) = message["attachments"]
 
         objectstore_key = attachment.pop("stored_id")
-        objectstore_session = Client("http://127.0.0.1:8888/").session(
-            Usecase("attachments"), org=1, project=project_id
-        )
-        assert objectstore_session.get(objectstore_key).payload.read() == content
+        objectstore = objectstore("attachments", project_id)
+        assert objectstore.get(objectstore_key).payload.read() == content
 
         assert attachment.pop("id")
         assert attachment == {

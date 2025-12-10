@@ -20,8 +20,10 @@ use crate::span::tag_extraction::{sql_action_from_query, sql_tables_from_query};
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
+mod size;
 
 pub use self::ai::normalize_ai;
+pub use self::size::*;
 
 /// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
 pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
@@ -387,7 +389,11 @@ pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>)
 
     if let Some(attributes) = annotated_attributes.value_mut() {
         if let Some(normalized_db_query) = normalized_db_query {
+            let mut normalized_db_query_hash = format!("{:x}", md5::compute(&normalized_db_query));
+            normalized_db_query_hash.truncate(16);
+
             attributes.insert(NORMALIZED_DB_QUERY, normalized_db_query);
+            attributes.insert(NORMALIZED_DB_QUERY_HASH, normalized_db_query_hash);
         }
         if let Some(db_operation_name) = db_operation {
             attributes.insert(DB_OPERATION_NAME, db_operation_name)
@@ -927,6 +933,10 @@ mod tests {
             "type": "string",
             "value": "SELECT %s"
           },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "3a377dcc490b1690"
+          },
           "sentry.op": {
             "type": "string",
             "value": "db.query"
@@ -992,6 +1002,10 @@ mod tests {
           "sentry.normalized_db_query": {
             "type": "string",
             "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
           },
           "sentry.op": {
             "type": "string",

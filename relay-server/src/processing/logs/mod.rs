@@ -17,7 +17,7 @@ use crate::managed::{
 use crate::processing::{
     self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter, Rejected,
 };
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 
 mod filter;
 mod integrations;
@@ -36,6 +36,9 @@ pub enum Error {
     /// A duplicated item container for logs.
     #[error("duplicate log container")]
     DuplicateContainer,
+    /// Received log exceeds the configured size limit.
+    #[error("log exeeds size limit")]
+    TooLarge,
     /// Logs filtered because of a missing feature flag.
     #[error("logs feature flag missing")]
     FilterFeatureFlag,
@@ -62,6 +65,9 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
+                DiscardItemType::Log,
+            ))),
             Self::FilterFeatureFlag => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
@@ -144,6 +150,9 @@ impl processing::Processor for LogsProcessor {
         filter::feature_flag(ctx).reject(&logs)?;
 
         let mut logs = process::expand(logs);
+
+        validate::size(&mut logs, ctx);
+
         process::normalize(&mut logs);
         filter::filter(&mut logs, ctx);
 

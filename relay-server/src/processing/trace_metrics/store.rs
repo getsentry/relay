@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
 use relay_base_schema::metrics::MetricUnit;
-use relay_conventions::CLIENT_SAMPLE_RATE;
 use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
 use relay_protocol::{Annotated, IntoValue, Value};
 use relay_quotas::Scoping;
@@ -12,7 +11,9 @@ use uuid::Uuid;
 
 use crate::envelope::WithHeader;
 use crate::processing::trace_metrics::{Error, Result};
-use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes};
+use crate::processing::utils::store::{
+    AttributeMeta, extract_client_sample_rate, extract_meta_attributes,
+};
 use crate::processing::{Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
@@ -105,14 +106,6 @@ fn extract_numeric_value(value: Value) -> Result<f64> {
         Value::U64(v) => Ok(v as f64),
         _ => Err(Error::Invalid(DiscardReason::InvalidTraceMetric)),
     }
-}
-
-fn extract_client_sample_rate(attributes: &Attributes) -> Option<f64> {
-    attributes
-        .get_value(CLIENT_SAMPLE_RATE)
-        .and_then(|value| value.as_f64())
-        .filter(|v| *v > 0.0)
-        .filter(|v| *v <= 1.0)
 }
 
 fn attributes(
@@ -249,6 +242,9 @@ mod tests {
     use relay_event_schema::protocol::{Attribute, AttributeType, AttributeValue};
     use relay_protocol::FromValue;
     use relay_protocol::Object;
+    use relay_quotas::Scoping;
+
+    use crate::processing::Retention;
 
     use super::*;
 

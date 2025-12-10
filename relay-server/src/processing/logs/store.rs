@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-use prost_types::Timestamp;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId};
 use relay_protocol::{Annotated, IntoValue, Value};
 use relay_quotas::Scoping;
@@ -10,7 +9,7 @@ use uuid::Uuid;
 
 use crate::envelope::WithHeader;
 use crate::processing::logs::{Error, Result};
-use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes};
+use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes, proto_timestamp};
 use crate::processing::{Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
@@ -66,10 +65,10 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         item_type: TraceItemType::Log.into(),
         organization_id: ctx.scoping.organization_id.value(),
         project_id: ctx.scoping.project_id.value(),
-        received: Some(ts(ctx.received_at)),
+        received: Some(proto_timestamp(ctx.received_at)),
         retention_days: ctx.retention.standard.into(),
         downsampled_retention_days: ctx.retention.downsampled.into(),
-        timestamp: Some(ts(timestamp.0)),
+        timestamp: Some(proto_timestamp(timestamp.0)),
         trace_id: required!(log.trace_id).to_string(),
         item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
         attributes: attributes(meta, attrs, fields),
@@ -81,13 +80,6 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         trace_item,
         quantities,
     })
-}
-
-fn ts(dt: DateTime<Utc>) -> Timestamp {
-    Timestamp {
-        seconds: dt.timestamp(),
-        nanos: i32::try_from(dt.timestamp_subsec_nanos()).unwrap_or(0),
-    }
 }
 
 /// Fields on the log message which are stored as fields.

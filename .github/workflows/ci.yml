@@ -176,7 +176,11 @@ jobs:
           key: ${{ github.job }}
 
       - name: Run Cargo Tests
-        run: cargo test --workspace
+        env:
+          # Faster compilation on slower CI runners.
+          CARGO_PROFILE_DEV_OPT_LEVEL: 0
+        run: |
+          cargo test --workspace
 
   test_all:
     needs: build-setup
@@ -233,6 +237,9 @@ jobs:
           key: ${{ github.job }}
 
       - name: Run Cargo Tests
+        env:
+          # Faster compilation on slower CI runners.
+          CARGO_PROFILE_DEV_OPT_LEVEL: 0
         run: cargo test --workspace --all-features
 
   test_py:

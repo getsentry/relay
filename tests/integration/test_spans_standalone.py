@@ -187,7 +187,7 @@ def test_lcp_span(
                 "transaction": "/insights/projects/",
             },
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
         {
             "org_id": 1,
@@ -198,7 +198,7 @@ def test_lcp_span(
             "timestamp": time_within_delta(ts),
             "tags": {},
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
         # No metric extraction in the SpanV2 pipeline.
         *(
@@ -218,7 +218,7 @@ def test_lcp_span(
                         "transaction": "/insights/projects/",
                     },
                     "retention_days": 90,
-                    "received_at": time_within(ts),
+                    "received_at": time_within(ts, precision="s"),
                 }
             ]
             if mode == "legacy"
@@ -362,7 +362,7 @@ def test_cls_span(
                 "transaction": "/insights/projects/",
             },
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
         {
             "org_id": 1,
@@ -373,7 +373,7 @@ def test_cls_span(
             "timestamp": time_within_delta(ts),
             "tags": {},
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
         # No metric extraction in the SpanV2 pipeline.
         *(
@@ -393,7 +393,7 @@ def test_cls_span(
                         "transaction": "/insights/projects/",
                     },
                     "retention_days": 90,
-                    "received_at": time_within(ts),
+                    "received_at": time_within(ts, precision="s"),
                 }
             ]
             if mode == "legacy"
@@ -521,7 +521,7 @@ def test_inp_span(
                 "transaction": "/insights/projects/",
             },
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
         {
             "org_id": 1,
@@ -532,7 +532,7 @@ def test_inp_span(
             "timestamp": time_within_delta(ts),
             "tags": {},
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
         # No metric extraction in the SpanV2 pipeline.
         *(
@@ -552,7 +552,7 @@ def test_inp_span(
                         "transaction": "/insights/projects/",
                     },
                     "retention_days": 90,
-                    "received_at": time_within(ts),
+                    "received_at": time_within(ts, precision="s"),
                 }
             ]
             if mode == "legacy"

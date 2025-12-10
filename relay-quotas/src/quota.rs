@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 #[doc(inline)]
-pub use relay_base_schema::data_category::DataCategory;
+pub use relay_base_schema::data_category::{CategoryUnit, DataCategory};
 
 /// Data scoping information for rate limiting and quota enforcement.
 ///
@@ -169,64 +169,6 @@ impl ItemScoping {
     {
         let mut iter = namespaces.into_iter().peekable();
         iter.peek().is_none() || iter.any(|ns| self.namespace.matches(*ns))
-    }
-}
-
-/// The unit in which a data category is measured.
-///
-/// This enum specifies how quantities for different data categories are measured,
-/// which affects how quota limits are interpreted and enforced.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CategoryUnit {
-    /// Counts the number of discrete items.
-    Count,
-    /// Counts the number of bytes across items.
-    Bytes,
-    /// Counts the accumulated time in milliseconds across items.
-    Milliseconds,
-}
-
-impl CategoryUnit {
-    fn from(category: &DataCategory) -> Option<Self> {
-        match category {
-            DataCategory::Default
-            | DataCategory::Error
-            | DataCategory::Transaction
-            | DataCategory::Replay
-            | DataCategory::DoNotUseReplayVideo
-            | DataCategory::Security
-            | DataCategory::Profile
-            | DataCategory::ProfileIndexed
-            | DataCategory::TransactionProcessed
-            | DataCategory::TransactionIndexed
-            | DataCategory::LogItem
-            | DataCategory::Span
-            | DataCategory::SpanIndexed
-            | DataCategory::MonitorSeat
-            | DataCategory::Monitor
-            | DataCategory::MetricBucket
-            | DataCategory::UserReportV2
-            | DataCategory::ProfileChunk
-            | DataCategory::ProfileChunkUi
-            | DataCategory::Uptime
-            | DataCategory::MetricSecond
-            | DataCategory::AttachmentItem
-            | DataCategory::SeerAutofix
-            | DataCategory::SeerScanner
-            | DataCategory::PreventUser
-            | DataCategory::PreventReview
-            | DataCategory::Session
-            | DataCategory::SizeAnalysis
-            | DataCategory::InstallableBuild
-            | DataCategory::TraceMetric
-            | DataCategory::SeerUser => Some(Self::Count),
-            DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
-            DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
-                Some(Self::Milliseconds)
-            }
-
-            DataCategory::Unknown => None,
-        }
     }
 }
 
@@ -497,7 +439,10 @@ impl Quota {
             return false;
         }
 
-        let mut units = self.categories.iter().filter_map(CategoryUnit::from);
+        let mut units = self
+            .categories
+            .iter()
+            .filter_map(CategoryUnit::from_category);
 
         match units.next() {
             // There are only unknown categories, which is always invalid
@@ -585,18 +530,18 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: None,
           categories: [
-            transaction,
+            "transaction",
           ],
           scope: organization,
           limit: Some(0),
           namespace: None,
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -718,11 +663,11 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("f"),
           categories: [
-            unknown,
+            "unknown",
           ],
           scope: unknown,
           scopeId: Some("1"),
@@ -731,7 +676,7 @@ mod tests {
           namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]

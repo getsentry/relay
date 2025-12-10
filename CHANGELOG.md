@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Updates Legacy Browser inbound filters. ([#5326](https://github.com/getsentry/relay/pull/5326))
+- Increases log size limits to better support log drains. ([#5441](https://github.com/getsentry/relay/pull/5441))
+- Add functionality to process and store span attachments. ([#5423](https://github.com/getsentry/relay/pull/5423), [#5363](https://github.com/getsentry/relay/pull/5363))
+
+**Bug Fixes**:
+
+- Fix parsing of data categories/quotas when using an aliased data category name. ([#5435](https://github.com/getsentry/relay/pull/5435))
+
+**Internal**:
+
+- Revise trace metric and log size limits. ([#5440](https://github.com/getsentry/relay/pull/5440))
+- Update `is_ai_span` and `infer_ai_operation_type` to use `gen_ai.operation.name`. ([#5433](https://github.com/getsentry/relay/pull/5433))
+
 ## 25.11.1
 
 **Breaking Changes**:
