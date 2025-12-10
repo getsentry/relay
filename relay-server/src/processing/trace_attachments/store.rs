@@ -16,7 +16,6 @@ use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::upload::StoreAttachment;
 
 /// Converts an expanded attachment to a storable unit.
-/// #
 pub fn convert(
     attachment: Managed<ExpandedAttachment>,
     retention: Retention,
