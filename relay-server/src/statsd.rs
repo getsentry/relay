@@ -940,6 +940,7 @@ pub enum RelayCounters {
     ///
     /// This metric is tagged with:
     /// - `dsc`: yes or no
+    /// - `sdk`: low-cardinality client name
     EnvelopeWithLogs,
 }
 

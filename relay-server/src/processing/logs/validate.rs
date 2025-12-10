@@ -32,7 +32,8 @@ pub fn dsc(logs: &Managed<SerializedLogs>) {
         dsc = match logs.headers.dsc() {
             Some(_) => "yes",
             None => "no",
-        }
+        },
+        sdk = crate::utils::client_name_tag(logs.headers.meta().client_name())
     )
 }
 
