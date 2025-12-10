@@ -156,7 +156,7 @@ impl processing::Processor for LogsProcessor {
         process::normalize(&mut logs);
         filter::filter(&mut logs, ctx);
 
-        self.limiter.enforce_quotas(&mut logs, ctx).await?;
+        let mut logs = self.limiter.enforce_quotas(logs, ctx).await?;
 
         process::scrub(&mut logs, ctx);
 

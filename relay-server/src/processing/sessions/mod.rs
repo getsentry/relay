@@ -101,7 +101,7 @@ impl processing::Processor for SessionsProcessor {
 
         process::normalize(&mut sessions, ctx);
 
-        self.limiter.enforce_quotas(&mut sessions, ctx).await?;
+        let sessions = self.limiter.enforce_quotas(sessions, ctx).await?;
 
         let sessions = process::extract(sessions, ctx);
         Ok(Output::metrics(sessions))

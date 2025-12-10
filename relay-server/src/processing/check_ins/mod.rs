@@ -87,7 +87,7 @@ impl processing::Processor for CheckInsProcessor {
             process::normalize(&mut check_ins);
         }
 
-        self.limiter.enforce_quotas(&mut check_ins, ctx).await?;
+        let check_ins = self.limiter.enforce_quotas(check_ins, ctx).await?;
 
         Ok(Output::just(CheckInsOutput(check_ins)))
     }
