@@ -85,7 +85,7 @@ def _outcomes_enabled_config():
     }
 
 
-def _add_sampling_config(
+def add_sampling_config(
     config,
     sample_rate,
     rule_type,
@@ -246,7 +246,7 @@ def test_it_removes_events(mini_sentry, relay):
     public_key = config["publicKeys"][0]["publicKey"]
 
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
-    _add_sampling_config(config, sample_rate=0, rule_type="transaction")
+    add_sampling_config(config, sample_rate=0, rule_type="transaction")
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope, trace_id, event_id = _create_transaction_envelope(public_key)
@@ -276,7 +276,7 @@ def test_it_does_not_sample_error(mini_sentry, relay):
     public_key = config["publicKeys"][0]["publicKey"]
 
     # add a sampling rule to project config that removes all traces of release "1.0"
-    _add_sampling_config(config, sample_rate=0, rule_type="trace", releases=["1.0"])
+    add_sampling_config(config, sample_rate=0, rule_type="trace", releases=["1.0"])
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope, event_id = _create_error_envelope(public_key)
@@ -314,7 +314,7 @@ def test_it_tags_error(mini_sentry, relay, expected_sampled, sample_rate):
     public_key = config["publicKeys"][0]["publicKey"]
 
     # add a sampling rule to project config that keeps all events (sample_rate=1)
-    _add_sampling_config(
+    add_sampling_config(
         config, sample_rate=sample_rate, rule_type="trace", releases=["1.0"]
     )
 
@@ -417,7 +417,7 @@ def test_it_keeps_events(mini_sentry, relay):
     public_key = config["publicKeys"][0]["publicKey"]
 
     # add a sampling rule to project config that keeps all events (sample_rate=1)
-    _add_sampling_config(config, sample_rate=1, rule_type="transaction")
+    add_sampling_config(config, sample_rate=1, rule_type="transaction")
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope, trace_id, event_id = _create_transaction_envelope(public_key)
@@ -470,7 +470,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     }
 
     public_key1 = config1["publicKeys"][0]["publicKey"]
-    _add_sampling_config(config1, sample_rate=0, rule_type="trace")
+    add_sampling_config(config1, sample_rate=0, rule_type="trace")
 
     project_id2 = 43
     config2 = mini_sentry.add_basic_project_config(project_id2)
@@ -478,7 +478,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
     }
     public_key2 = config2["publicKeys"][0]["publicKey"]
-    _add_sampling_config(config2, sample_rate=1, rule_type="trace")
+    add_sampling_config(config2, sample_rate=1, rule_type="trace")
 
     # First
     # send trace with project_id1 context (should be removed)
@@ -548,7 +548,7 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
     public_key = config["publicKeys"][0]["publicKey"]
     # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
     # because there is an invalid rule in the configuration
-    _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
+    add_sampling_config(config, sample_rate=0, rule_type=rule_type)
 
     for i in range(2):
         # create an envelope with a trace context that is initiated by this project (for simplicity)
@@ -621,7 +621,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     # the closer to 0, the less flaky the test is
     # still needs to be distinguishable from 0 in a f32 in rust
     SAMPLE_RATE = 0.001
-    _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type=rule_type)
+    add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type=rule_type)
 
     NUM_EVENTS = 200
 
@@ -679,7 +679,7 @@ def test_relay_chain(
     config = mini_sentry.add_basic_project_config(project_id)
     public_key = config["publicKeys"][0]["publicKey"]
     SAMPLE_RATE = 0.001
-    _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type=rule_type)
+    add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type=rule_type)
 
     # A trace ID that gets hashed to a value lower than 0.001
     magic_uuid = "414e119d37694a32869f9d81b76a0b70"
@@ -736,7 +736,7 @@ def test_relay_chain_keep_unsampled_profile(
     ]
 
     public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(config, sample_rate=0.0, rule_type="transaction")
+    add_sampling_config(config, sample_rate=0.0, rule_type="transaction")
 
     envelope = make_envelope(public_key)
 
@@ -881,7 +881,7 @@ def test_invalid_global_generic_filters_skip_dynamic_sampling(mini_sentry, relay
     public_key = config["publicKeys"][0]["publicKey"]
 
     # Reject all transactions with dynamic sampling
-    _add_sampling_config(config, sample_rate=0, rule_type="transaction")
+    add_sampling_config(config, sample_rate=0, rule_type="transaction")
 
     envelope, _, _ = _create_transaction_envelope(public_key, client_sample_rate=0)
 

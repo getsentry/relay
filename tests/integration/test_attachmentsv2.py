@@ -8,7 +8,7 @@ from unittest import mock
 from .asserts import time_within_delta, time_is
 from .test_spansv2 import envelope_with_spans
 
-from .test_dynamic_sampling import _add_sampling_config
+from .test_dynamic_sampling import add_sampling_config
 
 import json
 import uuid
@@ -494,9 +494,9 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
         "projects:span-v2-attachment-processing",
     ]
     # A transaction rule should never apply.
-    _add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
+    add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
     # Setup the actual rule we want to test against.
-    _add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
+    add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -597,6 +597,77 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     ]
 
     assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_outcomes.empty()
+
+
+@pytest.mark.parametrize(
+    "rule_type",
+    ["project", "trace"],
+)
+@pytest.mark.parametrize(
+    "should_drop",
+    [False, True],
+)
+def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:trace-attachment-processing",
+    ]
+    sample_rate = 0.0 if should_drop else 1.0
+    add_sampling_config(project_config, sample_rate=sample_rate, rule_type=rule_type)
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    envelope = Envelope()
+    envelope.headers["trace"] = {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "public_key": project_config["publicKeys"][0]["publicKey"],
+    }
+
+    metadata = create_attachment_metadata()
+    body = b"span attachment content"
+    metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+    combined_payload = metadata_bytes + body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(metadata_bytes),
+                "length": len(combined_payload),
+            },
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    if should_drop:
+        assert mini_sentry.get_outcomes(n=2) == [
+            {
+                "timestamp": time_within_delta(),
+                "org_id": 1,
+                "project_id": 42,
+                "key_id": 123,
+                "outcome": 1,
+                "reason": "Sampled:0",
+                "category": DataCategory.ATTACHMENT.value,
+                "quantity": len(body),
+            },
+            {
+                "timestamp": time_within_delta(),
+                "org_id": 1,
+                "project_id": 42,
+                "key_id": 123,
+                "outcome": 1,
+                "reason": "Sampled:0",
+                "category": DataCategory.ATTACHMENT_ITEM.value,
+                "quantity": 1,
+            },
+        ]
+
     assert mini_sentry.captured_outcomes.empty()
 
 
