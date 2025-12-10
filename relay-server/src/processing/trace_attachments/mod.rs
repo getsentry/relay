@@ -128,9 +128,9 @@ impl Processor for TraceAttachmentsProcessor {
 
         let work = process::sample(work, ctx).await?;
 
-        let mut work = process::expand(work);
+        let work = process::expand(work);
 
-        self.limiter.enforce_quotas(&mut work, ctx).await?;
+        let mut work = self.limiter.enforce_quotas(work, ctx).await?;
 
         process::scrub(&mut work, ctx);
 

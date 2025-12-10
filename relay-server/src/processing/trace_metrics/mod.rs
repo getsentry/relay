@@ -137,7 +137,7 @@ impl processing::Processor for TraceMetricsProcessor {
         filter::filter(&mut metrics, ctx);
         process::scrub(&mut metrics, ctx);
 
-        self.limiter.enforce_quotas(&mut metrics, ctx).await?;
+        let metrics = self.limiter.enforce_quotas(metrics, ctx).await?;
 
         Ok(Output::just(TraceMetricOutput(metrics)))
     }
