@@ -13,7 +13,7 @@ use crate::services::projects::cache::state::{
     self, CompletedFetch, Eviction, Fetch, ProjectStore, Refresh,
 };
 use crate::services::projects::project::ProjectState;
-use crate::services::projects::source::ProjectSource;
+use crate::services::projects::source::{ProjectSource, ProjectSourceError, upstream};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::FuturesScheduled;
 
@@ -119,7 +119,13 @@ impl ProjectCacheService {
                 .await
             {
                 Ok(result) => result,
-                Err(err) => {
+                Err(ProjectSourceError::Upstream(upstream::Error::DeadlineExceeded)) => {
+                    // Somewhat of an expected error which is already logged on the upstream side.
+                    //
+                    // -> we can just go into our usual pending handling.
+                    ProjectState::Pending.into()
+                }
+                Err(err @ ProjectSourceError::FatalUpstream) => {
                     relay_log::error!(
                         tags.project_key = fetch.project_key().as_str(),
                         tags.has_revision = fetch.revision().as_str().is_some(),
