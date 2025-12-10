@@ -92,9 +92,11 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
 
 
 def test_standalone_attachment_store(
-    mini_sentry, relay_with_processing, items_consumer, objectstore
+    mini_sentry, relay_with_processing, items_consumer, objectstore, outcomes_consumer
 ):
     items_consumer = items_consumer()
+    outcomes_consumer = outcomes_consumer()
+
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -154,6 +156,26 @@ def test_standalone_attachment_store(
         objectstore.get(attachment_metadata["attachment_id"]).payload.read()
         == attachment_body
     )
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+    assert outcomes == [
+        {
+            "category": DataCategory.ATTACHMENT.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 36,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+    ]
 
 
 @pytest.mark.parametrize(
@@ -300,9 +322,11 @@ def test_attachment_with_matching_span(mini_sentry, relay):
 
 
 def test_attachment_with_matching_span_store(
-    mini_sentry, relay_with_processing, items_consumer, objectstore
+    mini_sentry, relay_with_processing, items_consumer, objectstore, outcomes_consumer
 ):
     items_consumer = items_consumer()
+    outcomes_consumer = outcomes_consumer()
+
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -379,6 +403,34 @@ def test_attachment_with_matching_span_store(
 
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
     assert objectstore.get(metadata["attachment_id"]).payload.read() == body
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=3)
+    assert outcomes == [
+        {
+            "category": DataCategory.ATTACHMENT.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 23,
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+    ]
 
 
 def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
