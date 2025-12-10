@@ -46,7 +46,7 @@ pub fn expand(work: Managed<SampledAttachments>) -> Managed<ExpandedAttachments>
 pub fn parse_and_validate(item: &Item) -> Result<ExpandedAttachment, DiscardReason> {
     let meta_length = item.meta_length().ok_or_else(|| {
         relay_log::debug!("trace attachment missing meta_length");
-        DiscardReason::InvalidSpanAttachment
+        DiscardReason::InvalidTraceAttachment
     })? as usize;
 
     let payload = item.payload();
@@ -56,11 +56,11 @@ pub fn parse_and_validate(item: &Item) -> Result<ExpandedAttachment, DiscardReas
             meta_length,
             payload.len()
         );
-        return Err(DiscardReason::InvalidSpanAttachment);
+        return Err(DiscardReason::InvalidTraceAttachment);
     };
 
     let meta = Annotated::from_json_bytes(meta_bytes).map_err(|err| {
-        relay_log::debug!("failed to parse span attachment: {err}");
+        relay_log::debug!("failed to parse trace attachment: {err}");
         DiscardReason::InvalidJson
     })?;
 

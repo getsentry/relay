@@ -38,7 +38,7 @@ pub fn convert(
             server_sample_rate,
         };
         let trace_item = attachment_to_trace_item(meta, ctx)
-            .ok_or(Outcome::Invalid(DiscardReason::InvalidSpanAttachment))?;
+            .ok_or(Outcome::Invalid(DiscardReason::InvalidTraceAttachment))?;
 
         Ok::<_, Outcome>(StoreAttachment { trace_item, body })
     })

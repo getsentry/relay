@@ -6,7 +6,7 @@ use relay_quotas::DataCategory;
 use crate::envelope::ParentId;
 use crate::managed::{Counted, Quantities};
 
-/// A validated and parsed span attachment.
+/// A validated and parsed trace attachment.
 #[derive(Debug)]
 pub struct ExpandedAttachment {
     /// The ID of the log / span / metric that owns the attachment.

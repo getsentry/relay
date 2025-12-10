@@ -1008,13 +1008,13 @@ pub struct ItemHeaders {
 
     /// Content length of an optional meta segment that might be contained in the item.
     ///
-    /// For the time being such an meta segment is only present for span attachments.
+    /// For the time being such an meta segment is only present for trace attachments.
     #[serde(skip_serializing_if = "Option::is_none")]
     meta_length: Option<u32>,
 
     /// Parent entity that this item is associated with, if any.
     ///
-    /// For the time being only applicable if the item is a span-attachment.
+    /// For the time being only applicable if the item is a trace attachment.
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     parent_id: Option<ParentId>,
 
