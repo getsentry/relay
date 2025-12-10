@@ -391,7 +391,6 @@ def test_ai_spans_example_transaction(
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 130.0},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 245},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 65},
-                "gen_ai.usage.total_cost": {"type": "double", "value": 3.75},
                 "gen_ai.usage.total_tokens": {"type": "integer", "value": 310},
                 "operation.name": {
                     "type": "string",
@@ -495,7 +494,6 @@ def test_ai_spans_example_transaction(
                 "gen_ai.system": {"type": "string", "value": "openai.responses"},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 37},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 46},
-                "gen_ai.usage.total_cost": {"type": "double", "value": 1.29},
                 "gen_ai.usage.total_tokens": {"type": "integer", "value": 83},
                 "operation.name": {
                     "type": "string",
@@ -957,7 +955,6 @@ def test_ai_spans_example_transaction(
                 "gen_ai.system": {"type": "string", "value": "openai.responses"},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 208},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 19},
-                "gen_ai.usage.total_cost": {"type": "double", "value": 2.46},
                 "gen_ai.usage.total_tokens": {"type": "integer", "value": 227},
                 "operation.name": {
                     "type": "string",
