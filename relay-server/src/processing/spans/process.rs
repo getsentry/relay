@@ -289,7 +289,7 @@ fn scrub_attachment(attachment: &mut ExpandedAttachment, ctx: Context<'_>) -> Re
     } = attachment;
 
     relay_pii::eap::scrub(
-        ValueType::Attachments,
+        ValueType::Object,
         meta,
         ctx.project_info.config.pii_config.as_ref(),
         pii_config_from_scrubbing.as_ref(),
