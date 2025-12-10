@@ -11,12 +11,12 @@ use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::envelope::{ClientName, Item};
+use crate::envelope::ClientName;
 use crate::managed::{Counted, Managed, Quantities};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::Context;
 use crate::processing::spans::{
-    Error, ExpandedSpans, Indexed, Result, SampledSpans, SerializedSpans, outcome_count,
+    Error, ExpandedSpans, Indexed, Result, SampledSpans, SerializedSpans,
 };
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
@@ -127,16 +127,13 @@ pub async fn run(
     };
 
     // At this point the decision is to drop the spans.
-    let span_count = outcome_count(&spans.spans)
-        + outcome_count(&spans.legacy)
-        + outcome_count(&spans.integrations);
     let metrics = create_metrics(
         spans.scoping(),
-        span_count,
+        spans.span_count(),
         spans.headers.dsc(),
         SamplingDecision::Drop,
     );
-    let (spans, metrics) = spans.split_once(|spans| (UnsampledSpans::from(spans), metrics));
+    let (spans, metrics) = spans.split_once(|spans| (UnsampledSpans(spans), metrics));
 
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
     let _ = spans.reject_err(outcome);
@@ -290,54 +287,17 @@ fn create_metrics(
 ///
 /// Contained spans will only count towards the [`DataCategory::SpanIndexed`] category,
 /// as the total category is counted from now in in metrics.
-struct UnsampledSpans {
-    spans: Vec<Item>,
-    legacy: Vec<Item>,
-    integrations: Vec<Item>,
-    attachments: Vec<Item>,
-}
-
-impl From<SerializedSpans> for UnsampledSpans {
-    fn from(value: SerializedSpans) -> Self {
-        let SerializedSpans {
-            headers: _,
-            spans,
-            legacy,
-            integrations,
-            attachments,
-        } = value;
-
-        Self {
-            spans,
-            legacy,
-            integrations,
-            attachments,
-        }
-    }
-}
+struct UnsampledSpans(SerializedSpans);
 
 impl Counted for UnsampledSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = (outcome_count(&self.spans)
-            + outcome_count(&self.legacy)
-            + outcome_count(&self.integrations)) as usize;
-
-        let mut quantities = smallvec::smallvec![];
-
-        if quantity > 0 {
-            quantities.push((DataCategory::SpanIndexed, quantity));
-        }
-        if !self.attachments.is_empty() {
-            quantities.push((
-                DataCategory::Attachment,
-                self.attachments
-                    .iter()
-                    .map(Item::attachment_body_size)
-                    .sum(),
-            ));
-            quantities.push((DataCategory::AttachmentItem, self.attachments.len()));
-        }
-
-        quantities
+        self.0
+            .quantities()
+            .into_iter()
+            // Spans only count towards the indexed category -> filter the total category.
+            //
+            // All other categories are untouched.
+            .filter(|(c, _)| *c != DataCategory::Span)
+            .collect()
     }
 }
