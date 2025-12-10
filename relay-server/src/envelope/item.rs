@@ -466,7 +466,7 @@ impl Item {
             && self.content_type() == Some(&ContentType::AttachmentV2)
     }
 
-    /// Returns `true` if this item is a V2 attachment without any span/log/etc. association.
+    /// Returns `true` if this item is a V2 attachment owned by spans.
     pub fn is_span_attachment(&self) -> bool {
         self.is_attachment_v2() && matches!(self.parent_id(), Some(ParentId::SpanId(_)))
     }

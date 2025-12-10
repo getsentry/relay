@@ -9,7 +9,7 @@ use crate::managed::{Counted, Quantities};
 /// A validated and parsed span attachment.
 #[derive(Debug)]
 pub struct ExpandedAttachment {
-    /// The ID of the log / span / metric that owns the span.
+    /// The ID of the log / span / metric that owns the attachment.
     pub parent_id: Option<ParentId>,
 
     /// The parsed metadata from the attachment.
