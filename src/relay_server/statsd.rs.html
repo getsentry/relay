@@ -940,64 +940,65 @@
 <a href=#940 id=940 data-nosnippet>940</a>    ///
 <a href=#941 id=941 data-nosnippet>941</a>    /// This metric is tagged with:
 <a href=#942 id=942 data-nosnippet>942</a>    /// - `dsc`: yes or no
-<a href=#943 id=943 data-nosnippet>943</a>    </span>EnvelopeWithLogs,
-<a href=#944 id=944 data-nosnippet>944</a>}
-<a href=#945 id=945 data-nosnippet>945</a>
-<a href=#946 id=946 data-nosnippet>946</a><span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
-<a href=#947 id=947 data-nosnippet>947</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#948 id=948 data-nosnippet>948</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#949 id=949 data-nosnippet>949</a>            RelayCounters::AsyncPoolFinishedTasks =&gt; <span class="string">"async_pool.finished_tasks"</span>,
-<a href=#950 id=950 data-nosnippet>950</a>            RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
-<a href=#951 id=951 data-nosnippet>951</a>            RelayCounters::EnvelopeAccepted =&gt; <span class="string">"event.accepted"</span>,
-<a href=#952 id=952 data-nosnippet>952</a>            RelayCounters::EnvelopeRejected =&gt; <span class="string">"event.rejected"</span>,
-<a href=#953 id=953 data-nosnippet>953</a>            RelayCounters::EnvelopeItems =&gt; <span class="string">"event.items"</span>,
-<a href=#954 id=954 data-nosnippet>954</a>            RelayCounters::EnvelopeItemBytes =&gt; <span class="string">"event.item_bytes"</span>,
-<a href=#955 id=955 data-nosnippet>955</a>            RelayCounters::BufferTryPop =&gt; <span class="string">"buffer.try_pop"</span>,
-<a href=#956 id=956 data-nosnippet>956</a>            RelayCounters::BufferSpooledEnvelopes =&gt; <span class="string">"buffer.spooled_envelopes"</span>,
-<a href=#957 id=957 data-nosnippet>957</a>            RelayCounters::BufferUnspooledEnvelopes =&gt; <span class="string">"buffer.unspooled_envelopes"</span>,
-<a href=#958 id=958 data-nosnippet>958</a>            RelayCounters::BufferProjectChangedEvent =&gt; <span class="string">"buffer.project_changed_event"</span>,
-<a href=#959 id=959 data-nosnippet>959</a>            RelayCounters::BufferProjectPending =&gt; <span class="string">"buffer.project_pending"</span>,
-<a href=#960 id=960 data-nosnippet>960</a>            RelayCounters::Outcomes =&gt; <span class="string">"events.outcomes"</span>,
-<a href=#961 id=961 data-nosnippet>961</a>            RelayCounters::OutcomeQuantity =&gt; <span class="string">"events.outcome_quantity"</span>,
-<a href=#962 id=962 data-nosnippet>962</a>            RelayCounters::ProjectStateRequest =&gt; <span class="string">"project_state.request"</span>,
-<a href=#963 id=963 data-nosnippet>963</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#964 id=964 data-nosnippet>964</a>            </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">"project_state.redis.requests"</span>,
-<a href=#965 id=965 data-nosnippet>965</a>            RelayCounters::ProjectUpstreamCompleted =&gt; <span class="string">"project_upstream.completed"</span>,
-<a href=#966 id=966 data-nosnippet>966</a>            RelayCounters::ProjectUpstreamFailed =&gt; <span class="string">"project_upstream.failed"</span>,
-<a href=#967 id=967 data-nosnippet>967</a>            RelayCounters::ProjectCacheSchedule =&gt; <span class="string">"project_cache.schedule"</span>,
-<a href=#968 id=968 data-nosnippet>968</a>            RelayCounters::ServerStarting =&gt; <span class="string">"server.starting"</span>,
-<a href=#969 id=969 data-nosnippet>969</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#970 id=970 data-nosnippet>970</a>            </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">"processing.event.produced"</span>,
-<a href=#971 id=971 data-nosnippet>971</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#972 id=972 data-nosnippet>972</a>            </span>RelayCounters::SpanV2Produced =&gt; <span class="string">"store.produced.span_v2"</span>,
-<a href=#973 id=973 data-nosnippet>973</a>            RelayCounters::EventProtocol =&gt; <span class="string">"event.protocol"</span>,
-<a href=#974 id=974 data-nosnippet>974</a>            RelayCounters::EventTransaction =&gt; <span class="string">"event.transaction"</span>,
-<a href=#975 id=975 data-nosnippet>975</a>            RelayCounters::TransactionNameChanges =&gt; <span class="string">"event.transaction_name_changes"</span>,
-<a href=#976 id=976 data-nosnippet>976</a>            RelayCounters::Requests =&gt; <span class="string">"requests"</span>,
-<a href=#977 id=977 data-nosnippet>977</a>            RelayCounters::ResponsesStatusCodes =&gt; <span class="string">"responses.status_codes"</span>,
-<a href=#978 id=978 data-nosnippet>978</a>            RelayCounters::EvictingStaleProjectCaches =&gt; <span class="string">"project_cache.eviction"</span>,
-<a href=#979 id=979 data-nosnippet>979</a>            RelayCounters::RefreshStaleProjectCaches =&gt; <span class="string">"project_cache.refresh"</span>,
-<a href=#980 id=980 data-nosnippet>980</a>            RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">"metrics.buckets.parsing_failed"</span>,
-<a href=#981 id=981 data-nosnippet>981</a>            RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">"metrics.transaction_name"</span>,
-<a href=#982 id=982 data-nosnippet>982</a>            RelayCounters::OpenTelemetryEvent =&gt; <span class="string">"event.opentelemetry"</span>,
-<a href=#983 id=983 data-nosnippet>983</a>            RelayCounters::GlobalConfigFetched =&gt; <span class="string">"global_config.fetch"</span>,
-<a href=#984 id=984 data-nosnippet>984</a>            RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
-<a href=#985 id=985 data-nosnippet>985</a>            RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
-<a href=#986 id=986 data-nosnippet>986</a>            RelayCounters::ProjectStateFlushMetricsNoProject =&gt; <span class="string">"project_state.metrics.no_project"</span>,
-<a href=#987 id=987 data-nosnippet>987</a>            RelayCounters::BucketsDropped =&gt; <span class="string">"metrics.buckets.dropped"</span>,
-<a href=#988 id=988 data-nosnippet>988</a>            RelayCounters::ReplayExceededSegmentLimit =&gt; <span class="string">"replay.segment_limit_exceeded"</span>,
-<a href=#989 id=989 data-nosnippet>989</a>            RelayCounters::ServerSocketAccept =&gt; <span class="string">"server.http.accepted"</span>,
-<a href=#990 id=990 data-nosnippet>990</a>            RelayCounters::ServerConnectionIdleTimeout =&gt; <span class="string">"server.http.idle_timeout"</span>,
-<a href=#991 id=991 data-nosnippet>991</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#992 id=992 data-nosnippet>992</a>            </span>RelayCounters::MetricDelaySum =&gt; <span class="string">"metrics.delay.sum"</span>,
-<a href=#993 id=993 data-nosnippet>993</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#994 id=994 data-nosnippet>994</a>            </span>RelayCounters::MetricDelayCount =&gt; <span class="string">"metrics.delay.count"</span>,
-<a href=#995 id=995 data-nosnippet>995</a>            <span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
-<a href=#996 id=996 data-nosnippet>996</a>            </span>RelayCounters::PlaystationProcessing =&gt; <span class="string">"processing.playstation"</span>,
-<a href=#997 id=997 data-nosnippet>997</a>            RelayCounters::SamplingDecision =&gt; <span class="string">"sampling.decision"</span>,
-<a href=#998 id=998 data-nosnippet>998</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#999 id=999 data-nosnippet>999</a>            </span>RelayCounters::AttachmentUpload =&gt; <span class="string">"attachment.upload"</span>,
-<a href=#1000 id=1000 data-nosnippet>1000</a>            RelayCounters::EnvelopeWithLogs =&gt; <span class="string">"logs.envelope"</span>,
-<a href=#1001 id=1001 data-nosnippet>1001</a>        }
-<a href=#1002 id=1002 data-nosnippet>1002</a>    }
-<a href=#1003 id=1003 data-nosnippet>1003</a>}</code></pre></div></section></main></body></html>
+<a href=#943 id=943 data-nosnippet>943</a>    /// - `sdk`: low-cardinality client name
+<a href=#944 id=944 data-nosnippet>944</a>    </span>EnvelopeWithLogs,
+<a href=#945 id=945 data-nosnippet>945</a>}
+<a href=#946 id=946 data-nosnippet>946</a>
+<a href=#947 id=947 data-nosnippet>947</a><span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
+<a href=#948 id=948 data-nosnippet>948</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#949 id=949 data-nosnippet>949</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#950 id=950 data-nosnippet>950</a>            RelayCounters::AsyncPoolFinishedTasks =&gt; <span class="string">"async_pool.finished_tasks"</span>,
+<a href=#951 id=951 data-nosnippet>951</a>            RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
+<a href=#952 id=952 data-nosnippet>952</a>            RelayCounters::EnvelopeAccepted =&gt; <span class="string">"event.accepted"</span>,
+<a href=#953 id=953 data-nosnippet>953</a>            RelayCounters::EnvelopeRejected =&gt; <span class="string">"event.rejected"</span>,
+<a href=#954 id=954 data-nosnippet>954</a>            RelayCounters::EnvelopeItems =&gt; <span class="string">"event.items"</span>,
+<a href=#955 id=955 data-nosnippet>955</a>            RelayCounters::EnvelopeItemBytes =&gt; <span class="string">"event.item_bytes"</span>,
+<a href=#956 id=956 data-nosnippet>956</a>            RelayCounters::BufferTryPop =&gt; <span class="string">"buffer.try_pop"</span>,
+<a href=#957 id=957 data-nosnippet>957</a>            RelayCounters::BufferSpooledEnvelopes =&gt; <span class="string">"buffer.spooled_envelopes"</span>,
+<a href=#958 id=958 data-nosnippet>958</a>            RelayCounters::BufferUnspooledEnvelopes =&gt; <span class="string">"buffer.unspooled_envelopes"</span>,
+<a href=#959 id=959 data-nosnippet>959</a>            RelayCounters::BufferProjectChangedEvent =&gt; <span class="string">"buffer.project_changed_event"</span>,
+<a href=#960 id=960 data-nosnippet>960</a>            RelayCounters::BufferProjectPending =&gt; <span class="string">"buffer.project_pending"</span>,
+<a href=#961 id=961 data-nosnippet>961</a>            RelayCounters::Outcomes =&gt; <span class="string">"events.outcomes"</span>,
+<a href=#962 id=962 data-nosnippet>962</a>            RelayCounters::OutcomeQuantity =&gt; <span class="string">"events.outcome_quantity"</span>,
+<a href=#963 id=963 data-nosnippet>963</a>            RelayCounters::ProjectStateRequest =&gt; <span class="string">"project_state.request"</span>,
+<a href=#964 id=964 data-nosnippet>964</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#965 id=965 data-nosnippet>965</a>            </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">"project_state.redis.requests"</span>,
+<a href=#966 id=966 data-nosnippet>966</a>            RelayCounters::ProjectUpstreamCompleted =&gt; <span class="string">"project_upstream.completed"</span>,
+<a href=#967 id=967 data-nosnippet>967</a>            RelayCounters::ProjectUpstreamFailed =&gt; <span class="string">"project_upstream.failed"</span>,
+<a href=#968 id=968 data-nosnippet>968</a>            RelayCounters::ProjectCacheSchedule =&gt; <span class="string">"project_cache.schedule"</span>,
+<a href=#969 id=969 data-nosnippet>969</a>            RelayCounters::ServerStarting =&gt; <span class="string">"server.starting"</span>,
+<a href=#970 id=970 data-nosnippet>970</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#971 id=971 data-nosnippet>971</a>            </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">"processing.event.produced"</span>,
+<a href=#972 id=972 data-nosnippet>972</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#973 id=973 data-nosnippet>973</a>            </span>RelayCounters::SpanV2Produced =&gt; <span class="string">"store.produced.span_v2"</span>,
+<a href=#974 id=974 data-nosnippet>974</a>            RelayCounters::EventProtocol =&gt; <span class="string">"event.protocol"</span>,
+<a href=#975 id=975 data-nosnippet>975</a>            RelayCounters::EventTransaction =&gt; <span class="string">"event.transaction"</span>,
+<a href=#976 id=976 data-nosnippet>976</a>            RelayCounters::TransactionNameChanges =&gt; <span class="string">"event.transaction_name_changes"</span>,
+<a href=#977 id=977 data-nosnippet>977</a>            RelayCounters::Requests =&gt; <span class="string">"requests"</span>,
+<a href=#978 id=978 data-nosnippet>978</a>            RelayCounters::ResponsesStatusCodes =&gt; <span class="string">"responses.status_codes"</span>,
+<a href=#979 id=979 data-nosnippet>979</a>            RelayCounters::EvictingStaleProjectCaches =&gt; <span class="string">"project_cache.eviction"</span>,
+<a href=#980 id=980 data-nosnippet>980</a>            RelayCounters::RefreshStaleProjectCaches =&gt; <span class="string">"project_cache.refresh"</span>,
+<a href=#981 id=981 data-nosnippet>981</a>            RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">"metrics.buckets.parsing_failed"</span>,
+<a href=#982 id=982 data-nosnippet>982</a>            RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">"metrics.transaction_name"</span>,
+<a href=#983 id=983 data-nosnippet>983</a>            RelayCounters::OpenTelemetryEvent =&gt; <span class="string">"event.opentelemetry"</span>,
+<a href=#984 id=984 data-nosnippet>984</a>            RelayCounters::GlobalConfigFetched =&gt; <span class="string">"global_config.fetch"</span>,
+<a href=#985 id=985 data-nosnippet>985</a>            RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
+<a href=#986 id=986 data-nosnippet>986</a>            RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
+<a href=#987 id=987 data-nosnippet>987</a>            RelayCounters::ProjectStateFlushMetricsNoProject =&gt; <span class="string">"project_state.metrics.no_project"</span>,
+<a href=#988 id=988 data-nosnippet>988</a>            RelayCounters::BucketsDropped =&gt; <span class="string">"metrics.buckets.dropped"</span>,
+<a href=#989 id=989 data-nosnippet>989</a>            RelayCounters::ReplayExceededSegmentLimit =&gt; <span class="string">"replay.segment_limit_exceeded"</span>,
+<a href=#990 id=990 data-nosnippet>990</a>            RelayCounters::ServerSocketAccept =&gt; <span class="string">"server.http.accepted"</span>,
+<a href=#991 id=991 data-nosnippet>991</a>            RelayCounters::ServerConnectionIdleTimeout =&gt; <span class="string">"server.http.idle_timeout"</span>,
+<a href=#992 id=992 data-nosnippet>992</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#993 id=993 data-nosnippet>993</a>            </span>RelayCounters::MetricDelaySum =&gt; <span class="string">"metrics.delay.sum"</span>,
+<a href=#994 id=994 data-nosnippet>994</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#995 id=995 data-nosnippet>995</a>            </span>RelayCounters::MetricDelayCount =&gt; <span class="string">"metrics.delay.count"</span>,
+<a href=#996 id=996 data-nosnippet>996</a>            <span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
+<a href=#997 id=997 data-nosnippet>997</a>            </span>RelayCounters::PlaystationProcessing =&gt; <span class="string">"processing.playstation"</span>,
+<a href=#998 id=998 data-nosnippet>998</a>            RelayCounters::SamplingDecision =&gt; <span class="string">"sampling.decision"</span>,
+<a href=#999 id=999 data-nosnippet>999</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#1000 id=1000 data-nosnippet>1000</a>            </span>RelayCounters::AttachmentUpload =&gt; <span class="string">"attachment.upload"</span>,
+<a href=#1001 id=1001 data-nosnippet>1001</a>            RelayCounters::EnvelopeWithLogs =&gt; <span class="string">"logs.envelope"</span>,
+<a href=#1002 id=1002 data-nosnippet>1002</a>        }
+<a href=#1003 id=1003 data-nosnippet>1003</a>    }
+<a href=#1004 id=1004 data-nosnippet>1004</a>}</code></pre></div></section></main></body></html>
