@@ -4,7 +4,6 @@ use either::Either;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::SpanV2;
-use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
@@ -16,6 +15,7 @@ use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::trace_attachments::forward::attachment_to_item;
+use crate::processing::trace_attachments::process::ScrubAttachmentError;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter, RateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -53,7 +53,7 @@ pub enum Error {
     ProcessingFailed(#[from] ProcessingAction),
     /// Internal error, Pii config could not be loaded.
     #[error("Pii configuration error")]
-    PiiConfig(PiiConfigError),
+    PiiConfig,
     /// The span is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
@@ -77,7 +77,7 @@ impl OutcomeError for Error {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
-            Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
+            Self::PiiConfig => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
@@ -88,6 +88,15 @@ impl OutcomeError for Error {
 impl From<RateLimits> for Error {
     fn from(value: RateLimits) -> Self {
         Self::RateLimited(value)
+    }
+}
+
+impl From<ScrubAttachmentError> for Error {
+    fn from(value: ScrubAttachmentError) -> Self {
+        match value {
+            ScrubAttachmentError::PiiConfig => Self::PiiConfig,
+            ScrubAttachmentError::ProcessingFailed(action) => Self::ProcessingFailed(action),
+        }
     }
 }
 
