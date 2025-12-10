@@ -389,9 +389,7 @@ pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>)
 
     if let Some(attributes) = annotated_attributes.value_mut() {
         if let Some(normalized_db_query) = normalized_db_query {
-            let mut normalized_db_query_hash = format!("{:x}", md5::compute(&normalized_db_query));
-            normalized_db_query_hash.truncate(16);
-
+            let normalized_db_query_hash = compute_normalized_db_query_hash(&normalized_db_query);
             attributes.insert(NORMALIZED_DB_QUERY, normalized_db_query);
             attributes.insert(NORMALIZED_DB_QUERY_HASH, normalized_db_query_hash);
         }
@@ -402,6 +400,19 @@ pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>)
             attributes.insert(DB_COLLECTION_NAME, db_collection_name);
         }
     }
+}
+
+/// Computes a stable hash for a database query.
+///
+/// Used to fill the [`NORMALIZED_DB_QUERY_HASH`] attribute.
+///
+/// It uses a `fnv1a` as the underlying hash.
+fn compute_normalized_db_query_hash(query: &str) -> String {
+    use std::hash::Hasher;
+    let mut hasher = fnv::FnvHasher::default();
+    hasher.write(query.as_bytes());
+    let hash = hasher.finish();
+    format!("{hash:016x}")
 }
 
 #[cfg(test)]
@@ -935,7 +946,7 @@ mod tests {
           },
           "sentry.normalized_db_query.hash": {
             "type": "string",
-            "value": "3a377dcc490b1690"
+            "value": "72f9e1e7c7a239df"
           },
           "sentry.op": {
             "type": "string",
@@ -1005,7 +1016,7 @@ mod tests {
           },
           "sentry.normalized_db_query.hash": {
             "type": "string",
-            "value": "aedc5c7e8cec726b"
+            "value": "c17b402661017c95"
           },
           "sentry.op": {
             "type": "string",
@@ -1123,5 +1134,12 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_compute_normalized_db_query_hash_is_fnv1a() {
+        assert_eq!(&compute_normalized_db_query_hash(""), "cbf29ce484222325");
+        // Fnv1a with padded 0's
+        assert_eq!(&compute_normalized_db_query_hash("cu"), "08a24307b54a0265");
     }
 }

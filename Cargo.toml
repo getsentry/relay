@@ -116,6 +116,7 @@ enumset = "1.1.10"
 either = "1.15.0"
 flate2 = "1.1.4"
 flume = { version = "0.11.1", default-features = false }
+fnv = "1.0.7"
 futures = { version = "0.3.31", default-features = false, features = ["std"] }
 globset = "0.4.16"
 hash32 = "1.0.0"

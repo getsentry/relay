@@ -16,6 +16,7 @@ workspace = true
 bytecount = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }
 dynfmt = { workspace = true, features = ["python", "curly"] }
+fnv = { workspace = true }
 itertools = { workspace = true }
 maxminddb = { workspace = true }
 md5 = { workspace = true }
@@ -25,6 +26,7 @@ relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
 relay-conventions = { workspace = true }
 relay-event-schema = { workspace = true }
+relay-filter = { workspace = true }
 relay-log = { workspace = true }
 relay-pattern = { workspace = true, features = ["serde"] }
 relay-protocol = { workspace = true }
@@ -32,7 +34,6 @@ relay-sampling = { workspace = true }
 relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-ua = { workspace = true }
-relay-filter = { workspace = true }
 sentry-release-parser = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
