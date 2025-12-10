@@ -5,7 +5,6 @@ import json
 from unittest import mock
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-from objectstore_client import Client, Usecase
 
 from .test_store import make_transaction
 
@@ -119,7 +118,11 @@ def test_mixed_attachments_with_processing(
 
 
 def test_attachments_with_objectstore(
-    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    outcomes_consumer,
+    objectstore,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
@@ -149,10 +152,8 @@ def test_attachments_with_objectstore(
     attachment = attachments_consumer.get_individual_attachment()
 
     objectstore_key = attachment["attachment"].pop("stored_id")
-    objectstore_session = Client("http://127.0.0.1:8888/").session(
-        Usecase("attachments"), org=1, project=project_id
-    )
-    assert objectstore_session.get(objectstore_key).payload.read() == chunked_contents
+    objectstore = objectstore("attachments", project_id)
+    assert objectstore.get(objectstore_key).payload.read() == chunked_contents
 
     assert attachment == {
         "type": "attachment",
