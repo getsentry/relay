@@ -44,7 +44,6 @@ pub fn expand(work: Managed<SampledAttachments>) -> Managed<ExpandedAttachments>
 
 /// Converts an envelope item into an expanded trace attachment.
 pub fn parse_and_validate(item: &Item) -> Result<ExpandedAttachment, DiscardReason> {
-    // TODO(jjbayer): should this function take ownership?
     let meta_length = item.meta_length().ok_or_else(|| {
         relay_log::debug!("trace attachment missing meta_length");
         DiscardReason::InvalidSpanAttachment
@@ -66,9 +65,9 @@ pub fn parse_and_validate(item: &Item) -> Result<ExpandedAttachment, DiscardReas
     })?;
 
     Ok(ExpandedAttachment {
-        parent_id: item.parent_id().cloned(), // TODO(jjbayer): zero-copy
+        parent_id: item.parent_id().cloned(),
         meta,
-        body: Bytes::copy_from_slice(body), // TODO(jjbayer): ptr to slice
+        body: payload.slice_ref(body),
     })
 }
 
