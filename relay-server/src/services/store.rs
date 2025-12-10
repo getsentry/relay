@@ -908,10 +908,13 @@ impl StoreService {
             key_id,
             received: safe_timestamp(received_at),
             retention_days,
-            headers: BTreeMap::from([(
-                "sampled".to_owned(),
-                if item.sampled() { "true" } else { "false" }.to_owned(),
-            )]),
+            headers: BTreeMap::from([
+                (
+                    "sampled".to_owned(),
+                    if item.sampled() { "true" } else { "false" }.to_owned(),
+                ),
+                ("project_id".to_owned(), project_id.to_string()),
+            ]),
             payload: item.payload(),
         };
         self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
@@ -1159,6 +1162,7 @@ impl StoreService {
             project_id,
             received: safe_timestamp(received_at),
             retention_days,
+            headers: BTreeMap::from([("project_id".to_owned(), project_id.to_string())]),
             payload: item.payload(),
         };
         self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))?;
@@ -1479,6 +1483,8 @@ struct ProfileChunkKafkaMessage {
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
+    #[serde(skip)]
+    headers: BTreeMap<String, String>,
     payload: Bytes,
 }
 
@@ -1592,14 +1598,14 @@ impl Message for KafkaMessage<'_> {
             | KafkaMessage::SpanRaw { headers, .. }
             | KafkaMessage::SpanV2 { headers, .. }
             | KafkaMessage::Item { headers, .. }
-            | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) => Some(headers),
+            | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. })
+            | KafkaMessage::ProfileChunk(ProfileChunkKafkaMessage { headers, .. }) => Some(headers),
 
             KafkaMessage::Event(_)
             | KafkaMessage::UserReport(_)
             | KafkaMessage::CheckIn(_)
             | KafkaMessage::Attachment(_)
             | KafkaMessage::AttachmentChunk(_)
-            | KafkaMessage::ProfileChunk(_)
             | KafkaMessage::ReplayEvent(_)
             | KafkaMessage::ReplayRecordingNotChunked(_) => None,
         }
