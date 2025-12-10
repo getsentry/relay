@@ -164,16 +164,31 @@ def test_standalone_attachment_store(
 
 
 @pytest.mark.parametrize(
-    "invalid_headers,quantity",
+    "invalid_headers,quantity,reason",
     [
         # Invalid since there is no span with that id in the envelope, also the quantity here is
         # lower since only the body is already counted at this point and not the meta.
-        pytest.param({"span_id": "ABCDFDEAD5F74052"}, 36, id="invalid_span_id"),
-        pytest.param({"meta_length": None}, 273, id="missing_meta_length"),
-        pytest.param({"meta_length": 999}, 1, id="meta_length_exceeds_payload"),
+        pytest.param(
+            {"span_id": "ABCDFDEAD5F74052"},
+            36,
+            "invalid_span_attachment",
+            id="invalid_span_id",
+        ),
+        pytest.param(
+            {"meta_length": None},
+            273,
+            "invalid_trace_attachment",
+            id="missing_meta_length",
+        ),
+        pytest.param(
+            {"meta_length": 999},
+            1,
+            "invalid_trace_attachment",
+            id="meta_length_exceeds_payload",
+        ),
     ],
 )
-def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
+def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity, reason):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -210,7 +225,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
             "outcome": 3,
             "key_id": 123,
             "project_id": 42,
-            "reason": "invalid_span_attachment",
+            "reason": reason,
             "quantity": quantity,
             "timestamp": time_within_delta(),
         },
@@ -220,7 +235,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
             "outcome": 3,
             "key_id": 123,
             "project_id": 42,
-            "reason": "invalid_span_attachment",
+            "reason": reason,
             "quantity": 1,
             "timestamp": time_within_delta(),
         },
@@ -666,6 +681,10 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
                 "quantity": 1,
             },
         ]
+    else:
+        envelope = mini_sentry.get_captured_event()
+        (item,) = envelope.items
+        assert item.headers["type"] == "attachment"
 
     assert mini_sentry.captured_events.empty()
     assert mini_sentry.captured_outcomes.empty()
