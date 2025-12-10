@@ -137,7 +137,7 @@ pub fn scrub_attachment<'a>(
     } = attachment;
 
     relay_pii::eap::scrub(
-        ValueType::Attachments,
+        ValueType::Object, // we may want to introduce a dedicated $attachment_meta type at some point.
         meta,
         ctx.project_info.config.pii_config.as_ref(),
         pii_config_from_scrubbing.as_ref(),
