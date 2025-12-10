@@ -353,7 +353,7 @@ def test_duplicate_performance_score(mini_sentry, relay):
 
     score_total_seen = 0
     for _ in range(3):  # 2 client reports and the actual item we're interested in
-        envelope = mini_sentry.get_captured_event()
+        envelope = mini_sentry.get_captured_envelope()
         for item in envelope.items:
             if item.type == "metric_buckets":
                 for metric in json.loads(item.payload.get_bytes()):
@@ -952,7 +952,7 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
     }
 
     # No envelopes were received:
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_span_ingestion_with_performance_scores(

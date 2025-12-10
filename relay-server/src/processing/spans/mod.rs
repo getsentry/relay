@@ -296,6 +296,21 @@ pub struct SerializedSpans {
 }
 
 impl SerializedSpans {
+    /// Returns a best effort count of spans contained in [`Self`].
+    ///
+    /// Best effort as it relies on unvalidated counts specified in the envelope.
+    pub fn span_count(&self) -> u32 {
+        let Self {
+            headers: _,
+            spans,
+            legacy,
+            integrations,
+            attachments: _,
+        } = self;
+
+        outcome_count(spans) + outcome_count(legacy) + outcome_count(integrations)
+    }
+
     fn sampled(self, server_sample_rate: Option<f64>) -> SampledSpans {
         SampledSpans {
             inner: self,
@@ -306,10 +321,7 @@ impl SerializedSpans {
 
 impl Counted for SerializedSpans {
     fn quantities(&self) -> Quantities {
-        let span_quantity = (outcome_count(&self.spans)
-            + outcome_count(&self.legacy)
-            + outcome_count(&self.integrations)) as usize;
-
+        let span_quantity = self.span_count() as usize;
         let attachment_quantity = self
             .attachments
             .iter()

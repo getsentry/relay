@@ -60,7 +60,7 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
         assert excinfo.value.response.status_code == 403
         assert fetched_project_config.wait(timeout=1)
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize("failure_type", ["timeout", "socketerror"])
@@ -96,7 +96,7 @@ def test_query_retry(failure_type, mini_sentry, relay):
     try:
         relay.send_event(42)
 
-        event = mini_sentry.get_captured_event(timeout=12).get_event()
+        event = mini_sentry.get_captured_envelope(timeout=12).get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}
         assert retry_count == 3
 
@@ -283,7 +283,7 @@ def test_project_fetch_revision(mini_sentry, relay, with_revision_support):
     project_config_fetch.clear()
     assert not with_rev.is_set()
 
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
     # Wait for project config to expire.
@@ -294,5 +294,5 @@ def test_project_fetch_revision(mini_sentry, relay, with_revision_support):
     assert project_config_fetch.wait(timeout=2)
     assert with_rev.wait(timeout=2)
 
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
