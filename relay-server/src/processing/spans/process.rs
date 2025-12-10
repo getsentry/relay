@@ -282,7 +282,11 @@ fn scrub_attachment(attachment: &mut ExpandedAttachment, ctx: Context<'_>) -> Re
         .pii_config()
         .map_err(|e| Error::PiiConfig(e.clone()))?;
 
-    let ExpandedAttachment { meta, body } = attachment;
+    let ExpandedAttachment {
+        parent_id: _,
+        meta,
+        body,
+    } = attachment;
 
     relay_pii::eap::scrub(
         ValueType::Attachments,
@@ -771,6 +775,7 @@ mod tests {
         .unwrap();
 
         let mut attachment = ExpandedAttachment {
+            parent_id: ParentId::SpanId(None),
             meta: Annotated::new(AttachmentV2Meta {
                 attachment_id: Annotated::new(Uuid::new_v4()),
                 filename: Annotated::new("data.txt".to_owned()),
@@ -806,6 +811,7 @@ mod tests {
         );
 
         let mut attachment = ExpandedAttachment {
+            parent_id: ParentId::SpanId(None),
             meta: Annotated::new(AttachmentV2Meta {
                 attachment_id: Annotated::new(Uuid::new_v4()),
                 filename: Annotated::new("data.txt".to_owned()),
