@@ -258,6 +258,6 @@ def test_invalid_header_value(mini_sentry, relay):
         relay.send_event(
             project_id,
             headers={
-                "x-sentry-relay-signature": b"\xFF\xFF\xFF\xFF\xFF",
+                "x-sentry-relay-signature": b"\xff\xff\xff\xff\xff",
             },
         )

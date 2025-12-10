@@ -97,7 +97,12 @@ def test_standalone_attachment_forwarding(mini_sentry, relay, owned_by):
 
 @pytest.mark.parametrize("owned_by", ["spans", "trace"])
 def test_standalone_attachment_store(
-    mini_sentry, relay_with_processing, items_consumer, objectstore, outcomes_consumer, owned_by
+    mini_sentry,
+    relay_with_processing,
+    items_consumer,
+    objectstore,
+    outcomes_consumer,
+    owned_by,
 ):
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
