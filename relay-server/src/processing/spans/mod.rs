@@ -173,7 +173,7 @@ impl processing::Processor for SpansProcessor {
         process::normalize(&mut spans, &self.geo_lookup, ctx);
         filter::filter(&mut spans, ctx);
 
-        self.limiter.enforce_quotas(&mut spans, ctx).await?;
+        let mut spans = self.limiter.enforce_quotas(spans, ctx).await?;
 
         process::scrub(&mut spans, ctx);
 
@@ -536,15 +536,16 @@ impl Counted for ExpandedSpans<Indexed> {
 }
 
 impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
+    type Item = Self;
     type Error = Error;
 
-    async fn enforce<T>(
-        &mut self,
-        mut rate_limiter: T,
+    async fn enforce<R>(
+        mut self,
+        mut rate_limiter: R,
         _: Context<'_>,
-    ) -> std::result::Result<(), Rejected<Self::Error>>
+    ) -> Result<Self, Rejected<Self::Error>>
     where
-        T: processing::RateLimiter,
+        R: processing::RateLimiter,
     {
         let scoping = self.scoping();
 
@@ -592,7 +593,7 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
             .await;
         }
 
-        Ok(())
+        Ok(self)
     }
 }
 
