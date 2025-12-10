@@ -630,6 +630,19 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
     metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
     combined_payload = metadata_bytes + body
 
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.attachment.v2",
+                "meta_length": len(metadata_bytes),
+                "length": len(combined_payload),
+            },
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
     if should_drop:
         assert mini_sentry.get_outcomes(n=2) == [
             {
@@ -653,17 +666,6 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
                 "quantity": 1,
             },
         ]
-    envelope.add_item(
-        Item(
-            payload=PayloadRef(bytes=combined_payload),
-            type="attachment",
-            headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
-                "meta_length": len(metadata_bytes),
-                "length": len(combined_payload),
-            },
-        )
-    )
 
     assert mini_sentry.captured_events.empty()
     assert mini_sentry.captured_outcomes.empty()
@@ -1101,8 +1103,8 @@ def test_span_attachment_independent_rate_limiting(
             type="attachment",
             headers={
                 "content_type": "application/vnd.sentry.attachment.v2",
-                "meta_length": len(standalone_metadata_bytes),
-                "length": len(standalone_payload),
+                "meta_length": len(trace_metadata_bytes),
+                "length": len(trace_payload),
             },
         )
     )
