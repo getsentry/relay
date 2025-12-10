@@ -167,10 +167,11 @@ impl Processor for TransactionProcessor {
                 process::extract_metrics(work, ctx, SamplingDecision::Drop)?;
 
             let headers = work.headers.clone();
-            let mut profile = process::drop_after_sampling(work, ctx, outcome);
-            if let Some(profile) = profile.as_mut() {
-                self.limiter.enforce_quotas(profile, ctx).await?;
-            }
+            let profile = process::drop_after_sampling(work, ctx, outcome);
+            let profile = match profile {
+                Some(profile) => self.limiter.enforce_quotas(profile, ctx).await.ok(),
+                None => None,
+            };
 
             return Ok(Output {
                 main: profile.map(TransactionOutput::OnlyProfile),
@@ -189,9 +190,8 @@ impl Processor for TransactionProcessor {
             let (indexed, extracted_metrics) =
                 process::extract_metrics(work, ctx, SamplingDecision::Keep)?;
 
-            let mut indexed = process::extract_spans(indexed, ctx, server_sample_rate);
-
-            self.limiter.enforce_quotas(&mut indexed, ctx).await?;
+            let indexed = process::extract_spans(indexed, ctx, server_sample_rate);
+            let indexed = self.limiter.enforce_quotas(indexed, ctx).await?;
 
             if !indexed.flags.fully_normalized {
                 relay_log::error!(
@@ -207,7 +207,7 @@ impl Processor for TransactionProcessor {
             });
         }
 
-        self.limiter.enforce_quotas(&mut work, ctx).await?;
+        let work = self.limiter.enforce_quotas(work, ctx).await?;
 
         Ok(Output {
             main: Some(TransactionOutput::Full(work)),
@@ -367,13 +367,14 @@ impl<T: Counted + AsRef<Annotated<Event>>> Counted for ExpandedTransaction<T> {
 }
 
 impl<T: Counted + AsRef<Annotated<Event>>> RateLimited for Managed<ExpandedTransaction<T>> {
+    type Output = Self;
     type Error = Error;
 
     async fn enforce<R>(
-        &mut self,
+        mut self,
         mut rate_limiter: R,
         ctx: Context<'_>,
-    ) -> Result<(), Rejected<Self::Error>>
+    ) -> Result<Self, Rejected<Self::Error>>
     where
         R: RateLimiter,
     {
@@ -446,7 +447,7 @@ impl<T: Counted + AsRef<Annotated<Event>>> RateLimited for Managed<ExpandedTrans
             }
         }
 
-        Ok(())
+        Ok(self)
     }
 }
 

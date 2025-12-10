@@ -36,7 +36,6 @@ impl<'a> StoreHandle<'a> {
     }
 
     /// Sends a message to the [`Upload`] service.
-    #[expect(unused)]
     pub fn upload<M>(&self, message: M)
     where
         Upload: FromMessage<M>,
