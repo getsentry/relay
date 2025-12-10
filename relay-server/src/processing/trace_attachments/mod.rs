@@ -16,6 +16,7 @@ use super::{Context, Output};
 mod filter;
 pub mod forward;
 pub mod process;
+#[cfg(feature = "processing")]
 pub mod store;
 pub mod types;
 
@@ -174,6 +175,7 @@ impl Counted for SampledAttachments {
 #[derive(Debug)]
 pub struct ExpandedAttachments {
     headers: EnvelopeHeaders,
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     server_sample_rate: Option<f64>,
     attachments: Vec<ExpandedAttachment>,
 }

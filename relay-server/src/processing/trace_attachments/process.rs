@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use relay_event_schema::processor::{ProcessingAction, ValueType};
-use relay_pii::{PiiAttachmentsProcessor, PiiConfigError};
+use relay_pii::PiiAttachmentsProcessor;
 use relay_protocol::Annotated;
 use relay_statsd::metric;
 

@@ -1,9 +1,11 @@
 use crate::Envelope;
 use crate::envelope::{ContentType, Item, ItemType, Items};
 use crate::managed::{Managed, ManagedResult, Rejected};
+use crate::processing::trace_attachments::ExpandedAttachments;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
-use crate::processing::trace_attachments::{ExpandedAttachments, store};
-use crate::processing::{Forward, ForwardContext, StoreHandle};
+use crate::processing::{Forward, ForwardContext};
+#[cfg(feature = "processing")]
+use crate::processing::{StoreHandle, trace_attachments::store};
 use crate::services::outcome::{DiscardReason, Outcome};
 
 impl ExpandedAttachments {
@@ -42,9 +44,8 @@ impl Forward for Managed<ExpandedAttachments> {
         let retention = ctx.retention(|r| r.trace_attachment.as_ref());
         let server_sample_rate = self.server_sample_rate;
         for attachment in self.split(|work| work.attachments) {
-            match store::convert(attachment, retention, server_sample_rate) {
-                Ok(message) => s.upload(message),
-                Err(_) => {} // already rejected
+            if let Ok(message) = store::convert(attachment, retention, server_sample_rate) {
+                s.upload(message)
             }
         }
         Ok(())
