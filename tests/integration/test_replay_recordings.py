@@ -23,7 +23,7 @@ def test_replay_recordings(mini_sentry, relay_chain):
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
 
     session_item = envelope.items[0]

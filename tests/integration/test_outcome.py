@@ -302,7 +302,7 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
     assert outcomes == expected_outcomes
 
     # no events received since all have been for an invalid project id
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
     assert mini_sentry.captured_outcomes.empty()
 
 
@@ -405,7 +405,7 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
     assert len(outcomes) == batch_size
 
     # no events received since all have been for an invalid project id
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_outcome_source(relay, mini_sentry):
@@ -969,7 +969,7 @@ def test_filtered_event_outcome_kafka(relay, mini_sentry):
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
-    assert mini_sentry.captured_events.qsize() == 0
+    assert mini_sentry.captured_envelopes.qsize() == 0
 
     outcomes = outcomes_batch.get("outcomes")
     assert len(outcomes) == 1
@@ -1746,10 +1746,10 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
         assert outcome2["category"] == DataCategory.PROFILE_INDEXED
         assert outcome2["quantity"] == 1
 
-        assert mini_sentry.captured_events.empty()
+        assert mini_sentry.captured_envelopes.empty()
     else:
         # Do not rate limit if there is only a transaction_indexed quota.
-        envelope = mini_sentry.get_captured_event()
+        envelope = mini_sentry.get_captured_envelope()
         assert envelope.items[0].headers["type"] == "profile"
 
         assert mini_sentry.captured_outcomes.empty()

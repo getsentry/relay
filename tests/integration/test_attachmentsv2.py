@@ -75,7 +75,7 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
     envelope.add_item(attachment_item)
     relay.send_envelope(project_id, envelope)
 
-    forwarded_envelope = mini_sentry.get_captured_event()
+    forwarded_envelope = mini_sentry.get_captured_envelope()
     attachment_item = forwarded_envelope.items[0]
     assert attachment_item.type == "attachment"
 
@@ -241,7 +241,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 # Tests taken from test_spansv2.py but modified to include span attachments
@@ -293,7 +293,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.get_captured_event()
+    forwarded = mini_sentry.get_captured_envelope()
 
     span_item = next(i for i in forwarded.items if i.type == "span")
     spans = json.loads(span_item.payload.bytes.decode())["items"]
@@ -494,7 +494,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.get_captured_event()
+    forwarded = mini_sentry.get_captured_envelope()
 
     span_item = next(i for i in forwarded.items if i.type == "span")
     spans = json.loads(span_item.payload.bytes.decode())["items"]
@@ -641,7 +641,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
     assert mini_sentry.captured_outcomes.empty()
 
 
@@ -713,7 +713,7 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
             "quantity": 1,
         },
     ]
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
     assert mini_sentry.captured_outcomes.empty()
 
 
@@ -818,7 +818,7 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
@@ -911,7 +911,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
@@ -1146,7 +1146,7 @@ def test_attachment_default_pii_scrubbing_meta(
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.get_captured_event()
+    forwarded = mini_sentry.get_captured_envelope()
 
     attachment = next(i for i in forwarded.items if i.type == "attachment")
     meta_length = attachment.headers.get("meta_length")
@@ -1240,7 +1240,7 @@ def test_attachment_pii_scrubbing_meta_attribute(
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.get_captured_event()
+    forwarded = mini_sentry.get_captured_envelope()
 
     attachment = next(i for i in forwarded.items if i.type == "attachment")
     meta_length = attachment.headers.get("meta_length")
@@ -1328,7 +1328,7 @@ def test_attachment_pii_scrubbing_body(mini_sentry, relay):
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.get_captured_event()
+    forwarded = mini_sentry.get_captured_envelope()
 
     attachment = next(i for i in forwarded.items if i.type == "attachment")
     meta_length = attachment.headers.get("meta_length")

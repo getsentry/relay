@@ -131,7 +131,7 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
 
     relay.send_replay_event(42, replay_item)
 
-    envelope = mini_sentry.get_captured_event(timeout=20)
+    envelope = mini_sentry.get_captured_envelope(timeout=20)
     assert len(envelope.items) == 1
 
     replay_event = envelope.items[0]

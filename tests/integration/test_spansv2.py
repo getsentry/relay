@@ -264,7 +264,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
     assert mini_sentry.captured_outcomes.empty()
 
 
@@ -596,7 +596,7 @@ def test_spanv2_inbound_filters(
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_spans_v2_multiple_containers_not_allowed(
@@ -665,7 +665,7 @@ def test_spans_v2_multiple_containers_not_allowed(
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
     assert mini_sentry.captured_outcomes.empty()
 
 
@@ -785,7 +785,7 @@ def test_spanv2_with_string_pii_scrubbing(
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
 
@@ -867,7 +867,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
     attributes = item["attributes"]
@@ -1058,7 +1058,7 @@ def test_invalid_spans(mini_sentry, relay):
 
     # Wait here till the event arrives at which point we know that all the outcomes should also be
     # available as well to check afterwards.
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     spans = json.loads(envelope.items[0].payload.bytes.decode())["items"]
 
     assert len(spans) == 1
@@ -1123,4 +1123,4 @@ def test_invalid_spans(mini_sentry, relay):
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()

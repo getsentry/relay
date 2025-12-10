@@ -338,7 +338,7 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
 
@@ -415,7 +415,7 @@ def test_ourlog_extraction_default_pii_scrubbing_attributes(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
     attributes = item["attributes"]
@@ -457,7 +457,7 @@ def test_ourlog_default_pii_body(
 
     relay_instance.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     log = item_payload["items"][0]
 
@@ -895,4 +895,4 @@ def test_filters_are_applied_to_logs(
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()

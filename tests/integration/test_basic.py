@@ -33,7 +33,7 @@ def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
 
     # When using the memory envelope buffer, we optimistically do not do anything on shutdown, which means that the
     # buffer will try and pop as always as long as it can (within the shutdown timeout).
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
@@ -68,7 +68,7 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
     relay.shutdown(sig=signal.SIGTERM)
 
     # When using the disk envelope buffer, we don't forward envelopes, but we spool them to disk.
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
     # Check if there's data in the SQLite table `envelopes`
     conn = sqlite3.connect(db_file_path)
@@ -136,7 +136,7 @@ def test_forced_shutdown(mini_sentry, relay):
         sleep(0.5)  # Give the event time to get stuck
 
         relay.shutdown(sig=signal.SIGINT)
-        assert mini_sentry.captured_events.empty()
+        assert mini_sentry.captured_envelopes.empty()
 
         failures = mini_sentry.current_test_failures()
         assert failures
@@ -176,7 +176,7 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
     response.raise_for_status()
     assert response.headers["content-type"] == "image/gif"
 
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"]["formatted"] == "im in ur query params"
 
 
@@ -196,7 +196,7 @@ def test_store_post_trailing_slash(mini_sentry, relay, route):
     )
     response.raise_for_status()
 
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"]["formatted"] == "hi"
 
 
@@ -237,8 +237,8 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
     )
 
     if should_be_allowed:
-        assert mini_sentry.get_captured_event().get_event() is not None
-    assert mini_sentry.captured_events.empty()
+        assert mini_sentry.get_captured_envelope().get_event() is not None
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
@@ -359,7 +359,7 @@ def send_transaction_with_dsc(mini_sentry, relay, project_id, sampling_project_k
         },
     )
 
-    return mini_sentry.get_captured_event().get_transaction_event()
+    return mini_sentry.get_captured_envelope().get_transaction_event()
 
 
 def test_root_project_disabled(mini_sentry, relay):
