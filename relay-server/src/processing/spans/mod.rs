@@ -559,24 +559,23 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
             attachment_item,
         } = self.span_quantities();
 
-        if span > 0 {
-            let limits = rate_limiter
-                .try_consume(scoping.item(DataCategory::Span), span)
-                .await;
-            if !limits.is_empty() {
-                // If there is a span quota reject all the spans and the associated attachments.
-                return Err(self.reject_err(Error::from(limits)));
-            }
+        // Always check span limits, all items depend on spans.
+        let limits = rate_limiter
+            .try_consume(scoping.item(DataCategory::Span), span)
+            .await;
+        if !limits.is_empty() {
+            // If there is a span quota reject all the spans and the associated attachments.
+            return Err(self.reject_err(Error::from(limits)));
+        }
 
-            let limits = rate_limiter
-                .try_consume(scoping.item(DataCategory::SpanIndexed), span)
-                .await;
-            if !limits.is_empty() {
-                // If there is an indexed span quota reject all the spans and the associated attachments,
-                // but keep the total counts.
-                let total = dynamic_sampling::reject_indexed_spans(self, limits.into());
-                return Ok(total.map(|total, _| Either::Right(total)));
-            }
+        let limits = rate_limiter
+            .try_consume(scoping.item(DataCategory::SpanIndexed), span)
+            .await;
+        if !limits.is_empty() {
+            // If there is an indexed span quota reject all the spans and the associated attachments,
+            // but keep the total counts.
+            let total = dynamic_sampling::reject_indexed_spans(self, limits.into());
+            return Ok(total.map(|total, _| Either::Right(total)));
         }
 
         if attachment > 0 {
