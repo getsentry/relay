@@ -87,7 +87,7 @@
 <a href=#87 id=87 data-nosnippet>87</a>            process::normalize(<span class="kw-2">&amp;mut </span>check_ins);
 <a href=#88 id=88 data-nosnippet>88</a>        }
 <a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a>        <span class="self">self</span>.limiter.enforce_quotas(<span class="kw-2">&amp;mut </span>check_ins, ctx).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#90 id=90 data-nosnippet>90</a>        <span class="kw">let </span>check_ins = <span class="self">self</span>.limiter.enforce_quotas(check_ins, ctx).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#91 id=91 data-nosnippet>91</a>
 <a href=#92 id=92 data-nosnippet>92</a>        <span class="prelude-val">Ok</span>(Output::just(CheckInsOutput(check_ins)))
 <a href=#93 id=93 data-nosnippet>93</a>    }
