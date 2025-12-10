@@ -9,14 +9,16 @@ use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{AttachmentV2Meta, Span, SpanId, SpanV2};
 use relay_pii::PiiAttachmentsProcessor;
 use relay_protocol::Annotated;
+use relay_statsd::metric;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
 use crate::managed::Managed;
+use crate::processing::Context;
 use crate::processing::spans::{
     self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SampledSpans,
 };
-use crate::processing::{Context, utils};
 use crate::services::outcome::DiscardReason;
+use crate::statsd::RelayTimers;
 
 /// Parses all serialized spans.
 ///
@@ -296,9 +298,16 @@ fn scrub_attachment(attachment: &mut ExpandedAttachment, ctx: Context<'_>) -> Re
 
         let processor = PiiAttachmentsProcessor::new(config.compiled());
         let mut payload = body.to_vec();
-        if processor.scrub_attachment(filename, &mut payload) {
-            *body = Bytes::from(payload);
-        };
+
+        metric!(
+            timer(RelayTimers::AttachmentScrubbing),
+            attachment_type = "attachmentV2",
+            {
+                if processor.scrub_attachment(filename, &mut payload) {
+                    *body = Bytes::from(payload);
+                };
+            }
+        );
     }
 
     Ok(())
