@@ -13,10 +13,10 @@ impl ExpandedAttachments {
         let Self {
             headers,
             server_sample_rate: _,
-            attachments: item,
+            attachments,
         } = self;
         let mut items = Items::new();
-        for attachment in item {
+        for attachment in attachments {
             items.push(attachment_to_item(attachment)?);
         }
         Ok(Envelope::from_parts(headers, items))

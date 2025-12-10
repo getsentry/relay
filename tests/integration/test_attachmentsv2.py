@@ -45,13 +45,15 @@ def create_attachment_envelope(project_config):
     )
 
 
-def test_standalone_attachment_forwarding(mini_sentry, relay):
+@pytest.mark.parametrize("owned_by", ["spans", "trace"])
+def test_standalone_attachment_forwarding(mini_sentry, relay, owned_by):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "projects:trace-attachment-processing",
     ]
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -66,10 +68,11 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
     headers = {
         "content_type": "application/vnd.sentry.attachment.v2",
         "meta_length": len(metadata_bytes),
-        "span_id": None,
         "length": len(combined_payload),
         "type": "attachment",
     }
+    if owned_by == "spans":
+        headers["span_id"] = None
 
     attachment_item = Item(payload=PayloadRef(bytes=combined_payload), headers=headers)
     envelope.add_item(attachment_item)
@@ -91,8 +94,9 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
     assert attachment_item.headers == headers
 
 
+@pytest.mark.parametrize("owned_by", ["spans", "trace"])
 def test_standalone_attachment_store(
-    mini_sentry, relay_with_processing, items_consumer, objectstore
+    mini_sentry, relay_with_processing, items_consumer, objectstore, owned_by
 ):
     items_consumer = items_consumer()
     project_id = 42
@@ -101,6 +105,7 @@ def test_standalone_attachment_store(
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "projects:trace-attachment-processing",
     ]
     relay = relay_with_processing(
         {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
@@ -117,10 +122,11 @@ def test_standalone_attachment_store(
     headers = {
         "content_type": "application/vnd.sentry.attachment.v2",
         "meta_length": len(metadata_bytes),
-        "span_id": None,
         "length": len(combined_payload),
         "type": "attachment",
     }
+    if owned_by == "spans":
+        headers["span_id"] = None
 
     attachment_item = Item(payload=PayloadRef(bytes=combined_payload), headers=headers)
     envelope.add_item(attachment_item)
@@ -951,10 +957,9 @@ def test_span_attachment_independent_rate_limiting(
     outcomes_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("owned_by", ["single_span", "multiple_spans", "trace"])
 def test_attachment_default_pii_scrubbing_meta(
-    mini_sentry,
-    relay,
-    secret_attribute,
+    mini_sentry, relay, secret_attribute, owned_by
 ):
     attribute_key, attribute_value, expected_value, rule_type = secret_attribute
 
@@ -964,6 +969,7 @@ def test_attachment_default_pii_scrubbing_meta(
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "projects:trace-attachment-processing",
     ]
     project_config["config"].setdefault(
         "datascrubbingSettings",
@@ -1008,21 +1014,31 @@ def test_attachment_default_pii_scrubbing_meta(
     metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
     combined_payload = metadata_bytes + body
 
+    headers = {
+        "content_type": "application/vnd.sentry.attachment.v2",
+        "meta_length": len(metadata_bytes),
+        "length": len(combined_payload),
+    }
+    if owned_by == "single_span":
+        headers["span_id"] = span_id
+    elif owned_by == "multiple_spans":
+        headers["span_id"] = None
+    else:
+        assert owned_by == "trace"
+
     envelope.add_item(
         Item(
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
-            headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
-                "meta_length": len(metadata_bytes),
-                "span_id": span_id,
-                "length": len(combined_payload),
-            },
+            headers=headers,
         )
     )
 
     relay.send_envelope(project_id, envelope)
     forwarded = mini_sentry.get_captured_event()
+    if owned_by == "trace":
+        # attachment comes in separate envelope
+        forwarded = mini_sentry.get_captured_event()
 
     attachment = next(i for i in forwarded.items if i.type == "attachment")
     meta_length = attachment.headers.get("meta_length")
