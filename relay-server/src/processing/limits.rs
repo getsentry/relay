@@ -46,7 +46,7 @@ impl QuotaRateLimiter {
         &self,
         data: Managed<T>,
         ctx: Context<'_>,
-    ) -> Result<<Managed<T> as RateLimited>::Item, Rejected<<Managed<T> as RateLimited>::Error>>
+    ) -> Result<<Managed<T> as RateLimited>::Output, Rejected<<Managed<T> as RateLimited>::Error>>
     where
         T: Counted,
         Managed<T>: RateLimited,
@@ -113,7 +113,7 @@ pub trait RateLimiter {
 /// A [`RateLimiter`] is usually created by the [`QuotaRateLimiter`].
 pub trait RateLimited {
     /// The new item returned after (partially) accepting the item.
-    type Item;
+    type Output;
     /// Error returned when rejecting the entire item.
     type Error;
 
@@ -125,7 +125,7 @@ pub trait RateLimited {
         self,
         rate_limiter: R,
         ctx: Context<'_>,
-    ) -> Result<Self::Item, Rejected<Self::Error>>
+    ) -> Result<Self::Output, Rejected<Self::Error>>
     where
         R: RateLimiter;
 }
@@ -155,14 +155,14 @@ where
     Managed<T>: CountRateLimited,
     T: Counted,
 {
-    type Item = Self;
+    type Output = Self;
     type Error = <<Managed<T> as CountRateLimited>::Error as OutcomeError>::Error;
 
     async fn enforce<R>(
         self,
         mut rate_limiter: R,
         _ctx: Context<'_>,
-    ) -> Result<Self::Item, Rejected<Self::Error>>
+    ) -> Result<Self::Output, Rejected<Self::Error>>
     where
         R: RateLimiter,
     {

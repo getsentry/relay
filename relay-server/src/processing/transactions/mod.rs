@@ -367,7 +367,7 @@ impl<T: Counted + AsRef<Annotated<Event>>> Counted for ExpandedTransaction<T> {
 }
 
 impl<T: Counted + AsRef<Annotated<Event>>> RateLimited for Managed<ExpandedTransaction<T>> {
-    type Item = Self;
+    type Output = Self;
     type Error = Error;
 
     async fn enforce<R>(

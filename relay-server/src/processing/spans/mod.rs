@@ -536,7 +536,7 @@ impl Counted for ExpandedSpans<Indexed> {
 }
 
 impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
-    type Item = Self;
+    type Output = Self;
     type Error = Error;
 
     async fn enforce<R>(
