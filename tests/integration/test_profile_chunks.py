@@ -124,7 +124,9 @@ def test_profile_chunk_outcomes(
     # No outcome is emitted in Relay since it's a successful ingestion.
     # However, we will emit the outcome for PROFILE_DURATION in sentry.
     outcomes_consumer.assert_empty()
-    assert profiles_consumer.get_profile()
+    profile, headers = profiles_consumer.get_profile()
+    assert headers == [("project_id", b"42")]
+    assert profile
 
 
 def test_profile_chunk_outcomes_invalid(

@@ -744,7 +744,7 @@ def test_relay_chain_keep_unsampled_profile(
 
     profile, headers = profiles_consumer.get_profile()
 
-    assert headers == [("sampled", b"false")]
+    assert headers == [("project_id", b"42"), ("sampled", b"false")]
     profile_payload = json.loads(profile["payload"])
     assert (
         profile_payload["transaction_metadata"]["transaction"] == "my_first_transaction"
