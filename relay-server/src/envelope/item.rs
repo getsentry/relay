@@ -463,7 +463,7 @@ impl Item {
     /// Returns `true` if this item is an attachment with AttachmentV2 content type.
     fn is_attachment_v2(&self) -> bool {
         self.ty() == &ItemType::Attachment
-            && self.content_type() == Some(&ContentType::AttachmentV2)
+            && self.content_type() == Some(&ContentType::TraceAttachment)
     }
 
     /// Returns `true` if this item is a V2 attachment owned by spans.
