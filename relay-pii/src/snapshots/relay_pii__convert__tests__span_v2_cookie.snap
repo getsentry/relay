@@ -6,6 +6,75 @@ expression: data
   "attributes": {
     "http.request.header.cookie": {
       "value": "[Filtered]"
+    },
+    "http.request.header.cookie.__session": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie._csrf": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie._iris_csrf": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie._xsrf": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.csrf": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.csrf-token": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.csrf_token": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.dark-mode": {
+      "value": "foobar"
+    },
+    "http.request.header.cookie.fastcsrf": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.fasthttpsessionid": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.irissessionid": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.mysession": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.phpsessid": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.sentrysid": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.session": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.sessionid": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.su": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.sudo": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.symfony": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.user_session": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.xsrf": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.xsrf-token": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.xsrf_token": {
+      "value": "[Filtered]"
     }
   },
   "_meta": {
@@ -21,7 +90,337 @@ expression: data
                 10
               ]
             ],
-            "len": 20
+            "len": 14
+          }
+        }
+      },
+      "http.request.header.cookie.__session": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie._csrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie._iris_csrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie._xsrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.csrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.csrf-token": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.csrf_token": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.fastcsrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.fasthttpsessionid": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.irissessionid": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.mysession": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.phpsessid": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.sentrysid": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.session": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.sessionid": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.su": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.sudo": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.symfony": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.user_session": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.xsrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.xsrf-token": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.xsrf_token": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
           }
         }
       }
