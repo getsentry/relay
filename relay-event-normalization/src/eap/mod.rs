@@ -406,7 +406,7 @@ pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>)
 ///
 /// Used to fill the [`NORMALIZED_DB_QUERY_HASH`] attribute.
 ///
-/// It uses a `fnv1a` as the underlying hash.
+/// It uses `fnv1a` as the underlying hash algorithm.
 fn compute_normalized_db_query_hash(query: &str) -> String {
     use std::hash::Hasher;
     let mut hasher = fnv::FnvHasher::default();

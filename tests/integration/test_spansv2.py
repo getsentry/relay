@@ -969,7 +969,7 @@ def test_spansv2_attribute_normalization(
             },
             "sentry.normalized_db_query.hash": {
                 "type": "string",
-                "value": "f79af0ba3d26284c",
+                "value": "b3d0365a1a7a3826",
             },
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
