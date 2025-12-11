@@ -8,6 +8,7 @@
 - Increases log size limits to better support log drains. ([#5441](https://github.com/getsentry/relay/pull/5441))
 - Add functionality to process and store span attachments. ([#5423](https://github.com/getsentry/relay/pull/5423), [#5363](https://github.com/getsentry/relay/pull/5363))
 - Apply existing cookie rules to `http.request.header.cookie.<key>` fields. ([#5456](https://github.com/getsentry/relay/pull/5456))
+- Add functionality to process and store trace attachments. ([#5457](https://github.com/getsentry/relay/pull/5457))
 
 **Bug Fixes**:
 

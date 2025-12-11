@@ -5,9 +5,9 @@ use crate::protocol::{Attributes, Timestamp, TraceId};
 
 use uuid::Uuid;
 
-/// Metadata for a span attachment.
+/// Metadata for a trace attachment.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct AttachmentV2Meta {
+pub struct TraceAttachmentMeta {
     /// The ID of the trace that the attachment belongs to.
     #[metastructure(required = true, nonempty = true, trim = false)]
     pub trace_id: Annotated<TraceId>,
@@ -28,7 +28,7 @@ pub struct AttachmentV2Meta {
     #[metastructure(required = true, max_chars = 128, trim = false)]
     pub content_type: Annotated<String>,
 
-    /// Arbitrary attributes on a span attachment.
+    /// Arbitrary attributes on a trace attachment.
     #[metastructure(pii = "maybe")]
     pub attributes: Annotated<Attributes>,
 

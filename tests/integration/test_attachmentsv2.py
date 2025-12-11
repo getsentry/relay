@@ -1,4 +1,5 @@
 import base64
+from collections import Counter
 from datetime import datetime, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
@@ -7,7 +8,7 @@ from unittest import mock
 from .asserts import time_within_delta, time_is
 from .test_spansv2 import envelope_with_spans
 
-from .test_dynamic_sampling import _add_sampling_config
+from .test_dynamic_sampling import add_sampling_config
 
 import json
 import uuid
@@ -45,13 +46,15 @@ def create_attachment_envelope(project_config):
     )
 
 
-def test_standalone_attachment_forwarding(mini_sentry, relay):
+@pytest.mark.parametrize("owned_by", ["spans", "trace"])
+def test_standalone_attachment_forwarding(mini_sentry, relay, owned_by):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "projects:trace-attachment-processing",
     ]
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -64,12 +67,13 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
 
     envelope = create_attachment_envelope(project_config)
     headers = {
-        "content_type": "application/vnd.sentry.attachment.v2",
+        "content_type": "application/vnd.sentry.trace-attachment",
         "meta_length": len(metadata_bytes),
-        "span_id": None,
         "length": len(combined_payload),
         "type": "attachment",
     }
+    if owned_by == "spans":
+        headers["span_id"] = None
 
     attachment_item = Item(payload=PayloadRef(bytes=combined_payload), headers=headers)
     envelope.add_item(attachment_item)
@@ -91,8 +95,14 @@ def test_standalone_attachment_forwarding(mini_sentry, relay):
     assert attachment_item.headers == headers
 
 
+@pytest.mark.parametrize("owned_by", ["spans", "trace"])
 def test_standalone_attachment_store(
-    mini_sentry, relay_with_processing, items_consumer, objectstore, outcomes_consumer
+    mini_sentry,
+    relay_with_processing,
+    items_consumer,
+    objectstore,
+    outcomes_consumer,
+    owned_by,
 ):
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -103,6 +113,7 @@ def test_standalone_attachment_store(
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "projects:trace-attachment-processing",
     ]
     relay = relay_with_processing(
         {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
@@ -117,12 +128,13 @@ def test_standalone_attachment_store(
 
     envelope = create_attachment_envelope(project_config)
     headers = {
-        "content_type": "application/vnd.sentry.attachment.v2",
+        "content_type": "application/vnd.sentry.trace-attachment",
         "meta_length": len(metadata_bytes),
-        "span_id": None,
         "length": len(combined_payload),
         "type": "attachment",
     }
+    if owned_by == "spans":
+        headers["span_id"] = None
 
     attachment_item = Item(payload=PayloadRef(bytes=combined_payload), headers=headers)
     envelope.add_item(attachment_item)
@@ -179,16 +191,31 @@ def test_standalone_attachment_store(
 
 
 @pytest.mark.parametrize(
-    "invalid_headers,quantity",
+    "invalid_headers,quantity,reason",
     [
         # Invalid since there is no span with that id in the envelope, also the quantity here is
         # lower since only the body is already counted at this point and not the meta.
-        pytest.param({"span_id": "ABCDFDEAD5F74052"}, 36, id="invalid_span_id"),
-        pytest.param({"meta_length": None}, 273, id="missing_meta_length"),
-        pytest.param({"meta_length": 999}, 1, id="meta_length_exceeds_payload"),
+        pytest.param(
+            {"span_id": "ABCDFDEAD5F74052"},
+            36,
+            "invalid_span_attachment",
+            id="invalid_span_id",
+        ),
+        pytest.param(
+            {"meta_length": None},
+            273,
+            "invalid_trace_attachment",
+            id="missing_meta_length",
+        ),
+        pytest.param(
+            {"meta_length": 999},
+            1,
+            "invalid_trace_attachment",
+            id="meta_length_exceeds_payload",
+        ),
     ],
 )
-def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
+def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity, reason):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -207,7 +234,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
 
     envelope = create_attachment_envelope(project_config)
     headers = {
-        "content_type": "application/vnd.sentry.attachment.v2",
+        "content_type": "application/vnd.sentry.trace-attachment",
         "meta_length": len(metadata_bytes),
         "span_id": None,
         "length": len(combined_payload),
@@ -225,7 +252,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
             "outcome": 3,
             "key_id": 123,
             "project_id": 42,
-            "reason": "invalid_span_attachment",
+            "reason": reason,
             "quantity": quantity,
             "timestamp": time_within_delta(),
         },
@@ -235,7 +262,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity):
             "outcome": 3,
             "key_id": 123,
             "project_id": 42,
-            "reason": "invalid_span_attachment",
+            "reason": reason,
             "quantity": 1,
             "timestamp": time_within_delta(),
         },
@@ -284,7 +311,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -315,7 +342,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     assert attachment.headers == {
         "type": "attachment",
         "length": 260,
-        "content_type": "application/vnd.sentry.attachment.v2",
+        "content_type": "application/vnd.sentry.trace-attachment",
         "meta_length": 237,
         "span_id": span_id,
     }
@@ -367,7 +394,7 @@ def test_attachment_with_matching_span_store(
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -473,7 +500,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -485,7 +512,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -518,7 +545,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
         assert item.headers == {
             "type": "attachment",
             "length": 260,
-            "content_type": "application/vnd.sentry.attachment.v2",
+            "content_type": "application/vnd.sentry.trace-attachment",
             "meta_length": 237,
             "span_id": span_id,
         }
@@ -539,9 +566,9 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
         "projects:span-v2-attachment-processing",
     ]
     # A transaction rule should never apply.
-    _add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
+    add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
     # Setup the actual rule we want to test against.
-    _add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
+    add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -574,7 +601,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -649,6 +676,81 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     "rule_type",
     ["project", "trace"],
 )
+@pytest.mark.parametrize(
+    "should_drop",
+    [False, True],
+)
+def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:trace-attachment-processing",
+    ]
+    sample_rate = 0.0 if should_drop else 1.0
+    add_sampling_config(project_config, sample_rate=sample_rate, rule_type=rule_type)
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    envelope = Envelope()
+    envelope.headers["trace"] = {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "public_key": project_config["publicKeys"][0]["publicKey"],
+    }
+
+    metadata = create_attachment_metadata()
+    body = b"span attachment content"
+    metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+    combined_payload = metadata_bytes + body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.trace-attachment",
+                "meta_length": len(metadata_bytes),
+                "length": len(combined_payload),
+            },
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    if should_drop:
+        assert mini_sentry.get_outcomes(n=2) == [
+            {
+                "timestamp": time_within_delta(),
+                "org_id": 1,
+                "project_id": 42,
+                "key_id": 123,
+                "outcome": 1,
+                "reason": "Sampled:0",
+                "category": DataCategory.ATTACHMENT.value,
+                "quantity": len(body),
+            },
+            {
+                "timestamp": time_within_delta(),
+                "org_id": 1,
+                "project_id": 42,
+                "key_id": 123,
+                "outcome": 1,
+                "reason": "Sampled:0",
+                "category": DataCategory.ATTACHMENT_ITEM.value,
+                "quantity": 1,
+            },
+        ]
+    else:
+        envelope = mini_sentry.get_captured_envelope()
+        (item,) = envelope.items
+        assert item.headers["type"] == "attachment"
+
+    assert mini_sentry.captured_envelopes.empty()
+    assert mini_sentry.captured_outcomes.empty()
+
+
+@pytest.mark.parametrize(
+    "rule_type",
+    ["project", "trace"],
+)
 def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -658,9 +760,9 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
         "projects:span-v2-attachment-processing",
     ]
     # A transaction rule should never apply.
-    _add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
+    add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
     # Setup the actual rule we want to test against.
-    _add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
+    add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -681,7 +783,7 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": None,
                 "length": len(combined_payload),
@@ -766,7 +868,7 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -859,7 +961,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -949,8 +1051,8 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             ],
             {
                 # Attachments don't make it through
-                (DataCategory.ATTACHMENT.value, 2): 64,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+                (DataCategory.ATTACHMENT.value, 2): 104,
+                (DataCategory.ATTACHMENT_ITEM.value, 2): 3,
             },
             id="attachment_quota_exceeded",
         ),
@@ -975,8 +1077,8 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 # Nothing makes it through
                 (DataCategory.SPAN.value, 2): 1,
                 (DataCategory.SPAN_INDEXED.value, 2): 1,
-                (DataCategory.ATTACHMENT.value, 2): 64,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+                (DataCategory.ATTACHMENT.value, 2): 104,
+                (DataCategory.ATTACHMENT_ITEM.value, 2): 3,
             },
             id="both_quotas_exceeded",
         ),
@@ -985,7 +1087,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
 def test_span_attachment_independent_rate_limiting(
     mini_sentry,
     relay,
-    outcomes_consumer,
     quota_config,
     expected_outcomes,
 ):
@@ -996,11 +1097,11 @@ def test_span_attachment_independent_rate_limiting(
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "projects:trace-attachment-processing",
     ]
     project_config["config"]["quotas"] = quota_config
 
     relay = relay(mini_sentry, options=TEST_CONFIG)
-    outcomes_consumer = outcomes_consumer()
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -1022,6 +1123,7 @@ def test_span_attachment_independent_rate_limiting(
         },
     )
 
+    # Attachment owned by single span
     per_span_metadata = create_attachment_metadata()
     per_span_body = b"per-span attachment"
     per_span_metadata_bytes = json.dumps(
@@ -1034,7 +1136,7 @@ def test_span_attachment_independent_rate_limiting(
             payload=PayloadRef(bytes=per_span_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(per_span_metadata_bytes),
                 "span_id": span_id,
                 "length": len(per_span_payload),
@@ -1042,6 +1144,7 @@ def test_span_attachment_independent_rate_limiting(
         )
     )
 
+    # Attachment owned by multiple spans
     standalone_metadata = create_attachment_metadata()
     standalone_body = b"standalone attachment - should be independent"
     standalone_metadata_bytes = json.dumps(
@@ -1054,7 +1157,7 @@ def test_span_attachment_independent_rate_limiting(
             payload=PayloadRef(bytes=standalone_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(standalone_metadata_bytes),
                 "span_id": None,  # Not attached to any span
                 "length": len(standalone_payload),
@@ -1062,23 +1165,42 @@ def test_span_attachment_independent_rate_limiting(
         )
     )
 
+    # Attachment owned by trace
+    trace_metadata = create_attachment_metadata()
+    trace_body = b"trace attachment - should be independent"
+    trace_metadata_bytes = json.dumps(trace_metadata, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    trace_payload = trace_metadata_bytes + trace_body
+
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=trace_payload),
+            type="attachment",
+            headers={
+                "content_type": "application/vnd.sentry.trace-attachment",
+                "meta_length": len(trace_metadata_bytes),
+                "length": len(trace_payload),
+            },
+        )
+    )
+
     relay.send_envelope(project_id, envelope)
 
     outcomes = mini_sentry.get_outcomes(n=len(expected_outcomes))
-    outcome_counter = {}
+    outcome_counter = Counter()
     for outcome in outcomes:
         key = (outcome["category"], outcome["outcome"])
-        outcome_counter[key] = outcome_counter.get(key, 0) + outcome["quantity"]
+        outcome_counter[key] += outcome["quantity"]
 
     assert outcome_counter == expected_outcomes
 
-    outcomes_consumer.assert_empty()
+    assert mini_sentry.captured_outcomes.empty()
 
 
+@pytest.mark.parametrize("owned_by", ["single_span", "multiple_spans", "trace"])
 def test_attachment_default_pii_scrubbing_meta(
-    mini_sentry,
-    relay,
-    secret_attribute,
+    mini_sentry, relay, secret_attribute, owned_by
 ):
     attribute_key, attribute_value, expected_value, rule_type = secret_attribute
 
@@ -1088,6 +1210,7 @@ def test_attachment_default_pii_scrubbing_meta(
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "projects:trace-attachment-processing",
     ]
     project_config["config"].setdefault(
         "datascrubbingSettings",
@@ -1132,21 +1255,31 @@ def test_attachment_default_pii_scrubbing_meta(
     metadata_bytes = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
     combined_payload = metadata_bytes + body
 
+    headers = {
+        "content_type": "application/vnd.sentry.trace-attachment",
+        "meta_length": len(metadata_bytes),
+        "length": len(combined_payload),
+    }
+    if owned_by == "single_span":
+        headers["span_id"] = span_id
+    elif owned_by == "multiple_spans":
+        headers["span_id"] = None
+    else:
+        assert owned_by == "trace"
+
     envelope.add_item(
         Item(
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
-            headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
-                "meta_length": len(metadata_bytes),
-                "span_id": span_id,
-                "length": len(combined_payload),
-            },
+            headers=headers,
         )
     )
 
     relay.send_envelope(project_id, envelope)
     forwarded = mini_sentry.get_captured_envelope()
+    if owned_by == "trace":
+        # attachment comes in separate envelope
+        forwarded = mini_sentry.get_captured_envelope()
 
     attachment = next(i for i in forwarded.items if i.type == "attachment")
     meta_length = attachment.headers.get("meta_length")
@@ -1231,7 +1364,7 @@ def test_attachment_pii_scrubbing_meta_attribute(
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),
@@ -1319,7 +1452,7 @@ def test_attachment_pii_scrubbing_body(mini_sentry, relay):
             payload=PayloadRef(bytes=combined_payload),
             type="attachment",
             headers={
-                "content_type": "application/vnd.sentry.attachment.v2",
+                "content_type": "application/vnd.sentry.trace-attachment",
                 "meta_length": len(metadata_bytes),
                 "span_id": span_id,
                 "length": len(combined_payload),

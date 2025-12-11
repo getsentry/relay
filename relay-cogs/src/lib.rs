@@ -185,6 +185,9 @@ pub enum AppFeature {
     /// This is usually not emitted, since metrics in the unsupported
     /// namespace should be dropped before any processing occurs.
     MetricsUnsupported,
+
+    /// V2 attachments that cannot be attributed to spans or logs.
+    TraceAttachments,
 }
 
 impl AppFeature {
@@ -209,6 +212,7 @@ impl AppFeature {
             Self::MetricsUnsupported => "metrics_unsupported",
             Self::Profiles => "profiles",
             Self::TraceMetrics => "trace_metrics",
+            Self::TraceAttachments => "trace_attachments",
         }
     }
 }

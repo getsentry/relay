@@ -259,6 +259,9 @@ pub struct RetentionsConfig {
     /// Retention settings for metrics.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trace_metric: Option<RetentionConfig>,
+    /// Retention settings for attachments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trace_attachment: Option<RetentionConfig>,
 }
 
 impl RetentionsConfig {
@@ -267,9 +270,10 @@ impl RetentionsConfig {
             log,
             span,
             trace_metric,
+            trace_attachment,
         } = self;
 
-        log.is_none() && span.is_none() && trace_metric.is_none()
+        log.is_none() && span.is_none() && trace_metric.is_none() && trace_attachment.is_none()
     }
 }
 

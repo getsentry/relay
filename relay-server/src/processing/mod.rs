@@ -27,6 +27,7 @@ pub mod check_ins;
 pub mod logs;
 pub mod sessions;
 pub mod spans;
+pub mod trace_attachments;
 pub mod trace_metrics;
 pub mod transactions;
 pub mod utils;
