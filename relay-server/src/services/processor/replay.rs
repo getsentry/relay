@@ -8,7 +8,6 @@ use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessingError, ReplayGroup, should_filter};
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::sample;
 
 use bytes::Bytes;
 use relay_base_schema::organization::OrganizationId;
@@ -255,55 +254,13 @@ fn handle_replay_recording_item(
     })
     .map(Into::into)
     .map_err(|error| {
-        match &error {
-            relay_replays::recording::ParseRecordingError::Compression(e) => {
-                // 20k errors per day at 0.1% sample rate == 20 logs per day
-                if sample(0.001).is_keep() {
-                    relay_log::with_scope(
-                        move |scope| {
-                            scope.add_attachment(relay_log::protocol::Attachment {
-                                buffer: payload.into(),
-                                filename: "payload".to_owned(),
-                                content_type: Some("application/octet-stream".to_owned()),
-                                ty: None,
-                            });
-                        },
-                        || {
-                            relay_log::error!(
-                                error = e as &dyn Error,
-                                event_id = ?config.event_id,
-                                project_id = config.project_id.map(|v| v.value()),
-                                organization_id = config.organization_id.map(|o| o.value()),
-                                "ParseRecordingError::Compression"
-                            )
-                        },
-                    );
-                }
-            }
-            relay_replays::recording::ParseRecordingError::Message(e) => {
-                // Only 118 errors in the past 30 days. We log everything.
-                relay_log::with_scope(
-                    move |scope| {
-                        scope.add_attachment(relay_log::protocol::Attachment {
-                            buffer: payload.into(),
-                            filename: "payload".to_owned(),
-                            content_type: Some("application/octet-stream".to_owned()),
-                            ty: None,
-                        });
-                    },
-                    || {
-                        relay_log::error!(
-                            error = e,
-                            event_id = ?config.event_id,
-                            project_id = config.project_id.map(|v| v.value()),
-                            organization_id = config.organization_id.map(|o| o.value()),
-                            "ParseRecordingError::Message"
-                        )
-                    },
-                );
-            }
-            _ => (),
-        };
+        relay_log::debug!(
+            error = &error as &dyn Error,
+            event_id = ?config.event_id,
+            project_id = config.project_id.map(|v| v.value()),
+            organization_id = config.organization_id.map(|o| o.value()),
+            "invalid replay recording"
+        );
         ProcessingError::InvalidReplay(DiscardReason::InvalidReplayRecordingEvent)
     })
 }
