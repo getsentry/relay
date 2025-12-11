@@ -11,7 +11,6 @@
 - Add functionality to process and store trace attachments. ([#5457](https://github.com/getsentry/relay/pull/5457))
 - Lower default memory utilization threshold for disk spooling from 90% to 80%. When Relay hits 80% memory utilization, it will start spooling envelopes to disk instead of processing them. ([#5472](https://github.com/getsentry/relay/pull/5472))
 
-
 **Bug Fixes**:
 
 - Fix parsing of data categories/quotas when using an aliased data category name. ([#5435](https://github.com/getsentry/relay/pull/5435))
