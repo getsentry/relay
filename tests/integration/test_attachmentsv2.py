@@ -739,7 +739,7 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
             },
         ]
     else:
-        envelope = mini_sentry.get_captured_envelopes()
+        envelope = mini_sentry.get_captured_envelope()
         (item,) = envelope.items
         assert item.headers["type"] == "attachment"
 
