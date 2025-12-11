@@ -50,7 +50,7 @@ pub async fn process(
             // once for all spans in the envelope.
             processing::utils::dynamic_sampling::run(
                 managed_envelope.envelope().headers().dsc(),
-                event,
+                event.value(),
                 &ctx,
                 None,
             )

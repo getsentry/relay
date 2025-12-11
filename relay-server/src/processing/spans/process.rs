@@ -1,24 +1,20 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use bytes::Bytes;
 use relay_event_normalization::{
     GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
 };
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{AttachmentV2Meta, Span, SpanId, SpanV2};
-use relay_pii::PiiAttachmentsProcessor;
+use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
-use relay_statsd::metric;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
 use crate::managed::Managed;
-use crate::processing::Context;
 use crate::processing::spans::{
     self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SampledSpans,
 };
+use crate::processing::{Context, trace_attachments};
 use crate::services::outcome::DiscardReason;
-use crate::statsd::RelayTimers;
 
 /// Parses all serialized spans.
 ///
@@ -124,34 +120,10 @@ fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, Ex
         }
     };
 
-    let meta_length = item.meta_length().ok_or_else(|| {
-        relay_log::debug!("span attachment missing meta_length");
-        Error::Invalid(DiscardReason::InvalidSpanAttachment)
-    })? as usize;
+    let expanded_attachment =
+        trace_attachments::process::parse_and_validate(item).map_err(Error::Invalid)?;
 
-    let payload = item.payload();
-    let Some((meta_bytes, body)) = payload.split_at_checked(meta_length) else {
-        relay_log::debug!(
-            "span attachment meta_length ({}) exceeds total length ({})",
-            meta_length,
-            payload.len()
-        );
-        return Err(Error::Invalid(DiscardReason::InvalidSpanAttachment));
-    };
-
-    let meta = Annotated::<AttachmentV2Meta>::from_json_bytes(meta_bytes).map_err(|err| {
-        relay_log::debug!("failed to parse span attachment: {err}");
-        Error::Invalid(DiscardReason::InvalidJson)
-    })?;
-
-    Ok((
-        associated_span_id,
-        ExpandedAttachment {
-            parent_id: ParentId::SpanId(associated_span_id),
-            meta,
-            body: Bytes::copy_from_slice(body),
-        },
-    ))
+    Ok((associated_span_id, expanded_attachment))
 }
 
 /// Normalizes individual spans.
@@ -232,15 +204,16 @@ pub fn scrub(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
             scrub_span(&mut span.span, ctx)
                 .inspect_err(|err| relay_log::debug!("failed to scrub pii from span: {err}"))?;
 
-            span.attachments
-                .retain_mut(|attachment| match scrub_attachment(attachment, ctx) {
+            span.attachments.retain_mut(|attachment| {
+                match trace_attachments::process::scrub_attachment(attachment, ctx) {
                     Ok(()) => true,
                     Err(err) => {
                         relay_log::debug!("failed to scrub pii from span attachment: {err}");
-                        r.reject_err(err, &*attachment);
+                        r.reject_err(Error::from(err), &*attachment);
                         false
                     }
-                });
+                }
+            });
 
             Ok::<(), Error>(())
         },
@@ -249,9 +222,11 @@ pub fn scrub(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
     spans.retain(
         |spans| &mut spans.stand_alone_attachments,
         |attachment, _| {
-            scrub_attachment(attachment, ctx).inspect_err(|err| {
-                relay_log::debug!("failed to scrub pii from span attachment: {err}")
-            })
+            trace_attachments::process::scrub_attachment(attachment, ctx)
+                .inspect_err(|err| {
+                    relay_log::debug!("failed to scrub pii from span attachment: {err}")
+                })
+                .map_err(Error::from)
         },
     );
 }
@@ -262,7 +237,7 @@ fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
         .config
         .datascrubbing_settings
         .pii_config()
-        .map_err(|e| Error::PiiConfig(e.clone()))?;
+        .map_err(|_| Error::PiiConfig)?;
 
     relay_pii::eap::scrub(
         ValueType::Span,
@@ -270,50 +245,6 @@ fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
         ctx.project_info.config.pii_config.as_ref(),
         pii_config_from_scrubbing.as_ref(),
     )?;
-
-    Ok(())
-}
-
-fn scrub_attachment(attachment: &mut ExpandedAttachment, ctx: Context<'_>) -> Result<()> {
-    let pii_config_from_scrubbing = ctx
-        .project_info
-        .config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| Error::PiiConfig(e.clone()))?;
-
-    let ExpandedAttachment {
-        parent_id: _,
-        meta,
-        body,
-    } = attachment;
-
-    relay_pii::eap::scrub(
-        ValueType::Object,
-        meta,
-        ctx.project_info.config.pii_config.as_ref(),
-        pii_config_from_scrubbing.as_ref(),
-    )?;
-
-    if let Some(config) = ctx.project_info.config.pii_config.as_ref() {
-        let filename = meta
-            .value()
-            .and_then(|m| m.filename.as_str())
-            .unwrap_or_default();
-
-        let processor = PiiAttachmentsProcessor::new(config.compiled());
-        let mut payload = body.to_vec();
-
-        metric!(
-            timer(RelayTimers::AttachmentScrubbing),
-            attachment_type = "attachmentV2",
-            {
-                if processor.scrub_attachment(filename, &mut payload) {
-                    *body = Bytes::from(payload);
-                };
-            }
-        );
-    }
 
     Ok(())
 }
@@ -330,7 +261,6 @@ mod tests {
     use relay_pii::{DataScrubbingConfig, PiiConfig};
     use relay_protocol::SerializableAnnotated;
     use relay_sampling::evaluation::ReservoirCounters;
-    use uuid::Uuid;
 
     use crate::services::projects::project::ProjectInfo;
 
@@ -764,93 +694,6 @@ mod tests {
           }
         }
         "###);
-    }
-
-    #[test]
-    fn test_scrub_attachment_body() {
-        let pii_config = serde_json::from_value::<PiiConfig>(serde_json::json!({
-            "rules": {"0": {"type": "ip", "redaction": {"method": "remove"}}},
-            "applications": {"$attachments.'data.txt'": ["0"]}
-        }))
-        .unwrap();
-
-        let mut attachment = ExpandedAttachment {
-            parent_id: ParentId::SpanId(None),
-            meta: Annotated::new(AttachmentV2Meta {
-                attachment_id: Annotated::new(Uuid::new_v4()),
-                filename: Annotated::new("data.txt".to_owned()),
-                content_type: Annotated::new("text/plain".to_owned()),
-                ..Default::default()
-            }),
-            body: Bytes::from("Some IP: 127.0.0.1"),
-        };
-
-        let ctx = make_context(DataScrubbingConfig::default(), Some(pii_config));
-        scrub_attachment(&mut attachment, ctx).unwrap();
-
-        assert_eq!(attachment.body, "Some IP: *********");
-    }
-
-    #[test]
-    fn test_scrub_attachment_meta() {
-        use relay_event_schema::protocol::{Attribute, AttributeType, Attributes};
-        use relay_protocol::Value;
-
-        let pii_config = serde_json::from_value::<PiiConfig>(serde_json::json!({
-            "applications": {"$string": ["@email:replace"]}
-        }))
-        .unwrap();
-
-        let mut attributes = Attributes::new();
-        attributes.0.insert(
-            "email_attr".to_owned(),
-            Annotated::new(Attribute::new(
-                AttributeType::String,
-                Value::String("john.doe@example.com".to_owned()),
-            )),
-        );
-
-        let mut attachment = ExpandedAttachment {
-            parent_id: ParentId::SpanId(None),
-            meta: Annotated::new(AttachmentV2Meta {
-                attachment_id: Annotated::new(Uuid::new_v4()),
-                filename: Annotated::new("data.txt".to_owned()),
-                content_type: Annotated::new("text/plain".to_owned()),
-                attributes: Annotated::new(attributes),
-                ..Default::default()
-            }),
-            body: Bytes::from("Some attachment body"),
-        };
-
-        let ctx = make_context(DataScrubbingConfig::default(), Some(pii_config));
-        scrub_attachment(&mut attachment, ctx).unwrap();
-
-        let attrs = &attachment.meta.value().unwrap().attributes;
-        insta::assert_json_snapshot!(SerializableAnnotated(attrs), @r#"
-        {
-          "email_attr": {
-            "type": "string",
-            "value": "[email]"
-          },
-          "_meta": {
-            "email_attr": {
-              "value": {
-                "": {
-                  "rem": [
-                    [
-                      "@email:replace",
-                      "s",
-                      0,
-                      7
-                    ]
-                  ],
-                  "len": 20
-                }
-              }
-            }
-          }
-        }
-        "#);
     }
 
     #[test]

@@ -35,8 +35,8 @@ pub enum ContentType {
     SpanV2Container,
     /// `application/vnd.sentry.items.trace-metric+json`
     TraceMetricContainer,
-    /// `application/vnd.sentry.attachment.v2`
-    AttachmentV2,
+    /// `application/vnd.sentry.trace-attachment`
+    TraceAttachment,
     /// All integration content types.
     Integration(Integration),
     /// Any arbitrary content type not listed explicitly.
@@ -59,7 +59,7 @@ impl ContentType {
             Self::LogContainer => "application/vnd.sentry.items.log+json",
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
             Self::TraceMetricContainer => "application/vnd.sentry.items.trace-metric+json",
-            Self::AttachmentV2 => "application/vnd.sentry.attachment.v2",
+            Self::TraceAttachment => "application/vnd.sentry.trace-attachment",
             Self::Integration(integration) => integration.as_content_type(),
             Self::Other(other) => other,
         }
@@ -102,8 +102,10 @@ impl ContentType {
             Some(Self::SpanV2Container)
         } else if ct.eq_ignore_ascii_case(Self::TraceMetricContainer.as_str()) {
             Some(Self::TraceMetricContainer)
-        } else if ct.eq_ignore_ascii_case(Self::AttachmentV2.as_str()) {
-            Some(Self::AttachmentV2)
+        } else if ct.eq_ignore_ascii_case(Self::TraceAttachment.as_str())
+            || ct.eq_ignore_ascii_case("application/vnd.sentry.attachment.v2")
+        {
+            Some(Self::TraceAttachment)
         } else {
             Integration::from_content_type(ct).map(Self::Integration)
         }

@@ -6,7 +6,7 @@ from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within, time_is
 
-from .test_dynamic_sampling import _add_sampling_config
+from .test_dynamic_sampling import add_sampling_config
 
 import json
 import pytest
@@ -182,9 +182,9 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
         "projects:span-v2-experimental-processing",
     ]
     # A transaction rule should never apply.
-    _add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
+    add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
     # Setup the actual rule we want to test against.
-    _add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
+    add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -290,12 +290,12 @@ def test_spansv2_ds_sampled(
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
-    _add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
+    add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
 
     sampling_project_id = 43
     sampling_config = mini_sentry.add_basic_project_config(sampling_project_id)
     sampling_config["organizationId"] = project_config["organizationId"]
-    _add_sampling_config(sampling_config, sample_rate=0.9, rule_type="trace")
+    add_sampling_config(sampling_config, sample_rate=0.9, rule_type="trace")
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
@@ -392,12 +392,12 @@ def test_spansv2_ds_root_in_different_org(
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
-    _add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
+    add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
 
     sampling_project_id = 43
     sampling_config = mini_sentry.add_basic_project_config(sampling_project_id)
     sampling_config["organizationId"] = 99
-    _add_sampling_config(sampling_config, sample_rate=1.0, rule_type="trace")
+    add_sampling_config(sampling_config, sample_rate=1.0, rule_type="trace")
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 

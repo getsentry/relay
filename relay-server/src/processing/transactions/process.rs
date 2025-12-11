@@ -174,7 +174,7 @@ async fn do_run_dynamic_sampling(
     }
     utils::dynamic_sampling::run(
         work.headers.dsc(),
-        &work.transaction.0,
+        work.transaction.0.value(),
         &ctx,
         Some(&reservoir),
     )
