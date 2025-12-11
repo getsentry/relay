@@ -8,7 +8,7 @@ use relay_quotas::{
     Scoping,
 };
 
-use crate::envelope::{Envelope, Item, ItemType};
+use crate::envelope::{Envelope, Item, ItemType, ParentType};
 use crate::integrations::Integration;
 use crate::managed::ManagedEnvelope;
 use crate::services::outcome::Outcome;
@@ -142,6 +142,66 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AttachmentQuantities {
+    count: usize,
+    bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AttachmentsQuantities {
+    // Mention: error + transactions
+    event: AttachmentQuantities,
+    trace: AttachmentQuantities,
+    span: AttachmentQuantities,
+}
+
+impl AttachmentsQuantities {
+    pub fn count(&self) -> usize {
+        let AttachmentsQuantities {
+            event:
+                AttachmentQuantities {
+                    count: event_count,
+                    bytes: _,
+                },
+            trace:
+                AttachmentQuantities {
+                    count: trace_count,
+                    bytes: _,
+                },
+            span:
+                AttachmentQuantities {
+                    count: span_count,
+                    bytes: _,
+                },
+        } = self;
+
+        event_count + trace_count + span_count
+    }
+
+    pub fn bytes(&self) -> usize {
+        let AttachmentsQuantities {
+            event:
+                AttachmentQuantities {
+                    count: _,
+                    bytes: event_bytes,
+                },
+            trace:
+                AttachmentQuantities {
+                    count: _,
+                    bytes: trace_bytes,
+                },
+            span:
+                AttachmentQuantities {
+                    count: _,
+                    bytes: span_bytes,
+                },
+        } = self;
+
+        event_bytes + trace_bytes + span_bytes
+    }
+}
+
 /// A summary of `Envelope` contents.
 ///
 /// Summarizes the contained event, size of attachments, session updates, and whether there are
@@ -152,11 +212,8 @@ pub struct EnvelopeSummary {
     /// The data category of the event in the envelope. `None` if there is no event.
     pub event_category: Option<DataCategory>,
 
-    /// The quantity of all attachments combined in bytes.
-    pub attachment_quantity: usize,
-
-    /// The number of attachments.
-    pub attachment_item_quantity: usize,
+    /// The quantities of all attachments combined
+    pub attachment_quantities: AttachmentsQuantities,
 
     /// The number of all session updates.
     pub session_quantity: usize,
@@ -242,9 +299,7 @@ impl EnvelopeSummary {
 
             summary.payload_size += item.len();
 
-            for (category, quantity) in item.quantities() {
-                summary.add_quantity(category, quantity);
-            }
+            summary.add_quantities(item);
 
             // Special case since v1 and v2 share a data category.
             // Adding this in add_quantity would include v2 in the count.
@@ -256,25 +311,37 @@ impl EnvelopeSummary {
         summary
     }
 
-    fn add_quantity(&mut self, category: DataCategory, quantity: usize) {
-        let target_quantity = match category {
-            DataCategory::Attachment => &mut self.attachment_quantity,
-            DataCategory::AttachmentItem => &mut self.attachment_item_quantity,
-            DataCategory::Session => &mut self.session_quantity,
-            DataCategory::Profile => &mut self.profile_quantity,
-            DataCategory::Replay => &mut self.replay_quantity,
-            DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
-            DataCategory::Monitor => &mut self.monitor_quantity,
-            DataCategory::Span => &mut self.span_quantity,
-            DataCategory::TraceMetric => &mut self.trace_metric_quantity,
-            DataCategory::LogItem => &mut self.log_item_quantity,
-            DataCategory::LogByte => &mut self.log_byte_quantity,
-            DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
-            DataCategory::ProfileChunkUi => &mut self.profile_chunk_ui_quantity,
-            // TODO: This catch-all return looks dangerous
-            _ => return,
-        };
-        *target_quantity += quantity;
+    fn add_quantities(&mut self, item: &Item) {
+        for (category, quantity) in item.quantities() {
+            let target_quantity = match category {
+                DataCategory::Attachment => match item.attachment_parent_type() {
+                    Some(ParentType::Span) => &mut self.attachment_quantities.span.bytes,
+                    Some(ParentType::Trace) => &mut self.attachment_quantities.trace.bytes,
+                    Some(ParentType::Event) => &mut self.attachment_quantities.event.bytes,
+                    None => continue,
+                },
+                DataCategory::AttachmentItem => match item.attachment_parent_type() {
+                    Some(ParentType::Span) => &mut self.attachment_quantities.span.count,
+                    Some(ParentType::Trace) => &mut self.attachment_quantities.trace.count,
+                    Some(ParentType::Event) => &mut self.attachment_quantities.event.count,
+                    None => continue,
+                },
+                DataCategory::Session => &mut self.session_quantity,
+                DataCategory::Profile => &mut self.profile_quantity,
+                DataCategory::Replay => &mut self.replay_quantity,
+                DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
+                DataCategory::Monitor => &mut self.monitor_quantity,
+                DataCategory::Span => &mut self.span_quantity,
+                DataCategory::TraceMetric => &mut self.trace_metric_quantity,
+                DataCategory::LogItem => &mut self.log_item_quantity,
+                DataCategory::LogByte => &mut self.log_byte_quantity,
+                DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
+                DataCategory::ProfileChunkUi => &mut self.profile_chunk_ui_quantity,
+                // TODO: This catch-all looks dangerous
+                _ => continue,
+            };
+            *target_quantity += quantity;
+        }
     }
 
     /// Infers the appropriate [`DataCategory`] for the envelope [`Item`].
@@ -353,6 +420,27 @@ impl Default for CategoryLimit {
     }
 }
 
+#[derive(Default, Debug)]
+#[cfg_attr(test, derive(Clone))]
+pub struct AttachmentLimits {
+    pub bytes: CategoryLimit,
+    pub item: CategoryLimit,
+}
+
+impl AttachmentLimits {
+    fn is_active(&self) -> bool {
+        self.bytes.is_active() || self.item.is_active()
+    }
+}
+
+#[derive(Default, Debug)]
+#[cfg_attr(test, derive(Clone))]
+pub struct AttachmentsLimits {
+    pub event: AttachmentLimits,
+    pub trace: AttachmentLimits,
+    pub span: AttachmentLimits,
+}
+
 /// Information on the limited quantities returned by [`EnvelopeLimiter::compute`].
 #[derive(Default, Debug)]
 #[cfg_attr(test, derive(Clone))]
@@ -361,10 +449,8 @@ pub struct Enforcement {
     pub event: CategoryLimit,
     /// The rate limit for the indexed category of the event.
     pub event_indexed: CategoryLimit,
-    /// The combined attachment bytes rate limit.
-    pub attachments: CategoryLimit,
-    /// The combined attachment item rate limit.
-    pub attachment_items: CategoryLimit,
+    /// The attachments limits
+    pub attachments_limits: AttachmentsLimits,
     /// The combined session item rate limit.
     pub sessions: CategoryLimit,
     /// The combined profile item rate limit.
@@ -417,8 +503,24 @@ impl Enforcement {
         let Self {
             event,
             event_indexed,
-            attachments,
-            attachment_items,
+            attachments_limits:
+                AttachmentsLimits {
+                    event:
+                        AttachmentLimits {
+                            bytes: event_attachment_bytes,
+                            item: event_attachment_item,
+                        },
+                    trace:
+                        AttachmentLimits {
+                            bytes: trace_attachment_bytes,
+                            item: trace_attachment_item,
+                        },
+                    span:
+                        AttachmentLimits {
+                            bytes: span_attachment_bytes,
+                            item: span_attachment_item,
+                        },
+                },
             sessions: _, // Do not report outcomes for sessions.
             profiles,
             profiles_indexed,
@@ -437,8 +539,12 @@ impl Enforcement {
         let limits = [
             event,
             event_indexed,
-            attachments,
-            attachment_items,
+            event_attachment_bytes,
+            event_attachment_item,
+            trace_attachment_bytes,
+            trace_attachment_item,
+            span_attachment_bytes,
+            span_attachment_item,
             profiles,
             profiles_indexed,
             replays,
@@ -519,18 +625,21 @@ impl Enforcement {
         // to determine whether an item is limited.
         match item.ty() {
             ItemType::Attachment => {
-                // Drop span attachments if they have a span_id item header and span quota is null.
-                if item.is_span_attachment() && (self.spans_indexed.is_active() || self.spans.is_active()) {
-                    return false;
-                }
-                if !(self.attachments.is_active() || self.attachment_items.is_active()) {
-                    return true;
-                }
-                if item.creates_event() {
-                    item.set_rate_limited(true);
-                    true
-                } else {
-                    false
+                match item.attachment_parent_type() {
+                    Some(ParentType::Span) => !self.attachments_limits.span.is_active(),
+                    Some(ParentType::Trace) => !self.attachments_limits.trace.is_active(),
+                    Some(ParentType::Event) => {
+                        if !self.attachments_limits.event.is_active() {
+                            return true;
+                        }
+                        if item.creates_event() {
+                            item.set_rate_limited(true);
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    None => true, // TODO: Not sure if we want to log an error here and if true makes sense rather than false?
                 }
             }
             ItemType::Session => !self.sessions.is_active(),
@@ -709,52 +818,109 @@ where
             rate_limits.merge(event_limits);
         }
 
+        // FIXME:
+        // Handle spans.
+        if enforcement.is_event_active() {
+            enforcement.spans = enforcement
+                .event
+                .clone_for(DataCategory::Span, summary.span_quantity);
+
+            enforcement.spans_indexed = enforcement
+                .event_indexed
+                .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
+        } else if summary.span_quantity > 0 {
+            let mut span_limits = self
+                .check
+                .apply(scoping.item(DataCategory::Span), summary.span_quantity)
+                .await?;
+            enforcement.spans = CategoryLimit::new(
+                DataCategory::Span,
+                summary.span_quantity,
+                span_limits.longest(),
+            );
+
+            if span_limits.is_empty() {
+                span_limits.merge(
+                    self.check
+                        .apply(
+                            scoping.item(DataCategory::SpanIndexed),
+                            summary.span_quantity,
+                        )
+                        .await?,
+                );
+            }
+
+            enforcement.spans_indexed = CategoryLimit::new(
+                DataCategory::SpanIndexed,
+                summary.span_quantity,
+                span_limits.longest(),
+            );
+
+            rate_limits.merge(span_limits);
+        }
+        // Unconditionally copy the
+        // enforcement.spans = enforcement
+        //         .event
+        //         .clone_for(DataCategory::Attachment, summary.attac);
+
+        // FIXME: This only populates the enforcement! (in general)
+
+        // FIXME: First instance move these over, to the new struct and that might already improve things :thinking:
+
         // Handle attachments.
         if let Some(limit) = enforcement.active_event() {
-            let limit1 = limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
+            let limit1 = limit.clone_for(
+                DataCategory::Attachment,
+                summary.attachment_quantities.event.bytes,
+            );
             let limit2 = limit.clone_for(
                 DataCategory::AttachmentItem,
-                summary.attachment_item_quantity,
+                summary.attachment_quantities.event.count,
             );
-            enforcement.attachments = limit1;
-            enforcement.attachment_items = limit2;
+
+            enforcement.attachments_limits.event.bytes = limit1;
+            enforcement.attachments_limits.event.item = limit2;
         } else {
             let mut attachment_limits = RateLimits::new();
-            if summary.attachment_quantity > 0 {
+            // TODO: Should this be specific to the event attachments?
+            if summary.attachment_quantities.event.bytes > 0 {
                 let item_scoping = scoping.item(DataCategory::Attachment);
 
                 let attachment_byte_limits = self
                     .check
-                    .apply(item_scoping, summary.attachment_quantity)
+                    .apply(item_scoping, summary.attachment_quantities.event.bytes)
                     .await?;
 
-                enforcement.attachments = CategoryLimit::new(
+                enforcement.attachments_limits.event.bytes = CategoryLimit::new(
                     DataCategory::Attachment,
-                    summary.attachment_quantity,
+                    summary.attachment_quantities.event.bytes,
                     attachment_byte_limits.longest(),
                 );
-                enforcement.attachment_items = enforcement.attachments.clone_for(
-                    DataCategory::AttachmentItem,
-                    summary.attachment_item_quantity,
-                );
+                enforcement.attachments_limits.event.item =
+                    enforcement.attachments_limits.event.bytes.clone_for(
+                        DataCategory::AttachmentItem,
+                        summary.attachment_quantities.event.count,
+                    );
                 attachment_limits.merge(attachment_byte_limits);
             }
-            if !attachment_limits.is_limited() && summary.attachment_item_quantity > 0 {
+            if !attachment_limits.is_limited() && summary.attachment_quantities.event.count > 0 {
                 let item_scoping = scoping.item(DataCategory::AttachmentItem);
 
                 let attachment_item_limits = self
                     .check
-                    .apply(item_scoping, summary.attachment_item_quantity)
+                    .apply(item_scoping, summary.attachment_quantities.event.count)
                     .await?;
 
-                enforcement.attachment_items = CategoryLimit::new(
+                enforcement.attachments_limits.event.item = CategoryLimit::new(
                     DataCategory::AttachmentItem,
-                    summary.attachment_item_quantity,
+                    summary.attachment_quantities.event.count,
                     attachment_item_limits.longest(),
                 );
-                enforcement.attachments = enforcement
-                    .attachment_items
-                    .clone_for(DataCategory::Attachment, summary.attachment_quantity);
+                enforcement.attachments_limits.event.bytes =
+                    enforcement.attachments_limits.event.item.clone_for(
+                        DataCategory::Attachment,
+                        summary.attachment_quantities.event.bytes,
+                    );
                 attachment_limits.merge(attachment_item_limits);
             }
 
@@ -920,46 +1086,6 @@ where
                 checkin_limits.longest(),
             );
             rate_limits.merge(checkin_limits);
-        }
-
-        // Handle spans.
-        if enforcement.is_event_active() {
-            enforcement.spans = enforcement
-                .event
-                .clone_for(DataCategory::Span, summary.span_quantity);
-
-            enforcement.spans_indexed = enforcement
-                .event_indexed
-                .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
-        } else if summary.span_quantity > 0 {
-            let mut span_limits = self
-                .check
-                .apply(scoping.item(DataCategory::Span), summary.span_quantity)
-                .await?;
-            enforcement.spans = CategoryLimit::new(
-                DataCategory::Span,
-                summary.span_quantity,
-                span_limits.longest(),
-            );
-
-            if span_limits.is_empty() {
-                span_limits.merge(
-                    self.check
-                        .apply(
-                            scoping.item(DataCategory::SpanIndexed),
-                            summary.span_quantity,
-                        )
-                        .await?,
-                );
-            }
-
-            enforcement.spans_indexed = CategoryLimit::new(
-                DataCategory::SpanIndexed,
-                summary.span_quantity,
-                span_limits.longest(),
-            );
-
-            rate_limits.merge(span_limits);
         }
 
         // Handle profile chunks.
@@ -1704,7 +1830,8 @@ mod tests {
         let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(enforcement.event.is_active());
-        assert!(enforcement.attachments.is_active());
+        // FIXME: This should have them all applied
+        assert!(enforcement.attachments_limits.event.is_active());
         mock.lock().await.assert_call(DataCategory::Transaction, 1);
     }
 
@@ -1770,8 +1897,8 @@ mod tests {
 
         assert!(!enforcement.event.is_active());
         assert!(enforcement.event_indexed.is_active());
-        assert!(enforcement.attachments.is_active());
-        assert!(enforcement.attachment_items.is_active());
+        // FIXME: Should have all of them applied
+        assert!(enforcement.attachments_limits.event.is_active());
         mock.lock().await.assert_call(DataCategory::Transaction, 1);
         mock.lock()
             .await
