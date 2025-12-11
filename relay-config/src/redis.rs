@@ -44,12 +44,6 @@ pub struct PartialRedisConfigOptions {
     /// If a command exceeds this timeout, the connection will be recycled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_timeout: Option<u64>,
-    /// Sets the number of times after which the connection will check whether it is active when
-    /// being recycled.
-    ///
-    /// A frequency of 1, means that the connection will check whether it is active every time it
-    /// is recycled.
-    pub recycle_check_frequency: usize,
 }
 
 impl Default for PartialRedisConfigOptions {
@@ -61,7 +55,6 @@ impl Default for PartialRedisConfigOptions {
             recycle_timeout: Some(2),
             wait_timeout: None,
             response_timeout: Some(30),
-            recycle_check_frequency: 100,
         }
     }
 }
@@ -231,7 +224,6 @@ fn build_redis_config_options(
         recycle_timeout: options.recycle_timeout,
         wait_timeout: options.wait_timeout,
         response_timeout: options.response_timeout,
-        recycle_check_frequency: options.recycle_check_frequency,
     }
 }
 
@@ -414,17 +406,16 @@ quotas:
             },
         });
 
-        assert_json_snapshot!(config, @r###"
+        assert_json_snapshot!(config, @r#"
         {
           "server": "redis://127.0.0.1:6379",
           "max_connections": 42,
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "response_timeout": 30,
-          "recycle_check_frequency": 100
+          "response_timeout": 30
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -437,17 +428,16 @@ quotas:
             },
         }));
 
-        assert_json_snapshot!(configs, @r###"
+        assert_json_snapshot!(configs, @r#"
         {
           "server": "redis://127.0.0.1:6379",
           "max_connections": 42,
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "response_timeout": 30,
-          "recycle_check_frequency": 100
+          "response_timeout": 30
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -554,7 +544,7 @@ max_connections: 20
             },
         };
 
-        assert_json_snapshot!(config, @r###"
+        assert_json_snapshot!(config, @r#"
         {
           "cluster_nodes": [
             "redis://127.0.0.1:6379",
@@ -564,10 +554,9 @@ max_connections: 20
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "response_timeout": 30,
-          "recycle_check_frequency": 100
+          "response_timeout": 30
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -583,7 +572,7 @@ max_connections: 20
             },
         });
 
-        assert_json_snapshot!(configs, @r###"
+        assert_json_snapshot!(configs, @r#"
         {
           "cluster_nodes": [
             "redis://127.0.0.1:6379",
@@ -593,10 +582,9 @@ max_connections: 20
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "response_timeout": 30,
-          "recycle_check_frequency": 100
+          "response_timeout": 30
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -625,7 +613,7 @@ max_connections: 20
             }),
         };
 
-        assert_json_snapshot!(configs, @r###"
+        assert_json_snapshot!(configs, @r#"
         {
           "project_configs": {
             "server": "redis://127.0.0.1:6379",
@@ -633,16 +621,14 @@ max_connections: 20
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
-            "response_timeout": 30,
-            "recycle_check_frequency": 100
+            "response_timeout": 30
           },
           "cardinality": {
             "server": "redis://127.0.0.1:6379",
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
-            "response_timeout": 30,
-            "recycle_check_frequency": 100
+            "response_timeout": 30
           },
           "quotas": {
             "cluster_nodes": [
@@ -653,10 +639,9 @@ max_connections: 20
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
-            "response_timeout": 30,
-            "recycle_check_frequency": 100
+            "response_timeout": 30
           }
         }
-        "###);
+        "#);
     }
 }
