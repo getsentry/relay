@@ -109,10 +109,6 @@ fn extract_ai_model_cost_data(model_cost: Option<&ModelCostV2>, data: &mut SpanD
         return;
     };
 
-    // double write during migration period
-    // 'gen_ai_usage_total_cost' is deprecated and will be removed in the future
-    data.gen_ai_usage_total_cost
-        .set_value(Value::F64(costs.total()).into());
     data.gen_ai_cost_total_tokens
         .set_value(Value::F64(costs.total()).into());
 
