@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId};
 use relay_protocol::{Annotated, IntoValue, Value};
 use relay_quotas::Scoping;
-use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
+use sentry_protos::snuba::v1::{AnyValue, ArrayValue, TraceItem, TraceItemType, any_value};
 use uuid::Uuid;
 
 use crate::envelope::WithHeader;
@@ -132,15 +132,31 @@ fn attributes(
             continue;
         };
 
+        // TODO: share this code with all EAP items
         let Some(value) = (match value {
             Value::Bool(v) => Some(any_value::Value::BoolValue(v)),
             Value::I64(v) => Some(any_value::Value::IntValue(v)),
             Value::U64(v) => i64::try_from(v).ok().map(any_value::Value::IntValue),
             Value::F64(v) => Some(any_value::Value::DoubleValue(v)),
             Value::String(v) => Some(any_value::Value::StringValue(v)),
+            Value::Array(v) => Some(any_value::Value::ArrayValue(ArrayValue {
+                values: v
+                    .into_iter()
+                    .filter_map(|v| v.into_value())
+                    .map(|v| match v {
+                        Value::Bool(v) => any_value::Value::BoolValue(v),
+                        Value::I64(v) => any_value::Value::IntValue(v),
+                        Value::U64(v) => any_value::Value::IntValue(v as i64),
+                        Value::F64(v) => any_value::Value::DoubleValue(v),
+                        Value::String(v) => any_value::Value::StringValue(v),
+                        Value::Array(_) | Value::Object(_) => todo!(),
+                    })
+                    .map(|v| AnyValue { value: Some(v) })
+                    .collect(),
+            })),
             // These cases do not happen, as they are not valid attributes
             // and they should have been filtered out before already.
-            Value::Array(_) | Value::Object(_) => {
+            Value::Object(_) => {
                 debug_assert!(false, "unsupported log value");
                 None
             }
