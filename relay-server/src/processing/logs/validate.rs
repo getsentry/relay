@@ -2,7 +2,7 @@ use crate::processing::logs::{
     Error, ExpandedLogs, Result, SerializedLogs, get_calculated_byte_size,
 };
 use crate::processing::{Context, Managed};
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayDistributions};
 
 /// Validates that there is only a single log container processed at a time.
 ///
@@ -54,8 +54,15 @@ pub fn size(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
         |logs| &mut logs.logs,
         |log, _| {
             let size = get_calculated_byte_size(log);
+            let is_too_large = size > max_size_bytes;
 
-            match size > max_size_bytes {
+            relay_statsd::metric!(
+                distribution(RelayDistributions::TraceItemCanonicalSize) = size as u64,
+                item = "log",
+                too_large = if is_too_large { "true" } else { "false" },
+            );
+
+            match is_too_large {
                 true => Err(Error::TooLarge),
                 false => Ok(()),
             }

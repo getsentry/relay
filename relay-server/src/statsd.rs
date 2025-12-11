@@ -334,6 +334,15 @@ pub enum RelayDistributions {
     PartitionKeys,
     /// Measures how many splits were performed when sending out a partition.
     PartitionSplits,
+    /// Canonical size of a Trace Item.
+    ///
+    /// This is not the size in bytes, this is using the same algorithm we're using for the logs
+    /// billing category.
+    ///
+    /// This metric is tagged with:
+    ///  - `item`: the trace item type.
+    ///  - `too_large`: `true` or `false`, whether the item is bigger than the allowed size limit.
+    TraceItemCanonicalSize,
 }
 
 impl DistributionMetric for RelayDistributions {
@@ -363,6 +372,7 @@ impl DistributionMetric for RelayDistributions {
             Self::UpstreamMetricsBodySize => "upstream.metrics.body_size",
             Self::PartitionKeys => "metrics.buckets.partition_keys",
             Self::PartitionSplits => "partition_splits",
+            Self::TraceItemCanonicalSize => "trace_item.canonical_size",
         }
     }
 }

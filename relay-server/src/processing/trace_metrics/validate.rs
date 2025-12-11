@@ -8,6 +8,7 @@ use crate::processing::trace_metrics::{
     Error, ExpandedTraceMetrics, Result, SerializedTraceMetrics,
 };
 use crate::services::outcome::DiscardReason;
+use crate::statsd::RelayDistributions;
 
 /// Validates that there is only a single trace metric container processed at a time.
 ///
@@ -44,8 +45,15 @@ pub fn size(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
         |metrics| &mut metrics.metrics,
         |metric, _| {
             let size = calculate_size(metric);
+            let is_too_large = size > max_size_bytes;
 
-            match size > max_size_bytes {
+            relay_statsd::metric!(
+                distribution(RelayDistributions::TraceItemCanonicalSize) = size as u64,
+                item = "trace_metric",
+                too_large = if is_too_large { "true" } else { "false" },
+            );
+
+            match is_too_large {
                 true => Err(Error::TooLarge),
                 false => Ok(()),
             }
