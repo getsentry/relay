@@ -926,7 +926,7 @@ fn spool_max_backpressure_envelopes() -> usize {
 
 /// Default max memory usage for unspooling.
 fn spool_max_backpressure_memory_percent() -> f32 {
-    0.9
+    0.8
 }
 
 /// Default number of partitions for the buffer.
