@@ -185,54 +185,58 @@
 <a href=#185 id=185 data-nosnippet>185</a>    /// This is usually not emitted, since metrics in the unsupported
 <a href=#186 id=186 data-nosnippet>186</a>    /// namespace should be dropped before any processing occurs.
 <a href=#187 id=187 data-nosnippet>187</a>    </span>MetricsUnsupported,
-<a href=#188 id=188 data-nosnippet>188</a>}
-<a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a><span class="kw">impl </span>AppFeature {
-<a href=#191 id=191 data-nosnippet>191</a>    <span class="doccomment">/// Returns the string representation for this app feature.
-<a href=#192 id=192 data-nosnippet>192</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#194 id=194 data-nosnippet>194</a>            <span class="self">Self</span>::Unattributed =&gt; <span class="string">"unattributed"</span>,
-<a href=#195 id=195 data-nosnippet>195</a>            <span class="self">Self</span>::UnattributedMetrics =&gt; <span class="string">"unattributed_metrics"</span>,
-<a href=#196 id=196 data-nosnippet>196</a>            <span class="self">Self</span>::UnattributedEnvelope =&gt; <span class="string">"unattributed_envelope"</span>,
-<a href=#197 id=197 data-nosnippet>197</a>            <span class="self">Self</span>::Transactions =&gt; <span class="string">"transactions"</span>,
-<a href=#198 id=198 data-nosnippet>198</a>            <span class="self">Self</span>::Errors =&gt; <span class="string">"errors"</span>,
-<a href=#199 id=199 data-nosnippet>199</a>            <span class="self">Self</span>::Spans =&gt; <span class="string">"spans"</span>,
-<a href=#200 id=200 data-nosnippet>200</a>            <span class="self">Self</span>::Logs =&gt; <span class="string">"our_logs"</span>,
-<a href=#201 id=201 data-nosnippet>201</a>            <span class="self">Self</span>::Sessions =&gt; <span class="string">"sessions"</span>,
-<a href=#202 id=202 data-nosnippet>202</a>            <span class="self">Self</span>::ClientReports =&gt; <span class="string">"client_reports"</span>,
-<a href=#203 id=203 data-nosnippet>203</a>            <span class="self">Self</span>::CheckIns =&gt; <span class="string">"check_ins"</span>,
-<a href=#204 id=204 data-nosnippet>204</a>            <span class="self">Self</span>::Replays =&gt; <span class="string">"replays"</span>,
-<a href=#205 id=205 data-nosnippet>205</a>            <span class="self">Self</span>::MetricsTransactions =&gt; <span class="string">"metrics_transactions"</span>,
-<a href=#206 id=206 data-nosnippet>206</a>            <span class="self">Self</span>::MetricsSpans =&gt; <span class="string">"metrics_spans"</span>,
-<a href=#207 id=207 data-nosnippet>207</a>            <span class="self">Self</span>::MetricsSessions =&gt; <span class="string">"metrics_sessions"</span>,
-<a href=#208 id=208 data-nosnippet>208</a>            <span class="self">Self</span>::MetricsCustom =&gt; <span class="string">"metrics_custom"</span>,
-<a href=#209 id=209 data-nosnippet>209</a>            <span class="self">Self</span>::MetricsUnsupported =&gt; <span class="string">"metrics_unsupported"</span>,
-<a href=#210 id=210 data-nosnippet>210</a>            <span class="self">Self</span>::Profiles =&gt; <span class="string">"profiles"</span>,
-<a href=#211 id=211 data-nosnippet>211</a>            <span class="self">Self</span>::TraceMetrics =&gt; <span class="string">"trace_metrics"</span>,
-<a href=#212 id=212 data-nosnippet>212</a>        }
-<a href=#213 id=213 data-nosnippet>213</a>    }
-<a href=#214 id=214 data-nosnippet>214</a>}
-<a href=#215 id=215 data-nosnippet>215</a>
-<a href=#216 id=216 data-nosnippet>216</a><span class="doccomment">/// A COGS measurement.
-<a href=#217 id=217 data-nosnippet>217</a>///
-<a href=#218 id=218 data-nosnippet>218</a>/// The measurement has already been attributed to a specific feature.
-<a href=#219 id=219 data-nosnippet>219</a></span><span class="attr">#[derive(Debug, Clone, Copy)]
-<a href=#220 id=220 data-nosnippet>220</a></span><span class="kw">pub struct </span>CogsMeasurement {
-<a href=#221 id=221 data-nosnippet>221</a>    <span class="doccomment">/// The measured resource.
-<a href=#222 id=222 data-nosnippet>222</a>    </span><span class="kw">pub </span>resource: ResourceId,
-<a href=#223 id=223 data-nosnippet>223</a>    <span class="doccomment">/// The measured app feature.
-<a href=#224 id=224 data-nosnippet>224</a>    </span><span class="kw">pub </span>feature: AppFeature,
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="doccomment">/// Optional category for this measurement.
-<a href=#226 id=226 data-nosnippet>226</a>    ///
-<a href=#227 id=227 data-nosnippet>227</a>    /// A category further subdivides a measurement for a specific feature.
-<a href=#228 id=228 data-nosnippet>228</a>    </span><span class="kw">pub </span>category: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;,
-<a href=#229 id=229 data-nosnippet>229</a>    <span class="doccomment">/// The measurement value.
-<a href=#230 id=230 data-nosnippet>230</a>    </span><span class="kw">pub </span>value: Value,
-<a href=#231 id=231 data-nosnippet>231</a>}
-<a href=#232 id=232 data-nosnippet>232</a>
-<a href=#233 id=233 data-nosnippet>233</a><span class="doccomment">/// A COGS measurement value.
-<a href=#234 id=234 data-nosnippet>234</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-<a href=#235 id=235 data-nosnippet>235</a></span><span class="kw">pub enum </span>Value {
-<a href=#236 id=236 data-nosnippet>236</a>    <span class="doccomment">/// A time measurement.
-<a href=#237 id=237 data-nosnippet>237</a>    </span>Time(std::time::Duration),
-<a href=#238 id=238 data-nosnippet>238</a>}</code></pre></div></section></main></body></html>
+<a href=#188 id=188 data-nosnippet>188</a>
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="doccomment">/// V2 attachments that cannot be attributed to spans or logs.
+<a href=#190 id=190 data-nosnippet>190</a>    </span>TraceAttachments,
+<a href=#191 id=191 data-nosnippet>191</a>}
+<a href=#192 id=192 data-nosnippet>192</a>
+<a href=#193 id=193 data-nosnippet>193</a><span class="kw">impl </span>AppFeature {
+<a href=#194 id=194 data-nosnippet>194</a>    <span class="doccomment">/// Returns the string representation for this app feature.
+<a href=#195 id=195 data-nosnippet>195</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#196 id=196 data-nosnippet>196</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#197 id=197 data-nosnippet>197</a>            <span class="self">Self</span>::Unattributed =&gt; <span class="string">"unattributed"</span>,
+<a href=#198 id=198 data-nosnippet>198</a>            <span class="self">Self</span>::UnattributedMetrics =&gt; <span class="string">"unattributed_metrics"</span>,
+<a href=#199 id=199 data-nosnippet>199</a>            <span class="self">Self</span>::UnattributedEnvelope =&gt; <span class="string">"unattributed_envelope"</span>,
+<a href=#200 id=200 data-nosnippet>200</a>            <span class="self">Self</span>::Transactions =&gt; <span class="string">"transactions"</span>,
+<a href=#201 id=201 data-nosnippet>201</a>            <span class="self">Self</span>::Errors =&gt; <span class="string">"errors"</span>,
+<a href=#202 id=202 data-nosnippet>202</a>            <span class="self">Self</span>::Spans =&gt; <span class="string">"spans"</span>,
+<a href=#203 id=203 data-nosnippet>203</a>            <span class="self">Self</span>::Logs =&gt; <span class="string">"our_logs"</span>,
+<a href=#204 id=204 data-nosnippet>204</a>            <span class="self">Self</span>::Sessions =&gt; <span class="string">"sessions"</span>,
+<a href=#205 id=205 data-nosnippet>205</a>            <span class="self">Self</span>::ClientReports =&gt; <span class="string">"client_reports"</span>,
+<a href=#206 id=206 data-nosnippet>206</a>            <span class="self">Self</span>::CheckIns =&gt; <span class="string">"check_ins"</span>,
+<a href=#207 id=207 data-nosnippet>207</a>            <span class="self">Self</span>::Replays =&gt; <span class="string">"replays"</span>,
+<a href=#208 id=208 data-nosnippet>208</a>            <span class="self">Self</span>::MetricsTransactions =&gt; <span class="string">"metrics_transactions"</span>,
+<a href=#209 id=209 data-nosnippet>209</a>            <span class="self">Self</span>::MetricsSpans =&gt; <span class="string">"metrics_spans"</span>,
+<a href=#210 id=210 data-nosnippet>210</a>            <span class="self">Self</span>::MetricsSessions =&gt; <span class="string">"metrics_sessions"</span>,
+<a href=#211 id=211 data-nosnippet>211</a>            <span class="self">Self</span>::MetricsCustom =&gt; <span class="string">"metrics_custom"</span>,
+<a href=#212 id=212 data-nosnippet>212</a>            <span class="self">Self</span>::MetricsUnsupported =&gt; <span class="string">"metrics_unsupported"</span>,
+<a href=#213 id=213 data-nosnippet>213</a>            <span class="self">Self</span>::Profiles =&gt; <span class="string">"profiles"</span>,
+<a href=#214 id=214 data-nosnippet>214</a>            <span class="self">Self</span>::TraceMetrics =&gt; <span class="string">"trace_metrics"</span>,
+<a href=#215 id=215 data-nosnippet>215</a>            <span class="self">Self</span>::TraceAttachments =&gt; <span class="string">"trace_attachments"</span>,
+<a href=#216 id=216 data-nosnippet>216</a>        }
+<a href=#217 id=217 data-nosnippet>217</a>    }
+<a href=#218 id=218 data-nosnippet>218</a>}
+<a href=#219 id=219 data-nosnippet>219</a>
+<a href=#220 id=220 data-nosnippet>220</a><span class="doccomment">/// A COGS measurement.
+<a href=#221 id=221 data-nosnippet>221</a>///
+<a href=#222 id=222 data-nosnippet>222</a>/// The measurement has already been attributed to a specific feature.
+<a href=#223 id=223 data-nosnippet>223</a></span><span class="attr">#[derive(Debug, Clone, Copy)]
+<a href=#224 id=224 data-nosnippet>224</a></span><span class="kw">pub struct </span>CogsMeasurement {
+<a href=#225 id=225 data-nosnippet>225</a>    <span class="doccomment">/// The measured resource.
+<a href=#226 id=226 data-nosnippet>226</a>    </span><span class="kw">pub </span>resource: ResourceId,
+<a href=#227 id=227 data-nosnippet>227</a>    <span class="doccomment">/// The measured app feature.
+<a href=#228 id=228 data-nosnippet>228</a>    </span><span class="kw">pub </span>feature: AppFeature,
+<a href=#229 id=229 data-nosnippet>229</a>    <span class="doccomment">/// Optional category for this measurement.
+<a href=#230 id=230 data-nosnippet>230</a>    ///
+<a href=#231 id=231 data-nosnippet>231</a>    /// A category further subdivides a measurement for a specific feature.
+<a href=#232 id=232 data-nosnippet>232</a>    </span><span class="kw">pub </span>category: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;,
+<a href=#233 id=233 data-nosnippet>233</a>    <span class="doccomment">/// The measurement value.
+<a href=#234 id=234 data-nosnippet>234</a>    </span><span class="kw">pub </span>value: Value,
+<a href=#235 id=235 data-nosnippet>235</a>}
+<a href=#236 id=236 data-nosnippet>236</a>
+<a href=#237 id=237 data-nosnippet>237</a><span class="doccomment">/// A COGS measurement value.
+<a href=#238 id=238 data-nosnippet>238</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+<a href=#239 id=239 data-nosnippet>239</a></span><span class="kw">pub enum </span>Value {
+<a href=#240 id=240 data-nosnippet>240</a>    <span class="doccomment">/// A time measurement.
+<a href=#241 id=241 data-nosnippet>241</a>    </span>Time(std::time::Duration),
+<a href=#242 id=242 data-nosnippet>242</a>}</code></pre></div></section></main></body></html>

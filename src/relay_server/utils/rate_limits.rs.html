@@ -8,7 +8,7 @@
 <a href=#8 id=8 data-nosnippet>8</a>    Scoping,
 <a href=#9 id=9 data-nosnippet>9</a>};
 <a href=#10 id=10 data-nosnippet>10</a>
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item, ItemType, ParentId};
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item, ItemType};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::integrations::Integration;
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::managed::ManagedEnvelope;
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
@@ -520,7 +520,7 @@
 <a href=#520 id=520 data-nosnippet>520</a>        </span><span class="kw">match </span>item.ty() {
 <a href=#521 id=521 data-nosnippet>521</a>            ItemType::Attachment =&gt; {
 <a href=#522 id=522 data-nosnippet>522</a>                <span class="comment">// Drop span attachments if they have a span_id item header and span quota is null.
-<a href=#523 id=523 data-nosnippet>523</a>                </span><span class="kw">if </span>item.is_attachment_v2() &amp;&amp; <span class="macro">matches!</span>(item.parent_id(), <span class="prelude-val">Some</span>(ParentId::SpanId(<span class="kw">_</span>))) &amp;&amp; (<span class="self">self</span>.spans_indexed.is_active() || <span class="self">self</span>.spans.is_active()) {
+<a href=#523 id=523 data-nosnippet>523</a>                </span><span class="kw">if </span>item.is_span_attachment() &amp;&amp; (<span class="self">self</span>.spans_indexed.is_active() || <span class="self">self</span>.spans.is_active()) {
 <a href=#524 id=524 data-nosnippet>524</a>                    <span class="kw">return </span><span class="bool-val">false</span>;
 <a href=#525 id=525 data-nosnippet>525</a>                }
 <a href=#526 id=526 data-nosnippet>526</a>                <span class="kw">if </span>!(<span class="self">self</span>.attachments.is_active() || <span class="self">self</span>.attachment_items.is_active()) {
