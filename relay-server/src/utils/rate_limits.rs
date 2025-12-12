@@ -148,6 +148,12 @@ pub struct AttachmentQuantities {
     bytes: usize,
 }
 
+impl AttachmentQuantities {
+    pub fn is_empty(&self) -> bool {
+        self.count == 0 && self.bytes == 0
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AttachmentsQuantities {
     // Mention: error + transactions
@@ -858,14 +864,52 @@ where
 
             rate_limits.merge(span_limits);
         }
-        // Unconditionally copy the
-        // enforcement.spans = enforcement
-        //         .event
-        //         .clone_for(DataCategory::Attachment, summary.attac);
 
-        // FIXME: This only populates the enforcement! (in general)
+        // Handle span attachments (part 1)
+        if !summary.attachment_quantities.span.is_empty() {
+            // If there are span limits they should also apply to the span attachments.
+            if enforcement.spans.is_active() || enforcement.spans_indexed.is_active() {
+                let span_limit = if enforcement.spans.is_active() {
+                    &enforcement.spans
+                } else {
+                    &enforcement.spans_indexed
+                };
+                enforcement.attachments_limits.span.bytes = span_limit.clone_for(
+                    DataCategory::Attachment,
+                    summary.attachment_quantities.span.bytes,
+                );
+                enforcement.attachments_limits.span.item = span_limit.clone_for(
+                    DataCategory::AttachmentItem,
+                    summary.attachment_quantities.span.count,
+                );
+            // If we did not yet check the span limits check them (this can happen if we only
+            // receive standalone span attachments). Note, that we don't want to consume any span
+            // quota though.
+            } else if summary.span_quantity == 0 {
+                let mut span_limits = self
+                    .check
+                    .apply(scoping.item(DataCategory::Span), 0)
+                    .await?;
 
-        // FIXME: First instance move these over, to the new struct and that might already improve things :thinking:
+                if span_limits.is_empty() {
+                    span_limits.merge(
+                        self.check
+                            .apply(scoping.item(DataCategory::SpanIndexed), 0)
+                            .await?,
+                    );
+                }
+                enforcement.attachments_limits.span.bytes = CategoryLimit::new(
+                    DataCategory::Attachment,
+                    summary.attachment_quantities.span.bytes,
+                    span_limits.longest(),
+                );
+                enforcement.attachments_limits.span.item = CategoryLimit::new(
+                    DataCategory::Attachment,
+                    summary.attachment_quantities.span.count,
+                    span_limits.longest(),
+                );
+            }
+        }
 
         // Handle attachments.
         if let Some(limit) = enforcement.active_event() {
@@ -882,7 +926,6 @@ where
             enforcement.attachments_limits.event.item = limit2;
         } else {
             let mut attachment_limits = RateLimits::new();
-            // TODO: Should this be specific to the event attachments?
             if summary.attachment_quantities.event.bytes > 0 {
                 let item_scoping = scoping.item(DataCategory::Attachment);
 
@@ -931,6 +974,47 @@ where
                 rate_limits.merge(attachment_limits);
             }
         }
+
+        // Handle span attachments (part 2)
+        // If we don't yet have limits for span attachments (derived from the span limits)
+        // it is time to consume attachment limits.
+        if !summary.attachment_quantities.span.is_empty()
+            && !enforcement.attachments_limits.span.is_active()
+        {
+            let mut attachment_limits = self
+                .check
+                .apply(
+                    scoping.item(DataCategory::Attachment),
+                    summary.attachment_quantities.span.bytes,
+                )
+                .await?;
+
+            // Note: The check here is taken from above for consistency I think just checking `is_empty`
+            // should be fine?
+            if !attachment_limits.is_limited() && summary.attachment_quantities.span.count > 0 {
+                attachment_limits.merge(
+                    self.check
+                        .apply(
+                            scoping.item(DataCategory::AttachmentItem),
+                            summary.attachment_quantities.span.count,
+                        )
+                        .await?,
+                );
+            }
+
+            enforcement.attachments_limits.span.bytes = CategoryLimit::new(
+                DataCategory::Attachment,
+                summary.attachment_quantities.span.bytes,
+                attachment_limits.longest(),
+            );
+            enforcement.attachments_limits.span.item = CategoryLimit::new(
+                DataCategory::AttachmentItem,
+                summary.attachment_quantities.span.count,
+                attachment_limits.longest(),
+            );
+        }
+
+        // TODO: Handle trace attachments.
 
         // Handle sessions.
         if summary.session_quantity > 0 {
