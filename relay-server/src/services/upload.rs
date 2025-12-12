@@ -270,19 +270,18 @@ impl UploadServiceInner {
                     let result = self
                         .upload("envelope", &session, attachment.payload(), None)
                         .await;
-                    let result_tag;
-                    match result {
-                        Ok(stored_key) => {
-                            attachment.set_stored_key(stored_key);
-                            result_tag = "success";
-                        }
-                        Err(e) => result_tag = e.as_str(),
-                    }
+
                     relay_statsd::metric!(
                         counter(RelayCounters::AttachmentUpload) += 1,
-                        result = result_tag,
+                        result = match &result {
+                            Ok(_) => "success",
+                            Err(e) => e.as_str(),
+                        },
                         type = "envelope",
                     );
+                    if let Ok(stored_key) = result {
+                        attachment.set_stored_key(stored_key);
+                    }
                 }
             }
         }
