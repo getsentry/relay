@@ -604,6 +604,7 @@ pub enum RelayTimers {
     ///
     /// Tagged by:
     /// - `type`: "envelope" or "attachment_v2".
+    #[cfg(feature = "processing")]
     AttachmentUploadDuration,
 }
 
@@ -659,6 +660,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BodyReadDuration => "requests.body_read.duration",
             RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
             RelayTimers::SignatureCreationDuration => "signature.create.duration",
+            #[cfg(feature = "processing")]
             RelayTimers::AttachmentUploadDuration => "attachment.upload.duration",
         }
     }
