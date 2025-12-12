@@ -15,8 +15,11 @@ use relay_sampling::DynamicSamplingContext;
 use relay_spans::derive_op_for_v2_span;
 
 use crate::span::TABLE_NAME_REGEX;
-use crate::span::description::scrub_db_query;
-use crate::span::tag_extraction::{sql_action_from_query, sql_tables_from_query};
+use crate::span::description::{scrub_db_query, scrub_http};
+use crate::span::tag_extraction::{
+    domain_from_scrubbed_http, domain_from_server_address, sql_action_from_query,
+    sql_tables_from_query,
+};
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
@@ -279,6 +282,7 @@ fn normalize_attribute_names_inner(
 /// by creating a set of functions to handle each group of attributes separately.
 pub fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
     normalize_db_attributes(attributes);
+    normalize_http_attributes(attributes);
 }
 
 /// Normalizes the following db attributes: `db.query.text`, `db.operation.name`, `db.collection.name`
@@ -289,7 +293,7 @@ pub fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
 /// the db operation and collection name are updated if needed.
 ///
 /// Note: This function assumes that the sentry.op has already been inferred and set in the attributes.
-pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
+fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
     let Some(attributes) = annotated_attributes.value() else {
         return;
     };
@@ -400,6 +404,68 @@ pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>)
         }
         if let Some(db_collection_name) = db_collection_name {
             attributes.insert(DB_COLLECTION_NAME, db_collection_name);
+        }
+    }
+}
+
+/// Normalizes the following http attributes: `http.request.method` and `server.address`.
+///
+/// The normalization process first scrubs the http method and url and extracts the server address from the url.
+fn normalize_http_attributes(annotated_attributes: &mut Annotated<Attributes>) {
+    let Some(attributes) = annotated_attributes.value() else {
+        return;
+    };
+
+    // Skip normalization if not an http span.
+    // This is equivalent to conditionally scrubbing by span category in the V1 pipeline.
+    if !attributes.contains_key(HTTP_REQUEST_METHOD) {
+        return;
+    }
+
+    let op = attributes.get_value(OP).and_then(|v| v.as_str());
+
+    let method = attributes
+        .get_value(HTTP_REQUEST_METHOD)
+        .and_then(|v| v.as_str());
+
+    let server_address = attributes
+        .get_value(SERVER_ADDRESS)
+        .and_then(|v| v.as_str());
+
+    let url = attributes.get_value(URL_FULL).and_then(|v| v.as_str());
+
+    let url_scheme = attributes.get_value(URL_SCHEME).and_then(|v| v.as_str());
+
+    // If the span op is "http.client" and the method and url are present,
+    // extract a normalized domain to be stored in the "server.address" attribute.
+    let (normalized_server_address, raw_url) = if op == Some("http.client") {
+        let domain_from_scrubbed_http = method
+            .zip(url)
+            .and_then(|(method, url)| scrub_http(method, url, &[]))
+            .and_then(|scrubbed_http| domain_from_scrubbed_http(&scrubbed_http));
+
+        if let Some(domain) = domain_from_scrubbed_http {
+            (Some(domain), None)
+        } else {
+            domain_from_server_address(server_address, url_scheme)
+        }
+    } else {
+        (None, None)
+    };
+
+    let method = method.map(|m| m.to_uppercase());
+
+    if let Some(attributes) = annotated_attributes.value_mut() {
+        if let Some(method) = method {
+            attributes.insert(HTTP_REQUEST_METHOD, method);
+        }
+
+        if let Some(normalized_server_address) = normalized_server_address {
+            attributes.insert(SERVER_ADDRESS, normalized_server_address);
+        }
+
+        if let Some(raw_url) = raw_url {
+            attributes.insert(URL_FULL, raw_url);
         }
     }
 }
@@ -1120,6 +1186,106 @@ mod tests {
           "sentry.origin": {
             "type": "string",
             "value": "auto.otlp.spans"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+      "#,
+        )
+        .unwrap();
+
+        normalize_http_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "*.xn--85x722f.xn--55qx5d.cn"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes_server_address() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "url.scheme": {
+            "type": "string",
+            "value": "https"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "subdomain.example.com:5688"
+          },
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          }
+        }
+      "#,
+        )
+        .unwrap();
+
+        normalize_http_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "*.example.com:5688"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://subdomain.example.com:5688"
+          },
+          "url.scheme": {
+            "type": "string",
+            "value": "https"
           }
         }
         "#);
