@@ -410,7 +410,8 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
 
 /// Normalizes the following http attributes: `http.request.method` and `server.address`.
 ///
-/// The normalization process first scrubs the http method and url and extracts the server address from the url.
+/// The normalization process first scrubs the url and extracts the server address from the url.
+/// It also sets 'url.full' to the raw url if it is not already set and can be retrieved from the server address.
 fn normalize_http_attributes(annotated_attributes: &mut Annotated<Attributes>) {
     let Some(attributes) = annotated_attributes.value() else {
         return;
@@ -465,7 +466,7 @@ fn normalize_http_attributes(annotated_attributes: &mut Annotated<Attributes>) {
         }
 
         if let Some(raw_url) = raw_url {
-            attributes.insert(URL_FULL, raw_url);
+            attributes.insert_if_missing(URL_FULL, || raw_url);
         }
     }
 }
