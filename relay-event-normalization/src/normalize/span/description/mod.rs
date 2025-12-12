@@ -62,7 +62,10 @@ pub(crate) fn scrub_span_description(
         .as_str()
         .map(|op| op.split_once('.').unwrap_or((op, "")))
         .and_then(|(op, sub)| match (op, sub) {
-            ("http", _) => scrub_http(description, span_allowed_hosts),
+            ("http", _) => {
+                let (method, url) = description.split_once(' ')?;
+                scrub_http(method, url, span_allowed_hosts)
+            }
             ("cache", _) => scrub_redis_keys(description),
             ("db", sub) => {
                 let db_operation = data
@@ -214,8 +217,9 @@ fn scrub_supabase(string: &str) -> Option<String> {
     Some(DB_SUPABASE_REGEX.replace_all(string, "{%s}").into())
 }
 
-fn scrub_http(string: &str, allow_list: &[String]) -> Option<String> {
-    let (method, url) = string.split_once(' ')?;
+/// Returns a scrubbed HTTP description of the format: "{method} {scheme}://{domain}"
+/// given a method, url, and a list of allowed hosts.
+pub fn scrub_http(method: &str, url: &str, allow_list: &[String]) -> Option<String> {
     if !HTTP_METHOD_EXTRACTOR_REGEX.is_match(method) {
         return None;
     };
