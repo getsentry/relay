@@ -330,7 +330,7 @@ impl ManagedEnvelope {
 
                 relay_log::error!(
                     tags.project_key = self.scoping().project_key.to_string(),
-                    tags.has_attachments = summary.attachment_quantity > 0,
+                    tags.has_attachments = summary.attachment_quantities.bytes() > 0,
                     tags.has_sessions = summary.session_quantity > 0,
                     tags.has_profiles = summary.profile_quantity > 0,
                     tags.has_transactions = summary.secondary_transaction_quantity > 0,
@@ -354,19 +354,19 @@ impl ManagedEnvelope {
             self.track_outcome(outcome.clone(), category, 1);
         }
 
-        if self.context.summary.attachment_quantity > 0 {
+        if self.context.summary.attachment_quantities.bytes() > 0 {
             self.track_outcome(
                 outcome.clone(),
                 DataCategory::Attachment,
-                self.context.summary.attachment_quantity,
+                self.context.summary.attachment_quantities.bytes(),
             );
         }
 
-        if self.context.summary.attachment_item_quantity > 0 {
+        if self.context.summary.attachment_quantities.count() > 0 {
             self.track_outcome(
                 outcome.clone(),
                 DataCategory::AttachmentItem,
-                self.context.summary.attachment_item_quantity,
+                self.context.summary.attachment_quantities.count(),
             );
         }
 

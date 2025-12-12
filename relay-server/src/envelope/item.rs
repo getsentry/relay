@@ -476,6 +476,24 @@ impl Item {
         self.is_attachment_v2() && self.parent_id().is_none()
     }
 
+    pub fn attachment_parent_type(&self) -> Option<ParentType> {
+        let is_attachment = self.ty() == &ItemType::Attachment;
+        let is_trace_attachment = self.content_type() == Some(&ContentType::TraceAttachment);
+
+        if is_attachment {
+            if is_trace_attachment {
+                match self.parent_id() {
+                    Some(ParentId::SpanId(_)) => Some(ParentType::Span),
+                    None => Some(ParentType::Trace),
+                }
+            } else {
+                Some(ParentType::Event)
+            }
+        } else {
+            None
+        }
+    }
+
     /// Returns the attachment payload size.
     ///
     /// For AttachmentV2, returns only the size of the actual payload, excluding the attachment meta.
@@ -1084,6 +1102,12 @@ impl ParentId {
             ParentId::SpanId(span_id) => *span_id,
         }
     }
+}
+
+pub enum ParentType {
+    Event,
+    Trace,
+    Span,
 }
 
 #[cfg(test)]
