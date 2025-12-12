@@ -15,14 +15,14 @@
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>uuid::Uuid;
 <a href=#16 id=16 data-nosnippet>16</a>
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_ATTACHMENT_RETENTION;
-<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{Item, ItemType};
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span><span class="kw">crate</span>::managed::{
 <a href=#20 id=20 data-nosnippet>20</a>    Counted, Managed, ManagedResult, OutcomeError, Quantities, Rejected, TypedEnvelope,
 <a href=#21 id=21 data-nosnippet>21</a>};
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::Processed;
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::services::store::{Store, StoreEnvelope, StoreTraceItem};
-<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges};
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayTimers};
 <a href=#26 id=26 data-nosnippet>26</a>
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span><span class="kw">super</span>::outcome::Outcome;
 <a href=#28 id=28 data-nosnippet>28</a>
@@ -263,124 +263,125 @@
 <a href=#263 id=263 data-nosnippet>263</a>            }
 <a href=#264 id=264 data-nosnippet>264</a>            <span class="prelude-val">Ok</span>(session) =&gt; {
 <a href=#265 id=265 data-nosnippet>265</a>                <span class="kw">for </span>attachment <span class="kw">in </span>attachments {
-<a href=#266 id=266 data-nosnippet>266</a>                    <span class="kw">let </span>result = <span class="self">self</span>.handle_envelope_attachment(<span class="kw-2">&amp;</span>session, attachment).<span class="kw">await</span>;
-<a href=#267 id=267 data-nosnippet>267</a>                    <span class="macro">relay_statsd::metric!</span>(
-<a href=#268 id=268 data-nosnippet>268</a>                        counter(RelayCounters::AttachmentUpload) += <span class="number">1</span>,
-<a href=#269 id=269 data-nosnippet>269</a>                        result = <span class="kw">match </span>result {
-<a href=#270 id=270 data-nosnippet>270</a>                            <span class="prelude-val">Ok</span>(()) =&gt; <span class="string">"success"</span>,
-<a href=#271 id=271 data-nosnippet>271</a>                            <span class="prelude-val">Err</span>(error) =&gt; error.as_str(),
-<a href=#272 id=272 data-nosnippet>272</a>                        },
-<a href=#273 id=273 data-nosnippet>273</a>                        <span class="kw">type </span>= <span class="string">"envelope"</span>,
-<a href=#274 id=274 data-nosnippet>274</a>                    );
-<a href=#275 id=275 data-nosnippet>275</a>                }
-<a href=#276 id=276 data-nosnippet>276</a>            }
-<a href=#277 id=277 data-nosnippet>277</a>        }
-<a href=#278 id=278 data-nosnippet>278</a>
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="comment">// last but not least, forward the envelope to the store endpoint
-<a href=#280 id=280 data-nosnippet>280</a>        </span><span class="self">self</span>.store.send(StoreEnvelope { envelope });
-<a href=#281 id=281 data-nosnippet>281</a>    }
-<a href=#282 id=282 data-nosnippet>282</a>
-<a href=#283 id=283 data-nosnippet>283</a>    <span class="kw">async fn </span>handle_attachment(<span class="kw-2">&amp;</span><span class="self">self</span>, managed: Managed&lt;StoreAttachment&gt;) {
-<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span>result = <span class="self">self</span>.do_handle_store_attachment(managed).<span class="kw">await</span>;
-<a href=#285 id=285 data-nosnippet>285</a>
-<a href=#286 id=286 data-nosnippet>286</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#287 id=287 data-nosnippet>287</a>            counter(RelayCounters::AttachmentUpload) += <span class="number">1</span>,
-<a href=#288 id=288 data-nosnippet>288</a>            result = <span class="kw">match </span>result {
-<a href=#289 id=289 data-nosnippet>289</a>                <span class="prelude-val">Ok</span>(()) =&gt; <span class="string">"success"</span>,
-<a href=#290 id=290 data-nosnippet>290</a>                <span class="prelude-val">Err</span>(e) =&gt; e.into_inner().as_str(),
-<a href=#291 id=291 data-nosnippet>291</a>            },
-<a href=#292 id=292 data-nosnippet>292</a>            <span class="kw">type </span>= <span class="string">"attachment_v2"</span>,
-<a href=#293 id=293 data-nosnippet>293</a>        );
-<a href=#294 id=294 data-nosnippet>294</a>    }
+<a href=#266 id=266 data-nosnippet>266</a>                    <span class="comment">// we are not storing zero-size attachments in objectstore
+<a href=#267 id=267 data-nosnippet>267</a>                    </span><span class="kw">if </span>attachment.is_empty() {
+<a href=#268 id=268 data-nosnippet>268</a>                        <span class="kw">continue</span>;
+<a href=#269 id=269 data-nosnippet>269</a>                    }
+<a href=#270 id=270 data-nosnippet>270</a>                    <span class="kw">let </span>result = <span class="self">self
+<a href=#271 id=271 data-nosnippet>271</a>                        </span>.upload(<span class="string">"envelope"</span>, <span class="kw-2">&amp;</span>session, attachment.payload(), <span class="prelude-val">None</span>)
+<a href=#272 id=272 data-nosnippet>272</a>                        .<span class="kw">await</span>;
+<a href=#273 id=273 data-nosnippet>273</a>
+<a href=#274 id=274 data-nosnippet>274</a>                    <span class="macro">relay_statsd::metric!</span>(
+<a href=#275 id=275 data-nosnippet>275</a>                        counter(RelayCounters::AttachmentUpload) += <span class="number">1</span>,
+<a href=#276 id=276 data-nosnippet>276</a>                        result = <span class="kw">match </span><span class="kw-2">&amp;</span>result {
+<a href=#277 id=277 data-nosnippet>277</a>                            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="string">"success"</span>,
+<a href=#278 id=278 data-nosnippet>278</a>                            <span class="prelude-val">Err</span>(e) =&gt; e.as_str(),
+<a href=#279 id=279 data-nosnippet>279</a>                        },
+<a href=#280 id=280 data-nosnippet>280</a>                        <span class="kw">type </span>= <span class="string">"envelope"</span>,
+<a href=#281 id=281 data-nosnippet>281</a>                    );
+<a href=#282 id=282 data-nosnippet>282</a>                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(stored_key) = result {
+<a href=#283 id=283 data-nosnippet>283</a>                        attachment.set_stored_key(stored_key);
+<a href=#284 id=284 data-nosnippet>284</a>                    }
+<a href=#285 id=285 data-nosnippet>285</a>                }
+<a href=#286 id=286 data-nosnippet>286</a>            }
+<a href=#287 id=287 data-nosnippet>287</a>        }
+<a href=#288 id=288 data-nosnippet>288</a>
+<a href=#289 id=289 data-nosnippet>289</a>        <span class="comment">// last but not least, forward the envelope to the store endpoint
+<a href=#290 id=290 data-nosnippet>290</a>        </span><span class="self">self</span>.store.send(StoreEnvelope { envelope });
+<a href=#291 id=291 data-nosnippet>291</a>    }
+<a href=#292 id=292 data-nosnippet>292</a>
+<a href=#293 id=293 data-nosnippet>293</a>    <span class="kw">async fn </span>handle_attachment(<span class="kw-2">&amp;</span><span class="self">self</span>, managed: Managed&lt;StoreAttachment&gt;) {
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="kw">let </span>result = <span class="self">self</span>.do_handle_store_attachment(managed).<span class="kw">await</span>;
 <a href=#295 id=295 data-nosnippet>295</a>
-<a href=#296 id=296 data-nosnippet>296</a>    <span class="kw">async fn </span>do_handle_store_attachment(
-<a href=#297 id=297 data-nosnippet>297</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#298 id=298 data-nosnippet>298</a>        managed: Managed&lt;StoreAttachment&gt;,
-<a href=#299 id=299 data-nosnippet>299</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;Error&gt;&gt; {
-<a href=#300 id=300 data-nosnippet>300</a>        <span class="kw">let </span>scoping = managed.scoping();
-<a href=#301 id=301 data-nosnippet>301</a>        <span class="kw">let </span>session = <span class="self">self
-<a href=#302 id=302 data-nosnippet>302</a>            </span>.trace_attachments
-<a href=#303 id=303 data-nosnippet>303</a>            .for_project(scoping.organization_id.value(), scoping.project_id.value())
-<a href=#304 id=304 data-nosnippet>304</a>            .session(<span class="kw-2">&amp;</span><span class="self">self</span>.objectstore_client)
-<a href=#305 id=305 data-nosnippet>305</a>            .map_err(Error::UploadFailed)
-<a href=#306 id=306 data-nosnippet>306</a>            .reject(<span class="kw-2">&amp;</span>managed)<span class="question-mark">?</span>;
-<a href=#307 id=307 data-nosnippet>307</a>
-<a href=#308 id=308 data-nosnippet>308</a>        <span class="kw">let </span>quantities = managed.quantities();
-<a href=#309 id=309 data-nosnippet>309</a>        <span class="kw">let </span>body = Bytes::clone(<span class="kw-2">&amp;</span>managed.body);
-<a href=#310 id=310 data-nosnippet>310</a>
-<a href=#311 id=311 data-nosnippet>311</a>        <span class="comment">// Make sure that the attachment can be converted into a trace item:
-<a href=#312 id=312 data-nosnippet>312</a>        </span><span class="kw">let </span>trace_item = managed.try_map(|attachment, _record_keeper| {
-<a href=#313 id=313 data-nosnippet>313</a>            <span class="kw">let </span>StoreAttachment {
-<a href=#314 id=314 data-nosnippet>314</a>                trace_item,
-<a href=#315 id=315 data-nosnippet>315</a>                body: <span class="kw">_</span>,
-<a href=#316 id=316 data-nosnippet>316</a>            } = attachment;
-<a href=#317 id=317 data-nosnippet>317</a>            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Error&gt;(StoreTraceItem {
-<a href=#318 id=318 data-nosnippet>318</a>                trace_item,
-<a href=#319 id=319 data-nosnippet>319</a>                quantities,
-<a href=#320 id=320 data-nosnippet>320</a>            })
-<a href=#321 id=321 data-nosnippet>321</a>        })<span class="question-mark">?</span>;
-<a href=#322 id=322 data-nosnippet>322</a>
-<a href=#323 id=323 data-nosnippet>323</a>        <span class="comment">// Upload the attachment:
-<a href=#324 id=324 data-nosnippet>324</a>        </span><span class="kw">if </span>!body.is_empty() {
-<a href=#325 id=325 data-nosnippet>325</a>            <span class="macro">relay_log::trace!</span>(<span class="string">"Starting attachment upload"</span>);
-<a href=#326 id=326 data-nosnippet>326</a>            <span class="kw">let </span>key = Uuid::from_slice(<span class="kw-2">&amp;</span>trace_item.trace_item.item_id)
-<a href=#327 id=327 data-nosnippet>327</a>                .map_err(Error::from)
-<a href=#328 id=328 data-nosnippet>328</a>                .reject(<span class="kw-2">&amp;</span>trace_item)<span class="question-mark">?
-<a href=#329 id=329 data-nosnippet>329</a>                </span>.to_string();
-<a href=#330 id=330 data-nosnippet>330</a>
-<a href=#331 id=331 data-nosnippet>331</a>            <span class="attr">#[cfg(debug_assertions)]
-<a href=#332 id=332 data-nosnippet>332</a>            </span><span class="kw">let </span>original_key = key.clone();
-<a href=#333 id=333 data-nosnippet>333</a>
-<a href=#334 id=334 data-nosnippet>334</a>            <span class="kw">let </span>future = <span class="kw">async </span>{
-<a href=#335 id=335 data-nosnippet>335</a>                <span class="kw">let </span>result = session
-<a href=#336 id=336 data-nosnippet>336</a>                    .put(body.clone())
-<a href=#337 id=337 data-nosnippet>337</a>                    .key(key)
-<a href=#338 id=338 data-nosnippet>338</a>                    .send()
-<a href=#339 id=339 data-nosnippet>339</a>                    .<span class="kw">await
-<a href=#340 id=340 data-nosnippet>340</a>                    </span>.map_err(Error::UploadFailed)
-<a href=#341 id=341 data-nosnippet>341</a>                    .reject(<span class="kw-2">&amp;</span>trace_item)<span class="question-mark">?</span>;
-<a href=#342 id=342 data-nosnippet>342</a>                <span class="prelude-val">Ok</span>(result.key)
-<a href=#343 id=343 data-nosnippet>343</a>            };
-<a href=#344 id=344 data-nosnippet>344</a>
-<a href=#345 id=345 data-nosnippet>345</a>            <span class="kw">let </span>stored_key = tokio::time::timeout(<span class="self">self</span>.timeout, future)
+<a href=#296 id=296 data-nosnippet>296</a>        <span class="macro">relay_statsd::metric!</span>(
+<a href=#297 id=297 data-nosnippet>297</a>            counter(RelayCounters::AttachmentUpload) += <span class="number">1</span>,
+<a href=#298 id=298 data-nosnippet>298</a>            result = <span class="kw">match </span>result {
+<a href=#299 id=299 data-nosnippet>299</a>                <span class="prelude-val">Ok</span>(()) =&gt; <span class="string">"success"</span>,
+<a href=#300 id=300 data-nosnippet>300</a>                <span class="prelude-val">Err</span>(e) =&gt; e.into_inner().as_str(),
+<a href=#301 id=301 data-nosnippet>301</a>            },
+<a href=#302 id=302 data-nosnippet>302</a>            <span class="kw">type </span>= <span class="string">"attachment_v2"</span>,
+<a href=#303 id=303 data-nosnippet>303</a>        );
+<a href=#304 id=304 data-nosnippet>304</a>    }
+<a href=#305 id=305 data-nosnippet>305</a>
+<a href=#306 id=306 data-nosnippet>306</a>    <span class="kw">async fn </span>do_handle_store_attachment(
+<a href=#307 id=307 data-nosnippet>307</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#308 id=308 data-nosnippet>308</a>        managed: Managed&lt;StoreAttachment&gt;,
+<a href=#309 id=309 data-nosnippet>309</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;Error&gt;&gt; {
+<a href=#310 id=310 data-nosnippet>310</a>        <span class="kw">let </span>scoping = managed.scoping();
+<a href=#311 id=311 data-nosnippet>311</a>        <span class="kw">let </span>session = <span class="self">self
+<a href=#312 id=312 data-nosnippet>312</a>            </span>.trace_attachments
+<a href=#313 id=313 data-nosnippet>313</a>            .for_project(scoping.organization_id.value(), scoping.project_id.value())
+<a href=#314 id=314 data-nosnippet>314</a>            .session(<span class="kw-2">&amp;</span><span class="self">self</span>.objectstore_client)
+<a href=#315 id=315 data-nosnippet>315</a>            .map_err(Error::UploadFailed)
+<a href=#316 id=316 data-nosnippet>316</a>            .reject(<span class="kw-2">&amp;</span>managed)<span class="question-mark">?</span>;
+<a href=#317 id=317 data-nosnippet>317</a>
+<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">let </span>quantities = managed.quantities();
+<a href=#319 id=319 data-nosnippet>319</a>        <span class="kw">let </span>body = Bytes::clone(<span class="kw-2">&amp;</span>managed.body);
+<a href=#320 id=320 data-nosnippet>320</a>
+<a href=#321 id=321 data-nosnippet>321</a>        <span class="comment">// Make sure that the attachment can be converted into a trace item:
+<a href=#322 id=322 data-nosnippet>322</a>        </span><span class="kw">let </span>trace_item = managed.try_map(|attachment, _record_keeper| {
+<a href=#323 id=323 data-nosnippet>323</a>            <span class="kw">let </span>StoreAttachment {
+<a href=#324 id=324 data-nosnippet>324</a>                trace_item,
+<a href=#325 id=325 data-nosnippet>325</a>                body: <span class="kw">_</span>,
+<a href=#326 id=326 data-nosnippet>326</a>            } = attachment;
+<a href=#327 id=327 data-nosnippet>327</a>            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Error&gt;(StoreTraceItem {
+<a href=#328 id=328 data-nosnippet>328</a>                trace_item,
+<a href=#329 id=329 data-nosnippet>329</a>                quantities,
+<a href=#330 id=330 data-nosnippet>330</a>            })
+<a href=#331 id=331 data-nosnippet>331</a>        })<span class="question-mark">?</span>;
+<a href=#332 id=332 data-nosnippet>332</a>
+<a href=#333 id=333 data-nosnippet>333</a>        <span class="comment">// Upload the attachment:
+<a href=#334 id=334 data-nosnippet>334</a>        </span><span class="kw">if </span>!body.is_empty() {
+<a href=#335 id=335 data-nosnippet>335</a>            <span class="macro">relay_log::trace!</span>(<span class="string">"Starting attachment upload"</span>);
+<a href=#336 id=336 data-nosnippet>336</a>            <span class="kw">let </span>key = Uuid::from_slice(<span class="kw-2">&amp;</span>trace_item.trace_item.item_id)
+<a href=#337 id=337 data-nosnippet>337</a>                .map_err(Error::from)
+<a href=#338 id=338 data-nosnippet>338</a>                .reject(<span class="kw-2">&amp;</span>trace_item)<span class="question-mark">?
+<a href=#339 id=339 data-nosnippet>339</a>                </span>.to_string();
+<a href=#340 id=340 data-nosnippet>340</a>
+<a href=#341 id=341 data-nosnippet>341</a>            <span class="attr">#[cfg(debug_assertions)]
+<a href=#342 id=342 data-nosnippet>342</a>            </span><span class="kw">let </span>original_key = key.clone();
+<a href=#343 id=343 data-nosnippet>343</a>
+<a href=#344 id=344 data-nosnippet>344</a>            <span class="kw">let </span>stored_key = <span class="self">self
+<a href=#345 id=345 data-nosnippet>345</a>                </span>.upload(<span class="string">"attachment_v2"</span>, <span class="kw-2">&amp;</span>session, body, <span class="prelude-val">Some</span>(key))
 <a href=#346 id=346 data-nosnippet>346</a>                .<span class="kw">await
-<a href=#347 id=347 data-nosnippet>347</a>                </span>.map_err(|_elapsed| Error::Timeout)
-<a href=#348 id=348 data-nosnippet>348</a>                .reject(<span class="kw-2">&amp;</span>trace_item)<span class="question-mark">??</span>;
-<a href=#349 id=349 data-nosnippet>349</a>
-<a href=#350 id=350 data-nosnippet>350</a>            <span class="attr">#[cfg(debug_assertions)]
-<a href=#351 id=351 data-nosnippet>351</a>            </span><span class="macro">debug_assert_eq!</span>(stored_key, original_key);
-<a href=#352 id=352 data-nosnippet>352</a>            <span class="macro">relay_log::trace!</span>(<span class="string">"Finished attachment upload"</span>);
-<a href=#353 id=353 data-nosnippet>353</a>        }
-<a href=#354 id=354 data-nosnippet>354</a>
-<a href=#355 id=355 data-nosnippet>355</a>        <span class="comment">// Only after successful upload forward the attachment to the store.
-<a href=#356 id=356 data-nosnippet>356</a>        </span><span class="self">self</span>.store.send(trace_item);
-<a href=#357 id=357 data-nosnippet>357</a>
-<a href=#358 id=358 data-nosnippet>358</a>        <span class="prelude-val">Ok</span>(())
-<a href=#359 id=359 data-nosnippet>359</a>    }
-<a href=#360 id=360 data-nosnippet>360</a>
-<a href=#361 id=361 data-nosnippet>361</a>    <span class="kw">async fn </span>handle_envelope_attachment(
-<a href=#362 id=362 data-nosnippet>362</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#347 id=347 data-nosnippet>347</a>                </span>.reject(<span class="kw-2">&amp;</span>trace_item)<span class="question-mark">?</span>;
+<a href=#348 id=348 data-nosnippet>348</a>
+<a href=#349 id=349 data-nosnippet>349</a>            <span class="attr">#[cfg(debug_assertions)]
+<a href=#350 id=350 data-nosnippet>350</a>            </span><span class="macro">debug_assert_eq!</span>(stored_key, original_key);
+<a href=#351 id=351 data-nosnippet>351</a>            <span class="macro">relay_log::trace!</span>(<span class="string">"Finished attachment upload"</span>);
+<a href=#352 id=352 data-nosnippet>352</a>        }
+<a href=#353 id=353 data-nosnippet>353</a>
+<a href=#354 id=354 data-nosnippet>354</a>        <span class="comment">// Only after successful upload forward the attachment to the store.
+<a href=#355 id=355 data-nosnippet>355</a>        </span><span class="self">self</span>.store.send(trace_item);
+<a href=#356 id=356 data-nosnippet>356</a>
+<a href=#357 id=357 data-nosnippet>357</a>        <span class="prelude-val">Ok</span>(())
+<a href=#358 id=358 data-nosnippet>358</a>    }
+<a href=#359 id=359 data-nosnippet>359</a>
+<a href=#360 id=360 data-nosnippet>360</a>    <span class="kw">async fn </span>upload(
+<a href=#361 id=361 data-nosnippet>361</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#362 id=362 data-nosnippet>362</a>        ty: <span class="kw-2">&amp;</span>str,
 <a href=#363 id=363 data-nosnippet>363</a>        session: <span class="kw-2">&amp;</span>Session,
-<a href=#364 id=364 data-nosnippet>364</a>        attachment: <span class="kw-2">&amp;mut </span>Item,
-<a href=#365 id=365 data-nosnippet>365</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
-<a href=#366 id=366 data-nosnippet>366</a>        <span class="comment">// we are not storing zero-size attachments in objectstore
-<a href=#367 id=367 data-nosnippet>367</a>        </span><span class="kw">if </span>attachment.is_empty() {
-<a href=#368 id=368 data-nosnippet>368</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-<a href=#369 id=369 data-nosnippet>369</a>        }
-<a href=#370 id=370 data-nosnippet>370</a>        <span class="macro">relay_log::trace!</span>(<span class="string">"Starting attachment upload"</span>);
-<a href=#371 id=371 data-nosnippet>371</a>        <span class="kw">let </span>future = <span class="kw">async </span>{
-<a href=#372 id=372 data-nosnippet>372</a>            <span class="kw">let </span>result = session.put(attachment.payload()).send().<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#373 id=373 data-nosnippet>373</a>            <span class="prelude-val">Ok</span>(result.key)
-<a href=#374 id=374 data-nosnippet>374</a>        };
-<a href=#375 id=375 data-nosnippet>375</a>
-<a href=#376 id=376 data-nosnippet>376</a>        <span class="kw">let </span>stored_key = tokio::time::timeout(<span class="self">self</span>.timeout, future)
-<a href=#377 id=377 data-nosnippet>377</a>            .<span class="kw">await
-<a href=#378 id=378 data-nosnippet>378</a>            </span>.map_err(|_elapsed| Error::Timeout)<span class="question-mark">?
-<a href=#379 id=379 data-nosnippet>379</a>            </span>.map_err(Error::UploadFailed)<span class="question-mark">?</span>;
-<a href=#380 id=380 data-nosnippet>380</a>
-<a href=#381 id=381 data-nosnippet>381</a>        attachment.set_stored_key(stored_key);
-<a href=#382 id=382 data-nosnippet>382</a>        <span class="macro">relay_log::trace!</span>(<span class="string">"Finished attachment upload"</span>);
-<a href=#383 id=383 data-nosnippet>383</a>
-<a href=#384 id=384 data-nosnippet>384</a>        <span class="prelude-val">Ok</span>(())
-<a href=#385 id=385 data-nosnippet>385</a>    }
-<a href=#386 id=386 data-nosnippet>386</a>}</code></pre></div></section></main></body></html>
+<a href=#364 id=364 data-nosnippet>364</a>        payload: Bytes,
+<a href=#365 id=365 data-nosnippet>365</a>        key: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#366 id=366 data-nosnippet>366</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt; {
+<a href=#367 id=367 data-nosnippet>367</a>        <span class="macro">relay_log::trace!</span>(<span class="string">"Starting attachment upload"</span>);
+<a href=#368 id=368 data-nosnippet>368</a>        <span class="kw">let </span><span class="kw-2">mut </span>request = session.put(payload);
+<a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = key {
+<a href=#370 id=370 data-nosnippet>370</a>            request = request.key(key);
+<a href=#371 id=371 data-nosnippet>371</a>        }
+<a href=#372 id=372 data-nosnippet>372</a>        <span class="kw">let </span>response = <span class="macro">relay_statsd::metric!</span>(
+<a href=#373 id=373 data-nosnippet>373</a>            timer(RelayTimers::AttachmentUploadDuration),
+<a href=#374 id=374 data-nosnippet>374</a>            <span class="kw">type </span>= ty,
+<a href=#375 id=375 data-nosnippet>375</a>            {
+<a href=#376 id=376 data-nosnippet>376</a>                tokio::time::timeout(<span class="self">self</span>.timeout, request.send())
+<a href=#377 id=377 data-nosnippet>377</a>                    .<span class="kw">await
+<a href=#378 id=378 data-nosnippet>378</a>                    </span>.map_err(|_elapsed| Error::Timeout)<span class="question-mark">?
+<a href=#379 id=379 data-nosnippet>379</a>                    </span>.map_err(Error::UploadFailed)<span class="question-mark">?
+<a href=#380 id=380 data-nosnippet>380</a>            </span>}
+<a href=#381 id=381 data-nosnippet>381</a>        );
+<a href=#382 id=382 data-nosnippet>382</a>
+<a href=#383 id=383 data-nosnippet>383</a>        <span class="macro">relay_log::trace!</span>(<span class="string">"Finished attachment upload"</span>);
+<a href=#384 id=384 data-nosnippet>384</a>
+<a href=#385 id=385 data-nosnippet>385</a>        <span class="prelude-val">Ok</span>(response.key)
+<a href=#386 id=386 data-nosnippet>386</a>    }
+<a href=#387 id=387 data-nosnippet>387</a>}</code></pre></div></section></main></body></html>
