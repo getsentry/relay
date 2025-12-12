@@ -365,7 +365,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
             },
         ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
     assert mini_sentry.captured_outcomes.empty()
 
 
