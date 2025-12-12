@@ -15,14 +15,14 @@ use smallvec::smallvec;
 use uuid::Uuid;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
-use crate::envelope::{Item, ItemType};
+use crate::envelope::ItemType;
 use crate::managed::{
     Counted, Managed, ManagedResult, OutcomeError, Quantities, Rejected, TypedEnvelope,
 };
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
-use crate::statsd::{RelayCounters, RelayGauges};
+use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 
 use super::outcome::Outcome;
 
@@ -263,13 +263,24 @@ impl UploadServiceInner {
             }
             Ok(session) => {
                 for attachment in attachments {
-                    let result = self.handle_envelope_attachment(&session, attachment).await;
+                    // we are not storing zero-size attachments in objectstore
+                    if attachment.is_empty() {
+                        continue;
+                    }
+                    let result = self
+                        .upload("envelope", &session, attachment.payload(), None)
+                        .await;
+                    let result_tag;
+                    match result {
+                        Ok(stored_key) => {
+                            attachment.set_stored_key(stored_key);
+                            result_tag = "success";
+                        }
+                        Err(e) => result_tag = e.as_str(),
+                    }
                     relay_statsd::metric!(
                         counter(RelayCounters::AttachmentUpload) += 1,
-                        result = match result {
-                            Ok(()) => "success",
-                            Err(error) => error.as_str(),
-                        },
+                        result = result_tag,
                         type = "envelope",
                     );
                 }
@@ -331,21 +342,10 @@ impl UploadServiceInner {
             #[cfg(debug_assertions)]
             let original_key = key.clone();
 
-            let future = async {
-                let result = session
-                    .put(body.clone())
-                    .key(key)
-                    .send()
-                    .await
-                    .map_err(Error::UploadFailed)
-                    .reject(&trace_item)?;
-                Ok(result.key)
-            };
-
-            let stored_key = tokio::time::timeout(self.timeout, future)
+            let stored_key = self
+                .upload("attachment_v2", &session, body, Some(key))
                 .await
-                .map_err(|_elapsed| Error::Timeout)
-                .reject(&trace_item)??;
+                .reject(&trace_item)?;
 
             #[cfg(debug_assertions)]
             debug_assert_eq!(stored_key, original_key);
@@ -358,29 +358,31 @@ impl UploadServiceInner {
         Ok(())
     }
 
-    async fn handle_envelope_attachment(
+    async fn upload(
         &self,
+        ty: &str,
         session: &Session,
-        attachment: &mut Item,
-    ) -> Result<(), Error> {
-        // we are not storing zero-size attachments in objectstore
-        if attachment.is_empty() {
-            return Ok(());
-        }
+        payload: Bytes,
+        key: Option<String>,
+    ) -> Result<String, Error> {
         relay_log::trace!("Starting attachment upload");
-        let future = async {
-            let result = session.put(attachment.payload()).send().await?;
-            Ok(result.key)
-        };
+        let mut request = session.put(payload);
+        if let Some(key) = key {
+            request = request.key(key);
+        }
+        let response = relay_statsd::metric!(
+            timer(RelayTimers::AttachmentUploadDuration),
+            type = ty,
+            {
+                tokio::time::timeout(self.timeout, request.send())
+                    .await
+                    .map_err(|_elapsed| Error::Timeout)?
+                    .map_err(Error::UploadFailed)?
+            }
+        );
 
-        let stored_key = tokio::time::timeout(self.timeout, future)
-            .await
-            .map_err(|_elapsed| Error::Timeout)?
-            .map_err(Error::UploadFailed)?;
-
-        attachment.set_stored_key(stored_key);
         relay_log::trace!("Finished attachment upload");
 
-        Ok(())
+        Ok(response.key)
     }
 }
