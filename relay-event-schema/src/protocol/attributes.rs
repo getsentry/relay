@@ -16,7 +16,7 @@ pub struct Attribute {
     pub value: AttributeValue,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, trim = false)]
     pub other: Object<Value>,
 }
 

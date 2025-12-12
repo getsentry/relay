@@ -1,5 +1,14 @@
 use relay_event_schema::protocol::{Attribute, Attributes};
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, Object, Value};
+
+/// The size of a `bool` value for the purpose of attributes.
+pub const BOOL_SIZE: usize = 1;
+/// The size of a `u64` value for the purpose of attributes.
+pub const U64_SIZE: usize = 8;
+/// The size of an `i64` value for the purpose of attributes.
+pub const I64_SIZE: usize = 8;
+/// The size of an `f64` value for the purpose of attributes.
+pub const F64_SIZE: usize = 8;
 
 /// Calculates the canonical size of [`Attributes`].
 ///
@@ -35,14 +44,29 @@ pub fn value_size(v: &Annotated<Value>) -> usize {
     };
 
     match v {
-        Value::Bool(_) => 1,
-        Value::I64(_) => 8,
-        Value::U64(_) => 8,
-        Value::F64(_) => 8,
-        Value::String(v) => v.len(),
-        Value::Array(v) => v.iter().map(value_size).sum(),
-        Value::Object(v) => v.iter().map(|(k, v)| k.len() + value_size(v)).sum(),
+        Value::Bool(_) => BOOL_SIZE,
+        Value::I64(_) => I64_SIZE,
+        Value::U64(_) => U64_SIZE,
+        Value::F64(_) => F64_SIZE,
+        Value::String(v) => string_size(v),
+        Value::Array(v) => array_size(v),
+        Value::Object(v) => object_size(v),
     }
+}
+
+/// The size of a `String` value for the purpose of attributes.
+pub fn string_size(value: &str) -> usize {
+    value.len()
+}
+
+/// The size of an `Array` value  for the purpose of attributes.
+pub fn array_size(value: &[Annotated<Value>]) -> usize {
+    value.iter().map(value_size).sum()
+}
+
+/// The size of an `Object` value  for the purpose of attributes.
+pub fn object_size(value: &Object<Value>) -> usize {
+    value.iter().map(|(k, v)| k.len() + value_size(v)).sum()
 }
 
 #[cfg(test)]
