@@ -610,6 +610,12 @@ pub enum RelayTimers {
     /// The time it needs to create a signature. Includes both the signature used for
     /// trusted relays and for register challenges.
     SignatureCreationDuration,
+    /// Time needed to upload an attachment to objectstore.
+    ///
+    /// Tagged by:
+    /// - `type`: "envelope" or "attachment_v2".
+    #[cfg(feature = "processing")]
+    AttachmentUploadDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -664,6 +670,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BodyReadDuration => "requests.body_read.duration",
             RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
             RelayTimers::SignatureCreationDuration => "signature.create.duration",
+            #[cfg(feature = "processing")]
+            RelayTimers::AttachmentUploadDuration => "attachment.upload.duration",
         }
     }
 }
