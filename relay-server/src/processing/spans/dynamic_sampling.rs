@@ -141,7 +141,20 @@ pub async fn run(
     Err(metrics)
 }
 
-/// Type returned by [`create_indexed_metrics`].
+/// Rejects the indexed portion of the provided spans and returns the total count as metrics.
+///
+/// This is used when the indexed payload is designated to be dropped *after* dynamic sampling (decision is keep),
+/// but metrics have not yet been extracted.
+pub fn reject_indexed_spans(
+    spans: Managed<ExpandedSpans>,
+    error: Error,
+) -> Managed<ExtractedMetrics> {
+    let (indexed, total) = split_indexed_and_total(spans);
+    let _ = indexed.reject_err(error);
+    total
+}
+
+/// Type returned by [`try_split_indexed_and_total`].
 ///
 /// Contains the indexed spans and the metrics extracted from the spans.
 type SpansAndMetrics = (Managed<ExpandedSpans<Indexed>>, Managed<ExtractedMetrics>);
@@ -150,7 +163,7 @@ type SpansAndMetrics = (Managed<ExpandedSpans<Indexed>>, Managed<ExtractedMetric
 ///
 /// Indexed metrics can only be extracted from the Relay making the final sampling decision,
 /// if the current Relay is not the final Relay, the function returns the original spans unchanged.
-pub fn create_indexed_metrics(
+pub fn try_split_indexed_and_total(
     spans: Managed<ExpandedSpans>,
     ctx: Context<'_>,
 ) -> Either<Managed<ExpandedSpans>, SpansAndMetrics> {
@@ -158,8 +171,17 @@ pub fn create_indexed_metrics(
         return Either::Left(spans);
     }
 
+    Either::Right(split_indexed_and_total(spans))
+}
+
+/// Splits spans into indexed spans and metrics representing the total counts.
+///
+/// Dynamic sampling internal function, outside users should use the safer, use case driven variants
+/// [`try_split_indexed_and_total`] and [`reject_indexed_spans`].
+fn split_indexed_and_total(spans: Managed<ExpandedSpans>) -> SpansAndMetrics {
     let scoping = spans.scoping();
-    let (indexed, metrics) = spans.split_once(|spans| {
+
+    spans.split_once(|spans| {
         let metrics = create_metrics(
             scoping,
             spans.spans.len() as u32,
@@ -168,9 +190,7 @@ pub fn create_indexed_metrics(
         );
 
         (spans.into_indexed(), metrics)
-    });
-
-    Either::Right((indexed, metrics))
+    })
 }
 
 async fn compute(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> SamplingResult {
