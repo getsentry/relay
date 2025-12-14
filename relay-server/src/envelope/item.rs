@@ -476,6 +476,9 @@ impl Item {
         self.is_attachment_v2() && self.parent_id().is_none()
     }
 
+    /// Returns the [`ParentType`] of an attachment.
+    ///
+    /// For standard attachments (V1) always returns [`ParentType::Event`].
     pub fn attachment_parent_type(&self) -> Option<ParentType> {
         let is_attachment = self.ty() == &ItemType::Attachment;
         let is_trace_attachment = self.content_type() == Some(&ContentType::TraceAttachment);
@@ -1104,10 +1107,12 @@ impl ParentId {
     }
 }
 
+/// The type of parent entity an attachment is associated with.
+#[derive(Debug)]
 pub enum ParentType {
     Event,
-    Trace,
     Span,
+    Trace,
 }
 
 #[cfg(test)]
