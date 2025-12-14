@@ -14,6 +14,7 @@ use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
+use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::trace_attachments::forward::attachment_to_item;
 use crate::processing::trace_attachments::process::ScrubAttachmentError;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
@@ -181,17 +182,21 @@ impl processing::Processor for SpansProcessor {
         process::normalize(&mut spans, &self.geo_lookup, ctx);
         filter::filter(&mut spans, ctx);
 
-        let mut spans = self.limiter.enforce_quotas(spans, ctx).await?;
+        let spans = self.limiter.enforce_quotas(spans, ctx).await?;
+        let mut spans = match spans.transpose() {
+            Either::Left(spans) => spans,
+            Either::Right(metrics) => return Ok(Output::metrics(metrics)),
+        };
 
         process::scrub(&mut spans, ctx);
 
-        Ok(match dynamic_sampling::create_indexed_metrics(spans, ctx) {
-            Either::Left(spans) => Output::just(SpanOutput::TotalAndIndexed(spans)),
-            Either::Right((spans, metrics)) => Output {
+        match dynamic_sampling::try_split_indexed_and_total(spans, ctx) {
+            Either::Left(spans) => Ok(Output::just(SpanOutput::TotalAndIndexed(spans))),
+            Either::Right((spans, metrics)) => Ok(Output {
                 main: Some(SpanOutput::Indexed(spans)),
                 metrics: Some(metrics),
-            },
-        })
+            }),
+        }
     }
 }
 
@@ -535,14 +540,14 @@ impl Counted for ExpandedSpans<Indexed> {
 }
 
 impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
-    type Output = Self;
+    type Output = Managed<Either<ExpandedSpans<TotalAndIndexed>, ExtractedMetrics>>;
     type Error = Error;
 
     async fn enforce<R>(
         mut self,
         mut rate_limiter: R,
         _: Context<'_>,
-    ) -> Result<Self, Rejected<Self::Error>>
+    ) -> Result<Self::Output, Rejected<Self::Error>>
     where
         R: processing::RateLimiter,
     {
@@ -554,22 +559,23 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
             attachment_item,
         } = self.span_quantities();
 
-        if span > 0 {
-            let limits = rate_limiter
-                .try_consume(scoping.item(DataCategory::Span), span)
-                .await;
-            if !limits.is_empty() {
-                // If there is a span quota reject all the spans and the associated attachments.
-                return Err(self.reject_err(Error::from(limits)));
-            }
+        // Always check span limits, all items depend on spans.
+        let limits = rate_limiter
+            .try_consume(scoping.item(DataCategory::Span), span)
+            .await;
+        if !limits.is_empty() {
+            // If there is a span quota reject all the spans and the associated attachments.
+            return Err(self.reject_err(Error::from(limits)));
+        }
 
-            let limits = rate_limiter
-                .try_consume(scoping.item(DataCategory::SpanIndexed), span)
-                .await;
-            if !limits.is_empty() {
-                // If there is a span quota reject all the spans and the associated attachments.
-                return Err(self.reject_err(Error::from(limits)));
-            }
+        let limits = rate_limiter
+            .try_consume(scoping.item(DataCategory::SpanIndexed), span)
+            .await;
+        if !limits.is_empty() {
+            // If there is an indexed span quota reject all the spans and the associated attachments,
+            // but keep the total counts.
+            let total = dynamic_sampling::reject_indexed_spans(self, limits.into());
+            return Ok(total.map(|total, _| Either::Right(total)));
         }
 
         if attachment > 0 {
@@ -592,7 +598,7 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
             .await;
         }
 
-        Ok(self)
+        Ok(self.map(|s, _| Either::Left(s)))
     }
 }
 

@@ -9,6 +9,7 @@
 - Add functionality to process and store span attachments. ([#5423](https://github.com/getsentry/relay/pull/5423), [#5363](https://github.com/getsentry/relay/pull/5363))
 - Apply existing cookie rules to `http.request.header.cookie.<key>` fields. ([#5456](https://github.com/getsentry/relay/pull/5456))
 - Add functionality to process and store trace attachments. ([#5457](https://github.com/getsentry/relay/pull/5457))
+- Lower default memory utilization threshold for disk spooling from 90% to 80%. When Relay hits 80% memory utilization, it will start spooling envelopes to disk instead of processing them. ([#5472](https://github.com/getsentry/relay/pull/5472))
 
 **Bug Fixes**:
 
@@ -19,6 +20,7 @@
 - Revise trace metric and log size limits. ([#5440](https://github.com/getsentry/relay/pull/5440))
 - Update `is_ai_span` and `infer_ai_operation_type` to use `gen_ai.operation.name`. ([#5433](https://github.com/getsentry/relay/pull/5433))
 - Add project_id to profile item kafka headers. ([#5458](https://github.com/getsentry/relay/pull/5458))
+- Remove `recycle_check_frequency` from Redis configuration. ([#5476](https://github.com/getsentry/relay/pull/5476))
 - Remove `gen_ai_usage_total_cost` attribute and stop double writing costs. ([#5471](https://github.com/getsentry/relay/pull/5471))
 
 ## 25.11.1

@@ -3,7 +3,6 @@ use futures::FutureExt;
 use redis::AsyncConnectionConfig;
 use redis::cluster::ClusterClientBuilder;
 use std::ops::{Deref, DerefMut};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use tokio::time::Instant;
 
@@ -145,8 +144,6 @@ impl redis::aio::ConnectionLike for CustomClusterConnection {
 pub struct CustomClusterManager {
     name: &'static str,
     client: redis::cluster::ClusterClient,
-    ping_number: AtomicUsize,
-    recycle_check_frequency: usize,
 }
 
 impl CustomClusterManager {
@@ -172,8 +169,6 @@ impl CustomClusterManager {
         Ok(Self {
             name,
             client: client.build()?,
-            ping_number: AtomicUsize::new(0),
-            recycle_check_frequency: options.recycle_check_frequency,
         })
     }
 }
@@ -192,7 +187,7 @@ impl Manager for CustomClusterManager {
     async fn recycle(
         &self,
         conn: &mut TrackedConnection<ClusterConnection>,
-        metrics: &Metrics,
+        _metrics: &Metrics,
     ) -> RecycleResult<RedisError> {
         // If the connection is marked to be detached, we return and error, signaling that this
         // connection must be detached from the pool.
@@ -202,26 +197,7 @@ impl Manager for CustomClusterManager {
             ));
         }
 
-        // If the interval has been reached, we optimistically assume the connection is active
-        // without doing an actual `PING`.
-        if !metrics
-            .recycle_count
-            .is_multiple_of(self.recycle_check_frequency)
-        {
-            return Ok(());
-        }
-
-        // Copied from deadpool_redis::cluster::Manager
-        let ping_number = self.ping_number.fetch_add(1, Ordering::Relaxed).to_string();
-        let n = redis::cmd("PING")
-            .arg(&ping_number)
-            .query_async::<String>(conn)
-            .await?;
-        if n == ping_number {
-            Ok(())
-        } else {
-            Err(RecycleError::message("Invalid PING response"))
-        }
+        Ok(())
     }
 }
 
@@ -264,9 +240,7 @@ impl redis::aio::ConnectionLike for CustomSingleConnection {
 pub struct CustomSingleManager {
     name: &'static str,
     client: redis::Client,
-    ping_number: AtomicUsize,
     connection_config: AsyncConnectionConfig,
-    recycle_check_frequency: usize,
 }
 
 impl CustomSingleManager {
@@ -287,9 +261,7 @@ impl CustomSingleManager {
         Ok(Self {
             name,
             client: redis::Client::open(params)?,
-            ping_number: AtomicUsize::new(0),
             connection_config,
-            recycle_check_frequency: options.recycle_check_frequency,
         })
     }
 }
@@ -308,7 +280,7 @@ impl Manager for CustomSingleManager {
     async fn recycle(
         &self,
         conn: &mut TrackedConnection<MultiplexedConnection>,
-        metrics: &Metrics,
+        _metrics: &Metrics,
     ) -> RecycleResult<RedisError> {
         // If the connection is marked to be detached, we return and error, signaling that this
         // connection must be detached from the pool.
@@ -318,30 +290,7 @@ impl Manager for CustomSingleManager {
             ));
         }
 
-        // If the interval has been reached, we optimistically assume the connection is active
-        // without doing an actual `PING`.
-        if !metrics
-            .recycle_count
-            .is_multiple_of(self.recycle_check_frequency)
-        {
-            return Ok(());
-        }
-
-        // Copied from deadpool_redis::Manager::recycle
-        let ping_number = self.ping_number.fetch_add(1, Ordering::Relaxed).to_string();
-        // Using pipeline to avoid roundtrip for UNWATCH
-        let (n,) = redis::Pipeline::with_capacity(2)
-            .cmd("UNWATCH")
-            .ignore()
-            .cmd("PING")
-            .arg(&ping_number)
-            .query_async::<(String,)>(conn)
-            .await?;
-        if n == ping_number {
-            Ok(())
-        } else {
-            Err(RecycleError::message("Invalid PING response"))
-        }
+        Ok(())
     }
 }
 

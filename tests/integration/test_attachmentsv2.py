@@ -1019,6 +1019,27 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
 @pytest.mark.parametrize(
     "quota_config,expected_outcomes",
     [
+        # TODO: https://github.com/getsentry/relay/issues/5469
+        # pytest.param(
+        #     [
+        #         {
+        #             "categories": ["span"],
+        #             "limit": 0,
+        #             "window": 3600,
+        #             "id": "span_limit",
+        #             "reasonCode": "span_quota_exceeded",
+        #         }
+        #     ],
+        #     {
+        #         # Rate limit spans
+        #         (DataCategory.SPAN.value, 2): 1,
+        #         (DataCategory.SPAN_INDEXED.value, 2): 1,
+        #         # Rate limit associated span attachments
+        #         (DataCategory.ATTACHMENT.value, 2): 64,
+        #         (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+        #     },
+        #     id="span_quota_exceeded",
+        # ),
         pytest.param(
             [
                 {
@@ -1030,14 +1051,11 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 }
             ],
             {
-                # Rate limit spans
-                (DataCategory.SPAN.value, 2): 1,
                 (DataCategory.SPAN_INDEXED.value, 2): 1,
-                # Rate limit associated span attachments
                 (DataCategory.ATTACHMENT.value, 2): 64,
                 (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
             },
-            id="span_quota_exceeded",
+            id="span_indexed_quota_exceeded",
         ),
         pytest.param(
             [
@@ -1059,7 +1077,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
         pytest.param(
             [
                 {
-                    "categories": ["span_indexed"],
+                    "categories": ["span"],
                     "limit": 0,
                     "window": 3600,
                     "id": "span_limit",
@@ -1194,7 +1212,6 @@ def test_span_attachment_independent_rate_limiting(
         outcome_counter[key] += outcome["quantity"]
 
     assert outcome_counter == expected_outcomes
-
     assert mini_sentry.captured_outcomes.empty()
 
 
