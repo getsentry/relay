@@ -994,40 +994,17 @@ where
         if !summary.attachment_quantities.span.is_empty()
             && !enforcement.attachments_limits.span.is_active()
         {
-            let mut attachment_limits = self
-                .check
-                .apply(
-                    scoping.item(DataCategory::Attachment),
-                    summary.attachment_quantities.span.bytes,
-                )
+            enforcement.attachments_limits.span = self
+                .check_attachment_limits(scoping, &summary.attachment_quantities.span)
                 .await?;
-
-            // Note: The check here is taken from above for consistency I think just checking `is_empty`
-            // should be fine?
-            if !attachment_limits.is_limited() && summary.attachment_quantities.span.count > 0 {
-                attachment_limits.merge(
-                    self.check
-                        .apply(
-                            scoping.item(DataCategory::AttachmentItem),
-                            summary.attachment_quantities.span.count,
-                        )
-                        .await?,
-                );
-            }
-
-            enforcement.attachments_limits.span.bytes = CategoryLimit::new(
-                DataCategory::Attachment,
-                summary.attachment_quantities.span.bytes,
-                attachment_limits.longest(),
-            );
-            enforcement.attachments_limits.span.item = CategoryLimit::new(
-                DataCategory::AttachmentItem,
-                summary.attachment_quantities.span.count,
-                attachment_limits.longest(),
-            );
         }
 
-        // TODO: Handle trace attachments.
+        // Handle trace attachments.
+        if !summary.attachment_quantities.trace.is_empty() {
+            enforcement.attachments_limits.trace = self
+                .check_attachment_limits(scoping, &summary.attachment_quantities.trace)
+                .await?;
+        }
 
         // Handle sessions.
         if summary.session_quantity > 0 {
@@ -1215,6 +1192,40 @@ where
         }
 
         Ok((enforcement, rate_limits))
+    }
+
+    async fn check_attachment_limits(
+        &mut self,
+        scoping: &Scoping,
+        quantities: &AttachmentQuantities,
+    ) -> Result<AttachmentLimits, E> {
+        let mut attachment_limits = self
+            .check
+            .apply(scoping.item(DataCategory::Attachment), quantities.bytes)
+            .await?;
+
+        // Note: The check here is taken from the attachments logic for consistency I think just
+        // checking `is_empty` should be fine?
+        if !attachment_limits.is_limited() && quantities.count > 0 {
+            attachment_limits.merge(
+                self.check
+                    .apply(scoping.item(DataCategory::AttachmentItem), quantities.count)
+                    .await?,
+            );
+        }
+
+        Ok(AttachmentLimits {
+            bytes: CategoryLimit::new(
+                DataCategory::Attachment,
+                quantities.bytes,
+                attachment_limits.longest(),
+            ),
+            item: CategoryLimit::new(
+                DataCategory::AttachmentItem,
+                quantities.count,
+                attachment_limits.longest(),
+            ),
+        })
     }
 }
 
@@ -2554,6 +2565,86 @@ mod tests {
                 enforcement.attachments_limits.span.item.is_active(),
                 expect_active_limit,
                 "{name}: span_attachment count limit mismatch"
+            );
+
+            assert_eq!(
+                get_outcomes(enforcement),
+                expected_outcomes,
+                "{name}: outcome mismatch"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_enforce_standalone_trace_attachment() {
+        let test_cases = vec![
+            (
+                "attachment_limit",
+                vec![DataCategory::Attachment],
+                true,
+                vec![(DataCategory::Attachment, 7)],
+                vec![
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            ),
+            (
+                "attachment_limit_and_attachment_item_limit",
+                vec![DataCategory::Attachment, DataCategory::AttachmentItem],
+                true,
+                vec![(DataCategory::Attachment, 7)],
+                vec![
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            ),
+            (
+                "attachment_item_limit",
+                vec![DataCategory::AttachmentItem],
+                true,
+                vec![
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                vec![
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            ),
+            (
+                "no_limits",
+                vec![],
+                false,
+                vec![
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                vec![],
+            ),
+        ];
+
+        for (name, deny, expect_active_limit, expected_calls, expected_outcomes) in test_cases {
+            let mut envelope = envelope![];
+            envelope
+                .envelope_mut()
+                .add_item(trace_attachment_item(7, None));
+
+            let mock = mock_limiter(&deny);
+            let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+
+            for (category, quantity) in expected_calls {
+                mock.lock().await.assert_call(category, quantity);
+            }
+
+            assert_eq!(
+                enforcement.attachments_limits.trace.bytes.is_active(),
+                expect_active_limit,
+                "{name}: trace_attachment byte limit mismatch"
+            );
+            assert_eq!(
+                enforcement.attachments_limits.trace.item.is_active(),
+                expect_active_limit,
+                "{name}: trace_attachment count limit mismatch"
             );
 
             assert_eq!(
