@@ -874,21 +874,7 @@ pub struct Http {
     /// Controls whether the forward endpoint is enabled.
     ///
     /// The forward endpoint forwards unknown API requests to the upstream.
-    pub forward: Forward,
-}
-
-/// Controls the forward endpoint.
-///
-/// See also: [`Http::forward`].
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
-pub enum Forward {
-    /// The endpoint is enabled.
-    Enabled,
-    /// The endpoint is disabled.
-    Disabled,
-    /// The endpoint is disabled and each request is logged.
-    DisabledLog,
+    pub forward: bool,
 }
 
 impl Default for Http {
@@ -904,7 +890,7 @@ impl Default for Http {
             project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
-            forward: Forward::Enabled,
+            forward: true,
         }
     }
 }
@@ -2104,8 +2090,8 @@ impl Config {
         self.values.http.global_metrics
     }
 
-    /// Returns settings for the forward endpoint.
-    pub fn http_forward(&self) -> Forward {
+    /// Returns `true` if Relay supports forwarding unknown API requests.
+    pub fn http_forward(&self) -> bool {
         self.values.http.forward
     }
 
