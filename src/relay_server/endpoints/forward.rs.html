@@ -16,7 +16,7 @@
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>axum::response::{IntoResponse, Response};
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>bytes::Bytes;
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>relay_common::glob2::GlobMatcher;
-<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>relay_config::Config;
+<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>relay_config::{Config, Forward};
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>tokio::sync::oneshot;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>tokio::sync::oneshot::error::RecvError;
 <a href=#22 id=22 data-nosnippet>22</a>
@@ -195,77 +195,86 @@
 <a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(StatusCode::NOT_FOUND.into_response());
 <a href=#196 id=196 data-nosnippet>196</a>    }
 <a href=#197 id=197 data-nosnippet>197</a>
-<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">let </span>(tx, rx) = oneshot::channel();
-<a href=#199 id=199 data-nosnippet>199</a>
-<a href=#200 id=200 data-nosnippet>200</a>    <span class="kw">let </span>request = ForwardRequest {
-<a href=#201 id=201 data-nosnippet>201</a>        method,
-<a href=#202 id=202 data-nosnippet>202</a>        path: uri.to_string(),
-<a href=#203 id=203 data-nosnippet>203</a>        headers,
-<a href=#204 id=204 data-nosnippet>204</a>        forwarded_for,
-<a href=#205 id=205 data-nosnippet>205</a>        data,
-<a href=#206 id=206 data-nosnippet>206</a>        max_response_size: state.config().max_api_payload_size(),
-<a href=#207 id=207 data-nosnippet>207</a>        sender: tx,
-<a href=#208 id=208 data-nosnippet>208</a>    };
-<a href=#209 id=209 data-nosnippet>209</a>
-<a href=#210 id=210 data-nosnippet>210</a>    state.upstream_relay().send(SendRequest(request));
-<a href=#211 id=211 data-nosnippet>211</a>    <span class="kw">let </span>(status, headers, body) = rx.<span class="kw">await</span><span class="question-mark">??</span>;
-<a href=#212 id=212 data-nosnippet>212</a>
-<a href=#213 id=213 data-nosnippet>213</a>    <span class="prelude-val">Ok</span>(<span class="kw">if </span>headers.contains_key(header::CONTENT_TYPE) {
-<a href=#214 id=214 data-nosnippet>214</a>        (status, headers, body).into_response()
-<a href=#215 id=215 data-nosnippet>215</a>    } <span class="kw">else </span>{
-<a href=#216 id=216 data-nosnippet>216</a>        (status, headers).into_response()
-<a href=#217 id=217 data-nosnippet>217</a>    })
-<a href=#218 id=218 data-nosnippet>218</a>}
-<a href=#219 id=219 data-nosnippet>219</a>
-<a href=#220 id=220 data-nosnippet>220</a><span class="doccomment">/// Route classes with request body limit overrides.
-<a href=#221 id=221 data-nosnippet>221</a></span><span class="attr">#[derive(Clone, Copy, Debug)]
-<a href=#222 id=222 data-nosnippet>222</a></span><span class="kw">enum </span>SpecialRoute {
-<a href=#223 id=223 data-nosnippet>223</a>    FileUpload,
-<a href=#224 id=224 data-nosnippet>224</a>    ChunkUpload,
-<a href=#225 id=225 data-nosnippet>225</a>}
-<a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a><span class="doccomment">/// Glob matcher for special routes.
-<a href=#228 id=228 data-nosnippet>228</a></span><span class="kw">static </span>SPECIAL_ROUTES: LazyLock&lt;GlobMatcher&lt;SpecialRoute&gt;&gt; = LazyLock::new(|| {
-<a href=#229 id=229 data-nosnippet>229</a>    <span class="kw">let </span><span class="kw-2">mut </span>m = GlobMatcher::new();
-<a href=#230 id=230 data-nosnippet>230</a>    <span class="comment">// file uploads / legacy dsym uploads
-<a href=#231 id=231 data-nosnippet>231</a>    </span>m.add(
-<a href=#232 id=232 data-nosnippet>232</a>        <span class="string">"/api/0/projects/*/*/releases/*/files/"</span>,
-<a href=#233 id=233 data-nosnippet>233</a>        SpecialRoute::FileUpload,
-<a href=#234 id=234 data-nosnippet>234</a>    );
-<a href=#235 id=235 data-nosnippet>235</a>    m.add(
-<a href=#236 id=236 data-nosnippet>236</a>        <span class="string">"/api/0/projects/*/*/releases/*/dsyms/"</span>,
-<a href=#237 id=237 data-nosnippet>237</a>        SpecialRoute::FileUpload,
-<a href=#238 id=238 data-nosnippet>238</a>    );
-<a href=#239 id=239 data-nosnippet>239</a>    <span class="comment">// new chunk uploads
+<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">match </span>state.config().http_forward() {
+<a href=#199 id=199 data-nosnippet>199</a>        Forward::Enabled =&gt; {}
+<a href=#200 id=200 data-nosnippet>200</a>        Forward::Disabled =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(StatusCode::NOT_FOUND.into_response()),
+<a href=#201 id=201 data-nosnippet>201</a>        Forward::DisabledLog =&gt; {
+<a href=#202 id=202 data-nosnippet>202</a>            <span class="macro">relay_log::info!</span>(uri = <span class="question-mark">?</span>uri, method = <span class="question-mark">?</span>method, <span class="string">"forward request"</span>);
+<a href=#203 id=203 data-nosnippet>203</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(StatusCode::NOT_FOUND.into_response());
+<a href=#204 id=204 data-nosnippet>204</a>        }
+<a href=#205 id=205 data-nosnippet>205</a>    }
+<a href=#206 id=206 data-nosnippet>206</a>
+<a href=#207 id=207 data-nosnippet>207</a>    <span class="kw">let </span>(tx, rx) = oneshot::channel();
+<a href=#208 id=208 data-nosnippet>208</a>
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">let </span>request = ForwardRequest {
+<a href=#210 id=210 data-nosnippet>210</a>        method,
+<a href=#211 id=211 data-nosnippet>211</a>        path: uri.to_string(),
+<a href=#212 id=212 data-nosnippet>212</a>        headers,
+<a href=#213 id=213 data-nosnippet>213</a>        forwarded_for,
+<a href=#214 id=214 data-nosnippet>214</a>        data,
+<a href=#215 id=215 data-nosnippet>215</a>        max_response_size: state.config().max_api_payload_size(),
+<a href=#216 id=216 data-nosnippet>216</a>        sender: tx,
+<a href=#217 id=217 data-nosnippet>217</a>    };
+<a href=#218 id=218 data-nosnippet>218</a>
+<a href=#219 id=219 data-nosnippet>219</a>    state.upstream_relay().send(SendRequest(request));
+<a href=#220 id=220 data-nosnippet>220</a>    <span class="kw">let </span>(status, headers, body) = rx.<span class="kw">await</span><span class="question-mark">??</span>;
+<a href=#221 id=221 data-nosnippet>221</a>
+<a href=#222 id=222 data-nosnippet>222</a>    <span class="prelude-val">Ok</span>(<span class="kw">if </span>headers.contains_key(header::CONTENT_TYPE) {
+<a href=#223 id=223 data-nosnippet>223</a>        (status, headers, body).into_response()
+<a href=#224 id=224 data-nosnippet>224</a>    } <span class="kw">else </span>{
+<a href=#225 id=225 data-nosnippet>225</a>        (status, headers).into_response()
+<a href=#226 id=226 data-nosnippet>226</a>    })
+<a href=#227 id=227 data-nosnippet>227</a>}
+<a href=#228 id=228 data-nosnippet>228</a>
+<a href=#229 id=229 data-nosnippet>229</a><span class="doccomment">/// Route classes with request body limit overrides.
+<a href=#230 id=230 data-nosnippet>230</a></span><span class="attr">#[derive(Clone, Copy, Debug)]
+<a href=#231 id=231 data-nosnippet>231</a></span><span class="kw">enum </span>SpecialRoute {
+<a href=#232 id=232 data-nosnippet>232</a>    FileUpload,
+<a href=#233 id=233 data-nosnippet>233</a>    ChunkUpload,
+<a href=#234 id=234 data-nosnippet>234</a>}
+<a href=#235 id=235 data-nosnippet>235</a>
+<a href=#236 id=236 data-nosnippet>236</a><span class="doccomment">/// Glob matcher for special routes.
+<a href=#237 id=237 data-nosnippet>237</a></span><span class="kw">static </span>SPECIAL_ROUTES: LazyLock&lt;GlobMatcher&lt;SpecialRoute&gt;&gt; = LazyLock::new(|| {
+<a href=#238 id=238 data-nosnippet>238</a>    <span class="kw">let </span><span class="kw-2">mut </span>m = GlobMatcher::new();
+<a href=#239 id=239 data-nosnippet>239</a>    <span class="comment">// file uploads / legacy dsym uploads
 <a href=#240 id=240 data-nosnippet>240</a>    </span>m.add(
-<a href=#241 id=241 data-nosnippet>241</a>        <span class="string">"/api/0/organizations/*/chunk-upload/"</span>,
-<a href=#242 id=242 data-nosnippet>242</a>        SpecialRoute::ChunkUpload,
+<a href=#241 id=241 data-nosnippet>241</a>        <span class="string">"/api/0/projects/*/*/releases/*/files/"</span>,
+<a href=#242 id=242 data-nosnippet>242</a>        SpecialRoute::FileUpload,
 <a href=#243 id=243 data-nosnippet>243</a>    );
-<a href=#244 id=244 data-nosnippet>244</a>    m
-<a href=#245 id=245 data-nosnippet>245</a>});
-<a href=#246 id=246 data-nosnippet>246</a>
-<a href=#247 id=247 data-nosnippet>247</a><span class="doccomment">/// Returns the maximum request body size for a route path.
-<a href=#248 id=248 data-nosnippet>248</a></span><span class="kw">fn </span>get_limit_for_path(path: <span class="kw-2">&amp;</span>str, config: <span class="kw-2">&amp;</span>Config) -&gt; usize {
-<a href=#249 id=249 data-nosnippet>249</a>    <span class="kw">match </span>SPECIAL_ROUTES.test(path) {
-<a href=#250 id=250 data-nosnippet>250</a>        <span class="prelude-val">Some</span>(SpecialRoute::FileUpload) =&gt; config.max_api_file_upload_size(),
-<a href=#251 id=251 data-nosnippet>251</a>        <span class="prelude-val">Some</span>(SpecialRoute::ChunkUpload) =&gt; config.max_api_chunk_upload_size(),
-<a href=#252 id=252 data-nosnippet>252</a>        <span class="prelude-val">None </span>=&gt; config.max_api_payload_size(),
-<a href=#253 id=253 data-nosnippet>253</a>    }
-<a href=#254 id=254 data-nosnippet>254</a>}
+<a href=#244 id=244 data-nosnippet>244</a>    m.add(
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="string">"/api/0/projects/*/*/releases/*/dsyms/"</span>,
+<a href=#246 id=246 data-nosnippet>246</a>        SpecialRoute::FileUpload,
+<a href=#247 id=247 data-nosnippet>247</a>    );
+<a href=#248 id=248 data-nosnippet>248</a>    <span class="comment">// new chunk uploads
+<a href=#249 id=249 data-nosnippet>249</a>    </span>m.add(
+<a href=#250 id=250 data-nosnippet>250</a>        <span class="string">"/api/0/organizations/*/chunk-upload/"</span>,
+<a href=#251 id=251 data-nosnippet>251</a>        SpecialRoute::ChunkUpload,
+<a href=#252 id=252 data-nosnippet>252</a>    );
+<a href=#253 id=253 data-nosnippet>253</a>    m
+<a href=#254 id=254 data-nosnippet>254</a>});
 <a href=#255 id=255 data-nosnippet>255</a>
-<a href=#256 id=256 data-nosnippet>256</a><span class="doccomment">/// Forward endpoint handler.
-<a href=#257 id=257 data-nosnippet>257</a>///
-<a href=#258 id=258 data-nosnippet>258</a>/// This endpoint will create a proxy request to the upstream for every incoming request and stream
-<a href=#259 id=259 data-nosnippet>259</a>/// the request body back to the origin. Regardless of the incoming connection, the connection to
-<a href=#260 id=260 data-nosnippet>260</a>/// the upstream uses its own HTTP version and transfer encoding.
-<a href=#261 id=261 data-nosnippet>261</a>///
-<a href=#262 id=262 data-nosnippet>262</a>/// # Usage
-<a href=#263 id=263 data-nosnippet>263</a>///
-<a href=#264 id=264 data-nosnippet>264</a>/// This endpoint is both a handler and a request function:
-<a href=#265 id=265 data-nosnippet>265</a>///
-<a href=#266 id=266 data-nosnippet>266</a>/// - Use it as [`Handler`] directly in router methods when registering this as a route.
-<a href=#267 id=267 data-nosnippet>267</a>/// - Call this manually from other request handlers to conditionally forward from other endpoints.
-<a href=#268 id=268 data-nosnippet>268</a></span><span class="kw">pub fn </span>forward(state: ServiceState, req: Request) -&gt; <span class="kw">impl </span>Future&lt;Output = Response&gt; {
-<a href=#269 id=269 data-nosnippet>269</a>    <span class="kw">let </span>limit = get_limit_for_path(req.uri().path(), state.config());
-<a href=#270 id=270 data-nosnippet>270</a>    handle.layer(DefaultBodyLimit::max(limit)).call(req, state)
-<a href=#271 id=271 data-nosnippet>271</a>}</code></pre></div></section></main></body></html>
+<a href=#256 id=256 data-nosnippet>256</a><span class="doccomment">/// Returns the maximum request body size for a route path.
+<a href=#257 id=257 data-nosnippet>257</a></span><span class="kw">fn </span>get_limit_for_path(path: <span class="kw-2">&amp;</span>str, config: <span class="kw-2">&amp;</span>Config) -&gt; usize {
+<a href=#258 id=258 data-nosnippet>258</a>    <span class="kw">match </span>SPECIAL_ROUTES.test(path) {
+<a href=#259 id=259 data-nosnippet>259</a>        <span class="prelude-val">Some</span>(SpecialRoute::FileUpload) =&gt; config.max_api_file_upload_size(),
+<a href=#260 id=260 data-nosnippet>260</a>        <span class="prelude-val">Some</span>(SpecialRoute::ChunkUpload) =&gt; config.max_api_chunk_upload_size(),
+<a href=#261 id=261 data-nosnippet>261</a>        <span class="prelude-val">None </span>=&gt; config.max_api_payload_size(),
+<a href=#262 id=262 data-nosnippet>262</a>    }
+<a href=#263 id=263 data-nosnippet>263</a>}
+<a href=#264 id=264 data-nosnippet>264</a>
+<a href=#265 id=265 data-nosnippet>265</a><span class="doccomment">/// Forward endpoint handler.
+<a href=#266 id=266 data-nosnippet>266</a>///
+<a href=#267 id=267 data-nosnippet>267</a>/// This endpoint will create a proxy request to the upstream for every incoming request and stream
+<a href=#268 id=268 data-nosnippet>268</a>/// the request body back to the origin. Regardless of the incoming connection, the connection to
+<a href=#269 id=269 data-nosnippet>269</a>/// the upstream uses its own HTTP version and transfer encoding.
+<a href=#270 id=270 data-nosnippet>270</a>///
+<a href=#271 id=271 data-nosnippet>271</a>/// # Usage
+<a href=#272 id=272 data-nosnippet>272</a>///
+<a href=#273 id=273 data-nosnippet>273</a>/// This endpoint is both a handler and a request function:
+<a href=#274 id=274 data-nosnippet>274</a>///
+<a href=#275 id=275 data-nosnippet>275</a>/// - Use it as [`Handler`] directly in router methods when registering this as a route.
+<a href=#276 id=276 data-nosnippet>276</a>/// - Call this manually from other request handlers to conditionally forward from other endpoints.
+<a href=#277 id=277 data-nosnippet>277</a></span><span class="kw">pub fn </span>forward(state: ServiceState, req: Request) -&gt; <span class="kw">impl </span>Future&lt;Output = Response&gt; {
+<a href=#278 id=278 data-nosnippet>278</a>    <span class="kw">let </span>limit = get_limit_for_path(req.uri().path(), state.config());
+<a href=#279 id=279 data-nosnippet>279</a>    handle.layer(DefaultBodyLimit::max(limit)).call(req, state)
+<a href=#280 id=280 data-nosnippet>280</a>}</code></pre></div></section></main></body></html>
