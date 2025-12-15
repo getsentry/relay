@@ -18,6 +18,7 @@
 **Internal**:
 
 - Revise trace metric and log size limits. ([#5440](https://github.com/getsentry/relay/pull/5440))
+- Implement dedicated endpoints for challenge requests. ([#5488](https://github.com/getsentry/relay/pull/5488))
 - Update `is_ai_span` and `infer_ai_operation_type` to use `gen_ai.operation.name`. ([#5433](https://github.com/getsentry/relay/pull/5433))
 - Add project_id to profile item kafka headers. ([#5458](https://github.com/getsentry/relay/pull/5458))
 - Remove `recycle_check_frequency` from Redis configuration. ([#5476](https://github.com/getsentry/relay/pull/5476))

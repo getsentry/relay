@@ -67,6 +67,8 @@ fn public_routes_raw(config: &Config) -> Router<ServiceState> {
     let web_routes = Router::new()
         .route("/api/0/relays/projectconfigs/", post(project_configs::handle))
         .route("/api/0/relays/publickeys/", post(public_keys::handle))
+        .route("/api/0/relays/register/challenge/", post(forward::forward))
+        .route("/api/0/relays/register/response/", post(forward::forward))
         // Network connectivity check for downstream Relays, same as the internal health check.
         .route("/api/0/relays/live/", get(health_check::handle_live))
         .route_layer(DefaultBodyLimit::max(crate::constants::MAX_JSON_SIZE));
