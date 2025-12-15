@@ -195,20 +195,21 @@ mod tests {
 
     #[test]
     fn test_filter_chunk_load_error() {
-        let errors = [
+        // Webpack ChunkLoadError patterns
+        let webpack_errors = [
             "Error: Uncaught (in promise): ChunkLoadError: Loading chunk 175 failed.",
             "Uncaught (in promise): ChunkLoadError: Loading chunk 175 failed.",
             "ChunkLoadError: Loading chunk 552 failed.",
         ];
 
-        let config = ErrorMessagesFilterConfig {
+        let webpack_config = ErrorMessagesFilterConfig {
             patterns: TypedPatterns::from([
                 "ChunkLoadError: Loading chunk *".to_owned(),
                 "*Uncaught *: ChunkLoadError: Loading chunk *".to_owned(),
             ]),
         };
 
-        for error in errors {
+        for error in webpack_errors {
             let event = Event {
                 logentry: Annotated::new(LogEntry {
                     formatted: Annotated::new(error.to_owned().into()),
@@ -218,9 +219,59 @@ mod tests {
             };
 
             assert_eq!(
-                should_filter(&event, &config),
+                should_filter(&event, &webpack_config),
                 Err(FilterStatKey::ErrorMessage)
             );
         }
+
+        // Turbopack ChunkLoadError patterns
+        let turbopack_errors = [
+            "Error: Uncaught (in promise): ChunkLoadError: Failed to load chunk 175.",
+            "Uncaught (in promise): ChunkLoadError: Failed to load chunk 175.",
+            "ChunkLoadError: Failed to load chunk 552.",
+        ];
+
+        let turbopack_config = ErrorMessagesFilterConfig {
+            patterns: TypedPatterns::from([
+                "ChunkLoadError: Failed to load chunk *".to_owned(),
+                "*Uncaught *: ChunkLoadError: Failed to load chunk *".to_owned(),
+            ]),
+        };
+
+        for error in turbopack_errors {
+            let event = Event {
+                logentry: Annotated::new(LogEntry {
+                    formatted: Annotated::new(error.to_owned().into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+
+            assert_eq!(
+                should_filter(&event, &turbopack_config),
+                Err(FilterStatKey::ErrorMessage)
+            );
+        }
+
+        // Test exception-based matching for Turbopack
+        let turbopack_exception_config = ErrorMessagesFilterConfig {
+            patterns: TypedPatterns::from([
+                "ChunkLoadError: Failed to load chunk *".to_owned(),
+            ]),
+        };
+
+        let exception_event = Event {
+            exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
+                ty: Annotated::new("ChunkLoadError".to_owned()),
+                value: Annotated::new("Failed to load chunk 123.".to_owned().into()),
+                ..Default::default()
+            })])),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            should_filter(&exception_event, &turbopack_exception_config),
+            Err(FilterStatKey::ErrorMessage)
+        );
     }
 }
