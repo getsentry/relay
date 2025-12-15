@@ -1017,7 +1017,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "quota_config,expected_outcomes,outcomes_count",
+    "quota_config,expected_outcomes",
     [
         pytest.param(
             [
@@ -1037,7 +1037,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 (DataCategory.ATTACHMENT.value, 2): 64,
                 (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
             },
-            4,
             id="span_quota_exceeded",
         ),
         pytest.param(
@@ -1055,7 +1054,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 (DataCategory.ATTACHMENT.value, 2): 64,
                 (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
             },
-            3,
             id="span_indexed_quota_exceeded",
         ),
         pytest.param(
@@ -1073,7 +1071,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 (DataCategory.ATTACHMENT.value, 2): 104,
                 (DataCategory.ATTACHMENT_ITEM.value, 2): 3,
             },
-            4,
             id="attachment_quota_exceeded",
         ),
         pytest.param(
@@ -1100,13 +1097,12 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 (DataCategory.ATTACHMENT.value, 2): 104,
                 (DataCategory.ATTACHMENT_ITEM.value, 2): 3,
             },
-            6,
             id="both_quotas_exceeded",
         ),
     ],
 )
 def test_span_attachment_independent_rate_limiting(
-    mini_sentry, relay, quota_config, expected_outcomes, outcomes_count
+    mini_sentry, relay, quota_config, expected_outcomes
 ):
 
     project_id = 42
@@ -1205,8 +1201,7 @@ def test_span_attachment_independent_rate_limiting(
 
     relay.send_envelope(project_id, envelope)
 
-    outcomes = mini_sentry.get_outcomes(n=outcomes_count)
-    # TODO: I think we want aggregated here now
+    outcomes = mini_sentry.get_aggregated_outcomes()
     outcome_counter = Counter()
     for outcome in outcomes:
         key = (outcome["category"], outcome["outcome"])
