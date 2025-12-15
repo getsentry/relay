@@ -1382,6 +1382,72 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_db_attributes_from_legacy_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "find"
+          },
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_db_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
     fn test_write_legacy_attributes() {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
