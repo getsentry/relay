@@ -11,7 +11,7 @@
 - Add functionality to process and store trace attachments. ([#5457](https://github.com/getsentry/relay/pull/5457))
 - Lower default memory utilization threshold for disk spooling from 90% to 80%. When Relay hits 80% memory utilization, it will start spooling envelopes to disk instead of processing them. ([#5472](https://github.com/getsentry/relay/pull/5472))
 - Add http attribute normalization. ([#5479](https://github.com/getsentry/relay/pull/5479))
-- Double write to legacy attributes within SpanV2 pipeline for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
+- Double write to legacy attributes for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
 
 **Bug Fixes**:
 
