@@ -25,7 +25,6 @@ struct SizeState {
 ///
 /// This means that large attributes will be trimmed or discarded before small ones.
 #[derive(Default)]
-#[allow(unused)]
 pub struct TrimmingProcessor {
     size_state: Vec<SizeState>,
     /// Whether we are currently trimming a collection of attributes.
@@ -36,7 +35,6 @@ pub struct TrimmingProcessor {
 
 impl TrimmingProcessor {
     /// Creates a new trimming processor.
-    #[allow(unused)]
     pub fn new() -> Self {
         Self::default()
     }
