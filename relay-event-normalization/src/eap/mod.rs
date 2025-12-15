@@ -1313,14 +1313,17 @@ mod tests {
           },
           "url.full": {
             "type": "string",
-            "value": "http://192.168.1.1:3000"
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
           }
         }
       "#,
         )
         .unwrap();
 
-        normalize_http_attributes(&mut attributes, &["192.168.1.1".to_owned()]);
+        normalize_http_attributes(
+            &mut attributes,
+            &["application.www.xn--85x722f.xn--55qx5d.cn".to_owned()],
+        );
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
@@ -1334,11 +1337,11 @@ mod tests {
           },
           "server.address": {
             "type": "string",
-            "value": "192.168.1.1:3000"
+            "value": "application.www.xn--85x722f.xn--55qx5d.cn"
           },
           "url.full": {
             "type": "string",
-            "value": "http://192.168.1.1:3000"
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
           }
         }
         "#);
