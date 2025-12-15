@@ -253,7 +253,6 @@ mod tests {
             );
         }
 
-        // Test exception-based matching for Turbopack
         let turbopack_exception_config = ErrorMessagesFilterConfig {
             patterns: TypedPatterns::from([
                 "ChunkLoadError: Failed to load chunk *".to_owned(),
