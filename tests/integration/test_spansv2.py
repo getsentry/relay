@@ -1016,8 +1016,8 @@ def test_spansv2_attribute_normalization(
         "end_timestamp": ts.timestamp() + 0.5,
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": db_span_id,
-        "is_segment": True,
-        "name": "some op",
+        "is_segment": False,
+        "name": "Test span",
         "status": "ok",
         "attributes": {
             "db.system.name": {"value": "mysql", "type": "string"},
@@ -1037,7 +1037,7 @@ def test_spansv2_attribute_normalization(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": http_span_id,
         "is_segment": False,
-        "name": "GET https://api.example.com/users",
+        "name": "Test span",
         "status": "ok",
         "attributes": {
             "sentry.op": {"value": "http.client", "type": "string"},
@@ -1066,29 +1066,72 @@ def test_spansv2_attribute_normalization(
     spans = [spans_consumer.get_span(), spans_consumer.get_span()]
     spans_by_id = {s["span_id"]: s for s in spans}
 
+    common = {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "Test span",
+        "is_segment": False,
+        "received": time_within(ts),
+        "start_timestamp": time_is(ts),
+        "end_timestamp": time_is(ts.timestamp() + 0.5),
+        "status": "ok",
+        "retention_days": 42,
+        "downsampled_retention_days": 1337,
+        "key_id": 123,
+        "organization_id": 1,
+        "project_id": 42,
+    }
+
     # Verify DB attribute normalization
     db_result = spans_by_id[db_span_id]
-    assert db_result["attributes"]["sentry.op"] == {"type": "string", "value": "db"}
-    assert db_result["attributes"]["sentry.normalized_db_query"] == {
-        "type": "string",
-        "value": "SELECT id FROM users WHERE id = %s AND name = %s",
-    }
-    assert db_result["attributes"]["sentry.normalized_db_query.hash"] == {
-        "type": "string",
-        "value": "f79af0ba3d26284c",
+    assert db_result == {
+        **common,
+        "span_id": db_span_id,
+        "attributes": {
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.op": {"type": "string", "value": "db"},
+            "db.system.name": {"type": "string", "value": "mysql"},
+            "db.operation.name": {"type": "string", "value": "SELECT"},
+            "db.query.text": {
+                "type": "string",
+                "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
+            },
+            "db.collection.name": {"type": "string", "value": "users"},
+            "sentry.normalized_db_query": {
+                "type": "string",
+                "value": "SELECT id FROM users WHERE id = %s AND name = %s",
+            },
+            "sentry.normalized_db_query.hash": {
+                "type": "string",
+                "value": "f79af0ba3d26284c",
+            },
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+        },
     }
 
     # Verify HTTP attribute normalization
     http_result = spans_by_id[http_span_id]
-
-    assert http_result["attributes"]["http.request.method"] == {
-        "type": "string",
-        "value": "GET",
-    }
-
-    assert http_result["attributes"]["server.address"] == {
-        "type": "string",
-        "value": "*.service.io",
+    assert http_result == {
+        **common,
+        "span_id": http_span_id,
+        "attributes": {
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.op": {"type": "string", "value": "http.client"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "http.request.method": {"type": "string", "value": "GET"},
+            "server.address": {"type": "string", "value": "*.service.io"},
+            "url.full": {
+                "type": "string",
+                "value": "https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+            },
+        },
     }
 
 
