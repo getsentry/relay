@@ -133,7 +133,7 @@ impl UpstreamRequestError {
     /// If this error is the result of sending a request to the upstream, this method returns `Some`
     /// with the status code. If the request could not be made or the error originates elsewhere,
     /// this returns `None`.
-    fn status_code(&self) -> Option<StatusCode> {
+    pub fn status_code(&self) -> Option<StatusCode> {
         match self {
             UpstreamRequestError::ResponseError(code, _) => Some(*code),
             UpstreamRequestError::Http(HttpError::Reqwest(e)) => e.status(),
@@ -768,10 +768,6 @@ impl UpstreamQuery for RegisterRequest {
         Cow::Borrowed("/api/0/relays/register/challenge/")
     }
 
-    fn priority() -> RequestPriority {
-        unreachable!("sent directly to client")
-    }
-
     fn retry() -> bool {
         false
     }
@@ -790,10 +786,6 @@ impl UpstreamQuery for RegisterResponse {
 
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/register/response/")
-    }
-
-    fn priority() -> RequestPriority {
-        unreachable!("sent directly to client")
     }
 
     fn retry() -> bool {
