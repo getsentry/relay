@@ -477,6 +477,40 @@ fn normalize_http_attributes(
     }
 }
 
+/// Double writes sentry conventions attributes into legacy attributes.
+///
+/// This achieves backwards compatibility as it allows products to continue using legacy attributes
+/// while we accumulate spans that conform to sentry conventions.
+///
+/// This function is called after attribute value normalization (`normalize_attribute_values`) as it
+/// clones normalized attributes into legacy attributes.
+pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    // Map of new sentry conventions attributes to legacy SpanV1 attributes
+    let current_to_legacy_attributes = [
+        // DB attributes
+        (NORMALIZED_DB_QUERY, "sentry.normalized_description"),
+        (NORMALIZED_DB_QUERY_HASH, "sentry.group"),
+        (DB_OPERATION_NAME, "sentry.action"),
+        (DB_COLLECTION_NAME, "sentry.domain"),
+        // HTTP attributes
+        (SERVER_ADDRESS, "sentry.domain"),
+        (HTTP_REQUEST_METHOD, "sentry.action"),
+    ];
+
+    for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
+        if attributes.contains_key(current_attribute) {
+            let Some(attr) = attributes.get_attribute(current_attribute) else {
+                continue;
+            };
+            attributes.insert(legacy_attribute, attr.value.clone());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use relay_protocol::SerializableAnnotated;
@@ -1342,6 +1376,96 @@ mod tests {
           "url.full": {
             "type": "string",
             "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_write_legacy_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        write_legacy_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.action": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "sentry.domain": {
+            "type": "string",
+            "value": "documents"
+          },
+          "sentry.group": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.normalized_description": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
           }
         }
         "#);

@@ -169,6 +169,7 @@ fn normalize_span(
         }
         eap::normalize_ai(&mut span.attributes, duration, model_costs);
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
+        eap::write_legacy_attributes(&mut span.attributes);
     };
 
     process_value(span, &mut TrimmingProcessor::new(), ProcessingState::root())?;
