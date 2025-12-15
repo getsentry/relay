@@ -16,7 +16,7 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use relay_common::glob2::GlobMatcher;
-use relay_config::Config;
+use relay_config::{Config, Forward};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 
@@ -193,6 +193,15 @@ async fn handle(
     // that either go to the API root or point outside the API.
     if uri.path() == API_PATH || !uri.path().starts_with(API_PATH) {
         return Ok(StatusCode::NOT_FOUND.into_response());
+    }
+
+    match state.config().http_forward() {
+        Forward::Enabled => {}
+        Forward::Disabled => return Ok(StatusCode::NOT_FOUND.into_response()),
+        Forward::DisabledLog => {
+            relay_log::info!(uri = ?uri, method = ?method, "forward request");
+            return Ok(StatusCode::NOT_FOUND.into_response());
+        }
     }
 
     let (tx, rx) = oneshot::channel();
