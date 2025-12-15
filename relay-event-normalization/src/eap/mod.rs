@@ -280,9 +280,12 @@ fn normalize_attribute_names_inner(
 /// however, V2 spans now store these values in their respective attributes based on sentry conventions.
 /// This function ports over the SpanV1 normalization logic that was previously in `scrub_span_description`
 /// by creating a set of functions to handle each group of attributes separately.
-pub fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
+pub fn normalize_attribute_values(
+    attributes: &mut Annotated<Attributes>,
+    http_span_allowed_hosts: &[String],
+) {
     normalize_db_attributes(attributes);
-    normalize_http_attributes(attributes);
+    normalize_http_attributes(attributes, http_span_allowed_hosts);
 }
 
 /// Normalizes the following db attributes: `db.query.text`, `db.operation.name`, `db.collection.name`
@@ -412,7 +415,10 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
 ///
 /// The normalization process first scrubs the url and extracts the server address from the url.
 /// It also sets 'url.full' to the raw url if it is not already set and can be retrieved from the server address.
-fn normalize_http_attributes(annotated_attributes: &mut Annotated<Attributes>) {
+fn normalize_http_attributes(
+    annotated_attributes: &mut Annotated<Attributes>,
+    allowed_hosts: &[String],
+) {
     let Some(attributes) = annotated_attributes.value() else {
         return;
     };
@@ -442,7 +448,7 @@ fn normalize_http_attributes(annotated_attributes: &mut Annotated<Attributes>) {
     let (normalized_server_address, raw_url) = if op == Some("http.client") {
         let domain_from_scrubbed_http = method
             .zip(url)
-            .and_then(|(method, url)| scrub_http(method, url, &[]))
+            .and_then(|(method, url)| scrub_http(method, url, allowed_hosts))
             .and_then(|scrubbed_http| domain_from_scrubbed_http(&scrubbed_http));
 
         if let Some(domain) = domain_from_scrubbed_http {
@@ -1214,7 +1220,7 @@ mod tests {
         )
         .unwrap();
 
-        normalize_http_attributes(&mut attributes);
+        normalize_http_attributes(&mut attributes, &[]);
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
@@ -1264,7 +1270,7 @@ mod tests {
         )
         .unwrap();
 
-        normalize_http_attributes(&mut attributes);
+        normalize_http_attributes(&mut attributes, &[]);
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
@@ -1287,6 +1293,52 @@ mod tests {
           "url.scheme": {
             "type": "string",
             "value": "https"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes_allowed_hosts() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "http://192.168.1.1:3000"
+          }
+        }
+      "#,
+        )
+        .unwrap();
+
+        normalize_http_attributes(&mut attributes, &["192.168.1.1".to_owned()]);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "192.168.1.1:3000"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "http://192.168.1.1:3000"
           }
         }
         "#);

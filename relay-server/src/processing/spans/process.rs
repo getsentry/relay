@@ -151,6 +151,7 @@ fn normalize_span(
         let dsc = headers.dsc();
         let duration = span_duration(span);
         let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
+        let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
         validate_timestamps(span)?;
 
@@ -167,8 +168,7 @@ fn normalize_span(
             eap::normalize_dsc(&mut span.attributes, dsc);
         }
         eap::normalize_ai(&mut span.attributes, duration, model_costs);
-
-        eap::normalize_attribute_values(&mut span.attributes);
+        eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
     };
 
     process_value(span, &mut TrimmingProcessor::new(), ProcessingState::root())?;
