@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 25.12.0
 
 **Features**:
 
