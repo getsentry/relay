@@ -511,7 +511,7 @@ jobs:
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v7
         with:
           pattern: "${{ matrix.image_name }}@*"
           merge-multiple: true
@@ -590,7 +590,7 @@ jobs:
           gcloud auth configure-docker us-central1-docker.pkg.dev
 
       # Logic taken from: build-docker
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v7
         with:
           pattern: "internal-${{ matrix.image_name }}@*"
           merge-multiple: true
@@ -710,7 +710,7 @@ jobs:
           # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
           version: ">= 390.0.0"
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v7
         with:
           pattern: "internal-${{ matrix.image_name }}@*"
           merge-multiple: true
@@ -856,7 +856,7 @@ jobs:
 
       - name: Download Docker Image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: relay-docker-image
 
