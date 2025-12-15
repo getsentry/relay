@@ -871,6 +871,24 @@ pub struct Http {
     ///
     /// This option does not have any effect on processing mode.
     pub global_metrics: bool,
+    /// Controls whether the forward endpoint is enabled.
+    ///
+    /// The forward endpoint forwards unknown API requests to the upstream.
+    pub forward: Forward,
+}
+
+/// Controls the forward endpoint.
+///
+/// See also: [`Http::forward`].
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum Forward {
+    /// The endpoint is enabled.
+    Enabled,
+    /// The endpoint is disabled.
+    Disabled,
+    /// The endpoint is disabled and each request is logged.
+    DisabledLog,
 }
 
 impl Default for Http {
@@ -886,6 +904,7 @@ impl Default for Http {
             project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
+            forward: Forward::Enabled,
         }
     }
 }
@@ -2083,6 +2102,11 @@ impl Config {
     /// Returns whether metrics should be sent globally through a shared endpoint.
     pub fn http_global_metrics(&self) -> bool {
         self.values.http.global_metrics
+    }
+
+    /// Returns settings for the forward endpoint.
+    pub fn http_forward(&self) -> Forward {
+        self.values.http.forward
     }
 
     /// Returns whether this Relay should emit outcomes.
