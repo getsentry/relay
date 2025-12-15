@@ -254,9 +254,7 @@ mod tests {
         }
 
         let turbopack_exception_config = ErrorMessagesFilterConfig {
-            patterns: TypedPatterns::from([
-                "ChunkLoadError: Failed to load chunk *".to_owned(),
-            ]),
+            patterns: TypedPatterns::from(["ChunkLoadError: Failed to load chunk *".to_owned()]),
         };
 
         let exception_event = Event {
