@@ -424,7 +424,7 @@ fn normalize_http_attributes(
     };
 
     // Skip normalization if not an http span.
-    // This is equivalent to conditionally scrubbing by span category in the V1 pipe`line.
+    // This is equivalent to conditionally scrubbing by span category in the V1 pipeline.
     if !attributes.contains_key(HTTP_REQUEST_METHOD)
         && !attributes.contains_key("http.request_method")
     {
