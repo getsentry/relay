@@ -1133,7 +1133,9 @@ def test_spansv2_attribute_normalization(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "http.request.method": {"type": "string", "value": "GET"},
+            "sentry.action": {"type": "string", "value": "GET"},
             "server.address": {"type": "string", "value": "*.service.io"},
+            "sentry.domain": {"type": "string", "value": "*.service.io"},
             "url.full": {
                 "type": "string",
                 "value": "https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
