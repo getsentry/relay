@@ -151,24 +151,24 @@
 <a href=#151 id=151 data-nosnippet>151</a>        <span class="kw">let </span>dsc = headers.dsc();
 <a href=#152 id=152 data-nosnippet>152</a>        <span class="kw">let </span>duration = span_duration(span);
 <a href=#153 id=153 data-nosnippet>153</a>        <span class="kw">let </span>model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
-<a href=#154 id=154 data-nosnippet>154</a>
-<a href=#155 id=155 data-nosnippet>155</a>        validate_timestamps(span)<span class="question-mark">?</span>;
-<a href=#156 id=156 data-nosnippet>156</a>
-<a href=#157 id=157 data-nosnippet>157</a>        eap::normalize_sentry_op(<span class="kw-2">&amp;mut </span>span.attributes);
-<a href=#158 id=158 data-nosnippet>158</a>        eap::normalize_attribute_types(<span class="kw-2">&amp;mut </span>span.attributes);
-<a href=#159 id=159 data-nosnippet>159</a>        eap::normalize_attribute_names(<span class="kw-2">&amp;mut </span>span.attributes);
-<a href=#160 id=160 data-nosnippet>160</a>        eap::normalize_received(<span class="kw-2">&amp;mut </span>span.attributes, meta.received_at());
-<a href=#161 id=161 data-nosnippet>161</a>        eap::normalize_client_address(<span class="kw-2">&amp;mut </span>span.attributes, meta.client_addr());
-<a href=#162 id=162 data-nosnippet>162</a>        eap::normalize_user_agent(<span class="kw-2">&amp;mut </span>span.attributes, meta.user_agent(), meta.client_hints());
-<a href=#163 id=163 data-nosnippet>163</a>        eap::normalize_user_geo(<span class="kw-2">&amp;mut </span>span.attributes, || {
-<a href=#164 id=164 data-nosnippet>164</a>            meta.client_addr().and_then(|ip| geo_lookup.lookup(ip))
-<a href=#165 id=165 data-nosnippet>165</a>        });
-<a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">if </span><span class="macro">matches!</span>(span.is_segment.value(), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>)) {
-<a href=#167 id=167 data-nosnippet>167</a>            eap::normalize_dsc(<span class="kw-2">&amp;mut </span>span.attributes, dsc);
-<a href=#168 id=168 data-nosnippet>168</a>        }
-<a href=#169 id=169 data-nosnippet>169</a>        eap::normalize_ai(<span class="kw-2">&amp;mut </span>span.attributes, duration, model_costs);
-<a href=#170 id=170 data-nosnippet>170</a>
-<a href=#171 id=171 data-nosnippet>171</a>        eap::normalize_attribute_values(<span class="kw-2">&amp;mut </span>span.attributes);
+<a href=#154 id=154 data-nosnippet>154</a>        <span class="kw">let </span>allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
+<a href=#155 id=155 data-nosnippet>155</a>
+<a href=#156 id=156 data-nosnippet>156</a>        validate_timestamps(span)<span class="question-mark">?</span>;
+<a href=#157 id=157 data-nosnippet>157</a>
+<a href=#158 id=158 data-nosnippet>158</a>        eap::normalize_sentry_op(<span class="kw-2">&amp;mut </span>span.attributes);
+<a href=#159 id=159 data-nosnippet>159</a>        eap::normalize_attribute_types(<span class="kw-2">&amp;mut </span>span.attributes);
+<a href=#160 id=160 data-nosnippet>160</a>        eap::normalize_attribute_names(<span class="kw-2">&amp;mut </span>span.attributes);
+<a href=#161 id=161 data-nosnippet>161</a>        eap::normalize_received(<span class="kw-2">&amp;mut </span>span.attributes, meta.received_at());
+<a href=#162 id=162 data-nosnippet>162</a>        eap::normalize_client_address(<span class="kw-2">&amp;mut </span>span.attributes, meta.client_addr());
+<a href=#163 id=163 data-nosnippet>163</a>        eap::normalize_user_agent(<span class="kw-2">&amp;mut </span>span.attributes, meta.user_agent(), meta.client_hints());
+<a href=#164 id=164 data-nosnippet>164</a>        eap::normalize_user_geo(<span class="kw-2">&amp;mut </span>span.attributes, || {
+<a href=#165 id=165 data-nosnippet>165</a>            meta.client_addr().and_then(|ip| geo_lookup.lookup(ip))
+<a href=#166 id=166 data-nosnippet>166</a>        });
+<a href=#167 id=167 data-nosnippet>167</a>        <span class="kw">if </span><span class="macro">matches!</span>(span.is_segment.value(), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>)) {
+<a href=#168 id=168 data-nosnippet>168</a>            eap::normalize_dsc(<span class="kw-2">&amp;mut </span>span.attributes, dsc);
+<a href=#169 id=169 data-nosnippet>169</a>        }
+<a href=#170 id=170 data-nosnippet>170</a>        eap::normalize_ai(<span class="kw-2">&amp;mut </span>span.attributes, duration, model_costs);
+<a href=#171 id=171 data-nosnippet>171</a>        eap::normalize_attribute_values(<span class="kw-2">&amp;mut </span>span.attributes, allowed_hosts);
 <a href=#172 id=172 data-nosnippet>172</a>    };
 <a href=#173 id=173 data-nosnippet>173</a>
 <a href=#174 id=174 data-nosnippet>174</a>    process_value(span, <span class="kw-2">&amp;mut </span>TrimmingProcessor::new(), ProcessingState::root())<span class="question-mark">?</span>;

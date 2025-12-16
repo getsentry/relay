@@ -70,17 +70,19 @@
 <a href=#70 id=70 data-nosnippet>70</a>    STATUS_MESSAGE =&gt; <span class="string">"sentry.status.message"</span>,
 <a href=#71 id=71 data-nosnippet>71</a>    URL_FULL =&gt; <span class="string">"url.full"</span>,
 <a href=#72 id=72 data-nosnippet>72</a>    URL_PATH =&gt; <span class="string">"url.path"</span>,
-<a href=#73 id=73 data-nosnippet>73</a>    USER_AGENT_ORIGINAL =&gt; <span class="string">"user_agent.original"</span>,
-<a href=#74 id=74 data-nosnippet>74</a>    USER_GEO_CITY =&gt; <span class="string">"user.geo.city"</span>,
-<a href=#75 id=75 data-nosnippet>75</a>    USER_GEO_COUNTRY_CODE =&gt; <span class="string">"user.geo.country_code"</span>,
-<a href=#76 id=76 data-nosnippet>76</a>    USER_GEO_REGION =&gt; <span class="string">"user.geo.region"</span>,
-<a href=#77 id=77 data-nosnippet>77</a>    USER_GEO_SUBDIVISION =&gt; <span class="string">"user.geo.subdivision"</span>,
-<a href=#78 id=78 data-nosnippet>78</a>);
-<a href=#79 id=79 data-nosnippet>79</a>
-<a href=#80 id=80 data-nosnippet>80</a><span class="doccomment">/// Attributes which are in use by Relay but are not yet defined in the Sentry conventions.
-<a href=#81 id=81 data-nosnippet>81</a>///
-<a href=#82 id=82 data-nosnippet>82</a>/// Really do not add to this list, at all, ever. The only reason this opt-out even exists to make a
-<a href=#83 id=83 data-nosnippet>83</a>/// transition easier for attributes which Relay already uses but aren't yet in conventions.
-<a href=#84 id=84 data-nosnippet>84</a></span><span class="kw">mod </span>not_yet_defined {}
-<a href=#85 id=85 data-nosnippet>85</a><span class="attr">#[expect(unused, reason = <span class="string">"no special attributes at the moment"</span>)]
-<a href=#86 id=86 data-nosnippet>86</a></span><span class="kw">pub use </span><span class="self">self</span>::not_yet_defined::<span class="kw-2">*</span>;</code></pre></div></section></main></body></html>
+<a href=#73 id=73 data-nosnippet>73</a>    URL_SCHEME =&gt; <span class="string">"url.scheme"</span>,
+<a href=#74 id=74 data-nosnippet>74</a>    URL_DOMAIN =&gt; <span class="string">"url.domain"</span>,
+<a href=#75 id=75 data-nosnippet>75</a>    USER_AGENT_ORIGINAL =&gt; <span class="string">"user_agent.original"</span>,
+<a href=#76 id=76 data-nosnippet>76</a>    USER_GEO_CITY =&gt; <span class="string">"user.geo.city"</span>,
+<a href=#77 id=77 data-nosnippet>77</a>    USER_GEO_COUNTRY_CODE =&gt; <span class="string">"user.geo.country_code"</span>,
+<a href=#78 id=78 data-nosnippet>78</a>    USER_GEO_REGION =&gt; <span class="string">"user.geo.region"</span>,
+<a href=#79 id=79 data-nosnippet>79</a>    USER_GEO_SUBDIVISION =&gt; <span class="string">"user.geo.subdivision"</span>,
+<a href=#80 id=80 data-nosnippet>80</a>);
+<a href=#81 id=81 data-nosnippet>81</a>
+<a href=#82 id=82 data-nosnippet>82</a><span class="doccomment">/// Attributes which are in use by Relay but are not yet defined in the Sentry conventions.
+<a href=#83 id=83 data-nosnippet>83</a>///
+<a href=#84 id=84 data-nosnippet>84</a>/// Really do not add to this list, at all, ever. The only reason this opt-out even exists to make a
+<a href=#85 id=85 data-nosnippet>85</a>/// transition easier for attributes which Relay already uses but aren't yet in conventions.
+<a href=#86 id=86 data-nosnippet>86</a></span><span class="kw">mod </span>not_yet_defined {}
+<a href=#87 id=87 data-nosnippet>87</a><span class="attr">#[expect(unused, reason = <span class="string">"no special attributes at the moment"</span>)]
+<a href=#88 id=88 data-nosnippet>88</a></span><span class="kw">pub use </span><span class="self">self</span>::not_yet_defined::<span class="kw-2">*</span>;</code></pre></div></section></main></body></html>
