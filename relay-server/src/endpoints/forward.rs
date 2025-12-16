@@ -41,8 +41,7 @@ async fn handle(
         return StatusCode::NOT_FOUND.into_response();
     }
 
-    let path = uri.to_string().into();
-    ForwardRequest::builder(method, path)
+    ForwardRequest::builder(method, uri.to_string())
         .with_name("forward")
         .with_headers(headers)
         .with_forwarded_for(forwarded_for)

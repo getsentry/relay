@@ -128,13 +128,13 @@ pub struct ForwardRequest {
 
 impl ForwardRequest {
     /// Returns a builder for sending a new [`ForwardRequest`].
-    pub fn builder(method: Method, path: Cow<'static, str>) -> ForwardRequestBuilder {
+    pub fn builder(method: Method, path: impl Into<Cow<'static, str>>) -> ForwardRequestBuilder {
         let (sender, receiver) = oneshot::channel();
 
         let request = ForwardRequest {
             name: "forward",
             method,
-            path,
+            path: path.into(),
             headers: Default::default(),
             forwarded_for: None,
             body: Bytes::new(),
