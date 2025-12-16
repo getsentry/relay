@@ -603,8 +603,6 @@ pub enum RelayTimers {
     BufferEnvelopeCompression,
     /// Timing in milliseconds for the time it takes for an envelope to be decompressed.
     BufferEnvelopeDecompression,
-    /// Timing in milliseconds to the time it takes to read an HTTP body.
-    BodyReadDuration,
     /// Timing in milliseconds to count spans in a serialized transaction payload.
     CheckNestedSpans,
     /// The time it needs to create a signature. Includes both the signature used for
@@ -667,7 +665,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
             RelayTimers::BufferEnvelopeCompression => "buffer.envelopes_compression",
             RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
-            RelayTimers::BodyReadDuration => "requests.body_read.duration",
             RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
             RelayTimers::SignatureCreationDuration => "signature.create.duration",
             #[cfg(feature = "processing")]
