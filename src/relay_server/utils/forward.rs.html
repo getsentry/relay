@@ -128,13 +128,13 @@
 <a href=#128 id=128 data-nosnippet>128</a>
 <a href=#129 id=129 data-nosnippet>129</a><span class="kw">impl </span>ForwardRequest {
 <a href=#130 id=130 data-nosnippet>130</a>    <span class="doccomment">/// Returns a builder for sending a new [`ForwardRequest`].
-<a href=#131 id=131 data-nosnippet>131</a>    </span><span class="kw">pub fn </span>builder(method: Method, path: Cow&lt;<span class="lifetime">'static</span>, str&gt;) -&gt; ForwardRequestBuilder {
+<a href=#131 id=131 data-nosnippet>131</a>    </span><span class="kw">pub fn </span>builder(method: Method, path: <span class="kw">impl </span>Into&lt;Cow&lt;<span class="lifetime">'static</span>, str&gt;&gt;) -&gt; ForwardRequestBuilder {
 <a href=#132 id=132 data-nosnippet>132</a>        <span class="kw">let </span>(sender, receiver) = oneshot::channel();
 <a href=#133 id=133 data-nosnippet>133</a>
 <a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">let </span>request = ForwardRequest {
 <a href=#135 id=135 data-nosnippet>135</a>            name: <span class="string">"forward"</span>,
 <a href=#136 id=136 data-nosnippet>136</a>            method,
-<a href=#137 id=137 data-nosnippet>137</a>            path,
+<a href=#137 id=137 data-nosnippet>137</a>            path: path.into(),
 <a href=#138 id=138 data-nosnippet>138</a>            headers: Default::default(),
 <a href=#139 id=139 data-nosnippet>139</a>            forwarded_for: <span class="prelude-val">None</span>,
 <a href=#140 id=140 data-nosnippet>140</a>            body: Bytes::new(),
