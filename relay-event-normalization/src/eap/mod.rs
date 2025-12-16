@@ -424,8 +424,10 @@ fn normalize_http_attributes(
     };
 
     // Skip normalization if not an http span.
-    // This is equivalent to conditionally scrubbing by span category in the V1 pipeline.
-    if !attributes.contains_key(HTTP_REQUEST_METHOD) {
+    // This is equivalent to conditionally scrubbing by span category in the V1 pipe`line.
+    if !attributes.contains_key(HTTP_REQUEST_METHOD)
+        && !attributes.contains_key("http.request_method")
+    {
         return;
     }
 
@@ -433,14 +435,22 @@ fn normalize_http_attributes(
 
     let method = attributes
         .get_value(HTTP_REQUEST_METHOD)
+        .or_else(|| attributes.get_value("http.request_method"))
         .and_then(|v| v.as_str());
 
     let server_address = attributes
         .get_value(SERVER_ADDRESS)
         .and_then(|v| v.as_str());
 
-    let url = attributes.get_value(URL_FULL).and_then(|v| v.as_str());
-
+    let url: Option<&str> = attributes
+        .get_value(URL_FULL)
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            attributes
+                .get_value(DESCRIPTION)
+                .and_then(|v| v.as_str())
+                .and_then(|description| description.split_once(' ').map(|(_, url)| url))
+        });
     let url_scheme = attributes.get_value(URL_SCHEME).and_then(|v| v.as_str());
 
     // If the span op is "http.client" and the method and url are present,
@@ -452,7 +462,7 @@ fn normalize_http_attributes(
             .and_then(|scrubbed_http| domain_from_scrubbed_http(&scrubbed_http));
 
         if let Some(domain) = domain_from_scrubbed_http {
-            (Some(domain), None)
+            (Some(domain), url.map(String::from))
         } else {
             domain_from_server_address(server_address, url_scheme)
         }
@@ -1442,6 +1452,60 @@ mod tests {
           "sentry.op": {
             "type": "string",
             "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes_from_legacy_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "http.request_method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "GET https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_http_attributes(&mut attributes, &[]);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "http.request_method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "GET https://application.www.xn--85x722f.xn--55qx5d.cn"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "*.xn--85x722f.xn--55qx5d.cn"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
           }
         }
         "#);
