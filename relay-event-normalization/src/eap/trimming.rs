@@ -454,6 +454,7 @@ mod tests {
         "###);
     }
 
+    #[test]
     fn test_overaccept_number() {
         let mut attributes = Attributes::new();
 
