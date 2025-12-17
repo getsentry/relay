@@ -2,29 +2,22 @@ use relay_statsd::{CounterMetric, GaugeMetric};
 
 /// Counter metrics for Relay system components.
 pub enum SystemCounters {
-    /// Number of runtime tasks created/spawned.
+    /// Number of active runtime tasks.
     ///
-    /// Every call to [`spawn`](`crate::spawn()`) increases this counter by one.
-    ///
-    /// This metric is tagged with:
-    ///  - `id`: A unique identifier for the task, derived from its location in code.
-    ///  - `file`: The source filename where the task is created.
-    ///  - `line`: The source line where the task is created within the file.
-    RuntimeTaskCreated,
-    /// Number of runtime tasks terminated.
+    /// Every call to [`spawn`](`crate::spawn()`) increases this counter by one,
+    /// and decrements the counter by one on termination.
     ///
     /// This metric is tagged with:
     ///  - `id`: A unique identifier for the task, derived from its location in code.
     ///  - `file`: The source filename where the task is created.
     ///  - `line`: The source line where the task is created within the file.
-    RuntimeTaskTerminated,
+    RuntimeTaskCount,
 }
 
 impl CounterMetric for SystemCounters {
     fn name(&self) -> &'static str {
         match self {
-            Self::RuntimeTaskCreated => "runtime.task.spawn.created",
-            Self::RuntimeTaskTerminated => "runtime.task.spawn.terminated",
+            Self::RuntimeTaskCount => "runtime.task.count",
         }
     }
 }
