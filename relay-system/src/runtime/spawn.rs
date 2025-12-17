@@ -157,17 +157,17 @@ mod tests {
         });
 
         #[cfg(not(windows))]
-        assert_debug_snapshot!(captures, @r###"
+        assert_debug_snapshot!(captures, @r#"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
+            "runtime.task.count:1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
+            "runtime.task.count:-1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
         ]
-        "###);
+        "#);
         #[cfg(windows)]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
+            "runtime.task.count:1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
+            "runtime.task.count:-1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
         ]
         "###);
     }
@@ -190,11 +190,11 @@ mod tests {
             })
         });
 
-        assert_debug_snapshot!(captures, @r###"
+        assert_debug_snapshot!(captures, @r#"
         [
-            "runtime.task.spawn.created:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
-            "runtime.task.spawn.terminated:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
+            "runtime.task.count:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
+            "runtime.task.count:-1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
         ]
-        "###);
+        "#);
     }
 }
