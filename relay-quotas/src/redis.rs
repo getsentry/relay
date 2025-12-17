@@ -406,20 +406,22 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
             }
         }
 
-        // We check the global rate limits before the other limits. This step must be separate from
-        // checking the other rate limits, since those are checked with a Redis script that works
-        // under the invariant that all keys are within the same Redis instance (given their partitioning).
-        // Global keys on the other hand are always on the same instance, so if they were to be mixed
-        // with normal keys the script will end up referencing keys from multiple instances, making it
-        // impossible for the script to work.
-        let rate_limited_global_quotas = self
-            .global_limiter
-            .check_global_rate_limits(&global_quotas)
-            .await?;
+        if !global_quotas.is_empty() {
+            // We check the global rate limits before the other limits. This step must be separate from
+            // checking the other rate limits, since those are checked with a Redis script that works
+            // under the invariant that all keys are within the same Redis instance (given their partitioning).
+            // Global keys on the other hand are always on the same instance, so if they were to be mixed
+            // with normal keys the script will end up referencing keys from multiple instances, making it
+            // impossible for the script to work.
+            let rate_limited_global_quotas = self
+                .global_limiter
+                .check_global_rate_limits(&global_quotas)
+                .await?;
 
-        for quota in rate_limited_global_quotas {
-            let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-            rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
+            for quota in rate_limited_global_quotas {
+                let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
+                rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
+            }
         }
 
         // Either there are no quotas to run against Redis, or we already have a rate limit from a

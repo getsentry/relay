@@ -1009,25 +1009,49 @@ def test_spansv2_attribute_normalization(
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
-    envelope = envelope_with_spans(
-        {
-            "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.5,
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b175",
-            "is_segment": True,
-            "name": "some op",
-            "status": "ok",
-            "attributes": {
-                "db.system.name": {"value": "mysql", "type": "string"},
-                "db.operation.name": {"value": "SELECT", "type": "string"},
-                "db.query.text": {
-                    "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
-                    "type": "string",
-                },
-                "db.collection.name": {"value": "users", "type": "string"},
+
+    db_span_id = "eee19b7ec3c1b174"
+    db_span = {
+        "start_timestamp": ts.timestamp(),
+        "end_timestamp": ts.timestamp() + 0.5,
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": db_span_id,
+        "is_segment": False,
+        "name": "Test span",
+        "status": "ok",
+        "attributes": {
+            "db.system.name": {"value": "mysql", "type": "string"},
+            "db.operation.name": {"value": "SELECT", "type": "string"},
+            "db.query.text": {
+                "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
+                "type": "string",
+            },
+            "db.collection.name": {"value": "users", "type": "string"},
+        },
+    }
+
+    http_span_id = "eee19b7ec3c1b175"
+    http_span = {
+        "start_timestamp": ts.timestamp(),
+        "end_timestamp": ts.timestamp() + 0.5,
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": http_span_id,
+        "is_segment": False,
+        "name": "Test span",
+        "status": "ok",
+        "attributes": {
+            "sentry.op": {"value": "http.client", "type": "string"},
+            "http.request.method": {"value": "get", "type": "string"},
+            "url.full": {
+                "value": "https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+                "type": "string",
             },
         },
+    }
+
+    envelope = envelope_with_spans(
+        db_span,
+        http_span,
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "public_key": project_config["publicKeys"][0]["publicKey"],
@@ -1039,23 +1063,32 @@ def test_spansv2_attribute_normalization(
 
     relay.send_envelope(project_id, envelope)
 
-    assert spans_consumer.get_span() == {
+    spans = [spans_consumer.get_span(), spans_consumer.get_span()]
+    spans_by_id = {s["span_id"]: s for s in spans}
+
+    common = {
         "trace_id": "5b8efff798038103d269b633813fc60c",
-        "span_id": "eee19b7ec3c1b175",
+        "name": "Test span",
+        "is_segment": False,
+        "received": time_within(ts),
+        "start_timestamp": time_is(ts),
+        "end_timestamp": time_is(ts.timestamp() + 0.5),
+        "status": "ok",
+        "retention_days": 42,
+        "downsampled_retention_days": 1337,
+        "key_id": 123,
+        "organization_id": 1,
+        "project_id": 42,
+    }
+
+    # Verify DB attribute normalization
+    db_result = spans_by_id[db_span_id]
+    assert db_result == {
+        **common,
+        "span_id": db_span_id,
         "attributes": {
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
-            "sentry.dsc.environment": {"type": "string", "value": "prod"},
-            "sentry.dsc.public_key": {
-                "type": "string",
-                "value": project_config["publicKeys"][0]["publicKey"],
-            },
-            "sentry.dsc.release": {"type": "string", "value": "foo@1.0"},
-            "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
-            "sentry.dsc.trace_id": {
-                "type": "string",
-                "value": "5b8efff798038103d269b633813fc60c",
-            },
             "sentry.op": {"type": "string", "value": "db"},
             "db.system.name": {"type": "string", "value": "mysql"},
             "db.operation.name": {"type": "string", "value": "SELECT"},
@@ -1077,17 +1110,28 @@ def test_spansv2_attribute_normalization(
                 "value": time_within(ts, expect_resolution="ns"),
             },
         },
-        "name": "some op",
-        "received": time_within(ts),
-        "start_timestamp": time_is(ts),
-        "end_timestamp": time_is(ts.timestamp() + 0.5),
-        "is_segment": True,
-        "status": "ok",
-        "retention_days": 42,
-        "downsampled_retention_days": 1337,
-        "key_id": 123,
-        "organization_id": 1,
-        "project_id": 42,
+    }
+
+    # Verify HTTP attribute normalization
+    http_result = spans_by_id[http_span_id]
+    assert http_result == {
+        **common,
+        "span_id": http_span_id,
+        "attributes": {
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.op": {"type": "string", "value": "http.client"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "http.request.method": {"type": "string", "value": "GET"},
+            "server.address": {"type": "string", "value": "*.service.io"},
+            "url.full": {
+                "type": "string",
+                "value": "https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+            },
+        },
     }
 
 

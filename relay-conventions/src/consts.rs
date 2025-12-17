@@ -70,6 +70,8 @@ convention_attributes!(
     STATUS_MESSAGE => "sentry.status.message",
     URL_FULL => "url.full",
     URL_PATH => "url.path",
+    URL_SCHEME => "url.scheme",
+    URL_DOMAIN => "url.domain",
     USER_AGENT_ORIGINAL => "user_agent.original",
     USER_GEO_CITY => "user.geo.city",
     USER_GEO_COUNTRY_CODE => "user.geo.country_code",
