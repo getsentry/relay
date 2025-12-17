@@ -476,21 +476,21 @@ impl Item {
         self.is_attachment_v2() && self.parent_id().is_none()
     }
 
-    /// Returns the [`ParentType`] of an attachment.
+    /// Returns the [`AttachmentParentType`] of an attachment.
     ///
-    /// For standard attachments (V1) always returns [`ParentType::Event`].
-    pub fn attachment_parent_type(&self) -> Option<ParentType> {
+    /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
+    pub fn attachment_parent_type(&self) -> Option<AttachmentParentType> {
         let is_attachment = self.ty() == &ItemType::Attachment;
         let is_trace_attachment = self.content_type() == Some(&ContentType::TraceAttachment);
 
         if is_attachment {
             if is_trace_attachment {
                 match self.parent_id() {
-                    Some(ParentId::SpanId(_)) => Some(ParentType::Span),
-                    None => Some(ParentType::Trace),
+                    Some(ParentId::SpanId(_)) => Some(AttachmentParentType::Span),
+                    None => Some(AttachmentParentType::Trace),
                 }
             } else {
-                Some(ParentType::Event)
+                Some(AttachmentParentType::Event)
             }
         } else {
             None

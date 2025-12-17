@@ -8,7 +8,7 @@ use relay_quotas::{
     Scoping,
 };
 
-use crate::envelope::{Envelope, Item, ItemType, ParentType};
+use crate::envelope::{AttachmentParentType, Envelope, Item, ItemType};
 use crate::integrations::Integration;
 use crate::managed::ManagedEnvelope;
 use crate::services::outcome::Outcome;
@@ -157,9 +157,9 @@ impl AttachmentQuantities {
     }
 }
 
-/// Aggregated attachment quantities grouped by [`ParentType`].
+/// Aggregated attachment quantities grouped by [`AttachmentParentType`].
 ///
-/// This separation is necessary since rate limiting logic varies by [`ParentType`].
+/// This separation is necessary since rate limiting logic varies by [`AttachmentParentType`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AttachmentsQuantities {
     /// Quantities of Event Attachments.
@@ -333,15 +333,23 @@ impl EnvelopeSummary {
         for (category, quantity) in item.quantities() {
             let target_quantity = match category {
                 DataCategory::Attachment => match item.attachment_parent_type() {
-                    Some(ParentType::Span) => &mut self.attachment_quantities.span.bytes,
-                    Some(ParentType::Trace) => &mut self.attachment_quantities.trace.bytes,
-                    Some(ParentType::Event) => &mut self.attachment_quantities.event.bytes,
+                    Some(AttachmentParentType::Span) => &mut self.attachment_quantities.span.bytes,
+                    Some(AttachmentParentType::Trace) => {
+                        &mut self.attachment_quantities.trace.bytes
+                    }
+                    Some(AttachmentParentType::Event) => {
+                        &mut self.attachment_quantities.event.bytes
+                    }
                     None => continue,
                 },
                 DataCategory::AttachmentItem => match item.attachment_parent_type() {
-                    Some(ParentType::Span) => &mut self.attachment_quantities.span.count,
-                    Some(ParentType::Trace) => &mut self.attachment_quantities.trace.count,
-                    Some(ParentType::Event) => &mut self.attachment_quantities.event.count,
+                    Some(AttachmentParentType::Span) => &mut self.attachment_quantities.span.count,
+                    Some(AttachmentParentType::Trace) => {
+                        &mut self.attachment_quantities.trace.count
+                    }
+                    Some(AttachmentParentType::Event) => {
+                        &mut self.attachment_quantities.event.count
+                    }
                     None => continue,
                 },
                 DataCategory::Session => &mut self.session_quantity,
@@ -474,7 +482,7 @@ impl AttachmentLimits {
     }
 }
 
-/// Rate limiting information for attachments grouped by [`ParentType`].
+/// Rate limiting information for attachments grouped by [`AttachmentParentType`].
 ///
 /// See [`AttachmentsQuantities`] for the corresponding quantity tracking.
 #[derive(Default, Debug)]
@@ -673,9 +681,9 @@ impl Enforcement {
         match item.ty() {
             ItemType::Attachment => {
                 match item.attachment_parent_type() {
-                    Some(ParentType::Span) => !self.attachments_limits.span.is_active(),
-                    Some(ParentType::Trace) => !self.attachments_limits.trace.is_active(),
-                    Some(ParentType::Event) => {
+                    Some(AttachmentParentType::Span) => !self.attachments_limits.span.is_active(),
+                    Some(AttachmentParentType::Trace) => !self.attachments_limits.trace.is_active(),
+                    Some(AttachmentParentType::Event) => {
                         if !self.attachments_limits.event.is_active() {
                             return true;
                         }
@@ -2156,7 +2164,7 @@ mod tests {
         let test_cases = vec![
             (
                 "span_limit",
-               &[DataCategory::Span],
+                &[DataCategory::Span],
                 true,
                 &[(DataCategory::Span, 0)],
                 &[
