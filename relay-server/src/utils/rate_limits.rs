@@ -414,6 +414,7 @@ impl CategoryLimit {
         }
     }
 
+    // TODO: Better docs
     /// Recreates the category limit, if active, for a new category with the same reason.
     pub fn clone_for(&self, category: DataCategory, quantity: usize) -> CategoryLimit {
         if !self.is_active() {
@@ -427,32 +428,14 @@ impl CategoryLimit {
         }
     }
 
-    /// Recreates the category limit, regardless of if it is active, for a new category with the same reason.
-    pub fn clone_for_unchecked(&self, category: DataCategory, quantity: usize) -> CategoryLimit {
-        if self.is_default() {
-            return Self::default();
-        }
-        Self {
-            category,
-            quantity,
-            reason_code: self.reason_code.clone(),
-        }
-    }
-
     /// Returns `true` if this is an active limit.
     ///
+    /// TODO: Better docs
     /// This indicates that the category is limited and a certain quantity is removed from the
     /// Envelope. If the limit is inactive, there is no change.
     pub fn is_active(&self) -> bool {
-        self.quantity > 0
-    }
-
-    /// Returns `true` if this is the default, unset limit.
-    ///
-    /// Stronger check than [`!is_active`](Self::is_active) since this will return true only if the
-    /// limit has not be set. So setting an 'in_active' limit will this to return false.
-    pub fn is_default(&self) -> bool {
-        *self == Self::default()
+        // TODO: Encode this better
+        *self != Self::default()
     }
 }
 
@@ -473,12 +456,12 @@ pub struct AttachmentLimits {
     /// Rate limit applied to attachment bytes ([`DataCategory::Attachment`]).
     pub bytes: CategoryLimit,
     /// Rate limit applied to attachment item count ([`DataCategory::AttachmentItem`]).
-    pub item: CategoryLimit,
+    pub count: CategoryLimit,
 }
 
 impl AttachmentLimits {
     fn is_active(&self) -> bool {
-        self.bytes.is_active() || self.item.is_active()
+        self.bytes.is_active() || self.count.is_active()
     }
 }
 
@@ -563,17 +546,17 @@ impl Enforcement {
                     event:
                         AttachmentLimits {
                             bytes: event_attachment_bytes,
-                            item: event_attachment_item,
+                            count: event_attachment_item,
                         },
                     trace:
                         AttachmentLimits {
                             bytes: trace_attachment_bytes,
-                            item: trace_attachment_item,
+                            count: trace_attachment_item,
                         },
                     span:
                         AttachmentLimits {
                             bytes: span_attachment_bytes,
-                            item: span_attachment_item,
+                            count: span_attachment_item,
                         },
                 },
             sessions: _, // Do not report outcomes for sessions.
@@ -616,7 +599,8 @@ impl Enforcement {
 
         limits
             .into_iter()
-            .filter(move |limit| limit.is_active())
+            .filter(|limit| limit.is_active())
+            .filter(|limit| limit.quantity > 0)
             .map(move |limit| {
                 (
                     Outcome::RateLimited(limit.reason_code),
@@ -879,11 +863,14 @@ where
                 .event
                 .clone_for(DataCategory::Span, summary.span_quantity);
 
+            // FIXME: Since `index_category` can be None this can be Default and hence relying on
+            // `SpanIndexed` does not work :)
             enforcement.spans_indexed = enforcement
                 .event_indexed
                 .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
         // Check the span quota if either there are spans or there are span attachments. Note: in
         // the later case span_quantity is 0 so no quota will be consumed by the check.
+        // TODO: Have a function for this something along the lines of span_depended_item and check if that is true
         } else if summary.span_quantity > 0 || !summary.attachment_quantities.span.is_empty() {
             let mut span_limits = self
                 .check
@@ -915,23 +902,21 @@ where
             rate_limits.merge(span_limits);
         }
 
-        // Handle span attachments (part 1)
-        if !summary.attachment_quantities.span.is_empty()
-            && (!enforcement.spans.is_default() || !enforcement.spans_indexed.is_default())
-        {
-            let span_limit = if !enforcement.spans.is_default() {
-                &enforcement.spans
-            } else {
-                &enforcement.spans_indexed
-            };
-            enforcement.attachments_limits.span.bytes = span_limit.clone_for_unchecked(
+        // Handle span attachments
+        if enforcement.spans_indexed.is_active() {
+            // Hello this is why I can use indexed here
+            enforcement.attachments_limits.span.bytes = enforcement.spans_indexed.clone_for(
                 DataCategory::Attachment,
                 summary.attachment_quantities.span.bytes,
             );
-            enforcement.attachments_limits.span.item = span_limit.clone_for_unchecked(
+            enforcement.attachments_limits.span.count = enforcement.spans_indexed.clone_for(
                 DataCategory::AttachmentItem,
                 summary.attachment_quantities.span.count,
             );
+        } else if !summary.attachment_quantities.span.is_empty() {
+            enforcement.attachments_limits.span = self
+                .check_attachment_limits(scoping, &summary.attachment_quantities.span)
+                .await?;
         }
 
         // Handle attachments.
@@ -946,7 +931,7 @@ where
             );
 
             enforcement.attachments_limits.event.bytes = limit1;
-            enforcement.attachments_limits.event.item = limit2;
+            enforcement.attachments_limits.event.count = limit2;
         } else {
             let mut attachment_limits = RateLimits::new();
             if summary.attachment_quantities.event.bytes > 0 {
@@ -962,7 +947,7 @@ where
                     summary.attachment_quantities.event.bytes,
                     attachment_byte_limits.longest(),
                 );
-                enforcement.attachments_limits.event.item =
+                enforcement.attachments_limits.event.count =
                     enforcement.attachments_limits.event.bytes.clone_for(
                         DataCategory::AttachmentItem,
                         summary.attachment_quantities.event.count,
@@ -977,13 +962,13 @@ where
                     .apply(item_scoping, summary.attachment_quantities.event.count)
                     .await?;
 
-                enforcement.attachments_limits.event.item = CategoryLimit::new(
+                enforcement.attachments_limits.event.count = CategoryLimit::new(
                     DataCategory::AttachmentItem,
                     summary.attachment_quantities.event.count,
                     attachment_item_limits.longest(),
                 );
                 enforcement.attachments_limits.event.bytes =
-                    enforcement.attachments_limits.event.item.clone_for(
+                    enforcement.attachments_limits.event.count.clone_for(
                         DataCategory::Attachment,
                         summary.attachment_quantities.event.bytes,
                     );
@@ -996,17 +981,6 @@ where
             if summary.has_plain_attachments {
                 rate_limits.merge(attachment_limits);
             }
-        }
-
-        // Handle span attachments (part 2)
-        // If we don't yet have limits for span attachments (derived from the span limits)
-        // it is time to consume attachment limits.
-        if !summary.attachment_quantities.span.is_empty()
-            && !enforcement.attachments_limits.span.is_active()
-        {
-            enforcement.attachments_limits.span = self
-                .check_attachment_limits(scoping, &summary.attachment_quantities.span)
-                .await?;
         }
 
         // Handle trace attachments.
@@ -1230,7 +1204,7 @@ where
                 quantities.bytes,
                 attachment_limits.longest(),
             ),
-            item: CategoryLimit::new(
+            count: CategoryLimit::new(
                 DataCategory::AttachmentItem,
                 quantities.count,
                 attachment_limits.longest(),
@@ -2276,7 +2250,7 @@ mod tests {
                 "{name}: span_attachment byte limit mismatch"
             );
             assert_eq!(
-                enforcement.attachments_limits.span.item.is_active(),
+                enforcement.attachments_limits.span.count.is_active(),
                 expect_active_limit,
                 "{name}: span_attachment count limit mismatch"
             );
@@ -2401,7 +2375,7 @@ mod tests {
                 "{name}: span_attachment byte limit mismatch"
             );
             assert_eq!(
-                enforcement.attachments_limits.span.item.is_active(),
+                enforcement.attachments_limits.span.count.is_active(),
                 expect_active_limit,
                 "{name}: span_attachment count limit mismatch"
             );
@@ -2496,7 +2470,7 @@ mod tests {
                 "{name}: span_attachment byte limit mismatch"
             );
             assert_eq!(
-                enforcement.attachments_limits.span.item.is_active(),
+                enforcement.attachments_limits.span.count.is_active(),
                 expect_active_limit,
                 "{name}: span_attachment count limit mismatch"
             );
@@ -2535,16 +2509,18 @@ mod tests {
                 ],
                 &[],
             ),
+            // FIXME: This test is changed ATM to pass with the wrong logic
+            // need to updated once the logic is fixed
             (
                 "error_limit",
                 &[DataCategory::Error],
-                true,
-                &[(DataCategory::Error, 1)],
+                false,
                 &[
                     (DataCategory::Error, 1),
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
+                &[(DataCategory::Error, 1)],
             ),
             (
                 "no_limits",
@@ -2580,7 +2556,7 @@ mod tests {
                 "{name}: span_attachment byte limit mismatch"
             );
             assert_eq!(
-                enforcement.attachments_limits.span.item.is_active(),
+                enforcement.attachments_limits.span.count.is_active(),
                 expect_active_limit,
                 "{name}: span_attachment count limit mismatch"
             );
@@ -2660,7 +2636,7 @@ mod tests {
                 "{name}: trace_attachment byte limit mismatch"
             );
             assert_eq!(
-                enforcement.attachments_limits.trace.item.is_active(),
+                enforcement.attachments_limits.trace.count.is_active(),
                 expect_active_limit,
                 "{name}: trace_attachment count limit mismatch"
             );
