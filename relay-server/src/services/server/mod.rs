@@ -17,9 +17,7 @@ use tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
-use crate::middlewares::{
-    self, BodyTimingLayer, CatchPanicLayer, NormalizePath, RequestDecompressionLayer,
-};
+use crate::middlewares::{self, CatchPanicLayer, NormalizePath, RequestDecompressionLayer};
 use crate::service::ServiceState;
 use crate::statsd::{RelayCounters, RelayGauges};
 
@@ -64,7 +62,6 @@ fn make_app(service: ServiceState, f: impl FnOnce(&Config) -> axum::Router<Servi
     //  - Requests go from top to bottom
     //  - Responses go from bottom to top
     let middleware = ServiceBuilder::new()
-        .layer(BodyTimingLayer)
         .layer(axum::middleware::from_fn(middlewares::metrics))
         .layer(CatchPanicLayer::custom(middlewares::handle_panic))
         .layer(SetResponseHeaderLayer::overriding(
