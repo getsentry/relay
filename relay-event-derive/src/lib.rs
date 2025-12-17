@@ -348,16 +348,16 @@ enum Size {
 
 impl syn::parse::Parse for Size {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let head = input.fork();
-        if let Ok(lit) = input.parse::<LitInt>() {
+        if input.peek(LitInt) {
+            let lit = input.parse::<LitInt>()?;
             return Ok(Self::Static(lit.base10_parse()?));
         }
 
-        let head_head = head.fork();
-        let path = head.parse::<LitStr>()?;
-        let path = path
+        let head = input.fork();
+        let path = input
+            .parse::<LitStr>()?
             .parse()
-            .map_err(|_| head_head.error("Expected a function name"))?;
+            .map_err(|_| head.error("Expected a function name"))?;
         Ok(Self::Dynamic(path))
     }
 }
