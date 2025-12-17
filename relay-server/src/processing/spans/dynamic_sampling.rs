@@ -6,18 +6,16 @@ use either::Either;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
 use relay_protocol::get_value;
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::Scoping;
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ClientName;
-use crate::managed::{Counted, Managed, Quantities};
+use crate::managed::Managed;
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::Context;
-use crate::processing::spans::{
-    Error, ExpandedSpans, Indexed, Result, SampledSpans, SerializedSpans,
-};
+use crate::processing::spans::{Error, ExpandedSpans, Indexed, Result, SerializedSpans};
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
@@ -107,9 +105,9 @@ pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
 /// All spans are evaluated in one go as they are required by the protocol to share the same
 /// DSC, which contains all the sampling relevant information.
 pub async fn run(
-    spans: Managed<SerializedSpans>,
+    mut spans: Managed<ExpandedSpans>,
     ctx: Context<'_>,
-) -> Result<Managed<SampledSpans>, Managed<ExtractedMetrics>> {
+) -> Result<Managed<ExpandedSpans>, Managed<ExtractedMetrics>> {
     let sampling_result = compute(&spans, ctx).await;
 
     relay_statsd::metric!(
@@ -121,19 +119,15 @@ pub async fn run(
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
         sampling_result => {
-            let sample_rate = sampling_result.sample_rate();
-            return Ok(spans.map(|spans, _| spans.sampled(sample_rate)));
+            spans.modify(|spans, _| {
+                spans.server_sample_rate = sampling_result.sample_rate();
+            });
+            return Ok(spans);
         }
     };
 
     // At this point the decision is to drop the spans.
-    let metrics = create_metrics(
-        spans.scoping(),
-        spans.span_count(),
-        spans.headers.dsc(),
-        SamplingDecision::Drop,
-    );
-    let (spans, metrics) = spans.split_once(|spans| (UnsampledSpans(spans), metrics));
+    let (spans, metrics) = split_indexed_and_total(spans, SamplingDecision::Drop);
 
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
     let _ = spans.reject_err(outcome);
@@ -141,7 +135,7 @@ pub async fn run(
     Err(metrics)
 }
 
-/// Rejects the indexed portion of the provided spans and returns the total count as metrics.
+/// Rejects the indexed portion of the provided sampled spans and returns the total count as metrics.
 ///
 /// This is used when the indexed payload is designated to be dropped *after* dynamic sampling (decision is keep),
 /// but metrics have not yet been extracted.
@@ -149,7 +143,7 @@ pub fn reject_indexed_spans(
     spans: Managed<ExpandedSpans>,
     error: Error,
 ) -> Managed<ExtractedMetrics> {
-    let (indexed, total) = split_indexed_and_total(spans);
+    let (indexed, total) = split_indexed_and_total(spans, SamplingDecision::Keep);
     let _ = indexed.reject_err(error);
     total
 }
@@ -171,14 +165,17 @@ pub fn try_split_indexed_and_total(
         return Either::Left(spans);
     }
 
-    Either::Right(split_indexed_and_total(spans))
+    Either::Right(split_indexed_and_total(spans, SamplingDecision::Keep))
 }
 
 /// Splits spans into indexed spans and metrics representing the total counts.
 ///
 /// Dynamic sampling internal function, outside users should use the safer, use case driven variants
 /// [`try_split_indexed_and_total`] and [`reject_indexed_spans`].
-fn split_indexed_and_total(spans: Managed<ExpandedSpans>) -> SpansAndMetrics {
+fn split_indexed_and_total(
+    spans: Managed<ExpandedSpans>,
+    decision: SamplingDecision,
+) -> SpansAndMetrics {
     let scoping = spans.scoping();
 
     spans.split_once(|spans| {
@@ -186,14 +183,14 @@ fn split_indexed_and_total(spans: Managed<ExpandedSpans>) -> SpansAndMetrics {
             scoping,
             spans.spans.len() as u32,
             spans.headers.dsc(),
-            SamplingDecision::Keep,
+            decision,
         );
 
         (spans.into_indexed(), metrics)
     })
 }
 
-async fn compute(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> SamplingResult {
+async fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingResult {
     // The DSC is always required, we need it to evaluate all rules, if it is missing,
     // no rules can be applied -> we sample the item.
     let Some(dsc) = spans.headers.dsc() else {
@@ -301,23 +298,4 @@ fn create_metrics(
     });
 
     metrics
-}
-
-/// Spans which have been rejected/dropped by dynamic sampling.
-///
-/// Contained spans will only count towards the [`DataCategory::SpanIndexed`] category,
-/// as the total category is counted from now in in metrics.
-struct UnsampledSpans(SerializedSpans);
-
-impl Counted for UnsampledSpans {
-    fn quantities(&self) -> Quantities {
-        self.0
-            .quantities()
-            .into_iter()
-            // Spans only count towards the indexed category -> filter the total category.
-            //
-            // All other categories are untouched.
-            .filter(|(c, _)| *c != DataCategory::Span)
-            .collect()
-    }
 }
