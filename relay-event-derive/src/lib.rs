@@ -569,7 +569,7 @@ fn parse_field_attributes(
             } else if ident == "max_bytes" {
                 rv.max_bytes = Some(meta.value()?.parse()?);
             } else if ident == "pii" {
-                rv.pii = Some(meta.value()?.parse().unwrap());
+                rv.pii = Some(meta.value()?.parse()?);
             } else if ident == "retain" {
                 let s = meta.value()?.parse::<LitBool>()?;
                 rv.retain = s.value();
