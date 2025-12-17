@@ -312,11 +312,11 @@ mod tests {
     }
 
     #[test]
-    fn test_total_size() {
+    fn test_split_on_string() {
         let mut attributes = Attributes::new();
 
         attributes.insert("small", 17); // 13B
-        attributes.insert("medium string", "This string should be trimmed"); // 29B
+        attributes.insert("medium string", "This string should be trimmed"); // 42B
         attributes.insert("attribute is very large and should be removed", true); // 47B
 
         let mut value = Annotated::new(TestObject {
@@ -361,6 +361,133 @@ mod tests {
                     "len": 29
                   }
                 }
+              }
+            },
+            "body": {
+              "": {
+                "rem": [
+                  [
+                    "!limit",
+                    "s",
+                    7,
+                    10
+                  ]
+                ],
+                "len": 27
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_one_byte_left() {
+        let mut attributes = Attributes::new();
+
+        // First attribute + key of second attribute is 39B, leaving exactly one
+        // byte for the second attribute's value.
+        attributes.insert("small attribute", 17); // 23B
+        attributes.insert("medium attribute", "This string should be trimmed"); // 45B
+
+        let mut value = Annotated::new(TestObject {
+            attributes: Annotated::new(attributes),
+            body: Annotated::new("This is longer than allowed".to_owned()),
+        });
+
+        let mut processor = TrimmingProcessor::new();
+
+        let state = ProcessingState::new_root(Default::default(), []);
+        processor::process_value(&mut value, &mut processor, &state).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
+        {
+          "attributes": {
+            "medium attribute": {
+              "type": "string",
+              "value": "..."
+            },
+            "small attribute": {
+              "type": "integer",
+              "value": 17
+            }
+          },
+          "body": "This is...",
+          "_meta": {
+            "attributes": {
+              "": {
+                "len": 68
+              },
+              "medium attribute": {
+                "value": {
+                  "": {
+                    "rem": [
+                      [
+                        "!limit",
+                        "s",
+                        0,
+                        3
+                      ]
+                    ],
+                    "len": 29
+                  }
+                }
+              }
+            },
+            "body": {
+              "": {
+                "rem": [
+                  [
+                    "!limit",
+                    "s",
+                    7,
+                    10
+                  ]
+                ],
+                "len": 27
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    fn test_overaccept_number() {
+        let mut attributes = Attributes::new();
+
+        // The attribute size would get used up by the value of "attribute with long name".
+        // Nevertheless, we accept this attribute, thereby overaccepting 5B.
+        attributes.insert("small", "abcdefgh"); // 5 + 8 = 13B
+        attributes.insert("attribute with long name", 71); // 24 + 8 = 32B
+        attributes.insert("attribute is very large and should be removed", true); // 46 + 1 = 47B
+
+        let mut value = Annotated::new(TestObject {
+            attributes: Annotated::new(attributes),
+            body: Annotated::new("This is longer than allowed".to_owned()),
+        });
+
+        let mut processor = TrimmingProcessor::new();
+
+        let state = ProcessingState::new_root(Default::default(), []);
+        processor::process_value(&mut value, &mut processor, &state).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
+        {
+          "attributes": {
+            "attribute with long name": {
+              "type": "integer",
+              "value": 71
+            },
+            "small": {
+              "type": "string",
+              "value": "abcdefgh"
+            }
+          },
+          "body": "This is...",
+          "_meta": {
+            "attributes": {
+              "": {
+                "len": 91
               }
             },
             "body": {
