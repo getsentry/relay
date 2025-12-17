@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add dynamic `max_bytes`/`max_chars` derivation to `metastructure`. ([#5500](https://github.com/getsentry/relay/pull/5500))
+
 ## 25.12.0
 
 **Features**:
