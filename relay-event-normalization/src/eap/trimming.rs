@@ -277,7 +277,7 @@ impl Processor for TrimmingProcessor {
 
             let value_state = state.enter_borrowed(key, None, ValueType::for_field(value));
             processor::process_value(value, self, &value_state)?;
-            self.consume_size(size::attribute_size(value))
+            self.consume_size(size::attribute_size(value));
         }
 
         if let Some(split_idx) = split_idx {
