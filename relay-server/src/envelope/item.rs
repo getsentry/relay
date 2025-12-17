@@ -1109,7 +1109,7 @@ impl ParentId {
 
 /// The type of parent entity an attachment is associated with.
 #[derive(Debug)]
-pub enum ParentType {
+pub enum AttachmentParentType {
     Event,
     Span,
     Trace,

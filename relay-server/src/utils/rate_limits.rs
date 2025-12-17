@@ -147,8 +147,8 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
 /// Tracks both the count of attachments and size in bytes.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AttachmentQuantities {
-    count: usize,
-    bytes: usize,
+    pub count: usize,
+    pub bytes: usize,
 }
 
 impl AttachmentQuantities {
@@ -162,7 +162,9 @@ impl AttachmentQuantities {
 /// This separation is necessary since rate limiting logic varies by [`ParentType`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AttachmentsQuantities {
-    /// Quantities of V1 Attachments.
+    /// Quantities of Event Attachments.
+    ///
+    /// See also: [`AttachmentParentType::Event`].
     event: AttachmentQuantities,
     /// Quantities of trace V2 Attachments.
     trace: AttachmentQuantities,
@@ -2154,10 +2156,10 @@ mod tests {
         let test_cases = vec![
             (
                 "span_limit",
-                vec![DataCategory::Span],
+               &[DataCategory::Span],
                 true,
-                vec![(DataCategory::Span, 0)],
-                vec![
+                &[(DataCategory::Span, 0)],
+                &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
