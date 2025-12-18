@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Double write to legacy attributes for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
+
 ## 25.12.0
 
 **Features**:

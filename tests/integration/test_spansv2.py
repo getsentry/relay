@@ -1092,12 +1092,18 @@ def test_spansv2_attribute_normalization(
             "sentry.op": {"type": "string", "value": "db"},
             "db.system.name": {"type": "string", "value": "mysql"},
             "db.operation.name": {"type": "string", "value": "SELECT"},
+            "sentry.action": {"type": "string", "value": "SELECT"},
             "db.query.text": {
                 "type": "string",
                 "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
             },
             "db.collection.name": {"type": "string", "value": "users"},
+            "sentry.domain": {"type": "string", "value": "users"},
             "sentry.normalized_db_query": {
+                "type": "string",
+                "value": "SELECT id FROM users WHERE id = %s AND name = %s",
+            },
+            "sentry.normalized_description": {
                 "type": "string",
                 "value": "SELECT id FROM users WHERE id = %s AND name = %s",
             },
@@ -1105,6 +1111,7 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": "f79af0ba3d26284c",
             },
+            "sentry.group": {"type": "string", "value": "f79af0ba3d26284c"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1126,7 +1133,9 @@ def test_spansv2_attribute_normalization(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "http.request.method": {"type": "string", "value": "GET"},
+            "sentry.action": {"type": "string", "value": "GET"},
             "server.address": {"type": "string", "value": "*.service.io"},
+            "sentry.domain": {"type": "string", "value": "*.service.io"},
             "url.full": {
                 "type": "string",
                 "value": "https://www.service.io/users/01234-qwerty/settings/98765-adfghj",

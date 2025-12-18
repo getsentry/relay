@@ -425,7 +425,9 @@ fn normalize_http_attributes(
 
     // Skip normalization if not an http span.
     // This is equivalent to conditionally scrubbing by span category in the V1 pipeline.
-    if !attributes.contains_key(HTTP_REQUEST_METHOD) {
+    if !attributes.contains_key(HTTP_REQUEST_METHOD)
+        && !attributes.contains_key(LEGACY_HTTP_REQUEST_METHOD)
+    {
         return;
     }
 
@@ -433,14 +435,22 @@ fn normalize_http_attributes(
 
     let method = attributes
         .get_value(HTTP_REQUEST_METHOD)
+        .or_else(|| attributes.get_value(LEGACY_HTTP_REQUEST_METHOD))
         .and_then(|v| v.as_str());
 
     let server_address = attributes
         .get_value(SERVER_ADDRESS)
         .and_then(|v| v.as_str());
 
-    let url = attributes.get_value(URL_FULL).and_then(|v| v.as_str());
-
+    let url: Option<&str> = attributes
+        .get_value(URL_FULL)
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            attributes
+                .get_value(DESCRIPTION)
+                .and_then(|v| v.as_str())
+                .and_then(|description| description.split_once(' ').map(|(_, url)| url))
+        });
     let url_scheme = attributes.get_value(URL_SCHEME).and_then(|v| v.as_str());
 
     // If the span op is "http.client" and the method and url are present,
@@ -452,7 +462,7 @@ fn normalize_http_attributes(
             .and_then(|scrubbed_http| domain_from_scrubbed_http(&scrubbed_http));
 
         if let Some(domain) = domain_from_scrubbed_http {
-            (Some(domain), None)
+            (Some(domain), url.map(String::from))
         } else {
             domain_from_server_address(server_address, url_scheme)
         }
@@ -473,6 +483,40 @@ fn normalize_http_attributes(
 
         if let Some(raw_url) = raw_url {
             attributes.insert_if_missing(URL_FULL, || raw_url);
+        }
+    }
+}
+
+/// Double writes sentry conventions attributes into legacy attributes.
+///
+/// This achieves backwards compatibility as it allows products to continue using legacy attributes
+/// while we accumulate spans that conform to sentry conventions.
+///
+/// This function is called after attribute value normalization (`normalize_attribute_values`) as it
+/// clones normalized attributes into legacy attributes.
+pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    // Map of new sentry conventions attributes to legacy SpanV1 attributes
+    let current_to_legacy_attributes = [
+        // DB attributes
+        (NORMALIZED_DB_QUERY, SENTRY_NORMALIZED_DESCRIPTION),
+        (NORMALIZED_DB_QUERY_HASH, SENTRY_GROUP),
+        (DB_OPERATION_NAME, SENTRY_ACTION),
+        (DB_COLLECTION_NAME, SENTRY_DOMAIN),
+        // HTTP attributes
+        (SERVER_ADDRESS, SENTRY_DOMAIN),
+        (HTTP_REQUEST_METHOD, SENTRY_ACTION),
+    ];
+
+    for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
+        if attributes.contains_key(current_attribute) {
+            let Some(attr) = attributes.get_attribute(current_attribute) else {
+                continue;
+            };
+            attributes.insert(legacy_attribute, attr.value.clone());
         }
     }
 }
@@ -1342,6 +1386,216 @@ mod tests {
           "url.full": {
             "type": "string",
             "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_db_attributes_from_legacy_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "find"
+          },
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_db_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes_from_legacy_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "http.request_method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "GET https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_http_attributes(&mut attributes, &[]);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "http.request_method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "GET https://application.www.xn--85x722f.xn--55qx5d.cn"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "*.xn--85x722f.xn--55qx5d.cn"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_write_legacy_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        write_legacy_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.action": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "sentry.domain": {
+            "type": "string",
+            "value": "documents"
+          },
+          "sentry.group": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.normalized_description": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
           }
         }
         "#);
