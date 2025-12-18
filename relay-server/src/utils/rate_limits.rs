@@ -436,7 +436,7 @@ impl AttachmentLimits {
 
 /// Rate limiting information for attachments grouped by [`AttachmentParentType`].
 ///
-/// See [`AttachmentsQuantities`] for the corresponding quantity tracking.
+/// See [`AttachmentQuantities`] for the corresponding quantity tracking.
 #[derive(Default, Debug)]
 #[cfg_attr(test, derive(Clone))]
 pub struct AttachmentsLimits {
