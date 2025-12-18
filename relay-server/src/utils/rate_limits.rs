@@ -866,7 +866,6 @@ where
 
         // Handle span attachments
         if enforcement.spans_indexed.is_active() {
-            // Hello this is why I can use indexed here
             enforcement.attachments_limits.span.bytes = enforcement.spans_indexed.clone_for(
                 DataCategory::Attachment,
                 summary.attachment_quantities.span.bytes,
