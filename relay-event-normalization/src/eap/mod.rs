@@ -423,12 +423,6 @@ fn normalize_http_attributes(
         return;
     };
 
-    // The legacy http request method attribute used by transactions spans.
-    // Could not be added to sentry conventions at the time due to an attribute naming conflict that
-    // requires updating the sentry conventions code gen.
-    // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
-    const LEGACY_HTTP_REQUEST_METHOD: &str = "http.request_method";
-
     // Skip normalization if not an http span.
     // This is equivalent to conditionally scrubbing by span category in the V1 pipeline.
     if !attributes.contains_key(HTTP_REQUEST_METHOD)
