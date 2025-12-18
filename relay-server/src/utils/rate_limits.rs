@@ -183,25 +183,8 @@ impl AttachmentQuantities {
 
     /// Returns the total size in bytes of all attachments across all parent types.
     pub fn bytes(&self) -> usize {
-        let AttachmentQuantities {
-            event:
-                AttachmentQuantity {
-                    count: _,
-                    bytes: event_bytes,
-                },
-            trace:
-                AttachmentQuantity {
-                    count: _,
-                    bytes: trace_bytes,
-                },
-            span:
-                AttachmentQuantity {
-                    count: _,
-                    bytes: span_bytes,
-                },
-        } = self;
-
-        event_bytes + trace_bytes + span_bytes
+        let AttachmentQuantities { event, trace, span } = self;
+        event.bytes + trace.bytes + span.bytes
     }
 }
 
@@ -875,6 +858,10 @@ where
                 summary.attachment_quantities.span.count,
             );
         } else if !summary.attachment_quantities.span.is_empty() {
+            // While we could combine this check with the check that we do for event and trace
+            // attachments, this would complicate the logic so we opted against doing that.
+            // In practice the performance impact should be negligible since different types
+            // of attachments should rarely be send together.
             enforcement.attachments_limits.span = self
                 .check_attachment_limits(scoping, &summary.attachment_quantities.span)
                 .await?;
@@ -1203,13 +1190,13 @@ mod tests {
         extractors::RequestMeta,
     };
 
-    type RateLimitTestCase = (
-        &'static str,                     // name
-        &'static [DataCategory],          // denied categories
-        bool,                             // expect attachment limit active
-        &'static [(DataCategory, usize)], // expected limiter calls
-        &'static [(DataCategory, usize)], // expected rate limit outcomes
-    );
+    struct RateLimitTestCase {
+        name: &'static str,
+        denied_categories: &'static [DataCategory],
+        expect_attachment_limit_active: bool,
+        expected_limiter_calls: &'static [(DataCategory, usize)],
+        expected_outcomes: &'static [(DataCategory, usize)],
+    }
 
     #[tokio::test]
     async fn test_format_rate_limits() {
@@ -2104,121 +2091,128 @@ mod tests {
 
     #[tokio::test]
     async fn test_enforce_standalone_span_attachment() {
-        let test_cases: &[RateLimitTestCase] = &[
-            (
-                "span_limit",
-                &[DataCategory::Span],
-                true,
-                &[(DataCategory::Span, 0)],
-                &[
+        let test_cases = &[
+            RateLimitTestCase {
+                name: "span_limit",
+                denied_categories: &[DataCategory::Span],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Span, 0)],
+                expected_outcomes: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-            ),
-            (
-                "span_indexed_limit",
-                &[DataCategory::SpanIndexed],
-                true,
-                &[(DataCategory::Span, 0), (DataCategory::SpanIndexed, 0)],
-                &[
+            },
+            RateLimitTestCase {
+                name: "span_indexed_limit",
+                denied_categories: &[DataCategory::SpanIndexed],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Span, 0), (DataCategory::SpanIndexed, 0)],
+                expected_outcomes: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-            ),
-            (
-                "attachment_limit",
-                &[DataCategory::Attachment],
-                true,
-                &[
+            },
+            RateLimitTestCase {
+                name: "attachment_limit",
+                denied_categories: &[DataCategory::Attachment],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
                     (DataCategory::Span, 0),
                     (DataCategory::SpanIndexed, 0),
                     (DataCategory::Attachment, 7),
                 ],
-                &[
+                expected_outcomes: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-            ),
-            (
-                "attachment_indexed_limit",
-                &[DataCategory::AttachmentItem],
-                true,
-                &[
-                    (DataCategory::Span, 0),
-                    (DataCategory::SpanIndexed, 0),
-                    (DataCategory::Attachment, 7),
-                    (DataCategory::AttachmentItem, 1),
-                ],
-                &[
-                    (DataCategory::Attachment, 7),
-                    (DataCategory::AttachmentItem, 1),
-                ],
-            ),
-            (
-                "transaction_limit",
-                &[DataCategory::Transaction],
-                false,
-                &[
+            },
+            RateLimitTestCase {
+                name: "attachment_indexed_limit",
+                denied_categories: &[DataCategory::AttachmentItem],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
                     (DataCategory::Span, 0),
                     (DataCategory::SpanIndexed, 0),
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-                &[],
-            ),
-            (
-                "error_limit",
-                &[DataCategory::Error],
-                false,
-                &[
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "transaction_limit",
+                denied_categories: &[DataCategory::Transaction],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
                     (DataCategory::Span, 0),
                     (DataCategory::SpanIndexed, 0),
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-                &[],
-            ),
-            (
-                "no_limits",
-                &[],
-                false,
-                &[
+                expected_outcomes: &[],
+            },
+            RateLimitTestCase {
+                name: "error_limit",
+                denied_categories: &[DataCategory::Error],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
                     (DataCategory::Span, 0),
                     (DataCategory::SpanIndexed, 0),
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-                &[],
-            ),
+                expected_outcomes: &[],
+            },
+            RateLimitTestCase {
+                name: "no_limits",
+                denied_categories: &[],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 0),
+                    (DataCategory::SpanIndexed, 0),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
         ];
 
-        for &(name, deny, expect_active_limit, expected_calls, expected_outcomes) in test_cases {
+        for RateLimitTestCase {
+            name,
+            denied_categories,
+            expect_attachment_limit_active,
+            expected_limiter_calls,
+            expected_outcomes,
+        } in test_cases
+        {
             let mut envelope = envelope![];
             envelope
                 .envelope_mut()
                 .add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
 
-            let mock = mock_limiter(deny);
+            let mock = mock_limiter(denied_categories);
             let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
-            for &(category, quantity) in expected_calls {
+            for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
             }
 
             assert_eq!(
                 enforcement.attachments_limits.span.bytes.is_active(),
-                expect_active_limit,
+                *expect_attachment_limit_active,
                 "{name}: span_attachment byte limit mismatch"
             );
             assert_eq!(
                 enforcement.attachments_limits.span.count.is_active(),
-                expect_active_limit,
+                *expect_attachment_limit_active,
                 "{name}: span_attachment count limit mismatch"
             );
 
             assert_eq!(
                 get_outcomes(enforcement),
-                expected_outcomes,
+                *expected_outcomes,
                 "{name}: outcome mismatch"
             );
         }
@@ -2226,124 +2220,131 @@ mod tests {
 
     #[tokio::test]
     async fn test_enforce_span_with_span_attachment() {
-        let test_cases: &[RateLimitTestCase] = &[
-            (
-                "span_limit",
-                &[DataCategory::Span, DataCategory::Attachment], // Attachment here has no effect
-                true,
-                &[(DataCategory::Span, 1)],
-                &[
+        let test_cases = &[
+            RateLimitTestCase {
+                name: "span_limit",
+                denied_categories: &[DataCategory::Span, DataCategory::Attachment], // Attachment here has no effect
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Span, 1)],
+                expected_outcomes: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                     (DataCategory::Span, 1),
                     (DataCategory::SpanIndexed, 1),
                 ],
-            ),
-            (
-                "span_indexed_limit",
-                &[DataCategory::SpanIndexed, DataCategory::Attachment],
-                true,
-                &[(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)],
-                &[
+            },
+            RateLimitTestCase {
+                name: "span_indexed_limit",
+                denied_categories: &[DataCategory::SpanIndexed, DataCategory::Attachment],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)],
+                expected_outcomes: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                     (DataCategory::SpanIndexed, 1),
                 ],
-            ),
-            (
-                "attachment_limit",
-                &[DataCategory::Attachment],
-                true,
-                &[
+            },
+            RateLimitTestCase {
+                name: "attachment_limit",
+                denied_categories: &[DataCategory::Attachment],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
                     (DataCategory::Span, 1),
                     (DataCategory::SpanIndexed, 1),
                     (DataCategory::Attachment, 7),
                 ],
-                &[
+                expected_outcomes: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-            ),
-            (
-                "attachment_indexed_limit",
-                &[DataCategory::AttachmentItem],
-                true,
-                &[
-                    (DataCategory::Span, 1),
-                    (DataCategory::SpanIndexed, 1),
-                    (DataCategory::Attachment, 7),
-                    (DataCategory::AttachmentItem, 1),
-                ],
-                &[
-                    (DataCategory::Attachment, 7),
-                    (DataCategory::AttachmentItem, 1),
-                ],
-            ),
-            (
-                "transaction_limit",
-                &[DataCategory::Transaction],
-                false,
-                &[
+            },
+            RateLimitTestCase {
+                name: "attachment_indexed_limit",
+                denied_categories: &[DataCategory::AttachmentItem],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
                     (DataCategory::Span, 1),
                     (DataCategory::SpanIndexed, 1),
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-                &[],
-            ),
-            (
-                "error_limit",
-                &[DataCategory::Error],
-                false,
-                &[
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "transaction_limit",
+                denied_categories: &[DataCategory::Transaction],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
                     (DataCategory::Span, 1),
                     (DataCategory::SpanIndexed, 1),
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-                &[],
-            ),
-            (
-                "no_limits",
-                &[],
-                false,
-                &[
+                expected_outcomes: &[],
+            },
+            RateLimitTestCase {
+                name: "error_limit",
+                denied_categories: &[DataCategory::Error],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
                     (DataCategory::Span, 1),
                     (DataCategory::SpanIndexed, 1),
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-                &[],
-            ),
+                expected_outcomes: &[],
+            },
+            RateLimitTestCase {
+                name: "no_limits",
+                denied_categories: &[],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
         ];
 
-        for &(name, deny, expect_active_limit, expected_calls, expected_outcomes) in test_cases {
+        for RateLimitTestCase {
+            name,
+            denied_categories,
+            expect_attachment_limit_active,
+            expected_limiter_calls,
+            expected_outcomes,
+        } in test_cases
+        {
             let mut envelope = envelope![Span];
             envelope
                 .envelope_mut()
                 .add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
 
-            let mock = mock_limiter(deny);
+            let mock = mock_limiter(denied_categories);
             let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
-            for &(category, quantity) in expected_calls {
+            for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
             }
 
             assert_eq!(
                 enforcement.attachments_limits.span.bytes.is_active(),
-                expect_active_limit,
+                *expect_attachment_limit_active,
                 "{name}: span_attachment byte limit mismatch"
             );
             assert_eq!(
                 enforcement.attachments_limits.span.count.is_active(),
-                expect_active_limit,
+                *expect_attachment_limit_active,
                 "{name}: span_attachment count limit mismatch"
             );
 
             assert_eq!(
                 get_outcomes(enforcement),
-                expected_outcomes,
+                *expected_outcomes,
                 "{name}: outcome mismatch"
             );
         }
@@ -2351,29 +2352,29 @@ mod tests {
 
     #[tokio::test]
     async fn test_enforce_transaction_span_attachment() {
-        let test_cases: &[RateLimitTestCase] = &[
-            (
-                "span_limit",
-                &[DataCategory::Span],
-                true,
-                &[
+        let test_cases = &[
+            RateLimitTestCase {
+                name: "span_limit",
+                denied_categories: &[DataCategory::Span],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
                     (DataCategory::Transaction, 1),
                     (DataCategory::TransactionIndexed, 1),
                     (DataCategory::Span, 1),
                 ],
-                &[
+                expected_outcomes: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                     (DataCategory::Span, 1),
                     (DataCategory::SpanIndexed, 1),
                 ],
-            ),
-            (
-                "transaction_limit",
-                &[DataCategory::Transaction],
-                true,
-                &[(DataCategory::Transaction, 1)],
-                &[
+            },
+            RateLimitTestCase {
+                name: "transaction_limit",
+                denied_categories: &[DataCategory::Transaction],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Transaction, 1)],
+                expected_outcomes: &[
                     (DataCategory::Transaction, 1),
                     (DataCategory::TransactionIndexed, 1),
                     (DataCategory::Attachment, 7),
@@ -2381,26 +2382,12 @@ mod tests {
                     (DataCategory::Span, 1),
                     (DataCategory::SpanIndexed, 1),
                 ],
-            ),
-            (
-                "error_limit",
-                &[DataCategory::Error],
-                false,
-                &[
-                    (DataCategory::Transaction, 1),
-                    (DataCategory::TransactionIndexed, 1),
-                    (DataCategory::Span, 1),
-                    (DataCategory::SpanIndexed, 1),
-                    (DataCategory::Attachment, 7),
-                    (DataCategory::AttachmentItem, 1),
-                ],
-                &[],
-            ),
-            (
-                "no_limits",
-                &[],
-                false,
-                &[
+            },
+            RateLimitTestCase {
+                name: "error_limit",
+                denied_categories: &[DataCategory::Error],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
                     (DataCategory::Transaction, 1),
                     (DataCategory::TransactionIndexed, 1),
                     (DataCategory::Span, 1),
@@ -2408,37 +2395,58 @@ mod tests {
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-                &[],
-            ),
+                expected_outcomes: &[],
+            },
+            RateLimitTestCase {
+                name: "no_limits",
+                denied_categories: &[],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Transaction, 1),
+                    (DataCategory::TransactionIndexed, 1),
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
         ];
 
-        for &(name, deny, expect_active_limit, expected_calls, expected_outcomes) in test_cases {
+        for RateLimitTestCase {
+            name,
+            denied_categories,
+            expect_attachment_limit_active,
+            expected_limiter_calls,
+            expected_outcomes,
+        } in test_cases
+        {
             let mut envelope = envelope![Transaction];
             envelope
                 .envelope_mut()
                 .add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
 
-            let mock = mock_limiter(deny);
+            let mock = mock_limiter(denied_categories);
             let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
-            for &(category, quantity) in expected_calls {
+            for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
             }
 
             assert_eq!(
                 enforcement.attachments_limits.span.bytes.is_active(),
-                expect_active_limit,
+                *expect_attachment_limit_active,
                 "{name}: span_attachment byte limit mismatch"
             );
             assert_eq!(
                 enforcement.attachments_limits.span.count.is_active(),
-                expect_active_limit,
+                *expect_attachment_limit_active,
                 "{name}: span_attachment count limit mismatch"
             );
 
             assert_eq!(
                 get_outcomes(enforcement),
-                expected_outcomes,
+                *expected_outcomes,
                 "{name}: outcome mismatch"
             );
         }
@@ -2446,79 +2454,86 @@ mod tests {
 
     #[tokio::test]
     async fn test_enforce_standalone_trace_attachment() {
-        let test_cases: &[RateLimitTestCase] = &[
-            (
-                "attachment_limit",
-                &[DataCategory::Attachment],
-                true,
-                &[(DataCategory::Attachment, 7)],
-                &[
+        let test_cases = &[
+            RateLimitTestCase {
+                name: "attachment_limit",
+                denied_categories: &[DataCategory::Attachment],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Attachment, 7)],
+                expected_outcomes: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-            ),
-            (
-                "attachment_limit_and_attachment_item_limit",
-                &[DataCategory::Attachment, DataCategory::AttachmentItem],
-                true,
-                &[(DataCategory::Attachment, 7)],
-                &[
+            },
+            RateLimitTestCase {
+                name: "attachment_limit_and_attachment_item_limit",
+                denied_categories: &[DataCategory::Attachment, DataCategory::AttachmentItem],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Attachment, 7)],
+                expected_outcomes: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-            ),
-            (
-                "attachment_item_limit",
-                &[DataCategory::AttachmentItem],
-                true,
-                &[
+            },
+            RateLimitTestCase {
+                name: "attachment_item_limit",
+                denied_categories: &[DataCategory::AttachmentItem],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-                &[
+                expected_outcomes: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-            ),
-            (
-                "no_limits",
-                &[],
-                false,
-                &[
+            },
+            RateLimitTestCase {
+                name: "no_limits",
+                denied_categories: &[],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
                     (DataCategory::Attachment, 7),
                     (DataCategory::AttachmentItem, 1),
                 ],
-                &[],
-            ),
+                expected_outcomes: &[],
+            },
         ];
 
-        for &(name, deny, expect_active_limit, expected_calls, expected_outcomes) in test_cases {
+        for RateLimitTestCase {
+            name,
+            denied_categories,
+            expect_attachment_limit_active,
+            expected_limiter_calls,
+            expected_outcomes,
+        } in test_cases
+        {
             let mut envelope = envelope![];
             envelope
                 .envelope_mut()
                 .add_item(trace_attachment_item(7, None));
 
-            let mock = mock_limiter(deny);
+            let mock = mock_limiter(denied_categories);
             let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
-            for &(category, quantity) in expected_calls {
+            for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
             }
 
             assert_eq!(
                 enforcement.attachments_limits.trace.bytes.is_active(),
-                expect_active_limit,
+                *expect_attachment_limit_active,
                 "{name}: trace_attachment byte limit mismatch"
             );
             assert_eq!(
                 enforcement.attachments_limits.trace.count.is_active(),
-                expect_active_limit,
+                *expect_attachment_limit_active,
                 "{name}: trace_attachment count limit mismatch"
             );
 
             assert_eq!(
                 get_outcomes(enforcement),
-                expected_outcomes,
+                *expected_outcomes,
                 "{name}: outcome mismatch"
             );
         }
