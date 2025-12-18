@@ -11,7 +11,7 @@ use relay_protocol::Annotated;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
 use crate::managed::Managed;
 use crate::processing::spans::{
-    self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SampledSpans,
+    self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SerializedSpans,
 };
 use crate::processing::{Context, trace_attachments};
 use crate::services::outcome::DiscardReason;
@@ -19,24 +19,32 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized spans.
 ///
 /// Individual, invalid spans are discarded.
-pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
+pub fn expand(spans: Managed<SerializedSpans>) -> Managed<ExpandedSpans> {
     spans.map(|spans, records| {
+        let SerializedSpans {
+            headers,
+            spans,
+            legacy,
+            integrations,
+            attachments,
+        } = spans;
+
         let mut all_spans = Vec::new();
 
-        for item in &spans.inner.spans {
+        for item in &spans {
             let expanded = expand_span_container(item);
             let expanded = records.or_default(expanded, item);
             all_spans.extend(expanded);
         }
 
-        for item in &spans.inner.legacy {
+        for item in &legacy {
             match expand_legacy_span(item) {
                 Ok(span) => all_spans.push(span),
                 Err(err) => drop(records.reject_err(err, item)),
             }
         }
 
-        spans::integrations::expand_into(&mut all_spans, records, spans.inner.integrations);
+        spans::integrations::expand_into(&mut all_spans, records, integrations);
 
         let mut span_id_mapping: BTreeMap<_, _> = BTreeMap::new();
         for span in all_spans {
@@ -54,7 +62,7 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
         }
 
         let mut stand_alone_attachments: Vec<ExpandedAttachment> = Vec::new();
-        for attachment in spans.inner.attachments {
+        for attachment in attachments {
             match parse_and_validate_span_attachment(&attachment) {
                 Ok((None, attachment)) => {
                     stand_alone_attachments.push(attachment);
@@ -77,9 +85,9 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
         }
 
         ExpandedSpans {
-            headers: spans.inner.headers,
-            server_sample_rate: spans.server_sample_rate,
+            headers,
             spans: span_id_mapping.into_values().collect(),
+            server_sample_rate: None,
             stand_alone_attachments,
             category: spans::TotalAndIndexed,
         }
