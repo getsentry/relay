@@ -423,10 +423,16 @@ fn normalize_http_attributes(
         return;
     };
 
+    // The legacy http request method attribute used by transactions spans.
+    // Could not be added to sentry conventions at the time due to an attribute naming conflict that
+    // requires updating the sentry conventions code gen.
+    // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
+    const LEGACY_HTTP_REQUEST_METHOD: &str = "http.request_method";
+
     // Skip normalization if not an http span.
     // This is equivalent to conditionally scrubbing by span category in the V1 pipeline.
     if !attributes.contains_key(HTTP_REQUEST_METHOD)
-        && !attributes.contains_key("http.request_method")
+        && !attributes.contains_key(LEGACY_HTTP_REQUEST_METHOD)
     {
         return;
     }
@@ -435,7 +441,7 @@ fn normalize_http_attributes(
 
     let method = attributes
         .get_value(HTTP_REQUEST_METHOD)
-        .or_else(|| attributes.get_value("http.request_method"))
+        .or_else(|| attributes.get_value(LEGACY_HTTP_REQUEST_METHOD))
         .and_then(|v| v.as_str());
 
     let server_address = attributes
@@ -502,13 +508,13 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     // Map of new sentry conventions attributes to legacy SpanV1 attributes
     let current_to_legacy_attributes = [
         // DB attributes
-        (NORMALIZED_DB_QUERY, "sentry.normalized_description"),
-        (NORMALIZED_DB_QUERY_HASH, "sentry.group"),
-        (DB_OPERATION_NAME, "sentry.action"),
-        (DB_COLLECTION_NAME, "sentry.domain"),
+        (NORMALIZED_DB_QUERY, SENTRY_NORMALIZED_DESCRIPTION),
+        (NORMALIZED_DB_QUERY_HASH, SENTRY_GROUP),
+        (DB_OPERATION_NAME, SENTRY_ACTION),
+        (DB_COLLECTION_NAME, SENTRY_DOMAIN),
         // HTTP attributes
-        (SERVER_ADDRESS, "sentry.domain"),
-        (HTTP_REQUEST_METHOD, "sentry.action"),
+        (SERVER_ADDRESS, SENTRY_DOMAIN),
+        (HTTP_REQUEST_METHOD, SENTRY_ACTION),
     ];
 
     for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
