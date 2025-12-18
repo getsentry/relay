@@ -479,21 +479,21 @@ impl Item {
     /// Returns the [`AttachmentParentType`] of an attachment.
     ///
     /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
-    pub fn attachment_parent_type(&self) -> Option<AttachmentParentType> {
+    pub fn attachment_parent_type(&self) -> AttachmentParentType {
         let is_attachment = self.ty() == &ItemType::Attachment;
+        debug_assert!(
+            is_attachment,
+            "function should only be called on attachments"
+        );
         let is_trace_attachment = self.content_type() == Some(&ContentType::TraceAttachment);
 
-        if is_attachment {
-            if is_trace_attachment {
-                match self.parent_id() {
-                    Some(ParentId::SpanId(_)) => Some(AttachmentParentType::Span),
-                    None => Some(AttachmentParentType::Trace),
-                }
-            } else {
-                Some(AttachmentParentType::Event)
+        if is_trace_attachment {
+            match self.parent_id() {
+                Some(ParentId::SpanId(_)) => AttachmentParentType::Span,
+                None => AttachmentParentType::Trace,
             }
         } else {
-            None
+            AttachmentParentType::Event
         }
     }
 
@@ -1108,10 +1108,19 @@ impl ParentId {
 }
 
 /// The type of parent entity an attachment is associated with.
+///
+/// This is used to route attachments to different rate limiting buckets, since
+/// depending on the parent the limiting logic is different. E.g. if the attachment has
+/// [`AttachmentParentType::Span`] than it should be dropped if there are span limits.
+///
+/// See [`Item::attachment_parent_type`] for how this is determined from an item.
 #[derive(Debug)]
 pub enum AttachmentParentType {
+    /// The parent type for all V1 attachments (e.g. minidumps)
     Event,
+    /// The parent type for all span V2 attachments.
     Span,
+    /// The parent type for all trace V2 attachments.
     Trace,
 }
 

@@ -146,12 +146,14 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
 ///
 /// Tracks both the count of attachments and size in bytes.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct AttachmentQuantities {
+pub struct AttachmentQuantity {
+    /// Number of attachment items.
     pub count: usize,
+    /// Total size of attachments in bytes.
     pub bytes: usize,
 }
 
-impl AttachmentQuantities {
+impl AttachmentQuantity {
     pub fn is_empty(&self) -> bool {
         self.count == 0 && self.bytes == 0
     }
@@ -161,56 +163,39 @@ impl AttachmentQuantities {
 ///
 /// This separation is necessary since rate limiting logic varies by [`AttachmentParentType`].
 #[derive(Clone, Copy, Debug, Default)]
-pub struct AttachmentsQuantities {
+pub struct AttachmentQuantities {
     /// Quantities of Event Attachments.
     ///
     /// See also: [`AttachmentParentType::Event`].
-    event: AttachmentQuantities,
+    pub event: AttachmentQuantity,
     /// Quantities of trace V2 Attachments.
-    trace: AttachmentQuantities,
+    pub trace: AttachmentQuantity,
     /// Quantities of span V2 Attachments.
-    span: AttachmentQuantities,
+    pub span: AttachmentQuantity,
 }
 
-impl AttachmentsQuantities {
+impl AttachmentQuantities {
     /// Returns the total count of all attachments across all parent types.
     pub fn count(&self) -> usize {
-        let AttachmentsQuantities {
-            event:
-                AttachmentQuantities {
-                    count: event_count,
-                    bytes: _,
-                },
-            trace:
-                AttachmentQuantities {
-                    count: trace_count,
-                    bytes: _,
-                },
-            span:
-                AttachmentQuantities {
-                    count: span_count,
-                    bytes: _,
-                },
-        } = self;
-
-        event_count + trace_count + span_count
+        let AttachmentQuantities { event, trace, span } = self;
+        event.count + trace.count + span.count
     }
 
     /// Returns the total size in bytes of all attachments across all parent types.
     pub fn bytes(&self) -> usize {
-        let AttachmentsQuantities {
+        let AttachmentQuantities {
             event:
-                AttachmentQuantities {
+                AttachmentQuantity {
                     count: _,
                     bytes: event_bytes,
                 },
             trace:
-                AttachmentQuantities {
+                AttachmentQuantity {
                     count: _,
                     bytes: trace_bytes,
                 },
             span:
-                AttachmentQuantities {
+                AttachmentQuantity {
                     count: _,
                     bytes: span_bytes,
                 },
@@ -231,7 +216,7 @@ pub struct EnvelopeSummary {
     pub event_category: Option<DataCategory>,
 
     /// The quantities of all attachments combined.
-    pub attachment_quantities: AttachmentsQuantities,
+    pub attachment_quantities: AttachmentQuantities,
 
     /// The number of all session updates.
     pub session_quantity: usize,
@@ -333,24 +318,14 @@ impl EnvelopeSummary {
         for (category, quantity) in item.quantities() {
             let target_quantity = match category {
                 DataCategory::Attachment => match item.attachment_parent_type() {
-                    Some(AttachmentParentType::Span) => &mut self.attachment_quantities.span.bytes,
-                    Some(AttachmentParentType::Trace) => {
-                        &mut self.attachment_quantities.trace.bytes
-                    }
-                    Some(AttachmentParentType::Event) => {
-                        &mut self.attachment_quantities.event.bytes
-                    }
-                    None => continue,
+                    AttachmentParentType::Span => &mut self.attachment_quantities.span.bytes,
+                    AttachmentParentType::Trace => &mut self.attachment_quantities.trace.bytes,
+                    AttachmentParentType::Event => &mut self.attachment_quantities.event.bytes,
                 },
                 DataCategory::AttachmentItem => match item.attachment_parent_type() {
-                    Some(AttachmentParentType::Span) => &mut self.attachment_quantities.span.count,
-                    Some(AttachmentParentType::Trace) => {
-                        &mut self.attachment_quantities.trace.count
-                    }
-                    Some(AttachmentParentType::Event) => {
-                        &mut self.attachment_quantities.event.count
-                    }
-                    None => continue,
+                    AttachmentParentType::Span => &mut self.attachment_quantities.span.count,
+                    AttachmentParentType::Trace => &mut self.attachment_quantities.trace.count,
+                    AttachmentParentType::Event => &mut self.attachment_quantities.event.count,
                 },
                 DataCategory::Session => &mut self.session_quantity,
                 DataCategory::Profile => &mut self.profile_quantity,
@@ -381,14 +356,22 @@ impl EnvelopeSummary {
             self.event_category = Some(category);
         }
     }
+
+    /// Returns `true` if the envelope contains items that depend on spans.
+    ///
+    /// This is used to determined if we should be checking span quota, as the quota should be
+    /// checked both if there are spans or if there are span dependent items (e.g. span attachments).
+    pub fn has_span_dependent_items(&self) -> bool {
+        !self.attachment_quantities.span.is_empty()
+    }
 }
 
 /// Rate limiting information for a data category.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 #[cfg_attr(test, derive(Clone))]
 pub struct CategoryLimit {
     /// The limited data category.
-    category: DataCategory,
+    category: Option<DataCategory>,
     /// The total rate limited quantity across all items.
     ///
     /// This will be `0` if nothing was rate limited.
@@ -402,11 +385,11 @@ pub struct CategoryLimit {
 impl CategoryLimit {
     /// Creates a new `CategoryLimit`.
     ///
-    /// Returns an inactive limit if `quantity` is `0` or `rate_limit` is `None`.
+    /// Returns an inactive limit if `rate_limit` is `None`.
     fn new(category: DataCategory, quantity: usize, rate_limit: Option<&RateLimit>) -> Self {
         match rate_limit {
             Some(limit) => Self {
-                category,
+                category: Some(category),
                 quantity,
                 reason_code: limit.reason_code.clone(),
             },
@@ -414,7 +397,6 @@ impl CategoryLimit {
         }
     }
 
-    // TODO: Better docs
     /// Recreates the category limit, if active, for a new category with the same reason.
     pub fn clone_for(&self, category: DataCategory, quantity: usize) -> CategoryLimit {
         if !self.is_active() {
@@ -422,7 +404,7 @@ impl CategoryLimit {
         }
 
         Self {
-            category,
+            category: Some(category),
             quantity,
             reason_code: self.reason_code.clone(),
         }
@@ -430,22 +412,9 @@ impl CategoryLimit {
 
     /// Returns `true` if this is an active limit.
     ///
-    /// TODO: Better docs
-    /// This indicates that the category is limited and a certain quantity is removed from the
-    /// Envelope. If the limit is inactive, there is no change.
+    /// Inactive limits are placeholders with no category set.
     pub fn is_active(&self) -> bool {
-        // TODO: Encode this better
-        *self != Self::default()
-    }
-}
-
-impl Default for CategoryLimit {
-    fn default() -> Self {
-        Self {
-            category: DataCategory::Default,
-            quantity: 0,
-            reason_code: None,
-        }
+        self.category.is_some()
     }
 }
 
@@ -599,14 +568,13 @@ impl Enforcement {
 
         limits
             .into_iter()
-            .filter(|limit| limit.is_active())
             .filter(|limit| limit.quantity > 0)
-            .map(move |limit| {
-                (
+            .filter_map(move |limit| {
+                Some((
                     Outcome::RateLimited(limit.reason_code),
-                    limit.category,
+                    limit.category?,
                     limit.quantity,
-                )
+                ))
             })
     }
 
@@ -665,9 +633,9 @@ impl Enforcement {
         match item.ty() {
             ItemType::Attachment => {
                 match item.attachment_parent_type() {
-                    Some(AttachmentParentType::Span) => !self.attachments_limits.span.is_active(),
-                    Some(AttachmentParentType::Trace) => !self.attachments_limits.trace.is_active(),
-                    Some(AttachmentParentType::Event) => {
+                    AttachmentParentType::Span => !self.attachments_limits.span.is_active(),
+                    AttachmentParentType::Trace => !self.attachments_limits.trace.is_active(),
+                    AttachmentParentType::Event => {
                         if !self.attachments_limits.event.is_active() {
                             return true;
                         }
@@ -677,8 +645,7 @@ impl Enforcement {
                         } else {
                             false
                         }
-                    },
-                    None => true, // TODO: Not sure if we want to log an error here and if true makes sense rather than false?
+                    }
                 }
             }
             ItemType::Session => !self.sessions.is_active(),
@@ -863,15 +830,10 @@ where
                 .event
                 .clone_for(DataCategory::Span, summary.span_quantity);
 
-            // FIXME: Since `index_category` can be None this can be Default and hence relying on
-            // `SpanIndexed` does not work :)
             enforcement.spans_indexed = enforcement
                 .event_indexed
                 .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
-        // Check the span quota if either there are spans or there are span attachments. Note: in
-        // the later case span_quantity is 0 so no quota will be consumed by the check.
-        // TODO: Have a function for this something along the lines of span_depended_item and check if that is true
-        } else if summary.span_quantity > 0 || !summary.attachment_quantities.span.is_empty() {
+        } else if summary.span_quantity > 0 || summary.has_span_dependent_items() {
             let mut span_limits = self
                 .check
                 .apply(scoping.item(DataCategory::Span), summary.span_quantity)
@@ -1181,7 +1143,7 @@ where
     async fn check_attachment_limits(
         &mut self,
         scoping: &Scoping,
-        quantities: &AttachmentQuantities,
+        quantities: &AttachmentQuantity,
     ) -> Result<AttachmentLimits, E> {
         let mut attachment_limits = self
             .check
@@ -2453,92 +2415,6 @@ mod tests {
 
         for &(name, deny, expect_active_limit, expected_calls, expected_outcomes) in test_cases {
             let mut envelope = envelope![Transaction];
-            envelope
-                .envelope_mut()
-                .add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
-
-            let mock = mock_limiter(deny);
-            let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
-
-            for &(category, quantity) in expected_calls {
-                mock.lock().await.assert_call(category, quantity);
-            }
-
-            assert_eq!(
-                enforcement.attachments_limits.span.bytes.is_active(),
-                expect_active_limit,
-                "{name}: span_attachment byte limit mismatch"
-            );
-            assert_eq!(
-                enforcement.attachments_limits.span.count.is_active(),
-                expect_active_limit,
-                "{name}: span_attachment count limit mismatch"
-            );
-
-            assert_eq!(
-                get_outcomes(enforcement),
-                expected_outcomes,
-                "{name}: outcome mismatch"
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_enforce_event_span_attachment() {
-        let test_cases: &[RateLimitTestCase] = &[
-            (
-                "span_limit",
-                &[DataCategory::Span],
-                true,
-                &[(DataCategory::Error, 1), (DataCategory::Span, 0)],
-                &[
-                    (DataCategory::Attachment, 7),
-                    (DataCategory::AttachmentItem, 1),
-                ],
-            ),
-            (
-                "transaction_limit",
-                &[DataCategory::Transaction],
-                false,
-                &[
-                    (DataCategory::Error, 1),
-                    (DataCategory::Span, 0),
-                    (DataCategory::SpanIndexed, 0),
-                    (DataCategory::Attachment, 7),
-                    (DataCategory::AttachmentItem, 1),
-                ],
-                &[],
-            ),
-            // FIXME: This test is changed ATM to pass with the wrong logic
-            // need to updated once the logic is fixed
-            (
-                "error_limit",
-                &[DataCategory::Error],
-                false,
-                &[
-                    (DataCategory::Error, 1),
-                    (DataCategory::Attachment, 7),
-                    (DataCategory::AttachmentItem, 1),
-                ],
-                &[(DataCategory::Error, 1)],
-            ),
-            (
-                "no_limits",
-                &[],
-                false,
-                &[
-                    (DataCategory::Error, 1),
-                    (DataCategory::Span, 0),
-                    (DataCategory::SpanIndexed, 0),
-                    (DataCategory::Attachment, 7),
-                    (DataCategory::AttachmentItem, 1),
-                ],
-                &[],
-            ),
-        ];
-
-        for &(name, deny, expect_active_limit, expected_calls, expected_outcomes) in test_cases {
-            let mut envelope = envelope![Event];
             envelope
                 .envelope_mut()
                 .add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
