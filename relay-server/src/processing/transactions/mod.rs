@@ -271,42 +271,15 @@ impl Counted for SerializedTransaction {
 /// The type parameter indicates whether metrics were already extracted, which changes how
 /// we count the transaction (total vs indexed).
 #[derive(Debug)]
-pub struct ExpandedTransaction<C> {
+pub struct ExpandedTransaction {
     headers: EnvelopeHeaders,
     event: Annotated<Event>,
     flags: Flags,
     attachments: Items,
     profile: Option<Item>,
-    extracted_spans: ExtractedSpans,
-
-    #[expect(unused, reason = "marker field, only set never read")]
-    category: C,
 }
 
-impl From<ExpandedTransaction<TotalAndIndexed>> for ExpandedTransaction<Indexed> {
-    fn from(value: ExpandedTransaction<TotalAndIndexed>) -> Self {
-        let ExpandedTransaction {
-            headers,
-            event,
-            flags,
-            attachments,
-            profile,
-            extracted_spans,
-            category: _,
-        } = value;
-        Self {
-            headers,
-            event,
-            flags,
-            attachments,
-            profile,
-            extracted_spans,
-            category: Indexed,
-        }
-    }
-}
-
-impl<T> ExpandedTransaction<T> {
+impl ExpandedTransaction {
     fn count_embedded_spans_and_self(&self) -> usize {
         1 + self
             .event
@@ -316,7 +289,7 @@ impl<T> ExpandedTransaction<T> {
     }
 }
 
-impl Counted for ExpandedTransaction<TotalAndIndexed> {
+impl Counted for ExpandedTransaction {
     fn quantities(&self) -> Quantities {
         let Self {
             headers: _,
@@ -324,8 +297,6 @@ impl Counted for ExpandedTransaction<TotalAndIndexed> {
             flags,
             attachments,
             profile,
-            extracted_spans,
-            category: _,
         } = self;
         let mut quantities = smallvec![
             (DataCategory::Transaction, 1),
@@ -334,7 +305,6 @@ impl Counted for ExpandedTransaction<TotalAndIndexed> {
 
         // For now, span extraction happens after metrics extraction:
         debug_assert!(!flags.spans_extracted);
-        debug_assert!(extracted_spans.0.is_empty());
 
         let span_count = self.count_embedded_spans_and_self();
         quantities.extend([
@@ -349,38 +319,7 @@ impl Counted for ExpandedTransaction<TotalAndIndexed> {
     }
 }
 
-impl Counted for ExpandedTransaction<Indexed> {
-    fn quantities(&self) -> Quantities {
-        let Self {
-            headers: _,
-            event,
-            flags,
-            attachments,
-            profile,
-            extracted_spans,
-            category: _,
-        } = self;
-        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1)];
-        if !flags.spans_extracted {
-            // TODO: encode this flag into the type and remove `extracted_spans` from the "BeforeSpanExtraction" type.
-            debug_assert!(extracted_spans.0.is_empty());
-            let span_count = self.count_embedded_spans_and_self();
-            quantities.push((DataCategory::SpanIndexed, span_count));
-        }
-
-        quantities.extend(attachments.quantities());
-        quantities.extend(profile.quantities());
-
-        if !extracted_spans.0.is_empty() {
-            debug_assert!(flags.spans_extracted);
-            quantities.extend(extracted_spans.quantities());
-        }
-
-        quantities
-    }
-}
-
-impl RateLimited for Managed<ExpandedTransaction<TotalAndIndexed>> {
+impl RateLimited for Managed<ExpandedTransaction> {
     type Error = Error;
 
     async fn enforce<R>(
@@ -405,8 +344,6 @@ impl RateLimited for Managed<ExpandedTransaction<TotalAndIndexed>> {
             flags,
             attachments,
             profile,
-            extracted_spans,
-            category: _,
         } = self.as_ref();
 
         // If there is a transaction limit, drop everything.

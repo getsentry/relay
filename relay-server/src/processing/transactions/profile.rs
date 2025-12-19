@@ -50,7 +50,7 @@ impl CountRateLimited for Managed<ProfileWithHeaders> {
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
 pub fn filter(
-    work: &mut ExpandedTransaction<TotalAndIndexed>,
+    work: &mut ExpandedTransaction,
     record_keeper: &mut RecordKeeper,
     ctx: Context,
     project_id: ProjectId,

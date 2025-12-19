@@ -36,7 +36,7 @@ use crate::utils::SamplingResult;
 /// Parses the event payload.
 pub fn expand(
     work: Managed<SerializedTransaction>,
-) -> Result<Managed<ExpandedTransaction<TotalAndIndexed>>, Rejected<Error>> {
+) -> Result<Managed<ExpandedTransaction>, Rejected<Error>> {
     work.try_map(|work, record_keeper| {
         let SerializedTransaction {
             headers,
@@ -77,8 +77,6 @@ pub fn expand(
             flags,
             attachments,
             profile,
-            extracted_spans: ExtractedSpans(vec![]),
-            category: TotalAndIndexed,
         })
     })
 }
@@ -94,7 +92,7 @@ fn validate_flags(flags: &Flags) {
 
 /// Validates and massages the data.
 pub fn prepare_data(
-    work: &mut Managed<ExpandedTransaction<TotalAndIndexed>>,
+    work: &mut Managed<ExpandedTransaction>,
     ctx: &mut Context<'_>,
     metrics: &mut Metrics,
 ) -> Result<(), Rejected<Error>> {
@@ -120,10 +118,10 @@ pub fn prepare_data(
 
 /// Normalizes the transaction event.
 pub fn normalize(
-    work: Managed<ExpandedTransaction<TotalAndIndexed>>,
+    work: Managed<ExpandedTransaction>,
     ctx: Context<'_>,
     geoip_lookup: &GeoIpLookup,
-) -> Result<Managed<ExpandedTransaction<TotalAndIndexed>>, Rejected<Error>> {
+) -> Result<Managed<ExpandedTransaction>, Rejected<Error>> {
     let project_id = work.scoping().project_id;
     work.try_map(|mut work, _| {
         work.flags.fully_normalized = utils::event::normalize(
@@ -141,7 +139,7 @@ pub fn normalize(
 
 /// Rejects the entire unit of work if one of the project's filters matches.
 pub fn run_inbound_filters(
-    work: &Managed<ExpandedTransaction<TotalAndIndexed>>,
+    work: &Managed<ExpandedTransaction>,
     ctx: Context<'_>,
 ) -> Result<FiltersStatus, Rejected<Error>> {
     utils::event::filter(&work.headers, &work.event, &ctx)
@@ -152,7 +150,7 @@ pub fn run_inbound_filters(
 
 /// Computes the dynamic sampling decision for the unit of work, but does not perform action on data.
 pub async fn run_dynamic_sampling(
-    work: &Managed<ExpandedTransaction<TotalAndIndexed>>,
+    work: &Managed<ExpandedTransaction>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
     quotas_client: Option<&AsyncRedisClient>,
@@ -167,7 +165,7 @@ pub async fn run_dynamic_sampling(
 }
 
 async fn do_run_dynamic_sampling(
-    work: &Managed<ExpandedTransaction<TotalAndIndexed>>,
+    work: &Managed<ExpandedTransaction>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
     quotas_client: Option<&AsyncRedisClient>,
@@ -193,10 +191,10 @@ async fn do_run_dynamic_sampling(
 
 /// Processes the profile attached to the transaction.
 pub fn process_profile(
-    work: Managed<ExpandedTransaction<TotalAndIndexed>>,
+    work: Managed<ExpandedTransaction>,
     ctx: Context<'_>,
     sampling_decision: SamplingDecision,
-) -> Managed<ExpandedTransaction<TotalAndIndexed>> {
+) -> Managed<ExpandedTransaction> {
     work.map(|mut work, record_keeper| {
         let mut profile_id = None;
         if let Some(profile) = work.profile.as_mut() {
@@ -221,14 +219,9 @@ pub fn process_profile(
     })
 }
 
-type IndexedWithMetrics = (
-    Managed<ExpandedTransaction<Indexed>>,
-    Managed<ExtractedMetrics>,
-);
-
 /// Extracts transaction & span metrics from the payload.
 pub fn extract_metrics(
-    work: Managed<ExpandedTransaction<TotalAndIndexed>>,
+    work: Managed<ExpandedTransaction>,
     ctx: Context<'_>,
     drop_with_outcome: Option<Outcome>,
 ) -> Result<Managed<WithMetrics>, Rejected<Error>> {
@@ -272,8 +265,6 @@ pub fn extract_metrics(
                     flags,
                     attachments,
                     profile,
-                    extracted_spans,
-                    category,
                 } = work;
                 SampledPayload::Keep {
                     payload: Payload {
@@ -281,7 +272,7 @@ pub fn extract_metrics(
                         flags,
                         attachments,
                         profile,
-                        extracted_spans: extracted_spans.0,
+                        extracted_spans: vec![],
                     },
                 }
             }
