@@ -46,7 +46,7 @@ def test_relay_with_full_normalization(mini_sentry, relay, config_full_normaliza
     )
 
     relay.send_event(project_id, input)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     if config_full_normalization:
         assert "fully_normalized" in envelope.items[0].headers
@@ -201,7 +201,7 @@ def test_relay_doesnt_normalize_unextracted_unreal_event(
     )
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
     assert "fully_normalized" not in envelope.items[0].headers
 
@@ -373,7 +373,7 @@ def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
 
     relay.send_event(project_id, {"platform": "javascript"})
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event["user"]["ip_address"] is None
     assert event["user"]["id"] == "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
@@ -395,7 +395,7 @@ def test_ip_not_extracted_with_setting(mini_sentry, relay, scrub_ip_addresses, u
 
     relay.send_event(project_id, {"user": {"ip_address": "{{auto}}"}})
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) is None
     assert event.get("user", {}).get("id", None) == user_id
@@ -424,7 +424,7 @@ def test_geo_inferred_without_user_ip(
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) == expected_ip
     # Geo is always present
@@ -457,7 +457,7 @@ def test_geo_is_not_overwritten(mini_sentry, relay, scrub_ip_addresses, expected
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) == expected_ip
     # Geo is always present
@@ -495,7 +495,7 @@ def test_infer_ip_setting_javascript(
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) == expected
 
@@ -531,7 +531,7 @@ def test_auto_infer_setting_cocoa(
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) == expected
 
@@ -564,7 +564,7 @@ def test_auto_infer_settings(mini_sentry, relay, user_ip_address, infer_ip, expe
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) == expected
 
@@ -600,7 +600,7 @@ def test_auto_infer_setting_objective_c(
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) == expected
 
@@ -635,7 +635,7 @@ def test_auto_infer_without_user(mini_sentry, relay, platform, infer_ip, expecte
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) == expected
 
@@ -662,7 +662,7 @@ def test_auto_infer_remote_addr_env(mini_sentry, relay, infer_ip, expected):
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) == expected
 
@@ -693,6 +693,6 @@ def test_auto_infer_invalid_setting(mini_sentry, relay):
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) is None

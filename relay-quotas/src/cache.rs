@@ -71,7 +71,14 @@ where
             NonZeroU64::new(max_over_spend_divisor as u64).unwrap_or(NonZeroU64::MIN);
 
         Self {
-            cache: Default::default(),
+            cache: papaya::HashMap::builder()
+                // `ahash` for a faster hasher
+                .hasher(ahash::RandomState::new())
+                // Blocking resizes help with iteration, which we need for cleanups,
+                // as well as our workload seems to match the description of `Blocking`
+                // very well.
+                .resize_mode(papaya::ResizeMode::Blocking)
+                .build(),
             max_over_spend_divisor,
             limit_max_divisor: None,
             vacuum_interval: Duration::from_secs(30),

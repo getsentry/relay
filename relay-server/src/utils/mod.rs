@@ -13,6 +13,7 @@ mod statsd;
 mod thread_pool;
 
 mod feature;
+mod forward;
 mod memory;
 #[cfg(feature = "processing")]
 mod native;
@@ -22,6 +23,8 @@ mod unreal;
 
 pub use self::api::*;
 pub use self::dynamic_sampling::*;
+pub use self::feature::*;
+pub use self::forward::*;
 pub use self::memory::*;
 pub use self::multipart::*;
 #[cfg(feature = "processing")]
@@ -39,4 +42,3 @@ pub use self::statsd::*;
 pub use self::thread_pool::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;
-pub use feature::*;

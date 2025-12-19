@@ -4,7 +4,6 @@ use std::ops::ControlFlow;
 use chrono::Utc;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::Event;
-use relay_protocol::Annotated;
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
@@ -12,10 +11,10 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use crate::processing::Context;
 use crate::utils::SamplingResult;
 
-/// Computes the sampling decision on the incoming event
+/// Computes the sampling decision on an incoming event
 pub async fn run(
     dsc: Option<&DynamicSamplingContext>,
-    event: &Annotated<Event>,
+    event: Option<&Event>,
     ctx: &Context<'_>,
     reservoir: Option<&ReservoirEvaluator<'_>>,
 ) -> SamplingResult {
@@ -34,7 +33,7 @@ pub async fn run(
         ctx.config.processing_enabled(),
         reservoir,
         sampling_config,
-        event.value(),
+        event,
         root_config,
         dsc,
     )
@@ -111,7 +110,7 @@ mod tests {
     use relay_base_schema::events::EventType;
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::{EventId, LenientString};
-    use relay_protocol::RuleCondition;
+    use relay_protocol::{Annotated, RuleCondition};
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };

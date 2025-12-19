@@ -10,7 +10,7 @@ def test_ingest_path(mini_sentry, relay, relay_with_processing, latest_relay_ver
     project_config["config"]["trustedRelays"] = list(external_keys)
 
     relay.send_event(project_id)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["ingest_path"] == [
         {"version": latest_relay_version, "public_key": key} for key in external_keys
     ]

@@ -491,6 +491,9 @@ pub enum DiscardReason {
     /// (Relay) A span attachment that has invalid item headers or attachment meta-data.
     InvalidSpanAttachment,
 
+    /// (Relay) A trace attachment that has invalid item headers or attachment meta-data.
+    InvalidTraceAttachment,
+
     /// (Relay) A required feature is not enabled.
     FeatureDisabled(Feature),
 
@@ -560,6 +563,7 @@ impl DiscardReason {
             DiscardReason::InvalidTraceMetric => "invalid_trace_metric",
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::InvalidSpanAttachment => "invalid_span_attachment",
+            DiscardReason::InvalidTraceAttachment => "invalid_trace_attachment",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
             DiscardReason::TransactionAttachment => "transaction_attachment",
             DiscardReason::InvalidCheckIn => "invalid_check_in",

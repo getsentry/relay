@@ -871,6 +871,10 @@ pub struct Http {
     ///
     /// This option does not have any effect on processing mode.
     pub global_metrics: bool,
+    /// Controls whether the forward endpoint is enabled.
+    ///
+    /// The forward endpoint forwards unknown API requests to the upstream.
+    pub forward: bool,
 }
 
 impl Default for Http {
@@ -886,6 +890,7 @@ impl Default for Http {
             project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
+            forward: true,
         }
     }
 }
@@ -919,14 +924,9 @@ fn spool_disk_usage_refresh_frequency_ms() -> u64 {
     100
 }
 
-/// Default bounded buffer size for handling backpressure.
-fn spool_max_backpressure_envelopes() -> usize {
-    500
-}
-
 /// Default max memory usage for unspooling.
 fn spool_max_backpressure_memory_percent() -> f32 {
-    0.9
+    0.8
 }
 
 /// Default number of partitions for the buffer.
@@ -972,11 +972,6 @@ pub struct EnvelopeSpool {
     /// Defaults to 100ms.
     #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
     pub disk_usage_refresh_frequency_ms: u64,
-    /// The amount of envelopes that the envelope buffer can push to its output queue.
-    ///
-    /// Defaults to 500.
-    #[serde(default = "spool_max_backpressure_envelopes")]
-    pub max_backpressure_envelopes: usize,
     /// The relative memory usage above which the buffer service will stop dequeueing envelopes.
     ///
     /// Only applies when [`Self::path`] is set.
@@ -1026,7 +1021,6 @@ impl Default for EnvelopeSpool {
             batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
-            max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
         }
@@ -2085,6 +2079,11 @@ impl Config {
         self.values.http.global_metrics
     }
 
+    /// Returns `true` if Relay supports forwarding unknown API requests.
+    pub fn http_forward(&self) -> bool {
+        self.values.http.forward
+    }
+
     /// Returns whether this Relay should emit outcomes.
     ///
     /// This is `true` either if `outcomes.emit_outcomes` is explicitly enabled, or if this Relay is
@@ -2320,11 +2319,6 @@ impl Config {
     /// Returns the refresh frequency for disk usage monitoring as a [`Duration`] object.
     pub fn spool_disk_usage_refresh_frequency_ms(&self) -> Duration {
         Duration::from_millis(self.values.spool.envelopes.disk_usage_refresh_frequency_ms)
-    }
-
-    /// Returns the maximum number of envelopes that can be put in the bounded buffer.
-    pub fn spool_max_backpressure_envelopes(&self) -> usize {
-        self.values.spool.envelopes.max_backpressure_envelopes
     }
 
     /// Returns the relative memory usage up to which the disk buffer will unspool envelopes.

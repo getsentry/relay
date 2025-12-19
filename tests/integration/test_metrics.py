@@ -107,7 +107,7 @@ def test_metrics_proxy_mode_buckets(mini_sentry, relay):
     }
     relay.send_metrics_buckets(project_id, [bucket])
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     payload = json.loads(envelope.items[0].payload.get_bytes())[0]
     assert payload["name"] == bucket_name
 
@@ -130,7 +130,7 @@ def test_metrics_proxy_mode_statsd(mini_sentry, relay):
 
     metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{now}"
     relay.send_metrics(project_id, metrics_payload)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
     item = envelope.items[0]
     assert item.type == "statsd"
@@ -149,7 +149,7 @@ def test_metrics(mini_sentry, relay):
     )
     relay.send_metrics(project_id, metrics_payload)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
 
     metrics_item = envelope.items[0]
@@ -186,7 +186,7 @@ def test_metrics_backdated(mini_sentry, relay):
     metrics_payload = f"transactions/foo:42|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
 
     metrics_item = envelope.items[0]
@@ -249,7 +249,7 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
     metrics_payload = "transactions/foo:42|c|T999994711"
     relay.send_metrics(project_id, metrics_payload)
 
-    mini_sentry.get_captured_event()
+    mini_sentry.get_captured_envelope()
 
     headers, _ = mini_sentry.request_log[-1]
     if expected_header is None:
@@ -286,9 +286,9 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
     relay.send_metrics(project_id, metrics_payload)
 
     for _ in range(expected_events):
-        mini_sentry.get_captured_event()
+        mini_sentry.get_captured_envelope()
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize("ns", [None, "custom", "transactions"])
@@ -384,7 +384,7 @@ def test_global_metrics_no_config(mini_sentry, relay):
         {"buckets": {public_key: metrics}},
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     item = envelope.items[0]
     assert item.headers["type"] == "metric_buckets"
     metrics_batch = json.loads(item.payload.get_bytes())
@@ -1004,13 +1004,13 @@ def test_transaction_metrics_extraction_external_relays(
     external.send_transaction(project_id, tx, item_headers, trace_info)
 
     # Client reports.
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
 
     if expect_metrics_extraction:
-        metrics_envelope = mini_sentry.get_captured_event()
+        metrics_envelope = mini_sentry.get_captured_envelope()
         assert len(metrics_envelope.items) == 1
 
         payload = json.loads(metrics_envelope.items[0].get_bytes().decode())
@@ -1034,7 +1034,7 @@ def test_transaction_metrics_extraction_external_relays(
         assert not usage_metric.get("tags")  # empty or missing
         assert usage_metric["value"] == 1.0
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_transaction_metrics_extraction_processing_relays(
@@ -1157,7 +1157,7 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
         {"reason": "release-version", "category": "transaction_indexed", "quantity": 1},
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_transaction_name_too_long(
@@ -1241,7 +1241,7 @@ def test_graceful_shutdown(mini_sentry, relay):
 
     received_metrics = list()
     for _ in range(2):
-        envelope = mini_sentry.get_captured_event()
+        envelope = mini_sentry.get_captured_envelope()
         assert len(envelope.items) == 1
         metrics_item = envelope.items[0]
         assert metrics_item.type == "metric_buckets"
@@ -1368,12 +1368,12 @@ def test_generic_metric_extraction(mini_sentry, relay):
     relay.send_transaction(PROJECT_ID, transaction)
 
     # Skip client reports
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert envelope.get_event() is None
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert envelope.get_event() is None
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     for item in envelope.items:
         # Transaction items should be sampled and not among the envelope items.
         assert item.headers.get("type") != "transaction"
@@ -1480,7 +1480,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
         # Processing Relays extract metrics even on broken global filters.
         assert metrics_consumer.get_metrics(timeout=2)
     else:
-        assert mini_sentry.get_captured_event() is not None
+        assert mini_sentry.get_captured_envelope() is not None
         assert mini_sentry.captured_metrics.empty()
 
 
@@ -1540,7 +1540,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
         # Processing Relays extract metrics even on unsupported project filters.
         assert metrics_consumer.get_metrics(timeout=2)
     else:
-        assert mini_sentry.get_captured_event()
+        assert mini_sentry.get_captured_envelope()
         assert mini_sentry.captured_metrics.empty()
 
 
@@ -1677,7 +1677,7 @@ def test_histogram_outliers(mini_sentry, relay):
 
     tags = {}
     for _ in range(3):
-        envelope = mini_sentry.get_captured_event()
+        envelope = mini_sentry.get_captured_envelope()
         for item in envelope:
             if item.type == "metric_buckets":
                 buckets = json.loads(item.payload.get_bytes())
@@ -1818,4 +1818,4 @@ def test_profiles_metrics(mini_sentry, relay):
 
     relay.send_metrics(project_id, metrics_payload)
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()

@@ -235,7 +235,7 @@ def test_unparsable_project_config(mini_sentry, relay):
 
     # Event is not propagated, relay logs an error:
     relay.send_event(project_key)
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
     # Wait a bit before fixing the project config to make sure Relay had time to fetch the broken one.
     time.sleep(1)
@@ -261,14 +261,14 @@ def test_unparsable_project_config(mini_sentry, relay):
 
     # We should have the previous events through now.
     for _ in range(4):
-        event = mini_sentry.get_captured_event().get_event()
+        event = mini_sentry.get_captured_envelope().get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}
 
     # This must succeed, since we will re-request the project state update at this point.
     relay.send_event(project_key)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_cached_project_config(mini_sentry, relay):
@@ -284,11 +284,11 @@ def test_cached_project_config(mini_sentry, relay):
 
     # Once the event is sent the project state is requested and cached.
     relay.send_event(project_key)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
     # send a second event
     relay.send_event(project_key)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
     body = {"publicKeys": [public_key]}

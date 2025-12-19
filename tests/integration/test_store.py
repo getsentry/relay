@@ -25,7 +25,7 @@ def test_store(mini_sentry, relay_chain):
     mini_sentry.add_basic_project_config(project_id)
 
     relay.send_event(project_id)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
@@ -46,10 +46,10 @@ def test_store_external_relay(mini_sentry, relay, allowed):
     relay.send_event(42)
 
     if allowed:
-        event = mini_sentry.get_captured_event().get_event()
+        event = mini_sentry.get_captured_envelope().get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}
     else:
-        pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_event(timeout=1))
+        pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_envelope(timeout=1))
 
 
 def test_legacy_store(mini_sentry, relay_chain):
@@ -57,12 +57,12 @@ def test_legacy_store(mini_sentry, relay_chain):
     mini_sentry.add_basic_project_config(42)
 
     relay.send_event(42, legacy=True)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
     relay.send_event(42, legacy=True)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
@@ -107,7 +107,7 @@ def test_store_node_base64(mini_sentry, relay_chain):
     )  # noqa
     relay.send_event(project_id, payload)
 
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
 
     assert event["logentry"] == {"formatted": "Error: yo mark"}
 
@@ -119,7 +119,7 @@ def test_store_pii_stripping(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
     relay.send_event(project_id, {"message": "hi", "extra": {"foo": "test@mail.org"}})
 
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
 
     # Email should be stripped:
     assert event["extra"]["foo"] == "[email]"
@@ -158,7 +158,7 @@ def test_store_rate_limit(mini_sentry, relay):
         relay.send_event(project_id, {"message": "invalid"})
 
     # Generated outcome has reason code 'generic':
-    outcome_envelope = mini_sentry.get_captured_event()
+    outcome_envelope = mini_sentry.get_captured_envelope()
     outcome = json.loads(outcome_envelope.items[0].payload.bytes)
     assert outcome["rate_limited_events"] == [
         {"reason": "generic", "category": "error", "quantity": 1}
@@ -168,7 +168,7 @@ def test_store_rate_limit(mini_sentry, relay):
     sleep(2)
     relay.send_event(project_id, {"message": "correct"})
 
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "correct"}
 
 
@@ -187,7 +187,7 @@ def test_store_proxy_config(mini_sentry, relay):
 
     raw_payload = {"message": "Hello, World!"}
     relay.send_event(project_id, payload=raw_payload)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event == raw_payload
 
 
@@ -201,7 +201,7 @@ def test_store_with_low_memory(mini_sentry, relay):
     try:
         with pytest.raises(HTTPError):
             relay.send_event(project_id, {"message": "pls ignore"})
-        pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_event(timeout=1))
+        pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_envelope(timeout=1))
 
         found_queue_error = False
         for _, error in mini_sentry.current_test_failures():
@@ -924,7 +924,7 @@ def test_events_buffered_before_auth(relay, mini_sentry):
         mini_sentry.app.view_functions["get_challenge"] = old_handler
 
         # now test that we still get the message sent at some point in time (the event is retried)
-        event = mini_sentry.get_captured_event().get_event()
+        event = mini_sentry.get_captured_envelope().get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}
     finally:
         # Relay reports authentication errors, which is fine.
@@ -962,7 +962,7 @@ def test_events_are_retried(relay, mini_sentry):
     mini_sentry.app.view_functions["store_event"] = old_handler
 
     # now test that we still get the message sent at some point in time (the event is retried)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
@@ -1039,7 +1039,7 @@ def test_no_auth(relay, mini_sentry):
     relay.send_event(project_id, raw_payload)
 
     # sanity test that we got the event we sent
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event == raw_payload
     # verify that no registration took place (the register flag is not set)
     assert not has_registered[0]
@@ -1147,7 +1147,7 @@ def test_re_auth_failure(relay, mini_sentry):
     # send a message, it should not come through while the authentication has failed
     relay.send_event(project_id, {"message": "123"})
     # sentry should have received nothing
-    pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_event(timeout=1))
+    pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_envelope(timeout=1))
 
     # set back authentication to ok
     registration_should_succeed = True
@@ -1166,7 +1166,7 @@ def test_re_auth_failure(relay, mini_sentry):
     # now we should be re-authenticated and we should have the event
 
     # sanity test that we got the event we sent
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "123"}
 
 
@@ -1278,7 +1278,7 @@ def test_buffer_events_during_outage(relay, mini_sentry):
     is_network_error = False
 
     # sanity test that we got the event we sent
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "123"}
 
 
@@ -1318,7 +1318,7 @@ def test_store_content_encodings_chained(mini_sentry, relay, encoding):
     mini_sentry.add_basic_project_config(project_id)
 
     relay.send_event(project_id)
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
@@ -1343,7 +1343,7 @@ def test_store_project_move(mini_sentry, relay):
     }
 
     relay.send_event(99, headers=headers)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     # NB: mini_sentry errors on all other URLs than /api/42/store/. All that's left is checking the
     # DSN that is transmitted as part of the Envelope headers.
@@ -1365,7 +1365,7 @@ def test_invalid_project_id(mini_sentry, relay):
     }
 
     relay.send_event(99, headers=headers)
-    pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_event(timeout=1))
+    pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_envelope(timeout=1))
 
 
 def test_kafka_ssl(relay_with_processing):

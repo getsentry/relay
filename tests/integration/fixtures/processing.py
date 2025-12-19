@@ -4,6 +4,7 @@ from google.protobuf.json_format import MessageToDict
 import msgpack
 import uuid
 
+from objectstore_client import Client, Usecase
 import pytest
 import os
 import confluent_kafka as kafka
@@ -128,6 +129,16 @@ def relay_with_playstation(mini_sentry, relay):
     return relay
 
 
+@pytest.fixture
+def objectstore():
+    def inner(usecase: str, project_id: int):
+        return Client("http://127.0.0.1:8888/").session(
+            Usecase(usecase), org=1, project=project_id
+        )
+
+    return inner
+
+
 def kafka_producer(options):
     # look for the servers (it is the only config we are interested in)
     servers = [
@@ -195,11 +206,11 @@ class ConsumerBase:
         self.consumer = consumer
         self.test_producer = kafka_producer(options)
         self.topic_name = topic_name
-        self.timeout = timeout or 5
+        self.timeout = timeout or 10
 
         # Connect to the topic and poll a first test message.
         # First poll takes forever, the next ones are fast.
-        self.assert_empty(timeout=5)
+        self.assert_empty()
 
     def poll(self, timeout=None):
         if timeout is None:
@@ -302,7 +313,7 @@ class OutcomesConsumer(ConsumerBase):
         key_id=None,
         categories=None,
         quantity=None,
-        timeout=1,
+        timeout=None,
         ignore_other=False,
     ):
         expected_categories = (

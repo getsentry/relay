@@ -3,7 +3,6 @@ import os
 import msgpack
 
 import pytest
-from objectstore_client import Client, Usecase
 from requests import HTTPError
 from uuid import UUID
 
@@ -54,7 +53,7 @@ def test_minidump(mini_sentry, relay):
     event_id = UUID(body)
     assert str(event_id) == body
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert envelope
 
     # the event id from the response should match the envelope
@@ -90,7 +89,7 @@ def test_minidump_attachments(mini_sentry, relay):
     ]
 
     relay.send_minidump(project_id=project_id, files=attachments)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert envelope
 
     # Check that the envelope assumes the given event id
@@ -145,7 +144,7 @@ def test_minidump_multipart(mini_sentry, relay):
     ]
 
     relay.send_minidump(project_id=project_id, files=attachments, params=params)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -174,7 +173,7 @@ def test_minidump_sentry_json(mini_sentry, relay):
     ]
 
     relay.send_minidump(project_id=project_id, files=attachments, params=params)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -202,7 +201,7 @@ def test_minidump_sentry_namespace_json(mini_sentry, relay):
     params = [("sentry", event_json), ("sentry___global", namespace_json)]
 
     relay.send_minidump(project_id=project_id, files=attachments, params=params)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -234,7 +233,7 @@ def test_minidump_sentry_json_chunked(mini_sentry, relay):
     response = relay.send_minidump(
         project_id=project_id, files=attachments, params=params
     )
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -265,7 +264,7 @@ def test_minidump_invalid_json(mini_sentry, relay):
     ]
 
     relay.send_minidump(project_id=project_id, files=attachments, params=params)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -314,7 +313,7 @@ def test_minidump_raw(mini_sentry, relay, content_type):
         data="MDMP content",
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -336,7 +335,7 @@ def test_minidump_nested_formdata(mini_sentry, relay, test_file_name):
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", dmp_file)]
 
     relay.send_minidump(project_id=project_id, files=attachments)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope, assert_payload=False)
@@ -381,6 +380,7 @@ def test_minidump_with_processing(
     rate_limit,
     minidump_filename,
     use_objectstore,
+    objectstore,
 ):
     dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
     with open(dmp_path, "rb") as f:
@@ -481,10 +481,8 @@ def test_minidump_with_processing(
         (attachment,) = message["attachments"]
 
         objectstore_key = attachment.pop("stored_id")
-        objectstore_session = Client("http://127.0.0.1:8888/").session(
-            Usecase("attachments"), org=1, project=project_id
-        )
-        assert objectstore_session.get(objectstore_key).payload.read() == content
+        objectstore = objectstore("attachments", project_id)
+        assert objectstore.get(objectstore_key).payload.read() == content
 
         assert attachment.pop("id")
         assert attachment == {

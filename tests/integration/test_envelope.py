@@ -15,7 +15,7 @@ def test_envelope(mini_sentry, relay_chain):
         project_id, envelope, headers={"Accept-Encoding": "gzip"}
     )
 
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
     # The response should not be compressed
     assert "content-encoding" not in response.headers
@@ -51,9 +51,9 @@ Hello World
         sock.close()  # Close the connection
 
     for _ in range(num_iterations):
-        envelope = mini_sentry.get_captured_event()
+        envelope = mini_sentry.get_captured_envelope()
         assert envelope
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_envelope_empty(mini_sentry, relay):
@@ -66,7 +66,7 @@ def test_envelope_empty(mini_sentry, relay):
 
     # there is nothing sent to the upstream
     with pytest.raises(queue.Empty):
-        mini_sentry.get_captured_event(timeout=1)
+        mini_sentry.get_captured_envelope(timeout=1)
 
 
 def test_envelope_without_header(mini_sentry, relay):
@@ -82,7 +82,7 @@ def test_envelope_without_header(mini_sentry, relay):
         headers={"X-Sentry-Auth": ""},  # Empty auth header is ignored by Relay
     )
 
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
@@ -101,8 +101,8 @@ def test_unknown_item(mini_sentry, relay):
     relay.send_envelope(PROJECT_ID, envelope)
 
     envelopes = [  # non-event items are split into separate envelopes, so fetch 2x here
-        mini_sentry.get_captured_event(),
-        mini_sentry.get_captured_event(),
+        mini_sentry.get_captured_envelope(),
+        mini_sentry.get_captured_envelope(),
     ]
 
     types = {
@@ -129,11 +129,11 @@ def test_drop_unknown_item(mini_sentry, relay):
     envelope.add_item(attachment)
     relay.send_envelope(PROJECT_ID, envelope)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
     assert envelope.items[0].type == "attachment"
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def generate_transaction_item():
@@ -217,7 +217,7 @@ def test_empty_measurement_interface(mini_sentry, relay_chain):
     envelope.add_transaction(transaction_item)
     relay.send_envelope(42, envelope)
 
-    event = mini_sentry.get_captured_event().get_transaction_event()
+    event = mini_sentry.get_captured_envelope().get_transaction_event()
 
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "measurements" not in event, event
@@ -507,7 +507,7 @@ def test_sample_rate_propagates_across_orgs(
     envelope.add_transaction(transaction_item)
     relay.send_envelope(downstream_project_id, envelope)
 
-    dsc = mini_sentry.get_captured_event().headers["trace"]
+    dsc = mini_sentry.get_captured_envelope().headers["trace"]
 
     # Because the organization IDs mismatch, the DSC should be regenerated
     assert dsc["public_key"] == downstream_public_key

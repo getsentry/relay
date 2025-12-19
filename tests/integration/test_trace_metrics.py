@@ -303,7 +303,7 @@ def test_trace_metric_size_limits(
     )
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.get_captured_event() == only_items("trace_metric")
+    assert mini_sentry.get_captured_envelope() == only_items("trace_metric")
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": 33,

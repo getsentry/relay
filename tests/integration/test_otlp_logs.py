@@ -366,7 +366,7 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
 
     relay.send_otel_logs(project_id, json=otel_logs_payload)
 
-    assert mini_sentry.get_captured_event() == only_items("log")
+    assert mini_sentry.get_captured_envelope() == only_items("log")
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": DataCategory.LOG_ITEM,

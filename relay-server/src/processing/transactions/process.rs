@@ -186,7 +186,13 @@ async fn do_run_dynamic_sampling(
     if let Some(quotas_client) = quotas_client {
         reservoir.set_redis(work.scoping().organization_id, quotas_client);
     }
-    utils::dynamic_sampling::run(work.headers.dsc(), &work.event, &ctx, Some(&reservoir)).await
+    utils::dynamic_sampling::run(
+        work.headers.dsc(),
+        work.event.value(),
+        &ctx,
+        Some(&reservoir),
+    )
+    .await
 }
 
 /// Processes the profile attached to the transaction.

@@ -27,7 +27,6 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::{BrowserContext, Event, EventId, IpAddr, Span, SpanData};
-use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Value};
@@ -51,7 +50,7 @@ pub async fn process(
             // once for all spans in the envelope.
             processing::utils::dynamic_sampling::run(
                 managed_envelope.envelope().headers().dsc(),
-                event,
+                event.value(),
                 &ctx,
                 None,
             )
@@ -185,22 +184,10 @@ pub async fn process(
         match processing::transactions::spans::validate(&mut annotated_span) {
             Ok(res) => res,
             Err(err) => {
-                relay_log::with_scope(
-                    |scope| {
-                        scope.add_attachment(Attachment {
-                            buffer: annotated_span.to_json().unwrap_or_default().into(),
-                            filename: "span.json".to_owned(),
-                            content_type: Some("application/json".to_owned()),
-                            ty: Some(AttachmentType::Attachment),
-                        })
-                    },
-                    || {
-                        relay_log::error!(
-                            error = &err as &dyn Error,
-                            source = "standalone",
-                            "invalid span"
-                        )
-                    },
+                relay_log::debug!(
+                    error = &err as &dyn Error,
+                    source = "standalone",
+                    "invalid span"
                 );
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidSpan));
             }

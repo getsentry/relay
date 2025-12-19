@@ -210,7 +210,10 @@ pub fn process_user_reports<Group>(managed_envelope: &mut TypedEnvelope<Group>) 
         let report = match serde_json::from_slice::<UserReport>(payload) {
             Ok(report) => report,
             Err(error) => {
-                relay_log::error!(error = &error as &dyn Error, "failed to store user report");
+                relay_log::debug!(
+                    error = &error as &dyn Error,
+                    "failed to deserialize user report"
+                );
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
             }
         };

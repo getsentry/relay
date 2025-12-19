@@ -51,6 +51,7 @@ use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
+use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
 use crate::processing::utils::event::{
@@ -242,6 +243,8 @@ pub enum ProcessingGroup {
     Metrics,
     /// ProfileChunk.
     ProfileChunk,
+    /// V2 attachments without span / log association.
+    TraceAttachment,
     /// Unknown item types will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
     ForwardUnknown,
@@ -284,12 +287,14 @@ impl ProcessingGroup {
 
         let span_v2_items = envelope.take_items_by(|item| {
             let exp_feature = project_info.has_feature(Feature::SpanV2ExperimentalProcessing);
-            let is_supported_integration = matches!(
-                item.integration(),
-                Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
-            );
+            let is_supported_integration = {
+                matches!(
+                    item.integration(),
+                    Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
+                )
+            };
             let is_span = matches!(item.ty(), &ItemType::Span);
-            let is_span_attachment = item.is_attachment_v2();
+            let is_span_attachment = item.is_span_attachment();
 
             ItemContainer::<SpanV2>::is_container(item)
                 || (exp_feature && is_span)
@@ -367,6 +372,14 @@ impl ProcessingGroup {
             grouped_envelopes.push((
                 ProcessingGroup::ProfileChunk,
                 Envelope::from_parts(headers.clone(), profile_chunk_items),
+            ))
+        }
+
+        let trace_attachment_items = envelope.take_items_by(Item::is_trace_attachment);
+        if !trace_attachment_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::TraceAttachment,
+                Envelope::from_parts(headers.clone(), trace_attachment_items),
             ))
         }
 
@@ -456,6 +469,7 @@ impl ProcessingGroup {
             ProcessingGroup::SpanV2 => "span_v2",
             ProcessingGroup::Metrics => "metrics",
             ProcessingGroup::ProfileChunk => "profile_chunk",
+            ProcessingGroup::TraceAttachment => "trace_attachment",
             ProcessingGroup::ForwardUnknown => "forward_unknown",
             ProcessingGroup::Ungrouped => "ungrouped",
         }
@@ -481,6 +495,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::ProfileChunk => AppFeature::Profiles,
             ProcessingGroup::ForwardUnknown => AppFeature::UnattributedEnvelope,
             ProcessingGroup::Ungrouped => AppFeature::UnattributedEnvelope,
+            ProcessingGroup::TraceAttachment => AppFeature::TraceAttachments,
         }
     }
 }
@@ -1154,6 +1169,7 @@ struct Processing {
     check_ins: CheckInsProcessor,
     sessions: SessionsProcessor,
     transactions: TransactionProcessor,
+    trace_attachments: TraceAttachmentsProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1247,6 +1263,7 @@ impl EnvelopeProcessorService {
                     #[cfg(feature = "processing")]
                     quotas.clone(),
                 ),
+                trace_attachments: TraceAttachmentsProcessor::new(quota_limiter),
             },
             geoip_lookup,
             config,
@@ -1730,6 +1747,14 @@ impl EnvelopeProcessorService {
             ProcessingGroup::SpanV2 => {
                 self.process_with_processor(&self.inner.processing.spans, managed_envelope, ctx)
                     .await
+            }
+            ProcessingGroup::TraceAttachment => {
+                self.process_with_processor(
+                    &self.inner.processing.trace_attachments,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
             }
             ProcessingGroup::Span => run!(process_standalone_spans, project_id, ctx),
             ProcessingGroup::ProfileChunk => {

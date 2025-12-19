@@ -114,7 +114,7 @@ fn make_span_item(
 
     validate(&mut span)
         .inspect_err(|e| {
-            relay_log::error!(
+            relay_log::debug!(
                 error = e as &dyn Error,
                 span = ?span,
                 source = "event",

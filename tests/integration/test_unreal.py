@@ -32,7 +32,7 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name, extract_metrics):
     response = relay.send_unreal_request(project_id, unreal_content)
 
     event_id = response.text.replace("-", "")
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert envelope
     assert event_id == envelope.headers.get("event_id")
     items = envelope.items
@@ -350,4 +350,4 @@ def test_unreal_crash_too_large(mini_sentry, relay_with_processing, outcomes_con
 
     outcome = outcomes_consumer.get_outcome()
     assert outcome["outcome"] == 3  # dropped as invalid
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()

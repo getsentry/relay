@@ -334,6 +334,15 @@ pub enum RelayDistributions {
     PartitionKeys,
     /// Measures how many splits were performed when sending out a partition.
     PartitionSplits,
+    /// Canonical size of a Trace Item.
+    ///
+    /// This is not the size in bytes, this is using the same algorithm we're using for the logs
+    /// billing category.
+    ///
+    /// This metric is tagged with:
+    ///  - `item`: the trace item type.
+    ///  - `too_large`: `true` or `false`, whether the item is bigger than the allowed size limit.
+    TraceItemCanonicalSize,
 }
 
 impl DistributionMetric for RelayDistributions {
@@ -363,6 +372,7 @@ impl DistributionMetric for RelayDistributions {
             Self::UpstreamMetricsBodySize => "upstream.metrics.body_size",
             Self::PartitionKeys => "metrics.buckets.partition_keys",
             Self::PartitionSplits => "partition_splits",
+            Self::TraceItemCanonicalSize => "trace_item.canonical_size",
         }
     }
 }
@@ -593,13 +603,17 @@ pub enum RelayTimers {
     BufferEnvelopeCompression,
     /// Timing in milliseconds for the time it takes for an envelope to be decompressed.
     BufferEnvelopeDecompression,
-    /// Timing in milliseconds to the time it takes to read an HTTP body.
-    BodyReadDuration,
     /// Timing in milliseconds to count spans in a serialized transaction payload.
     CheckNestedSpans,
     /// The time it needs to create a signature. Includes both the signature used for
     /// trusted relays and for register challenges.
     SignatureCreationDuration,
+    /// Time needed to upload an attachment to objectstore.
+    ///
+    /// Tagged by:
+    /// - `type`: "envelope" or "attachment_v2".
+    #[cfg(feature = "processing")]
+    AttachmentUploadDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -651,9 +665,10 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
             RelayTimers::BufferEnvelopeCompression => "buffer.envelopes_compression",
             RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
-            RelayTimers::BodyReadDuration => "requests.body_read.duration",
             RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
             RelayTimers::SignatureCreationDuration => "signature.create.duration",
+            #[cfg(feature = "processing")]
+            RelayTimers::AttachmentUploadDuration => "attachment.upload.duration",
         }
     }
 }
@@ -940,6 +955,7 @@ pub enum RelayCounters {
     ///
     /// This metric is tagged with:
     /// - `dsc`: yes or no
+    /// - `sdk`: low-cardinality client name
     EnvelopeWithLogs,
 }
 

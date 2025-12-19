@@ -831,20 +831,7 @@ pub fn extract_tags(
         let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
             // HACK: Parse the normalized description to get the normalized domain.
             if let Some(scrubbed) = scrubbed_description.as_deref() {
-                let url = if let Some((_, url)) = scrubbed.split_once(' ') {
-                    url
-                } else {
-                    scrubbed
-                };
-                if let Some(domain) = Url::parse(url).ok().and_then(|url| {
-                    url.host_str().map(|h| {
-                        let mut domain = h.to_lowercase();
-                        if let Some(port) = url.port() {
-                            domain = format!("{domain}:{port}");
-                        }
-                        domain
-                    })
-                }) {
+                if let Some(domain) = domain_from_scrubbed_http(scrubbed) {
                     Some(domain)
                 } else if let Some(server_address) = span
                     .data
@@ -852,31 +839,17 @@ pub fn extract_tags(
                     .and_then(|data| data.server_address.value())
                     .and_then(|value| value.as_str())
                 {
-                    let lowercase_address = server_address.to_lowercase();
-
-                    // According to OTel semantic conventions the server port should be in a separate property, called `server.port`, but incoming data sometimes disagrees
-                    let (domain, port) = match lowercase_address.split_once(':') {
-                        Some((domain, port)) => (domain, port.parse::<u16>().ok()),
-                        None => (server_address, None),
-                    };
-
-                    // Leave IP addresses alone. Scrub qualified domain names
-                    let domain = if domain.parse::<IpAddr>().is_ok() {
-                        Cow::Borrowed(domain)
-                    } else {
-                        scrub_domain_name(domain)
-                    };
-
-                    if let Some(url_scheme) = span
+                    let url_scheme = span
                         .data
                         .value()
                         .and_then(|data| data.url_scheme.value())
-                        .and_then(|value| value.as_str())
-                    {
-                        span_tags.raw_domain = format!("{url_scheme}://{lowercase_address}").into();
-                    }
+                        .and_then(|value| value.as_str());
 
-                    Some(concatenate_host_and_port(Some(domain.as_ref()), port).into_owned())
+                    let (normalized_domain, raw_domain) =
+                        domain_from_server_address(Some(server_address), url_scheme);
+
+                    span_tags.raw_domain = raw_domain.into();
+                    normalized_domain
                 } else {
                     None
                 }
@@ -1259,6 +1232,59 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
             }
         }
     }
+}
+
+/// Extracts the domain from a scrubbed HTTP description.
+///
+/// The scrubbed HTTP description is a string of the format: "{method} {scheme}://{domain}".
+pub fn domain_from_scrubbed_http(scrubbed_http: &str) -> Option<String> {
+    let url = if let Some((_, url)) = scrubbed_http.split_once(' ') {
+        url
+    } else {
+        scrubbed_http
+    };
+
+    Url::parse(url).ok().and_then(|url| {
+        url.host_str().map(|h| {
+            let mut domain = h.to_lowercase();
+            if let Some(port) = url.port() {
+                domain = format!("{domain}:{port}");
+            }
+            domain
+        })
+    })
+}
+
+/// Extracts the domain from a server address.
+///
+/// Returns both the normalized domain and the raw domain.
+pub fn domain_from_server_address(
+    server_address: Option<&str>,
+    url_scheme: Option<&str>,
+) -> (Option<String>, Option<String>) {
+    let Some(server_address) = server_address else {
+        return (None, None);
+    };
+    let lowercase_address = server_address.to_lowercase();
+
+    // According to OTel semantic conventions the server port should be in a separate property, called `server.port`, but incoming data sometimes disagrees
+    let (domain, port) = match lowercase_address.split_once(':') {
+        Some((domain, port)) => (domain, port.parse::<u16>().ok()),
+        None => (server_address, None),
+    };
+
+    // Leave IP addresses alone. Scrub qualified domain names
+    let domain = if domain.parse::<IpAddr>().is_ok() {
+        Cow::Borrowed(domain)
+    } else {
+        scrub_domain_name(domain)
+    };
+
+    let raw_domain = url_scheme.map(|scheme| format!("{scheme}://{lowercase_address}"));
+    let normalized_domain =
+        Some(concatenate_host_and_port(Some(domain.as_ref()), port).into_owned());
+
+    (normalized_domain, raw_domain)
 }
 
 /// Finds first matching span and get its timestamp.

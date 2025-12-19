@@ -82,7 +82,7 @@ pub fn extract<Group: EventProcessing>(
         relay_log::trace!("processing security report");
         event_from_security_report(item, envelope.meta()).map_err(|error| {
             if !matches!(error, ProcessingError::UnsupportedSecurityType) {
-                relay_log::error!(
+                relay_log::debug!(
                     error = &error as &dyn Error,
                     "failed to extract security report"
                 );
@@ -119,7 +119,7 @@ pub fn serialize<Group: EventProcessing>(
     spans_extracted: SpansExtracted,
 ) -> Result<(), ProcessingError> {
     if event.is_empty() {
-        relay_log::error!("Cannot serialize empty event");
+        relay_log::debug!("Cannot serialize empty event");
         return Ok(());
     }
 

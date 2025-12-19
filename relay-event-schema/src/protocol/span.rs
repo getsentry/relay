@@ -540,10 +540,6 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.request.model", legacy_alias = "ai.model_id")]
     pub gen_ai_request_model: Annotated<Value>,
 
-    /// The total cost for the tokens used
-    #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
-    pub gen_ai_usage_total_cost: Annotated<Value>,
-
     /// The total cost for the tokens used (duplicate field for migration)
     #[metastructure(field = "gen_ai.cost.total_tokens", pii = "maybe")]
     pub gen_ai_cost_total_tokens: Annotated<Value>,
@@ -1011,7 +1007,6 @@ impl Getter for SpanData {
             "environment" => self.environment.as_str()?.into(),
             "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
-            "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
             "gen_ai\\.cost\\.total_tokens" => self.gen_ai_cost_total_tokens.value()?.into(),
             "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
             "gen_ai\\.cost\\.output_tokens" => self.gen_ai_cost_output_tokens.value()?.into(),
@@ -1484,7 +1479,6 @@ mod tests {
             gen_ai_usage_output_tokens_prediction_rejected: ~,
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
-            gen_ai_usage_total_cost: ~,
             gen_ai_cost_total_tokens: ~,
             gen_ai_cost_input_tokens: ~,
             gen_ai_cost_output_tokens: ~,

@@ -456,14 +456,45 @@ impl Item {
     }
 
     /// Sets the parent entity that this item is associated with.
-    pub fn set_parent_id(&mut self, parent_id: ParentId) {
-        self.headers.parent_id = Some(parent_id);
+    pub fn set_parent_id(&mut self, parent_id: Option<ParentId>) {
+        self.headers.parent_id = parent_id;
     }
 
     /// Returns `true` if this item is an attachment with AttachmentV2 content type.
-    pub fn is_attachment_v2(&self) -> bool {
+    fn is_attachment_v2(&self) -> bool {
         self.ty() == &ItemType::Attachment
-            && self.content_type() == Some(&ContentType::AttachmentV2)
+            && self.content_type() == Some(&ContentType::TraceAttachment)
+    }
+
+    /// Returns `true` if this item is a V2 attachment owned by spans.
+    pub fn is_span_attachment(&self) -> bool {
+        self.is_attachment_v2() && matches!(self.parent_id(), Some(ParentId::SpanId(_)))
+    }
+
+    /// Returns `true` if this item is a V2 attachment without any span/log/etc. association.
+    pub fn is_trace_attachment(&self) -> bool {
+        self.is_attachment_v2() && self.parent_id().is_none()
+    }
+
+    /// Returns the [`AttachmentParentType`] of an attachment.
+    ///
+    /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
+    pub fn attachment_parent_type(&self) -> AttachmentParentType {
+        let is_attachment = self.ty() == &ItemType::Attachment;
+        debug_assert!(
+            is_attachment,
+            "function should only be called on attachments"
+        );
+        let is_trace_attachment = self.content_type() == Some(&ContentType::TraceAttachment);
+
+        if is_trace_attachment {
+            match self.parent_id() {
+                Some(ParentId::SpanId(_)) => AttachmentParentType::Span,
+                None => AttachmentParentType::Trace,
+            }
+        } else {
+            AttachmentParentType::Event
+        }
     }
 
     /// Returns the attachment payload size.
@@ -998,13 +1029,13 @@ pub struct ItemHeaders {
 
     /// Content length of an optional meta segment that might be contained in the item.
     ///
-    /// For the time being such an meta segment is only present for span attachments.
+    /// For the time being such an meta segment is only present for trace attachments.
     #[serde(skip_serializing_if = "Option::is_none")]
     meta_length: Option<u32>,
 
     /// Parent entity that this item is associated with, if any.
     ///
-    /// For the time being only applicable if the item is a span-attachment.
+    /// For the time being only applicable if the item is a trace attachment.
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     parent_id: Option<ParentId>,
 
@@ -1065,6 +1096,32 @@ fn is_true(value: &bool) -> bool {
 #[serde(rename_all = "snake_case")]
 pub enum ParentId {
     SpanId(Option<SpanId>),
+}
+
+impl ParentId {
+    /// Converts the ID to a span ID (if applicable).
+    pub fn as_span_id(&self) -> Option<SpanId> {
+        match self {
+            ParentId::SpanId(span_id) => *span_id,
+        }
+    }
+}
+
+/// The type of parent entity an attachment is associated with.
+///
+/// This is used to route attachments to different rate limiting buckets, since
+/// depending on the parent the limiting logic is different. E.g. if the attachment has
+/// [`AttachmentParentType::Span`] than it should be dropped if there are span limits.
+///
+/// See [`Item::attachment_parent_type`] for how this is determined from an item.
+#[derive(Debug)]
+pub enum AttachmentParentType {
+    /// The parent type for all V1 attachments (e.g. minidumps)
+    Event,
+    /// The parent type for all span V2 attachments.
+    Span,
+    /// The parent type for all trace V2 attachments.
+    Trace,
 }
 
 #[cfg(test)]

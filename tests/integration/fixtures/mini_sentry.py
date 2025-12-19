@@ -39,7 +39,7 @@ class Sentry(SentryLike):
         self.app = app
         self.project_configs = {}
         self.global_config = copy.deepcopy(GLOBAL_CONFIG)
-        self.captured_events = Queue()
+        self.captured_envelopes = Queue()
         self.captured_outcomes = Queue()
         self.captured_metrics = Queue()
         self.test_failures = Queue()
@@ -50,7 +50,7 @@ class Sentry(SentryLike):
         self.project_config_simulate_pending = False
         self.project_config_ignore_revision = False
 
-        self.timeout = 5
+        self.timeout = 10
 
     @property
     def internal_error_dsn(self):
@@ -204,11 +204,11 @@ class Sentry(SentryLike):
         # must be called before initializing relay fixture
         self.global_config["options"][option_name] = value
 
-    def get_captured_event(self, *, timeout=None):
-        return self.captured_events.get(timeout=timeout or self.timeout)
+    def get_captured_envelope(self, *, timeout=None):
+        return self.captured_envelopes.get(timeout=timeout or self.timeout)
 
     def get_client_report(self, timeout=None):
-        envelope = self.get_captured_event(timeout=timeout)
+        envelope = self.get_captured_envelope(timeout=timeout)
         items = envelope.items
         assert len(items) == 1
         item = items[0]
@@ -217,7 +217,7 @@ class Sentry(SentryLike):
         return json.loads(item.payload.bytes)
 
     def get_metrics(self, timeout=None):
-        envelope = self.get_captured_event(timeout=timeout)
+        envelope = self.get_captured_envelope(timeout=timeout)
         items = envelope.items
         assert len(items) == 1
         item = items[0]
@@ -379,7 +379,7 @@ def mini_sentry(request):  # noqa
         ), "Relay sent us non-envelope data to store"
 
         envelope = Envelope.deserialize(data)
-        sentry.captured_events.put(envelope)
+        sentry.captured_envelopes.put(envelope)
         return jsonify({"event_id": uuid.uuid4().hex})
 
     @app.route("/api/<project>/store/", methods=["POST"])

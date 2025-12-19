@@ -26,7 +26,7 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends git ca-certificates gcc libc6-dev curl make zip
 
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: recursive
 
@@ -50,7 +50,7 @@ jobs:
           zip relay-Linux-x86_64-debug.zip relay.debug
           mv relay relay-Linux-x86_64
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: artifact-linux
           path: target/release/relay-Linux-x86_64*
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-22.04-arm
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: recursive
 
@@ -85,7 +85,7 @@ jobs:
           zip relay-Linux-aarch64-debug.zip relay.debug
           mv relay relay-Linux-aarch64
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: artifact-linux-aarch64
           path: target/release/relay-Linux-aarch64*
@@ -100,7 +100,7 @@ jobs:
     runs-on: macos-14
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: recursive
 
@@ -118,7 +118,7 @@ jobs:
           mv relay relay-Darwin-x86_64
           zip -r relay-Darwin-x86_64-dsym.zip relay.dSYM
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: artifact-macos
           path: target/release/relay-Darwin-x86_64*
@@ -133,7 +133,7 @@ jobs:
     runs-on: windows-2022
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: recursive
 
@@ -150,7 +150,7 @@ jobs:
           7z a relay-Windows-x86_64-pdb.zip relay.pdb
           mv relay.exe relay-Windows-x86_64.exe
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: artifact-windows
           path: target/release/relay-Windows-x86_64*
@@ -167,7 +167,7 @@ jobs:
       # there cannot be mutliple upload-artifacts with the same name, in a sha's workflow runs.
       # However in this case it is fine because this only runs on release/** branches,
       # and the other runs on release-library/** branches.
-      - uses: actions/upload-artifact/merge@v5
+      - uses: actions/upload-artifact/merge@v6
         with:
           # Craft expects release assets to be a single artifact named after the sha.
           name: ${{ github.sha }}

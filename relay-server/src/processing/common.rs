@@ -7,6 +7,7 @@ use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
+use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
 use crate::processing::{Forward, Processor};
@@ -62,4 +63,5 @@ outputs!(
     Spans => SpansProcessor,
     Sessions => SessionsProcessor,
     Transactions => TransactionProcessor,
+    TraceAttachments => TraceAttachmentsProcessor,
 );

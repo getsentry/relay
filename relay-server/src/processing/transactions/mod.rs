@@ -199,7 +199,7 @@ impl Processor for TransactionProcessor {
         // Add a test for it.
 
         relay_log::trace!("Enforce quotas");
-        self.limiter.enforce_quotas(&mut work, ctx).await?;
+        let mut work = self.limiter.enforce_quotas(work, ctx).await?;
 
         relay_log::trace!("Extract transaction metrics");
         let mut work = process::extract_metrics(work, ctx, sampling_result.into_dropped_outcome())?;
@@ -321,12 +321,13 @@ impl Counted for ExpandedTransaction {
 
 impl RateLimited for Managed<ExpandedTransaction> {
     type Error = Error;
+    type Output = Self;
 
     async fn enforce<R>(
-        &mut self,
+        mut self,
         mut rate_limiter: R,
         ctx: Context<'_>,
-    ) -> Result<(), Rejected<Self::Error>>
+    ) -> Result<Self, Rejected<Self::Error>>
     where
         R: RateLimiter,
     {
@@ -389,7 +390,7 @@ impl RateLimited for Managed<ExpandedTransaction> {
             }
         }
 
-        Ok(())
+        Ok(self)
     }
 }
 

@@ -83,10 +83,10 @@ impl TaskId {
         self.id
     }
 
-    fn emit_metric(&self, metric: SystemCounters) {
+    fn emit_task_count_metric(&self, cnt: i64) {
         let Self { id, file, line } = self;
         relay_statsd::metric!(
-            counter(metric) += 1,
+            counter(SystemCounters::RuntimeTaskCount) += cnt,
             id = id,
             file = file.unwrap_or_default(),
             line = line.unwrap_or_default()
@@ -114,14 +114,14 @@ pin_project_lite::pin_project! {
 
     impl<T> PinnedDrop for Task<T> {
         fn drop(this: Pin<&mut Self>) {
-            this.id.emit_metric(SystemCounters::RuntimeTaskTerminated);
+            this.id.emit_task_count_metric(-1);
         }
     }
 }
 
 impl<T> Task<T> {
     fn new(id: TaskId, inner: T) -> Self {
-        id.emit_metric(SystemCounters::RuntimeTaskCreated);
+        id.emit_task_count_metric(1);
         Self { id, inner }
     }
 }
@@ -157,17 +157,17 @@ mod tests {
         });
 
         #[cfg(not(windows))]
-        assert_debug_snapshot!(captures, @r###"
+        assert_debug_snapshot!(captures, @r#"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
+            "runtime.task.count:1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
+            "runtime.task.count:-1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
         ]
-        "###);
+        "#);
         #[cfg(windows)]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
+            "runtime.task.count:1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
+            "runtime.task.count:-1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
         ]
         "###);
     }
@@ -190,11 +190,11 @@ mod tests {
             })
         });
 
-        assert_debug_snapshot!(captures, @r###"
+        assert_debug_snapshot!(captures, @r#"
         [
-            "runtime.task.spawn.created:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
-            "runtime.task.spawn.terminated:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
+            "runtime.task.count:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
+            "runtime.task.count:-1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
         ]
-        "###);
+        "#);
     }
 }
