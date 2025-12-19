@@ -224,8 +224,11 @@ mod tests {
           "body": "Example log record",
           "attributes": {
             "array.attribute": {
-              "type": "string",
-              "value": "[\"many\",\"values\"]"
+              "type": "array",
+              "value": [
+                "many",
+                "values"
+              ]
             },
             "boolean.attribute": {
               "type": "boolean",

@@ -221,10 +221,18 @@ mod tests {
         let attr = otel_value_to_attribute(otel_value).unwrap();
 
         let value = &attr.value.value;
-        assert_eq!(
-            get_value!(value!),
-            &Value::String("[\"item1\",42]".to_owned())
-        );
+        insta::assert_debug_snapshot!(value, @r#"
+        Array(
+            [
+                String(
+                    "item1",
+                ),
+                I64(
+                    42,
+                ),
+            ],
+        )
+        "#);
     }
 
     #[test]
