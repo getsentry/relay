@@ -112,6 +112,7 @@ fn attributes(
     fields: FieldAttributes,
 ) -> HashMap<String, AnyValue> {
     let mut result = meta;
+    // +N, one for each field attribute added and some extra for potential meta.
     result.reserve(attributes.0.len() + 15);
 
     processing::utils::store::convert_attributes_into(&mut result, attributes);
