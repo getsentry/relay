@@ -1035,7 +1035,10 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b174",
         "attributes": {
-            "pii_array": {"type": "arry", "value": ["normal", "[creditcard]", "other"]},
+            "pii_array": {
+                "type": "array",
+                "value": ["normal", "[creditcard]", "other"],
+            },
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
