@@ -498,10 +498,6 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
     items_consumer = items_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["retentions"] = {
-        "log": {"standard": 30, "downsampled": 13 * 30},
-    }
-
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
@@ -564,8 +560,93 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
         "organizationId": "1",
         "projectId": "42",
         "received": time_within_delta(),
-        "retentionDays": 30,
-        "downsampledRetentionDays": 390,
+        "retentionDays": 90,
+        "downsampledRetentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": time_within_delta(
+            ts, delta=timedelta(seconds=1), expect_resolution="ns"
+        ),
+        "traceId": "5b8efff798038103d269b633813fc60c",
+    }
+
+
+def test_ourlog_pii_complex_attributes(
+    mini_sentry,
+    relay_with_processing,
+    items_consumer,
+):
+    """
+    Tests PII scrubbing works as expected for arrays and in the future objects.
+    """
+    items_consumer = items_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test log",
+            "attributes": {
+                "pii_array": {
+                    "value": ["foo", "4242424242424242", "bar"],
+                    "type": "array",
+                },
+            },
+        }
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    item = items_consumer.get_item()
+    assert item == {
+        "attributes": {
+            "pii_array": {
+                "arrayValue": {
+                    "values": [
+                        {"stringValue": "foo"},
+                        {"stringValue": "[creditcard]"},
+                        {"stringValue": "bar"},
+                    ]
+                }
+            },
+            "sentry._meta.fields.attributes.pii_array": {
+                "stringValue": '{"meta":{"value":{"1":{"":{"rem":[["@creditcard","s",0,12]],"len":16}}}}}'
+            },
+            "sentry.browser.version": {"stringValue": "2.32"},
+            "custom_field": {"stringValue": "[REDACTED]"},
+            "sentry.body": {"stringValue": "Test log"},
+            "sentry.severity_text": {"stringValue": "info"},
+            "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
+            "sentry.payload_size_bytes": mock.ANY,
+            "sentry.browser.name": {"stringValue": "Python Requests"},
+            **timestamps(ts),
+        },
+        "clientSampleRate": 1.0,
+        "itemId": mock.ANY,
+        "itemType": "TRACE_ITEM_TYPE_LOG",
+        "organizationId": "1",
+        "projectId": "42",
+        "received": time_within_delta(),
+        "retentionDays": 90,
+        "downsampledRetentionDays": 90,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -582,21 +663,10 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     items_consumer = items_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["retentions"] = {
-        "log": {"standard": 30, "downsampled": 13 * 30},
-    }
-
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-    project_config["config"].setdefault(
-        "datascrubbingSettings",
-        {
-            "scrubData": True,
-            "scrubDefaults": True,
-            "scrubIpAddresses": True,
-        },
-    )
+
     relay = relay_with_processing(options=TEST_CONFIG)
     ts = datetime.now(timezone.utc)
 
@@ -626,8 +696,8 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
         "organizationId": "1",
         "projectId": "42",
         "received": time_within_delta(),
-        "retentionDays": 30,
-        "downsampledRetentionDays": 390,
+        "retentionDays": 90,
+        "downsampledRetentionDays": 90,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
