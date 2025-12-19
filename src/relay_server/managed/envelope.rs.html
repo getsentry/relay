@@ -330,7 +330,7 @@
 <a href=#330 id=330 data-nosnippet>330</a>
 <a href=#331 id=331 data-nosnippet>331</a>                <span class="macro">relay_log::error!</span>(
 <a href=#332 id=332 data-nosnippet>332</a>                    tags.project_key = <span class="self">self</span>.scoping().project_key.to_string(),
-<a href=#333 id=333 data-nosnippet>333</a>                    tags.has_attachments = summary.attachment_quantity &gt; <span class="number">0</span>,
+<a href=#333 id=333 data-nosnippet>333</a>                    tags.has_attachments = summary.attachment_quantities.bytes() &gt; <span class="number">0</span>,
 <a href=#334 id=334 data-nosnippet>334</a>                    tags.has_sessions = summary.session_quantity &gt; <span class="number">0</span>,
 <a href=#335 id=335 data-nosnippet>335</a>                    tags.has_profiles = summary.profile_quantity &gt; <span class="number">0</span>,
 <a href=#336 id=336 data-nosnippet>336</a>                    tags.has_transactions = summary.secondary_transaction_quantity &gt; <span class="number">0</span>,
@@ -354,19 +354,19 @@
 <a href=#354 id=354 data-nosnippet>354</a>            <span class="self">self</span>.track_outcome(outcome.clone(), category, <span class="number">1</span>);
 <a href=#355 id=355 data-nosnippet>355</a>        }
 <a href=#356 id=356 data-nosnippet>356</a>
-<a href=#357 id=357 data-nosnippet>357</a>        <span class="kw">if </span><span class="self">self</span>.context.summary.attachment_quantity &gt; <span class="number">0 </span>{
+<a href=#357 id=357 data-nosnippet>357</a>        <span class="kw">if </span><span class="self">self</span>.context.summary.attachment_quantities.bytes() &gt; <span class="number">0 </span>{
 <a href=#358 id=358 data-nosnippet>358</a>            <span class="self">self</span>.track_outcome(
 <a href=#359 id=359 data-nosnippet>359</a>                outcome.clone(),
 <a href=#360 id=360 data-nosnippet>360</a>                DataCategory::Attachment,
-<a href=#361 id=361 data-nosnippet>361</a>                <span class="self">self</span>.context.summary.attachment_quantity,
+<a href=#361 id=361 data-nosnippet>361</a>                <span class="self">self</span>.context.summary.attachment_quantities.bytes(),
 <a href=#362 id=362 data-nosnippet>362</a>            );
 <a href=#363 id=363 data-nosnippet>363</a>        }
 <a href=#364 id=364 data-nosnippet>364</a>
-<a href=#365 id=365 data-nosnippet>365</a>        <span class="kw">if </span><span class="self">self</span>.context.summary.attachment_item_quantity &gt; <span class="number">0 </span>{
+<a href=#365 id=365 data-nosnippet>365</a>        <span class="kw">if </span><span class="self">self</span>.context.summary.attachment_quantities.count() &gt; <span class="number">0 </span>{
 <a href=#366 id=366 data-nosnippet>366</a>            <span class="self">self</span>.track_outcome(
 <a href=#367 id=367 data-nosnippet>367</a>                outcome.clone(),
 <a href=#368 id=368 data-nosnippet>368</a>                DataCategory::AttachmentItem,
-<a href=#369 id=369 data-nosnippet>369</a>                <span class="self">self</span>.context.summary.attachment_item_quantity,
+<a href=#369 id=369 data-nosnippet>369</a>                <span class="self">self</span>.context.summary.attachment_quantities.count(),
 <a href=#370 id=370 data-nosnippet>370</a>            );
 <a href=#371 id=371 data-nosnippet>371</a>        }
 <a href=#372 id=372 data-nosnippet>372</a>
