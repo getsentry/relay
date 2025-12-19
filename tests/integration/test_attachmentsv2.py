@@ -24,7 +24,7 @@ TEST_CONFIG = {
 def create_attachment_metadata():
     return {
         "trace_id": uuid.uuid4().hex,
-        "attachment_id": str(uuid.uuid4()),
+        "attachment_id": uuid.uuid4().hex,
         "timestamp": 1760520026.781239,
         "filename": "myfile.txt",
         "content_type": "text/plain",
@@ -37,7 +37,6 @@ def create_attachment_metadata():
 def create_attachment_envelope(project_config):
     return Envelope(
         headers={
-            "event_id": "515539018c9b4260a6f999572f1661ee",
             "trace": {
                 "trace_id": "5b8efff798038103d269b633813fc60c",
                 "public_key": project_config["publicKeys"][0]["publicKey"],
@@ -1256,7 +1255,7 @@ def test_attachment_default_pii_scrubbing_meta(
     )
 
     metadata = {
-        "attachment_id": str(uuid.uuid4()),
+        "attachment_id": uuid.uuid4().hex,
         "timestamp": ts.timestamp(),
         "filename": "data.txt",
         "content_type": "text/plain",
@@ -1300,7 +1299,7 @@ def test_attachment_default_pii_scrubbing_meta(
     metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
 
     assert metadata_part == {
-        "attachment_id": mock.ANY,
+        "attachment_id": metadata["attachment_id"],
         "timestamp": time_within_delta(ts),
         "filename": "data.txt",
         "content_type": "text/plain",
@@ -1360,7 +1359,7 @@ def test_attachment_pii_scrubbing_meta_attribute(
     )
 
     metadata = {
-        "attachment_id": str(uuid.uuid4()),
+        "attachment_id": uuid.uuid4().hex,
         "timestamp": ts.timestamp(),
         "filename": "data.txt",
         "content_type": "text/plain",
@@ -1394,7 +1393,7 @@ def test_attachment_pii_scrubbing_meta_attribute(
     metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
 
     assert metadata_part == {
-        "attachment_id": mock.ANY,
+        "attachment_id": metadata["attachment_id"],
         "timestamp": time_within_delta(ts),
         "filename": "data.txt",
         "content_type": "text/plain",
@@ -1451,7 +1450,7 @@ def test_attachment_pii_scrubbing_body(mini_sentry, relay):
     )
 
     metadata = {
-        "attachment_id": str(uuid.uuid4()),
+        "attachment_id": uuid.uuid4().hex,
         "timestamp": ts.timestamp(),
         "filename": "log.txt",
         "content_type": "text/plain",
