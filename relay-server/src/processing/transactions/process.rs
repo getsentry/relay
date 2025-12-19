@@ -191,25 +191,6 @@ async fn do_run_dynamic_sampling(
     utils::dynamic_sampling::run(work.headers.dsc(), &work.event, &ctx, Some(&reservoir)).await
 }
 
-/// Finishes transaction and profile processing when the dynamic sampling decision was "drop".
-pub fn drop_after_sampling(
-    mut work: Managed<ExpandedTransaction<Indexed>>,
-    ctx: Context<'_>,
-    outcome: Outcome,
-) -> Option<Managed<ProfileWithHeaders>> {
-    work.map(|mut work, record_keeper| {
-        // Take out the profile:
-        let profile = work.profile.take();
-        let headers = work.headers.clone();
-
-        // reject everything but the profile:
-        record_keeper.reject_err(outcome, work);
-
-        profile.map(|item| ProfileWithHeaders { headers, item })
-    })
-    .transpose()
-}
-
 /// Processes the profile attached to the transaction.
 pub fn process_profile(
     work: Managed<ExpandedTransaction<TotalAndIndexed>>,
@@ -260,20 +241,23 @@ pub fn extract_metrics(
 
     work.try_map(|mut work, record_keeper| {
         let mut metrics = ProcessingExtractedMetrics::new();
-        work.flags.metrics_extracted = extraction::extract_metrics(
-            &mut work.event,
-            &mut metrics,
-            ExtractMetricsContext {
-                dsc: work.headers.dsc(),
-                project_id,
-                ctx,
-                sampling_decision,
-                metrics_extracted: work.flags.metrics_extracted,
-                spans_extracted: work.flags.spans_extracted, // TODO: what does fn do with this flag?
-            },
-        )?
-        .0;
+        if sampling_decision.is_drop() || ctx.is_processing() {
+            work.flags.metrics_extracted = extraction::extract_metrics(
+                &mut work.event,
+                &mut metrics,
+                ExtractMetricsContext {
+                    dsc: work.headers.dsc(),
+                    project_id,
+                    ctx,
+                    sampling_decision,
+                    metrics_extracted: work.flags.metrics_extracted,
+                    spans_extracted: work.flags.spans_extracted, // TODO: what does fn do with this flag?
+                },
+            )?
+            .0;
+        }
 
+        let headers = work.headers.clone();
         let payload = match drop_with_outcome {
             Some(outcome) => {
                 let profile = work.profile.take();
@@ -304,7 +288,7 @@ pub fn extract_metrics(
         };
 
         let metrics = metrics.into_inner();
-        Ok(WithMetrics {
+        Ok::<_, Error>(WithMetrics {
             headers,
             payload,
             metrics,
@@ -315,7 +299,7 @@ pub fn extract_metrics(
 /// Converts the spans embedded in the transaction into top-level span items.
 #[cfg(feature = "processing")]
 pub fn extract_spans(
-    work: Managed<WithMetrics>,
+    mut work: Managed<WithMetrics>,
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
 ) -> Managed<WithMetrics> {

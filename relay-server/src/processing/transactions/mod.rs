@@ -25,11 +25,11 @@ use crate::managed::{
 use crate::processing::StoreHandle;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::types::Flags;
 #[cfg(feature = "processing")]
 use crate::processing::transactions::types::Payload;
 #[cfg(feature = "processing")]
 use crate::processing::transactions::types::SampledPayload;
+use crate::processing::transactions::types::{Flags, WithHeaders, WithMetrics};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -198,8 +198,11 @@ impl Processor for TransactionProcessor {
         // FIXME: Make sure that profiles are processed in processing relays (standalone pipeline).
         // Add a test for it.
 
+        relay_log::trace!("Enforce quotas");
+        self.limiter.enforce_quotas(&mut work, ctx).await?;
+
         relay_log::trace!("Extract transaction metrics");
-        let work = process::extract_metrics(work, ctx, sampling_result.into_dropped_outcome())?;
+        let mut work = process::extract_metrics(work, ctx, sampling_result.into_dropped_outcome())?;
 
         // Need to scrub the transaction before extracting spans.
         relay_log::trace!("Scrubbing transaction");
@@ -221,13 +224,18 @@ impl Processor for TransactionProcessor {
             work = process::extract_spans(work, ctx, server_sample_rate);
         }
 
-        relay_log::trace!("Enforce quotas");
-        self.limiter.enforce_quotas(&mut work, ctx).await?;
+        let (main, metrics) = work.split_once(
+            |WithMetrics {
+                 headers,
+                 payload,
+                 metrics,
+             }| (WithHeaders { headers, payload }, metrics),
+        );
 
         relay_log::trace!("Done");
         Ok(Output {
-            main: Some(TransactionOutput::TotalAndIndexed(work)),
-            metrics: None,
+            main: Some(TransactionOutput(main)),
+            metrics: Some(metrics),
         })
     }
 }
@@ -295,48 +303,6 @@ impl From<ExpandedTransaction<TotalAndIndexed>> for ExpandedTransaction<Indexed>
             extracted_spans,
             category: Indexed,
         }
-    }
-}
-
-impl<T> ExpandedTransaction<T> {
-    fn serialize_envelope(self) -> Result<Box<Envelope>, serde_json::Error> {
-        let span_count = self.count_embedded_spans_and_self() - 1;
-        let Self {
-            headers,
-            event,
-            flags:
-                Flags {
-                    metrics_extracted,
-                    spans_extracted,
-                    fully_normalized,
-                },
-            attachments,
-            profile,
-            extracted_spans,
-            category: _,
-        } = self;
-
-        let mut items = smallvec![];
-
-        items.extend(attachments);
-        items.extend(profile);
-        items.extend(extracted_spans.0);
-
-        // To be compatible with previous code, add the transaction at the end:
-        let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
-            event.to_json()?
-        });
-        let mut item = Item::new(ItemType::Transaction);
-        item.set_payload(ContentType::Json, data);
-
-        item.set_metrics_extracted(metrics_extracted);
-        item.set_spans_extracted(spans_extracted);
-        item.set_fully_normalized(fully_normalized);
-        item.set_span_count(Some(span_count));
-
-        items.push(item);
-
-        Ok(Envelope::from_parts(headers, items))
     }
 }
 
@@ -490,96 +456,6 @@ impl RateLimited for Managed<ExpandedTransaction<TotalAndIndexed>> {
     }
 }
 
-impl RateLimited for Managed<ExpandedTransaction<Indexed>> {
-    type Error = Error;
-
-    async fn enforce<R>(
-        &mut self,
-        mut rate_limiter: R,
-        ctx: Context<'_>,
-    ) -> Result<(), Rejected<Self::Error>>
-    where
-        R: RateLimiter,
-    {
-        let scoping = self.scoping();
-
-        let ExpandedTransaction {
-            headers: _,
-            event,
-            flags,
-            attachments,
-            profile,
-            extracted_spans,
-            category: _,
-        } = self.as_ref();
-
-        // If there is a transaction limit, drop everything.
-        let mut limits = rate_limiter
-            .try_consume(scoping.item(DataCategory::Transaction), 1)
-            .await;
-
-        if limits.is_empty() {
-            let indexed_limits = rate_limiter
-                .try_consume(scoping.item(DataCategory::TransactionIndexed), 1)
-                .await;
-            limits.merge(indexed_limits);
-        }
-
-        if !limits.is_empty() {
-            let error = Error::from(limits);
-            return Err(self.reject_err(error));
-        }
-
-        let attachment_quantities = attachments.quantities();
-        let span_quantities = extracted_spans.quantities();
-
-        // Check profile limits:
-        for (category, quantity) in profile.quantities() {
-            let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
-                .await;
-
-            if !limits.is_empty() {
-                self.modify(|this, record_keeper| {
-                    record_keeper.reject_err(Error::from(limits), this.profile.take());
-                });
-            }
-        }
-
-        // Check attachment limits:
-        for (category, quantity) in attachment_quantities {
-            let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
-                .await;
-
-            if !limits.is_empty() {
-                self.modify(|this, record_keeper| {
-                    record_keeper
-                        .reject_err(Error::from(limits), std::mem::take(&mut this.attachments));
-                });
-            }
-        }
-
-        // Check span limits:
-        for (category, quantity) in span_quantities {
-            let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
-                .await;
-
-            if !limits.is_empty() {
-                self.modify(|this, record_keeper| {
-                    record_keeper.reject_err(
-                        Error::from(limits),
-                        std::mem::take(&mut this.extracted_spans.0),
-                    );
-                });
-            }
-        }
-
-        Ok(())
-    }
-}
-
 /// Wrapper for spans extracted from a transaction.
 ///
 /// Needed to not emit the total category for spans.
@@ -596,54 +472,55 @@ impl Counted for ExtractedSpans {
     }
 }
 
-// /// Output of the transaction processor.
-// #[derive(Debug)]
-// pub enum TransactionOutput {
-//     TotalAndIndexed(Managed<ExpandedTransaction<TotalAndIndexed>>),
-//     Indexed(Managed<ExpandedTransaction<Indexed>>),
-//     OnlyProfile(Managed<ProfileWithHeaders>),
-// }
+/// Output of the transaction processor.
+#[derive(Debug)]
+pub struct TransactionOutput(Managed<WithHeaders>);
 
-// impl TransactionOutput {
-//     #[cfg(test)]
-//     pub fn event(self) -> Option<Annotated<Event>> {
-//         match self {
-//             Self::TotalAndIndexed(managed) => Some(managed.accept(|x| x).event),
-//             Self::Indexed(managed) => Some(managed.accept(|x| x).event),
-//             Self::OnlyProfile(managed) => None,
-//         }
-//     }
-// }
+impl TransactionOutput {
+    #[cfg(test)]
+    pub fn event(self) -> Option<Annotated<Event>> {
+        match self.0.accept(|x| x).payload {
+            SampledPayload::Keep { payload } => Some(payload.event),
+            SampledPayload::Drop { profile } => None,
+        }
+    }
+}
 
 impl Forward for TransactionOutput {
     fn serialize_envelope(
         self,
         ctx: ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        match self {
-            TransactionOutput::TotalAndIndexed(managed) => managed.try_map(|output, _| {
-                output
-                    .serialize_envelope()
-                    .map_err(drop)
-                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
-            }),
-            TransactionOutput::Indexed(managed) => managed.try_map(|output, record_keeper| {
-                // TODO(follow-up): `Counted` impl of `Box<Envelope>` is wrong.
-                // But we will send structured data to the store soon instead of an envelope,
-                // then this problem is circumvented.
-                record_keeper.lenient(DataCategory::Transaction);
-                record_keeper.lenient(DataCategory::Span);
-                output
-                    .serialize_envelope()
-                    .map_err(drop)
-                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
-            }),
-            TransactionOutput::OnlyProfile(profile) => {
-                Ok(profile.map(|ProfileWithHeaders { headers, item }, _| {
-                    Envelope::from_parts(headers, smallvec![item])
-                }))
-            }
-        }
+        self.0.try_map(|work, _| {
+            work.serialize_envelope()
+                .map_err(drop)
+                .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+        })
+
+        // match self {
+        //     TransactionOutput::TotalAndIndexed(managed) => managed.try_map(|output, _| {
+        //         output
+        //             .serialize_envelope()
+        //             .map_err(drop)
+        //             .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+        //     }),
+        //     TransactionOutput::Indexed(managed) => managed.try_map(|output, record_keeper| {
+        //         // TODO(follow-up): `Counted` impl of `Box<Envelope>` is wrong.
+        //         // But we will send structured data to the store soon instead of an envelope,
+        //         // then this problem is circumvented.
+        //         record_keeper.lenient(DataCategory::Transaction);
+        //         record_keeper.lenient(DataCategory::Span);
+        //         output
+        //             .serialize_envelope()
+        //             .map_err(drop)
+        //             .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+        //     }),
+        //     TransactionOutput::OnlyProfile(profile) => {
+        //         Ok(profile.map(|ProfileWithHeaders { headers, item }, _| {
+        //             Envelope::from_parts(headers, smallvec![item])
+        //         }))
+        //     }
+        // }
     }
 
     #[cfg(feature = "processing")]
