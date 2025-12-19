@@ -336,6 +336,7 @@ impl UploadServiceInner {
             let key = Uuid::from_slice(&trace_item.trace_item.item_id)
                 .map_err(Error::from)
                 .reject(&trace_item)?
+                .as_simple()
                 .to_string();
 
             #[cfg(debug_assertions)]
