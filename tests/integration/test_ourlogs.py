@@ -128,13 +128,13 @@ def test_ourlog_multiple_containers_not_allowed(
         # 296 here is a billing relevant metric, do not arbitrarily change it,
         # this value is supposed to be static and purely based on data received,
         # independent of any normalization.
-        (None, 336),
+        (None, 377),
         # Same applies as above, a proxy Relay does not need to run normalization.
-        ("proxy", 336),
+        ("proxy", 377),
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 550),
+        ("managed", 587),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -194,6 +194,10 @@ def test_ourlog_extraction_with_sentry_logs(
                 "double.attribute": {"value": 1.23, "type": "double"},
                 "string.attribute": {"value": "some string", "type": "string"},
                 "pii": {"value": "4242 4242 4242 4242", "type": "string"},
+                "pii_array": {
+                    "value": ["foo", "4242424242424242", "bar"],
+                    "type": "array",
+                },
                 "sentry.severity_text": {"value": "info", "type": "string"},
                 "http.response_content_length": {"value": 17, "type": "integer"},
                 "unknown_type": {"value": "info", "type": "unknown"},
@@ -201,6 +205,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 "mismatched_type": {"value": "some string", "type": "boolean"},
                 "string_array": {"value": ["foo", "bar"], "type": "array"},
                 "mixed_array": {"value": ["foo", 3.0], "type": "array"},
+                "null_array": {"value": [None, None], "type": "array"},
                 "valid_string_with_other": {
                     "value": "test",
                     "type": "string",
@@ -255,9 +260,22 @@ def test_ourlog_extraction_with_sentry_logs(
                 "boolean.attribute": {"boolValue": True},
                 "double.attribute": {"doubleValue": 1.23},
                 "integer.attribute": {"intValue": "42"},
+                "null_array": {"arrayValue": {"values": [{}, {}]}},
                 "pii": {"stringValue": "[creditcard]"},
                 "sentry._meta.fields.attributes.pii": {
                     "stringValue": '{"meta":{"value":{"":{"rem":[["@creditcard","s",0,12]],"len":19}}}}'
+                },
+                "pii_array": {
+                    "arrayValue": {
+                        "values": [
+                            {"stringValue": "foo"},
+                            {"stringValue": "[creditcard]"},
+                            {"stringValue": "bar"},
+                        ]
+                    }
+                },
+                "sentry._meta.fields.attributes.pii_array": {
+                    "stringValue": '{"meta":{"value":{"1":{"":{"rem":[["@creditcard","s",0,12]],"len":16}}}}}'
                 },
                 "sentry.body": {"stringValue": "Example log record"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
@@ -544,91 +562,6 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
         "attributes": {
             "sentry._meta.fields.attributes.custom_field": {
                 "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":12}}}}'
-            },
-            "sentry.browser.version": {"stringValue": "2.32"},
-            "custom_field": {"stringValue": "[REDACTED]"},
-            "sentry.body": {"stringValue": "Test log"},
-            "sentry.severity_text": {"stringValue": "info"},
-            "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-            "sentry.payload_size_bytes": mock.ANY,
-            "sentry.browser.name": {"stringValue": "Python Requests"},
-            **timestamps(ts),
-        },
-        "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
-        "itemType": "TRACE_ITEM_TYPE_LOG",
-        "organizationId": "1",
-        "projectId": "42",
-        "received": time_within_delta(),
-        "retentionDays": 90,
-        "downsampledRetentionDays": 90,
-        "serverSampleRate": 1.0,
-        "timestamp": time_within_delta(
-            ts, delta=timedelta(seconds=1), expect_resolution="ns"
-        ),
-        "traceId": "5b8efff798038103d269b633813fc60c",
-    }
-
-
-def test_ourlog_pii_complex_attributes(
-    mini_sentry,
-    relay_with_processing,
-    items_consumer,
-):
-    """
-    Tests PII scrubbing works as expected for arrays and in the future objects.
-    """
-    items_consumer = items_consumer()
-
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:ourlogs-ingestion",
-    ]
-    project_config["config"].setdefault(
-        "datascrubbingSettings",
-        {
-            "scrubData": True,
-            "scrubDefaults": True,
-            "scrubIpAddresses": True,
-        },
-    )
-
-    relay = relay_with_processing(options=TEST_CONFIG)
-    ts = datetime.now(timezone.utc)
-
-    envelope = envelope_with_sentry_logs(
-        {
-            "timestamp": ts.timestamp(),
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b174",
-            "level": "info",
-            "body": "Test log",
-            "attributes": {
-                "pii_array": {
-                    "value": ["foo", "4242424242424242", "bar"],
-                    "type": "array",
-                },
-            },
-        }
-    )
-
-    relay.send_envelope(project_id, envelope)
-
-    item = items_consumer.get_item()
-    assert item == {
-        "attributes": {
-            "pii_array": {
-                "arrayValue": {
-                    "values": [
-                        {"stringValue": "foo"},
-                        {"stringValue": "[creditcard]"},
-                        {"stringValue": "bar"},
-                    ]
-                }
-            },
-            "sentry._meta.fields.attributes.pii_array": {
-                "stringValue": '{"meta":{"value":{"1":{"":{"rem":[["@creditcard","s",0,12]],"len":16}}}}}'
             },
             "sentry.browser.version": {"stringValue": "2.32"},
             "custom_field": {"stringValue": "[REDACTED]"},

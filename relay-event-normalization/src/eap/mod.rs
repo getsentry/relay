@@ -115,6 +115,7 @@ fn is_supported_array(arr: &[Annotated<Value>]) -> bool {
             (Some(Value::String(_)), Some(Value::String(_))) => prev,
             (Some(Value::Bool(_)), Some(Value::Bool(_))) => prev,
             (
+                // We allow mixing different numeric types because they are all the same in JSON.
                 Some(Value::I64(_) | Value::U64(_) | Value::F64(_)),
                 Some(Value::I64(_) | Value::U64(_) | Value::F64(_)),
             ) => prev,
@@ -127,9 +128,18 @@ fn is_supported_array(arr: &[Annotated<Value>]) -> bool {
         Some(r)
     });
 
+    let Some(item) = item else {
+        // Unsupported combination of types.
+        return false;
+    };
+
     matches!(
-        item.and_then(|v| v.value()),
-        Some(Value::String(_) | Value::Bool(_) | Value::I64(_) | Value::U64(_) | Value::F64(_))
+        item.value(),
+        // `None` -> `[null, null]` is allowed, as the `Annotated` may carry information.
+        // `Some` -> must be a currently supported type.
+        None | Some(
+            Value::String(_) | Value::Bool(_) | Value::I64(_) | Value::U64(_) | Value::F64(_)
+        )
     )
 }
 
@@ -678,6 +688,10 @@ mod tests {
                 "type": "array",
                 "value": [3, 3.0, 3]
             },
+            "supported_array_null": {
+                "type": "array",
+                "value": [null, null]
+            },
             "unsupported_array_mixed": {
                 "type": "array",
                 "value": ["foo", 1.0]
@@ -710,6 +724,13 @@ mod tests {
               3,
               3.0,
               3
+            ]
+          },
+          "supported_array_null": {
+            "type": "array",
+            "value": [
+              null,
+              null
             ]
           },
           "supported_array_string": {
