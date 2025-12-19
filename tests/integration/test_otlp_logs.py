@@ -116,7 +116,11 @@ def test_otlp_logs_conversion(
     assert items == [
         {
             "attributes": {
-                "array.attribute": {"stringValue": '["first","second"]'},
+                "array.attribute": {
+                    "arrayValue": {
+                        "values": [{"stringValue": "first"}, {"stringValue": "second"}]
+                    }
+                },
                 "boolean.attribute": {"boolValue": True},
                 "double.attribute": {"doubleValue": 637.704},
                 "instrumentation.name": {"stringValue": "test-library"},
@@ -130,7 +134,7 @@ def test_otlp_logs_conversion(
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": "385"},
+                "sentry.payload_size_bytes": {"intValue": "378"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -173,7 +177,7 @@ def test_otlp_logs_conversion(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 385,
+            "quantity": 378,
         },
     ]
 

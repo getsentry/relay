@@ -784,8 +784,8 @@ mod tests {
               "value": "prod"
             },
             "sentry.metrics_summary.some_metric": {
-              "type": "string",
-              "value": "[]"
+              "type": "array",
+              "value": []
             },
             "sentry.op": {
               "type": "string",

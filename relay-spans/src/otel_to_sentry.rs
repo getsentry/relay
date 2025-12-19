@@ -481,8 +481,14 @@ mod tests {
           "description": "cmd.run",
           "data": {
             "sentry.name": "cmd.run",
-            "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]",
-            "process.info": "[41]",
+            "process.args": [
+              "node",
+              "--require",
+              "preflight.cjs"
+            ],
+            "process.info": [
+              41
+            ],
             "sentry.origin": "auto.otlp.spans"
           },
           "links": []
@@ -643,7 +649,7 @@ mod tests {
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
             "sentry.name": "myname",
-            "sentry.metrics_summary.some_metric": "[]",
+            "sentry.metrics_summary.some_metric": [],
             "sentry.origin": "auto.otlp.spans",
             "sentry.status.message": "foo"
           },

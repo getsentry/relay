@@ -66,6 +66,12 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
             (Annotated(Some(Double), _), Annotated(Some(Value::U64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::F64(_)), _)) => (),
             (Annotated(Some(String), _), Annotated(Some(Value::String(_)), _)) => (),
+            (Annotated(Some(Array), _), Annotated(Some(Value::Array(arr)), _)) => {
+                if !is_supported_array(arr) {
+                    let _ = attribute.value_mut().take();
+                    attribute.meta_mut().add_error(ErrorKind::InvalidData);
+                }
+            }
             // Note: currently the mapping to Kafka requires that invalid or unknown combinations
             // of types and values are removed from the mapping.
             //
@@ -88,6 +94,53 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
             }
         }
     }
+}
+
+/// Returns `true` if the passed array is an array we currently support.
+///
+/// Currently all arrays must be homogeneous types.
+fn is_supported_array(arr: &[Annotated<Value>]) -> bool {
+    let mut iter = arr.iter();
+
+    let Some(first) = iter.next() else {
+        // Empty arrays are supported.
+        return true;
+    };
+
+    let item = iter.try_fold(first, |prev, current| {
+        let r = match (prev.value(), current.value()) {
+            (None, None) => prev,
+            (None, Some(_)) => current,
+            (Some(_), None) => prev,
+            (Some(Value::String(_)), Some(Value::String(_))) => prev,
+            (Some(Value::Bool(_)), Some(Value::Bool(_))) => prev,
+            (
+                // We allow mixing different numeric types because they are all the same in JSON.
+                Some(Value::I64(_) | Value::U64(_) | Value::F64(_)),
+                Some(Value::I64(_) | Value::U64(_) | Value::F64(_)),
+            ) => prev,
+            // Everything else is unsupported.
+            //
+            // This includes nested arrays, nested objects and mixed arrays for now.
+            (Some(_), Some(_)) => return None,
+        };
+
+        Some(r)
+    });
+
+    let Some(item) = item else {
+        // Unsupported combination of types.
+        return false;
+    };
+
+    matches!(
+        item.value(),
+        // `None` -> `[null, null]` is allowed, as the `Annotated` may carry information.
+        // `Some` -> must be a currently supported type.
+        None | Some(
+            Value::String(_) | Value::Bool(_) | Value::I64(_) | Value::U64(_) | Value::F64(_)
+        )
+    )
 }
 
 /// Adds the `received` time to the attributes.
@@ -626,13 +679,37 @@ mod tests {
             },
             "missing_value": {
                 "type": "string"
+            },
+            "supported_array_string": {
+                "type": "array",
+                "value": ["foo", "bar"]
+            },
+            "supported_array_double": {
+                "type": "array",
+                "value": [3, 3.0, 3]
+            },
+            "supported_array_null": {
+                "type": "array",
+                "value": [null, null]
+            },
+            "unsupported_array_mixed": {
+                "type": "array",
+                "value": ["foo", 1.0]
+            },
+            "unsupported_array_object": {
+                "type": "array",
+                "value": [{}]
+            },
+            "unsupported_array_in_array": {
+                "type": "array",
+                "value": [[]]
             }
         }"#;
 
         let mut attributes = Annotated::<Attributes>::from_json(json).unwrap();
         normalize_attribute_types(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
           "double_with_i64": {
             "type": "double",
@@ -641,7 +718,32 @@ mod tests {
           "invalid_int_from_invalid_string": null,
           "missing_type": null,
           "missing_value": null,
+          "supported_array_double": {
+            "type": "array",
+            "value": [
+              3,
+              3.0,
+              3
+            ]
+          },
+          "supported_array_null": {
+            "type": "array",
+            "value": [
+              null,
+              null
+            ]
+          },
+          "supported_array_string": {
+            "type": "array",
+            "value": [
+              "foo",
+              "bar"
+            ]
+          },
           "unknown_type": null,
+          "unsupported_array_in_array": null,
+          "unsupported_array_mixed": null,
+          "unsupported_array_object": null,
           "valid_bool": {
             "type": "boolean",
             "value": true
@@ -717,6 +819,27 @@ mod tests {
                 }
               }
             },
+            "unsupported_array_in_array": {
+              "": {
+                "err": [
+                  "invalid_data"
+                ]
+              }
+            },
+            "unsupported_array_mixed": {
+              "": {
+                "err": [
+                  "invalid_data"
+                ]
+              }
+            },
+            "unsupported_array_object": {
+              "": {
+                "err": [
+                  "invalid_data"
+                ]
+              }
+            },
             "valid_int_from_string": {
               "": {
                 "err": [
@@ -730,7 +853,7 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
