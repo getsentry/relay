@@ -202,7 +202,7 @@ def test_standalone_attachment_store(
         ),
         pytest.param(
             {"meta_length": None},
-            273,
+            269,
             "invalid_trace_attachment",
             id="missing_meta_length",
         ),
@@ -340,9 +340,9 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     assert attachment.payload.bytes == combined_payload
     assert attachment.headers == {
         "type": "attachment",
-        "length": 260,
+        "length": 256,
         "content_type": "application/vnd.sentry.trace-attachment",
-        "meta_length": 237,
+        "meta_length": 233,
         "span_id": span_id,
     }
 
@@ -543,9 +543,9 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
         assert item.payload.bytes == combined_payload
         assert item.headers == {
             "type": "attachment",
-            "length": 260,
+            "length": 256,
             "content_type": "application/vnd.sentry.trace-attachment",
-            "meta_length": 237,
+            "meta_length": 233,
             "span_id": span_id,
         }
 

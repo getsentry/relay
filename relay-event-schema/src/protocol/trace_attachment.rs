@@ -1,10 +1,11 @@
 use std::fmt;
+use std::ops::Deref;
 
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSerialization, Value};
 use serde::Serializer;
 
 use crate::processor::ProcessValue;
-use crate::protocol::{Attributes, Timestamp};
+use crate::protocol::{Attributes, Timestamp, TraceId};
 
 use uuid::Uuid;
 
@@ -42,6 +43,21 @@ pub struct TraceAttachmentMeta {
 
 #[derive(Clone, Default, PartialEq, Empty, FromValue, ProcessValue)]
 pub struct AttachmentId(Uuid);
+
+impl AttachmentId {
+    #[cfg(test)]
+    pub fn random() -> Self {
+        Self(Uuid::now_v7())
+    }
+}
+
+impl Deref for AttachmentId {
+    type Target = Uuid;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl fmt::Display for AttachmentId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

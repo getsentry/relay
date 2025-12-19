@@ -333,14 +333,14 @@ impl UploadServiceInner {
         // Upload the attachment:
         if !body.is_empty() {
             relay_log::trace!("Starting attachment upload");
-            let key = AttachmentId::from_slice(&trace_item.trace_item.item_id)
+            let key = Uuid::from_slice(&trace_item.trace_item.item_id)
                 .map_err(Error::from)
                 .reject(&trace_item)?
                 .as_simple()
                 .to_string();
 
             #[cfg(debug_assertions)]
-            let original_key = dbg!(key.clone());
+            let original_key = key.clone();
 
             let stored_key = self
                 .upload("attachment_v2", &session, body, Some(key))
