@@ -1019,27 +1019,26 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
 @pytest.mark.parametrize(
     "quota_config,expected_outcomes",
     [
-        # TODO: https://github.com/getsentry/relay/issues/5469
-        # pytest.param(
-        #     [
-        #         {
-        #             "categories": ["span"],
-        #             "limit": 0,
-        #             "window": 3600,
-        #             "id": "span_limit",
-        #             "reasonCode": "span_quota_exceeded",
-        #         }
-        #     ],
-        #     {
-        #         # Rate limit spans
-        #         (DataCategory.SPAN.value, 2): 1,
-        #         (DataCategory.SPAN_INDEXED.value, 2): 1,
-        #         # Rate limit associated span attachments
-        #         (DataCategory.ATTACHMENT.value, 2): 64,
-        #         (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
-        #     },
-        #     id="span_quota_exceeded",
-        # ),
+        pytest.param(
+            [
+                {
+                    "categories": ["span"],
+                    "limit": 0,
+                    "window": 3600,
+                    "id": "span_limit",
+                    "reasonCode": "span_quota_exceeded",
+                }
+            ],
+            {
+                # Rate limit spans
+                (DataCategory.SPAN.value, 2): 1,
+                (DataCategory.SPAN_INDEXED.value, 2): 1,
+                # Rate limit associated span attachments
+                (DataCategory.ATTACHMENT.value, 2): 64,
+                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+            },
+            id="span_quota_exceeded",
+        ),
         pytest.param(
             [
                 {
@@ -1103,10 +1102,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     ],
 )
 def test_span_attachment_independent_rate_limiting(
-    mini_sentry,
-    relay,
-    quota_config,
-    expected_outcomes,
+    mini_sentry, relay, quota_config, expected_outcomes
 ):
 
     project_id = 42
@@ -1205,7 +1201,7 @@ def test_span_attachment_independent_rate_limiting(
 
     relay.send_envelope(project_id, envelope)
 
-    outcomes = mini_sentry.get_outcomes(n=len(expected_outcomes))
+    outcomes = mini_sentry.get_aggregated_outcomes()
     outcome_counter = Counter()
     for outcome in outcomes:
         key = (outcome["category"], outcome["outcome"])

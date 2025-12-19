@@ -74,10 +74,13 @@ impl Counted for Box<Envelope> {
         }
 
         let data = [
-            (DataCategory::Attachment, summary.attachment_quantity),
+            (
+                DataCategory::Attachment,
+                summary.attachment_quantities.bytes(),
+            ),
             (
                 DataCategory::AttachmentItem,
-                summary.attachment_item_quantity,
+                summary.attachment_quantities.count(),
             ),
             (DataCategory::Profile, summary.profile_quantity),
             (DataCategory::ProfileIndexed, summary.profile_quantity),
