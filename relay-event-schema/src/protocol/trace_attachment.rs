@@ -45,7 +45,7 @@ pub struct TraceAttachmentMeta {
 pub struct AttachmentId(Uuid);
 
 impl AttachmentId {
-    #[cfg(test)]
+    /// Creates a new attachment ID. Only used in tests.
     pub fn random() -> Self {
         Self(Uuid::now_v7())
     }
