@@ -4,6 +4,100 @@ from unittest import mock
 from .asserts import time_within_delta
 
 
+def test_ai_model_cost_with_pricing_tier_suffix(
+    mini_sentry, relay, relay_with_processing, spans_consumer
+):
+    """
+    Test that AI model costs work correctly when the model has a pricing tier suffix like :free.
+    
+    This test verifies the fallback mechanism where:
+    1. Cost data is stored without the pricing tier suffix (e.g., "mistralai/devstral-2512")
+    2. Spans come in with the suffix (e.g., "mistralai/devstral-2512:free")
+    3. Relay should still find the cost data by stripping the suffix
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    # Configure costs WITHOUT the :free suffix (simulating how Python might store it)
+    mini_sentry.global_config["aiModelCosts"] = {
+        "version": 2,
+        "models": {
+            "mistralai/devstral-2512": {
+                "inputPerToken": 0.0,
+                "outputPerToken": 0.0,
+                "outputReasoningPerToken": 0.0,
+                "inputCachedPerToken": 0.0,
+            },
+        },
+    }
+
+    relay = relay(relay_with_processing())
+
+    ts = datetime.now(timezone.utc)
+
+    transaction = {
+        "contexts": {
+            "trace": {
+                "span_id": "657cf984a6a4e59b",
+                "trace_id": "a9351cd574f092f6acad48e250981f11",
+                "data": {
+                    "sentry.source": "custom",
+                    "sentry.sample_rate": 1,
+                    "sentry.origin": "manual",
+                },
+                "origin": "manual",
+                "status": "ok",
+            },
+        },
+        "spans": [
+            {
+                "span_id": "13e7c1ffd66981f0",
+                "trace_id": "a9351cd574f092f6acad48e250981f11",
+                "data": {
+                    "sentry.origin": "manual",
+                    "sentry.op": "gen_ai.chat.completions",
+                    # Model ID WITH :free suffix
+                    "gen_ai.request.model": "mistralai/devstral-2512:free",
+                    "gen_ai.usage.output_tokens": 100,
+                    "gen_ai.usage.input_tokens": 200,
+                    "gen_ai.usage.total_tokens": 300,
+                },
+                "description": "AI call with pricing tier",
+                "parent_span_id": "657cf984a6a4e59b",
+                "start_timestamp": ts.timestamp() - 0.5,
+                "timestamp": ts.timestamp(),
+                "status": "ok",
+                "op": "gen_ai.chat.completions",
+                "origin": "manual",
+            },
+        ],
+        "start_timestamp": ts.timestamp() - 0.5,
+        "timestamp": ts.timestamp(),
+        "transaction": "test_transaction",
+        "type": "transaction",
+        "transaction_info": {"source": "custom"},
+        "platform": "python",
+    }
+
+    relay.send_transaction(project_id, transaction)
+
+    spans = spans_consumer.get_spans(n=2)
+    
+    # Find the AI span
+    ai_span = next((s for s in spans if s.get("span_id") == "13e7c1ffd66981f0"), None)
+    assert ai_span is not None, "AI span not found"
+    
+    # Verify that cost data was calculated despite the :free suffix
+    attributes = ai_span.get("attributes", {})
+    assert "gen_ai.cost.total_tokens" in attributes, "Cost data missing"
+    
+    # With free tier (0 cost), total should be 0
+    total_cost = attributes["gen_ai.cost.total_tokens"]["value"]
+    assert total_cost == 0.0, f"Expected 0 cost for free tier, got {total_cost}"
+
+
 def test_ai_spans_example_transaction(
     mini_sentry, relay, relay_with_processing, spans_consumer
 ):

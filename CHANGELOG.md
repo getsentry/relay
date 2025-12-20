@@ -6,6 +6,10 @@
 
 - Double write to legacy attributes for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
 
+**Bug Fixes**:
+
+- Fix AI model cost lookup for models with pricing tier suffixes (e.g., `:free`, `:extended`). The lookup now falls back to matching without the suffix when an exact match fails. ([#XXXXX](https://github.com/getsentry/relay/pull/XXXXX))
+
 ## 25.12.0
 
 **Features**:

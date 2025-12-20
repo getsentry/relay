@@ -262,6 +262,16 @@ impl ModelCosts {
     }
 
     /// Gets the cost per token, if defined for the given model.
+    ///
+    /// This function performs a multi-step lookup:
+    /// 1. Normalizes the model ID by stripping date/version suffixes
+    /// 2. Attempts exact match with the normalized ID
+    /// 3. Attempts glob pattern matching with the normalized ID
+    /// 4. If no match, strips pricing tier suffixes (e.g., `:free`, `:extended`) and retries steps 2-3
+    ///
+    /// The fallback mechanism ensures compatibility when:
+    /// - Cost data is stored without pricing tier suffixes (e.g., `model-name`)
+    /// - But incoming spans include the suffix (e.g., `model-name:free`)
     pub fn cost_per_token(&self, model_id: &str) -> Option<&ModelCostV2> {
         if !self.is_enabled() {
             return None;
@@ -278,13 +288,37 @@ impl ModelCosts {
         // since the name is already normalized, there are still patterns where the
         // model name can have a prefix e.g. "us.antrophic.claude-sonnet-4" and this
         // will be matched via glob "*claude-sonnet-4"
-        self.models.iter().find_map(|(key, value)| {
+        if let Some(value) = self.models.iter().find_map(|(key, value)| {
             if key.is_match(normalized_model_id) {
                 Some(value)
             } else {
                 None
             }
-        })
+        }) {
+            return Some(value);
+        }
+
+        // If still no match, try stripping pricing tier suffixes (e.g., :free, :extended)
+        // These suffixes are used by providers like OpenRouter to denote pricing tiers
+        if let Some(model_id_without_tier) = normalized_model_id.rsplit_once(':') {
+            let model_id_without_tier = model_id_without_tier.0;
+            
+            // Try exact match without tier suffix
+            if let Some(value) = self.models.get(model_id_without_tier) {
+                return Some(value);
+            }
+            
+            // Try glob match without tier suffix
+            return self.models.iter().find_map(|(key, value)| {
+                if key.is_match(model_id_without_tier) {
+                    Some(value)
+                } else {
+                    None
+                }
+            });
+        }
+
+        None
     }
 }
 
@@ -617,6 +651,139 @@ mod tests {
     }
 
     #[test]
+    fn test_model_cost_with_pricing_tier_suffix() {
+        // Test that model names with pricing tier suffixes (like :free) work correctly
+        let mut models_map = HashMap::new();
+        models_map.insert(
+            Pattern::new("mistralai/devstral-2512:free").unwrap(),
+            ModelCostV2 {
+                input_per_token: 0.0,
+                output_per_token: 0.0,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.0,
+            },
+        );
+        models_map.insert(
+            Pattern::new("mistralai/devstral-2512").unwrap(),
+            ModelCostV2 {
+                input_per_token: 0.01,
+                output_per_token: 0.02,
+                output_reasoning_per_token: 0.03,
+                input_cached_per_token: 0.005,
+            },
+        );
+
+        let v2_config = ModelCosts {
+            version: 2,
+            models: models_map,
+        };
+        assert!(v2_config.is_enabled());
+
+        // Test exact match with :free suffix
+        let cost = v2_config.cost_per_token("mistralai/devstral-2512:free").unwrap();
+        assert_eq!(
+            cost,
+            &ModelCostV2 {
+                input_per_token: 0.0,
+                output_per_token: 0.0,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.0,
+            }
+        );
+
+        // Test exact match without suffix
+        let cost = v2_config.cost_per_token("mistralai/devstral-2512").unwrap();
+        assert_eq!(
+            cost,
+            &ModelCostV2 {
+                input_per_token: 0.01,
+                output_per_token: 0.02,
+                output_reasoning_per_token: 0.03,
+                input_cached_per_token: 0.005,
+            }
+        );
+    }
+
+    #[test]
+    fn test_model_cost_fallback_without_pricing_tier() {
+        // Test that when a model with :free suffix comes in, but only the base model
+        // is in the cost database, we can still find the cost by stripping the suffix
+        let mut models_map = HashMap::new();
+        models_map.insert(
+            Pattern::new("mistralai/devstral-2512").unwrap(),
+            ModelCostV2 {
+                input_per_token: 0.01,
+                output_per_token: 0.02,
+                output_reasoning_per_token: 0.03,
+                input_cached_per_token: 0.005,
+            },
+        );
+
+        let v2_config = ModelCosts {
+            version: 2,
+            models: models_map,
+        };
+        assert!(v2_config.is_enabled());
+
+        // When the span has :free suffix but cost data doesn't, we should fall back
+        let cost = v2_config.cost_per_token("mistralai/devstral-2512:free").unwrap();
+        assert_eq!(
+            cost,
+            &ModelCostV2 {
+                input_per_token: 0.01,
+                output_per_token: 0.02,
+                output_reasoning_per_token: 0.03,
+                input_cached_per_token: 0.005,
+            }
+        );
+
+        // Also test with other suffixes like :extended
+        let cost = v2_config.cost_per_token("mistralai/devstral-2512:extended").unwrap();
+        assert_eq!(
+            cost,
+            &ModelCostV2 {
+                input_per_token: 0.01,
+                output_per_token: 0.02,
+                output_reasoning_per_token: 0.03,
+                input_cached_per_token: 0.005,
+            }
+        );
+    }
+
+    #[test]
+    fn test_model_cost_fallback_with_glob() {
+        // Test that the fallback also works with glob patterns
+        let mut models_map = HashMap::new();
+        models_map.insert(
+            Pattern::new("mistralai/devstral-*").unwrap(),
+            ModelCostV2 {
+                input_per_token: 0.01,
+                output_per_token: 0.02,
+                output_reasoning_per_token: 0.03,
+                input_cached_per_token: 0.005,
+            },
+        );
+
+        let v2_config = ModelCosts {
+            version: 2,
+            models: models_map,
+        };
+        assert!(v2_config.is_enabled());
+
+        // When the span has :free suffix, strip it and match with glob
+        let cost = v2_config.cost_per_token("mistralai/devstral-2512:free").unwrap();
+        assert_eq!(
+            cost,
+            &ModelCostV2 {
+                input_per_token: 0.01,
+                output_per_token: 0.02,
+                output_reasoning_per_token: 0.03,
+                input_cached_per_token: 0.005,
+            }
+        );
+    }
+
+    #[test]
     fn test_model_cost_unknown_version() {
         // Test that unknown versions are handled properly
         let unknown_version_json = r#"{"version":3,"models":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005}}}"#;
@@ -729,6 +896,12 @@ mod tests {
         // Test no pattern (should return original)
         assert_eq!(normalize_ai_model_name("gpt-4"), "gpt-4");
         assert_eq!(normalize_ai_model_name("claude-3-opus"), "claude-3-opus");
+        
+        // Test that :free suffix is preserved (OpenRouter pricing tier)
+        assert_eq!(
+            normalize_ai_model_name("mistralai/devstral-2512:free"),
+            "mistralai/devstral-2512:free"
+        );
     }
 
     #[test]
