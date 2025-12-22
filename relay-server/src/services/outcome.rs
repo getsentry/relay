@@ -376,9 +376,6 @@ pub enum DiscardReason {
     /// (Relay) The store request was missing an event payload.
     NoData,
 
-    /// (Relay) The envelope contains no items.
-    EmptyEnvelope,
-
     /// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.
     TooLarge(DiscardItemType),
 
@@ -552,7 +549,6 @@ impl DiscardReason {
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
             DiscardReason::TransactionSampled => "transaction_sampled",
-            DiscardReason::EmptyEnvelope => "empty_envelope",
             DiscardReason::InvalidReplayEvent => "invalid_replay",
             DiscardReason::InvalidReplayEventNoPayload => "invalid_replay_no_payload",
             DiscardReason::InvalidReplayEventPii => "invalid_replay_pii_scrubber_failed",

@@ -370,6 +370,14 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.user_report_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::UserReportV2,
+                self.context.summary.user_report_quantity,
+            );
+        }
+
         if self.context.summary.monitor_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),

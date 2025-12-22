@@ -49,24 +49,19 @@ impl std::ops::Add for Quantities {
     }
 }
 
-impl From<&managed::Quantities> for Quantities {
-    fn from(value: &managed::Quantities) -> Self {
+impl<T> From<&T> for Quantities
+where
+    T: managed::Counted,
+{
+    fn from(value: &T) -> Self {
         Self(
             value
+                .quantities()
                 .iter()
                 .fold(Default::default(), |mut acc, (category, quantity)| {
                     *acc.entry(*category).or_default() += *quantity;
                     acc
                 }),
         )
-    }
-}
-
-impl<T> From<&T> for Quantities
-where
-    T: managed::Counted,
-{
-    fn from(value: &T) -> Self {
-        Self::from(&value.quantities())
     }
 }

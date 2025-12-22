@@ -117,7 +117,7 @@ impl processing::Processor for TraceMetricsProcessor {
         }
 
         let work = SerializedTraceMetrics { headers, metrics };
-        Some(Managed::from_envelope(envelope, work))
+        Some(Managed::derive_from(envelope, work))
     }
 
     async fn process(

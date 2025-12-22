@@ -43,7 +43,9 @@ mod traces {
             .with_required_feature(Feature::OtelTracesEndpoint)
             .build();
 
-        common::handle_envelope(&state, envelope).await?;
+        common::handle_envelope(&state, envelope)
+            .await?
+            .ensure_rate_limits()?;
 
         Ok(StatusCode::ACCEPTED)
     }
@@ -72,7 +74,9 @@ mod logs {
             .with_required_feature(Feature::OtelLogsEndpoint)
             .build();
 
-        common::handle_envelope(&state, envelope).await?;
+        common::handle_envelope(&state, envelope)
+            .await?
+            .ignore_rate_limits();
 
         Ok(StatusCode::ACCEPTED)
     }

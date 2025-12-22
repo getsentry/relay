@@ -40,7 +40,7 @@ async fn handle(
     state: ServiceState,
     mime: Mime,
     params: NelReportParams,
-) -> Result<impl IntoResponse, BadStoreRequest> {
+) -> axum::response::Result<impl IntoResponse> {
     if !is_nel_mime(mime) {
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
     }
@@ -55,7 +55,10 @@ async fn handle(
         envelope.add_item(report_item);
     }
 
-    common::handle_envelope(&state, envelope).await?;
+    common::handle_envelope(&state, envelope)
+        .await?
+        .ignore_rate_limits();
+
     Ok(().into_response())
 }
 
