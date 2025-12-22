@@ -140,6 +140,25 @@ impl Counted for StoreSpanV2 {
     }
 }
 
+/// Publishes a singular profile chunk to Kafka.
+#[derive(Debug)]
+pub struct StoreProfileChunk {
+    /// Default retention of the span.
+    pub retention_days: u16,
+    /// The serialized profile chunk payload.
+    pub payload: Bytes,
+    /// Outcome quantities associated with this profile.
+    ///
+    /// Quantities are different for backend and ui profile chunks.
+    pub quantities: Quantities,
+}
+
+impl Counted for StoreProfileChunk {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
 pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
@@ -160,6 +179,8 @@ pub enum Store {
     TraceItem(Managed<StoreTraceItem>),
     /// A singular Span.
     Span(Managed<Box<StoreSpanV2>>),
+    /// A singular profile chunk.
+    ProfileChunk(Managed<StoreProfileChunk>),
 }
 
 impl Store {
@@ -170,6 +191,7 @@ impl Store {
             Store::Metrics(_) => "metrics",
             Store::TraceItem(_) => "log",
             Store::Span(_) => "span",
+            Store::ProfileChunk(_) => "profile_chunk",
         }
     }
 }
@@ -205,6 +227,14 @@ impl FromMessage<Managed<Box<StoreSpanV2>>> for Store {
 
     fn from_message(message: Managed<Box<StoreSpanV2>>, _: ()) -> Self {
         Self::Span(message)
+    }
+}
+
+impl FromMessage<Managed<StoreProfileChunk>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreProfileChunk>, _: ()) -> Self {
+        Self::ProfileChunk(message)
     }
 }
 
@@ -245,6 +275,7 @@ impl StoreService {
                 Store::Metrics(message) => self.handle_store_metrics(message),
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
                 Store::Span(message) => self.handle_store_span(message),
+                Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
             }
         })
     }
@@ -396,13 +427,6 @@ impl StoreService {
                         "StoreService received unsupported item type '{ty}' in envelope"
                     );
                 }
-                ItemType::ProfileChunk => self.produce_profile_chunk(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    received_at,
-                    retention,
-                    item,
-                )?,
                 other => {
                     let event_type = event_item.as_ref().map(|item| item.ty().as_str());
                     let item_types = envelope
@@ -664,6 +688,27 @@ impl StoreService {
                 );
             }
         }
+    }
+
+    fn handle_store_profile_chunk(&self, message: Managed<StoreProfileChunk>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let _ = message.try_accept(|message| {
+            let message = ProfileChunkKafkaMessage {
+                organization_id: scoping.organization_id,
+                project_id: scoping.project_id,
+                received: safe_timestamp(received_at),
+                retention_days: message.retention_days,
+                headers: BTreeMap::from([(
+                    "project_id".to_owned(),
+                    scoping.project_id.to_string(),
+                )]),
+                payload: message.payload,
+            };
+
+            self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))
+        });
     }
 
     fn create_metric_message<'a>(
@@ -1146,26 +1191,6 @@ impl StoreService {
             timestamp: received_at,
         });
 
-        Ok(())
-    }
-
-    fn produce_profile_chunk(
-        &self,
-        organization_id: OrganizationId,
-        project_id: ProjectId,
-        received_at: DateTime<Utc>,
-        retention_days: u16,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        let message = ProfileChunkKafkaMessage {
-            organization_id,
-            project_id,
-            received: safe_timestamp(received_at),
-            retention_days,
-            headers: BTreeMap::from([("project_id".to_owned(), project_id.to_string())]),
-            payload: item.payload(),
-        };
-        self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))?;
         Ok(())
     }
 }

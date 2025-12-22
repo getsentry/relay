@@ -6,6 +6,10 @@
 
 - Double write to legacy attributes for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
 
+**Internal**:
+
+- Moves profile chunk processing to the new internal processing pipeline. ([#5505](https://github.com/getsentry/relay/pull/5505))
+
 ## 25.12.0
 
 **Features**:
