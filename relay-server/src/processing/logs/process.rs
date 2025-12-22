@@ -132,40 +132,12 @@ fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> 
 
 #[cfg(test)]
 mod tests {
-    use relay_pii::{DataScrubbingConfig, PiiConfig};
+    use relay_pii::PiiConfig;
     use relay_protocol::assert_annotated_snapshot;
-    use relay_sampling::evaluation::ReservoirCounters;
 
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
-
-    fn make_context(
-        scrubbing_config: DataScrubbingConfig,
-        pii_config: Option<PiiConfig>,
-    ) -> Context<'static> {
-        let config = Box::leak(Box::new(relay_config::Config::default()));
-        let global_config = Box::leak(Box::new(relay_dynamic_config::GlobalConfig::default()));
-        let project_info = Box::leak(Box::new(ProjectInfo {
-            config: relay_dynamic_config::ProjectConfig {
-                pii_config,
-                datascrubbing_settings: scrubbing_config,
-                ..Default::default()
-            },
-            ..Default::default()
-        }));
-        let rate_limits = Box::leak(Box::new(relay_quotas::RateLimits::default()));
-        let reservoir_counters = Box::leak(Box::new(ReservoirCounters::default()));
-
-        Context {
-            config,
-            global_config,
-            project_info,
-            rate_limits,
-            sampling_project_info: None,
-            reservoir_counters,
-        }
-    }
 
     #[test]
     fn test_scrub_log_base_fields() {
@@ -182,12 +154,23 @@ mod tests {
 
         let mut data = Annotated::<OurLog>::from_json(json).unwrap();
 
-        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
-        scrubbing_config.scrub_data = true;
-        scrubbing_config.scrub_defaults = true;
+        let mut datascrubbing_settings = relay_pii::DataScrubbingConfig::default();
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = true;
 
-        let ctx = make_context(scrubbing_config, None);
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    datascrubbing_settings,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
         scrub_log(&mut data, ctx).unwrap();
+
         assert_annotated_snapshot!(data, @r#"
         {
           "timestamp": 1544719860.0,
@@ -252,7 +235,17 @@ mod tests {
         }))
         .unwrap();
 
-        let ctx = make_context(DataScrubbingConfig::default(), Some(deep_wildcard_config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(deep_wildcard_config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
         scrub_log(&mut data, ctx).unwrap();
 
         assert_annotated_snapshot!(data, @r#"
@@ -309,7 +302,17 @@ mod tests {
         }))
         .unwrap();
 
-        let ctx = make_context(DataScrubbingConfig::default(), Some(config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
         scrub_log(&mut data, ctx).unwrap();
 
         assert_annotated_snapshot!(data, @r###"
@@ -365,7 +368,17 @@ mod tests {
         }))
         .unwrap();
 
-        let ctx = make_context(DataScrubbingConfig::default(), Some(config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
         scrub_log(&mut data, ctx).unwrap();
 
         assert_annotated_snapshot!(data, @r#"
