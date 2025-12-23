@@ -1,6 +1,3 @@
-use relay_profiling::ProfileType;
-use relay_quotas::DataCategory;
-
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::processing::Context;
 use crate::processing::Managed;
@@ -18,40 +15,21 @@ pub fn process(profile_chunks: &mut Managed<SerializedProfileChunks>, ctx: Conte
 
     profile_chunks.retain(
         |pc| &mut pc.profile_chunks,
-        |item, records| -> Result<()> {
+        |item, _| -> Result<()> {
             let pc = relay_profiling::ProfileChunk::new(item.payload())?;
 
-            // Validate the item inferred profile type with the one from the payload,
-            // or if missing set it.
-            //
-            // This is currently necessary to ensure profile chunks are emitted in the correct
-            // data category, as well as rate limited with the correct data category.
-            //
-            // In the future we plan to make the profile type on the item header a necessity.
-            // For more context see also: <https://github.com/getsentry/relay/pull/4595>.
-            if item
-                .profile_type()
-                .is_some_and(|pt| pt != pc.profile_type())
-            {
+            // Profile chunks must carry the same profile type in the item header as well as the
+            // payload.
+            if item.profile_type().is_none_or(|pt| pt != pc.profile_type()) {
+                relay_log::debug!("dropping profile chunk due to profile type/platform mismatch");
                 return Err(relay_profiling::ProfileError::InvalidProfileType.into());
-            }
-
-            // Update the profile type to ensure the following outcomes are emitted in the correct
-            // data category.
-            //
-            // Once the item header on the item is required, this is no longer required.
-            if item.profile_type().is_none() {
-                item.set_profile_type(pc.profile_type());
-                match pc.profile_type() {
-                    ProfileType::Ui => records.modify_by(DataCategory::ProfileChunkUi, 1),
-                    ProfileType::Backend => records.modify_by(DataCategory::ProfileChunk, 1),
-                }
             }
 
             pc.filter(client_ip, filter_settings, ctx.global_config)?;
 
             let expanded = pc.expand()?;
             if expanded.len() > ctx.config.max_profile_size() {
+                relay_log::debug!("dropping profile chunk exceeding the size limit");
                 return Err(relay_profiling::ProfileError::ExceedSizeLimit.into());
             }
 
