@@ -5,6 +5,7 @@
 **Breaking Changes**:
 
 - Return status code `413` if a request is rejected due to size limits. ([#5474](https://github.com/getsentry/relay/pull/5474))
+- Forbid invalid profile chunks without a platform header. ([#5507](https://github.com/getsentry/relay/pull/5507))
 
 ## 25.12.1
 
