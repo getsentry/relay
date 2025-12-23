@@ -6,6 +6,10 @@
 
 - Double write to legacy attributes for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
 
+**Bug Fixes**:
+
+- Fix Gen AI cost calculation for models with provider suffixes (e.g., `gpt-4o-pipecat`, `gpt-4o-realtime`). AI model name normalization now strips common provider and deployment suffixes before matching against cost configurations. ([#XXXX](https://github.com/getsentry/relay/pull/XXXX))
+
 ## 25.12.0
 
 **Features**:

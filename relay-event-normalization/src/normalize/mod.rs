@@ -316,13 +316,39 @@ static VERSION_AND_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-/// Normalizes an AI model name by stripping date and version patterns.
+/// Regex that matches provider/deployment suffixes.
+///
+/// Examples matched:
+/// - "-pipecat" in "gpt-4o-pipecat"
+/// - "-realtime" in "gpt-4o-realtime"
+/// - "-azure" in "gpt-4-azure"
+/// - "-preview" in "gpt-4-preview"
+/// - "-realtime" in "gpt-4o-realtime-2024-10-01" (before the date)
+static PROVIDER_SUFFIX_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?x)
+        [-_]                                           # Required separator
+        (pipecat|realtime|azure|preview|turbo|audio)   # Common provider/deployment suffixes
+        (?:                                             # Followed by either:
+            [-_@]                                       #   another separator (for date/version)
+            |                                            #   or
+            $                                            #   end of string
+        )
+        ",
+    )
+    .unwrap()
+});
+
+/// Normalizes an AI model name by stripping date, version, and provider suffix patterns.
 ///
 /// This function converts specific model versions into normalized names suitable for matching
 /// against cost configurations, ensuring that different versions of the same model can share
 /// cost information.
 ///
-/// The normalization strips version and/or date patterns from the end of the string in a single pass.
+/// The normalization strips patterns from the end of the string in the following order:
+/// 1. Provider/deployment suffixes (e.g., -pipecat, -realtime, -azure)
+/// 2. Date patterns (e.g., -20250522, -2025-06-10)
+/// 3. Version patterns (e.g., -v1.0, -v1:0)
 ///
 /// Examples:
 /// - "claude-4-sonnet-20250522" -> "claude-4-sonnet"
@@ -333,6 +359,8 @@ static VERSION_AND_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 /// - "gpt-4-v1.0" -> "gpt-4"
 /// - "gpt-4-v1:0" -> "gpt-4"
 /// - "model_v2" -> "model"
+/// - "gpt-4o-pipecat" -> "gpt-4o"
+/// - "gpt-4o-realtime" -> "gpt-4o"
 ///
 /// Version patterns:
 /// - Must start with 'v': v1, v1.0, v1:0 (requires -, _ separator)
@@ -341,12 +369,23 @@ static VERSION_AND_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 /// - YYYYMMDD: 20250522
 /// - YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD: 2025-06-10
 ///
+/// Provider suffixes:
+/// - pipecat, realtime, azure, preview, turbo, audio (requires -, _ separator)
+///
 /// Args:
 ///     model_id: The original model ID
 ///
 /// Returns:
-///     The normalized model name without date and version patterns
+///     The normalized model name without date, version, and provider suffix patterns
 fn normalize_ai_model_name(model_id: &str) -> &str {
+    // First, strip provider/deployment suffixes
+    let model_id = if let Some(m) = PROVIDER_SUFFIX_REGEX.find(model_id) {
+        &model_id[..m.start()]
+    } else {
+        model_id
+    };
+
+    // Then strip version and date patterns
     if let Some(captures) = VERSION_AND_DATE_REGEX.captures(model_id) {
         let match_idx = captures.get(0).map(|m| m.start()).unwrap_or(model_id.len());
         &model_id[..match_idx]
@@ -614,6 +653,25 @@ mod tests {
         );
 
         assert_eq!(v2_config.cost_per_token("unknown-model"), None);
+
+        // Test that gpt-4o-pipecat normalizes and matches gpt-4*
+        let cost = v2_config.cost_per_token("gpt-4o-pipecat").unwrap();
+        assert_eq!(
+            cost,
+            &ModelCostV2 {
+                input_per_token: 0.03,
+                output_per_token: 0.06,
+                output_reasoning_per_token: 0.12,
+                input_cached_per_token: 0.015,
+            }
+        );
+
+        // Test other provider suffixes with gpt-4
+        let cost = v2_config.cost_per_token("gpt-4o-realtime").unwrap();
+        assert_eq!(cost.input_per_token, 0.03);
+
+        let cost = v2_config.cost_per_token("gpt-4-azure").unwrap();
+        assert_eq!(cost.input_per_token, 0.03);
     }
 
     #[test]
@@ -688,6 +746,30 @@ mod tests {
     }
 
     #[test]
+    fn test_provider_suffix_regex() {
+        // Test that the provider suffix regex works correctly
+        let test_cases = vec![
+            ("gpt-4o-pipecat", Some("gpt-4o")),
+            ("gpt-4o-realtime", Some("gpt-4o")),
+            ("gpt-4-azure", Some("gpt-4")),
+            ("gpt-4-preview", Some("gpt-4")),
+            ("gpt-3.5-turbo", Some("gpt-3.5")),
+            ("gpt-4o-audio", Some("gpt-4o")),
+            ("gpt-4o", None),
+            ("claude-3", None),
+        ];
+
+        for (input, expected) in test_cases {
+            let result = if let Some(m) = PROVIDER_SUFFIX_REGEX.find(input) {
+                Some(&input[..m.start()])
+            } else {
+                None
+            };
+            assert_eq!(result, expected, "Failed for input: {}", input);
+        }
+    }
+
+    #[test]
     fn test_normalize_ai_model_name() {
         // Test date patterns
         assert_eq!(
@@ -729,6 +811,21 @@ mod tests {
         // Test no pattern (should return original)
         assert_eq!(normalize_ai_model_name("gpt-4"), "gpt-4");
         assert_eq!(normalize_ai_model_name("claude-3-opus"), "claude-3-opus");
+
+        // Test provider/deployment suffix patterns
+        assert_eq!(normalize_ai_model_name("gpt-4o-pipecat"), "gpt-4o");
+        assert_eq!(normalize_ai_model_name("gpt-4o-realtime"), "gpt-4o");
+        assert_eq!(normalize_ai_model_name("gpt-4-azure"), "gpt-4");
+        assert_eq!(normalize_ai_model_name("gpt-4-preview"), "gpt-4");
+        assert_eq!(normalize_ai_model_name("gpt-3.5-turbo"), "gpt-3.5");
+        assert_eq!(normalize_ai_model_name("gpt-4o-audio"), "gpt-4o");
+
+        // Test combined patterns: provider suffix + date/version
+        assert_eq!(
+            normalize_ai_model_name("gpt-4o-realtime-2024-10-01"),
+            "gpt-4o"
+        );
+        assert_eq!(normalize_ai_model_name("gpt-4-azure-v1.0"), "gpt-4");
     }
 
     #[test]

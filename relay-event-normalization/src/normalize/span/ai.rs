@@ -506,4 +506,135 @@ mod tests {
         let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
         assert!(!is_ai_span(&span));
     }
+
+    /// Test that gpt-4o-pipecat model costs are calculated correctly.
+    #[test]
+    fn test_gpt_4o_pipecat_cost_calculation() {
+        use relay_pattern::Pattern;
+        use std::collections::HashMap;
+
+        // Set up model costs with a glob pattern for gpt-4*
+        let mut models_map = HashMap::new();
+        models_map.insert(
+            Pattern::new("gpt-4*").unwrap(),
+            ModelCostV2 {
+                input_per_token: 2.5e-6,   // $2.50 per 1M tokens
+                output_per_token: 10.0e-6, // $10.00 per 1M tokens
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 1.25e-6,
+            },
+        );
+
+        let model_costs = ModelCosts {
+            version: 2,
+            models: models_map,
+        };
+
+        // Create a span with gpt-4o-pipecat model and token usage
+        let span = r#"{
+            "op": "gen_ai.chat.completions",
+            "data": {
+                "gen_ai.request.model": "gpt-4o-pipecat",
+                "gen_ai.usage.input_tokens": 100,
+                "gen_ai.usage.output_tokens": 50
+            }
+        }"#;
+
+        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+
+        // Enrich the span with AI data
+        enrich_ai_span_data(&mut span, Some(&model_costs), None);
+
+        // Verify that costs were calculated
+        let data = span.data.value().unwrap();
+
+        // Check that total cost was calculated
+        let total_cost = data
+            .gen_ai_cost_total_tokens
+            .value()
+            .and_then(|v| v.as_f64())
+            .expect("Total cost should be set");
+
+        // Expected: (100 * 2.5e-6) + (50 * 10.0e-6) = 0.00025 + 0.0005 = 0.00075
+        assert!(
+            (total_cost - 0.00075).abs() < 1e-9,
+            "Total cost should be 0.00075, got {}",
+            total_cost
+        );
+
+        // Check input cost
+        let input_cost = data
+            .gen_ai_cost_input_tokens
+            .value()
+            .and_then(|v| v.as_f64())
+            .expect("Input cost should be set");
+        assert!(
+            (input_cost - 0.00025).abs() < 1e-9,
+            "Input cost should be 0.00025, got {}",
+            input_cost
+        );
+
+        // Check output cost
+        let output_cost = data
+            .gen_ai_cost_output_tokens
+            .value()
+            .and_then(|v| v.as_f64())
+            .expect("Output cost should be set");
+        assert!(
+            (output_cost - 0.0005).abs() < 1e-9,
+            "Output cost should be 0.0005, got {}",
+            output_cost
+        );
+    }
+
+    /// Test that gpt-4o-realtime model costs are calculated correctly.
+    #[test]
+    fn test_gpt_4o_realtime_cost_calculation() {
+        use relay_pattern::Pattern;
+        use std::collections::HashMap;
+
+        // Set up model costs
+        let mut models_map = HashMap::new();
+        models_map.insert(
+            Pattern::new("gpt-4*").unwrap(),
+            ModelCostV2 {
+                input_per_token: 2.5e-6,
+                output_per_token: 10.0e-6,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 1.25e-6,
+            },
+        );
+
+        let model_costs = ModelCosts {
+            version: 2,
+            models: models_map,
+        };
+
+        // Test with gpt-4o-realtime
+        let span = r#"{
+            "op": "gen_ai.chat.completions",
+            "data": {
+                "gen_ai.request.model": "gpt-4o-realtime",
+                "gen_ai.usage.input_tokens": 200,
+                "gen_ai.usage.output_tokens": 100
+            }
+        }"#;
+
+        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        enrich_ai_span_data(&mut span, Some(&model_costs), None);
+
+        let data = span.data.value().unwrap();
+        let total_cost = data
+            .gen_ai_cost_total_tokens
+            .value()
+            .and_then(|v| v.as_f64())
+            .expect("Total cost should be set");
+
+        // Expected: (200 * 2.5e-6) + (100 * 10.0e-6) = 0.0005 + 0.001 = 0.0015
+        assert!(
+            (total_cost - 0.0015).abs() < 1e-9,
+            "Total cost should be 0.0015, got {}",
+            total_cost
+        );
+    }
 }
