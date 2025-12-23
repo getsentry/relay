@@ -5,6 +5,7 @@
 **Features**:
 
 - Double write to legacy attributes for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
+- Forbid invalid profile chunks without a platform header. ([#5507](https://github.com/getsentry/relay/pull/5507))
 
 **Internal**:
 
