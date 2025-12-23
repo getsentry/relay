@@ -25,6 +25,7 @@ pub use self::limits::*;
 
 pub mod check_ins;
 pub mod logs;
+pub mod profile_chunks;
 pub mod sessions;
 pub mod spans;
 pub mod trace_attachments;

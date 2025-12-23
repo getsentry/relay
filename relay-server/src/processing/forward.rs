@@ -93,6 +93,14 @@ impl ForwardContext<'_> {
             return Retention::from(*retention);
         }
 
+        self.event_retention()
+    }
+
+    /// Returns the event [`Retention`].
+    ///
+    /// This retention is also often used for older products and can be considered a default
+    /// retention for products which do not define their own retention.
+    pub fn event_retention(&self) -> Retention {
         Retention::from(RetentionConfig {
             standard: self
                 .project_info
