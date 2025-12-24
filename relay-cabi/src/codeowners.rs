@@ -208,5 +208,14 @@ mod tests {
         assert!(regex.is_match(b"/docs/subdir/file.css"));
         assert!(regex.is_match(b"file.css"));
         assert!(!regex.is_match(b"/docs/file.txt"));
+
+        // /**/<filename> should match <filename> exactly anywhere it appears
+        let pattern = "/**/foo.py";
+        let regex = translate_codeowners_pattern(pattern).unwrap();
+        assert!(regex.is_match(b"foo.py"));
+        assert!(regex.is_match(b"dir/foo.py"));
+        assert!(regex.is_match(b"dir/subdir/foo.py"));
+        assert!(!regex.is_match(b"not_foo.py"));
+        assert!(!regex.is_match(b"dir/not_foo.py"));
     }
 }
