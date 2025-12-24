@@ -27,12 +27,12 @@ targets:
           cacheControl: public, max-age=600
   - id: release
     name: docker
-    source: ghcr.io/getsentry/craft
-    target: ghcr.io/getsentry/craft
+    source: ghcr.io/getsentry/relay
+    target: ghcr.io/getsentry/relay
   - id: latest
     name: docker
-    source: ghcr.io/getsentry/craft
-    target: ghcr.io/getsentry/craft
+    source: ghcr.io/getsentry/relay
+    target: ghcr.io/getsentry/relay
     targetFormat: "{{{target}}}:latest"
 
 requireNames:
