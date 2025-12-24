@@ -65,12 +65,14 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
                 let trailing_slash = pattern_vec.get(i + 2) == Some(&'/');
 
                 if (left_anchored || leading_slash) && (right_anchored || trailing_slash) {
-                    regex += ".*";
-                    num_to_skip = Some(2);
-                    // Allows the trailing slash after ** to be optional
                     if trailing_slash {
-                        regex += "/?";
+                        // **/ matches zero or more complete path segments
+                        regex += "(?:.*/)?";
                         num_to_skip = Some(3);
+                    } else {
+                        // ** at end matches anything
+                        regex += ".*";
+                        num_to_skip = Some(2);
                     }
                     continue;
                 }
