@@ -117,6 +117,15 @@ pub enum PiiMode {
     Dynamic(fn(&ProcessingState) -> Pii),
 }
 
+/// A static or dynamic Option<`usize`> value.
+///
+/// Used for the fields `max_chars` and `max_bytes`.
+#[derive(Debug, Clone, Copy)]
+pub enum SizeMode {
+    Static(Option<usize>),
+    Dynamic(fn(&ProcessingState) -> Option<usize>),
+}
+
 /// Meta information about a field.
 #[derive(Debug, Clone, Copy)]
 pub struct FieldAttrs {
@@ -131,13 +140,13 @@ pub struct FieldAttrs {
     /// A set of allowed or denied character ranges for this string.
     pub characters: Option<CharacterSet>,
     /// The maximum char length of this field.
-    pub max_chars: Option<usize>,
+    pub max_chars: SizeMode,
     /// The extra char length allowance on top of max_chars.
     pub max_chars_allowance: usize,
     /// The maximum depth of this field.
     pub max_depth: Option<usize>,
     /// The maximum number of bytes of this field.
-    pub max_bytes: Option<usize>,
+    pub max_bytes: SizeMode,
     /// The type of PII on the field.
     pub pii: PiiMode,
     /// Whether additional properties should be retained during normalization.
@@ -177,10 +186,10 @@ impl FieldAttrs {
             nonempty: false,
             trim_whitespace: false,
             characters: None,
-            max_chars: None,
+            max_chars: SizeMode::Static(None),
             max_chars_allowance: 0,
             max_depth: None,
-            max_bytes: None,
+            max_bytes: SizeMode::Static(None),
             pii: PiiMode::Static(Pii::False),
             retain: false,
             trim: true,
@@ -222,7 +231,16 @@ impl FieldAttrs {
 
     /// Sets the maximum number of characters allowed in the field.
     pub const fn max_chars(mut self, max_chars: usize) -> Self {
-        self.max_chars = Some(max_chars);
+        self.max_chars = SizeMode::Static(Some(max_chars));
+        self
+    }
+
+    /// Sets the maximum number of characters allowed in the field dynamically based on the current state.
+    pub const fn max_chars_dynamic(
+        mut self,
+        max_chars: fn(&ProcessingState) -> Option<usize>,
+    ) -> Self {
+        self.max_chars = SizeMode::Dynamic(max_chars);
         self
     }
 
@@ -462,6 +480,30 @@ impl<'a> ProcessingState<'a> {
         }
     }
 
+    /// Returns the max bytes for this state.
+    ///
+    /// If the state's `FieldAttrs` contain a fixed `max_bytes` value,
+    /// it is returned. If they contain a dynamic `max_bytes` value (a function),
+    /// it is applied to this state and the output returned.
+    pub fn max_bytes(&self) -> Option<usize> {
+        match self.attrs().max_bytes {
+            SizeMode::Static(n) => n,
+            SizeMode::Dynamic(max_bytes_fn) => max_bytes_fn(self),
+        }
+    }
+
+    /// Returns the max chars for this state.
+    ///
+    /// If the state's `FieldAttrs` contain a fixed `max_chars` value,
+    /// it is returned. If they contain a dynamic `max_chars` value (a function),
+    /// it is applied to this state and the output returned.
+    pub fn max_chars(&self) -> Option<usize> {
+        match self.attrs().max_chars {
+            SizeMode::Static(n) => n,
+            SizeMode::Dynamic(max_chars_fn) => max_chars_fn(self),
+        }
+    }
+
     /// Iterates through this state and all its ancestors up the hierarchy.
     ///
     /// This starts at the top of the stack of processing states and ends at the root.  Thus
@@ -628,13 +670,21 @@ mod tests {
         }
     }
 
+    fn max_chars_from_item_name(state: &ProcessingState) -> Option<usize> {
+        match state.path_item().and_then(|p| p.key()) {
+            Some("short_item") => Some(10),
+            Some("long_item") => Some(20),
+            _ => None,
+        }
+    }
+
     #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
     #[metastructure(pii = "pii_from_item_name")]
-    struct TestValue(String);
+    struct TestValue(#[metastructure(max_chars = "max_chars_from_item_name")] String);
 
-    struct TestProcessor;
+    struct TestPiiProcessor;
 
-    impl Processor for TestProcessor {
+    impl Processor for TestPiiProcessor {
         fn process_string(
             &mut self,
             value: &mut String,
@@ -645,6 +695,22 @@ mod tests {
                 Pii::True => *value = "true".to_owned(),
                 Pii::False => *value = "false".to_owned(),
                 Pii::Maybe => *value = "maybe".to_owned(),
+            }
+            Ok(())
+        }
+    }
+
+    struct TestTrimmingProcessor;
+
+    impl Processor for TestTrimmingProcessor {
+        fn process_string(
+            &mut self,
+            value: &mut String,
+            _meta: &mut relay_protocol::Meta,
+            state: &ProcessingState<'_>,
+        ) -> crate::processor::ProcessingResult where {
+            if let Some(n) = state.max_chars() {
+                value.truncate(n);
             }
             Ok(())
         }
@@ -663,13 +729,37 @@ mod tests {
         )
         .unwrap();
 
-        process_value(&mut object, &mut TestProcessor, &ROOT_STATE).unwrap();
+        process_value(&mut object, &mut TestPiiProcessor, &ROOT_STATE).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&object), @r###"
         {
           "false_item": "false",
           "other_item": "maybe",
           "true_item": "true"
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_dynamic_max_chars() {
+        let mut object: Annotated<Object<TestValue>> = Annotated::from_json(
+            r#"
+        {
+          "short_item": "Should be shortened to 10",
+          "long_item": "Should be shortened to 20",
+          "other_item": "Should not be shortened at all"
+        }
+        "#,
+        )
+        .unwrap();
+
+        process_value(&mut object, &mut TestTrimmingProcessor, &ROOT_STATE).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&object), @r###"
+        {
+          "long_item": "Should be shortened ",
+          "other_item": "Should not be shortened at all",
+          "short_item": "Should be "
         }
         "###);
     }
