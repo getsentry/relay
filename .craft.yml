@@ -1,5 +1,12 @@
-minVersion: 0.23.1
-changelogPolicy: auto
+minVersion: "2.15.0"
+changelog:
+  policy: auto
+
+statusProvider:
+  name: github
+  config:
+    contexts:
+      - "Build Docker Image (relay)"
 
 targets:
   - name: github
@@ -20,12 +27,12 @@ targets:
           cacheControl: public, max-age=600
   - id: release
     name: docker
-    source: us-central1-docker.pkg.dev/sentryio/relay/relay
-    target: getsentry/relay
+    source: ghcr.io/getsentry/craft
+    target: ghcr.io/getsentry/craft
   - id: latest
     name: docker
-    source: us-central1-docker.pkg.dev/sentryio/relay/relay
-    target: getsentry/relay
+    source: ghcr.io/getsentry/craft
+    target: ghcr.io/getsentry/craft
     targetFormat: "{{{target}}}:latest"
 
 requireNames:
