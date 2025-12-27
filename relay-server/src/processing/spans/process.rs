@@ -267,40 +267,12 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use chrono::DateTime;
-    use relay_pii::{DataScrubbingConfig, PiiConfig};
+    use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;
-    use relay_sampling::evaluation::ReservoirCounters;
 
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
-
-    fn make_context(
-        scrubbing_config: DataScrubbingConfig,
-        pii_config: Option<PiiConfig>,
-    ) -> Context<'static> {
-        let config = Box::leak(Box::new(relay_config::Config::default()));
-        let global_config = Box::leak(Box::new(relay_dynamic_config::GlobalConfig::default()));
-        let project_info = Box::leak(Box::new(ProjectInfo {
-            config: relay_dynamic_config::ProjectConfig {
-                pii_config,
-                datascrubbing_settings: scrubbing_config,
-                ..Default::default()
-            },
-            ..Default::default()
-        }));
-        let rate_limits = Box::leak(Box::new(relay_quotas::RateLimits::default()));
-        let reservoir_counters = Box::leak(Box::new(ReservoirCounters::default()));
-
-        Context {
-            config,
-            global_config,
-            project_info,
-            rate_limits,
-            sampling_project_info: None,
-            reservoir_counters,
-        }
-    }
 
     #[test]
     fn test_scrub_span_pii_default_rules_links() {
@@ -337,17 +309,26 @@ mod tests {
 
         let mut data = Annotated::<SpanV2>::from_json(json).unwrap();
 
-        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
-        scrubbing_config.scrub_data = true;
-        scrubbing_config.scrub_defaults = true;
-        scrubbing_config.scrub_ip_addresses = true;
-        scrubbing_config.sensitive_fields = vec![
+        let mut datascrubbing_settings = relay_pii::DataScrubbingConfig::default();
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = true;
+        datascrubbing_settings.scrub_ip_addresses = true;
+        datascrubbing_settings.sensitive_fields = vec![
             "value".to_owned(), // Make sure the inner 'value' of the attribute object isn't scrubbed.
             "very_sensitive_data".to_owned(),
         ];
-        scrubbing_config.exclude_fields = vec!["public_data".to_owned()];
+        datascrubbing_settings.exclude_fields = vec!["public_data".to_owned()];
 
-        let ctx = make_context(scrubbing_config, None);
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    datascrubbing_settings,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
         scrub_span(&mut data, ctx).unwrap();
 
         let link = data.value().unwrap().links.value().unwrap()[0]
@@ -450,10 +431,10 @@ mod tests {
 
         let mut data = Annotated::<SpanV2>::from_json(json).unwrap();
 
-        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
-        scrubbing_config.scrub_data = true;
-        scrubbing_config.scrub_defaults = false;
-        scrubbing_config.scrub_ip_addresses = false;
+        let mut datascrubbing_settings = relay_pii::DataScrubbingConfig::default();
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = false;
+        datascrubbing_settings.scrub_ip_addresses = false;
 
         let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
         {
@@ -546,7 +527,17 @@ mod tests {
         ))
         .unwrap();
 
-        let ctx = make_context(scrubbing_config, Some(config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(config),
+                    datascrubbing_settings,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
         scrub_span(&mut data, ctx).unwrap();
         let link = data.value().unwrap().links.value().unwrap()[0]
             .value()
