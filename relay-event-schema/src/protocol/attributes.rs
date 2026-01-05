@@ -120,10 +120,29 @@ pub fn attribute_pii_from_conventions(state: &ProcessingState) -> Pii {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeType {
+    /// A boolean.
+    ///
+    /// The respective value must be of type [`Value::Bool`].
     Boolean,
+    /// An integer type.
+    ///
+    /// The respective value must be of type [`Value::I64`] or [`Value::U64`].
     Integer,
+    /// A floating point/double type.
+    ///
+    /// The respective value must be of type [`Value::F64`].
     Double,
+    /// A string type.
+    ///
+    /// The respective value must be of type [`Value::String`].
     String,
+    /// A string type.
+    ///
+    /// The respective value must be of type [`Value::Array`].
+    Array,
+    /// An unknown type.
+    ///
+    /// Kept for forward compatibility.
     Unknown(String),
 }
 
@@ -136,6 +155,7 @@ impl AttributeType {
             Self::Integer => "integer",
             Self::Double => "double",
             Self::String => "string",
+            Self::Array => "array",
             Self::Unknown(value) => value,
         }
     }
@@ -158,6 +178,7 @@ impl From<String> for AttributeType {
             "integer" => Self::Integer,
             "double" => Self::Double,
             "string" => Self::String,
+            "array" => Self::Array,
             _ => Self::Unknown(value),
         }
     }
