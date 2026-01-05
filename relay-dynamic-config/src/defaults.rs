@@ -23,7 +23,14 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         mri: "c:spans/usage@none".into(),
         field: None,
         condition: None,
-        tags: vec![],
+        tags: vec![
+            Tag::with_key("is_segment")
+                .from_field("is_segment")
+                .always(),
+            Tag::with_key("has_transaction")
+                .from_field("was_transaction")
+                .always(),
+        ],
     });
 
     config

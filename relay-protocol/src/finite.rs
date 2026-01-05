@@ -25,7 +25,7 @@ impl FiniteF64 {
     /// Zero.
     pub const ZERO: Self = Self(0.0);
 
-    /// Creates a finite float without checking whether the value is finte. This results in
+    /// Creates a finite float without checking whether the value is finite. This results in
     /// undefined behavior if the value is non-finite.
     ///
     /// # Safety
@@ -46,6 +46,15 @@ impl FiniteF64 {
         } else {
             None
         }
+    }
+
+    /// Creates a [`FiniteF64`] from a `usize` by casting the `value` to a float.
+    ///
+    /// The cast is guaranteed to be finite but may not be accurate.
+    ///
+    /// See also: <doc.rust-lang.org/reference/expressions/operator-expr.html#r-expr.as.numeric.int-as-float>
+    pub fn cast_from_u64(value: u64) -> Self {
+        Self(value as f64)
     }
 
     /// Returns the plain [`f64`].

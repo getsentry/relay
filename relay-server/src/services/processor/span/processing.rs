@@ -151,8 +151,10 @@ pub async fn process(
 
             let bucket = event::create_span_root_counter(
                 span,
+                false,
                 transaction_from_dsc.clone(),
                 1,
+                span.is_segment.value().is_some_and(|s| *s),
                 sampling_decision,
                 project_id,
             );

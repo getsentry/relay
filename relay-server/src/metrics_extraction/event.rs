@@ -78,16 +78,34 @@ fn extract_span_metrics_for_event(
     config: ExtractMetricsConfig<'_>,
     output: &mut ExtractedMetrics,
 ) {
-    relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        let mut span_count = 0;
+    // We unconditionally run metric extraction for spans. The count per root, is technically
+    // only required for configurations which do have dynamic sampling enabled. But for the
+    // sake of simplicity we always add it here.
+    macro_rules! create_span_root_counter {
+        ($count:expr, $is_segment:expr) => {{
+            create_span_root_counter(
+                event,
+                true,
+                config.transaction_from_dsc.map(|tx| tx.to_owned()),
+                $count,
+                $is_segment,
+                config.sampling_decision,
+                config.target_project_id,
+            )
+        }};
+    }
 
+    relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_segment_span(event, config.max_tag_value_size, &[])
         {
             let metrics = generic::extract_metrics(&transaction_span, config.config);
             output.project_metrics.extend(metrics);
-            span_count += 1;
+
+            let bucket = create_span_root_counter!(1, true);
+            output.sampling_metrics.extend(bucket);
         }
 
+        let mut span_count = 0;
         if let Some(spans) = event.spans.value_mut() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value_mut() {
@@ -98,16 +116,7 @@ fn extract_span_metrics_for_event(
             }
         }
 
-        // We unconditionally run metric extraction for spans. The count per root, is technically
-        // only required for configurations which do have dynamic sampling enabled. But for the
-        // sake of simplicity we always add it here.
-        let bucket = create_span_root_counter(
-            event,
-            config.transaction_from_dsc.map(|tx| tx.to_owned()),
-            span_count,
-            config.sampling_decision,
-            config.target_project_id,
-        );
+        let bucket = create_span_root_counter!(span_count, false);
         output.sampling_metrics.extend(bucket);
     });
 }
@@ -118,8 +127,10 @@ fn extract_span_metrics_for_event(
 /// sampling biases to compute weights of projects including all spans in the trace.
 pub fn create_span_root_counter<T: Extractable>(
     instance: &T,
+    has_transaction: bool,
     transaction: Option<String>,
     span_count: u32,
+    is_segment: bool,
     sampling_decision: SamplingDecision,
     target_project_id: ProjectId,
 ) -> Option<Bucket> {
@@ -146,6 +157,8 @@ pub fn create_span_root_counter<T: Extractable>(
     if let Some(transaction) = transaction {
         tags.insert("transaction".to_owned(), transaction);
     }
+    tags.insert("has_transaction".to_owned(), has_transaction.to_string());
+    tags.insert("is_segment".to_owned(), is_segment.to_string());
 
     Some(Bucket {
         timestamp,
@@ -1282,10 +1295,12 @@ mod tests {
                 .all(|x| &x.name == "c:spans/usage@none")
         );
 
-        assert_eq!(metrics.sampling_metrics.len(), 1);
-        assert_eq!(
-            metrics.sampling_metrics[0].name.as_ref(),
-            "c:spans/count_per_root_project@none"
+        assert_eq!(metrics.sampling_metrics.len(), 2);
+        assert!(
+            metrics
+                .sampling_metrics
+                .into_iter()
+                .all(|x| &x.name == "c:spans/count_per_root_project@none")
         );
     }
 }
