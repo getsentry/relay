@@ -72,6 +72,7 @@ def test_spansv2_basic(
             "status": "ok",
             "attributes": {
                 "foo": {"value": "bar", "type": "string"},
+                "array": {"value": ["foo", "bar"], "type": "array"},
                 "invalid": {"value": True, "type": "string"},
                 "http.response_content_length": {"value": 17, "type": "integer"},
             },
@@ -91,6 +92,7 @@ def test_spansv2_basic(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
         "attributes": {
+            "array": {"type": "array", "value": ["foo", "bar"]},
             "foo": {"type": "string", "value": "bar"},
             "http.response_content_length": {"value": 17, "type": "integer"},
             "http.response.body.size": {"value": 17, "type": "integer"},
@@ -981,6 +983,90 @@ def test_spanv2_default_pii_scrubbing_attributes(
     rem_info = meta["rem"]
     assert len(rem_info) == 1
     assert rem_info[0][0] == rule_type
+
+
+def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
+    """
+    Tests PII scrubbing works as expected for arrays and in the future objects.
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+    project_config["config"]["datascrubbingSettings"] = {
+        "scrubData": True,
+        "scrubDefaults": True,
+    }
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "Test span",
+            "status": "ok",
+            "is_segment": False,
+            "attributes": {
+                "pii_array": {
+                    "value": ["normal", "4242424242424242", "other"],
+                    "type": "array",
+                },
+            },
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b174",
+        "attributes": {
+            "pii_array": {
+                "type": "array",
+                "value": ["normal", "[creditcard]", "other"],
+            },
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "sentry.op": {"type": "string", "value": "default"},
+        },
+        "_meta": {
+            "attributes": {
+                "pii_array": {
+                    "value": {
+                        "1": {
+                            "": {
+                                "len": mock.ANY,
+                                "rem": [["@creditcard", mock.ANY, mock.ANY, mock.ANY]],
+                            }
+                        }
+                    }
+                }
+            },
+        },
+        "name": "Test span",
+        "start_timestamp": time_is(ts),
+        "end_timestamp": time_is(ts.timestamp() + 0.5),
+        "is_segment": False,
+        "status": "ok",
+    }
 
 
 def test_spansv2_attribute_normalization(
