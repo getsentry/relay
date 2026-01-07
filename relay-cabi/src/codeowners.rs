@@ -65,12 +65,14 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
                 let trailing_slash = pattern_vec.get(i + 2) == Some(&'/');
 
                 if (left_anchored || leading_slash) && (right_anchored || trailing_slash) {
-                    regex += ".*";
-                    num_to_skip = Some(2);
-                    // Allows the trailing slash after ** to be optional
                     if trailing_slash {
-                        regex += "/?";
+                        // **/ matches zero or more complete path segments
+                        regex += "(?:.*/)?";
                         num_to_skip = Some(3);
+                    } else {
+                        // ** at end matches anything
+                        regex += ".*";
+                        num_to_skip = Some(2);
                     }
                     continue;
                 }
@@ -208,5 +210,14 @@ mod tests {
         assert!(regex.is_match(b"/docs/subdir/file.css"));
         assert!(regex.is_match(b"file.css"));
         assert!(!regex.is_match(b"/docs/file.txt"));
+
+        // /**/<filename> should match <filename> exactly anywhere it appears
+        let pattern = "/**/foo.py";
+        let regex = translate_codeowners_pattern(pattern).unwrap();
+        assert!(regex.is_match(b"foo.py"));
+        assert!(regex.is_match(b"dir/foo.py"));
+        assert!(regex.is_match(b"dir/subdir/foo.py"));
+        assert!(!regex.is_match(b"not_foo.py"));
+        assert!(!regex.is_match(b"dir/not_foo.py"));
     }
 }
