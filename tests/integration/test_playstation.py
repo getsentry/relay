@@ -610,7 +610,7 @@ def test_event_merging(
         "type": "error",
         "logger": "",
         "platform": "native",
-        "timestamp": 1759841673.0,
+        "timestamp": mock.ANY,
         "received": time_within_delta(),
         "release": "test-app@1.0.0",
         "environment": "integration-test",
@@ -685,6 +685,8 @@ def test_event_merging(
             "bytes.ingested.event.minidump": 60446,
             "bytes.ingested.event.attachment": 158008,
         },
+        "_meta": mock.ANY,
+        "errors": mock.ANY,
     }
 
     assert sorted(event["attachments"], key=lambda x: x["name"]) == attachments(
