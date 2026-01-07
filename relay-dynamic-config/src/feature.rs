@@ -117,6 +117,9 @@ pub enum Feature {
     /// Enables the experimental Span V2 processing pipeline in Relay.
     #[serde(rename = "projects:span-v2-experimental-processing")]
     SpanV2ExperimentalProcessing,
+    /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
+    #[serde(rename = "organizations:span-v2-otlp-processing")]
+    SpanV2OtlpProcessing,
     /// This feature has deprecated and is kept for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction")]

@@ -287,6 +287,7 @@ impl ProcessingGroup {
 
         let span_v2_items = envelope.take_items_by(|item| {
             let exp_feature = project_info.has_feature(Feature::SpanV2ExperimentalProcessing);
+            let otlp_feature = project_info.has_feature(Feature::SpanV2OtlpProcessing);
             let is_supported_integration = {
                 matches!(
                     item.integration(),
@@ -298,7 +299,7 @@ impl ProcessingGroup {
 
             ItemContainer::<SpanV2>::is_container(item)
                 || (exp_feature && is_span)
-                || (exp_feature && is_supported_integration)
+                || ((exp_feature || otlp_feature) && is_supported_integration)
                 || (exp_feature && is_span_attachment)
         });
 
