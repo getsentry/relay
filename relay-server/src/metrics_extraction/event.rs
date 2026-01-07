@@ -85,7 +85,6 @@ fn extract_span_metrics_for_event(
         ($count:expr, $is_segment:expr) => {{
             create_span_root_counter(
                 event,
-                true,
                 config.transaction_from_dsc.map(|tx| tx.to_owned()),
                 $count,
                 $is_segment,
@@ -119,6 +118,8 @@ fn extract_span_metrics_for_event(
         let bucket = create_span_root_counter!(span_count, false);
         output.sampling_metrics.extend(bucket);
     });
+
+    dbg!(&output.project_metrics);
 }
 
 /// Creates the metric `c:spans/count_per_root_project@none`.
@@ -127,7 +128,6 @@ fn extract_span_metrics_for_event(
 /// sampling biases to compute weights of projects including all spans in the trace.
 pub fn create_span_root_counter<T: Extractable>(
     instance: &T,
-    has_transaction: bool,
     transaction: Option<String>,
     span_count: u32,
     is_segment: bool,
@@ -157,7 +157,6 @@ pub fn create_span_root_counter<T: Extractable>(
     if let Some(transaction) = transaction {
         tags.insert("transaction".to_owned(), transaction);
     }
-    tags.insert("has_transaction".to_owned(), has_transaction.to_string());
     tags.insert("is_segment".to_owned(), is_segment.to_string());
 
     Some(Bucket {

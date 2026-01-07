@@ -148,7 +148,6 @@ def test_spansv2_basic(
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
-                "has_transaction": "false",
                 "is_segment": "true",
                 "target_project_id": "42",
                 "transaction": "/my/fancy/endpoint",
@@ -164,7 +163,7 @@ def test_spansv2_basic(
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
             "tags": {
-                "has_transaction": "false",
+                "was_transaction": "false",
                 "is_segment": "true",
             },
             "timestamp": time_within_delta(),
@@ -254,7 +253,6 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": "drop",
-                "has_transaction": "false",
                 "is_segment": "false",
                 "target_project_id": "42",
                 "transaction": "tx_from_root",
@@ -268,7 +266,6 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             "metadata": mock.ANY,
             "name": "c:spans/usage@none",
             "tags": {
-                "has_transaction": "false",
                 "is_segment": "false",
             },
             "timestamp": time_within_delta(),
@@ -361,7 +358,6 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
                 "name": "c:spans/count_per_root_project@none",
                 "tags": {
                     "decision": "keep",
-                    "has_transaction": "false",
                     "is_segment": "true",
                     "target_project_id": "42",
                 },
@@ -374,7 +370,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
                 "metadata": mock.ANY,
                 "name": "c:spans/usage@none",
                 "tags": {
-                    "has_transaction": "false",
+                    "was_transaction": "false",
                     "is_segment": "true",
                 },
                 "timestamp": time_within_delta(),
@@ -462,7 +458,6 @@ def test_spansv2_ds_sampled(
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
-                "has_transaction": "false",
                 "is_segment": "false",
                 "target_project_id": "42",
                 "transaction": "tx_from_root",
@@ -479,7 +474,6 @@ def test_spansv2_ds_sampled(
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
-                "has_transaction": "false",
                 "is_segment": "true",
                 "target_project_id": "42",
                 "transaction": "tx_from_root",
@@ -495,7 +489,6 @@ def test_spansv2_ds_sampled(
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
             "tags": {
-                "has_transaction": "false",
                 "is_segment": "false",
             },
             "timestamp": time_within_delta(),
@@ -509,7 +502,7 @@ def test_spansv2_ds_sampled(
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
             "tags": {
-                "has_transaction": "false",
+                "was_transaction": "false",
                 "is_segment": "true",
             },
             "timestamp": time_within_delta(),
@@ -590,7 +583,6 @@ def test_spansv2_ds_root_in_different_org(
             "retention_days": 90,
             "tags": {
                 "decision": "drop",
-                "has_transaction": "false",
                 "is_segment": "false",
                 "target_project_id": "42",
             },
@@ -605,7 +597,6 @@ def test_spansv2_ds_root_in_different_org(
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
             "tags": {
-                "has_transaction": "false",
                 "is_segment": "false",
             },
             "timestamp": time_within_delta(),

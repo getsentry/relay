@@ -10,6 +10,7 @@ from opentelemetry.proto.trace.v1.trace_pb2 import (
     ResourceSpans,
     ScopeSpans,
     Span,
+    SpanFlags,
     TracesData,
 )
 
@@ -45,6 +46,8 @@ def test_span_ingestion(
         name="A Proto Span",
         start_time_unix_nano=int((ts.timestamp() - 1.0) * 1e9),
         end_time_unix_nano=int((ts.timestamp() - 0.5) * 1e9),
+        flags=SpanFlags.SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK
+        | SpanFlags.SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK,
         kind=Span.SPAN_KIND_SERVER,
         attributes=[
             KeyValue(
@@ -93,6 +96,7 @@ def test_span_ingestion(
             "resource.company": {"type": "string", "value": "Relay Corp"},
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.is_remote": {"type": "boolean", "value": True},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -104,6 +108,7 @@ def test_span_ingestion(
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts.timestamp() - 0.5),
+        "is_segment": True,
         "key_id": 123,
         "links": [
             {
@@ -134,7 +139,12 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_within_delta(),
             "retention_days": 90,
-            "tags": {"decision": "keep", "target_project_id": "42"},
+            "tags": {
+                "decision": "keep",
+                "has_transaction": "false",
+                "is_segment": "true",
+                "target_project_id": "42",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
@@ -145,7 +155,7 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_within_delta(),
             "retention_days": 90,
-            "tags": {},
+            "tags": {"has_transaction": "false", "is_segment": "true"},
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,

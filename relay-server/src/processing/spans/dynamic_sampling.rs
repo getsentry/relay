@@ -246,6 +246,17 @@ fn is_sampling_config_supported(project_info: &ProjectInfo) -> bool {
     matches!(config, ErrorBoundary::Ok(config) if !config.unsupported())
 }
 
+/// Creates dynamic sampling metrics for spans.
+///
+/// The `c:spans/usage@none` metric is incremented for each span and additionally always tagged with
+/// `is_segment` (`true` if the span is a segment span, `false` otherwise). If the span is a
+/// segment, an additional tag is added, indicating if the segment span was created from a
+/// transaction. Currently this processing pipeline is never used for transaction spans and is
+/// therefor this tag is always `false`.
+///
+/// The `c:spans/count_per_root_project@none` metric is incremented for each span and added to the
+/// *sampling project*. The metric is tagged with dynamic sampling information, `decision`,
+/// `target_project_id`, `transaction` (from the trace root) and `is_segment`.
 fn create_metrics(
     scoping: Scoping,
     spans: &[ExpandedSpan],
@@ -286,12 +297,6 @@ fn create_metrics(
         if let Some(tx) = dsc.and_then(|dsc| dsc.transaction.clone()) {
             tags.insert("transaction".to_owned(), tx);
         }
-        // This pipeline is only used for standalone spans, which are never extracted from a
-        // transaction.
-        //
-        // If this changes in the future this flag *must* be adjusted accordingly.
-        tags.insert("has_transaction".to_owned(), "false".to_owned());
-        // The span is *not* a segment span.
         tags.insert("is_segment".to_owned(), "false".to_owned());
         tags
     };
@@ -318,7 +323,11 @@ fn create_metrics(
             name: "c:spans/usage@none".into(),
             value: BucketValue::counter(segments),
             tags: BTreeMap::from([
-                ("has_transaction".to_owned(), "false".to_owned()),
+                // This pipeline is only used for standalone spans, which are never extracted from a
+                // transaction.
+                //
+                // If this changes in the future this flag *must* be adjusted accordingly.
+                ("was_transaction".to_owned(), "false".to_owned()),
                 ("is_segment".to_owned(), "true".to_owned()),
             ]),
             metadata,
@@ -342,10 +351,7 @@ fn create_metrics(
             width: 0,
             name: "c:spans/usage@none".into(),
             value: BucketValue::counter(spans),
-            tags: BTreeMap::from([
-                ("has_transaction".to_owned(), "false".to_owned()),
-                ("is_segment".to_owned(), "false".to_owned()),
-            ]),
+            tags: BTreeMap::from([("is_segment".to_owned(), "false".to_owned())]),
             metadata,
         });
     }
