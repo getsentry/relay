@@ -49,13 +49,13 @@ pub fn filter<Group>(
                     ItemAction::Keep
                 }
                 Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(err),
+                    relay_profiling::discard_reason(&err),
                 ))),
             }
         }
         // We found another profile, we'll drop it.
         ItemType::Profile => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-            relay_profiling::discard_reason(ProfileError::TooManyProfiles),
+            relay_profiling::discard_reason(&ProfileError::TooManyProfiles),
         ))),
         _ => ItemAction::Keep,
     });
@@ -132,7 +132,9 @@ fn expand_profile(
                 Ok(id)
             } else {
                 Err(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
+                    relay_profiling::discard_reason(
+                        &relay_profiling::ProfileError::ExceedSizeLimit,
+                    ),
                 )))
             }
         }
@@ -140,7 +142,7 @@ fn expand_profile(
             Err(Outcome::Filtered(filter_stat_key))
         }
         Err(err) => Err(Outcome::Invalid(DiscardReason::Profiling(
-            relay_profiling::discard_reason(err),
+            relay_profiling::discard_reason(&err),
         ))),
     }
 }
