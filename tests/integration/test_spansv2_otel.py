@@ -141,7 +141,6 @@ def test_span_ingestion(
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
-                "has_transaction": "false",
                 "is_segment": "true",
                 "target_project_id": "42",
             },
@@ -155,7 +154,7 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_within_delta(),
             "retention_days": 90,
-            "tags": {"has_transaction": "false", "is_segment": "true"},
+            "tags": {"is_segment": "true"},
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,

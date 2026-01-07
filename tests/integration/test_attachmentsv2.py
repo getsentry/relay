@@ -650,7 +650,6 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": "drop",
-                "has_transaction": "false",
                 "is_segment": "false",
                 "target_project_id": "42",
                 "transaction": "tx_from_root",
@@ -664,7 +663,6 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
             "metadata": mock.ANY,
             "name": "c:spans/usage@none",
             "tags": {
-                "has_transaction": "false",
                 "is_segment": "false",
             },
             "timestamp": time_within_delta(),

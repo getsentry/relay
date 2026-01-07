@@ -723,24 +723,24 @@ def test_session_metrics_processing(
 @pytest.mark.parametrize(
     "extract_metrics,discard_data,with_external_relay",
     [
-        # (True, "transaction", True),
+        (True, "transaction", True),
         (True, "transaction", False),
-        # (True, "trace", False),
-        # (True, False, False),
-        # (False, "transaction", False),
-        # (False, False, False),
-        # (False, False, True),
-        # ("corrupted", "transaction", False),
+        (True, "trace", False),
+        (True, False, False),
+        (False, "transaction", False),
+        (False, False, False),
+        (False, False, True),
+        ("corrupted", "transaction", False),
     ],
     ids=[
-        # "extract from transaction-sampled, external relay",
+        "extract from transaction-sampled, external relay",
         "extract from transaction-sampled",
-        # "extract from trace-sampled",
-        # "extract from unsampled",
-        # "don't extract from transaction-sampled",
-        # "don't extract from unsampled",
-        # "don't extract from unsampled, external relay",
-        # "corrupted config",
+        "extract from trace-sampled",
+        "extract from unsampled",
+        "don't extract from transaction-sampled",
+        "don't extract from unsampled",
+        "don't extract from unsampled, external relay",
+        "corrupted config",
     ],
 )
 def test_transaction_metrics(
@@ -853,7 +853,6 @@ def test_transaction_metrics(
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": decision,
-                "has_transaction": "true",
                 "is_segment": "false",
                 "target_project_id": "42",
                 "transaction": "transaction_which_starts_trace",
@@ -866,7 +865,6 @@ def test_transaction_metrics(
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": decision,
-                "has_transaction": "true",
                 "is_segment": "true",
                 "target_project_id": "42",
                 "transaction": "transaction_which_starts_trace",
@@ -878,7 +876,6 @@ def test_transaction_metrics(
             **common,
             "name": "c:spans/usage@none",
             "tags": {
-                "has_transaction": "false",
                 "is_segment": "false",
             },
             "type": "c",
@@ -888,7 +885,7 @@ def test_transaction_metrics(
             **common,
             "name": "c:spans/usage@none",
             "tags": {
-                "has_transaction": "true",  # TODO: this should be true
+                "was_transaction": "true",
                 "is_segment": "true",
             },
             "type": "c",
@@ -1101,7 +1098,7 @@ def test_transaction_metrics_extraction_external_relays(
         assert len(metrics_envelope.items) == 1
 
         payload = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(payload) == 7
+        assert len(payload) == 8
 
         by_name = {m["name"]: m for m in payload}
         light_metric = by_name["d:transactions/duration_light@millisecond"]
@@ -1162,7 +1159,7 @@ def test_transaction_metrics_extraction_processing_relays(
     tx_consumer.assert_empty()
 
     if expect_metrics_extraction:
-        metrics = metrics_by_name(metrics_consumer, 7)
+        metrics = metrics_by_name(metrics_consumer, 8)
         metric_usage = metrics["c:transactions/usage@none"]
         assert metric_usage["tags"] == {}
         assert metric_usage["value"] == 1.0
@@ -1417,7 +1414,7 @@ def test_limit_custom_measurements(
         "c:spans/count_per_root_project@none",
     }
 
-    metrics = metrics_by_name(metrics_consumer, len(expected_metrics))
+    metrics = metrics_by_name(metrics_consumer, 10)
     metrics.pop("headers")
 
     assert metrics.keys() == expected_metrics
@@ -1434,7 +1431,7 @@ def test_generic_metric_extraction(mini_sentry, relay):
             {
                 "category": "transaction",
                 "mri": "c:transactions/on_demand@none",
-                "condition": {"op": "gte", "name": "event.duration", "value": 1000.0},
+                "condition": {"op": "gte", "name": "event.duration", "value": 0.3},
                 "tags": [{"key": "query_hash", "value": "c91c2e4d"}],
             }
         ],
@@ -1624,7 +1621,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
             },
         )
 
-    transaction = generate_transaction_item()
+    transaction = generate_transaction_item(datetime.now(tz=timezone.utc).timestamp())
     relay.send_transaction(project_id, transaction)
 
     if is_processing_relay:
@@ -1665,7 +1662,7 @@ def test_missing_global_filters_enables_metric_extraction(
         }
     )
 
-    transaction = generate_transaction_item()
+    transaction = generate_transaction_item(datetime.now(tz=timezone.utc).timestamp())
     relay.send_transaction(project_id, transaction)
 
     tx, _ = tx_consumer.get_event()
@@ -1835,7 +1832,7 @@ def test_metrics_extraction_with_computed_context_filters(
     }
 
     # Create a transaction with matching contexts
-    transaction = generate_transaction_item()
+    transaction = generate_transaction_item(datetime.now(tz=timezone.utc).timestamp())
     transaction["contexts"].update(
         {
             "os": {
@@ -1874,7 +1871,7 @@ def test_metrics_extraction_with_computed_context_filters(
     ]
 
     # Verify that all three metrics were extracted
-    metrics = metrics_by_name(metrics_consumer, 9)
+    metrics = metrics_by_name(metrics_consumer, 11)
 
     # Check each extracted metric
     for metric_name in metric_names:

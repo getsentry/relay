@@ -112,16 +112,9 @@ where
     let mut map = BTreeMap::new();
 
     for tag_spec in tags {
-        print!(
-            "spec {}/{:?} (is_segment: {:?}): ",
-            tag_spec.key,
-            tag_spec.value,
-            instance.get_value("span.is_segment")
-        );
         if let Some(ref condition) = tag_spec.condition
             && !condition.matches(instance)
         {
-            println!("skipped");
             continue;
         }
 
@@ -139,10 +132,7 @@ where
         if let Some(value) = value_opt {
             // Explicitly do not override existing tags on a metric. First condition wins.
             if !map.contains_key(&tag_spec.key) {
-                println!("added");
                 map.insert(tag_spec.key.clone(), value);
-            } else {
-                println!("already present");
             }
         }
     }

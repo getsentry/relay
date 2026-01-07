@@ -118,8 +118,6 @@ fn extract_span_metrics_for_event(
         let bucket = create_span_root_counter!(span_count, false);
         output.sampling_metrics.extend(bucket);
     });
-
-    dbg!(&output.project_metrics);
 }
 
 /// Creates the metric `c:spans/count_per_root_project@none`.
