@@ -1281,7 +1281,7 @@ def test_rate_limit_consistent_extracted(
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
-    metrics = metrics_consumer.get_metrics(n=7)
+    metrics = metrics_consumer.get_metrics(n=8)
     span_count = sum(
         [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
     )
