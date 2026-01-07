@@ -450,9 +450,7 @@ def test_playstation_attachment_no_feature_flag(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    mini_sentry.add_full_project_config(
-        PROJECT_ID,
-    )
+    mini_sentry.add_full_project_config(PROJECT_ID)
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
     relay = relay_processing_with_playstation()
