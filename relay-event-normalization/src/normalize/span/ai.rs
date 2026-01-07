@@ -2,9 +2,7 @@
 
 use crate::normalize::AiOperationTypeMap;
 use crate::{ModelCostV2, ModelCosts};
-use relay_event_schema::protocol::{
-    Event, Measurements, OperationType, Span, SpanData, TraceContext,
-};
+use relay_event_schema::protocol::{Event, Measurements, OperationType, SpanData, TraceContext};
 use relay_protocol::{Annotated, Getter, Value};
 
 /// Amount of used tokens for a model call.
