@@ -77,7 +77,7 @@ pub fn filter(
             Err(err) => {
                 record_keeper.reject_err(
                     Outcome::Invalid(DiscardReason::Profiling(relay_profiling::discard_reason(
-                        err,
+                        &err,
                     ))),
                     work.profile.take(),
                 );
@@ -246,7 +246,9 @@ fn expand_profile(
                 Ok(id)
             } else {
                 Err(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
+                    relay_profiling::discard_reason(
+                        &relay_profiling::ProfileError::ExceedSizeLimit,
+                    ),
                 )))
             }
         }
@@ -254,7 +256,7 @@ fn expand_profile(
             Err(Outcome::Filtered(filter_stat_key))
         }
         Err(err) => Err(Outcome::Invalid(DiscardReason::Profiling(
-            relay_profiling::discard_reason(err),
+            relay_profiling::discard_reason(&err),
         ))),
     }
 }
