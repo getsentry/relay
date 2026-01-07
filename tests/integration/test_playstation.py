@@ -16,6 +16,17 @@ def load_dump_file(base_file_name: str):
         return f.read()
 
 
+def playstation_project_config():
+    """Project config extras for PlayStation tests with timestamp validation effectively disabled."""
+    return {
+        "config": {
+            # Set to 100 years to prevent normalization from overwriting the timestamp
+            "eventRetention": 36500,
+            "features": ["organizations:relay-playstation-ingestion"],
+        }
+    }
+
+
 def user_data_event_json(response):
     return {
         "event_id": response.text.replace("-", ""),
@@ -290,16 +301,7 @@ def test_playstation_with_feature_flag(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    mini_sentry.add_full_project_config(
-        PROJECT_ID,
-        extra={
-            "config": {
-                # Set to 100 years to prevent normalization from overwriting the timestamp
-                "eventRetention": 36500,
-                "features": ["organizations:relay-playstation-ingestion"],
-            }
-        },
-    )
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
 
@@ -334,16 +336,7 @@ def test_playstation_user_data_extraction(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("user_data.prosperodmp")
-    mini_sentry.add_full_project_config(
-        PROJECT_ID,
-        extra={
-            "config": {
-                # Set to 100 years to prevent normalization from overwriting the timestamp
-                "eventRetention": 36500,
-                "features": ["organizations:relay-playstation-ingestion"],
-            }
-        },
-    )
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
     relay = relay_processing_with_playstation()
@@ -364,10 +357,7 @@ def test_playstation_ignore_large_fields(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("user_data.prosperodmp")
-    mini_sentry.add_full_project_config(
-        PROJECT_ID,
-        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
-    )
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
 
     # Make a dummy video that is larger than the dump
     video_content = "1" * (len(playstation_dump) + 100)
@@ -408,16 +398,7 @@ def test_playstation_attachment(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    mini_sentry.add_full_project_config(
-        PROJECT_ID,
-        extra={
-            "config": {
-                # Set to 100 years to prevent normalization from overwriting the timestamp
-                "eventRetention": 36500,
-                "features": ["organizations:relay-playstation-ingestion"],
-            }
-        },
-    )
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
     relay = relay_processing_with_playstation()
@@ -535,10 +516,7 @@ def test_playstation_attachment_no_feature_flag(
 
 def test_data_request(mini_sentry, relay_processing_with_playstation):
     PROJECT_ID = 42
-    mini_sentry.add_full_project_config(
-        PROJECT_ID,
-        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
-    )
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     relay = relay_processing_with_playstation()
     response = relay.send_playstation_data_request(PROJECT_ID)
 
@@ -562,16 +540,7 @@ def test_event_merging(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("native_user_data.prosperodmp")
-    mini_sentry.add_full_project_config(
-        PROJECT_ID,
-        extra={
-            "config": {
-                # Set to 100 years to prevent normalization from overwriting the timestamp
-                "eventRetention": 36500,
-                "features": ["organizations:relay-playstation-ingestion"],
-            }
-        },
-    )
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
     relay = relay_processing_with_playstation()
