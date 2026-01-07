@@ -266,9 +266,6 @@ fn create_metrics(
     let mut metrics = ExtractedMetrics::default();
 
     let total = spans.len();
-
-    // Important: for the total count we cannot just use `spans.len()` as this may contain
-    // `ExpandedSpan` items *without* a span.
     let segments = spans
         .iter()
         .filter_map(|span| span.span.value())
