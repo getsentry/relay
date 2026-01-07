@@ -90,8 +90,6 @@ def user_data_event_json(response):
         "project": 42,
         "_metrics": mock.ANY,
         "grouping_config": mock.ANY,
-        "_meta": mock.ANY,
-        "errors": mock.ANY,
     }
 
 
@@ -153,19 +151,10 @@ def playstation_event_json(sdk=mock.ANY):
             ["server_name", "5be3652dd663dbdcd044da0f2144b17f"],
         ],
         "sdk": sdk,
-        "errors": [
-            {
-                "type": "past_timestamp",
-                "name": "timestamp",
-                "sdk_time": "2025-02-20T10:23:01+00:00",
-                "server_time": mock.ANY,
-            }
-        ],
         "key_id": "123",
         "project": 42,
         "grouping_config": mock.ANY,
         "_metrics": mock.ANY,
-        "_meta": mock.ANY,
     }
 
 
@@ -303,7 +292,13 @@ def test_playstation_with_feature_flag(
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(
         PROJECT_ID,
-        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
+        extra={
+            "config": {
+                # Set to 100 years to prevent normalization from overwriting the timestamp
+                "eventRetention": 36500,
+                "features": ["organizations:relay-playstation-ingestion"],
+            }
+        },
     )
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
@@ -341,7 +336,13 @@ def test_playstation_user_data_extraction(
     playstation_dump = load_dump_file("user_data.prosperodmp")
     mini_sentry.add_full_project_config(
         PROJECT_ID,
-        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
+        extra={
+            "config": {
+                # Set to 100 years to prevent normalization from overwriting the timestamp
+                "eventRetention": 36500,
+                "features": ["organizations:relay-playstation-ingestion"],
+            }
+        },
     )
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
@@ -409,7 +410,13 @@ def test_playstation_attachment(
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(
         PROJECT_ID,
-        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
+        extra={
+            "config": {
+                # Set to 100 years to prevent normalization from overwriting the timestamp
+                "eventRetention": 36500,
+                "features": ["organizations:relay-playstation-ingestion"],
+            }
+        },
     )
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
@@ -557,7 +564,13 @@ def test_event_merging(
     playstation_dump = load_dump_file("native_user_data.prosperodmp")
     mini_sentry.add_full_project_config(
         PROJECT_ID,
-        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
+        extra={
+            "config": {
+                # Set to 100 years to prevent normalization from overwriting the timestamp
+                "eventRetention": 36500,
+                "features": ["organizations:relay-playstation-ingestion"],
+            }
+        },
     )
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
@@ -610,7 +623,7 @@ def test_event_merging(
         "type": "error",
         "logger": "",
         "platform": "native",
-        "timestamp": mock.ANY,
+        "timestamp": 1759841673.0,
         "received": time_within_delta(),
         "release": "test-app@1.0.0",
         "environment": "integration-test",
@@ -685,8 +698,6 @@ def test_event_merging(
             "bytes.ingested.event.minidump": 60446,
             "bytes.ingested.event.attachment": 158008,
         },
-        "_meta": mock.ANY,
-        "errors": mock.ANY,
     }
 
     assert sorted(event["attachments"], key=lambda x: x["name"]) == attachments(
