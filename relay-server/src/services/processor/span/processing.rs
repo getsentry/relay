@@ -27,6 +27,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::{BrowserContext, Event, EventId, IpAddr, Span, SpanData};
+use relay_protocol::Getter;
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Value};
@@ -455,7 +456,17 @@ fn normalize(
 
     normalize_performance_score(span, performance_score);
 
-    enrich_ai_span_data(span, ai_model_costs, ai_operation_type_map);
+    let duration = span
+        .get_value("span.duration")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    enrich_ai_span_data(
+        &mut span.data,
+        &span.op,
+        duration,
+        ai_model_costs,
+        ai_operation_type_map,
+    );
 
     tag_extraction::extract_measurements(span, is_mobile);
 

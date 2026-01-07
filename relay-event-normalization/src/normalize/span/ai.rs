@@ -2,7 +2,9 @@
 
 use crate::normalize::AiOperationTypeMap;
 use crate::{ModelCostV2, ModelCosts};
-use relay_event_schema::protocol::{Event, Span, SpanData};
+use relay_event_schema::protocol::{
+    Event, Measurements, OperationType, Span, SpanData, TraceContext,
+};
 use relay_protocol::{Annotated, Getter, Value};
 
 /// Amount of used tokens for a model call.
@@ -120,9 +122,11 @@ fn extract_ai_model_cost_data(model_cost: Option<&ModelCostV2>, data: &mut SpanD
 }
 
 /// Maps AI-related measurements (legacy) to span data.
-fn map_ai_measurements_to_data(span: &mut Span) {
-    let measurements = span.measurements.value();
-    let data = span.data.get_or_insert_with(SpanData::default);
+fn map_ai_measurements_to_data(
+    span_data: &mut Annotated<SpanData>,
+    measurements: Option<&Measurements>,
+) {
+    let data = span_data.get_or_insert_with(SpanData::default);
 
     let set_field_from_measurement = |target_field: &mut Annotated<Value>,
                                       measurement_key: &str| {
@@ -142,8 +146,8 @@ fn map_ai_measurements_to_data(span: &mut Span) {
     );
 }
 
-fn set_total_tokens(span: &mut Span) {
-    let data = span.data.get_or_insert_with(SpanData::default);
+fn set_total_tokens(span_data: &mut Annotated<SpanData>) {
+    let data = span_data.get_or_insert_with(SpanData::default);
 
     // It might be that 'total_tokens' is not set in which case we need to calculate it
     if data.gen_ai_usage_total_tokens.value().is_none() {
@@ -168,13 +172,12 @@ fn set_total_tokens(span: &mut Span) {
 }
 
 /// Extract the additional data into the span
-fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
-    let duration = span
-        .get_value("span.duration")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0);
-
-    let data = span.data.get_or_insert_with(SpanData::default);
+fn extract_ai_data(
+    span_data: &mut Annotated<SpanData>,
+    duration: f64,
+    ai_model_costs: &ModelCosts,
+) {
+    let data = span_data.get_or_insert_with(SpanData::default);
 
     // Extracts the response tokens per second
     if data.gen_ai_response_tokens_per_second.value().is_none()
@@ -205,22 +208,23 @@ fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
 
 /// Enrich the AI span data
 pub fn enrich_ai_span_data(
-    span: &mut Span,
+    span_data: &mut Annotated<SpanData>,
+    span_op: &Annotated<OperationType>,
+    duration: f64,
     model_costs: Option<&ModelCosts>,
     operation_type_map: Option<&AiOperationTypeMap>,
 ) {
-    if !is_ai_span(span) {
+    if !is_ai_span(span_data, span_op) {
         return;
     }
 
-    map_ai_measurements_to_data(span);
-    set_total_tokens(span);
+    set_total_tokens(span_data);
 
     if let Some(model_costs) = model_costs {
-        extract_ai_data(span, model_costs);
+        extract_ai_data(span_data, duration, model_costs);
     }
     if let Some(operation_type_map) = operation_type_map {
-        infer_ai_operation_type(span, operation_type_map);
+        infer_ai_operation_type(span_data, span_op, operation_type_map);
     }
 }
 
@@ -230,11 +234,39 @@ pub fn enrich_ai_event_data(
     model_costs: Option<&ModelCosts>,
     operation_type_map: Option<&AiOperationTypeMap>,
 ) {
+    if let Some(&start_timestamp) = event.start_timestamp.value()
+        && let Some(&timestamp) = event.timestamp.value()
+        && let Some(trace_context) = event.context_mut::<TraceContext>()
+    {
+        let duration = relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp);
+        // TODO: Map measurements to trace context data
+        enrich_ai_span_data(
+            &mut trace_context.data,
+            &trace_context.op,
+            duration,
+            model_costs,
+            operation_type_map,
+        );
+    }
     let spans = event.spans.value_mut().iter_mut().flatten();
     let spans = spans.filter_map(|span| span.value_mut().as_mut());
 
     for span in spans {
-        enrich_ai_span_data(span, model_costs, operation_type_map);
+        // Legacy: Map measurements to span data before enrichment
+        map_ai_measurements_to_data(&mut span.data, span.measurements.value());
+
+        let duration = span
+            .get_value("span.duration")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+
+        enrich_ai_span_data(
+            &mut span.data,
+            &span.op,
+            duration,
+            model_costs,
+            operation_type_map,
+        );
     }
 }
 
@@ -242,12 +274,16 @@ pub fn enrich_ai_event_data(
 ///
 /// This function sets the gen_ai.operation.type attribute based on the value of either
 /// gen_ai.operation.name or span.op based on the provided operation type map configuration.
-fn infer_ai_operation_type(span: &mut Span, operation_type_map: &AiOperationTypeMap) {
-    let data = span.data.get_or_insert_with(SpanData::default);
+fn infer_ai_operation_type(
+    span_data: &mut Annotated<SpanData>,
+    span_op: &Annotated<OperationType>,
+    operation_type_map: &AiOperationTypeMap,
+) {
+    let data = span_data.get_or_insert_with(SpanData::default);
     let op_type = data
         .gen_ai_operation_name
         .value()
-        .or(span.op.value())
+        .or(span_op.value())
         .and_then(|op| operation_type_map.get_operation_type(op));
 
     if let Some(operation_type) = op_type {
@@ -259,15 +295,13 @@ fn infer_ai_operation_type(span: &mut Span, operation_type_map: &AiOperationType
 /// Returns true if the span is an AI span.
 /// AI spans are spans with either a gen_ai.operation.name attribute or op starting with "ai."
 /// (legacy) or "gen_ai." (new).
-fn is_ai_span(span: &Span) -> bool {
-    let has_ai_op = span
-        .data
+fn is_ai_span(span_data: &Annotated<SpanData>, span_op: &Annotated<OperationType>) -> bool {
+    let has_ai_op = span_data
         .value()
         .and_then(|data| data.gen_ai_operation_name.value())
         .is_some();
 
-    let is_ai_span_op = span
-        .op
+    let is_ai_span_op = span_op
         .value()
         .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."));
 
@@ -279,7 +313,6 @@ mod tests {
     use std::collections::HashMap;
 
     use relay_pattern::Pattern;
-    use relay_protocol::get_value;
 
     use super::*;
 
@@ -401,11 +434,11 @@ mod tests {
                 "gen_ai.operation.name": "invoke_agent"
             }
         }"#;
-        let mut span = Annotated::from_json(span).unwrap();
-        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
+        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        infer_ai_operation_type(&mut span.data, &span.op, &operation_type_map);
         assert_eq!(
-            get_value!(span.data.gen_ai_operation_type!).as_str(),
-            "agent"
+            span.data.value().unwrap().gen_ai_operation_type.as_str(),
+            Some("agent")
         );
     }
 
@@ -428,11 +461,11 @@ mod tests {
         let span = r#"{
             "op": "gen_ai.invoke_agent"
         }"#;
-        let mut span = Annotated::from_json(span).unwrap();
-        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
+        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        infer_ai_operation_type(&mut span.data, &span.op, &operation_type_map);
         assert_eq!(
-            get_value!(span.data.gen_ai_operation_type!).as_str(),
-            "agent"
+            span.data.value().unwrap().gen_ai_operation_type.as_str(),
+            Some("agent")
         );
     }
 
@@ -458,11 +491,11 @@ mod tests {
                 "gen_ai.operation.name": "embeddings"
             }
         }"#;
-        let mut span = Annotated::from_json(span).unwrap();
-        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
+        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        infer_ai_operation_type(&mut span.data, &span.op, &operation_type_map);
         assert_eq!(
-            get_value!(span.data.gen_ai_operation_type!).as_str(),
-            "ai_client"
+            span.data.value().unwrap().gen_ai_operation_type.as_str(),
+            Some("ai_client")
         );
     }
 
@@ -475,7 +508,7 @@ mod tests {
             }
         }"#;
         let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(is_ai_span(&span));
+        assert!(is_ai_span(&span.data, &span.op));
     }
 
     /// Test that an AI span is detected from a span.op starting with "ai.".
@@ -485,7 +518,7 @@ mod tests {
             "op": "ai.chat"
         }"#;
         let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(is_ai_span(&span));
+        assert!(is_ai_span(&span.data, &span.op));
     }
 
     /// Test that an AI span is detected from a span.op starting with "gen_ai.".
@@ -495,7 +528,7 @@ mod tests {
             "op": "gen_ai.chat"
         }"#;
         let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(is_ai_span(&span));
+        assert!(is_ai_span(&span.data, &span.op));
     }
 
     /// Test that a non-AI span is detected.
@@ -504,6 +537,6 @@ mod tests {
         let span = r#"{
         }"#;
         let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(!is_ai_span(&span));
+        assert!(!is_ai_span(&span.data, &span.op));
     }
 }
