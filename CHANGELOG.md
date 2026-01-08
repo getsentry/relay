@@ -8,6 +8,7 @@
 
 **Internal**:
 
+- Release Docker image to GHCR and DockerHub via Craft. ([#5509](https://github.com/getsentry/relay/pull/5509))
 - Tag span `usage` and `count_per_root_project` metrics with segment information. ([#5511](https://github.com/getsentry/relay/pull/5511))
 
 ## 25.12.1
