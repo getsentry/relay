@@ -232,16 +232,23 @@ pub fn enrich_ai_event_data(
     model_costs: Option<&ModelCosts>,
     operation_type_map: Option<&AiOperationTypeMap>,
 ) {
-    if let Some(&start_timestamp) = event.start_timestamp.value()
-        && let Some(&timestamp) = event.timestamp.value()
-        && let Some(trace_context) = event.context_mut::<TraceContext>()
+    let event_duration = event
+        .get_value("event.duration")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
+    if let Some(trace_context) = event
+        .contexts
+        .value_mut()
+        .as_mut()
+        .and_then(|c| c.get_mut::<TraceContext>())
     {
-        let duration = relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp);
-        // TODO: Map measurements to trace context data
+        map_ai_measurements_to_data(&mut trace_context.data, event.measurements.value());
+
         enrich_ai_span_data(
             &mut trace_context.data,
             &trace_context.op,
-            duration,
+            event_duration,
             model_costs,
             operation_type_map,
         );
@@ -253,7 +260,7 @@ pub fn enrich_ai_event_data(
         // Legacy: Map measurements to span data before enrichment
         map_ai_measurements_to_data(&mut span.data, span.measurements.value());
 
-        let duration = span
+        let span_duration = span
             .get_value("span.duration")
             .and_then(|v| v.as_f64())
             .unwrap_or(0.0);
@@ -261,7 +268,7 @@ pub fn enrich_ai_event_data(
         enrich_ai_span_data(
             &mut span.data,
             &span.op,
-            duration,
+            span_duration,
             model_costs,
             operation_type_map,
         );
@@ -427,15 +434,14 @@ mod tests {
             operation_types,
         };
 
-        let span = r#"{
-            "data": {
-                "gen_ai.operation.name": "invoke_agent"
-            }
-        }"#;
-        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        infer_ai_operation_type(&mut span.data, &span.op, &operation_type_map);
+        let mut span_data = Annotated::<SpanData>::default();
+        span_data
+            .get_or_insert_with(SpanData::default)
+            .gen_ai_operation_name
+            .set_value(Some("invoke_agent".into()));
+        infer_ai_operation_type(&mut span_data, &Annotated::default(), &operation_type_map);
         assert_eq!(
-            span.data.value().unwrap().gen_ai_operation_type.as_str(),
+            span_data.value().unwrap().gen_ai_operation_type.as_str(),
             Some("agent")
         );
     }
@@ -456,13 +462,14 @@ mod tests {
             operation_types,
         };
 
-        let span = r#"{
-            "op": "gen_ai.invoke_agent"
-        }"#;
-        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        infer_ai_operation_type(&mut span.data, &span.op, &operation_type_map);
+        let mut span_data = Annotated::<SpanData>::default();
+        infer_ai_operation_type(
+            &mut span_data,
+            &Annotated::new("gen_ai.invoke_agent".into()),
+            &operation_type_map,
+        );
         assert_eq!(
-            span.data.value().unwrap().gen_ai_operation_type.as_str(),
+            span_data.value().unwrap().gen_ai_operation_type.as_str(),
             Some("agent")
         );
     }
@@ -484,15 +491,14 @@ mod tests {
             operation_types,
         };
 
-        let span = r#"{
-            "data": {
-                "gen_ai.operation.name": "embeddings"
-            }
-        }"#;
-        let mut span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        infer_ai_operation_type(&mut span.data, &span.op, &operation_type_map);
+        let mut span_data = Annotated::<SpanData>::default();
+        span_data
+            .get_or_insert_with(SpanData::default)
+            .gen_ai_operation_name
+            .set_value(Some("embeddings".into()));
+        infer_ai_operation_type(&mut span_data, &Annotated::default(), &operation_type_map);
         assert_eq!(
-            span.data.value().unwrap().gen_ai_operation_type.as_str(),
+            span_data.value().unwrap().gen_ai_operation_type.as_str(),
             Some("ai_client")
         );
     }
@@ -500,41 +506,38 @@ mod tests {
     /// Test that an AI span is detected from a gen_ai.operation.name attribute.
     #[test]
     fn test_is_ai_span_from_gen_ai_operation_name() {
-        let span = r#"{
-            "data": {
-                "gen_ai.operation.name": "chat"
-            }
-        }"#;
-        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(is_ai_span(&span.data, &span.op));
+        let mut span_data = Annotated::<SpanData>::default();
+        span_data
+            .get_or_insert_with(SpanData::default)
+            .gen_ai_operation_name
+            .set_value(Some("chat".into()));
+        assert!(is_ai_span(&span_data, &Annotated::default()));
     }
 
     /// Test that an AI span is detected from a span.op starting with "ai.".
     #[test]
     fn test_is_ai_span_from_span_op_ai() {
-        let span = r#"{
-            "op": "ai.chat"
-        }"#;
-        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(is_ai_span(&span.data, &span.op));
+        assert!(is_ai_span(
+            &Annotated::<SpanData>::default(),
+            &Annotated::new("ai.chat".into())
+        ));
     }
 
     /// Test that an AI span is detected from a span.op starting with "gen_ai.".
     #[test]
     fn test_is_ai_span_from_span_op_gen_ai() {
-        let span = r#"{
-            "op": "gen_ai.chat"
-        }"#;
-        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(is_ai_span(&span.data, &span.op));
+        assert!(is_ai_span(
+            &Annotated::<SpanData>::default(),
+            &Annotated::new("gen_ai.chat".into())
+        ));
     }
 
     /// Test that a non-AI span is detected.
     #[test]
     fn test_is_ai_span_negative() {
-        let span = r#"{
-        }"#;
-        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(!is_ai_span(&span.data, &span.op));
+        assert!(!is_ai_span(
+            &Annotated::<SpanData>::default(),
+            &Annotated::default()
+        ));
     }
 }
