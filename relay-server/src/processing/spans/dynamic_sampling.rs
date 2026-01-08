@@ -314,16 +314,20 @@ fn create_metrics(
             },
             metadata,
         });
+
+        // This pipeline is only used for standalone spans, which are never extracted from a
+        // transaction.
+        //
+        // If this changes in the future this flag *must* be adjusted accordingly.
+        #[cfg(debug_assertions)]
+        assert_segments_not_was_transaction(spans);
+
         metrics.project_metrics.push(Bucket {
             timestamp,
             width: 0,
             name: "c:spans/usage@none".into(),
             value: BucketValue::counter(segments),
             tags: BTreeMap::from([
-                // This pipeline is only used for standalone spans, which are never extracted from a
-                // transaction.
-                //
-                // If this changes in the future this flag *must* be adjusted accordingly.
                 ("was_transaction".to_owned(), "false".to_owned()),
                 ("is_segment".to_owned(), "true".to_owned()),
             ]),
@@ -354,4 +358,20 @@ fn create_metrics(
     }
 
     metrics
+}
+
+/// Asserts all segments spans are not marked as being created from a transaction.
+#[cfg(debug_assertions)]
+fn assert_segments_not_was_transaction(spans: &[ExpandedSpan]) {
+    use relay_conventions::WAS_TRANSACTION;
+    use relay_protocol::Value;
+
+    for span in spans.iter().flat_map(|s| s.span.value()) {
+        let was_transaction = span
+            .attributes
+            .value()
+            .and_then(|attr| attr.get_value(WAS_TRANSACTION));
+
+        debug_assert!(matches!(was_transaction, None | Some(&Value::Bool(false))));
+    }
 }
