@@ -48,7 +48,7 @@ impl FiniteF64 {
         }
     }
 
-    /// Creates a [`FiniteF64`] from a `usize` by casting the `value` to a float.
+    /// Creates a [`FiniteF64`] from a `u64` by casting the `value` to a float.
     ///
     /// The cast is guaranteed to be finite but may not be accurate.
     ///
