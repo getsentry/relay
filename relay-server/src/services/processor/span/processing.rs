@@ -461,11 +461,10 @@ fn normalize(
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
 
-    map_ai_measurements_to_data(&mut span.data, span.measurements.value());
-
     enrich_ai_span_data(
         &mut span.data,
         &span.op,
+        &span.measurements,
         duration,
         ai_model_costs,
         ai_operation_type_map,

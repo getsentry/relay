@@ -208,10 +208,13 @@ fn extract_ai_data(
 pub fn enrich_ai_span_data(
     span_data: &mut Annotated<SpanData>,
     span_op: &Annotated<OperationType>,
+    measurements: &Annotated<Measurements>,
     duration: f64,
     model_costs: Option<&ModelCosts>,
     operation_type_map: Option<&AiOperationTypeMap>,
 ) {
+    map_ai_measurements_to_data(span_data, measurements.value());
+
     if !is_ai_span(span_data, span_op) {
         return;
     }
@@ -243,11 +246,10 @@ pub fn enrich_ai_event_data(
         .as_mut()
         .and_then(|c| c.get_mut::<TraceContext>())
     {
-        map_ai_measurements_to_data(&mut trace_context.data, event.measurements.value());
-
         enrich_ai_span_data(
             &mut trace_context.data,
             &trace_context.op,
+            &event.measurements,
             event_duration,
             model_costs,
             operation_type_map,
@@ -257,9 +259,6 @@ pub fn enrich_ai_event_data(
     let spans = spans.filter_map(|span| span.value_mut().as_mut());
 
     for span in spans {
-        // Legacy: Map measurements to span data before enrichment
-        map_ai_measurements_to_data(&mut span.data, span.measurements.value());
-
         let span_duration = span
             .get_value("span.duration")
             .and_then(|v| v.as_f64())
@@ -268,6 +267,7 @@ pub fn enrich_ai_event_data(
         enrich_ai_span_data(
             &mut span.data,
             &span.op,
+            &span.measurements,
             span_duration,
             model_costs,
             operation_type_map,
