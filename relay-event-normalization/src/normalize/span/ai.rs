@@ -318,6 +318,7 @@ mod tests {
     use std::collections::HashMap;
 
     use relay_pattern::Pattern;
+    use relay_protocol::assert_annotated_snapshot;
 
     use super::*;
 
@@ -434,16 +435,19 @@ mod tests {
             operation_types,
         };
 
-        let mut span_data = Annotated::<SpanData>::default();
-        span_data
-            .get_or_insert_with(SpanData::default)
-            .gen_ai_operation_name
-            .set_value(Some("invoke_agent".into()));
+        let span_data = r#"{
+            "gen_ai.operation.name": "invoke_agent"
+        }"#;
+        let mut span_data = Annotated::from_json(span_data).unwrap();
+
         infer_ai_operation_type(&mut span_data, &Annotated::default(), &operation_type_map);
-        assert_eq!(
-            span_data.value().unwrap().gen_ai_operation_type.as_str(),
-            Some("agent")
-        );
+
+        assert_annotated_snapshot!(&span_data, @r#"
+        {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.operation.type": "agent"
+        }
+        "#);
     }
 
     /// Test that the AI operation type is inferred from a span.op attribute.
@@ -468,10 +472,12 @@ mod tests {
             &Annotated::new("gen_ai.invoke_agent".into()),
             &operation_type_map,
         );
-        assert_eq!(
-            span_data.value().unwrap().gen_ai_operation_type.as_str(),
-            Some("agent")
-        );
+
+        assert_annotated_snapshot!(&span_data, @r#"
+        {
+          "gen_ai.operation.type": "agent"
+        }
+        "#);
     }
 
     /// Test that the AI operation type is inferred from a fallback.
@@ -491,22 +497,25 @@ mod tests {
             operation_types,
         };
 
-        let mut span_data = Annotated::<SpanData>::default();
-        span_data
-            .get_or_insert_with(SpanData::default)
-            .gen_ai_operation_name
-            .set_value(Some("embeddings".into()));
+        let span_data = r#"{
+            "gen_ai.operation.name": "embeddings"
+        }"#;
+        let mut span_data = Annotated::from_json(span_data).unwrap();
+
         infer_ai_operation_type(&mut span_data, &Annotated::default(), &operation_type_map);
-        assert_eq!(
-            span_data.value().unwrap().gen_ai_operation_type.as_str(),
-            Some("ai_client")
-        );
+
+        assert_annotated_snapshot!(&span_data, @r#"
+        {
+          "gen_ai.operation.name": "embeddings",
+          "gen_ai.operation.type": "ai_client"
+        }
+        "#);
     }
 
     /// Test that an AI span is detected from a gen_ai.operation.name attribute.
     #[test]
     fn test_is_ai_span_from_gen_ai_operation_name() {
-        let mut span_data = Annotated::<SpanData>::default();
+        let mut span_data = Annotated::default();
         span_data
             .get_or_insert_with(SpanData::default)
             .gen_ai_operation_name
@@ -518,7 +527,7 @@ mod tests {
     #[test]
     fn test_is_ai_span_from_span_op_ai() {
         assert!(is_ai_span(
-            &Annotated::<SpanData>::default(),
+            &Annotated::default(),
             &Annotated::new("ai.chat".into())
         ));
     }
@@ -527,7 +536,7 @@ mod tests {
     #[test]
     fn test_is_ai_span_from_span_op_gen_ai() {
         assert!(is_ai_span(
-            &Annotated::<SpanData>::default(),
+            &Annotated::default(),
             &Annotated::new("gen_ai.chat".into())
         ));
     }
@@ -535,9 +544,6 @@ mod tests {
     /// Test that a non-AI span is detected.
     #[test]
     fn test_is_ai_span_negative() {
-        assert!(!is_ai_span(
-            &Annotated::<SpanData>::default(),
-            &Annotated::default()
-        ));
+        assert!(!is_ai_span(&Annotated::default(), &Annotated::default()));
     }
 }
