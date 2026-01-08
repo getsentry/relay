@@ -168,10 +168,9 @@ pub fn scrub_attachment<'a>(
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::TraceAttachmentMeta;
+    use relay_event_schema::protocol::{AttachmentId, TraceAttachmentMeta};
     use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;
-    use uuid::Uuid;
 
     use crate::envelope::ParentId;
     use crate::services::projects::project::ProjectInfo;
@@ -189,7 +188,7 @@ mod tests {
         let mut attachment = ExpandedAttachment {
             parent_id: None,
             meta: Annotated::new(TraceAttachmentMeta {
-                attachment_id: Annotated::new(Uuid::new_v4()),
+                attachment_id: Annotated::new(AttachmentId::random()),
                 filename: Annotated::new("data.txt".to_owned()),
                 content_type: Annotated::new("text/plain".to_owned()),
                 ..Default::default()
@@ -235,7 +234,7 @@ mod tests {
         let mut attachment = ExpandedAttachment {
             parent_id: Some(ParentId::SpanId(None)),
             meta: Annotated::new(TraceAttachmentMeta {
-                attachment_id: Annotated::new(Uuid::new_v4()),
+                attachment_id: Annotated::new(AttachmentId::random()),
                 filename: Annotated::new("data.txt".to_owned()),
                 content_type: Annotated::new("text/plain".to_owned()),
                 attributes: Annotated::new(attributes),
