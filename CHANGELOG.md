@@ -6,10 +6,6 @@
 
 - Return status code `413` if a request is rejected due to size limits. ([#5474](https://github.com/getsentry/relay/pull/5474))
 
-**Internal**:
-
-- Release Docker image to GHCR and DockerHub via Craft. ([#5509](https://github.com/getsentry/relay/pull/5509))
-
 ## 25.12.1
 
 **Features**:
