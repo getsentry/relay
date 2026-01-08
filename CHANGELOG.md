@@ -6,6 +6,10 @@
 
 - Return status code `413` if a request is rejected due to size limits. ([#5474](https://github.com/getsentry/relay/pull/5474))
 
+**Features**:
+
+- Updates `rdkafka` to 2.10 which fixes some protocol incompatibilities with Kafka 4. ([#5523](https://github.com/getsentry/relay/pull/5523))
+
 **Internal**:
 
 - Release Docker image to GHCR and DockerHub via Craft. ([#5509](https://github.com/getsentry/relay/pull/5509))
