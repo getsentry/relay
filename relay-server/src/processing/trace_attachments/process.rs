@@ -168,43 +168,14 @@ pub fn scrub_attachment<'a>(
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::TraceAttachmentMeta;
-    use relay_pii::{DataScrubbingConfig, PiiConfig};
+    use relay_event_schema::protocol::{AttachmentId, TraceAttachmentMeta};
+    use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;
-    use relay_sampling::evaluation::ReservoirCounters;
-    use uuid::Uuid;
 
     use crate::envelope::ParentId;
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
-
-    fn make_context(
-        scrubbing_config: DataScrubbingConfig,
-        pii_config: Option<PiiConfig>,
-    ) -> Context<'static> {
-        let config = Box::leak(Box::new(relay_config::Config::default()));
-        let global_config = Box::leak(Box::new(relay_dynamic_config::GlobalConfig::default()));
-        let project_info = Box::leak(Box::new(ProjectInfo {
-            config: relay_dynamic_config::ProjectConfig {
-                pii_config,
-                datascrubbing_settings: scrubbing_config,
-                ..Default::default()
-            },
-            ..Default::default()
-        }));
-        let rate_limits = Box::leak(Box::new(relay_quotas::RateLimits::default()));
-        let reservoir_counters = Box::leak(Box::new(ReservoirCounters::default()));
-
-        Context {
-            config,
-            global_config,
-            project_info,
-            rate_limits,
-            sampling_project_info: None,
-            reservoir_counters,
-        }
-    }
 
     #[test]
     fn test_scrub_attachment_body() {
@@ -217,7 +188,7 @@ mod tests {
         let mut attachment = ExpandedAttachment {
             parent_id: None,
             meta: Annotated::new(TraceAttachmentMeta {
-                attachment_id: Annotated::new(Uuid::new_v4()),
+                attachment_id: Annotated::new(AttachmentId::random()),
                 filename: Annotated::new("data.txt".to_owned()),
                 content_type: Annotated::new("text/plain".to_owned()),
                 ..Default::default()
@@ -225,7 +196,17 @@ mod tests {
             body: Bytes::from("Some IP: 127.0.0.1"),
         };
 
-        let ctx = make_context(DataScrubbingConfig::default(), Some(pii_config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(pii_config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
         scrub_attachment(&mut attachment, ctx).unwrap();
 
         assert_eq!(attachment.body, "Some IP: *********");
@@ -253,7 +234,7 @@ mod tests {
         let mut attachment = ExpandedAttachment {
             parent_id: Some(ParentId::SpanId(None)),
             meta: Annotated::new(TraceAttachmentMeta {
-                attachment_id: Annotated::new(Uuid::new_v4()),
+                attachment_id: Annotated::new(AttachmentId::random()),
                 filename: Annotated::new("data.txt".to_owned()),
                 content_type: Annotated::new("text/plain".to_owned()),
                 attributes: Annotated::new(attributes),
@@ -262,7 +243,17 @@ mod tests {
             body: Bytes::from("Some attachment body"),
         };
 
-        let ctx = make_context(DataScrubbingConfig::default(), Some(pii_config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(pii_config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
         scrub_attachment(&mut attachment, ctx).unwrap();
 
         let attrs = &attachment.meta.value().unwrap().attributes;

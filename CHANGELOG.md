@@ -2,9 +2,29 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Return status code `413` if a request is rejected due to size limits. ([#5474](https://github.com/getsentry/relay/pull/5474))
+
+**Features**:
+
+- Updates `rdkafka` to 2.10 which fixes some protocol incompatibilities with Kafka 4. ([#5523](https://github.com/getsentry/relay/pull/5523))
+
+**Internal**:
+
+- Release Docker image to GHCR and DockerHub via Craft. ([#5509](https://github.com/getsentry/relay/pull/5509))
+- Tag span `usage` and `count_per_root_project` metrics with segment information. ([#5511](https://github.com/getsentry/relay/pull/5511))
+
+## 25.12.1
+
 **Features**:
 
 - Double write to legacy attributes for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
+- Enables basic array support for logs, trace metrics and spans. ([#5394](https://github.com/getsentry/relay/pull/5394))
+
+**Internal**:
+
+- Moves profile chunk processing to the new internal processing pipeline. ([#5505](https://github.com/getsentry/relay/pull/5505))
 
 ## 25.12.0
 
