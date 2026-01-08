@@ -29,7 +29,7 @@ targets:
     name: docker
     source: ghcr.io/getsentry/relay
     target: ghcr.io/getsentry/relay
-  - id: release
+  - id: release-dockerhub
     name: docker
     source: ghcr.io/getsentry/relay
     target: getsentry/relay
