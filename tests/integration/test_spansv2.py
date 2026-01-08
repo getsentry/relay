@@ -148,6 +148,7 @@ def test_spansv2_basic(
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
+                "is_segment": "true",
                 "target_project_id": "42",
                 "transaction": "/my/fancy/endpoint",
             },
@@ -161,7 +162,10 @@ def test_spansv2_basic(
             "project_id": 42,
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
-            "tags": {},
+            "tags": {
+                "was_transaction": "false",
+                "is_segment": "true",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
@@ -249,6 +253,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": "drop",
+                "is_segment": "false",
                 "target_project_id": "42",
                 "transaction": "tx_from_root",
             },
@@ -260,6 +265,9 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
         {
             "metadata": mock.ANY,
             "name": "c:spans/usage@none",
+            "tags": {
+                "is_segment": "false",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 2.0,
@@ -350,6 +358,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
                 "name": "c:spans/count_per_root_project@none",
                 "tags": {
                     "decision": "keep",
+                    "is_segment": "true",
                     "target_project_id": "42",
                 },
                 "timestamp": time_within_delta(),
@@ -360,6 +369,10 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
             {
                 "metadata": mock.ANY,
                 "name": "c:spans/usage@none",
+                "tags": {
+                    "was_transaction": "false",
+                    "is_segment": "true",
+                },
                 "timestamp": time_within_delta(),
                 "type": "c",
                 "value": 1.0,
@@ -408,10 +421,19 @@ def test_spansv2_ds_sampled(
             "start_timestamp": ts.timestamp(),
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b175",
+            "span_id": "aaaaaaaaaaaaaaaa",
             "is_segment": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
+            "status": "ok",
+        },
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "is_segment": True,
+            "name": "some other op",
             "status": "ok",
         },
         trace_info={
@@ -423,11 +445,11 @@ def test_spansv2_ds_sampled(
 
     relay.send_envelope(project_id, envelope)
 
-    span = spans_consumer.get_span()
-    assert span["span_id"] == "eee19b7ec3c1b175"
-    assert span["attributes"]["sentry.server_sample_rate"]["value"] == 0.9
+    for span in spans_consumer.get_spans(n=2):
+        assert span["span_id"] in ("aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb")
+        assert span["attributes"]["sentry.server_sample_rate"]["value"] == 0.9
 
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
+    assert metrics_consumer.get_metrics(n=4, with_headers=False) == [
         {
             "name": "c:spans/count_per_root_project@none",
             "org_id": 1,
@@ -436,6 +458,23 @@ def test_spansv2_ds_sampled(
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
+                "is_segment": "false",
+                "target_project_id": "42",
+                "transaction": "tx_from_root",
+            },
+            "timestamp": time_within_delta(),
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": 1,
+            "project_id": 43,
+            "received_at": time_within(ts, precision="s"),
+            "retention_days": 90,
+            "tags": {
+                "decision": "keep",
+                "is_segment": "true",
                 "target_project_id": "42",
                 "transaction": "tx_from_root",
             },
@@ -449,25 +488,37 @@ def test_spansv2_ds_sampled(
             "project_id": 42,
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
-            "tags": {},
+            "tags": {
+                "is_segment": "false",
+            },
+            "timestamp": time_within_delta(),
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_within(ts, precision="s"),
+            "retention_days": 90,
+            "tags": {
+                "was_transaction": "false",
+                "is_segment": "true",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
         },
     ]
 
-    outcomes = outcomes_consumer.get_outcomes(n=1)
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
-    assert outcomes == [
+    assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 1,
+            "quantity": 2,
         }
     ]
 
@@ -530,7 +581,11 @@ def test_spansv2_ds_root_in_different_org(
             "project_id": 42,
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
-            "tags": {"decision": "drop", "target_project_id": "42"},
+            "tags": {
+                "decision": "drop",
+                "is_segment": "false",
+                "target_project_id": "42",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
@@ -541,7 +596,9 @@ def test_spansv2_ds_root_in_different_org(
             "project_id": 42,
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
-            "tags": {},
+            "tags": {
+                "is_segment": "false",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,

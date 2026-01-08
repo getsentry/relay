@@ -6,6 +6,10 @@
 
 - Return status code `413` if a request is rejected due to size limits. ([#5474](https://github.com/getsentry/relay/pull/5474))
 
+**Internal**:
+
+- Tag span `usage` and `count_per_root_project` metrics with segment information. ([#5511](https://github.com/getsentry/relay/pull/5511))
+
 ## 25.12.1
 
 **Features**:
