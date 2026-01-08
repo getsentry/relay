@@ -116,11 +116,11 @@ def time_is(time, **kwargs):
     return time_within(time, time, **kwargs)
 
 
-def time_after(lower_bound, **kwargs):
+def time_after(lower_bound, max_in_future=timedelta(minutes=1), **kwargs):
     """
     Assertion helper which ensures the actual time is after the specified time.
     """
-    upper_bound = datetime.now(tz=timezone.utc)
+    upper_bound = datetime.now(tz=timezone.utc) + max_in_future
     return time_within(lower_bound, upper_bound, **kwargs)
 
 

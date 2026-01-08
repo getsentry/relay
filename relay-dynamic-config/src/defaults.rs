@@ -17,13 +17,28 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     }
     config._span_metrics_extended = true;
 
-    // If there are any spans in the system, extract the usage metric for them:
+    // If there are any spans in the system, extract the usage metric for them.
+    //
+    // The metric is always tagged with `is_segment` (`true`/`false`) and additionally
+    // segment spans are gain the additional tag `was_transaction` if the segment span was created
+    // from a transaction.
     config.metrics.push(MetricSpec {
         category: DataCategory::Span,
         mri: "c:spans/usage@none".into(),
         field: None,
         condition: None,
-        tags: vec![],
+        tags: vec![
+            Tag::with_key("is_segment")
+                .with_value("true")
+                .when(RuleCondition::eq("span.is_segment", true)),
+            // Only tag transaction status for segment spans.
+            Tag::with_key("was_transaction").with_value("true").when(
+                RuleCondition::eq("span.is_segment", true)
+                    .and(RuleCondition::eq("span.was_transaction", true)),
+            ),
+            // Fallback, for all non segment spans.
+            Tag::with_key("is_segment").with_value("false").always(),
+        ],
     });
 
     config

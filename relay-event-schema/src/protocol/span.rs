@@ -164,6 +164,7 @@ impl Getter for Span {
                 "parent_span_id" => self.parent_span_id.value()?.into(),
                 "trace_id" => self.trace_id.value()?.deref().into(),
                 "status" => self.status.as_str()?.into(),
+                "is_segment" => self.is_segment.value()?.into(),
                 "origin" => self.origin.as_str()?.into(),
                 "duration" => {
                     let start_timestamp = *self.start_timestamp.value()?;

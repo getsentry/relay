@@ -93,5 +93,7 @@ mod not_yet_defined {
     // requires updating the sentry conventions code gen.
     // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
     pub const LEGACY_HTTP_REQUEST_METHOD: &str = "http.request_method";
+
+    pub const WAS_TRANSACTION: &str = "sentry.was_transaction";
 }
 pub use self::not_yet_defined::*;
