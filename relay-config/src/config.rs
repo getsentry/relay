@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -1268,6 +1268,25 @@ impl Default for OutcomeAggregatorConfig {
     }
 }
 
+/// Configuration values for attachment upload auth.
+#[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
+pub struct UploadServiceAuthConfig {
+    /// JWT private key ID that Objectstore must use to load a corresponding public key.
+    pub kid: String,
+
+    /// A file where the JWT private key content is located, in EdDSA PEM form.
+    pub key_file: String,
+
+    /// The number of seconds that an Objectstore JWT should be valid for.
+    pub expiry_seconds: Option<u64>,
+
+    /// The permissions a token signed by this client should have.
+    ///
+    /// TODO: Expose `Permission` type in `objectstore_client`
+    pub permissions: Option<HashSet<String>>,
+}
+
 /// Configuration values for attachment uploads.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -1283,6 +1302,9 @@ pub struct UploadServiceConfig {
 
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
     pub timeout: u64,
+
+    /// Configuration values for upload auth.
+    pub auth: Option<UploadServiceAuthConfig>,
 }
 
 impl Default for UploadServiceConfig {
@@ -1291,6 +1313,7 @@ impl Default for UploadServiceConfig {
             objectstore_url: None,
             max_concurrent_requests: 10,
             timeout: 60,
+            auth: None,
         }
     }
 }

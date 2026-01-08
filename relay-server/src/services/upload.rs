@@ -6,7 +6,9 @@ use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
-use objectstore_client::{Client, ExpirationPolicy, Session, Usecase};
+use objectstore_client::{
+    Client, ExpirationPolicy, SecretKey as ObjectstoreKey, Session, TokenGenerator, Usecase,
+};
 use relay_config::UploadServiceConfig;
 use relay_quotas::DataCategory;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
@@ -138,12 +140,30 @@ impl UploadService {
             objectstore_url,
             max_concurrent_requests,
             timeout,
+            auth,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
             return Ok(None);
         };
 
-        let objectstore_client = Client::builder(objectstore_url).build()?;
+        let mut objectstore_builder = Client::builder(objectstore_url);
+        if let Some(auth) = auth {
+            let secret_key = ObjectstoreKey {
+                kid: auth.kid.clone(),
+                secret_key: std::fs::read_to_string(auth.key_file.clone())?,
+            };
+            let mut token_generator = TokenGenerator::new(secret_key)?;
+            if let Some(expiry_seconds) = auth.expiry_seconds {
+                token_generator = token_generator.expiry_seconds(expiry_seconds);
+            }
+            // // TODO: Export `Permission` enum from `objectstore_client`
+            // if let Some(permissions) = auth.max_permissions {
+            //     token_generator = token_generator.permissions(auth.permissions);
+            // }
+            objectstore_builder = objectstore_builder.token_generator(token_generator);
+        }
+
+        let objectstore_client = objectstore_builder.build()?;
         let event_attachments = Usecase::new("attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")
