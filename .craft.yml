@@ -35,8 +35,8 @@ targets:
     target: getsentry/relay
   - id: latest
     name: docker
-    source: ghcr.io/getsentry/relay
-    target: ghcr.io/getsentry/relay
+    source: ghcr.io/getsentry/craft
+    target: ghcr.io/getsentry/craft
     targetFormat: "{{{target}}}:latest"
   - id: latest
     name: docker
