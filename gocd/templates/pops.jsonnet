@@ -11,6 +11,7 @@ local pipedream_config = {
     'customer-1',
     'customer-2',
     'customer-4',
+    's4s2',
   ],
   materials: {
     relay_repo: {
