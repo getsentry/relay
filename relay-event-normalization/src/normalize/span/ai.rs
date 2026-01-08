@@ -546,4 +546,323 @@ mod tests {
     fn test_is_ai_span_negative() {
         assert!(!is_ai_span(&Annotated::default(), &Annotated::default()));
     }
+
+    /// Test enrich_ai_event_data with invoke_agent in trace context and a chat child span.
+    #[test]
+    fn test_enrich_ai_event_data_invoke_agent_trace_with_chat_span() {
+        let event_json = r#"{
+            "type": "transaction",
+            "timestamp": 1234567892.0,
+            "start_timestamp": 1234567889.0,
+            "contexts": {
+                "trace": {
+                    "op": "gen_ai.invoke_agent",
+                    "trace_id": "12345678901234567890123456789012",
+                    "span_id": "1234567890123456",
+                    "data": {
+                        "gen_ai.operation.name": "gen_ai.invoke_agent",
+                        "gen_ai.usage.input_tokens": 500,
+                        "gen_ai.usage.output_tokens": 200
+                    }
+                }
+            },
+            "spans": [
+                {
+                    "op": "gen_ai.chat.completions",
+                    "span_id": "1234567890123457",
+                    "start_timestamp": 1234567889.5,
+                    "timestamp": 1234567890.5,
+                    "data": {
+                        "gen_ai.operation.name": "chat",
+                        "gen_ai.usage.input_tokens": 100,
+                        "gen_ai.usage.output_tokens": 50
+                    }
+                }
+            ]
+        }"#;
+
+        let mut annotated_event: Annotated<Event> = Annotated::from_json(event_json).unwrap();
+        let event = annotated_event.value_mut().as_mut().unwrap();
+
+        let operation_types = HashMap::from([
+            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
+            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
+            (
+                Pattern::new("gen_ai.invoke_agent").unwrap(),
+                "agent".to_owned(),
+            ),
+        ]);
+        let operation_type_map = AiOperationTypeMap {
+            version: 1,
+            operation_types,
+        };
+
+        enrich_ai_event_data(event, None, Some(&operation_type_map));
+
+        assert_annotated_snapshot!(&annotated_event, @r#"
+        {
+          "type": "transaction",
+          "timestamp": 1234567892.0,
+          "start_timestamp": 1234567889.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "12345678901234567890123456789012",
+              "span_id": "1234567890123456",
+              "op": "gen_ai.invoke_agent",
+              "data": {
+                "gen_ai.usage.total_tokens": 700.0,
+                "gen_ai.usage.input_tokens": 500,
+                "gen_ai.usage.output_tokens": 200,
+                "gen_ai.operation.name": "gen_ai.invoke_agent",
+                "gen_ai.operation.type": "agent"
+              },
+              "type": "trace"
+            }
+          },
+          "spans": [
+            {
+              "timestamp": 1234567890.5,
+              "start_timestamp": 1234567889.5,
+              "op": "gen_ai.chat.completions",
+              "span_id": "1234567890123457",
+              "data": {
+                "gen_ai.usage.total_tokens": 150.0,
+                "gen_ai.usage.input_tokens": 100,
+                "gen_ai.usage.output_tokens": 50,
+                "gen_ai.operation.name": "chat",
+                "gen_ai.operation.type": "ai_client"
+              }
+            }
+          ]
+        }
+        "#);
+    }
+
+    /// Test enrich_ai_event_data with non-AI trace context, invoke_agent parent span, and chat child span.
+    #[test]
+    fn test_enrich_ai_event_data_nested_agent_and_chat_spans() {
+        let event_json = r#"{
+            "type": "transaction",
+            "timestamp": 1234567892.0,
+            "start_timestamp": 1234567889.0,
+            "contexts": {
+                "trace": {
+                    "op": "http.server",
+                    "trace_id": "12345678901234567890123456789012",
+                    "span_id": "1234567890123456"
+                }
+            },
+            "spans": [
+                {
+                    "op": "gen_ai.invoke_agent",
+                    "span_id": "1234567890123457",
+                    "parent_span_id": "1234567890123456",
+                    "start_timestamp": 1234567889.5,
+                    "timestamp": 1234567891.5,
+                    "data": {
+                        "gen_ai.operation.name": "invoke_agent",
+                        "gen_ai.usage.input_tokens": 500,
+                        "gen_ai.usage.output_tokens": 200
+                    }
+                },
+                {
+                    "op": "gen_ai.chat.completions",
+                    "span_id": "1234567890123458",
+                    "parent_span_id": "1234567890123457",
+                    "start_timestamp": 1234567890.0,
+                    "timestamp": 1234567891.0,
+                    "data": {
+                        "gen_ai.operation.name": "chat",
+                        "gen_ai.usage.input_tokens": 100,
+                        "gen_ai.usage.output_tokens": 50
+                    }
+                }
+            ]
+        }"#;
+
+        let mut annotated_event: Annotated<Event> = Annotated::from_json(event_json).unwrap();
+        let event = annotated_event.value_mut().as_mut().unwrap();
+
+        let operation_types = HashMap::from([
+            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
+            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
+            (
+                Pattern::new("gen_ai.invoke_agent").unwrap(),
+                "agent".to_owned(),
+            ),
+        ]);
+        let operation_type_map = AiOperationTypeMap {
+            version: 1,
+            operation_types,
+        };
+
+        enrich_ai_event_data(event, None, Some(&operation_type_map));
+
+        assert_annotated_snapshot!(&annotated_event, @r#"
+        {
+          "type": "transaction",
+          "timestamp": 1234567892.0,
+          "start_timestamp": 1234567889.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "12345678901234567890123456789012",
+              "span_id": "1234567890123456",
+              "op": "http.server",
+              "data": {},
+              "type": "trace"
+            }
+          },
+          "spans": [
+            {
+              "timestamp": 1234567891.5,
+              "start_timestamp": 1234567889.5,
+              "op": "gen_ai.invoke_agent",
+              "span_id": "1234567890123457",
+              "parent_span_id": "1234567890123456",
+              "data": {
+                "gen_ai.usage.total_tokens": 700.0,
+                "gen_ai.usage.input_tokens": 500,
+                "gen_ai.usage.output_tokens": 200,
+                "gen_ai.operation.name": "invoke_agent",
+                "gen_ai.operation.type": "agent"
+              }
+            },
+            {
+              "timestamp": 1234567891.0,
+              "start_timestamp": 1234567890.0,
+              "op": "gen_ai.chat.completions",
+              "span_id": "1234567890123458",
+              "parent_span_id": "1234567890123457",
+              "data": {
+                "gen_ai.usage.total_tokens": 150.0,
+                "gen_ai.usage.input_tokens": 100,
+                "gen_ai.usage.output_tokens": 50,
+                "gen_ai.operation.name": "chat",
+                "gen_ai.operation.type": "ai_client"
+              }
+            }
+          ]
+        }
+        "#);
+    }
+
+    /// Test enrich_ai_event_data with legacy measurements and span op for operation type.
+    #[test]
+    fn test_enrich_ai_event_data_legacy_measurements_and_span_op() {
+        let event_json = r#"{
+            "type": "transaction",
+            "timestamp": 1234567892.0,
+            "start_timestamp": 1234567889.0,
+            "contexts": {
+                "trace": {
+                    "op": "http.server",
+                    "trace_id": "12345678901234567890123456789012",
+                    "span_id": "1234567890123456"
+                }
+            },
+            "spans": [
+                {
+                    "op": "gen_ai.invoke_agent",
+                    "span_id": "1234567890123457",
+                    "parent_span_id": "1234567890123456",
+                    "start_timestamp": 1234567889.5,
+                    "timestamp": 1234567891.5,
+                    "measurements": {
+                        "ai_prompt_tokens_used": {"value": 500.0},
+                        "ai_completion_tokens_used": {"value": 200.0}
+                    }
+                },
+                {
+                    "op": "ai.chat_completions.create.langchain.ChatOpenAI",
+                    "span_id": "1234567890123458",
+                    "parent_span_id": "1234567890123457",
+                    "start_timestamp": 1234567890.0,
+                    "timestamp": 1234567891.0,
+                    "measurements": {
+                        "ai_prompt_tokens_used": {"value": 100.0},
+                        "ai_completion_tokens_used": {"value": 50.0}
+                    }
+                }
+            ]
+        }"#;
+
+        let mut annotated_event: Annotated<Event> = Annotated::from_json(event_json).unwrap();
+        let event = annotated_event.value_mut().as_mut().unwrap();
+
+        let operation_types = HashMap::from([
+            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
+            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
+            (
+                Pattern::new("gen_ai.invoke_agent").unwrap(),
+                "agent".to_owned(),
+            ),
+        ]);
+        let operation_type_map = AiOperationTypeMap {
+            version: 1,
+            operation_types,
+        };
+
+        enrich_ai_event_data(event, None, Some(&operation_type_map));
+
+        assert_annotated_snapshot!(&annotated_event, @r#"
+        {
+          "type": "transaction",
+          "timestamp": 1234567892.0,
+          "start_timestamp": 1234567889.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "12345678901234567890123456789012",
+              "span_id": "1234567890123456",
+              "op": "http.server",
+              "data": {},
+              "type": "trace"
+            }
+          },
+          "spans": [
+            {
+              "timestamp": 1234567891.5,
+              "start_timestamp": 1234567889.5,
+              "op": "gen_ai.invoke_agent",
+              "span_id": "1234567890123457",
+              "parent_span_id": "1234567890123456",
+              "data": {
+                "gen_ai.usage.total_tokens": 700.0,
+                "gen_ai.usage.input_tokens": 500.0,
+                "gen_ai.usage.output_tokens": 200.0,
+                "gen_ai.operation.type": "agent"
+              },
+              "measurements": {
+                "ai_completion_tokens_used": {
+                  "value": 200.0
+                },
+                "ai_prompt_tokens_used": {
+                  "value": 500.0
+                }
+              }
+            },
+            {
+              "timestamp": 1234567891.0,
+              "start_timestamp": 1234567890.0,
+              "op": "ai.chat_completions.create.langchain.ChatOpenAI",
+              "span_id": "1234567890123458",
+              "parent_span_id": "1234567890123457",
+              "data": {
+                "gen_ai.usage.total_tokens": 150.0,
+                "gen_ai.usage.input_tokens": 100.0,
+                "gen_ai.usage.output_tokens": 50.0,
+                "gen_ai.operation.type": "ai_client"
+              },
+              "measurements": {
+                "ai_completion_tokens_used": {
+                  "value": 50.0
+                },
+                "ai_prompt_tokens_used": {
+                  "value": 100.0
+                }
+              }
+            }
+          ]
+        }
+        "#);
+    }
 }
