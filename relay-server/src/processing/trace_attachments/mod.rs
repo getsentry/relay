@@ -115,7 +115,7 @@ impl Processor for TraceAttachmentsProcessor {
 
         (!items.is_empty()).then(|| {
             let work = SerializedAttachments { headers, items };
-            Managed::derive_from(envelope, work)
+            Managed::with_meta_from(envelope, work)
         })
     }
 

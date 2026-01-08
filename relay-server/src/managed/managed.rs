@@ -144,12 +144,9 @@ pub struct Managed<T: Counted> {
     done: AtomicBool,
 }
 
-impl Managed<()> {
+impl Managed<Box<Envelope>> {
     /// Creates a managed instance from an unmanaged envelope.
-    pub fn from_envelope(
-        envelope: Box<Envelope>,
-        outcome_aggregator: Addr<TrackOutcome>,
-    ) -> Managed<Box<Envelope>> {
+    pub fn from_envelope(envelope: Box<Envelope>, outcome_aggregator: Addr<TrackOutcome>) -> Self {
         let meta = Arc::new(Meta {
             outcome_aggregator,
             received_at: envelope.received_at(),
@@ -158,16 +155,16 @@ impl Managed<()> {
             remote_addr: envelope.meta().remote_addr(),
         });
 
-        Managed::from_parts(envelope, meta)
+        Self::from_parts(envelope, meta)
     }
 }
 
 impl<T: Counted> Managed<T> {
-    /// Derives a new managed instance with a `value` from a [`ManagedEnvelope`].
+    /// Creates new [`Managed`] instance with the provided `value` and metadata from a [`ManagedEnvelope`].
     ///
     /// The [`Managed`] instance, inherits all metadata from the passed [`ManagedEnvelope`],
     /// like received time or scoping.
-    pub fn derive_from(envelope: &ManagedEnvelope, value: T) -> Self {
+    pub fn with_meta_from(envelope: &ManagedEnvelope, value: T) -> Self {
         Self::from_parts(
             value,
             Arc::new(Meta {

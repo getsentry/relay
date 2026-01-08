@@ -121,7 +121,7 @@ async fn handle_post(
 
     let id = common::handle_envelope(&state, envelope)
         .await?
-        .ensure_rate_limits()?;
+        .check_rate_limits()?;
 
     Ok(axum::Json(PostResponse { id }).into_response())
 }
@@ -149,7 +149,7 @@ async fn handle_get(
     let envelope = parse_event(query.sentry_data.into(), meta, state.config())?;
     common::handle_envelope(&state, envelope)
         .await?
-        .ensure_rate_limits()?;
+        .check_rate_limits()?;
     Ok(([(header::CONTENT_TYPE, "image/gif")], PIXEL))
 }
 

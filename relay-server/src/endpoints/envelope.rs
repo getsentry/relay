@@ -120,7 +120,7 @@ async fn handle(
     let envelope = params.extract_envelope()?;
     let id = common::handle_envelope(&state, envelope)
         .await?
-        .ensure_rate_limits()?;
+        .check_rate_limits()?;
     Ok(Json(StoreResponse { id }))
 }
 

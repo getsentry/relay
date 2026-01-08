@@ -406,7 +406,7 @@ impl HandledEnvelope {
     /// limits.
     ///
     /// The functions simplifies this legacy handling by turning rate limits into an error again.
-    pub fn ensure_rate_limits(self) -> Result<Option<EventId>, BadStoreRequest> {
+    pub fn check_rate_limits(self) -> Result<Option<EventId>, BadStoreRequest> {
         if self.rate_limits.is_limited() {
             return Err(BadStoreRequest::RateLimited(self.rate_limits));
         }

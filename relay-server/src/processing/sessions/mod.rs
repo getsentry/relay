@@ -81,7 +81,7 @@ impl processing::Processor for SessionsProcessor {
             updates,
             aggregates,
         };
-        Some(Managed::derive_from(envelope, work))
+        Some(Managed::with_meta_from(envelope, work))
     }
 
     async fn process(

@@ -75,7 +75,7 @@ impl processing::Processor for CheckInsProcessor {
             .into_vec();
 
         let work = SerializedCheckIns { headers, check_ins };
-        Some(Managed::derive_from(envelope, work))
+        Some(Managed::with_meta_from(envelope, work))
     }
 
     async fn process(

@@ -615,6 +615,12 @@ impl Enforcement {
             // Sessions currently do not emit any outcomes, but may be dropped.
             records.lenient(DataCategory::Session);
             // This is an existing bug in how user reports handle rate limits and emit outcomes.
+            //
+            // User report v1 and v2 (feedback) are counting into the same category, but that is not
+            // completely consistent leading to some mismatches when emitting outcomes from rate
+            // limiting vs how outcomes are counted on the `Managed` instance.
+            //
+            // Issue: <https://github.com/getsentry/relay/issues/5524>.
             records.lenient(DataCategory::UserReportV2);
 
             for (outcome, category, quantity) in self.get_outcomes() {
