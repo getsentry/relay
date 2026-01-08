@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use chrono::Utc;
 use relay_conventions::CLIENT_SAMPLE_RATE;
 use relay_event_schema::protocol::Attributes;
-use relay_protocol::{Annotated, IntoValue, MetaTree};
+use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 
-use sentry_protos::snuba::v1::{AnyValue, any_value};
+use sentry_protos::snuba::v1::{AnyValue, ArrayValue, any_value};
 use serde::Serialize;
 
 /// Represents metadata extracted from Relay's annotated model.
@@ -121,6 +121,73 @@ fn size_of_meta_tree(meta: &MetaTree) -> usize {
     }
 
     size
+}
+
+/// Converts [`Attributes`] into EAP compatible values.
+pub fn convert_attributes_into(result: &mut HashMap<String, AnyValue>, attributes: Attributes) {
+    for (name, attribute) in attributes {
+        let meta = AttributeMeta {
+            meta: IntoValue::extract_meta_tree(&attribute),
+        };
+        if let Some(meta) = meta.to_any_value() {
+            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
+        }
+
+        let value = attribute
+            .into_value()
+            .and_then(|v| v.value.value.into_value());
+
+        let Some(value) = value else {
+            // Meta has already been handled, no value -> skip.
+            // There are also no current plans to handle `null` in EAP.
+            continue;
+        };
+
+        // Assertions for invalid types should never happen as Relay filters and validates
+        // attributes beforehand already.
+        let Some(value) = (match value {
+            Value::Bool(v) => Some(any_value::Value::BoolValue(v)),
+            Value::I64(v) => Some(any_value::Value::IntValue(v)),
+            Value::U64(v) => i64::try_from(v).ok().map(any_value::Value::IntValue),
+            Value::F64(v) => Some(any_value::Value::DoubleValue(v)),
+            Value::String(v) => Some(any_value::Value::StringValue(v)),
+            Value::Array(v) => Some(any_value::Value::ArrayValue(ArrayValue {
+                values: v
+                    .into_iter()
+                    .filter_map(|v| {
+                        let Some(v) = v.into_value() else {
+                            return Some(AnyValue { value: None });
+                        };
+
+                        let v = match v {
+                            Value::Bool(v) => any_value::Value::BoolValue(v),
+                            Value::I64(v) => any_value::Value::IntValue(v),
+                            Value::U64(v) => any_value::Value::IntValue(v as i64),
+                            Value::F64(v) => any_value::Value::DoubleValue(v),
+                            Value::String(v) => any_value::Value::StringValue(v),
+                            Value::Array(_) | Value::Object(_) => {
+                                debug_assert!(
+                                    false,
+                                    "arrays and objects nested in arrays is not yet supported"
+                                );
+                                return None;
+                            }
+                        };
+
+                        Some(AnyValue { value: Some(v) })
+                    })
+                    .collect(),
+            })),
+            Value::Object(_) => {
+                debug_assert!(false, "objects are not yet supported");
+                None
+            }
+        }) else {
+            continue;
+        };
+
+        result.insert(name, AnyValue { value: Some(value) });
+    }
 }
 
 /// Converts a [`chrono::DateTime`] into a [`prost_types::Timestamp`]

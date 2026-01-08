@@ -4,17 +4,15 @@ use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
 use relay_base_schema::metrics::MetricUnit;
 use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
-use relay_protocol::{Annotated, IntoValue, Value};
+use relay_protocol::{Annotated, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 use uuid::Uuid;
 
 use crate::envelope::WithHeader;
 use crate::processing::trace_metrics::{Error, Result};
-use crate::processing::utils::store::{
-    AttributeMeta, extract_client_sample_rate, extract_meta_attributes,
-};
-use crate::processing::{Counted, Retention};
+use crate::processing::utils::store::{extract_client_sample_rate, extract_meta_attributes};
+use crate::processing::{self, Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
 
@@ -114,40 +112,10 @@ fn attributes(
     fields: FieldAttributes,
 ) -> HashMap<String, AnyValue> {
     let mut result = meta;
-    result.reserve(attributes.0.len() + 5);
+    // +N, one for each field attribute added and some extra for potential meta.
+    result.reserve(attributes.0.len() + 15);
 
-    for (name, attribute) in attributes {
-        let meta = AttributeMeta {
-            meta: IntoValue::extract_meta_tree(&attribute),
-        };
-        if let Some(meta) = meta.to_any_value() {
-            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
-        }
-
-        let value = attribute
-            .into_value()
-            .and_then(|v| v.value.value.into_value());
-
-        let Some(value) = value else {
-            continue;
-        };
-
-        let Some(value) = (match value {
-            Value::Bool(v) => Some(any_value::Value::BoolValue(v)),
-            Value::I64(v) => Some(any_value::Value::IntValue(v)),
-            Value::U64(v) => i64::try_from(v).ok().map(any_value::Value::IntValue),
-            Value::F64(v) => Some(any_value::Value::DoubleValue(v)),
-            Value::String(v) => Some(any_value::Value::StringValue(v)),
-            Value::Array(_) | Value::Object(_) => {
-                debug_assert!(false, "unsupported trace metric value");
-                None
-            }
-        }) else {
-            continue;
-        };
-
-        result.insert(name, AnyValue { value: Some(value) });
-    }
+    processing::utils::store::convert_attributes_into(&mut result, attributes);
 
     let FieldAttributes {
         metric_name,

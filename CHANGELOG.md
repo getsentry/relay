@@ -1,10 +1,21 @@
 # Changelog
 
+## Unreleased
+
+**Breaking Changes**:
+
+- Return status code `413` if a request is rejected due to size limits. ([#5474](https://github.com/getsentry/relay/pull/5474))
+
 ## 25.12.1
 
 **Features**:
 
 - Double write to legacy attributes for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
+- Enables basic array support for logs, trace metrics and spans. ([#5394](https://github.com/getsentry/relay/pull/5394))
+
+**Internal**:
+
+- Moves profile chunk processing to the new internal processing pipeline. ([#5505](https://github.com/getsentry/relay/pull/5505))
 
 ## 25.12.0
 
