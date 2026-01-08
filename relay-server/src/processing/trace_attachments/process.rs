@@ -171,7 +171,6 @@ mod tests {
     use relay_event_schema::protocol::{AttachmentId, TraceAttachmentMeta};
     use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;
-    use relay_sampling::evaluation::ReservoirCounters;
 
     use crate::envelope::ParentId;
     use crate::services::projects::project::ProjectInfo;
