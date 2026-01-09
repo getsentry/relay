@@ -7,6 +7,7 @@ use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 
 use sentry_protos::snuba::v1::{AnyValue, ArrayValue, any_value};
 use serde::Serialize;
+use uuid::Uuid;
 
 /// Represents metadata extracted from Relay's annotated model.
 ///
@@ -205,4 +206,10 @@ pub fn extract_client_sample_rate(attributes: &Attributes) -> Option<f64> {
         .and_then(|value| value.as_f64())
         .filter(|v| *v > 0.0)
         .filter(|v| *v <= 1.0)
+}
+
+/// Massages a UUID into the format that EAP expects.
+pub fn uuid_to_item_id(id: Uuid) -> Vec<u8> {
+    // See https://github.com/getsentry/snuba/blob/a319040728d638841612cef117ec414d3e54d70f/rust_snuba/src/processors/eap_items.rs#L257
+    id.as_u128().to_le_bytes().to_vec()
 }
