@@ -2,7 +2,7 @@
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, ItemType};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::integrations::Integration;
-<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::managed::{ItemAction, ManagedEnvelope};
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::managed::Managed;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardAttachmentType, DiscardItemType};
 <a href=#7 id=7 data-nosnippet>7</a>
 <a href=#8 id=8 data-nosnippet>8</a><span class="doccomment">/// Checks for size limits of items in this envelope.
@@ -118,20 +118,33 @@
 <a href=#118 id=118 data-nosnippet>118</a>///
 <a href=#119 id=119 data-nosnippet>119</a>/// If Relay is configured to drop unknown items, this function removes them from the Envelope. All
 <a href=#120 id=120 data-nosnippet>120</a>/// known items will be retained.
-<a href=#121 id=121 data-nosnippet>121</a></span><span class="kw">pub fn </span>remove_unknown_items(config: <span class="kw-2">&amp;</span>Config, envelope: <span class="kw-2">&amp;mut </span>ManagedEnvelope) {
-<a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">if </span>!config.accept_unknown_items() {
-<a href=#123 id=123 data-nosnippet>123</a>        envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
-<a href=#124 id=124 data-nosnippet>124</a>            ItemType::Unknown(ty) =&gt; {
-<a href=#125 id=125 data-nosnippet>125</a>                <span class="macro">relay_log::debug!</span>(<span class="string">"dropping unknown item of type '{ty}'"</span>);
-<a href=#126 id=126 data-nosnippet>126</a>                ItemAction::DropSilently
-<a href=#127 id=127 data-nosnippet>127</a>            }
-<a href=#128 id=128 data-nosnippet>128</a>            <span class="kw">_ </span>=&gt; <span class="kw">match </span>item.attachment_type() {
-<a href=#129 id=129 data-nosnippet>129</a>                <span class="prelude-val">Some</span>(AttachmentType::Unknown(ty)) =&gt; {
-<a href=#130 id=130 data-nosnippet>130</a>                    <span class="macro">relay_log::debug!</span>(<span class="string">"dropping unknown attachment of type '{ty}'"</span>);
-<a href=#131 id=131 data-nosnippet>131</a>                    ItemAction::DropSilently
-<a href=#132 id=132 data-nosnippet>132</a>                }
-<a href=#133 id=133 data-nosnippet>133</a>                <span class="kw">_ </span>=&gt; ItemAction::Keep,
-<a href=#134 id=134 data-nosnippet>134</a>            },
-<a href=#135 id=135 data-nosnippet>135</a>        });
-<a href=#136 id=136 data-nosnippet>136</a>    }
-<a href=#137 id=137 data-nosnippet>137</a>}</code></pre></div></section></main></body></html>
+<a href=#121 id=121 data-nosnippet>121</a></span><span class="kw">pub fn </span>remove_unknown_items(config: <span class="kw-2">&amp;</span>Config, envelope: <span class="kw-2">&amp;mut </span>Managed&lt;Box&lt;Envelope&gt;&gt;) {
+<a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">if </span>config.accept_unknown_items() {
+<a href=#123 id=123 data-nosnippet>123</a>        <span class="kw">return</span>;
+<a href=#124 id=124 data-nosnippet>124</a>    }
+<a href=#125 id=125 data-nosnippet>125</a>
+<a href=#126 id=126 data-nosnippet>126</a>    envelope.modify(|envelope, records| {
+<a href=#127 id=127 data-nosnippet>127</a>        envelope.retain_items(|item| {
+<a href=#128 id=128 data-nosnippet>128</a>            <span class="kw">let </span>retain = <span class="kw">match </span>item.ty() {
+<a href=#129 id=129 data-nosnippet>129</a>                ItemType::Unknown(ty) =&gt; {
+<a href=#130 id=130 data-nosnippet>130</a>                    <span class="macro">relay_log::debug!</span>(<span class="string">"dropping unknown item of type '{ty}'"</span>);
+<a href=#131 id=131 data-nosnippet>131</a>                    <span class="bool-val">false
+<a href=#132 id=132 data-nosnippet>132</a>                </span>}
+<a href=#133 id=133 data-nosnippet>133</a>                <span class="kw">_ </span>=&gt; <span class="kw">match </span>item.attachment_type() {
+<a href=#134 id=134 data-nosnippet>134</a>                    <span class="prelude-val">Some</span>(AttachmentType::Unknown(ty)) =&gt; {
+<a href=#135 id=135 data-nosnippet>135</a>                        <span class="macro">relay_log::debug!</span>(<span class="string">"dropping unknown attachment of type '{ty}'"</span>);
+<a href=#136 id=136 data-nosnippet>136</a>                        <span class="bool-val">false
+<a href=#137 id=137 data-nosnippet>137</a>                    </span>}
+<a href=#138 id=138 data-nosnippet>138</a>                    <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
+<a href=#139 id=139 data-nosnippet>139</a>                },
+<a href=#140 id=140 data-nosnippet>140</a>            };
+<a href=#141 id=141 data-nosnippet>141</a>
+<a href=#142 id=142 data-nosnippet>142</a>            <span class="kw">if </span>!retain {
+<a href=#143 id=143 data-nosnippet>143</a>                <span class="comment">// Reject items silently, without outcomes.
+<a href=#144 id=144 data-nosnippet>144</a>                </span>records.reject_err(<span class="prelude-val">None</span>, <span class="kw-2">&amp;*</span>item);
+<a href=#145 id=145 data-nosnippet>145</a>            }
+<a href=#146 id=146 data-nosnippet>146</a>
+<a href=#147 id=147 data-nosnippet>147</a>            retain
+<a href=#148 id=148 data-nosnippet>148</a>        });
+<a href=#149 id=149 data-nosnippet>149</a>    });
+<a href=#150 id=150 data-nosnippet>150</a>}</code></pre></div></section></main></body></html>

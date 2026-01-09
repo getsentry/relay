@@ -95,16 +95,19 @@
 <a href=#95 id=95 data-nosnippet>95</a>    state: ServiceState,
 <a href=#96 id=96 data-nosnippet>96</a>    mime: Mime,
 <a href=#97 id=97 data-nosnippet>97</a>    params: SecurityReportParams,
-<a href=#98 id=98 data-nosnippet>98</a>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+<a href=#98 id=98 data-nosnippet>98</a>) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
 <a href=#99 id=99 data-nosnippet>99</a>    <span class="kw">if </span>!is_security_mime(mime) {
 <a href=#100 id=100 data-nosnippet>100</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
 <a href=#101 id=101 data-nosnippet>101</a>    }
 <a href=#102 id=102 data-nosnippet>102</a>
 <a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">let </span>envelope = params.extract_envelope()<span class="question-mark">?</span>;
-<a href=#104 id=104 data-nosnippet>104</a>    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#105 id=105 data-nosnippet>105</a>    <span class="prelude-val">Ok</span>(().into_response())
-<a href=#106 id=106 data-nosnippet>106</a>}
+<a href=#104 id=104 data-nosnippet>104</a>    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
+<a href=#105 id=105 data-nosnippet>105</a>        .<span class="kw">await</span><span class="question-mark">?
+<a href=#106 id=106 data-nosnippet>106</a>        </span>.ignore_rate_limits();
 <a href=#107 id=107 data-nosnippet>107</a>
-<a href=#108 id=108 data-nosnippet>108</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
-<a href=#109 id=109 data-nosnippet>109</a>    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
-<a href=#110 id=110 data-nosnippet>110</a>}</code></pre></div></section></main></body></html>
+<a href=#108 id=108 data-nosnippet>108</a>    <span class="prelude-val">Ok</span>(().into_response())
+<a href=#109 id=109 data-nosnippet>109</a>}
+<a href=#110 id=110 data-nosnippet>110</a>
+<a href=#111 id=111 data-nosnippet>111</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#112 id=112 data-nosnippet>112</a>    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
+<a href=#113 id=113 data-nosnippet>113</a>}</code></pre></div></section></main></body></html>

@@ -40,7 +40,7 @@
 <a href=#40 id=40 data-nosnippet>40</a>    state: ServiceState,
 <a href=#41 id=41 data-nosnippet>41</a>    mime: Mime,
 <a href=#42 id=42 data-nosnippet>42</a>    params: NelReportParams,
-<a href=#43 id=43 data-nosnippet>43</a>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+<a href=#43 id=43 data-nosnippet>43</a>) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
 <a href=#44 id=44 data-nosnippet>44</a>    <span class="kw">if </span>!is_nel_mime(mime) {
 <a href=#45 id=45 data-nosnippet>45</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
 <a href=#46 id=46 data-nosnippet>46</a>    }
@@ -55,10 +55,13 @@
 <a href=#55 id=55 data-nosnippet>55</a>        envelope.add_item(report_item);
 <a href=#56 id=56 data-nosnippet>56</a>    }
 <a href=#57 id=57 data-nosnippet>57</a>
-<a href=#58 id=58 data-nosnippet>58</a>    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#59 id=59 data-nosnippet>59</a>    <span class="prelude-val">Ok</span>(().into_response())
-<a href=#60 id=60 data-nosnippet>60</a>}
+<a href=#58 id=58 data-nosnippet>58</a>    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
+<a href=#59 id=59 data-nosnippet>59</a>        .<span class="kw">await</span><span class="question-mark">?
+<a href=#60 id=60 data-nosnippet>60</a>        </span>.ignore_rate_limits();
 <a href=#61 id=61 data-nosnippet>61</a>
-<a href=#62 id=62 data-nosnippet>62</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
-<a href=#63 id=63 data-nosnippet>63</a>    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
-<a href=#64 id=64 data-nosnippet>64</a>}</code></pre></div></section></main></body></html>
+<a href=#62 id=62 data-nosnippet>62</a>    <span class="prelude-val">Ok</span>(().into_response())
+<a href=#63 id=63 data-nosnippet>63</a>}
+<a href=#64 id=64 data-nosnippet>64</a>
+<a href=#65 id=65 data-nosnippet>65</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#66 id=66 data-nosnippet>66</a>    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
+<a href=#67 id=67 data-nosnippet>67</a>}</code></pre></div></section></main></body></html>

@@ -39,8 +39,10 @@
 <a href=#39 id=39 data-nosnippet>39</a>    meta: RequestMeta,
 <a href=#40 id=40 data-nosnippet>40</a>    Path(path): Path&lt;AttachmentPath&gt;,
 <a href=#41 id=41 data-nosnippet>41</a>    multipart: ConstrainedMultipart,
-<a href=#42 id=42 data-nosnippet>42</a>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+<a href=#42 id=42 data-nosnippet>42</a>) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
 <a href=#43 id=43 data-nosnippet>43</a>    <span class="kw">let </span>envelope = extract_envelope(meta, path, multipart, state.config()).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#44 id=44 data-nosnippet>44</a>    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#45 id=45 data-nosnippet>45</a>    <span class="prelude-val">Ok</span>(StatusCode::CREATED)
-<a href=#46 id=46 data-nosnippet>46</a>}</code></pre></div></section></main></body></html>
+<a href=#44 id=44 data-nosnippet>44</a>    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
+<a href=#45 id=45 data-nosnippet>45</a>        .<span class="kw">await</span><span class="question-mark">?
+<a href=#46 id=46 data-nosnippet>46</a>        </span>.ignore_rate_limits();
+<a href=#47 id=47 data-nosnippet>47</a>    <span class="prelude-val">Ok</span>(StatusCode::CREATED)
+<a href=#48 id=48 data-nosnippet>48</a>}</code></pre></div></section></main></body></html>

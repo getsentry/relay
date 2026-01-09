@@ -9,7 +9,7 @@
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>serde::Deserialize;
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::managed::ManagedEnvelope;
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::managed::{Managed, Rejected};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::ProjectKeyPair;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardItemType, DiscardReason, Outcome};
@@ -270,205 +270,258 @@
 <a href=#270 id=270 data-nosnippet>270</a>/// returned and the envelope is not queued.
 <a href=#271 id=271 data-nosnippet>271</a></span><span class="kw">fn </span>queue_envelope(
 <a href=#272 id=272 data-nosnippet>272</a>    state: <span class="kw-2">&amp;</span>ServiceState,
-<a href=#273 id=273 data-nosnippet>273</a>    <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope,
-<a href=#274 id=274 data-nosnippet>274</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), BadStoreRequest&gt; {
-<a href=#275 id=275 data-nosnippet>275</a>    <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
-<a href=#276 id=276 data-nosnippet>276</a>
-<a href=#277 id=277 data-nosnippet>277</a>    <span class="kw">if </span>state.config().relay_mode() != RelayMode::Proxy {
-<a href=#278 id=278 data-nosnippet>278</a>        <span class="comment">// Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
-<a href=#279 id=279 data-nosnippet>279</a>        // In proxy mode, we cannot aggregate metrics because we may not have a project ID.
-<a href=#280 id=280 data-nosnippet>280</a>        </span><span class="kw">let </span>is_metric = |i: <span class="kw-2">&amp;</span>Item| <span class="macro">matches!</span>(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
-<a href=#281 id=281 data-nosnippet>281</a>        <span class="kw">let </span>metric_items = envelope.take_items_by(is_metric);
-<a href=#282 id=282 data-nosnippet>282</a>
-<a href=#283 id=283 data-nosnippet>283</a>        <span class="kw">if </span>!metric_items.is_empty() {
-<a href=#284 id=284 data-nosnippet>284</a>            <span class="macro">relay_log::trace!</span>(<span class="string">"sending metrics into processing queue"</span>);
-<a href=#285 id=285 data-nosnippet>285</a>            state.processor().send(ProcessMetrics {
-<a href=#286 id=286 data-nosnippet>286</a>                data: MetricData::Raw(metric_items.into_vec()),
-<a href=#287 id=287 data-nosnippet>287</a>                received_at: envelope.received_at(),
-<a href=#288 id=288 data-nosnippet>288</a>                sent_at: envelope.sent_at(),
-<a href=#289 id=289 data-nosnippet>289</a>                project_key: envelope.meta().public_key(),
-<a href=#290 id=290 data-nosnippet>290</a>                source: BucketSource::from_meta(envelope.meta()),
-<a href=#291 id=291 data-nosnippet>291</a>            });
-<a href=#292 id=292 data-nosnippet>292</a>        }
-<a href=#293 id=293 data-nosnippet>293</a>    }
-<a href=#294 id=294 data-nosnippet>294</a>
-<a href=#295 id=295 data-nosnippet>295</a>    <span class="kw">let </span>pkp = ProjectKeyPair::from_envelope(<span class="kw-2">&amp;*</span>envelope);
-<a href=#296 id=296 data-nosnippet>296</a>    <span class="kw">if </span>!state.envelope_buffer(pkp).try_push(managed_envelope) {
-<a href=#297 id=297 data-nosnippet>297</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::QueueFailed);
-<a href=#298 id=298 data-nosnippet>298</a>    }
-<a href=#299 id=299 data-nosnippet>299</a>
-<a href=#300 id=300 data-nosnippet>300</a>    <span class="prelude-val">Ok</span>(())
-<a href=#301 id=301 data-nosnippet>301</a>}
-<a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a><span class="doccomment">/// Handles an envelope store request.
-<a href=#304 id=304 data-nosnippet>304</a>///
-<a href=#305 id=305 data-nosnippet>305</a>/// Sentry envelopes may come either directly from an HTTP request (the envelope endpoint calls this
-<a href=#306 id=306 data-nosnippet>306</a>/// method directly) or are generated inside Relay from requests to other endpoints (e.g. the
-<a href=#307 id=307 data-nosnippet>307</a>/// security endpoint).
-<a href=#308 id=308 data-nosnippet>308</a>///
-<a href=#309 id=309 data-nosnippet>309</a>/// This returns `Some(EventId)` if the envelope contains an event, either explicitly as payload or
-<a href=#310 id=310 data-nosnippet>310</a>/// implicitly through an item that will create an event during ingestion.
-<a href=#311 id=311 data-nosnippet>311</a></span><span class="kw">pub async fn </span>handle_envelope(
-<a href=#312 id=312 data-nosnippet>312</a>    state: <span class="kw-2">&amp;</span>ServiceState,
-<a href=#313 id=313 data-nosnippet>313</a>    envelope: Box&lt;Envelope&gt;,
-<a href=#314 id=314 data-nosnippet>314</a>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;EventId&gt;, BadStoreRequest&gt; {
-<a href=#315 id=315 data-nosnippet>315</a>    emit_envelope_metrics(<span class="kw-2">&amp;</span>envelope);
-<a href=#316 id=316 data-nosnippet>316</a>
-<a href=#317 id=317 data-nosnippet>317</a>    <span class="kw">if </span>state.memory_checker().check_memory().is_exceeded() {
-<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::QueueFailed);
-<a href=#319 id=319 data-nosnippet>319</a>    };
-<a href=#320 id=320 data-nosnippet>320</a>
-<a href=#321 id=321 data-nosnippet>321</a>    <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope = ManagedEnvelope::new(envelope, state.outcome_aggregator().clone());
-<a href=#322 id=322 data-nosnippet>322</a>
-<a href=#323 id=323 data-nosnippet>323</a>    <span class="comment">// If configured, remove unknown items at the very beginning. If the envelope is
-<a href=#324 id=324 data-nosnippet>324</a>    // empty, we fail the request with a special control flow error to skip checks and
-<a href=#325 id=325 data-nosnippet>325</a>    // queueing, that still results in a `200 OK` response.
-<a href=#326 id=326 data-nosnippet>326</a>    </span>utils::remove_unknown_items(state.config(), <span class="kw-2">&amp;mut </span>managed_envelope);
+<a href=#273 id=273 data-nosnippet>273</a>    <span class="kw-2">mut </span>envelope: Managed&lt;Box&lt;Envelope&gt;&gt;,
+<a href=#274 id=274 data-nosnippet>274</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;BadStoreRequest&gt;&gt; {
+<a href=#275 id=275 data-nosnippet>275</a>    <span class="kw">if </span>state.config().relay_mode() != RelayMode::Proxy {
+<a href=#276 id=276 data-nosnippet>276</a>        <span class="comment">// Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
+<a href=#277 id=277 data-nosnippet>277</a>        // In proxy mode, we cannot aggregate metrics because we may not have a project ID.
+<a href=#278 id=278 data-nosnippet>278</a>        </span><span class="kw">let </span>is_metric = |i: <span class="kw-2">&amp;</span>Item| <span class="macro">matches!</span>(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
+<a href=#279 id=279 data-nosnippet>279</a>
+<a href=#280 id=280 data-nosnippet>280</a>        <span class="kw">let </span>metrics;
+<a href=#281 id=281 data-nosnippet>281</a>        (envelope, metrics) = envelope.split_once(|<span class="kw-2">mut </span>envelope| {
+<a href=#282 id=282 data-nosnippet>282</a>            <span class="kw">let </span>metrics = envelope.take_items_by(is_metric).into_vec();
+<a href=#283 id=283 data-nosnippet>283</a>            (envelope, metrics)
+<a href=#284 id=284 data-nosnippet>284</a>        });
+<a href=#285 id=285 data-nosnippet>285</a>
+<a href=#286 id=286 data-nosnippet>286</a>        metrics.accept(|metrics| {
+<a href=#287 id=287 data-nosnippet>287</a>            <span class="kw">if </span>metrics.is_empty() {
+<a href=#288 id=288 data-nosnippet>288</a>                <span class="kw">return</span>;
+<a href=#289 id=289 data-nosnippet>289</a>            }
+<a href=#290 id=290 data-nosnippet>290</a>
+<a href=#291 id=291 data-nosnippet>291</a>            state.processor().send(ProcessMetrics {
+<a href=#292 id=292 data-nosnippet>292</a>                data: MetricData::Raw(metrics),
+<a href=#293 id=293 data-nosnippet>293</a>                received_at: envelope.received_at(),
+<a href=#294 id=294 data-nosnippet>294</a>                sent_at: envelope.sent_at(),
+<a href=#295 id=295 data-nosnippet>295</a>                project_key: envelope.meta().public_key(),
+<a href=#296 id=296 data-nosnippet>296</a>                source: BucketSource::from_meta(envelope.meta()),
+<a href=#297 id=297 data-nosnippet>297</a>            });
+<a href=#298 id=298 data-nosnippet>298</a>        })
+<a href=#299 id=299 data-nosnippet>299</a>    }
+<a href=#300 id=300 data-nosnippet>300</a>
+<a href=#301 id=301 data-nosnippet>301</a>    <span class="kw">let </span>pkp = ProjectKeyPair::from_envelope(<span class="kw-2">&amp;</span>envelope);
+<a href=#302 id=302 data-nosnippet>302</a>    <span class="kw">if let </span><span class="prelude-val">Err</span>(envelope) = state.envelope_buffer(pkp).try_push(envelope) {
+<a href=#303 id=303 data-nosnippet>303</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(envelope.reject_err((
+<a href=#304 id=304 data-nosnippet>304</a>            Outcome::Invalid(DiscardReason::Internal),
+<a href=#305 id=305 data-nosnippet>305</a>            BadStoreRequest::QueueFailed,
+<a href=#306 id=306 data-nosnippet>306</a>        )));
+<a href=#307 id=307 data-nosnippet>307</a>    }
+<a href=#308 id=308 data-nosnippet>308</a>
+<a href=#309 id=309 data-nosnippet>309</a>    <span class="prelude-val">Ok</span>(())
+<a href=#310 id=310 data-nosnippet>310</a>}
+<a href=#311 id=311 data-nosnippet>311</a>
+<a href=#312 id=312 data-nosnippet>312</a><span class="doccomment">/// Handles an envelope store request.
+<a href=#313 id=313 data-nosnippet>313</a>///
+<a href=#314 id=314 data-nosnippet>314</a>/// Sentry envelopes may come either directly from an HTTP request (the envelope endpoint calls this
+<a href=#315 id=315 data-nosnippet>315</a>/// method directly) or are generated inside Relay from requests to other endpoints (e.g. the
+<a href=#316 id=316 data-nosnippet>316</a>/// security endpoint).
+<a href=#317 id=317 data-nosnippet>317</a>///
+<a href=#318 id=318 data-nosnippet>318</a>/// This returns `Some(EventId)` if the envelope contains an event, either explicitly as payload or
+<a href=#319 id=319 data-nosnippet>319</a>/// implicitly through an item that will create an event during ingestion.
+<a href=#320 id=320 data-nosnippet>320</a></span><span class="kw">pub async fn </span>handle_envelope(
+<a href=#321 id=321 data-nosnippet>321</a>    state: <span class="kw-2">&amp;</span>ServiceState,
+<a href=#322 id=322 data-nosnippet>322</a>    envelope: Box&lt;Envelope&gt;,
+<a href=#323 id=323 data-nosnippet>323</a>) -&gt; <span class="prelude-ty">Result</span>&lt;HandledEnvelope, Rejected&lt;BadStoreRequest&gt;&gt; {
+<a href=#324 id=324 data-nosnippet>324</a>    emit_envelope_metrics(<span class="kw-2">&amp;</span>envelope);
+<a href=#325 id=325 data-nosnippet>325</a>
+<a href=#326 id=326 data-nosnippet>326</a>    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
 <a href=#327 id=327 data-nosnippet>327</a>
-<a href=#328 id=328 data-nosnippet>328</a>    <span class="kw">let </span>event_id = managed_envelope.envelope().event_id();
-<a href=#329 id=329 data-nosnippet>329</a>    <span class="kw">if </span>managed_envelope.envelope().is_empty() {
-<a href=#330 id=330 data-nosnippet>330</a>        managed_envelope.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
-<a href=#331 id=331 data-nosnippet>331</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(event_id);
-<a href=#332 id=332 data-nosnippet>332</a>    }
-<a href=#333 id=333 data-nosnippet>333</a>
-<a href=#334 id=334 data-nosnippet>334</a>    <span class="kw">let </span>project_key = managed_envelope.envelope().meta().public_key();
-<a href=#335 id=335 data-nosnippet>335</a>
-<a href=#336 id=336 data-nosnippet>336</a>    <span class="comment">// Prefetch sampling project key, current spooling implementations rely on this behavior.
-<a href=#337 id=337 data-nosnippet>337</a>    //
-<a href=#338 id=338 data-nosnippet>338</a>    // To be changed once spool v1 has been removed.
-<a href=#339 id=339 data-nosnippet>339</a>    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_project_key) = managed_envelope.envelope().sampling_key()
-<a href=#340 id=340 data-nosnippet>340</a>        &amp;&amp; sampling_project_key != project_key
-<a href=#341 id=341 data-nosnippet>341</a>    {
-<a href=#342 id=342 data-nosnippet>342</a>        state.project_cache_handle().fetch(sampling_project_key);
-<a href=#343 id=343 data-nosnippet>343</a>    }
-<a href=#344 id=344 data-nosnippet>344</a>
-<a href=#345 id=345 data-nosnippet>345</a>    <span class="kw">let </span>checked = state
-<a href=#346 id=346 data-nosnippet>346</a>        .project_cache_handle()
-<a href=#347 id=347 data-nosnippet>347</a>        .get(project_key)
-<a href=#348 id=348 data-nosnippet>348</a>        .check_envelope(managed_envelope)
-<a href=#349 id=349 data-nosnippet>349</a>        .<span class="kw">await
-<a href=#350 id=350 data-nosnippet>350</a>        </span>.map_err(BadStoreRequest::EventRejected)<span class="question-mark">?</span>;
-<a href=#351 id=351 data-nosnippet>351</a>
-<a href=#352 id=352 data-nosnippet>352</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>managed_envelope) = checked.envelope <span class="kw">else </span>{
-<a href=#353 id=353 data-nosnippet>353</a>        <span class="comment">// All items have been removed from the envelope.
-<a href=#354 id=354 data-nosnippet>354</a>        </span><span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(checked.rate_limits));
-<a href=#355 id=355 data-nosnippet>355</a>    };
-<a href=#356 id=356 data-nosnippet>356</a>
-<a href=#357 id=357 data-nosnippet>357</a>    <span class="kw">if let </span><span class="prelude-val">Err</span>(offender) =
-<a href=#358 id=358 data-nosnippet>358</a>        utils::check_envelope_size_limits(state.config(), managed_envelope.envelope())
-<a href=#359 id=359 data-nosnippet>359</a>    {
-<a href=#360 id=360 data-nosnippet>360</a>        managed_envelope.reject(Outcome::Invalid(DiscardReason::TooLarge(offender)));
-<a href=#361 id=361 data-nosnippet>361</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::Overflow(offender));
-<a href=#362 id=362 data-nosnippet>362</a>    }
-<a href=#363 id=363 data-nosnippet>363</a>
-<a href=#364 id=364 data-nosnippet>364</a>    queue_envelope(state, managed_envelope)<span class="question-mark">?</span>;
+<a href=#328 id=328 data-nosnippet>328</a>    <span class="kw">if </span>state.memory_checker().check_memory().is_exceeded() {
+<a href=#329 id=329 data-nosnippet>329</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(envelope.reject_err((
+<a href=#330 id=330 data-nosnippet>330</a>            Outcome::Invalid(DiscardReason::Internal),
+<a href=#331 id=331 data-nosnippet>331</a>            BadStoreRequest::QueueFailed,
+<a href=#332 id=332 data-nosnippet>332</a>        )));
+<a href=#333 id=333 data-nosnippet>333</a>    };
+<a href=#334 id=334 data-nosnippet>334</a>
+<a href=#335 id=335 data-nosnippet>335</a>    <span class="comment">// If configured, remove unknown items at the very beginning. If the envelope is
+<a href=#336 id=336 data-nosnippet>336</a>    // empty, we fail the request with a special control flow error to skip checks and
+<a href=#337 id=337 data-nosnippet>337</a>    // queueing, that still results in a `200 OK` response.
+<a href=#338 id=338 data-nosnippet>338</a>    </span>utils::remove_unknown_items(state.config(), <span class="kw-2">&amp;mut </span>envelope);
+<a href=#339 id=339 data-nosnippet>339</a>
+<a href=#340 id=340 data-nosnippet>340</a>    <span class="kw">let </span>event_id = envelope.event_id();
+<a href=#341 id=341 data-nosnippet>341</a>    <span class="kw">if </span>envelope.is_empty() {
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(HandledEnvelope {
+<a href=#343 id=343 data-nosnippet>343</a>            event_id,
+<a href=#344 id=344 data-nosnippet>344</a>            rate_limits: Default::default(),
+<a href=#345 id=345 data-nosnippet>345</a>        });
+<a href=#346 id=346 data-nosnippet>346</a>    }
+<a href=#347 id=347 data-nosnippet>347</a>
+<a href=#348 id=348 data-nosnippet>348</a>    <span class="kw">let </span>project_key = envelope.meta().public_key();
+<a href=#349 id=349 data-nosnippet>349</a>
+<a href=#350 id=350 data-nosnippet>350</a>    <span class="comment">// Prefetch sampling project key, current spooling implementations rely on this behavior.
+<a href=#351 id=351 data-nosnippet>351</a>    //
+<a href=#352 id=352 data-nosnippet>352</a>    // To be changed once spool v1 has been removed.
+<a href=#353 id=353 data-nosnippet>353</a>    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_project_key) = envelope.sampling_key()
+<a href=#354 id=354 data-nosnippet>354</a>        &amp;&amp; sampling_project_key != project_key
+<a href=#355 id=355 data-nosnippet>355</a>    {
+<a href=#356 id=356 data-nosnippet>356</a>        state.project_cache_handle().fetch(sampling_project_key);
+<a href=#357 id=357 data-nosnippet>357</a>    }
+<a href=#358 id=358 data-nosnippet>358</a>
+<a href=#359 id=359 data-nosnippet>359</a>    <span class="kw">let </span>rate_limits = state
+<a href=#360 id=360 data-nosnippet>360</a>        .project_cache_handle()
+<a href=#361 id=361 data-nosnippet>361</a>        .get(project_key)
+<a href=#362 id=362 data-nosnippet>362</a>        .check_envelope(<span class="kw-2">&amp;mut </span>envelope)
+<a href=#363 id=363 data-nosnippet>363</a>        .<span class="kw">await
+<a href=#364 id=364 data-nosnippet>364</a>        </span>.map_err(|err| err.map(BadStoreRequest::EventRejected))<span class="question-mark">?</span>;
 <a href=#365 id=365 data-nosnippet>365</a>
-<a href=#366 id=366 data-nosnippet>366</a>    <span class="kw">if </span>checked.rate_limits.is_limited() {
-<a href=#367 id=367 data-nosnippet>367</a>        <span class="comment">// Even if some envelope items have been queued, there might be active rate limits on
-<a href=#368 id=368 data-nosnippet>368</a>        // other items. Communicate these rate limits to the downstream (Relay or SDK).
-<a href=#369 id=369 data-nosnippet>369</a>        //
-<a href=#370 id=370 data-nosnippet>370</a>        // See `IntoResponse` implementation of `BadStoreRequest`.
-<a href=#371 id=371 data-nosnippet>371</a>        </span><span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(checked.rate_limits))
-<a href=#372 id=372 data-nosnippet>372</a>    } <span class="kw">else </span>{
-<a href=#373 id=373 data-nosnippet>373</a>        <span class="prelude-val">Ok</span>(event_id)
-<a href=#374 id=374 data-nosnippet>374</a>    }
-<a href=#375 id=375 data-nosnippet>375</a>}
+<a href=#366 id=366 data-nosnippet>366</a>    <span class="kw">if </span>envelope.is_empty() {
+<a href=#367 id=367 data-nosnippet>367</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(envelope.reject_err((<span class="prelude-val">None</span>, BadStoreRequest::RateLimited(rate_limits))));
+<a href=#368 id=368 data-nosnippet>368</a>    }
+<a href=#369 id=369 data-nosnippet>369</a>
+<a href=#370 id=370 data-nosnippet>370</a>    <span class="kw">if let </span><span class="prelude-val">Err</span>(offender) = utils::check_envelope_size_limits(state.config(), <span class="kw-2">&amp;</span>envelope) {
+<a href=#371 id=371 data-nosnippet>371</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(envelope.reject_err((
+<a href=#372 id=372 data-nosnippet>372</a>            Outcome::Invalid(DiscardReason::TooLarge(offender)),
+<a href=#373 id=373 data-nosnippet>373</a>            BadStoreRequest::Overflow(offender),
+<a href=#374 id=374 data-nosnippet>374</a>        )));
+<a href=#375 id=375 data-nosnippet>375</a>    }
 <a href=#376 id=376 data-nosnippet>376</a>
-<a href=#377 id=377 data-nosnippet>377</a><span class="kw">fn </span>emit_envelope_metrics(envelope: <span class="kw-2">&amp;</span>Envelope) {
-<a href=#378 id=378 data-nosnippet>378</a>    <span class="kw">let </span>client_name = utils::client_name_tag(envelope.meta().client_name());
-<a href=#379 id=379 data-nosnippet>379</a>    <span class="kw">for </span>item <span class="kw">in </span>envelope.items() {
-<a href=#380 id=380 data-nosnippet>380</a>        <span class="kw">let </span>item_type = item.ty().name();
-<a href=#381 id=381 data-nosnippet>381</a>        <span class="kw">let </span>is_container = <span class="kw">if </span>item.is_container() { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>};
-<a href=#382 id=382 data-nosnippet>382</a>
-<a href=#383 id=383 data-nosnippet>383</a>        <span class="macro">metric!</span>(
-<a href=#384 id=384 data-nosnippet>384</a>            distribution(RelayDistributions::EnvelopeItemSize) = item.payload().len() <span class="kw">as </span>u64,
-<a href=#385 id=385 data-nosnippet>385</a>            item_type = item_type,
-<a href=#386 id=386 data-nosnippet>386</a>            is_container = is_container,
-<a href=#387 id=387 data-nosnippet>387</a>        );
-<a href=#388 id=388 data-nosnippet>388</a>        <span class="macro">metric!</span>(
-<a href=#389 id=389 data-nosnippet>389</a>            counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(<span class="number">1</span>),
-<a href=#390 id=390 data-nosnippet>390</a>            item_type = item_type,
-<a href=#391 id=391 data-nosnippet>391</a>            is_container = is_container,
-<a href=#392 id=392 data-nosnippet>392</a>            sdk = client_name,
-<a href=#393 id=393 data-nosnippet>393</a>        );
-<a href=#394 id=394 data-nosnippet>394</a>        <span class="macro">metric!</span>(
-<a href=#395 id=395 data-nosnippet>395</a>            counter(RelayCounters::EnvelopeItemBytes) += item.payload().len() <span class="kw">as </span>u64,
-<a href=#396 id=396 data-nosnippet>396</a>            item_type = item_type,
-<a href=#397 id=397 data-nosnippet>397</a>            is_container = is_container,
-<a href=#398 id=398 data-nosnippet>398</a>            sdk = client_name,
-<a href=#399 id=399 data-nosnippet>399</a>        );
-<a href=#400 id=400 data-nosnippet>400</a>    }
-<a href=#401 id=401 data-nosnippet>401</a>}
-<a href=#402 id=402 data-nosnippet>402</a>
-<a href=#403 id=403 data-nosnippet>403</a><span class="attr">#[derive(Debug)]
-<a href=#404 id=404 data-nosnippet>404</a></span><span class="kw">pub struct </span>TextResponse(<span class="kw">pub </span><span class="prelude-ty">Option</span>&lt;EventId&gt;);
-<a href=#405 id=405 data-nosnippet>405</a>
-<a href=#406 id=406 data-nosnippet>406</a><span class="kw">impl </span>IntoResponse <span class="kw">for </span>TextResponse {
-<a href=#407 id=407 data-nosnippet>407</a>    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; axum::response::Response {
-<a href=#408 id=408 data-nosnippet>408</a>        <span class="comment">// Event id is set statically in the ingest path.
-<a href=#409 id=409 data-nosnippet>409</a>        </span><span class="kw">let </span>EventId(id) = <span class="self">self</span>.<span class="number">0</span>.unwrap_or_default();
-<a href=#410 id=410 data-nosnippet>410</a>        <span class="macro">debug_assert!</span>(!id.is_nil());
-<a href=#411 id=411 data-nosnippet>411</a>
-<a href=#412 id=412 data-nosnippet>412</a>        <span class="comment">// the minidump client expects the response to contain an event id as a hyphenated UUID
-<a href=#413 id=413 data-nosnippet>413</a>        // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-<a href=#414 id=414 data-nosnippet>414</a>        </span><span class="kw">let </span>text = id.as_hyphenated().to_string();
-<a href=#415 id=415 data-nosnippet>415</a>        text.into_response()
-<a href=#416 id=416 data-nosnippet>416</a>    }
-<a href=#417 id=417 data-nosnippet>417</a>}
-<a href=#418 id=418 data-nosnippet>418</a>
-<a href=#419 id=419 data-nosnippet>419</a><span class="attr">#[cfg(test)]
-<a href=#420 id=420 data-nosnippet>420</a></span><span class="kw">mod </span>tests {
-<a href=#421 id=421 data-nosnippet>421</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#422 id=422 data-nosnippet>422</a>
-<a href=#423 id=423 data-nosnippet>423</a>    <span class="attr">#[test]
-<a href=#424 id=424 data-nosnippet>424</a>    </span><span class="kw">fn </span>test_minimal_empty_event() {
-<a href=#425 id=425 data-nosnippet>425</a>        <span class="kw">let </span>json = <span class="string">r#"{}"#</span>;
-<a href=#426 id=426 data-nosnippet>426</a>        <span class="kw">let </span>minimal = minimal_event_from_json(json.as_ref()).unwrap();
-<a href=#427 id=427 data-nosnippet>427</a>        <span class="macro">assert_eq!</span>(
-<a href=#428 id=428 data-nosnippet>428</a>            minimal,
-<a href=#429 id=429 data-nosnippet>429</a>            MinimalEvent {
-<a href=#430 id=430 data-nosnippet>430</a>                id: <span class="prelude-val">None</span>,
-<a href=#431 id=431 data-nosnippet>431</a>                ty: EventType::Default,
-<a href=#432 id=432 data-nosnippet>432</a>            }
-<a href=#433 id=433 data-nosnippet>433</a>        );
-<a href=#434 id=434 data-nosnippet>434</a>    }
+<a href=#377 id=377 data-nosnippet>377</a>    queue_envelope(state, envelope)<span class="question-mark">?</span>;
+<a href=#378 id=378 data-nosnippet>378</a>
+<a href=#379 id=379 data-nosnippet>379</a>    <span class="prelude-val">Ok</span>(HandledEnvelope {
+<a href=#380 id=380 data-nosnippet>380</a>        event_id,
+<a href=#381 id=381 data-nosnippet>381</a>        <span class="comment">// Even if some envelope items have been queued, there might be active rate limits on
+<a href=#382 id=382 data-nosnippet>382</a>        // other items. Communicate these rate limits to the downstream (Relay or SDK).
+<a href=#383 id=383 data-nosnippet>383</a>        </span>rate_limits,
+<a href=#384 id=384 data-nosnippet>384</a>    })
+<a href=#385 id=385 data-nosnippet>385</a>}
+<a href=#386 id=386 data-nosnippet>386</a>
+<a href=#387 id=387 data-nosnippet>387</a><span class="doccomment">/// A successfully handled envelope, returned by [`handle_envelope`].
+<a href=#388 id=388 data-nosnippet>388</a></span><span class="attr">#[derive(Debug)]
+<a href=#389 id=389 data-nosnippet>389</a>#[must_use = <span class="string">"rate limits of a handled envelope must be used"</span>]
+<a href=#390 id=390 data-nosnippet>390</a></span><span class="kw">pub struct </span>HandledEnvelope {
+<a href=#391 id=391 data-nosnippet>391</a>    <span class="doccomment">/// The event id of the envelope.
+<a href=#392 id=392 data-nosnippet>392</a>    </span><span class="kw">pub </span>event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
+<a href=#393 id=393 data-nosnippet>393</a>    <span class="doccomment">/// All active, but not necessarily enforced, rate limits.
+<a href=#394 id=394 data-nosnippet>394</a>    ///
+<a href=#395 id=395 data-nosnippet>395</a>    /// These rate limits should always be communicated to the client on envelope endpoints.
+<a href=#396 id=396 data-nosnippet>396</a>    ///
+<a href=#397 id=397 data-nosnippet>397</a>    /// See also: [`BadStoreRequest::RateLimited`].
+<a href=#398 id=398 data-nosnippet>398</a>    </span><span class="kw">pub </span>rate_limits: RateLimits,
+<a href=#399 id=399 data-nosnippet>399</a>}
+<a href=#400 id=400 data-nosnippet>400</a>
+<a href=#401 id=401 data-nosnippet>401</a><span class="kw">impl </span>HandledEnvelope {
+<a href=#402 id=402 data-nosnippet>402</a>    <span class="doccomment">/// Ensures all active rate limits are handled as an error.
+<a href=#403 id=403 data-nosnippet>403</a>    ///
+<a href=#404 id=404 data-nosnippet>404</a>    /// This is legacy behaviour where active rate limits are returned as an error, instead of
+<a href=#405 id=405 data-nosnippet>405</a>    /// being added to the usual response.
+<a href=#406 id=406 data-nosnippet>406</a>    /// The event id in this legacy behaviour is only returned when there are no active rate
+<a href=#407 id=407 data-nosnippet>407</a>    /// limits.
+<a href=#408 id=408 data-nosnippet>408</a>    ///
+<a href=#409 id=409 data-nosnippet>409</a>    /// The functions simplifies this legacy handling by turning rate limits into an error again.
+<a href=#410 id=410 data-nosnippet>410</a>    </span><span class="kw">pub fn </span>check_rate_limits(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;EventId&gt;, BadStoreRequest&gt; {
+<a href=#411 id=411 data-nosnippet>411</a>        <span class="kw">if </span><span class="self">self</span>.rate_limits.is_limited() {
+<a href=#412 id=412 data-nosnippet>412</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(<span class="self">self</span>.rate_limits));
+<a href=#413 id=413 data-nosnippet>413</a>        }
+<a href=#414 id=414 data-nosnippet>414</a>        <span class="prelude-val">Ok</span>(<span class="self">self</span>.event_id)
+<a href=#415 id=415 data-nosnippet>415</a>    }
+<a href=#416 id=416 data-nosnippet>416</a>
+<a href=#417 id=417 data-nosnippet>417</a>    <span class="doccomment">/// Explicitly ignores contained active rate limits.
+<a href=#418 id=418 data-nosnippet>418</a>    ///
+<a href=#419 id=419 data-nosnippet>419</a>    /// Endpoints which choose to not propagate active rate limits, should use this method to
+<a href=#420 id=420 data-nosnippet>420</a>    /// explicitly state the fact they do not propagate the rate limits.
+<a href=#421 id=421 data-nosnippet>421</a>    ///
+<a href=#422 id=422 data-nosnippet>422</a>    /// Most endpoints ignore active rate limits, they are mostly used in envelope based endpoints.
+<a href=#423 id=423 data-nosnippet>423</a>    ///
+<a href=#424 id=424 data-nosnippet>424</a>    /// Note: enforced rate limits are still returned as an error from [`handle_envelope`].
+<a href=#425 id=425 data-nosnippet>425</a>    </span><span class="kw">pub fn </span>ignore_rate_limits(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;EventId&gt; {
+<a href=#426 id=426 data-nosnippet>426</a>        <span class="self">self</span>.event_id
+<a href=#427 id=427 data-nosnippet>427</a>    }
+<a href=#428 id=428 data-nosnippet>428</a>}
+<a href=#429 id=429 data-nosnippet>429</a>
+<a href=#430 id=430 data-nosnippet>430</a><span class="kw">fn </span>emit_envelope_metrics(envelope: <span class="kw-2">&amp;</span>Envelope) {
+<a href=#431 id=431 data-nosnippet>431</a>    <span class="kw">let </span>client_name = utils::client_name_tag(envelope.meta().client_name());
+<a href=#432 id=432 data-nosnippet>432</a>    <span class="kw">for </span>item <span class="kw">in </span>envelope.items() {
+<a href=#433 id=433 data-nosnippet>433</a>        <span class="kw">let </span>item_type = item.ty().name();
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">let </span>is_container = <span class="kw">if </span>item.is_container() { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>};
 <a href=#435 id=435 data-nosnippet>435</a>
-<a href=#436 id=436 data-nosnippet>436</a>    <span class="attr">#[test]
-<a href=#437 id=437 data-nosnippet>437</a>    </span><span class="kw">fn </span>test_minimal_event_id() {
-<a href=#438 id=438 data-nosnippet>438</a>        <span class="kw">let </span>json = <span class="string">r#"{"event_id": "037af9ac1b49494bacd7ec5114f801d9"}"#</span>;
-<a href=#439 id=439 data-nosnippet>439</a>        <span class="kw">let </span>minimal = minimal_event_from_json(json.as_ref()).unwrap();
-<a href=#440 id=440 data-nosnippet>440</a>        <span class="macro">assert_eq!</span>(
-<a href=#441 id=441 data-nosnippet>441</a>            minimal,
-<a href=#442 id=442 data-nosnippet>442</a>            MinimalEvent {
-<a href=#443 id=443 data-nosnippet>443</a>                id: <span class="prelude-val">Some</span>(<span class="string">"037af9ac1b49494bacd7ec5114f801d9"</span>.parse().unwrap()),
-<a href=#444 id=444 data-nosnippet>444</a>                ty: EventType::Default,
-<a href=#445 id=445 data-nosnippet>445</a>            }
+<a href=#436 id=436 data-nosnippet>436</a>        <span class="macro">metric!</span>(
+<a href=#437 id=437 data-nosnippet>437</a>            distribution(RelayDistributions::EnvelopeItemSize) = item.payload().len() <span class="kw">as </span>u64,
+<a href=#438 id=438 data-nosnippet>438</a>            item_type = item_type,
+<a href=#439 id=439 data-nosnippet>439</a>            is_container = is_container,
+<a href=#440 id=440 data-nosnippet>440</a>        );
+<a href=#441 id=441 data-nosnippet>441</a>        <span class="macro">metric!</span>(
+<a href=#442 id=442 data-nosnippet>442</a>            counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(<span class="number">1</span>),
+<a href=#443 id=443 data-nosnippet>443</a>            item_type = item_type,
+<a href=#444 id=444 data-nosnippet>444</a>            is_container = is_container,
+<a href=#445 id=445 data-nosnippet>445</a>            sdk = client_name,
 <a href=#446 id=446 data-nosnippet>446</a>        );
-<a href=#447 id=447 data-nosnippet>447</a>    }
-<a href=#448 id=448 data-nosnippet>448</a>
-<a href=#449 id=449 data-nosnippet>449</a>    <span class="attr">#[test]
-<a href=#450 id=450 data-nosnippet>450</a>    </span><span class="kw">fn </span>test_minimal_event_type() {
-<a href=#451 id=451 data-nosnippet>451</a>        <span class="kw">let </span>json = <span class="string">r#"{"type": "expectct"}"#</span>;
-<a href=#452 id=452 data-nosnippet>452</a>        <span class="kw">let </span>minimal = minimal_event_from_json(json.as_ref()).unwrap();
-<a href=#453 id=453 data-nosnippet>453</a>        <span class="macro">assert_eq!</span>(
-<a href=#454 id=454 data-nosnippet>454</a>            minimal,
-<a href=#455 id=455 data-nosnippet>455</a>            MinimalEvent {
-<a href=#456 id=456 data-nosnippet>456</a>                id: <span class="prelude-val">None</span>,
-<a href=#457 id=457 data-nosnippet>457</a>                ty: EventType::ExpectCt,
-<a href=#458 id=458 data-nosnippet>458</a>            }
-<a href=#459 id=459 data-nosnippet>459</a>        );
-<a href=#460 id=460 data-nosnippet>460</a>    }
-<a href=#461 id=461 data-nosnippet>461</a>
-<a href=#462 id=462 data-nosnippet>462</a>    <span class="attr">#[test]
-<a href=#463 id=463 data-nosnippet>463</a>    </span><span class="kw">fn </span>test_minimal_event_invalid_type() {
-<a href=#464 id=464 data-nosnippet>464</a>        <span class="kw">let </span>json = <span class="string">r#"{"type": "invalid"}"#</span>;
-<a href=#465 id=465 data-nosnippet>465</a>        <span class="kw">let </span>minimal = minimal_event_from_json(json.as_ref()).unwrap();
-<a href=#466 id=466 data-nosnippet>466</a>        <span class="macro">assert_eq!</span>(
-<a href=#467 id=467 data-nosnippet>467</a>            minimal,
-<a href=#468 id=468 data-nosnippet>468</a>            MinimalEvent {
-<a href=#469 id=469 data-nosnippet>469</a>                id: <span class="prelude-val">None</span>,
-<a href=#470 id=470 data-nosnippet>470</a>                ty: EventType::Default,
-<a href=#471 id=471 data-nosnippet>471</a>            }
-<a href=#472 id=472 data-nosnippet>472</a>        );
-<a href=#473 id=473 data-nosnippet>473</a>    }
-<a href=#474 id=474 data-nosnippet>474</a>}</code></pre></div></section></main></body></html>
+<a href=#447 id=447 data-nosnippet>447</a>        <span class="macro">metric!</span>(
+<a href=#448 id=448 data-nosnippet>448</a>            counter(RelayCounters::EnvelopeItemBytes) += item.payload().len() <span class="kw">as </span>u64,
+<a href=#449 id=449 data-nosnippet>449</a>            item_type = item_type,
+<a href=#450 id=450 data-nosnippet>450</a>            is_container = is_container,
+<a href=#451 id=451 data-nosnippet>451</a>            sdk = client_name,
+<a href=#452 id=452 data-nosnippet>452</a>        );
+<a href=#453 id=453 data-nosnippet>453</a>    }
+<a href=#454 id=454 data-nosnippet>454</a>}
+<a href=#455 id=455 data-nosnippet>455</a>
+<a href=#456 id=456 data-nosnippet>456</a><span class="attr">#[derive(Debug)]
+<a href=#457 id=457 data-nosnippet>457</a></span><span class="kw">pub struct </span>TextResponse(<span class="kw">pub </span><span class="prelude-ty">Option</span>&lt;EventId&gt;);
+<a href=#458 id=458 data-nosnippet>458</a>
+<a href=#459 id=459 data-nosnippet>459</a><span class="kw">impl </span>IntoResponse <span class="kw">for </span>TextResponse {
+<a href=#460 id=460 data-nosnippet>460</a>    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; axum::response::Response {
+<a href=#461 id=461 data-nosnippet>461</a>        <span class="comment">// Event id is set statically in the ingest path.
+<a href=#462 id=462 data-nosnippet>462</a>        </span><span class="kw">let </span>EventId(id) = <span class="self">self</span>.<span class="number">0</span>.unwrap_or_default();
+<a href=#463 id=463 data-nosnippet>463</a>        <span class="macro">debug_assert!</span>(!id.is_nil());
+<a href=#464 id=464 data-nosnippet>464</a>
+<a href=#465 id=465 data-nosnippet>465</a>        <span class="comment">// the minidump client expects the response to contain an event id as a hyphenated UUID
+<a href=#466 id=466 data-nosnippet>466</a>        // i.e. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+<a href=#467 id=467 data-nosnippet>467</a>        </span><span class="kw">let </span>text = id.as_hyphenated().to_string();
+<a href=#468 id=468 data-nosnippet>468</a>        text.into_response()
+<a href=#469 id=469 data-nosnippet>469</a>    }
+<a href=#470 id=470 data-nosnippet>470</a>}
+<a href=#471 id=471 data-nosnippet>471</a>
+<a href=#472 id=472 data-nosnippet>472</a><span class="attr">#[cfg(test)]
+<a href=#473 id=473 data-nosnippet>473</a></span><span class="kw">mod </span>tests {
+<a href=#474 id=474 data-nosnippet>474</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#475 id=475 data-nosnippet>475</a>
+<a href=#476 id=476 data-nosnippet>476</a>    <span class="attr">#[test]
+<a href=#477 id=477 data-nosnippet>477</a>    </span><span class="kw">fn </span>test_minimal_empty_event() {
+<a href=#478 id=478 data-nosnippet>478</a>        <span class="kw">let </span>json = <span class="string">r#"{}"#</span>;
+<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>minimal = minimal_event_from_json(json.as_ref()).unwrap();
+<a href=#480 id=480 data-nosnippet>480</a>        <span class="macro">assert_eq!</span>(
+<a href=#481 id=481 data-nosnippet>481</a>            minimal,
+<a href=#482 id=482 data-nosnippet>482</a>            MinimalEvent {
+<a href=#483 id=483 data-nosnippet>483</a>                id: <span class="prelude-val">None</span>,
+<a href=#484 id=484 data-nosnippet>484</a>                ty: EventType::Default,
+<a href=#485 id=485 data-nosnippet>485</a>            }
+<a href=#486 id=486 data-nosnippet>486</a>        );
+<a href=#487 id=487 data-nosnippet>487</a>    }
+<a href=#488 id=488 data-nosnippet>488</a>
+<a href=#489 id=489 data-nosnippet>489</a>    <span class="attr">#[test]
+<a href=#490 id=490 data-nosnippet>490</a>    </span><span class="kw">fn </span>test_minimal_event_id() {
+<a href=#491 id=491 data-nosnippet>491</a>        <span class="kw">let </span>json = <span class="string">r#"{"event_id": "037af9ac1b49494bacd7ec5114f801d9"}"#</span>;
+<a href=#492 id=492 data-nosnippet>492</a>        <span class="kw">let </span>minimal = minimal_event_from_json(json.as_ref()).unwrap();
+<a href=#493 id=493 data-nosnippet>493</a>        <span class="macro">assert_eq!</span>(
+<a href=#494 id=494 data-nosnippet>494</a>            minimal,
+<a href=#495 id=495 data-nosnippet>495</a>            MinimalEvent {
+<a href=#496 id=496 data-nosnippet>496</a>                id: <span class="prelude-val">Some</span>(<span class="string">"037af9ac1b49494bacd7ec5114f801d9"</span>.parse().unwrap()),
+<a href=#497 id=497 data-nosnippet>497</a>                ty: EventType::Default,
+<a href=#498 id=498 data-nosnippet>498</a>            }
+<a href=#499 id=499 data-nosnippet>499</a>        );
+<a href=#500 id=500 data-nosnippet>500</a>    }
+<a href=#501 id=501 data-nosnippet>501</a>
+<a href=#502 id=502 data-nosnippet>502</a>    <span class="attr">#[test]
+<a href=#503 id=503 data-nosnippet>503</a>    </span><span class="kw">fn </span>test_minimal_event_type() {
+<a href=#504 id=504 data-nosnippet>504</a>        <span class="kw">let </span>json = <span class="string">r#"{"type": "expectct"}"#</span>;
+<a href=#505 id=505 data-nosnippet>505</a>        <span class="kw">let </span>minimal = minimal_event_from_json(json.as_ref()).unwrap();
+<a href=#506 id=506 data-nosnippet>506</a>        <span class="macro">assert_eq!</span>(
+<a href=#507 id=507 data-nosnippet>507</a>            minimal,
+<a href=#508 id=508 data-nosnippet>508</a>            MinimalEvent {
+<a href=#509 id=509 data-nosnippet>509</a>                id: <span class="prelude-val">None</span>,
+<a href=#510 id=510 data-nosnippet>510</a>                ty: EventType::ExpectCt,
+<a href=#511 id=511 data-nosnippet>511</a>            }
+<a href=#512 id=512 data-nosnippet>512</a>        );
+<a href=#513 id=513 data-nosnippet>513</a>    }
+<a href=#514 id=514 data-nosnippet>514</a>
+<a href=#515 id=515 data-nosnippet>515</a>    <span class="attr">#[test]
+<a href=#516 id=516 data-nosnippet>516</a>    </span><span class="kw">fn </span>test_minimal_event_invalid_type() {
+<a href=#517 id=517 data-nosnippet>517</a>        <span class="kw">let </span>json = <span class="string">r#"{"type": "invalid"}"#</span>;
+<a href=#518 id=518 data-nosnippet>518</a>        <span class="kw">let </span>minimal = minimal_event_from_json(json.as_ref()).unwrap();
+<a href=#519 id=519 data-nosnippet>519</a>        <span class="macro">assert_eq!</span>(
+<a href=#520 id=520 data-nosnippet>520</a>            minimal,
+<a href=#521 id=521 data-nosnippet>521</a>            MinimalEvent {
+<a href=#522 id=522 data-nosnippet>522</a>                id: <span class="prelude-val">None</span>,
+<a href=#523 id=523 data-nosnippet>523</a>                ty: EventType::Default,
+<a href=#524 id=524 data-nosnippet>524</a>            }
+<a href=#525 id=525 data-nosnippet>525</a>        );
+<a href=#526 id=526 data-nosnippet>526</a>    }
+<a href=#527 id=527 data-nosnippet>527</a>}</code></pre></div></section></main></body></html>

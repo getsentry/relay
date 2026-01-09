@@ -116,12 +116,14 @@
 <a href=#116 id=116 data-nosnippet>116</a></span><span class="kw">async fn </span>handle(
 <a href=#117 id=117 data-nosnippet>117</a>    state: ServiceState,
 <a href=#118 id=118 data-nosnippet>118</a>    params: EnvelopeParams,
-<a href=#119 id=119 data-nosnippet>119</a>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+<a href=#119 id=119 data-nosnippet>119</a>) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
 <a href=#120 id=120 data-nosnippet>120</a>    <span class="kw">let </span>envelope = params.extract_envelope()<span class="question-mark">?</span>;
-<a href=#121 id=121 data-nosnippet>121</a>    <span class="kw">let </span>id = common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#122 id=122 data-nosnippet>122</a>    <span class="prelude-val">Ok</span>(Json(StoreResponse { id }))
-<a href=#123 id=123 data-nosnippet>123</a>}
-<a href=#124 id=124 data-nosnippet>124</a>
-<a href=#125 id=125 data-nosnippet>125</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
-<a href=#126 id=126 data-nosnippet>126</a>    post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
-<a href=#127 id=127 data-nosnippet>127</a>}</code></pre></div></section></main></body></html>
+<a href=#121 id=121 data-nosnippet>121</a>    <span class="kw">let </span>id = common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
+<a href=#122 id=122 data-nosnippet>122</a>        .<span class="kw">await</span><span class="question-mark">?
+<a href=#123 id=123 data-nosnippet>123</a>        </span>.check_rate_limits()<span class="question-mark">?</span>;
+<a href=#124 id=124 data-nosnippet>124</a>    <span class="prelude-val">Ok</span>(Json(StoreResponse { id }))
+<a href=#125 id=125 data-nosnippet>125</a>}
+<a href=#126 id=126 data-nosnippet>126</a>
+<a href=#127 id=127 data-nosnippet>127</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#128 id=128 data-nosnippet>128</a>    post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
+<a href=#129 id=129 data-nosnippet>129</a>}</code></pre></div></section></main></body></html>
