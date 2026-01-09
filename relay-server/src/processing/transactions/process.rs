@@ -264,13 +264,17 @@ pub fn extract_metrics(
     let metrics = metrics.into_inner();
     let output = match drop_with_outcome {
         Some(outcome) => {
-            let (mut payload, profile) = work.split_once(UnsampledPayload::from_expanded);
-            payload.reject_err(outcome);
-            profile.map(|profile, _| WithMetrics {
-                headers,
-                payload: SampledPayload::Drop { profile },
-                metrics,
-            })
+            let (mut keep_part, drop_part) = work.split_once(|expanded| {
+                let (drop_part, profile) = UnsampledPayload::from_expanded(expanded);
+                let keep_part = WithMetrics {
+                    headers,
+                    payload: SampledPayload::Drop { profile },
+                    metrics,
+                };
+                (keep_part, drop_part)
+            });
+            drop_part.reject_err(outcome);
+            keep_part
         }
         None => work.map(|work, _| WithMetrics {
             headers,
