@@ -19,7 +19,9 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::types::{Payload, SampledPayload, WithMetrics};
+use crate::processing::transactions::types::{
+    Payload, SampledPayload, UnsampledPayload, WithMetrics,
+};
 use crate::processing::transactions::{
     Error, ExpandedTransaction, ExtractedSpans, Flags, SerializedTransaction, TransactionOutput,
     profile, spans,
@@ -227,7 +229,7 @@ pub fn process_profile(
 
 /// Extracts transaction & span metrics from the payload.
 pub fn extract_metrics(
-    work: Managed<ExpandedTransaction>,
+    mut work: Managed<ExpandedTransaction>,
     ctx: Context<'_>,
     drop_with_outcome: Option<Outcome>,
 ) -> Result<Managed<WithMetrics>, Rejected<Error>> {
@@ -238,8 +240,8 @@ pub fn extract_metrics(
         None => SamplingDecision::Keep,
     };
 
-    work.try_map(|mut work, record_keeper| {
-        let mut metrics = ProcessingExtractedMetrics::new();
+    let mut metrics = ProcessingExtractedMetrics::new();
+    work.try_modify(|mut work, record_keeper| {
         if sampling_decision.is_drop() || ctx.is_processing() {
             work.flags.metrics_extracted = extraction::extract_metrics(
                 &mut work.event,
@@ -255,42 +257,31 @@ pub fn extract_metrics(
             )?
             .0;
         }
+        Ok::<_, Error>(())
+    })?;
 
-        let headers = work.headers.clone();
-        let payload = match drop_with_outcome {
-            Some(outcome) => {
-                let profile = work.profile.take();
-                // FIXME: make sure profile is marked as sampled
-                record_keeper.reject_err(outcome, work);
-                SampledPayload::Drop { profile }
-            }
-            None => {
-                let ExpandedTransaction {
-                    headers,
-                    event,
-                    flags,
-                    attachments,
-                    profile,
-                } = work;
-                SampledPayload::Keep {
-                    payload: Payload {
-                        event,
-                        flags,
-                        attachments,
-                        profile,
-                        extracted_spans: vec![],
-                    },
-                }
-            }
-        };
-
-        let metrics = metrics.into_inner();
-        Ok::<_, Error>(WithMetrics {
+    let headers = work.headers.clone();
+    let metrics = metrics.into_inner();
+    let output = match drop_with_outcome {
+        Some(outcome) => {
+            let (mut payload, profile) = work.split_once(UnsampledPayload::from_expanded);
+            payload.reject_err(outcome);
+            profile.map(|profile, _| WithMetrics {
+                headers,
+                payload: SampledPayload::Drop { profile },
+                metrics,
+            })
+        }
+        None => work.map(|work, _| WithMetrics {
             headers,
-            payload,
+            payload: SampledPayload::Keep {
+                payload: work.into_payload(),
+            },
             metrics,
-        })
-    })
+        }),
+    };
+
+    Ok(output)
 }
 
 /// Converts the spans embedded in the transaction into top-level span items.

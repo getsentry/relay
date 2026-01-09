@@ -29,7 +29,7 @@ use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
 use crate::processing::transactions::types::Payload;
 #[cfg(feature = "processing")]
 use crate::processing::transactions::types::SampledPayload;
-use crate::processing::transactions::types::{Flags, WithHeaders, WithMetrics};
+use crate::processing::transactions::types::{Flags, UnsampledPayload, WithHeaders, WithMetrics};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -280,6 +280,23 @@ pub struct ExpandedTransaction {
 }
 
 impl ExpandedTransaction {
+    pub fn into_payload(self) -> Payload {
+        let Self {
+            headers: _,
+            event,
+            flags,
+            attachments,
+            profile,
+        } = self;
+        Payload {
+            event,
+            flags,
+            attachments,
+            profile,
+            extracted_spans: vec![],
+        }
+    }
+
     fn count_embedded_spans_and_self(&self) -> usize {
         1 + self
             .event

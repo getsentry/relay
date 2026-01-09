@@ -7,6 +7,7 @@ use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Quantities};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::processing::transactions::ExpandedTransaction;
 use crate::statsd::RelayTimers;
 
 /// Flags extracted from transaction item headers.
@@ -19,6 +20,16 @@ pub struct Flags {
     pub spans_extracted: bool,
     pub fully_normalized: bool,
 }
+
+// /// A payload that will be dropped by dynamic sampling.
+// #[derive(Debug)]
+// pub struct UnsampledPayload {
+//     pub event: Annotated<Event>,
+//     pub flags: Flags,
+//     pub attachments: Items,
+//     pub profile: Option<Item>,
+//     pub extracted_spans: Vec<Item>,
+// }
 
 #[derive(Debug)]
 pub struct Payload {
@@ -67,6 +78,45 @@ impl Counted for Payload {
 
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
+
+        quantities
+    }
+}
+
+/// The residual of a payload after it has been marked for dropping by dynamic sampling.
+#[derive(Debug)]
+pub struct UnsampledPayload {
+    event: Annotated<Event>,
+    attachments: Items,
+}
+
+impl UnsampledPayload {
+    /// Splits the expanded payload into a residual payload for outcome reporting and an optional profile item.
+    pub fn from_expanded(expanded: ExpandedTransaction) -> (Self, Option<Item>) {
+        let ExpandedTransaction {
+            headers: _,
+            event,
+            flags: _,
+            attachments,
+            profile,
+        } = expanded;
+        (Self { event, attachments }, profile)
+    }
+}
+
+impl Counted for UnsampledPayload {
+    fn quantities(&self) -> Quantities {
+        let Self { event, attachments } = self;
+        let mut quantities = smallvec::smallvec![(DataCategory::TransactionIndexed, 1),];
+
+        let span_count = 1 + event
+            .value()
+            .and_then(|e| e.spans.value())
+            .map_or(0, Vec::len);
+
+        quantities.extend([(DataCategory::SpanIndexed, span_count)]);
+
+        quantities.extend(attachments.quantities());
 
         quantities
     }
