@@ -54,6 +54,12 @@ where
     }
 }
 
+impl Counted for (DataCategory, usize) {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![*self]
+    }
+}
+
 impl Counted for Item {
     fn quantities(&self) -> Quantities {
         self.quantities()
@@ -97,6 +103,7 @@ impl Counted for Box<Envelope> {
                 DataCategory::ProfileChunkUi,
                 summary.profile_chunk_ui_quantity,
             ),
+            (DataCategory::UserReportV2, summary.user_report_quantity),
             (DataCategory::TraceMetric, summary.trace_metric_quantity),
             (DataCategory::LogItem, summary.log_item_quantity),
             (DataCategory::LogByte, summary.log_byte_quantity),

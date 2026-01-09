@@ -57,7 +57,10 @@ async fn handle(
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    match common::handle_envelope(&state, envelope).await {
+    match common::handle_envelope(&state, envelope)
+        .await
+        .map_err(|err| err.into_inner())
+    {
         Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
         Err(error) => return Err(error),
     };
