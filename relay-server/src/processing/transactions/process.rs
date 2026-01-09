@@ -65,7 +65,7 @@ pub fn expand(
         for additional_profile in profiles {
             record_keeper.reject_err(
                 Outcome::Invalid(DiscardReason::Profiling(relay_profiling::discard_reason(
-                    ProfileError::TooManyProfiles,
+                    &ProfileError::TooManyProfiles,
                 ))),
                 additional_profile,
             );

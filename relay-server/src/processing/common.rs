@@ -5,6 +5,7 @@ use crate::processing::ForwardContext;
 use crate::processing::StoreHandle;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
+use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_attachments::TraceAttachmentsProcessor;
@@ -59,9 +60,10 @@ macro_rules! outputs {
 outputs!(
     CheckIns => CheckInsProcessor,
     Logs => LogsProcessor,
-    TraceMetrics => TraceMetricsProcessor,
-    Spans => SpansProcessor,
+    ProfileChunks => ProfileChunksProcessor,
     Sessions => SessionsProcessor,
     Transactions => TransactionProcessor,
+    Spans => SpansProcessor,
     TraceAttachments => TraceAttachmentsProcessor,
+    TraceMetrics => TraceMetricsProcessor,
 );

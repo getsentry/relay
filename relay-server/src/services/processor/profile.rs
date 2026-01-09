@@ -1,4 +1,5 @@
 //! Profiles related processor code.
+
 use relay_dynamic_config::Feature;
 
 use relay_base_schema::events::EventType;
@@ -45,13 +46,13 @@ pub fn filter<Group>(
                     ItemAction::Keep
                 }
                 Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(err),
+                    relay_profiling::discard_reason(&err),
                 ))),
             }
         }
         // We found another profile, we'll drop it.
         ItemType::Profile => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-            relay_profiling::discard_reason(ProfileError::TooManyProfiles),
+            relay_profiling::discard_reason(&ProfileError::TooManyProfiles),
         ))),
         _ => ItemAction::Keep,
     });

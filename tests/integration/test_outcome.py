@@ -1478,7 +1478,7 @@ def test_profile_outcomes_invalid(
     ]
 
     # Make sure the profile will not be counted as accepted:
-    metrics = metrics_by_name(metrics_consumer, 7)
+    metrics = metrics_by_name(metrics_consumer, 8)
     assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
     assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 

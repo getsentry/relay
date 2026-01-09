@@ -2,7 +2,7 @@ use relay_config::Config;
 
 use crate::envelope::{AttachmentType, Envelope, ItemType};
 use crate::integrations::Integration;
-use crate::managed::{ItemAction, ManagedEnvelope};
+use crate::managed::Managed;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
 
 /// Checks for size limits of items in this envelope.
@@ -118,20 +118,33 @@ pub fn check_envelope_size_limits(
 ///
 /// If Relay is configured to drop unknown items, this function removes them from the Envelope. All
 /// known items will be retained.
-pub fn remove_unknown_items(config: &Config, envelope: &mut ManagedEnvelope) {
-    if !config.accept_unknown_items() {
-        envelope.retain_items(|item| match item.ty() {
-            ItemType::Unknown(ty) => {
-                relay_log::debug!("dropping unknown item of type '{ty}'");
-                ItemAction::DropSilently
-            }
-            _ => match item.attachment_type() {
-                Some(AttachmentType::Unknown(ty)) => {
-                    relay_log::debug!("dropping unknown attachment of type '{ty}'");
-                    ItemAction::DropSilently
-                }
-                _ => ItemAction::Keep,
-            },
-        });
+pub fn remove_unknown_items(config: &Config, envelope: &mut Managed<Box<Envelope>>) {
+    if config.accept_unknown_items() {
+        return;
     }
+
+    envelope.modify(|envelope, records| {
+        envelope.retain_items(|item| {
+            let retain = match item.ty() {
+                ItemType::Unknown(ty) => {
+                    relay_log::debug!("dropping unknown item of type '{ty}'");
+                    false
+                }
+                _ => match item.attachment_type() {
+                    Some(AttachmentType::Unknown(ty)) => {
+                        relay_log::debug!("dropping unknown attachment of type '{ty}'");
+                        false
+                    }
+                    _ => true,
+                },
+            };
+
+            if !retain {
+                // Reject items silently, without outcomes.
+                records.reject_err(None, &*item);
+            }
+
+            retain
+        });
+    });
 }

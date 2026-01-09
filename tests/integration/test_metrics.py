@@ -1,6 +1,7 @@
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
+
 import json
 import signal
 import time
@@ -15,7 +16,6 @@ import requests
 from requests.exceptions import HTTPError
 import yaml
 
-from .test_envelope import generate_transaction_item
 from .asserts import time_after, time_within_delta
 
 TEST_CONFIG = {
@@ -39,6 +39,35 @@ def _session_payload(timestamp: datetime, started: datetime):
         "status": "exited",
         "errors": 0,
         "attrs": {"release": "sentry-test@1.0.0", "environment": "production"},
+    }
+
+
+def generate_transaction_item(timestamp):
+    return {
+        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "type": "transaction",
+        "transaction": "/organizations/:orgId/performance/:eventSlug/",
+        "transaction_info": {"source": "route"},
+        "start_timestamp": timestamp,
+        "timestamp": timestamp + 0.5,
+        "contexts": {
+            "trace": {
+                "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                "span_id": "FA90FDEAD5F74052",
+                "type": "trace",
+            }
+        },
+        "spans": [
+            {
+                "description": "<OrganizationContext>",
+                "op": "react.mount",
+                "parent_span_id": "8f5a2b8768cafb4e",
+                "span_id": "bd429c44b67a3eb4",
+                "start_timestamp": timestamp,
+                "timestamp": timestamp + 0.00991,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            }
+        ],
     }
 
 
@@ -765,8 +794,7 @@ def test_transaction_metrics(
             "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
         }
 
-    transaction = generate_transaction_item()
-    transaction["timestamp"] = timestamp.isoformat()
+    transaction = generate_transaction_item(timestamp.timestamp())
     transaction["measurements"] = {
         "foo": {"value": 1.2},
         "bar": {"value": 1.3},
@@ -810,69 +838,129 @@ def test_transaction_metrics(
         assert_transaction()
         assert_transaction()
 
-    metrics = metrics_by_name(metrics_consumer, count=9, timeout=6)
-    timestamp = int(timestamp.timestamp())
     common = {
-        "timestamp": time_after(timestamp),
+        "timestamp": time_after(timestamp, precision="s"),
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "tags": {
-            "transaction": "/organizations/:orgId/performance/:eventSlug/",
-            "platform": "other",
-            "transaction.status": "unknown",
+        "received_at": time_after(timestamp, precision="s"),
+    }
+    decision = "drop" if discard_data else "keep"
+
+    assert metrics_consumer.get_metrics(n=11, with_headers=False) == [
+        {
+            **common,
+            "name": "c:spans/count_per_root_project@none",
+            "tags": {
+                "decision": decision,
+                "is_segment": "false",
+                "target_project_id": "42",
+                "transaction": "transaction_which_starts_trace",
+            },
+            "type": "c",
+            "value": 2.0,
         },
-        "received_at": time_after(timestamp),
-    }
-
-    assert metrics["c:spans/usage@none"]["value"] == 2
-
-    assert metrics["c:transactions/usage@none"] == {
-        **common,
-        "name": "c:transactions/usage@none",
-        "type": "c",
-        "value": 2.0,
-        "tags": {},
-    }
-
-    metrics["d:transactions/measurements.foo@none"]["value"].sort()
-    assert metrics["d:transactions/measurements.foo@none"] == {
-        **common,
-        "name": "d:transactions/measurements.foo@none",
-        "type": "d",
-        "value": [1.2, 2.2],
-    }
-
-    assert metrics["d:transactions/measurements.bar@none"] == {
-        **common,
-        "name": "d:transactions/measurements.bar@none",
-        "type": "d",
-        "value": [1.3],
-    }
-
-    assert metrics[
-        "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
-    ] == {
-        **common,
-        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-        "type": "d",
-        "value": [9.91, 9.91],
-    }
-    assert metrics["c:transactions/count_per_root_project@none"] == {
-        "timestamp": time_after(timestamp),
-        "org_id": 1,
-        "project_id": 42,
-        "retention_days": 90,
-        "tags": {
-            "decision": "drop" if discard_data else "keep",
-            "target_project_id": "42",
-            "transaction": "transaction_which_starts_trace",
+        {
+            **common,
+            "name": "c:spans/count_per_root_project@none",
+            "tags": {
+                "decision": decision,
+                "is_segment": "true",
+                "target_project_id": "42",
+                "transaction": "transaction_which_starts_trace",
+            },
+            "type": "c",
+            "value": 2.0,
         },
-        "name": "c:transactions/count_per_root_project@none",
-        "type": "c",
-        "value": 2.0,
-        "received_at": time_after(timestamp),
-    }
+        {
+            **common,
+            "name": "c:spans/usage@none",
+            "tags": {
+                "is_segment": "false",
+            },
+            "type": "c",
+            "value": 2.0,
+        },
+        {
+            **common,
+            "name": "c:spans/usage@none",
+            "tags": {
+                "was_transaction": "true",
+                "is_segment": "true",
+            },
+            "type": "c",
+            "value": 2.0,
+        },
+        {
+            **common,
+            "name": "c:transactions/count_per_root_project@none",
+            "tags": {
+                "decision": decision,
+                "target_project_id": "42",
+                "transaction": "transaction_which_starts_trace",
+            },
+            "type": "c",
+            "value": 2.0,
+        },
+        {
+            **common,
+            "name": "c:transactions/usage@none",
+            "tags": {},
+            "type": "c",
+            "value": 2.0,
+        },
+        {
+            **common,
+            "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+            "tags": {
+                "platform": "other",
+                "transaction": "/organizations/:orgId/performance/:eventSlug/",
+                "transaction.status": "unknown",
+            },
+            "type": "d",
+            "value": [9.91, 9.91],
+        },
+        {
+            **common,
+            "name": "d:transactions/duration@millisecond",
+            "tags": {
+                "platform": "other",
+                "transaction": "/organizations/:orgId/performance/:eventSlug/",
+                "transaction.status": "unknown",
+            },
+            "type": "d",
+            "value": [500.0, 500.0],
+        },
+        {
+            **common,
+            "name": "d:transactions/duration_light@millisecond",
+            "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
+            "type": "d",
+            "value": [500.0, 500.0],
+        },
+        {
+            **common,
+            "name": "d:transactions/measurements.bar@none",
+            "tags": {
+                "platform": "other",
+                "transaction": "/organizations/:orgId/performance/:eventSlug/",
+                "transaction.status": "unknown",
+            },
+            "type": "d",
+            "value": [1.3],
+        },
+        {
+            **common,
+            "name": "d:transactions/measurements.foo@none",
+            "tags": {
+                "platform": "other",
+                "transaction": "/organizations/:orgId/performance/:eventSlug/",
+                "transaction.status": "unknown",
+            },
+            "type": "d",
+            "value": [1.2, 2.2],
+        },
+    ]
 
 
 def test_transaction_metrics_count_per_root_project(
@@ -902,8 +990,7 @@ def test_transaction_metrics_count_per_root_project(
             "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
         }
 
-    transaction = generate_transaction_item()
-    transaction["timestamp"] = timestamp.isoformat()
+    transaction = generate_transaction_item(timestamp.timestamp())
     transaction["measurements"] = {
         "foo": {"value": 1.2},
         "bar": {"value": 1.3},
@@ -916,8 +1003,7 @@ def test_transaction_metrics_count_per_root_project(
     }
     relay.send_transaction(42, transaction, trace_info=trace_info)
 
-    transaction = generate_transaction_item()
-    transaction["timestamp"] = timestamp.isoformat()
+    transaction = generate_transaction_item(timestamp.timestamp())
     transaction["measurements"] = {
         "test": {"value": 1.2},
     }
@@ -989,10 +1075,8 @@ def test_transaction_metrics_extraction_external_relays(
         ],
     }
 
-    tx = generate_transaction_item()
-    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    tx["timestamp"] = timestamp.isoformat()
+    tx = generate_transaction_item(timestamp.timestamp())
 
     external = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -1014,7 +1098,7 @@ def test_transaction_metrics_extraction_external_relays(
         assert len(metrics_envelope.items) == 1
 
         payload = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(payload) == 6
+        assert len(payload) == 8
 
         by_name = {m["name"]: m for m in payload}
         light_metric = by_name["d:transactions/duration_light@millisecond"]
@@ -1037,12 +1121,24 @@ def test_transaction_metrics_extraction_external_relays(
     assert mini_sentry.captured_envelopes.empty()
 
 
+@pytest.mark.parametrize(
+    "send_extracted_header,expect_metrics_extraction",
+    [(False, True), (True, False)],
+    ids=["must extract metrics", "mustn't extract metrics"],
+)
 def test_transaction_metrics_extraction_processing_relays(
     transactions_consumer,
     metrics_consumer,
     mini_sentry,
     relay_with_processing,
+    send_extracted_header,
+    expect_metrics_extraction,
 ):
+    if send_extracted_header:
+        item_headers = {"metrics_extracted": True}
+    else:
+        item_headers = None
+
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
@@ -1050,36 +1146,35 @@ def test_transaction_metrics_extraction_processing_relays(
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
-    tx = generate_transaction_item()
-    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    tx["timestamp"] = timestamp.isoformat()
+    tx = generate_transaction_item(timestamp.timestamp())
 
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
     processing = relay_with_processing(options=TEST_CONFIG)
-    processing.send_transaction(project_id, tx, None)
+    processing.send_transaction(project_id, tx, item_headers)
 
     tx, _ = tx_consumer.get_event()
     assert tx["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     tx_consumer.assert_empty()
 
-    metrics = metrics_by_name(metrics_consumer, 6, timeout=3)
-    metric_usage = metrics["c:transactions/usage@none"]
-    assert metric_usage["tags"] == {}
-    assert metric_usage["value"] == 1.0
-    metric_duration = metrics["d:transactions/duration@millisecond"]
-    assert (
-        metric_duration["tags"]["transaction"]
-        == "/organizations/:orgId/performance/:eventSlug/"
-    )
-    metric_duration_light = metrics["d:transactions/duration_light@millisecond"]
-    assert (
-        metric_duration_light["tags"]["transaction"]
-        == "/organizations/:orgId/performance/:eventSlug/"
-    )
-    metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
-    assert metric_count_per_project["value"] == 1.0
+    if expect_metrics_extraction:
+        metrics = metrics_by_name(metrics_consumer, 8)
+        metric_usage = metrics["c:transactions/usage@none"]
+        assert metric_usage["tags"] == {}
+        assert metric_usage["value"] == 1.0
+        metric_duration = metrics["d:transactions/duration@millisecond"]
+        assert (
+            metric_duration["tags"]["transaction"]
+            == "/organizations/:orgId/performance/:eventSlug/"
+        )
+        metric_duration_light = metrics["d:transactions/duration_light@millisecond"]
+        assert (
+            metric_duration_light["tags"]["transaction"]
+            == "/organizations/:orgId/performance/:eventSlug/"
+        )
+        metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
+        assert metric_count_per_project["value"] == 1.0
 
     metrics_consumer.assert_empty()
 
@@ -1103,10 +1198,8 @@ def test_transaction_metrics_not_extracted_on_unsupported_version(
         "version": unsupported_version,
     }
 
-    tx = generate_transaction_item()
-    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    tx["timestamp"] = timestamp.isoformat()
+    tx = generate_transaction_item(timestamp.timestamp())
 
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
@@ -1134,11 +1227,9 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     }
     config["filterSettings"]["releases"] = {"releases": ["foo@1.2.4"]}
 
-    tx = generate_transaction_item()
-    tx["release"] = "foo@1.2.4"
-    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    tx["timestamp"] = timestamp.isoformat()
+    tx = generate_transaction_item(timestamp.timestamp())
+    tx["release"] = "foo@1.2.4"
 
     relay = relay(mini_sentry, options=TEST_CONFIG)
     relay.send_transaction(project_id, tx)
@@ -1296,8 +1387,7 @@ def test_limit_custom_measurements(
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
-    transaction = generate_transaction_item()
-    transaction["timestamp"] = timestamp.isoformat()
+    transaction = generate_transaction_item(timestamp.timestamp())
     transaction["measurements"] = {
         "foo": {"value": 1.2},
         "baz": {
@@ -1322,7 +1412,7 @@ def test_limit_custom_measurements(
         "c:spans/count_per_root_project@none",
     }
 
-    metrics = metrics_by_name(metrics_consumer, len(expected_metrics))
+    metrics = metrics_by_name(metrics_consumer, 10)
     metrics.pop("headers")
 
     assert metrics.keys() == expected_metrics
@@ -1339,7 +1429,7 @@ def test_generic_metric_extraction(mini_sentry, relay):
             {
                 "category": "transaction",
                 "mri": "c:transactions/on_demand@none",
-                "condition": {"op": "gte", "name": "event.duration", "value": 1000.0},
+                "condition": {"op": "gte", "name": "event.duration", "value": 0.3},
                 "tags": [{"key": "query_hash", "value": "c91c2e4d"}],
             }
         ],
@@ -1359,10 +1449,8 @@ def test_generic_metric_extraction(mini_sentry, relay):
         ],
     }
 
-    transaction = generate_transaction_item()
     timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = timestamp.isoformat()
-    transaction["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
+    transaction = generate_transaction_item(timestamp.timestamp())
 
     relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
     relay.send_transaction(PROJECT_ID, transaction)
@@ -1471,7 +1559,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
             },
         )
 
-    transaction = generate_transaction_item()
+    transaction = generate_transaction_item(datetime.now(tz=timezone.utc).timestamp())
     relay.send_transaction(project_id, transaction)
 
     if is_processing_relay:
@@ -1531,7 +1619,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
             },
         )
 
-    transaction = generate_transaction_item()
+    transaction = generate_transaction_item(datetime.now(tz=timezone.utc).timestamp())
     relay.send_transaction(project_id, transaction)
 
     if is_processing_relay:
@@ -1572,7 +1660,7 @@ def test_missing_global_filters_enables_metric_extraction(
         }
     )
 
-    transaction = generate_transaction_item()
+    transaction = generate_transaction_item(datetime.now(tz=timezone.utc).timestamp())
     relay.send_transaction(project_id, transaction)
 
     tx, _ = tx_consumer.get_event()
@@ -1742,7 +1830,7 @@ def test_metrics_extraction_with_computed_context_filters(
     }
 
     # Create a transaction with matching contexts
-    transaction = generate_transaction_item()
+    transaction = generate_transaction_item(datetime.now(tz=timezone.utc).timestamp())
     transaction["contexts"].update(
         {
             "os": {
@@ -1781,7 +1869,7 @@ def test_metrics_extraction_with_computed_context_filters(
     ]
 
     # Verify that all three metrics were extracted
-    metrics = metrics_by_name(metrics_consumer, 9)
+    metrics = metrics_by_name(metrics_consumer, 11)
 
     # Check each extracted metric
     for metric_name in metric_names:
