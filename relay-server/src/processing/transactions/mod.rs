@@ -195,8 +195,18 @@ impl Processor for TransactionProcessor {
         #[cfg(feature = "processing")]
         let server_sample_rate = sampling_result.sample_rate();
 
-        // FIXME: Make sure that profiles are processed in processing relays (standalone pipeline).
-        // Add a test for it.
+        relay_log::trace!("Processing profiles");
+        // TODO: move to module
+        work.modify(|work, _| {
+            if let Some(profile) = &mut work.profile {
+                profile::process(
+                    profile,
+                    work.headers.meta().client_addr(),
+                    work.event.value(),
+                    &ctx,
+                );
+            }
+        });
 
         relay_log::trace!("Enforce quotas");
         let mut work = self.limiter.enforce_quotas(work, ctx).await?;
@@ -280,21 +290,24 @@ pub struct ExpandedTransaction {
 }
 
 impl ExpandedTransaction {
-    pub fn into_payload(self) -> Payload {
+    pub fn into_parts(self) -> (EnvelopeHeaders, Payload) {
         let Self {
-            headers: _,
+            headers,
             event,
             flags,
             attachments,
             profile,
         } = self;
-        Payload {
-            event,
-            flags,
-            attachments,
-            profile,
-            extracted_spans: vec![],
-        }
+        (
+            headers,
+            Payload {
+                event,
+                flags,
+                attachments,
+                profile,
+                extracted_spans: vec![],
+            },
+        )
     }
 
     fn count_embedded_spans_and_self(&self) -> usize {
@@ -451,31 +464,6 @@ impl Forward for TransactionOutput {
                 .map_err(drop)
                 .with_outcome(Outcome::Invalid(DiscardReason::Internal))
         })
-
-        // match self {
-        //     TransactionOutput::TotalAndIndexed(managed) => managed.try_map(|output, _| {
-        //         output
-        //             .serialize_envelope()
-        //             .map_err(drop)
-        //             .with_outcome(Outcome::Invalid(DiscardReason::Internal))
-        //     }),
-        //     TransactionOutput::Indexed(managed) => managed.try_map(|output, record_keeper| {
-        //         // TODO(follow-up): `Counted` impl of `Box<Envelope>` is wrong.
-        //         // But we will send structured data to the store soon instead of an envelope,
-        //         // then this problem is circumvented.
-        //         record_keeper.lenient(DataCategory::Transaction);
-        //         record_keeper.lenient(DataCategory::Span);
-        //         output
-        //             .serialize_envelope()
-        //             .map_err(drop)
-        //             .with_outcome(Outcome::Invalid(DiscardReason::Internal))
-        //     }),
-        //     TransactionOutput::OnlyProfile(profile) => {
-        //         Ok(profile.map(|ProfileWithHeaders { headers, item }, _| {
-        //             Envelope::from_parts(headers, smallvec![item])
-        //         }))
-        //     }
-        // }
     }
 
     #[cfg(feature = "processing")]

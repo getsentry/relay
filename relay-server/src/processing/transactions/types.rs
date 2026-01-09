@@ -86,8 +86,8 @@ impl Counted for Payload {
 /// The residual of a payload after it has been marked for dropping by dynamic sampling.
 #[derive(Debug)]
 pub struct UnsampledPayload {
-    event: Annotated<Event>,
-    attachments: Items,
+    pub event: Annotated<Event>,
+    pub attachments: Items,
 }
 
 impl UnsampledPayload {
@@ -205,7 +205,10 @@ impl WithHeaders {
                 items.push(item);
             }
             SampledPayload::Drop { profile } => {
-                items.extend(profile);
+                if let Some(mut profile) = profile {
+                    profile.set_sampled(false);
+                    items.push(profile);
+                }
             }
         }
 

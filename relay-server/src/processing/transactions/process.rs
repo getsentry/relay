@@ -260,28 +260,35 @@ pub fn extract_metrics(
         Ok::<_, Error>(())
     })?;
 
-    let headers = work.headers.clone();
     let metrics = metrics.into_inner();
     let output = match drop_with_outcome {
         Some(outcome) => {
             let (mut keep_part, drop_part) = work.split_once(|expanded| {
-                let (drop_part, profile) = UnsampledPayload::from_expanded(expanded);
+                let ExpandedTransaction {
+                    headers,
+                    event,
+                    flags: _,
+                    attachments,
+                    profile,
+                } = expanded;
                 let keep_part = WithMetrics {
                     headers,
                     payload: SampledPayload::Drop { profile },
                     metrics,
                 };
+                let drop_part = UnsampledPayload { event, attachments };
                 (keep_part, drop_part)
             });
             drop_part.reject_err(outcome);
             keep_part
         }
-        None => work.map(|work, _| WithMetrics {
-            headers,
-            payload: SampledPayload::Keep {
-                payload: work.into_payload(),
-            },
-            metrics,
+        None => work.map(|work, _| {
+            let (headers, payload) = work.into_parts();
+            WithMetrics {
+                headers,
+                payload: SampledPayload::Keep { payload },
+                metrics,
+            }
         }),
     };
 
