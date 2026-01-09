@@ -451,10 +451,15 @@ class MetricsConsumer(ConsumerBase):
 
         for message in self.poll_many(timeout=timeout, n=n):
             assert message.error() is None
+            value = json.loads(message.value())
+            try:
+                value["value"].sort()
+            except AttributeError:
+                pass
             if with_headers:
-                metrics.append((json.loads(message.value()), message.headers()))
+                metrics.append((value, message.headers()))
             else:
-                metrics.append(json.loads(message.value()))
+                metrics.append(value)
 
         def _sort(m):
             if with_headers:

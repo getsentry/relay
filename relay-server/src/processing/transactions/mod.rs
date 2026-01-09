@@ -131,7 +131,7 @@ impl Processor for TransactionProcessor {
             profile,
         };
 
-        Some(Managed::from_envelope(envelope, work))
+        Some(Managed::with_meta_from(envelope, work))
     }
 
     async fn process(
