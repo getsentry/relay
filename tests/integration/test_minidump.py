@@ -575,12 +575,7 @@ def test_crashpad_annotations(mini_sentry, relay_with_processing, attachments_co
     with open(dmp_path, "rb") as f:
         content = f.read()
 
-    relay = relay_with_processing(
-        {
-            # Prevent normalization from overwriting the minidump timestamp
-            "processing": {"max_secs_in_past": 2**32 - 1}
-        }
-    )
+    relay = relay_with_processing()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -615,12 +610,7 @@ def test_chromium_stability_report(
     with open(dmp_path, "rb") as f:
         content = f.read()
 
-    relay = relay_with_processing(
-        {
-            # Prevent normalization from overwriting the minidump timestamp
-            "processing": {"max_secs_in_past": 2**32 - 1}
-        }
-    )
+    relay = relay_with_processing()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)

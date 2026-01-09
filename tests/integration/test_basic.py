@@ -7,6 +7,7 @@ import tempfile
 import pytest
 import signal
 import zlib
+from requests import HTTPError
 
 
 def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
@@ -376,3 +377,16 @@ def test_root_project_same(mini_sentry, relay):
     same_dsn = mini_sentry.get_dsn_public_key(project_id)
     txn = send_transaction_with_dsc(mini_sentry, relay, project_id, same_dsn)
     assert txn["contexts"]["trace"]["client_sample_rate"] == 0.5
+
+
+def test_size_limit_status_code(mini_sentry, relay):
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"max_event_size": "1B"},
+        },
+    )
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        relay.send_event(project_id)

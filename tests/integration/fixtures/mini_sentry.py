@@ -386,15 +386,6 @@ def mini_sentry(request):  # noqa
     def store_event_catchall(project):
         raise AssertionError(f"Unknown project: {project}")
 
-    @app.route("/api/0/relays/projectids/", methods=["POST"])
-    def get_project_ids():
-        project_ids = {}
-        for public_key in flask_request.json["publicKeys"]:
-            project_ids[public_key] = _get_project_id(
-                public_key, sentry.project_configs
-            )
-        return jsonify(projectIds=project_ids)
-
     @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
     def get_project_config():
         relay_id = flask_request.headers["x-sentry-relay-id"]

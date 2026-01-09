@@ -26,12 +26,12 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope};
-use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectChange};
+use crate::services::projects::cache::{ProjectCacheHandle, ProjectChange};
 use crate::statsd::RelayCounters;
 
 use crate::MemoryChecker;
 use crate::MemoryStat;
-use crate::managed::ManagedEnvelope;
+use crate::managed::{Managed, ManagedEnvelope};
 
 // pub for benchmarks
 pub use envelope_buffer::EnvelopeBufferError;
@@ -192,13 +192,13 @@ impl ObservableEnvelopeBuffer {
     /// Attempts to push an envelope into the envelope buffer.
     ///
     /// Returns `false`, if the envelope buffer does not have enough capacity.
-    pub fn try_push(&self, mut envelope: ManagedEnvelope) -> bool {
+    pub fn try_push(&self, envelope: Managed<Box<Envelope>>) -> Result<(), Managed<Box<Envelope>>> {
         if self.has_capacity() {
+            let envelope = envelope.into();
             self.addr.send(EnvelopeBuffer::Push(envelope));
-            true
+            Ok(())
         } else {
-            envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-            false
+            Err(envelope)
         }
     }
 
@@ -530,20 +530,26 @@ impl EnvelopeBufferService {
         let sampling_project_info = sampling_project_info
             .filter(|info| info.organization_id == own_project_info.organization_id);
 
-        let managed_envelope = ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
+        let mut managed_envelope =
+            Managed::from_envelope(envelope, services.outcome_aggregator.clone());
 
-        let Ok(CheckedEnvelope {
-            envelope: Some(managed_envelope),
-            ..
-        }) = own_project.check_envelope(managed_envelope).await
-        else {
+        if own_project
+            .check_envelope(&mut managed_envelope)
+            .await
+            .is_err()
+        {
             // Outcomes are emitted by `check_envelope`.
             return Ok(());
         };
 
+        if managed_envelope.is_empty() {
+            // Nothing left to process.
+            return Ok(());
+        }
+
         let reservoir_counters = own_project.reservoir_counters().clone();
         services.envelope_processor.send(ProcessEnvelope {
-            envelope: managed_envelope,
+            envelope: managed_envelope.into(),
             project_info: own_project_info.clone(),
             rate_limits: own_project.rate_limits().current_limits(),
             sampling_project_info: sampling_project_info.clone(),

@@ -39,8 +39,10 @@ pub async fn handle(
     meta: RequestMeta,
     Path(path): Path<AttachmentPath>,
     multipart: ConstrainedMultipart,
-) -> Result<impl IntoResponse, BadStoreRequest> {
+) -> axum::response::Result<impl IntoResponse> {
     let envelope = extract_envelope(meta, path, multipart, state.config()).await?;
-    common::handle_envelope(&state, envelope).await?;
+    common::handle_envelope(&state, envelope)
+        .await?
+        .ignore_rate_limits();
     Ok(StatusCode::CREATED)
 }

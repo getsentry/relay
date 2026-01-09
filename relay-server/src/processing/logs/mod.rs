@@ -135,7 +135,7 @@ impl processing::Processor for LogsProcessor {
             logs,
             integrations,
         };
-        Some(Managed::from_envelope(envelope, work))
+        Some(Managed::with_meta_from(envelope, work))
     }
 
     async fn process(
