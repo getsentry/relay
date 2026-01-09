@@ -158,14 +158,12 @@ impl Counted for ExtractedMetrics {
         let SourceQuantities {
             transactions,
             spans,
-            profiles,
             buckets,
         } = metrics::extract_quantities(&self.project_metrics);
 
         [
             (DataCategory::Transaction, transactions),
             (DataCategory::Span, spans),
-            (DataCategory::Profile, profiles),
             (DataCategory::MetricBucket, buckets),
         ]
         .into_iter()

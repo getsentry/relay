@@ -280,7 +280,6 @@ impl EnvelopeSummary {
             if let Some(source_quantities) = item.source_quantities() {
                 summary.secondary_transaction_quantity += source_quantities.transactions;
                 summary.secondary_span_quantity += source_quantities.spans;
-                summary.profile_quantity += source_quantities.profiles;
             }
 
             summary.payload_size += item.len();
@@ -2065,8 +2064,7 @@ mod tests {
         item.set_source_quantities(SourceQuantities {
             transactions: 5,
             spans: 0,
-            profiles: 2,
-            buckets: 5,
+            buckets: 3,
         });
         envelope.add_item(item);
 
@@ -2074,14 +2072,12 @@ mod tests {
         item.set_source_quantities(SourceQuantities {
             transactions: 2,
             spans: 0,
-            profiles: 0,
             buckets: 3,
         });
         envelope.add_item(item);
 
         let summary = EnvelopeSummary::compute(&envelope);
 
-        assert_eq!(summary.profile_quantity, 2);
         assert_eq!(summary.secondary_transaction_quantity, 7);
     }
 

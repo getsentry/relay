@@ -150,7 +150,6 @@ impl Counted for WithMetrics {
             }
             SampledPayload::Drop { profile } => {
                 // When the payload is gone, the metrics carry the data category.
-                // FIXME: Verify that metrics never carry profile outcomes.
                 let mut quantities = profile.quantities();
                 quantities.extend(metrics.quantities());
                 quantities
@@ -206,7 +205,6 @@ impl WithHeaders {
             }
             SampledPayload::Drop { profile } => {
                 if let Some(mut profile) = profile {
-                    profile.set_sampled(false);
                     items.push(profile);
                 }
             }

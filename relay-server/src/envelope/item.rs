@@ -1053,8 +1053,6 @@ pub struct SourceQuantities {
     pub transactions: usize,
     /// Spans quantity.
     pub spans: usize,
-    /// Profile quantity.
-    pub profiles: usize,
     /// Total number of buckets.
     pub buckets: usize,
 }
@@ -1064,12 +1062,10 @@ impl AddAssign for SourceQuantities {
         let Self {
             transactions,
             spans,
-            profiles,
             buckets,
         } = self;
         *transactions += other.transactions;
         *spans += other.spans;
-        *profiles += other.profiles;
         *buckets += other.buckets;
     }
 }

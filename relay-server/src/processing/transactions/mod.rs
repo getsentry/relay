@@ -196,17 +196,7 @@ impl Processor for TransactionProcessor {
         let server_sample_rate = sampling_result.sample_rate();
 
         relay_log::trace!("Processing profiles");
-        // TODO: move to module
-        work.modify(|work, _| {
-            if let Some(profile) = &mut work.profile {
-                profile::process(
-                    profile,
-                    work.headers.meta().client_addr(),
-                    work.event.value(),
-                    &ctx,
-                );
-            }
-        });
+        let work = process::process_profile(work, ctx, sampling_result.decision());
 
         relay_log::trace!("Enforce quotas");
         let mut work = self.limiter.enforce_quotas(work, ctx).await?;
