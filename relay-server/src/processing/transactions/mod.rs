@@ -210,15 +210,15 @@ impl Processor for TransactionProcessor {
 
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {
-            if let SampledPayload::Keep { payload } = &work.payload {
-                if !payload.flags.fully_normalized {
-                    relay_log::error!(
-                        tags.project = %project_id,
-                        tags.ty = event_type(&payload.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
-                        "ingested event without normalizing"
-                    );
-                };
-            }
+            if let SampledPayload::Keep { payload } = &work.payload
+                && !payload.flags.fully_normalized
+            {
+                relay_log::error!(
+                    tags.project = %project_id,
+                    tags.ty = event_type(&payload.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                    "ingested event without normalizing"
+                );
+            };
 
             relay_log::trace!("Extract spans");
             work = process::extract_spans(work, ctx, server_sample_rate);

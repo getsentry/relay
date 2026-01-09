@@ -123,6 +123,7 @@ impl Counted for UnsampledPayload {
 }
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum SampledPayload {
     /// We still have a transaction + child items, and it counts as both indexed + total.
     Keep { payload: Payload },
