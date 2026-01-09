@@ -1,4 +1,5 @@
 //! Service that uploads attachments.
+use std::array::TryFromSliceError;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,13 +13,13 @@ use relay_quotas::DataCategory;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use sentry_protos::snuba::v1::TraceItem;
 use smallvec::smallvec;
-use uuid::Uuid;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::ItemType;
 use crate::managed::{
     Counted, Managed, ManagedResult, OutcomeError, Quantities, Rejected, TypedEnvelope,
 };
+use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
@@ -97,7 +98,7 @@ pub enum Error {
     #[error("upload failed: {0}")]
     UploadFailed(#[from] objectstore_client::Error),
     #[error("UUID conversion failed: {0}")]
-    Uuid(#[from] uuid::Error),
+    Uuid(#[from] TryFromSliceError),
 }
 
 impl Error {
@@ -333,7 +334,7 @@ impl UploadServiceInner {
         // Upload the attachment:
         if !body.is_empty() {
             relay_log::trace!("Starting attachment upload");
-            let key = Uuid::from_slice(&trace_item.trace_item.item_id)
+            let key = item_id_to_uuid(&trace_item.trace_item.item_id)
                 .map_err(Error::from)
                 .reject(&trace_item)?
                 .as_simple()

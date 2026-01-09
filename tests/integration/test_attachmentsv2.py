@@ -407,7 +407,7 @@ def test_attachment_with_matching_span_store(
 
     attachment_item = items_consumer.get_item()
     expected_item_id = base64.b64encode(
-        int(uuid.UUID(hex=attachment_item["attachment_id"]).hex, base=16).to_bytes(
+        int(uuid.UUID(hex=metadata["attachment_id"]).hex, base=16).to_bytes(
             16, "little"
         )
     ).decode("utf-8")
