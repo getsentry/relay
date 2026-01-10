@@ -3,13 +3,16 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version to release (or "auto")
+        description: Version to release (optional)
         required: false
       force:
         description: Force a release even when there are release-blockers
         required: false
   schedule:
-  - cron: "0 17 15 * *"
+    # We want the release to be at 9-10am Pacific Time
+    # We also want it to be 1 hour before the on-prem release
+    - cron: "0 17 15 * *"
+
 permissions:
   contents: write
   pull-requests: write
@@ -17,22 +20,25 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    name: Release a new version
+    name: Release a new Relay version
     steps:
-    - name: Get auth token
-      id: token
-      uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v2
-      with:
-        app-id: ${{ vars.SENTRY_RELEASE_BOT_CLIENT_ID }}
-        private-key: ${{ secrets.SENTRY_RELEASE_BOT_PRIVATE_KEY }}
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2
-      with:
-        token: ${{ steps.token.outputs.token }}
-        fetch-depth: 0
-    - name: Prepare release
-      uses: getsentry/craft@39ee616a6a58dc64797feecb145d66770492b66c # v2
-      env:
-        GITHUB_TOKEN: ${{ steps.token.outputs.token }}
-      with:
-        version: ${{ inputs.version }}
-        force: ${{ inputs.force }}
+      - name: Get auth token
+        id: token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+        with:
+          app-id: ${{ vars.SENTRY_RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.SENTRY_RELEASE_BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          token: ${{ steps.token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Prepare release
+        uses: getsentry/craft@39ee616a6a58dc64797feecb145d66770492b66c # v2
+        env:
+          GITHUB_TOKEN: ${{ steps.token.outputs.token }}
+        with:
+          version: ${{ inputs.version }}
+          force: ${{ inputs.force }}
+          calver: true
