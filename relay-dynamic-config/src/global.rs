@@ -6,9 +6,10 @@ use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
 use relay_event_normalization::{
-    AiOperationTypeMap, MeasurementsConfig, ModelCosts, SpanOpDefaults,
+    AiOperationTypeMap, MeasurementsConfig, ModelCostV2, ModelCosts, SpanOpDefaults,
 };
 use relay_filter::GenericFiltersConfig;
+use relay_pattern::Pattern;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
 use serde_json::Value;
@@ -91,6 +92,7 @@ impl GlobalConfig {
     /// Modifies the global config after deserialization.
     ///
     /// - Adds hard-coded groups to metrics extraction configs.
+    /// - Adds default cost configuration for test/mock models if not present.
     pub fn normalize(&mut self) {
         if let ErrorBoundary::Ok(config) = &mut self.metric_extraction {
             for (group_name, metrics, tags) in defaults::hardcoded_span_metrics() {
@@ -102,6 +104,25 @@ impl GlobalConfig {
                         metrics,
                         tags,
                     });
+                }
+            }
+        }
+
+        // Add default cost configuration for mock/test models if not already present
+        if let ErrorBoundary::Ok(costs) = &mut self.ai_model_costs {
+            if costs.is_enabled() {
+                // Add default costs for mock-model-id if not present
+                let mock_pattern = Pattern::new("mock-*").unwrap();
+                if !costs.models.contains_key(&mock_pattern) {
+                    costs.models.insert(
+                        mock_pattern,
+                        ModelCostV2 {
+                            input_per_token: 0.001,
+                            output_per_token: 0.002,
+                            output_reasoning_per_token: 0.003,
+                            input_cached_per_token: 0.0005,
+                        },
+                    );
                 }
             }
         }
@@ -509,5 +530,63 @@ mod tests {
         let o: Options = serde_json::from_str(&s).unwrap();
         assert_eq!(o.metric_bucket_set_encodings, original);
         assert_eq!(o.metric_bucket_dist_encodings, original);
+    }
+
+    #[test]
+    fn test_normalize_adds_mock_model_costs() {
+        // Test that normalize() adds default costs for mock models
+        let mut config = GlobalConfig {
+            ai_model_costs: ErrorBoundary::Ok(ModelCosts {
+                version: 2,
+                models: HashMap::new(),
+            }),
+            ..Default::default()
+        };
+
+        config.normalize();
+
+        if let ErrorBoundary::Ok(costs) = &config.ai_model_costs {
+            let mock_pattern = Pattern::new("mock-*").unwrap();
+            assert!(costs.models.contains_key(&mock_pattern));
+
+            let mock_cost = costs.models.get(&mock_pattern).unwrap();
+            assert_eq!(mock_cost.input_per_token, 0.001);
+            assert_eq!(mock_cost.output_per_token, 0.002);
+            assert_eq!(mock_cost.output_reasoning_per_token, 0.003);
+            assert_eq!(mock_cost.input_cached_per_token, 0.0005);
+        } else {
+            panic!("Expected Ok variant for ai_model_costs");
+        }
+    }
+
+    #[test]
+    fn test_normalize_does_not_overwrite_existing_mock_pattern() {
+        // Test that normalize() doesn't overwrite existing mock-* pattern
+        let mut models = HashMap::new();
+        let mock_pattern = Pattern::new("mock-*").unwrap();
+        models.insert(
+            mock_pattern.clone(),
+            ModelCostV2 {
+                input_per_token: 0.999,
+                output_per_token: 0.888,
+                output_reasoning_per_token: 0.777,
+                input_cached_per_token: 0.666,
+            },
+        );
+
+        let mut config = GlobalConfig {
+            ai_model_costs: ErrorBoundary::Ok(ModelCosts { version: 2, models }),
+            ..Default::default()
+        };
+
+        config.normalize();
+
+        if let ErrorBoundary::Ok(costs) = &config.ai_model_costs {
+            let mock_cost = costs.models.get(&mock_pattern).unwrap();
+            assert_eq!(mock_cost.input_per_token, 0.999);
+            assert_eq!(mock_cost.output_per_token, 0.888);
+        } else {
+            panic!("Expected Ok variant for ai_model_costs");
+        }
     }
 }
