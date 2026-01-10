@@ -35,7 +35,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
         with:
           submodules: recursive
 
@@ -107,7 +107,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
         with:
           submodules: recursive
 
@@ -128,7 +128,7 @@ jobs:
     outputs:
       devservices-files-changed: ${{ steps.changes.outputs.devservices-files-changed }}
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4.1.7
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v4.1.7
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         name: Check for file changes
         id: changes
@@ -157,7 +157,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
         with:
           submodules: recursive
 
@@ -219,7 +219,7 @@ jobs:
             ghcr.io/getsentry/objectstore:nightly \
             run
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
         with:
           submodules: recursive
 
@@ -250,7 +250,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
         with:
           submodules: recursive
 
@@ -365,7 +365,7 @@ jobs:
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
         with:
           submodules: recursive
 
@@ -441,7 +441,7 @@ jobs:
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
         with:
           submodules: recursive
 
@@ -506,7 +506,7 @@ jobs:
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -572,7 +572,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -783,7 +783,7 @@ jobs:
             ghcr.io/getsentry/objectstore:nightly \
             run
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
         with:
           submodules: recursive
 
@@ -832,7 +832,7 @@ jobs:
     steps:
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
         with:
           repository: getsentry/sentry
           path: sentry
@@ -902,7 +902,7 @@ jobs:
     needs: devservices-files-changed
     if: needs.devservices-files-changed.outputs.devservices-files-changed == 'true'
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
       name: Checkout repository
 
     - name: Get devservices version
