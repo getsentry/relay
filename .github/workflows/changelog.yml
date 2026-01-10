@@ -4,12 +4,16 @@ on:
     types: [opened, synchronize, reopened, edited, ready_for_review, labeled, unlabeled]
   merge_group:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   build:
     name: Changelogs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v2.0.1
       - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
