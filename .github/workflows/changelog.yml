@@ -13,7 +13,7 @@ jobs:
     name: Changelogs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v2.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6 # v6 # v2.0.1
       - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
