@@ -2,7 +2,9 @@
 
 use crate::normalize::AiOperationTypeMap;
 use crate::{ModelCostV2, ModelCosts};
-use relay_event_schema::protocol::{Event, Measurements, OperationType, SpanData, TraceContext};
+use relay_event_schema::protocol::{
+    Event, Measurements, OperationType, Span, SpanData, TraceContext,
+};
 use relay_protocol::{Annotated, Getter, Value};
 
 /// Amount of used tokens for a model call.
@@ -120,7 +122,7 @@ fn extract_ai_model_cost_data(model_cost: Option<&ModelCostV2>, data: &mut SpanD
 }
 
 /// Maps AI-related measurements (legacy) to span data.
-fn map_ai_measurements_to_data(span_data: &mut SpanData, measurements: Option<&Measurements>) {
+fn map_ai_measurements_to_data(data: &mut SpanData, measurements: Option<&Measurements>) {
     let set_field_from_measurement = |target_field: &mut Annotated<Value>,
                                       measurement_key: &str| {
         if let Some(measurements) = measurements
@@ -131,28 +133,22 @@ fn map_ai_measurements_to_data(span_data: &mut SpanData, measurements: Option<&M
         }
     };
 
+    set_field_from_measurement(&mut data.gen_ai_usage_total_tokens, "ai_total_tokens_used");
+    set_field_from_measurement(&mut data.gen_ai_usage_input_tokens, "ai_prompt_tokens_used");
     set_field_from_measurement(
-        &mut span_data.gen_ai_usage_total_tokens,
-        "ai_total_tokens_used",
-    );
-    set_field_from_measurement(
-        &mut span_data.gen_ai_usage_input_tokens,
-        "ai_prompt_tokens_used",
-    );
-    set_field_from_measurement(
-        &mut span_data.gen_ai_usage_output_tokens,
+        &mut data.gen_ai_usage_output_tokens,
         "ai_completion_tokens_used",
     );
 }
 
-fn set_total_tokens(span_data: &mut SpanData) {
+fn set_total_tokens(data: &mut SpanData) {
     // It might be that 'total_tokens' is not set in which case we need to calculate it
-    if span_data.gen_ai_usage_total_tokens.value().is_none() {
-        let input_tokens = span_data
+    if data.gen_ai_usage_total_tokens.value().is_none() {
+        let input_tokens = data
             .gen_ai_usage_input_tokens
             .value()
             .and_then(Value::as_f64);
-        let output_tokens = span_data
+        let output_tokens = data
             .gen_ai_usage_output_tokens
             .value()
             .and_then(Value::as_f64);
@@ -162,48 +158,43 @@ fn set_total_tokens(span_data: &mut SpanData) {
             return;
         }
 
-        span_data.gen_ai_usage_total_tokens.set_value(
+        data.gen_ai_usage_total_tokens.set_value(
             Value::F64(input_tokens.unwrap_or(0.0) + output_tokens.unwrap_or(0.0)).into(),
         );
     }
 }
 
 /// Extract the additional data into the span
-fn extract_ai_data(span_data: &mut SpanData, duration: f64, ai_model_costs: &ModelCosts) {
+fn extract_ai_data(data: &mut SpanData, duration: f64, ai_model_costs: &ModelCosts) {
     // Extracts the response tokens per second
-    if span_data
-        .gen_ai_response_tokens_per_second
-        .value()
-        .is_none()
+    if data.gen_ai_response_tokens_per_second.value().is_none()
         && duration > 0.0
-        && let Some(output_tokens) = span_data
+        && let Some(output_tokens) = data
             .gen_ai_usage_output_tokens
             .value()
             .and_then(Value::as_f64)
     {
-        span_data
-            .gen_ai_response_tokens_per_second
+        data.gen_ai_response_tokens_per_second
             .set_value(Value::F64(output_tokens / (duration / 1000.0)).into());
     }
 
     // Extracts the total cost of the AI model used
-    if let Some(model_id) = span_data
+    if let Some(model_id) = data
         .gen_ai_request_model
         .value()
         .and_then(|val| val.as_str())
         .or_else(|| {
-            span_data
-                .gen_ai_response_model
+            data.gen_ai_response_model
                 .value()
                 .and_then(|val| val.as_str())
         })
     {
-        extract_ai_model_cost_data(ai_model_costs.cost_per_token(model_id), span_data)
+        extract_ai_model_cost_data(ai_model_costs.cost_per_token(model_id), data)
     }
 }
 
 /// Enrich the AI span data
-pub fn enrich_ai_span_data(
+fn enrich_ai_span_data(
     span_data: &mut Annotated<SpanData>,
     span_op: &Annotated<OperationType>,
     measurements: &Annotated<Measurements>,
@@ -215,18 +206,39 @@ pub fn enrich_ai_span_data(
         return;
     }
 
-    let span_data = span_data.get_or_insert_with(SpanData::default);
+    let data = span_data.get_or_insert_with(SpanData::default);
 
-    map_ai_measurements_to_data(span_data, measurements.value());
+    map_ai_measurements_to_data(data, measurements.value());
 
-    set_total_tokens(span_data);
+    set_total_tokens(data);
 
     if let Some(model_costs) = model_costs {
-        extract_ai_data(span_data, duration, model_costs);
+        extract_ai_data(data, duration, model_costs);
     }
     if let Some(operation_type_map) = operation_type_map {
-        infer_ai_operation_type(span_data, span_op.value(), operation_type_map);
+        infer_ai_operation_type(data, span_op.value(), operation_type_map);
     }
+}
+
+/// Enrich the AI span data
+pub fn enrich_ai_span(
+    span: &mut Span,
+    model_costs: Option<&ModelCosts>,
+    operation_type_map: Option<&AiOperationTypeMap>,
+) {
+    let duration = span
+        .get_value("span.duration")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
+    enrich_ai_span_data(
+        &mut span.data,
+        &span.op,
+        &span.measurements,
+        duration,
+        model_costs,
+        operation_type_map,
+    );
 }
 
 /// Extract the ai data from all of an event's spans
@@ -280,19 +292,18 @@ pub fn enrich_ai_event_data(
 /// This function sets the gen_ai.operation.type attribute based on the value of either
 /// gen_ai.operation.name or span.op based on the provided operation type map configuration.
 fn infer_ai_operation_type(
-    span_data: &mut SpanData,
+    data: &mut SpanData,
     span_op: Option<&OperationType>,
     operation_type_map: &AiOperationTypeMap,
 ) {
-    let op_type = span_data
+    let op_type = data
         .gen_ai_operation_name
         .value()
         .or(span_op)
         .and_then(|op| operation_type_map.get_operation_type(op));
 
     if let Some(operation_type) = op_type {
-        span_data
-            .gen_ai_operation_type
+        data.gen_ai_operation_type
             .set_value(Some(operation_type.to_owned()));
     }
 }
