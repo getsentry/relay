@@ -19,9 +19,7 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::types::{
-    Payload, SampledPayload, UnsampledPayload, WithMetrics,
-};
+use crate::processing::transactions::types::{SampledPayload, WithMetrics};
 use crate::processing::transactions::{
     Error, ExpandedTransaction, ExtractedSpans, Flags, SerializedTransaction, TransactionOutput,
     profile, spans,
@@ -79,6 +77,7 @@ pub fn expand(
             flags,
             attachments,
             profile,
+            extracted_spans: vec![],
         })
     })
 }
@@ -263,32 +262,22 @@ pub fn extract_metrics(
     let metrics = metrics.into_inner();
     let output = match drop_with_outcome {
         Some(outcome) => {
-            let (mut keep_part, drop_part) = work.split_once(|expanded| {
-                let ExpandedTransaction {
-                    headers,
-                    event,
-                    flags: _,
-                    attachments,
-                    profile,
-                } = expanded;
-                let keep_part = WithMetrics {
-                    headers,
+            let (mut keep_part, drop_part) = work.split_once(|mut work| {
+                let profile = work.profile.take();
+                let remaining = WithMetrics {
+                    headers: work.headers.clone(),
                     payload: SampledPayload::Drop { profile },
                     metrics,
                 };
-                let drop_part = UnsampledPayload { event, attachments };
-                (keep_part, drop_part)
+                (remaining, work)
             });
             drop_part.reject_err(outcome);
             keep_part
         }
-        None => work.map(|work, _| {
-            let (headers, payload) = work.into_parts();
-            WithMetrics {
-                headers,
-                payload: SampledPayload::Keep { payload },
-                metrics,
-            }
+        None => work.map(|payload, _| WithMetrics {
+            headers: payload.headers.clone(),
+            payload: SampledPayload::Keep { payload },
+            metrics,
         }),
     };
 

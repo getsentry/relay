@@ -31,102 +31,102 @@ pub struct Flags {
 //     pub extracted_spans: Vec<Item>,
 // }
 
-#[derive(Debug)]
-pub struct Payload {
-    pub event: Annotated<Event>,
-    pub flags: Flags,
-    pub attachments: Items,
-    pub profile: Option<Item>,
-    pub extracted_spans: Vec<Item>,
-}
+// #[derive(Debug)]
+// pub struct Payload {
+//     pub event: Annotated<Event>,
+//     pub flags: Flags,
+//     pub attachments: Items,
+//     pub profile: Option<Item>,
+//     pub extracted_spans: Vec<Item>,
+// }
 
-impl Payload {
-    fn count_embedded_spans_and_self(&self) -> usize {
-        1 + self
-            .event
-            .value()
-            .and_then(|e| e.spans.value())
-            .map_or(0, Vec::len)
-    }
-}
+// impl Payload {
+//     fn count_embedded_spans_and_self(&self) -> usize {
+//         1 + self
+//             .event
+//             .value()
+//             .and_then(|e| e.spans.value())
+//             .map_or(0, Vec::len)
+//     }
+// }
 
-impl Counted for Payload {
-    fn quantities(&self) -> Quantities {
-        let Self {
-            event,
-            flags,
-            attachments,
-            profile,
-            extracted_spans,
-        } = self;
-        let mut quantities = smallvec::smallvec![
-            (DataCategory::Transaction, 1),
-            (DataCategory::TransactionIndexed, 1),
-        ];
+// impl Counted for Payload {
+//     fn quantities(&self) -> Quantities {
+//         let Self {
+//             event,
+//             flags,
+//             attachments,
+//             profile,
+//             extracted_spans,
+//         } = self;
+//         let mut quantities = smallvec::smallvec![
+//             (DataCategory::Transaction, 1),
+//             (DataCategory::TransactionIndexed, 1),
+//         ];
 
-        let span_count = if !extracted_spans.is_empty() {
-            extracted_spans.len()
-        } else if !flags.spans_extracted {
-            self.count_embedded_spans_and_self()
-        } else {
-            0
-        };
-        quantities.extend([
-            (DataCategory::Span, span_count),
-            (DataCategory::SpanIndexed, span_count),
-        ]);
+//         let span_count = if !extracted_spans.is_empty() {
+//             extracted_spans.len()
+//         } else if !flags.spans_extracted {
+//             self.count_embedded_spans_and_self()
+//         } else {
+//             0
+//         };
+//         quantities.extend([
+//             (DataCategory::Span, span_count),
+//             (DataCategory::SpanIndexed, span_count),
+//         ]);
 
-        quantities.extend(attachments.quantities());
-        quantities.extend(profile.quantities());
+//         quantities.extend(attachments.quantities());
+//         quantities.extend(profile.quantities());
 
-        quantities
-    }
-}
+//         quantities
+//     }
+// }
 
-/// The residual of a payload after it has been marked for dropping by dynamic sampling.
-#[derive(Debug)]
-pub struct UnsampledPayload {
-    pub event: Annotated<Event>,
-    pub attachments: Items,
-}
+// /// The residual of a payload after it has been marked for dropping by dynamic sampling.
+// #[derive(Debug)]
+// pub struct UnsampledPayload {
+//     pub event: Annotated<Event>,
+//     pub attachments: Items,
+// }
 
-impl UnsampledPayload {
-    /// Splits the expanded payload into a residual payload for outcome reporting and an optional profile item.
-    pub fn from_expanded(expanded: ExpandedTransaction) -> (Self, Option<Item>) {
-        let ExpandedTransaction {
-            headers: _,
-            event,
-            flags: _,
-            attachments,
-            profile,
-        } = expanded;
-        (Self { event, attachments }, profile)
-    }
-}
+// impl UnsampledPayload {
+//     /// Splits the expanded payload into a residual payload for outcome reporting and an optional profile item.
+//     pub fn from_expanded(expanded: ExpandedTransaction) -> (Self, Option<Item>) {
+//         let ExpandedTransaction {
+//             headers: _,
+//             event,
+//             flags: _,
+//             attachments,
+//             profile,
+//         } = expanded;
+//         (Self { event, attachments }, profile)
+//     }
+// }
 
-impl Counted for UnsampledPayload {
-    fn quantities(&self) -> Quantities {
-        let Self { event, attachments } = self;
-        let mut quantities = smallvec::smallvec![(DataCategory::TransactionIndexed, 1),];
+// impl Counted for UnsampledPayload {
+//     fn quantities(&self) -> Quantities {
+//         let Self { event, attachments } = self;
+//         let mut quantities = smallvec::smallvec![(DataCategory::TransactionIndexed, 1),];
 
-        let span_count = 1 + event
-            .value()
-            .and_then(|e| e.spans.value())
-            .map_or(0, Vec::len);
+//         let span_count = 1 + event
+//             .value()
+//             .and_then(|e| e.spans.value())
+//             .map_or(0, Vec::len);
 
-        quantities.extend([(DataCategory::SpanIndexed, span_count)]);
+//         quantities.extend([(DataCategory::SpanIndexed, span_count)]);
 
-        quantities.extend(attachments.quantities());
+//         quantities.extend(attachments.quantities());
 
-        quantities
-    }
-}
+//         quantities
+//     }
+// }
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum SampledPayload {
     /// We still have a transaction + child items, and it counts as both indexed + total.
-    Keep { payload: Payload },
+    Keep { payload: ExpandedTransaction },
     /// All we have left is a profile.
     Drop { profile: Option<Item> },
 }
@@ -172,7 +172,8 @@ impl WithHeaders {
         match payload {
             SampledPayload::Keep { payload } => {
                 let span_count = payload.count_embedded_spans_and_self() - 1;
-                let Payload {
+                let ExpandedTransaction {
+                    headers: _,
                     event,
                     flags,
                     attachments,

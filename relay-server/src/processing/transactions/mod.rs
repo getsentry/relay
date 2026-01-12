@@ -27,9 +27,7 @@ use crate::managed::{
 use crate::processing::StoreHandle;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::types::{
-    Flags, Payload, SampledPayload, UnsampledPayload, WithHeaders, WithMetrics,
-};
+use crate::processing::transactions::types::{Flags, SampledPayload, WithHeaders, WithMetrics};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -274,29 +272,10 @@ pub struct ExpandedTransaction {
     flags: Flags,
     attachments: Items,
     profile: Option<Item>,
+    extracted_spans: Vec<Item>,
 }
 
 impl ExpandedTransaction {
-    pub fn into_parts(self) -> (EnvelopeHeaders, Payload) {
-        let Self {
-            headers,
-            event,
-            flags,
-            attachments,
-            profile,
-        } = self;
-        (
-            headers,
-            Payload {
-                event,
-                flags,
-                attachments,
-                profile,
-                extracted_spans: vec![],
-            },
-        )
-    }
-
     fn count_embedded_spans_and_self(&self) -> usize {
         1 + self
             .event
@@ -314,20 +293,26 @@ impl Counted for ExpandedTransaction {
             flags,
             attachments,
             profile,
+            extracted_spans,
         } = self;
-        let mut quantities = smallvec![
-            (DataCategory::Transaction, 1),
-            (DataCategory::TransactionIndexed, 1),
-        ];
+        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
 
-        // For now, span extraction happens after metrics extraction:
-        debug_assert!(!flags.spans_extracted);
+        let span_count = if flags.spans_extracted {
+            debug_assert!(!self.extracted_spans.is_empty());
+            self.extracted_spans.len()
+        } else {
+            debug_assert!(self.extracted_spans.is_empty());
+            self.count_embedded_spans_and_self()
+        };
+        quantities.extend([(DataCategory::SpanIndexed, span_count)]);
 
-        let span_count = self.count_embedded_spans_and_self();
-        quantities.extend([
-            (DataCategory::Span, span_count),
-            (DataCategory::SpanIndexed, span_count),
-        ]);
+        if !flags.metrics_extracted {
+            // The transaction still carries ownership over the total categories:
+            quantities.extend([
+                (DataCategory::Transaction, 1),
+                (DataCategory::Span, span_count),
+            ]);
+        }
 
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
@@ -356,13 +341,7 @@ impl RateLimited for Managed<ExpandedTransaction> {
         debug_assert!(!self.flags.metrics_extracted);
         debug_assert!(!self.flags.spans_extracted);
 
-        let ExpandedTransaction {
-            headers: _,
-            event,
-            flags,
-            attachments,
-            profile,
-        } = self.as_ref();
+        // FIXME: check indexed category if metrics extracted.
 
         // If there is a transaction limit, drop everything.
         // This also affects profiles that lost their transaction due to sampling.
@@ -375,13 +354,23 @@ impl RateLimited for Managed<ExpandedTransaction> {
             return Err(self.reject_err(error));
         }
 
-        // We do not check indexed quota at this point, because metrics have not been extracted
-        // from the transaction yet.
+        // There is no limit on "total", but if metrics have already been extracted then
+        // also check the "indexed" limit:
+        if self.flags.metrics_extracted {
+            let limits = rate_limiter
+                .try_consume(scoping.item(DataCategory::TransactionIndexed), 1)
+                .await;
 
-        let attachment_quantities = attachments.quantities();
+            if !limits.is_empty() {
+                let error = Error::from(limits);
+                return Err(self.reject_err(error));
+            }
+        }
+
+        let attachment_quantities = self.attachments.quantities();
 
         // Check profile limits:
-        for (category, quantity) in profile.quantities() {
+        for (category, quantity) in self.profile.quantities() {
             let limits = rate_limiter
                 .try_consume(scoping.item(category), quantity)
                 .await;
@@ -404,6 +393,25 @@ impl RateLimited for Managed<ExpandedTransaction> {
                     record_keeper
                         .reject_err(Error::from(limits), std::mem::take(&mut this.attachments));
                 });
+            }
+        }
+
+        // We assume that span extraction happens after metrics extraction, so safe to check both
+        // categories:
+        if !self.extracted_spans.is_empty() {
+            for category in [DataCategory::Span, DataCategory::SpanIndexed] {
+                let limits = rate_limiter
+                    .try_consume(scoping.item(category), self.extracted_spans.len())
+                    .await;
+
+                if !limits.is_empty() {
+                    self.modify(|this, record_keeper| {
+                        record_keeper.reject_err(
+                            Error::from(limits),
+                            std::mem::take(&mut this.extracted_spans),
+                        );
+                    });
+                }
             }
         }
 
