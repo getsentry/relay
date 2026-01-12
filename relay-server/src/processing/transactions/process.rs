@@ -239,8 +239,8 @@ pub fn extract_metrics(
         None => SamplingDecision::Keep,
     };
 
-    let mut metrics = ProcessingExtractedMetrics::new();
-    work.try_modify(|mut work, record_keeper| {
+    work.try_map(|mut work, record_keeper| {
+        let mut metrics = ProcessingExtractedMetrics::new();
         if sampling_decision.is_drop() || ctx.is_processing() {
             work.flags.metrics_extracted = extraction::extract_metrics(
                 &mut work.event,
@@ -256,32 +256,31 @@ pub fn extract_metrics(
             )?
             .0;
         }
-        Ok::<_, Error>(())
-    })?;
 
-    let metrics = metrics.into_inner();
-    let output = match drop_with_outcome {
-        Some(outcome) => {
-            let (mut keep_part, drop_part) = work.split_once(|mut work| {
+        let metrics = metrics.into_inner();
+        let headers = work.headers.clone();
+        let output = match drop_with_outcome {
+            Some(outcome) => {
                 let profile = work.profile.take();
-                let remaining = WithMetrics {
-                    headers: work.headers.clone(),
+                record_keeper.reject_err(outcome, work);
+                WithMetrics {
+                    headers,
                     payload: SampledPayload::Drop { profile },
                     metrics,
-                };
-                (remaining, work)
-            });
-            drop_part.reject_err(outcome);
-            keep_part
-        }
-        None => work.map(|payload, _| WithMetrics {
-            headers: payload.headers.clone(),
-            payload: SampledPayload::Keep { payload },
-            metrics,
-        }),
-    };
+                }
+            }
+            None => WithMetrics {
+                headers,
+                payload: SampledPayload::Keep { payload: work },
+                metrics,
+            },
+        };
 
-    Ok(output)
+        // Adds items in this data category.
+        record_keeper.lenient(DataCategory::MetricBucket);
+
+        Ok::<_, Error>(output)
+    })
 }
 
 /// Converts the spans embedded in the transaction into top-level span items.
