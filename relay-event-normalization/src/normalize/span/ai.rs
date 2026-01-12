@@ -120,12 +120,7 @@ fn extract_ai_model_cost_data(model_cost: Option<&ModelCostV2>, data: &mut SpanD
 }
 
 /// Maps AI-related measurements (legacy) to span data.
-fn map_ai_measurements_to_data(
-    span_data: &mut Annotated<SpanData>,
-    measurements: Option<&Measurements>,
-) {
-    let data = span_data.get_or_insert_with(SpanData::default);
-
+fn map_ai_measurements_to_data(span_data: &mut SpanData, measurements: Option<&Measurements>) {
     let set_field_from_measurement = |target_field: &mut Annotated<Value>,
                                       measurement_key: &str| {
         if let Some(measurements) = measurements
@@ -136,24 +131,28 @@ fn map_ai_measurements_to_data(
         }
     };
 
-    set_field_from_measurement(&mut data.gen_ai_usage_total_tokens, "ai_total_tokens_used");
-    set_field_from_measurement(&mut data.gen_ai_usage_input_tokens, "ai_prompt_tokens_used");
     set_field_from_measurement(
-        &mut data.gen_ai_usage_output_tokens,
+        &mut span_data.gen_ai_usage_total_tokens,
+        "ai_total_tokens_used",
+    );
+    set_field_from_measurement(
+        &mut span_data.gen_ai_usage_input_tokens,
+        "ai_prompt_tokens_used",
+    );
+    set_field_from_measurement(
+        &mut span_data.gen_ai_usage_output_tokens,
         "ai_completion_tokens_used",
     );
 }
 
-fn set_total_tokens(span_data: &mut Annotated<SpanData>) {
-    let data = span_data.get_or_insert_with(SpanData::default);
-
+fn set_total_tokens(span_data: &mut SpanData) {
     // It might be that 'total_tokens' is not set in which case we need to calculate it
-    if data.gen_ai_usage_total_tokens.value().is_none() {
-        let input_tokens = data
+    if span_data.gen_ai_usage_total_tokens.value().is_none() {
+        let input_tokens = span_data
             .gen_ai_usage_input_tokens
             .value()
             .and_then(Value::as_f64);
-        let output_tokens = data
+        let output_tokens = span_data
             .gen_ai_usage_output_tokens
             .value()
             .and_then(Value::as_f64);
@@ -163,44 +162,43 @@ fn set_total_tokens(span_data: &mut Annotated<SpanData>) {
             return;
         }
 
-        data.gen_ai_usage_total_tokens.set_value(
+        span_data.gen_ai_usage_total_tokens.set_value(
             Value::F64(input_tokens.unwrap_or(0.0) + output_tokens.unwrap_or(0.0)).into(),
         );
     }
 }
 
 /// Extract the additional data into the span
-fn extract_ai_data(
-    span_data: &mut Annotated<SpanData>,
-    duration: f64,
-    ai_model_costs: &ModelCosts,
-) {
-    let data = span_data.get_or_insert_with(SpanData::default);
-
+fn extract_ai_data(span_data: &mut SpanData, duration: f64, ai_model_costs: &ModelCosts) {
     // Extracts the response tokens per second
-    if data.gen_ai_response_tokens_per_second.value().is_none()
+    if span_data
+        .gen_ai_response_tokens_per_second
+        .value()
+        .is_none()
         && duration > 0.0
-        && let Some(output_tokens) = data
+        && let Some(output_tokens) = span_data
             .gen_ai_usage_output_tokens
             .value()
             .and_then(Value::as_f64)
     {
-        data.gen_ai_response_tokens_per_second
+        span_data
+            .gen_ai_response_tokens_per_second
             .set_value(Value::F64(output_tokens / (duration / 1000.0)).into());
     }
 
     // Extracts the total cost of the AI model used
-    if let Some(model_id) = data
+    if let Some(model_id) = span_data
         .gen_ai_request_model
         .value()
         .and_then(|val| val.as_str())
         .or_else(|| {
-            data.gen_ai_response_model
+            span_data
+                .gen_ai_response_model
                 .value()
                 .and_then(|val| val.as_str())
         })
     {
-        extract_ai_model_cost_data(ai_model_costs.cost_per_token(model_id), data)
+        extract_ai_model_cost_data(ai_model_costs.cost_per_token(model_id), span_data)
     }
 }
 
@@ -213,11 +211,13 @@ pub fn enrich_ai_span_data(
     model_costs: Option<&ModelCosts>,
     operation_type_map: Option<&AiOperationTypeMap>,
 ) {
-    map_ai_measurements_to_data(span_data, measurements.value());
-
-    if !is_ai_span(span_data, span_op) {
+    if !is_ai_span(span_data, span_op.value()) {
         return;
     }
+
+    let span_data = span_data.get_or_insert_with(SpanData::default);
+
+    map_ai_measurements_to_data(span_data, measurements.value());
 
     set_total_tokens(span_data);
 
@@ -225,7 +225,7 @@ pub fn enrich_ai_span_data(
         extract_ai_data(span_data, duration, model_costs);
     }
     if let Some(operation_type_map) = operation_type_map {
-        infer_ai_operation_type(span_data, span_op, operation_type_map);
+        infer_ai_operation_type(span_data, span_op.value(), operation_type_map);
     }
 }
 
@@ -280,19 +280,19 @@ pub fn enrich_ai_event_data(
 /// This function sets the gen_ai.operation.type attribute based on the value of either
 /// gen_ai.operation.name or span.op based on the provided operation type map configuration.
 fn infer_ai_operation_type(
-    span_data: &mut Annotated<SpanData>,
-    span_op: &Annotated<OperationType>,
+    span_data: &mut SpanData,
+    span_op: Option<&OperationType>,
     operation_type_map: &AiOperationTypeMap,
 ) {
-    let data = span_data.get_or_insert_with(SpanData::default);
-    let op_type = data
+    let op_type = span_data
         .gen_ai_operation_name
         .value()
-        .or(span_op.value())
+        .or(span_op)
         .and_then(|op| operation_type_map.get_operation_type(op));
 
     if let Some(operation_type) = op_type {
-        data.gen_ai_operation_type
+        span_data
+            .gen_ai_operation_type
             .set_value(Some(operation_type.to_owned()));
     }
 }
@@ -300,15 +300,14 @@ fn infer_ai_operation_type(
 /// Returns true if the span is an AI span.
 /// AI spans are spans with either a gen_ai.operation.name attribute or op starting with "ai."
 /// (legacy) or "gen_ai." (new).
-fn is_ai_span(span_data: &Annotated<SpanData>, span_op: &Annotated<OperationType>) -> bool {
+fn is_ai_span(span_data: &Annotated<SpanData>, span_op: Option<&OperationType>) -> bool {
     let has_ai_op = span_data
         .value()
         .and_then(|data| data.gen_ai_operation_name.value())
         .is_some();
 
-    let is_ai_span_op = span_op
-        .value()
-        .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."));
+    let is_ai_span_op =
+        span_op.is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."));
 
     has_ai_op || is_ai_span_op
 }
@@ -438,9 +437,13 @@ mod tests {
         let span_data = r#"{
             "gen_ai.operation.name": "invoke_agent"
         }"#;
-        let mut span_data = Annotated::from_json(span_data).unwrap();
+        let mut span_data: Annotated<SpanData> = Annotated::from_json(span_data).unwrap();
 
-        infer_ai_operation_type(&mut span_data, &Annotated::default(), &operation_type_map);
+        infer_ai_operation_type(
+            span_data.value_mut().as_mut().unwrap(),
+            None,
+            &operation_type_map,
+        );
 
         assert_annotated_snapshot!(&span_data, @r#"
         {
@@ -466,14 +469,11 @@ mod tests {
             operation_types,
         };
 
-        let mut span_data = Annotated::<SpanData>::default();
-        infer_ai_operation_type(
-            &mut span_data,
-            &Annotated::new("gen_ai.invoke_agent".into()),
-            &operation_type_map,
-        );
+        let mut span_data = SpanData::default();
+        let span_op: OperationType = "gen_ai.invoke_agent".into();
+        infer_ai_operation_type(&mut span_data, Some(&span_op), &operation_type_map);
 
-        assert_annotated_snapshot!(&span_data, @r#"
+        assert_annotated_snapshot!(Annotated::new(span_data), @r#"
         {
           "gen_ai.operation.type": "agent"
         }
@@ -500,9 +500,13 @@ mod tests {
         let span_data = r#"{
             "gen_ai.operation.name": "embeddings"
         }"#;
-        let mut span_data = Annotated::from_json(span_data).unwrap();
+        let mut span_data: Annotated<SpanData> = Annotated::from_json(span_data).unwrap();
 
-        infer_ai_operation_type(&mut span_data, &Annotated::default(), &operation_type_map);
+        infer_ai_operation_type(
+            span_data.value_mut().as_mut().unwrap(),
+            None,
+            &operation_type_map,
+        );
 
         assert_annotated_snapshot!(&span_data, @r#"
         {
@@ -520,31 +524,27 @@ mod tests {
             .get_or_insert_with(SpanData::default)
             .gen_ai_operation_name
             .set_value(Some("chat".into()));
-        assert!(is_ai_span(&span_data, &Annotated::default()));
+        assert!(is_ai_span(&span_data, None));
     }
 
     /// Test that an AI span is detected from a span.op starting with "ai.".
     #[test]
     fn test_is_ai_span_from_span_op_ai() {
-        assert!(is_ai_span(
-            &Annotated::default(),
-            &Annotated::new("ai.chat".into())
-        ));
+        let span_op: OperationType = "ai.chat".into();
+        assert!(is_ai_span(&Annotated::default(), Some(&span_op)));
     }
 
     /// Test that an AI span is detected from a span.op starting with "gen_ai.".
     #[test]
     fn test_is_ai_span_from_span_op_gen_ai() {
-        assert!(is_ai_span(
-            &Annotated::default(),
-            &Annotated::new("gen_ai.chat".into())
-        ));
+        let span_op: OperationType = "gen_ai.chat".into();
+        assert!(is_ai_span(&Annotated::default(), Some(&span_op)));
     }
 
     /// Test that a non-AI span is detected.
     #[test]
     fn test_is_ai_span_negative() {
-        assert!(!is_ai_span(&Annotated::default(), &Annotated::default()));
+        assert!(!is_ai_span(&Annotated::default(), None));
     }
 
     /// Test enrich_ai_event_data with invoke_agent in trace context and a chat child span.
@@ -708,7 +708,6 @@ mod tests {
               "trace_id": "12345678901234567890123456789012",
               "span_id": "1234567890123456",
               "op": "http.server",
-              "data": {},
               "type": "trace"
             }
           },
@@ -814,7 +813,6 @@ mod tests {
               "trace_id": "12345678901234567890123456789012",
               "span_id": "1234567890123456",
               "op": "http.server",
-              "data": {},
               "type": "trace"
             }
           },
