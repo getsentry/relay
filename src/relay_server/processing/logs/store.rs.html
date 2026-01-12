@@ -9,7 +9,7 @@
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::envelope::WithHeader;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::processing::logs::{Error, <span class="prelude-ty">Result</span>};
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::processing::utils::store::{extract_meta_attributes, proto_timestamp};
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::processing::utils::store::{extract_meta_attributes, proto_timestamp, uuid_to_item_id};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::processing::{<span class="self">self</span>, Counted, Retention};
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreTraceItem;
@@ -70,7 +70,7 @@
 <a href=#70 id=70 data-nosnippet>70</a>        downsampled_retention_days: ctx.retention.downsampled.into(),
 <a href=#71 id=71 data-nosnippet>71</a>        timestamp: <span class="prelude-val">Some</span>(proto_timestamp(timestamp.<span class="number">0</span>)),
 <a href=#72 id=72 data-nosnippet>72</a>        trace_id: <span class="macro">required!</span>(log.trace_id).to_string(),
-<a href=#73 id=73 data-nosnippet>73</a>        item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
+<a href=#73 id=73 data-nosnippet>73</a>        item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
 <a href=#74 id=74 data-nosnippet>74</a>        attributes: attributes(meta, attrs, fields),
 <a href=#75 id=75 data-nosnippet>75</a>        client_sample_rate: <span class="number">1.0</span>,
 <a href=#76 id=76 data-nosnippet>76</a>        server_sample_rate: <span class="number">1.0</span>,
