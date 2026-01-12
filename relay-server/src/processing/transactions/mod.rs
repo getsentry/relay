@@ -454,10 +454,14 @@ impl Forward for TransactionOutput {
         self,
         ctx: ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        self.0.try_map(|work, _| {
-            work.serialize_envelope()
+        self.0.try_map(|work, record_keeper| {
+            let output = work
+                .serialize_envelope()
                 .map_err(drop)
-                .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+                .with_outcome(Outcome::Invalid(DiscardReason::Internal));
+            record_keeper.lenient(DataCategory::Transaction); // TODO
+            record_keeper.lenient(DataCategory::Span); // TODO
+            output
         })
     }
 
