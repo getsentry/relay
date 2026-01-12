@@ -29,7 +29,6 @@ use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_v
 use relay_event_schema::protocol::{BrowserContext, Event, EventId, IpAddr, Span, SpanData};
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::Getter;
 use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
 
