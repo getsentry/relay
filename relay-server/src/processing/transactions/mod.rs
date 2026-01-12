@@ -18,6 +18,8 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
+#[cfg(feature = "processing")]
+use crate::managed::TypedEnvelope;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
@@ -25,11 +27,9 @@ use crate::managed::{
 use crate::processing::StoreHandle;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-#[cfg(feature = "processing")]
-use crate::processing::transactions::types::Payload;
-#[cfg(feature = "processing")]
-use crate::processing::transactions::types::SampledPayload;
-use crate::processing::transactions::types::{Flags, UnsampledPayload, WithHeaders, WithMetrics};
+use crate::processing::transactions::types::{
+    Flags, Payload, SampledPayload, UnsampledPayload, WithHeaders, WithMetrics,
+};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -38,16 +38,13 @@ use crate::processing::{
     RateLimited, RateLimiter, utils,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
+#[cfg(feature = "processing")]
+use crate::services::processor::ProcessingGroup;
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 #[cfg(feature = "processing")]
 use crate::services::store::StoreEnvelope;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{SamplingResult, should_filter};
-
-#[cfg(feature = "processing")]
-use crate::managed::TypedEnvelope;
-#[cfg(feature = "processing")]
-use crate::services::processor::ProcessingGroup;
 
 pub mod extraction;
 mod process;
