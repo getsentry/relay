@@ -6,6 +6,7 @@ use crate::processing::StoreHandle;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
+use crate::processing::replays::ReplaysProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_attachments::TraceAttachmentsProcessor;
@@ -63,4 +64,5 @@ outputs!(
     Spans => SpansProcessor,
     TraceAttachments => TraceAttachmentsProcessor,
     TraceMetrics => TraceMetricsProcessor,
+    Replays => ReplaysProcessor,
 );
