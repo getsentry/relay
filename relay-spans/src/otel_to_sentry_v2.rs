@@ -123,19 +123,14 @@ pub fn otel_to_sentry_span(
     // A remote span is a segment span, but not every segment span is remote.
     // A span is also a segment if it has no parent span (i.e., it's a root span).
     let is_root_span = parent_span_id.value().is_none();
-    let is_segment = match is_remote {
-        Some(true) => Some(true),
-        _ if is_root_span => Some(true),
-        _ => None,
-    }
-    .into();
+    let is_segment = is_root_span || is_remote.unwrap_or(false);
 
     SentrySpanV2 {
         name: name.into(),
         trace_id,
         span_id,
         parent_span_id,
-        is_segment,
+        is_segment: is_segment.into(),
         start_timestamp: Timestamp(start_timestamp).into(),
         end_timestamp: Timestamp(end_timestamp).into(),
         status: status
@@ -298,6 +293,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "middleware - fastify -> @fastify/multipart",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -396,6 +392,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "middleware - fastify -> @fastify/multipart",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -458,6 +455,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "database query",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -534,6 +532,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "database query",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -602,6 +601,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "http client request",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -770,6 +770,7 @@ mod tests {
           "span_id": "fa90fdead5f74052",
           "name": "myname",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -887,6 +888,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -953,6 +955,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
