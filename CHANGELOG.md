@@ -14,6 +14,7 @@
 
 - Write item IDs of logs, metrics and trace attachments in correct byte order. ([#5526](https://github.com/getsentry/relay/pull/5526))
 - Reworked AI span extraction to also take trace context into account. ([#5515](https://github.com/getsentry/relay/pull/5515))
+- Mark root spans (spans without a parent) as segments in OTEL conversion. ([#5532](https://github.com/getsentry/relay/pull/5532))
 
 **Internal**:
 
