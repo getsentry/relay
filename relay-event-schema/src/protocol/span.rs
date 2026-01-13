@@ -554,13 +554,15 @@ pub struct SpanData {
     pub gen_ai_cost_output_tokens: Annotated<Value>,
 
     /// Prompt passed to LLM (Vercel AI SDK)
-    #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
+    #[metastructure(field = "gen_ai.prompt", pii = "maybe", max_chars = 102400, max_chars_allowance = 2048)]
     pub gen_ai_prompt: Annotated<Value>,
 
     /// Prompt passed to LLM
     #[metastructure(
         field = "gen_ai.request.messages",
         pii = "maybe",
+        max_chars = 102400,
+        max_chars_allowance = 2048,
         legacy_alias = "ai.prompt.messages"
     )]
     pub gen_ai_request_messages: Annotated<Value>,
@@ -569,6 +571,8 @@ pub struct SpanData {
     #[metastructure(
         field = "gen_ai.tool.input",
         pii = "maybe",
+        max_chars = 102400,
+        max_chars_allowance = 2048,
         legacy_alias = "ai.toolCall.args"
     )]
     pub gen_ai_tool_input: Annotated<Value>,
@@ -577,6 +581,8 @@ pub struct SpanData {
     #[metastructure(
         field = "gen_ai.tool.output",
         pii = "maybe",
+        max_chars = 102400,
+        max_chars_allowance = 2048,
         legacy_alias = "ai.toolCall.result"
     )]
     pub gen_ai_tool_output: Annotated<Value>,
@@ -586,7 +592,9 @@ pub struct SpanData {
         field = "gen_ai.response.tool_calls",
         legacy_alias = "ai.response.toolCalls",
         legacy_alias = "ai.tool_calls",
-        pii = "maybe"
+        pii = "maybe",
+        max_chars = 102400,
+        max_chars_allowance = 2048
     )]
     pub gen_ai_response_tool_calls: Annotated<Value>,
 
@@ -595,12 +603,14 @@ pub struct SpanData {
         field = "gen_ai.response.text",
         legacy_alias = "ai.response.text",
         legacy_alias = "ai.responses",
-        pii = "maybe"
+        pii = "maybe",
+        max_chars = 102400,
+        max_chars_allowance = 2048
     )]
     pub gen_ai_response_text: Annotated<Value>,
 
     /// LLM response object (Vercel AI, generateObject)
-    #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
+    #[metastructure(field = "gen_ai.response.object", pii = "maybe", max_chars = 102400, max_chars_allowance = 2048)]
     pub gen_ai_response_object: Annotated<Value>,
 
     /// Whether or not the AI model call's response was streamed back asynchronously
@@ -615,7 +625,9 @@ pub struct SpanData {
     #[metastructure(
         field = "gen_ai.request.available_tools",
         legacy_alias = "ai.tools",
-        pii = "maybe"
+        pii = "maybe",
+        max_chars = 102400,
+        max_chars_allowance = 2048
     )]
     pub gen_ai_request_available_tools: Annotated<Value>,
 
@@ -681,11 +693,11 @@ pub struct SpanData {
     pub gen_ai_operation_type: Annotated<String>,
 
     /// The result of the MCP prompt.
-    #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
+    #[metastructure(field = "mcp.prompt.result", pii = "maybe", max_chars = 102400, max_chars_allowance = 2048)]
     pub mcp_prompt_result: Annotated<Value>,
 
     /// The result of the MCP tool.
-    #[metastructure(field = "mcp.tool.result.content", pii = "maybe")]
+    #[metastructure(field = "mcp.tool.result.content", pii = "maybe", max_chars = 102400, max_chars_allowance = 2048)]
     pub mcp_tool_result_content: Annotated<Value>,
 
     /// The client's browser name.
