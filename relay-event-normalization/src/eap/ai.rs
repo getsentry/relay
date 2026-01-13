@@ -442,4 +442,54 @@ mod tests {
 
         assert!(attributes.is_empty());
     }
+
+    #[test]
+    fn test_normalize_ai_baai_bge_m3_default_cost() {
+        // Test that BAAI/bge-m3 model gets default costs even when not in config
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.usage.input_tokens" => 1000,
+            "gen_ai.request.model" => "BAAI/bge-m3".to_owned(),
+        });
+
+        // Use an empty ModelCosts config to verify fallback works
+        let empty_costs = ModelCosts {
+            version: 2,
+            models: HashMap::new(),
+        };
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_secs(1)),
+            Some(&empty_costs),
+        );
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "gen_ai.cost.input_tokens": {
+            "type": "double",
+            "value": 0.1
+          },
+          "gen_ai.cost.output_tokens": {
+            "type": "double",
+            "value": 0.0
+          },
+          "gen_ai.cost.total_tokens": {
+            "type": "double",
+            "value": 0.1
+          },
+          "gen_ai.request.model": {
+            "type": "string",
+            "value": "BAAI/bge-m3"
+          },
+          "gen_ai.usage.input_tokens": {
+            "type": "integer",
+            "value": 1000
+          },
+          "gen_ai.usage.total_tokens": {
+            "type": "double",
+            "value": 1000.0
+          }
+        }
+        "#);
+    }
 }
