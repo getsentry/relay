@@ -121,8 +121,11 @@ pub fn otel_to_sentry_span(
     );
 
     // A remote span is a segment span, but not every segment span is remote:
+    // A span is also a segment if it has no parent span (i.e., it's a root span).
+    let is_root_span = parent_span_id.value().is_none();
     let is_segment = match is_remote {
         Some(true) => Some(true),
+        _ if is_root_span => Some(true),
         _ => None,
     }
     .into();
@@ -902,6 +905,36 @@ mod tests {
     }
 
     #[test]
+    fn parse_span_is_root() {
+        let json = r#"{
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000"
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span, None, None);
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        {
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "span_id": "e342abb1214ca181",
+          "status": "ok",
+          "is_segment": true,
+          "start_timestamp": 123.0,
+          "end_timestamp": 123.5,
+          "links": [],
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
     fn extract_span_kind() {
         let json = r#"{
           "traceId": "89143b0763095bd9c9955e8175d1fb23",
@@ -985,6 +1018,7 @@ mod tests {
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "span_id": "e342abb1214ca181",
           "status": "ok",
+          "is_segment": true,
           "start_timestamp": 0.0,
           "end_timestamp": 0.0,
           "links": [
@@ -1040,6 +1074,7 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "span_id": "e342abb1214ca181",
           "status": "error",
+          "is_segment": true,
           "start_timestamp": 0.0,
           "end_timestamp": 0.0,
           "links": [],
