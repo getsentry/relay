@@ -9,6 +9,10 @@ env:
   CARGO_TERM_COLOR: always
   RELAY_CARGO_ARGS: "--locked"
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   linux:
     name: Linux
