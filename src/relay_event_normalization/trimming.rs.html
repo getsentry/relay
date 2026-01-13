@@ -66,9 +66,9 @@
 <a href=#66 id=66 data-nosnippet>66</a>        <span class="comment">// If we encounter a max_bytes or max_depth attribute it
 <a href=#67 id=67 data-nosnippet>67</a>        // resets the size and depth that is permitted below it.
 <a href=#68 id=68 data-nosnippet>68</a>        // XXX(iker): test setting only one of the two attributes.
-<a href=#69 id=69 data-nosnippet>69</a>        </span><span class="kw">if </span>state.attrs().max_bytes.is_some() || state.attrs().max_depth.is_some() {
+<a href=#69 id=69 data-nosnippet>69</a>        </span><span class="kw">if </span>state.max_bytes().is_some() || state.attrs().max_depth.is_some() {
 <a href=#70 id=70 data-nosnippet>70</a>            <span class="self">self</span>.size_state.push(SizeState {
-<a href=#71 id=71 data-nosnippet>71</a>                size_remaining: state.attrs().max_bytes,
+<a href=#71 id=71 data-nosnippet>71</a>                size_remaining: state.max_bytes(),
 <a href=#72 id=72 data-nosnippet>72</a>                encountered_at_depth: state.depth(),
 <a href=#73 id=73 data-nosnippet>73</a>                max_depth: state.attrs().max_depth,
 <a href=#74 id=74 data-nosnippet>74</a>            });
@@ -128,7 +128,7 @@
 <a href=#128 id=128 data-nosnippet>128</a>        meta: <span class="kw-2">&amp;mut </span>Meta,
 <a href=#129 id=129 data-nosnippet>129</a>        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#130 id=130 data-nosnippet>130</a>    ) -&gt; ProcessingResult {
-<a href=#131 id=131 data-nosnippet>131</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(max_chars) = state.attrs().max_chars {
+<a href=#131 id=131 data-nosnippet>131</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(max_chars) = state.max_chars() {
 <a href=#132 id=132 data-nosnippet>132</a>            trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
 <a href=#133 id=133 data-nosnippet>133</a>        }
 <a href=#134 id=134 data-nosnippet>134</a>
