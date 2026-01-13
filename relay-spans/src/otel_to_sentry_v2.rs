@@ -905,7 +905,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_is_root() {
+    fn span_is_segment_if_it_has_no_parent() {
         let json = r#"{
           "traceId": "89143b0763095bd9c9955e8175d1fb23",
           "spanId": "e342abb1214ca181",
