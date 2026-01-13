@@ -34,6 +34,7 @@ def test_ai_spans_example_transaction(
         "operationTypes": {
             "ai.run.generateText": "agent",
             "ai.run.generateObject": "agent",
+            "invoke_agent": "agent",
             "gen_ai.invoke_agent": "agent",
             "ai.pipeline.generate_text": "agent",
             "ai.pipeline.generate_object": "agent",
@@ -55,10 +56,14 @@ def test_ai_spans_example_transaction(
             "trace": {
                 "span_id": "657cf984a6a4e59b",
                 "trace_id": "a9351cd574f092f6acad48e250981f11",
+                "op": "gen_ai.invoke_agent",
                 "data": {
                     "sentry.source": "custom",
                     "sentry.sample_rate": 1,
                     "sentry.origin": "manual",
+                    "gen_ai.operation.name": "gen_ai.invoke_agent",
+                    "gen_ai.usage.input_tokens": 245,
+                    "gen_ai.usage.output_tokens": 65,
                 },
                 "origin": "manual",
                 "status": "ok",
@@ -413,6 +418,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "vercel.ai.model.id": {"type": "string", "value": "gpt-4o"},
                 "vercel.ai.model.provider": {
                     "type": "string",
@@ -516,6 +525,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "vercel.ai.model.id": {"type": "string", "value": "gpt-4o"},
                 "vercel.ai.model.provider": {
                     "type": "string",
@@ -615,6 +628,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "server.address": {"type": "string", "value": "api.openai.com"},
                 "server.port": {"type": "integer", "value": 443},
                 "url": {
@@ -692,6 +709,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "vercel.ai.operationId": {"type": "string", "value": "ai.toolCall"},
                 "vercel.ai.telemetry.functionId": {
                     "type": "string",
@@ -754,6 +775,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "server.address": {"type": "string", "value": "wttr.in"},
                 "server.port": {"type": "integer", "value": 443},
                 "url": {"type": "string", "value": "https://wttr.in/San%20Francisco"},
@@ -821,6 +846,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "vercel.ai.operationId": {"type": "string", "value": "ai.toolCall"},
                 "vercel.ai.telemetry.functionId": {
                     "type": "string",
@@ -883,6 +912,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "server.address": {"type": "string", "value": "wttr.in"},
                 "server.port": {"type": "integer", "value": 443},
                 "url": {"type": "string", "value": "https://wttr.in/London"},
@@ -977,6 +1010,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "vercel.ai.model.id": {"type": "string", "value": "gpt-4o"},
                 "vercel.ai.model.provider": {
                     "type": "string",
@@ -1073,6 +1110,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "server.address": {"type": "string", "value": "api.openai.com"},
                 "server.port": {"type": "integer", "value": 443},
                 "url": {
@@ -1110,11 +1151,20 @@ def test_ai_spans_example_transaction(
         },
         {
             "attributes": {
+                "gen_ai.operation.name": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
+                "gen_ai.operation.type": {"type": "string", "value": "agent"},
+                "gen_ai.response.tokens_per_second": {"type": "double", "value": 130.0},
+                "gen_ai.usage.input_tokens": {"type": "integer", "value": 245},
+                "gen_ai.usage.output_tokens": {"type": "integer", "value": 65},
+                "gen_ai.usage.total_tokens": {"type": "double", "value": 310.0},
                 "sentry.description": {"type": "string", "value": "main"},
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 0.0},
                 "sentry.is_remote": {"type": "boolean", "value": True},
-                "sentry.op": {"type": "string", "value": "default"},
+                "sentry.op": {"type": "string", "value": "gen_ai.invoke_agent"},
                 "sentry.origin": {"type": "string", "value": "manual"},
                 "sentry.platform": {"type": "string", "value": "node"},
                 "sentry.sample_rate": {"type": "integer", "value": 1},
@@ -1126,6 +1176,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "sentry.was_transaction": {"type": "boolean", "value": True},
                 "server_name": {"type": "string", "value": "some_machine.local"},
             },
@@ -1134,7 +1188,7 @@ def test_ai_spans_example_transaction(
             "event_id": mock.ANY,
             "is_segment": True,
             "key_id": 123,
-            "name": "default",
+            "name": "Generative AI agent operation",
             "organization_id": 1,
             "project_id": 42,
             "received": time_within_delta(),
