@@ -171,7 +171,13 @@ trait ConfigObject: DeserializeOwned + Serialize {
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, &path))?;
         let f = io::BufReader::new(f);
 
-        let mut source = serde_vars::EnvSource::default();
+        let mut source = {
+            let file = serde_vars::FileSource::default()
+                .with_variable_prefix("${file:")
+                .with_base_path(base);
+            let env = serde_vars::EnvSource::default();
+            (file, env)
+        };
         match Self::format() {
             ConfigFormat::Yaml => {
                 serde_vars::deserialize(serde_yaml::Deserializer::from_reader(f), &mut source)
