@@ -232,6 +232,7 @@ mod tests {
             "span_key": "span_value"
           },
           "exclusive_time": 0.0,
+          "is_segment": true,
           "links": [],
           "op": "default",
           "span_id": "e342abb1214ca181",

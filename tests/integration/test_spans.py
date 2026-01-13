@@ -820,6 +820,7 @@ def test_span_ingestion(
                     },
                 }
             ],
+            "is_segment": False,
             "name": "my 3rd protobuf OTel span",
             "parent_span_id": "f0f0f0abcdef1234",
             "span_id": "f0b809703e783d00",
