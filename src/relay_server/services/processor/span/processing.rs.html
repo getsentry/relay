@@ -17,7 +17,7 @@
 <a href=#17 id=17 data-nosnippet>17</a>    CombinedMetricExtractionConfig, ErrorBoundary, GlobalConfig, ProjectConfig,
 <a href=#18 id=18 data-nosnippet>18</a>};
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>relay_event_normalization::AiOperationTypeMap;
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>relay_event_normalization::span::ai::enrich_ai_span_data;
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>relay_event_normalization::span::ai::enrich_ai_span;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>relay_event_normalization::{
 <a href=#22 id=22 data-nosnippet>22</a>    BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
 <a href=#23 id=23 data-nosnippet>23</a>    GeoIpLookup, MeasurementsConfig, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo,
@@ -456,7 +456,7 @@
 <a href=#456 id=456 data-nosnippet>456</a>
 <a href=#457 id=457 data-nosnippet>457</a>    normalize_performance_score(span, performance_score);
 <a href=#458 id=458 data-nosnippet>458</a>
-<a href=#459 id=459 data-nosnippet>459</a>    enrich_ai_span_data(span, ai_model_costs, ai_operation_type_map);
+<a href=#459 id=459 data-nosnippet>459</a>    enrich_ai_span(span, ai_model_costs, ai_operation_type_map);
 <a href=#460 id=460 data-nosnippet>460</a>
 <a href=#461 id=461 data-nosnippet>461</a>    tag_extraction::extract_measurements(span, is_mobile);
 <a href=#462 id=462 data-nosnippet>462</a>
