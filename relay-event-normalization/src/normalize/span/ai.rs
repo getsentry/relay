@@ -423,11 +423,13 @@ mod tests {
     #[test]
     fn test_calculate_cost_backward_compatibility_no_cache_write() {
         // Test that cost calculation works when cache_write field is missing (backward compatibility)
-        let mut span_data = SpanData::default();
-        span_data.gen_ai_usage_input_tokens = Annotated::new(100.0.into());
-        span_data.gen_ai_usage_input_tokens_cached = Annotated::new(20.0.into());
-        span_data.gen_ai_usage_output_tokens = Annotated::new(50.0.into());
-        // Note: gen_ai_usage_input_tokens_cache_write is NOT set (simulating old data)
+        let span_data = SpanData {
+            gen_ai_usage_input_tokens: Annotated::new(100.0.into()),
+            gen_ai_usage_input_tokens_cached: Annotated::new(20.0.into()),
+            gen_ai_usage_output_tokens: Annotated::new(50.0.into()),
+            // Note: gen_ai_usage_input_tokens_cache_write is NOT set (simulating old data)
+            ..Default::default()
+        };
 
         let tokens = UsedTokens::from_span_data(&span_data);
 
