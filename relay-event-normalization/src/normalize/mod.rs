@@ -262,6 +262,10 @@ impl ModelCosts {
     }
 
     /// Gets the cost per token, if defined for the given model.
+    ///
+    /// This method first tries to find the model in the configured models.
+    /// If not found, it returns default costs for known embedding models that
+    /// may be missing from external API sources.
     pub fn cost_per_token(&self, model_id: &str) -> Option<&ModelCostV2> {
         if !self.is_enabled() {
             return None;
@@ -278,14 +282,54 @@ impl ModelCosts {
         // since the name is already normalized, there are still patterns where the
         // model name can have a prefix e.g. "us.antrophic.claude-sonnet-4" and this
         // will be matched via glob "*claude-sonnet-4"
-        self.models.iter().find_map(|(key, value)| {
+        if let Some(value) = self.models.iter().find_map(|(key, value)| {
             if key.is_match(normalized_model_id) {
                 Some(value)
             } else {
                 None
             }
-        })
+        }) {
+            return Some(value);
+        }
+
+        // If no match found, check for default costs for known models
+        get_default_model_cost(normalized_model_id)
     }
+}
+
+/// Default model costs for known embedding models that may be missing from external APIs.
+///
+/// These costs are used as fallbacks when a model is not found in the configuration.
+/// The costs are based on typical pricing for embedding models, which are generally
+/// much cheaper than generative models.
+static DEFAULT_MODEL_COSTS: LazyLock<HashMap<String, ModelCostV2>> = LazyLock::new(|| {
+    let mut costs = HashMap::new();
+    
+    // BAAI/bge-m3 is a popular embedding model from Beijing Academy of Artificial Intelligence
+    // Typical embedding model costs are very low compared to generative models
+    // Using conservative estimates based on similar embedding models
+    let bge_m3_cost = ModelCostV2 {
+        input_per_token: 0.0001,  // $0.0001 per 1K tokens
+        output_per_token: 0.0,     // Embedding models don't have output tokens
+        output_reasoning_per_token: 0.0,
+        input_cached_per_token: 0.0,
+    };
+    
+    // Add both lowercase and original case versions
+    costs.insert("baai/bge-m3".to_string(), bge_m3_cost);
+    costs.insert("BAAI/bge-m3".to_string(), bge_m3_cost);
+    
+    costs
+});
+
+/// Gets the default cost for a model if it's in the known defaults list.
+///
+/// This function performs a case-insensitive lookup by checking both the original
+/// model ID and its lowercase version.
+fn get_default_model_cost(normalized_model_id: &str) -> Option<&'static ModelCostV2> {
+    DEFAULT_MODEL_COSTS
+        .get(normalized_model_id)
+        .or_else(|| DEFAULT_MODEL_COSTS.get(&normalized_model_id.to_lowercase()))
 }
 
 /// Regex that matches version and/or date patterns at the end of a model name.
@@ -614,6 +658,75 @@ mod tests {
         );
 
         assert_eq!(v2_config.cost_per_token("unknown-model"), None);
+    }
+
+    #[test]
+    fn test_model_cost_default_fallback() {
+        // Test that default costs are returned for known models not in the config
+        let v2_config = ModelCosts {
+            version: 2,
+            models: HashMap::new(),
+        };
+        assert!(v2_config.is_enabled());
+
+        // Test BAAI/bge-m3 with uppercase
+        let cost = v2_config.cost_per_token("BAAI/bge-m3").unwrap();
+        assert_eq!(
+            cost,
+            &ModelCostV2 {
+                input_per_token: 0.0001,
+                output_per_token: 0.0,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.0,
+            }
+        );
+
+        // Test BAAI/bge-m3 with lowercase
+        let cost = v2_config.cost_per_token("baai/bge-m3").unwrap();
+        assert_eq!(
+            cost,
+            &ModelCostV2 {
+                input_per_token: 0.0001,
+                output_per_token: 0.0,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.0,
+            }
+        );
+
+        // Test that unknown models still return None
+        assert_eq!(v2_config.cost_per_token("unknown-model"), None);
+    }
+
+    #[test]
+    fn test_model_cost_config_overrides_default() {
+        // Test that configured costs take precedence over defaults
+        let mut models_map = HashMap::new();
+        models_map.insert(
+            Pattern::new("BAAI/bge-m3").unwrap(),
+            ModelCostV2 {
+                input_per_token: 0.0002,  // Different from default
+                output_per_token: 0.0001,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.0,
+            },
+        );
+
+        let v2_config = ModelCosts {
+            version: 2,
+            models: models_map,
+        };
+
+        // Should return the configured cost, not the default
+        let cost = v2_config.cost_per_token("BAAI/bge-m3").unwrap();
+        assert_eq!(
+            cost,
+            &ModelCostV2 {
+                input_per_token: 0.0002,
+                output_per_token: 0.0001,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.0,
+            }
+        );
     }
 
     #[test]
