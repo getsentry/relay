@@ -41,7 +41,6 @@ convention_attributes!(
     GEN_AI_RESPONSE_TPS => "gen_ai.response.tokens_per_second",
     GEN_AI_SYSTEM => "gen_ai.system",
     GEN_AI_USAGE_INPUT_CACHED_TOKENS => "gen_ai.usage.input_tokens.cached",
-    GEN_AI_USAGE_INPUT_CACHE_WRITE_TOKENS => "gen_ai.usage.input_tokens.cache_write",
     GEN_AI_USAGE_INPUT_TOKENS => "gen_ai.usage.input_tokens",
     GEN_AI_USAGE_OUTPUT_REASONING_TOKENS => "gen_ai.usage.output_tokens.reasoning",
     GEN_AI_USAGE_OUTPUT_TOKENS => "gen_ai.usage.output_tokens",
