@@ -807,6 +807,7 @@ mod tests {
           "op": "default",
           "span_id": "e342abb1214ca181",
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+          "is_segment": true,
           "status": "ok",
           "data": {
             "sentry.origin": "auto.otlp.spans"
@@ -849,6 +850,7 @@ mod tests {
           "op": "default",
           "span_id": "e342abb1214ca181",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "is_segment": true,
           "status": "internal_error",
           "data": {
             "sentry.origin": "auto.otlp.spans",
