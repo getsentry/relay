@@ -420,6 +420,43 @@ mod tests {
         ");
     }
 
+    #[test]
+    fn test_calculate_cost_backward_compatibility_no_cache_write() {
+        // Test that cost calculation works when cache_write field is missing (backward compatibility)
+        let mut span_data = SpanData::default();
+        span_data.gen_ai_usage_input_tokens = Annotated::new(100.0.into());
+        span_data.gen_ai_usage_input_tokens_cached = Annotated::new(20.0.into());
+        span_data.gen_ai_usage_output_tokens = Annotated::new(50.0.into());
+        // Note: gen_ai_usage_input_tokens_cache_write is NOT set (simulating old data)
+
+        let tokens = UsedTokens::from_span_data(&span_data);
+
+        // Verify cache_write_tokens defaults to 0.0
+        assert_eq!(tokens.input_cache_write_tokens, 0.0);
+
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 1.0,
+                output_per_token: 2.0,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.75,
+            },
+            tokens,
+        )
+        .unwrap();
+
+        // Cost should be calculated without cache_write_tokens
+        // input: (100 - 20) * 1.0 + 20 * 0.5 + 0 * 0.75 = 80 + 10 + 0 = 90
+        // output: 50 * 2.0 = 100
+        insta::assert_debug_snapshot!(cost, @r"
+        CalculatedCost {
+            input: 90.0,
+            output: 100.0,
+        }
+        ");
+    }
+
     /// Test that the AI operation type is inferred from a gen_ai.operation.name attribute.
     #[test]
     fn test_infer_ai_operation_type_from_gen_ai_operation_name() {
