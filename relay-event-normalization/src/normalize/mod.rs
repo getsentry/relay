@@ -469,7 +469,7 @@ mod tests {
         let deserialized_v2: ModelCosts = serde_json::from_str(original_v2).unwrap();
         assert_debug_snapshot!(
             deserialized_v2,
-            @r###"
+            @r#"
         ModelCosts {
             version: 2,
             models: {
@@ -492,7 +492,7 @@ mod tests {
                 },
             },
         }
-        "###,
+        "#,
         );
 
         // Test unknown integer version
@@ -506,7 +506,7 @@ mod tests {
     fn test_model_cost_config_v2() {
         let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015,"inputCacheWritePerToken":0.0}}}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
-        assert_debug_snapshot!(deserialized, @r###"
+        assert_debug_snapshot!(deserialized, @r#"
         ModelCosts {
             version: 2,
             models: {
@@ -529,7 +529,7 @@ mod tests {
                 },
             },
         }
-        "###);
+        "#);
 
         let serialized = serde_json::to_string(&deserialized).unwrap();
         assert_eq!(&serialized, original);
