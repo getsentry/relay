@@ -174,8 +174,11 @@ trait ConfigObject: DeserializeOwned + Serialize {
         let mut source = {
             let file = serde_vars::FileSource::default()
                 .with_variable_prefix("${file:")
+                .with_variable_suffix("}")
                 .with_base_path(base);
-            let env = serde_vars::EnvSource::default();
+            let env = serde_vars::EnvSource::default()
+                .with_variable_prefix("${")
+                .with_variable_suffix("}");
             (file, env)
         };
         match Self::format() {
