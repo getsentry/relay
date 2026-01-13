@@ -120,7 +120,7 @@ pub fn otel_to_sentry_span(
         otel_to_sentry_kind(kind).map_value(|v| v.to_string()),
     );
 
-    // A remote span is a segment span, but not every segment span is remote:
+    // A remote span is a segment span, but not every segment span is remote.
     // A span is also a segment if it has no parent span (i.e., it's a root span).
     let is_root_span = parent_span_id.value().is_none();
     let is_segment = match is_remote {
