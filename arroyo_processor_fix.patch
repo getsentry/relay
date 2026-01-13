@@ -1,0 +1,23 @@
+--- a/arroyo/processing/processor.py
++++ b/arroyo/processing/processor.py
+@@ -127,10 +127,17 @@ class MetricsBuffer:
+     def flush(self) -> None:
+         metric: Union[ConsumerTiming, ConsumerCounter]
+         value: Union[float, int]
+ 
+-        for metric, value in self.__timers.items():
++        # Create snapshots of the dictionaries before iterating to avoid
++        # "dictionary changed size during iteration" errors in multi-threaded contexts
++        timers_snapshot = list(self.__timers.items())
++        counters_snapshot = list(self.__counters.items())
++        self.__reset()
++        
++        for metric, value in timers_snapshot:
+             self.metrics.timing(metric, value)
+-        for metric, value in self.__counters.items():
++        for metric, value in counters_snapshot:
+             self.metrics.increment(metric, value)
+-        self.__reset()
+ 
+     def __reset(self) -> None:
+         self.__timers.clear()
