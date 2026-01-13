@@ -10,10 +10,6 @@ env:
   CARGO_TERM_COLOR: always
   RELAY_CARGO_ARGS: "--locked"
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   linux:
     timeout-minutes: 30
@@ -32,7 +28,7 @@ jobs:
       }')[matrix.build-arch] }}
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: recursive
 
@@ -74,7 +70,7 @@ jobs:
     runs-on: macos-14
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: recursive
 
@@ -121,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: recursive
 
