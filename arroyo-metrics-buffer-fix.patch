@@ -1,0 +1,21 @@
+--- a/arroyo/processing/processor.py
++++ b/arroyo/processing/processor.py
+@@ -130,10 +130,13 @@ class MetricsBuffer:
+     def flush(self) -> None:
+         metric: Union[ConsumerTiming, ConsumerCounter]
+         value: Union[float, int]
+-
+-        for metric, value in self.__timers.items():
++        
++        # Create snapshots to avoid RuntimeError when dictionaries are modified
++        # by other threads during iteration
++        timers_snapshot = list(self.__timers.items())
++        counters_snapshot = list(self.__counters.items())
++        
++        for metric, value in timers_snapshot:
+             self.metrics.timing(metric, value)
+-        for metric, value in self.__counters.items():
++        for metric, value in counters_snapshot:
+             self.metrics.increment(metric, value)
+         self.__reset()
+-
