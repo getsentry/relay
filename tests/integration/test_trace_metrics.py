@@ -59,6 +59,7 @@ def test_trace_metric_extraction(
         "attributes": {
             "http.method": {"value": "GET", "type": "string"},
             "http.status_code": {"value": 200, "type": "integer"},
+            "http.some.headers": {"value": ["foo", "bar"], "type": "array"},
             "sentry.client_sample_rate": {"value": 0.25, "type": "double"},
         },
     }
@@ -69,6 +70,11 @@ def test_trace_metric_extraction(
     item = items_consumer.get_item()
     assert item == {
         "attributes": {
+            "http.some.headers": {
+                "arrayValue": {
+                    "values": [{"stringValue": "foo"}, {"stringValue": "bar"}]
+                }
+            },
             "sentry.metric_name": {"stringValue": "http.request.duration"},
             "sentry.metric_type": {"stringValue": "distribution"},
             "sentry.metric_unit": {"stringValue": "millisecond"},

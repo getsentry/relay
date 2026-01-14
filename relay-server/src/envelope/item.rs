@@ -476,6 +476,27 @@ impl Item {
         self.is_attachment_v2() && self.parent_id().is_none()
     }
 
+    /// Returns the [`AttachmentParentType`] of an attachment.
+    ///
+    /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
+    pub fn attachment_parent_type(&self) -> AttachmentParentType {
+        let is_attachment = self.ty() == &ItemType::Attachment;
+        debug_assert!(
+            is_attachment,
+            "function should only be called on attachments"
+        );
+        let is_trace_attachment = self.content_type() == Some(&ContentType::TraceAttachment);
+
+        if is_trace_attachment {
+            match self.parent_id() {
+                Some(ParentId::SpanId(_)) => AttachmentParentType::Span,
+                None => AttachmentParentType::Trace,
+            }
+        } else {
+            AttachmentParentType::Event
+        }
+    }
+
     /// Returns the attachment payload size.
     ///
     /// For AttachmentV2, returns only the size of the actual payload, excluding the attachment meta.
@@ -1032,8 +1053,6 @@ pub struct SourceQuantities {
     pub transactions: usize,
     /// Spans quantity.
     pub spans: usize,
-    /// Profile quantity.
-    pub profiles: usize,
     /// Total number of buckets.
     pub buckets: usize,
 }
@@ -1043,12 +1062,10 @@ impl AddAssign for SourceQuantities {
         let Self {
             transactions,
             spans,
-            profiles,
             buckets,
         } = self;
         *transactions += other.transactions;
         *spans += other.spans;
-        *profiles += other.profiles;
         *buckets += other.buckets;
     }
 }
@@ -1084,6 +1101,23 @@ impl ParentId {
             ParentId::SpanId(span_id) => *span_id,
         }
     }
+}
+
+/// The type of parent entity an attachment is associated with.
+///
+/// This is used to route attachments to different rate limiting buckets, since
+/// depending on the parent the limiting logic is different. E.g. if the attachment has
+/// [`AttachmentParentType::Span`] than it should be dropped if there are span limits.
+///
+/// See [`Item::attachment_parent_type`] for how this is determined from an item.
+#[derive(Debug)]
+pub enum AttachmentParentType {
+    /// The parent type for all V1 attachments (e.g. minidumps)
+    Event,
+    /// The parent type for all span V2 attachments.
+    Span,
+    /// The parent type for all trace V2 attachments.
+    Trace,
 }
 
 #[cfg(test)]

@@ -17,7 +17,7 @@ use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, GlobalConfig, ProjectConfig,
 };
 use relay_event_normalization::AiOperationTypeMap;
-use relay_event_normalization::span::ai::enrich_ai_span_data;
+use relay_event_normalization::span::ai::enrich_ai_span;
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
     GeoIpLookup, MeasurementsConfig, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo,
@@ -153,6 +153,7 @@ pub async fn process(
                 span,
                 transaction_from_dsc.clone(),
                 1,
+                span.is_segment.value().is_some_and(|s| *s),
                 sampling_decision,
                 project_id,
             );
@@ -455,7 +456,7 @@ fn normalize(
 
     normalize_performance_score(span, performance_score);
 
-    enrich_ai_span_data(span, ai_model_costs, ai_operation_type_map);
+    enrich_ai_span(span, ai_model_costs, ai_operation_type_map);
 
     tag_extraction::extract_measurements(span, is_mobile);
 

@@ -54,6 +54,12 @@ where
     }
 }
 
+impl Counted for (DataCategory, usize) {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![*self]
+    }
+}
+
 impl Counted for Item {
     fn quantities(&self) -> Quantities {
         self.quantities()
@@ -74,10 +80,13 @@ impl Counted for Box<Envelope> {
         }
 
         let data = [
-            (DataCategory::Attachment, summary.attachment_quantity),
+            (
+                DataCategory::Attachment,
+                summary.attachment_quantities.bytes(),
+            ),
             (
                 DataCategory::AttachmentItem,
-                summary.attachment_item_quantity,
+                summary.attachment_quantities.count(),
             ),
             (DataCategory::Profile, summary.profile_quantity),
             (DataCategory::ProfileIndexed, summary.profile_quantity),
@@ -94,6 +103,7 @@ impl Counted for Box<Envelope> {
                 DataCategory::ProfileChunkUi,
                 summary.profile_chunk_ui_quantity,
             ),
+            (DataCategory::UserReportV2, summary.user_report_quantity),
             (DataCategory::TraceMetric, summary.trace_metric_quantity),
             (DataCategory::LogItem, summary.log_item_quantity),
             (DataCategory::LogByte, summary.log_byte_quantity),
@@ -148,14 +158,12 @@ impl Counted for ExtractedMetrics {
         let SourceQuantities {
             transactions,
             spans,
-            profiles,
             buckets,
         } = metrics::extract_quantities(&self.project_metrics);
 
         [
             (DataCategory::Transaction, transactions),
             (DataCategory::Span, spans),
-            (DataCategory::Profile, profiles),
             (DataCategory::MetricBucket, buckets),
         ]
         .into_iter()

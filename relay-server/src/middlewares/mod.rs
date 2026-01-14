@@ -14,9 +14,6 @@ mod metrics;
 mod normalize_path;
 mod trace;
 
-mod body_timing;
-
-pub use self::body_timing::*;
 pub use self::cors::*;
 pub use self::decompression::*;
 pub use self::handle_panic::*;

@@ -15,8 +15,11 @@ use relay_sampling::DynamicSamplingContext;
 use relay_spans::derive_op_for_v2_span;
 
 use crate::span::TABLE_NAME_REGEX;
-use crate::span::description::scrub_db_query;
-use crate::span::tag_extraction::{sql_action_from_query, sql_tables_from_query};
+use crate::span::description::{scrub_db_query, scrub_http};
+use crate::span::tag_extraction::{
+    domain_from_scrubbed_http, domain_from_server_address, sql_action_from_query,
+    sql_tables_from_query,
+};
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
@@ -65,6 +68,12 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
             (Annotated(Some(Double), _), Annotated(Some(Value::U64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::F64(_)), _)) => (),
             (Annotated(Some(String), _), Annotated(Some(Value::String(_)), _)) => (),
+            (Annotated(Some(Array), _), Annotated(Some(Value::Array(arr)), _)) => {
+                if !is_supported_array(arr) {
+                    let _ = attribute.value_mut().take();
+                    attribute.meta_mut().add_error(ErrorKind::InvalidData);
+                }
+            }
             // Note: currently the mapping to Kafka requires that invalid or unknown combinations
             // of types and values are removed from the mapping.
             //
@@ -87,6 +96,53 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
             }
         }
     }
+}
+
+/// Returns `true` if the passed array is an array we currently support.
+///
+/// Currently all arrays must be homogeneous types.
+fn is_supported_array(arr: &[Annotated<Value>]) -> bool {
+    let mut iter = arr.iter();
+
+    let Some(first) = iter.next() else {
+        // Empty arrays are supported.
+        return true;
+    };
+
+    let item = iter.try_fold(first, |prev, current| {
+        let r = match (prev.value(), current.value()) {
+            (None, None) => prev,
+            (None, Some(_)) => current,
+            (Some(_), None) => prev,
+            (Some(Value::String(_)), Some(Value::String(_))) => prev,
+            (Some(Value::Bool(_)), Some(Value::Bool(_))) => prev,
+            (
+                // We allow mixing different numeric types because they are all the same in JSON.
+                Some(Value::I64(_) | Value::U64(_) | Value::F64(_)),
+                Some(Value::I64(_) | Value::U64(_) | Value::F64(_)),
+            ) => prev,
+            // Everything else is unsupported.
+            //
+            // This includes nested arrays, nested objects and mixed arrays for now.
+            (Some(_), Some(_)) => return None,
+        };
+
+        Some(r)
+    });
+
+    let Some(item) = item else {
+        // Unsupported combination of types.
+        return false;
+    };
+
+    matches!(
+        item.value(),
+        // `None` -> `[null, null]` is allowed, as the `Annotated` may carry information.
+        // `Some` -> must be a currently supported type.
+        None | Some(
+            Value::String(_) | Value::Bool(_) | Value::I64(_) | Value::U64(_) | Value::F64(_)
+        )
+    )
 }
 
 /// Adds the `received` time to the attributes.
@@ -279,8 +335,12 @@ fn normalize_attribute_names_inner(
 /// however, V2 spans now store these values in their respective attributes based on sentry conventions.
 /// This function ports over the SpanV1 normalization logic that was previously in `scrub_span_description`
 /// by creating a set of functions to handle each group of attributes separately.
-pub fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
+pub fn normalize_attribute_values(
+    attributes: &mut Annotated<Attributes>,
+    http_span_allowed_hosts: &[String],
+) {
     normalize_db_attributes(attributes);
+    normalize_http_attributes(attributes, http_span_allowed_hosts);
 }
 
 /// Normalizes the following db attributes: `db.query.text`, `db.operation.name`, `db.collection.name`
@@ -291,7 +351,7 @@ pub fn normalize_attribute_values(attributes: &mut Annotated<Attributes>) {
 /// the db operation and collection name are updated if needed.
 ///
 /// Note: This function assumes that the sentry.op has already been inferred and set in the attributes.
-pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
+fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
     let Some(attributes) = annotated_attributes.value() else {
         return;
     };
@@ -406,6 +466,116 @@ pub fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>)
     }
 }
 
+/// Normalizes the following http attributes: `http.request.method` and `server.address`.
+///
+/// The normalization process first scrubs the url and extracts the server address from the url.
+/// It also sets 'url.full' to the raw url if it is not already set and can be retrieved from the server address.
+fn normalize_http_attributes(
+    annotated_attributes: &mut Annotated<Attributes>,
+    allowed_hosts: &[String],
+) {
+    let Some(attributes) = annotated_attributes.value() else {
+        return;
+    };
+
+    // Skip normalization if not an http span.
+    // This is equivalent to conditionally scrubbing by span category in the V1 pipeline.
+    if !attributes.contains_key(HTTP_REQUEST_METHOD)
+        && !attributes.contains_key(LEGACY_HTTP_REQUEST_METHOD)
+    {
+        return;
+    }
+
+    let op = attributes.get_value(OP).and_then(|v| v.as_str());
+
+    let method = attributes
+        .get_value(HTTP_REQUEST_METHOD)
+        .or_else(|| attributes.get_value(LEGACY_HTTP_REQUEST_METHOD))
+        .and_then(|v| v.as_str());
+
+    let server_address = attributes
+        .get_value(SERVER_ADDRESS)
+        .and_then(|v| v.as_str());
+
+    let url: Option<&str> = attributes
+        .get_value(URL_FULL)
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            attributes
+                .get_value(DESCRIPTION)
+                .and_then(|v| v.as_str())
+                .and_then(|description| description.split_once(' ').map(|(_, url)| url))
+        });
+    let url_scheme = attributes.get_value(URL_SCHEME).and_then(|v| v.as_str());
+
+    // If the span op is "http.client" and the method and url are present,
+    // extract a normalized domain to be stored in the "server.address" attribute.
+    let (normalized_server_address, raw_url) = if op == Some("http.client") {
+        let domain_from_scrubbed_http = method
+            .zip(url)
+            .and_then(|(method, url)| scrub_http(method, url, allowed_hosts))
+            .and_then(|scrubbed_http| domain_from_scrubbed_http(&scrubbed_http));
+
+        if let Some(domain) = domain_from_scrubbed_http {
+            (Some(domain), url.map(String::from))
+        } else {
+            domain_from_server_address(server_address, url_scheme)
+        }
+    } else {
+        (None, None)
+    };
+
+    let method = method.map(|m| m.to_uppercase());
+
+    if let Some(attributes) = annotated_attributes.value_mut() {
+        if let Some(method) = method {
+            attributes.insert(HTTP_REQUEST_METHOD, method);
+        }
+
+        if let Some(normalized_server_address) = normalized_server_address {
+            attributes.insert(SERVER_ADDRESS, normalized_server_address);
+        }
+
+        if let Some(raw_url) = raw_url {
+            attributes.insert_if_missing(URL_FULL, || raw_url);
+        }
+    }
+}
+
+/// Double writes sentry conventions attributes into legacy attributes.
+///
+/// This achieves backwards compatibility as it allows products to continue using legacy attributes
+/// while we accumulate spans that conform to sentry conventions.
+///
+/// This function is called after attribute value normalization (`normalize_attribute_values`) as it
+/// clones normalized attributes into legacy attributes.
+pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    // Map of new sentry conventions attributes to legacy SpanV1 attributes
+    let current_to_legacy_attributes = [
+        // DB attributes
+        (NORMALIZED_DB_QUERY, SENTRY_NORMALIZED_DESCRIPTION),
+        (NORMALIZED_DB_QUERY_HASH, SENTRY_GROUP),
+        (DB_OPERATION_NAME, SENTRY_ACTION),
+        (DB_COLLECTION_NAME, SENTRY_DOMAIN),
+        // HTTP attributes
+        (SERVER_ADDRESS, SENTRY_DOMAIN),
+        (HTTP_REQUEST_METHOD, SENTRY_ACTION),
+    ];
+
+    for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
+        if attributes.contains_key(current_attribute) {
+            let Some(attr) = attributes.get_attribute(current_attribute) else {
+                continue;
+            };
+            attributes.insert(legacy_attribute, attr.value.clone());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use relay_protocol::SerializableAnnotated;
@@ -511,13 +681,37 @@ mod tests {
             },
             "missing_value": {
                 "type": "string"
+            },
+            "supported_array_string": {
+                "type": "array",
+                "value": ["foo", "bar"]
+            },
+            "supported_array_double": {
+                "type": "array",
+                "value": [3, 3.0, 3]
+            },
+            "supported_array_null": {
+                "type": "array",
+                "value": [null, null]
+            },
+            "unsupported_array_mixed": {
+                "type": "array",
+                "value": ["foo", 1.0]
+            },
+            "unsupported_array_object": {
+                "type": "array",
+                "value": [{}]
+            },
+            "unsupported_array_in_array": {
+                "type": "array",
+                "value": [[]]
             }
         }"#;
 
         let mut attributes = Annotated::<Attributes>::from_json(json).unwrap();
         normalize_attribute_types(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
           "double_with_i64": {
             "type": "double",
@@ -526,7 +720,32 @@ mod tests {
           "invalid_int_from_invalid_string": null,
           "missing_type": null,
           "missing_value": null,
+          "supported_array_double": {
+            "type": "array",
+            "value": [
+              3,
+              3.0,
+              3
+            ]
+          },
+          "supported_array_null": {
+            "type": "array",
+            "value": [
+              null,
+              null
+            ]
+          },
+          "supported_array_string": {
+            "type": "array",
+            "value": [
+              "foo",
+              "bar"
+            ]
+          },
           "unknown_type": null,
+          "unsupported_array_in_array": null,
+          "unsupported_array_mixed": null,
+          "unsupported_array_object": null,
           "valid_bool": {
             "type": "boolean",
             "value": true
@@ -602,6 +821,27 @@ mod tests {
                 }
               }
             },
+            "unsupported_array_in_array": {
+              "": {
+                "err": [
+                  "invalid_data"
+                ]
+              }
+            },
+            "unsupported_array_mixed": {
+              "": {
+                "err": [
+                  "invalid_data"
+                ]
+              }
+            },
+            "unsupported_array_object": {
+              "": {
+                "err": [
+                  "invalid_data"
+                ]
+              }
+            },
             "valid_int_from_string": {
               "": {
                 "err": [
@@ -615,7 +855,7 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1122,6 +1362,365 @@ mod tests {
           "sentry.origin": {
             "type": "string",
             "value": "auto.otlp.spans"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+      "#,
+        )
+        .unwrap();
+
+        normalize_http_attributes(&mut attributes, &[]);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "*.xn--85x722f.xn--55qx5d.cn"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes_server_address() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "url.scheme": {
+            "type": "string",
+            "value": "https"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "subdomain.example.com:5688"
+          },
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          }
+        }
+      "#,
+        )
+        .unwrap();
+
+        normalize_http_attributes(&mut attributes, &[]);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "*.example.com:5688"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://subdomain.example.com:5688"
+          },
+          "url.scheme": {
+            "type": "string",
+            "value": "https"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes_allowed_hosts() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+      "#,
+        )
+        .unwrap();
+
+        normalize_http_attributes(
+            &mut attributes,
+            &["application.www.xn--85x722f.xn--55qx5d.cn".to_owned()],
+        );
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "application.www.xn--85x722f.xn--55qx5d.cn"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_db_attributes_from_legacy_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "find"
+          },
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_db_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes_from_legacy_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "http.request_method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "GET https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_http_attributes(&mut attributes, &[]);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "http.request_method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "GET https://application.www.xn--85x722f.xn--55qx5d.cn"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          },
+          "server.address": {
+            "type": "string",
+            "value": "*.xn--85x722f.xn--55qx5d.cn"
+          },
+          "url.full": {
+            "type": "string",
+            "value": "https://application.www.xn--85x722f.xn--55qx5d.cn"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_write_legacy_attributes() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        write_legacy_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.collection.name": {
+            "type": "string",
+            "value": "documents"
+          },
+          "db.operation.name": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.action": {
+            "type": "string",
+            "value": "FIND"
+          },
+          "sentry.domain": {
+            "type": "string",
+            "value": "documents"
+          },
+          "sentry.group": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.normalized_db_query": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.normalized_db_query.hash": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
+          "sentry.normalized_description": {
+            "type": "string",
+            "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db"
           }
         }
         "#);

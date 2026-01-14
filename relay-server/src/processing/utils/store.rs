@@ -1,12 +1,14 @@
+use std::array::TryFromSliceError;
 use std::collections::HashMap;
 
 use chrono::Utc;
 use relay_conventions::CLIENT_SAMPLE_RATE;
 use relay_event_schema::protocol::Attributes;
-use relay_protocol::{Annotated, IntoValue, MetaTree};
+use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 
-use sentry_protos::snuba::v1::{AnyValue, any_value};
+use sentry_protos::snuba::v1::{AnyValue, ArrayValue, any_value};
 use serde::Serialize;
+use uuid::Uuid;
 
 /// Represents metadata extracted from Relay's annotated model.
 ///
@@ -123,6 +125,73 @@ fn size_of_meta_tree(meta: &MetaTree) -> usize {
     size
 }
 
+/// Converts [`Attributes`] into EAP compatible values.
+pub fn convert_attributes_into(result: &mut HashMap<String, AnyValue>, attributes: Attributes) {
+    for (name, attribute) in attributes {
+        let meta = AttributeMeta {
+            meta: IntoValue::extract_meta_tree(&attribute),
+        };
+        if let Some(meta) = meta.to_any_value() {
+            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
+        }
+
+        let value = attribute
+            .into_value()
+            .and_then(|v| v.value.value.into_value());
+
+        let Some(value) = value else {
+            // Meta has already been handled, no value -> skip.
+            // There are also no current plans to handle `null` in EAP.
+            continue;
+        };
+
+        // Assertions for invalid types should never happen as Relay filters and validates
+        // attributes beforehand already.
+        let Some(value) = (match value {
+            Value::Bool(v) => Some(any_value::Value::BoolValue(v)),
+            Value::I64(v) => Some(any_value::Value::IntValue(v)),
+            Value::U64(v) => i64::try_from(v).ok().map(any_value::Value::IntValue),
+            Value::F64(v) => Some(any_value::Value::DoubleValue(v)),
+            Value::String(v) => Some(any_value::Value::StringValue(v)),
+            Value::Array(v) => Some(any_value::Value::ArrayValue(ArrayValue {
+                values: v
+                    .into_iter()
+                    .filter_map(|v| {
+                        let Some(v) = v.into_value() else {
+                            return Some(AnyValue { value: None });
+                        };
+
+                        let v = match v {
+                            Value::Bool(v) => any_value::Value::BoolValue(v),
+                            Value::I64(v) => any_value::Value::IntValue(v),
+                            Value::U64(v) => any_value::Value::IntValue(v as i64),
+                            Value::F64(v) => any_value::Value::DoubleValue(v),
+                            Value::String(v) => any_value::Value::StringValue(v),
+                            Value::Array(_) | Value::Object(_) => {
+                                debug_assert!(
+                                    false,
+                                    "arrays and objects nested in arrays is not yet supported"
+                                );
+                                return None;
+                            }
+                        };
+
+                        Some(AnyValue { value: Some(v) })
+                    })
+                    .collect(),
+            })),
+            Value::Object(_) => {
+                debug_assert!(false, "objects are not yet supported");
+                None
+            }
+        }) else {
+            continue;
+        };
+
+        result.insert(name, AnyValue { value: Some(value) });
+    }
+}
+
 /// Converts a [`chrono::DateTime`] into a [`prost_types::Timestamp`]
 pub fn proto_timestamp(dt: chrono::DateTime<Utc>) -> prost_types::Timestamp {
     prost_types::Timestamp {
@@ -138,4 +207,17 @@ pub fn extract_client_sample_rate(attributes: &Attributes) -> Option<f64> {
         .and_then(|value| value.as_f64())
         .filter(|v| *v > 0.0)
         .filter(|v| *v <= 1.0)
+}
+
+/// Massages a UUID into the format that EAP expects.
+pub fn uuid_to_item_id(id: Uuid) -> Vec<u8> {
+    // See https://github.com/getsentry/snuba/blob/a319040728d638841612cef117ec414d3e54d70f/rust_snuba/src/processors/eap_items.rs#L257
+    id.as_u128().to_le_bytes().to_vec()
+}
+
+/// Reverse operation of [`uuid_to_item_id`].
+pub fn item_id_to_uuid(item_id: &[u8]) -> Result<Uuid, TryFromSliceError> {
+    let item_id: [u8; 16] = item_id.try_into()?;
+    let item_id = u128::from_le_bytes(item_id);
+    Ok(Uuid::from_u128(item_id))
 }

@@ -257,8 +257,8 @@ def test_span_extraction(
 @pytest.mark.parametrize(
     "sample_rate,expected_spans,expected_metrics",
     [
-        (None, 2, 3),
-        (1.0, 2, 3),
+        (None, 2, 4),
+        (1.0, 2, 4),
         (0.0, 0, 0),
     ],
 )
@@ -820,6 +820,7 @@ def test_span_ingestion(
                     },
                 }
             ],
+            "is_segment": False,
             "name": "my 3rd protobuf OTel span",
             "parent_span_id": "f0f0f0abcdef1234",
             "span_id": "f0b809703e783d00",
@@ -848,8 +849,28 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_after(now_timestamp),
             "retention_days": 90,
-            "tags": {"decision": "keep", "target_project_id": "42"},
+            "tags": {
+                "decision": "keep",
+                "is_segment": "false",
+                "target_project_id": "42",
+            },
             "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {
+                "decision": "keep",
+                "is_segment": "false",
+                "target_project_id": "42",
+                "transaction": "tx_from_root",
+            },
+            "timestamp": expected_timestamp + 1,
             "type": "c",
             "value": 2.0,
         },
@@ -861,20 +882,47 @@ def test_span_ingestion(
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
+                "is_segment": "true",
+                "target_project_id": "42",
+            },
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {
+                "decision": "keep",
+                "is_segment": "true",
                 "target_project_id": "42",
                 "transaction": "tx_from_root",
             },
             "timestamp": expected_timestamp + 1,
             "type": "c",
-            "value": 3.0,
+            "value": 1.0,
         },
         {
             "name": "c:spans/usage@none",
             "org_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "tags": {},
+            "tags": {"is_segment": "false"},
             "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 1.0,
+            "received_at": time_after(now_timestamp),
+        },
+        {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"is_segment": "false"},
+            "timestamp": expected_timestamp + 1,
             "type": "c",
             "value": 2.0,
             "received_at": time_after(now_timestamp),
@@ -884,19 +932,27 @@ def test_span_ingestion(
             "org_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "tags": {},
+            "tags": {"is_segment": "true"},
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 1.0,
+            "received_at": time_after(now_timestamp),
+        },
+        {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"is_segment": "true"},
             "timestamp": expected_timestamp + 1,
             "type": "c",
-            "value": 3.0,
+            "value": 1.0,
             "received_at": time_after(now_timestamp),
         },
     ]
 
     span_metrics = [m for m in metrics if ":spans/" in m["name"]]
-
-    assert len(span_metrics) == len(expected_span_metrics)
-    for actual, expected in zip(span_metrics, expected_span_metrics):
-        assert actual == expected
+    assert span_metrics == expected_span_metrics
 
     metrics_consumer.assert_empty()
 
@@ -1226,7 +1282,7 @@ def test_rate_limit_consistent_extracted(
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
-    metrics = metrics_consumer.get_metrics(n=7)
+    metrics = metrics_consumer.get_metrics(n=8)
     span_count = sum(
         [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
     )

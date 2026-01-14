@@ -72,6 +72,7 @@ def test_spansv2_basic(
             "status": "ok",
             "attributes": {
                 "foo": {"value": "bar", "type": "string"},
+                "array": {"value": ["foo", "bar"], "type": "array"},
                 "invalid": {"value": True, "type": "string"},
                 "http.response_content_length": {"value": 17, "type": "integer"},
             },
@@ -91,6 +92,7 @@ def test_spansv2_basic(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
         "attributes": {
+            "array": {"type": "array", "value": ["foo", "bar"]},
             "foo": {"type": "string", "value": "bar"},
             "http.response_content_length": {"value": 17, "type": "integer"},
             "http.response.body.size": {"value": 17, "type": "integer"},
@@ -146,6 +148,7 @@ def test_spansv2_basic(
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
+                "is_segment": "true",
                 "target_project_id": "42",
                 "transaction": "/my/fancy/endpoint",
             },
@@ -159,7 +162,10 @@ def test_spansv2_basic(
             "project_id": 42,
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
-            "tags": {},
+            "tags": {
+                "was_transaction": "false",
+                "is_segment": "true",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
@@ -247,6 +253,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": "drop",
+                "is_segment": "false",
                 "target_project_id": "42",
                 "transaction": "tx_from_root",
             },
@@ -258,6 +265,9 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
         {
             "metadata": mock.ANY,
             "name": "c:spans/usage@none",
+            "tags": {
+                "is_segment": "false",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 2.0,
@@ -348,6 +358,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
                 "name": "c:spans/count_per_root_project@none",
                 "tags": {
                     "decision": "keep",
+                    "is_segment": "true",
                     "target_project_id": "42",
                 },
                 "timestamp": time_within_delta(),
@@ -358,6 +369,10 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
             {
                 "metadata": mock.ANY,
                 "name": "c:spans/usage@none",
+                "tags": {
+                    "was_transaction": "false",
+                    "is_segment": "true",
+                },
                 "timestamp": time_within_delta(),
                 "type": "c",
                 "value": 1.0,
@@ -406,10 +421,19 @@ def test_spansv2_ds_sampled(
             "start_timestamp": ts.timestamp(),
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b175",
+            "span_id": "aaaaaaaaaaaaaaaa",
             "is_segment": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
+            "status": "ok",
+        },
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "is_segment": True,
+            "name": "some other op",
             "status": "ok",
         },
         trace_info={
@@ -421,11 +445,11 @@ def test_spansv2_ds_sampled(
 
     relay.send_envelope(project_id, envelope)
 
-    span = spans_consumer.get_span()
-    assert span["span_id"] == "eee19b7ec3c1b175"
-    assert span["attributes"]["sentry.server_sample_rate"]["value"] == 0.9
+    for span in spans_consumer.get_spans(n=2):
+        assert span["span_id"] in ("aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb")
+        assert span["attributes"]["sentry.server_sample_rate"]["value"] == 0.9
 
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
+    assert metrics_consumer.get_metrics(n=4, with_headers=False) == [
         {
             "name": "c:spans/count_per_root_project@none",
             "org_id": 1,
@@ -434,6 +458,23 @@ def test_spansv2_ds_sampled(
             "retention_days": 90,
             "tags": {
                 "decision": "keep",
+                "is_segment": "false",
+                "target_project_id": "42",
+                "transaction": "tx_from_root",
+            },
+            "timestamp": time_within_delta(),
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": 1,
+            "project_id": 43,
+            "received_at": time_within(ts, precision="s"),
+            "retention_days": 90,
+            "tags": {
+                "decision": "keep",
+                "is_segment": "true",
                 "target_project_id": "42",
                 "transaction": "tx_from_root",
             },
@@ -447,25 +488,37 @@ def test_spansv2_ds_sampled(
             "project_id": 42,
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
-            "tags": {},
+            "tags": {
+                "is_segment": "false",
+            },
+            "timestamp": time_within_delta(),
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_within(ts, precision="s"),
+            "retention_days": 90,
+            "tags": {
+                "was_transaction": "false",
+                "is_segment": "true",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
         },
     ]
 
-    outcomes = outcomes_consumer.get_outcomes(n=1)
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
-    assert outcomes == [
+    assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 1,
+            "quantity": 2,
         }
     ]
 
@@ -528,7 +581,11 @@ def test_spansv2_ds_root_in_different_org(
             "project_id": 42,
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
-            "tags": {"decision": "drop", "target_project_id": "42"},
+            "tags": {
+                "decision": "drop",
+                "is_segment": "false",
+                "target_project_id": "42",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
@@ -539,7 +596,9 @@ def test_spansv2_ds_root_in_different_org(
             "project_id": 42,
             "received_at": time_within(ts, precision="s"),
             "retention_days": 90,
-            "tags": {},
+            "tags": {
+                "is_segment": "false",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
@@ -983,6 +1042,90 @@ def test_spanv2_default_pii_scrubbing_attributes(
     assert rem_info[0][0] == rule_type
 
 
+def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
+    """
+    Tests PII scrubbing works as expected for arrays and in the future objects.
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+    project_config["config"]["datascrubbingSettings"] = {
+        "scrubData": True,
+        "scrubDefaults": True,
+    }
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "Test span",
+            "status": "ok",
+            "is_segment": False,
+            "attributes": {
+                "pii_array": {
+                    "value": ["normal", "4242424242424242", "other"],
+                    "type": "array",
+                },
+            },
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b174",
+        "attributes": {
+            "pii_array": {
+                "type": "array",
+                "value": ["normal", "[creditcard]", "other"],
+            },
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "sentry.op": {"type": "string", "value": "default"},
+        },
+        "_meta": {
+            "attributes": {
+                "pii_array": {
+                    "value": {
+                        "1": {
+                            "": {
+                                "len": mock.ANY,
+                                "rem": [["@creditcard", mock.ANY, mock.ANY, mock.ANY]],
+                            }
+                        }
+                    }
+                }
+            },
+        },
+        "name": "Test span",
+        "start_timestamp": time_is(ts),
+        "end_timestamp": time_is(ts.timestamp() + 0.5),
+        "is_segment": False,
+        "status": "ok",
+    }
+
+
 def test_spansv2_attribute_normalization(
     mini_sentry,
     relay,
@@ -1009,25 +1152,49 @@ def test_spansv2_attribute_normalization(
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
-    envelope = envelope_with_spans(
-        {
-            "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.5,
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b175",
-            "is_segment": True,
-            "name": "some op",
-            "status": "ok",
-            "attributes": {
-                "db.system.name": {"value": "mysql", "type": "string"},
-                "db.operation.name": {"value": "SELECT", "type": "string"},
-                "db.query.text": {
-                    "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
-                    "type": "string",
-                },
-                "db.collection.name": {"value": "users", "type": "string"},
+
+    db_span_id = "eee19b7ec3c1b174"
+    db_span = {
+        "start_timestamp": ts.timestamp(),
+        "end_timestamp": ts.timestamp() + 0.5,
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": db_span_id,
+        "is_segment": False,
+        "name": "Test span",
+        "status": "ok",
+        "attributes": {
+            "db.system.name": {"value": "mysql", "type": "string"},
+            "db.operation.name": {"value": "SELECT", "type": "string"},
+            "db.query.text": {
+                "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
+                "type": "string",
+            },
+            "db.collection.name": {"value": "users", "type": "string"},
+        },
+    }
+
+    http_span_id = "eee19b7ec3c1b175"
+    http_span = {
+        "start_timestamp": ts.timestamp(),
+        "end_timestamp": ts.timestamp() + 0.5,
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": http_span_id,
+        "is_segment": False,
+        "name": "Test span",
+        "status": "ok",
+        "attributes": {
+            "sentry.op": {"value": "http.client", "type": "string"},
+            "http.request.method": {"value": "get", "type": "string"},
+            "url.full": {
+                "value": "https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+                "type": "string",
             },
         },
+    }
+
+    envelope = envelope_with_spans(
+        db_span,
+        http_span,
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "public_key": project_config["publicKeys"][0]["publicKey"],
@@ -1039,32 +1206,47 @@ def test_spansv2_attribute_normalization(
 
     relay.send_envelope(project_id, envelope)
 
-    assert spans_consumer.get_span() == {
+    spans = [spans_consumer.get_span(), spans_consumer.get_span()]
+    spans_by_id = {s["span_id"]: s for s in spans}
+
+    common = {
         "trace_id": "5b8efff798038103d269b633813fc60c",
-        "span_id": "eee19b7ec3c1b175",
+        "name": "Test span",
+        "is_segment": False,
+        "received": time_within(ts),
+        "start_timestamp": time_is(ts),
+        "end_timestamp": time_is(ts.timestamp() + 0.5),
+        "status": "ok",
+        "retention_days": 42,
+        "downsampled_retention_days": 1337,
+        "key_id": 123,
+        "organization_id": 1,
+        "project_id": 42,
+    }
+
+    # Verify DB attribute normalization
+    db_result = spans_by_id[db_span_id]
+    assert db_result == {
+        **common,
+        "span_id": db_span_id,
         "attributes": {
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
-            "sentry.dsc.environment": {"type": "string", "value": "prod"},
-            "sentry.dsc.public_key": {
-                "type": "string",
-                "value": project_config["publicKeys"][0]["publicKey"],
-            },
-            "sentry.dsc.release": {"type": "string", "value": "foo@1.0"},
-            "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
-            "sentry.dsc.trace_id": {
-                "type": "string",
-                "value": "5b8efff798038103d269b633813fc60c",
-            },
             "sentry.op": {"type": "string", "value": "db"},
             "db.system.name": {"type": "string", "value": "mysql"},
             "db.operation.name": {"type": "string", "value": "SELECT"},
+            "sentry.action": {"type": "string", "value": "SELECT"},
             "db.query.text": {
                 "type": "string",
                 "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
             },
             "db.collection.name": {"type": "string", "value": "users"},
+            "sentry.domain": {"type": "string", "value": "users"},
             "sentry.normalized_db_query": {
+                "type": "string",
+                "value": "SELECT id FROM users WHERE id = %s AND name = %s",
+            },
+            "sentry.normalized_description": {
                 "type": "string",
                 "value": "SELECT id FROM users WHERE id = %s AND name = %s",
             },
@@ -1072,22 +1254,36 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": "f79af0ba3d26284c",
             },
+            "sentry.group": {"type": "string", "value": "f79af0ba3d26284c"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
         },
-        "name": "some op",
-        "received": time_within(ts),
-        "start_timestamp": time_is(ts),
-        "end_timestamp": time_is(ts.timestamp() + 0.5),
-        "is_segment": True,
-        "status": "ok",
-        "retention_days": 42,
-        "downsampled_retention_days": 1337,
-        "key_id": 123,
-        "organization_id": 1,
-        "project_id": 42,
+    }
+
+    # Verify HTTP attribute normalization
+    http_result = spans_by_id[http_span_id]
+    assert http_result == {
+        **common,
+        "span_id": http_span_id,
+        "attributes": {
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.op": {"type": "string", "value": "http.client"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "http.request.method": {"type": "string", "value": "GET"},
+            "sentry.action": {"type": "string", "value": "GET"},
+            "server.address": {"type": "string", "value": "*.service.io"},
+            "sentry.domain": {"type": "string", "value": "*.service.io"},
+            "url.full": {
+                "type": "string",
+                "value": "https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+            },
+        },
     }
 
 

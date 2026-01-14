@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Return status code `413` if a request is rejected due to size limits. ([#5474](https://github.com/getsentry/relay/pull/5474))
+
+**Features**:
+
+- Updates `rdkafka` to 2.10 which fixes some protocol incompatibilities with Kafka 4. ([#5523](https://github.com/getsentry/relay/pull/5523))
+
+**Bug Fixes**:
+
+- Write item IDs of logs, metrics and trace attachments in correct byte order. ([#5526](https://github.com/getsentry/relay/pull/5526))
+- Reworked AI span extraction to also take trace context into account. ([#5515](https://github.com/getsentry/relay/pull/5515))
+- Mark root spans (spans without a parent) as segments in OTEL conversion. ([#5532](https://github.com/getsentry/relay/pull/5532))
+
+**Internal**:
+
+- Release Docker image to GHCR and DockerHub via Craft. ([#5509](https://github.com/getsentry/relay/pull/5509))
+- Tag span `usage` and `count_per_root_project` metrics with segment information. ([#5511](https://github.com/getsentry/relay/pull/5511))
+- Experimental support for loading configuration values from files. ([#5531](https://github.com/getsentry/relay/pull/5531))
+
+## 25.12.1
+
+**Features**:
+
+- Double write to legacy attributes for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
+- Enables basic array support for logs, trace metrics and spans. ([#5394](https://github.com/getsentry/relay/pull/5394))
+
+**Internal**:
+
+- Moves profile chunk processing to the new internal processing pipeline. ([#5505](https://github.com/getsentry/relay/pull/5505))
+
+## 25.12.0
+
 **Features**:
 
 - Updates Legacy Browser inbound filters. ([#5326](https://github.com/getsentry/relay/pull/5326))
@@ -10,6 +43,7 @@
 - Apply existing cookie rules to `http.request.header.cookie.<key>` fields. ([#5456](https://github.com/getsentry/relay/pull/5456))
 - Add functionality to process and store trace attachments. ([#5457](https://github.com/getsentry/relay/pull/5457))
 - Lower default memory utilization threshold for disk spooling from 90% to 80%. When Relay hits 80% memory utilization, it will start spooling envelopes to disk instead of processing them. ([#5472](https://github.com/getsentry/relay/pull/5472))
+- Add http attribute normalization. ([#5479](https://github.com/getsentry/relay/pull/5479))
 
 **Bug Fixes**:
 

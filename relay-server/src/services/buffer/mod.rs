@@ -26,12 +26,12 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope};
-use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectChange};
+use crate::services::projects::cache::{ProjectCacheHandle, ProjectChange};
 use crate::statsd::RelayCounters;
 
 use crate::MemoryChecker;
 use crate::MemoryStat;
-use crate::managed::ManagedEnvelope;
+use crate::managed::{Managed, ManagedEnvelope};
 
 // pub for benchmarks
 pub use envelope_buffer::EnvelopeBufferError;
@@ -192,13 +192,13 @@ impl ObservableEnvelopeBuffer {
     /// Attempts to push an envelope into the envelope buffer.
     ///
     /// Returns `false`, if the envelope buffer does not have enough capacity.
-    pub fn try_push(&self, mut envelope: ManagedEnvelope) -> bool {
+    pub fn try_push(&self, envelope: Managed<Box<Envelope>>) -> Result<(), Managed<Box<Envelope>>> {
         if self.has_capacity() {
+            let envelope = envelope.into();
             self.addr.send(EnvelopeBuffer::Push(envelope));
-            true
+            Ok(())
         } else {
-            envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-            false
+            Err(envelope)
         }
     }
 
@@ -393,13 +393,7 @@ impl EnvelopeBufferService {
                 if Instant::now() >= next_project_fetch {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
 
-                    let own_key = project_key_pair.own_key;
-                    let sampling_key = project_key_pair.sampling_key;
-
-                    services.project_cache_handle.fetch(own_key);
-                    if sampling_key != own_key {
-                        services.project_cache_handle.fetch(sampling_key);
-                    }
+                    Self::trigger_project_fetch(project_key_pair, services);
 
                     // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
                     // time.
@@ -413,21 +407,31 @@ impl EnvelopeBufferService {
         Ok(sleep)
     }
 
+    fn trigger_project_fetch(project_key_pair: ProjectKeyPair, services: &Services) {
+        let own_key = project_key_pair.own_key;
+        let sampling_key = project_key_pair.sampling_key;
+
+        services.project_cache_handle.fetch(own_key);
+        if sampling_key != own_key {
+            services.project_cache_handle.fetch(sampling_key);
+        }
+    }
+
     fn drop_expired(envelope: Box<Envelope>, services: &Services) {
         let mut managed_envelope =
             ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
         managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
-    async fn handle_message(buffer: &mut PolymorphicEnvelopeBuffer, message: EnvelopeBuffer) {
+    async fn handle_message(
+        buffer: &mut PolymorphicEnvelopeBuffer,
+        message: EnvelopeBuffer,
+        services: &Services,
+    ) {
         match message {
             EnvelopeBuffer::Push(envelope) => {
-                // NOTE: This function assumes that a project state update for the relevant
-                // projects was already triggered (see XXX).
-                // For better separation of concerns, this prefetch should be triggered from here
-                // once buffer V1 has been removed.
                 relay_log::trace!("EnvelopeBufferService: received push message");
-                Self::push(buffer, envelope.into_envelope()).await;
+                Self::push(buffer, envelope.into_envelope(), services).await;
             }
         };
     }
@@ -454,7 +458,16 @@ impl EnvelopeBufferService {
         false
     }
 
-    async fn push(buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
+    async fn push(
+        buffer: &mut PolymorphicEnvelopeBuffer,
+        envelope: Box<Envelope>,
+        services: &Services,
+    ) {
+        let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
+
+        // Prefetch configs so they are available as soon as possible.
+        Self::trigger_project_fetch(project_key_pair, services);
+
         if let Err(e) = buffer.push(envelope).await {
             relay_log::error!(
                 error = &e as &dyn std::error::Error,
@@ -530,20 +543,26 @@ impl EnvelopeBufferService {
         let sampling_project_info = sampling_project_info
             .filter(|info| info.organization_id == own_project_info.organization_id);
 
-        let managed_envelope = ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
+        let mut managed_envelope =
+            Managed::from_envelope(envelope, services.outcome_aggregator.clone());
 
-        let Ok(CheckedEnvelope {
-            envelope: Some(managed_envelope),
-            ..
-        }) = own_project.check_envelope(managed_envelope).await
-        else {
+        if own_project
+            .check_envelope(&mut managed_envelope)
+            .await
+            .is_err()
+        {
             // Outcomes are emitted by `check_envelope`.
             return Ok(());
         };
 
+        if managed_envelope.is_empty() {
+            // Nothing left to process.
+            return Ok(());
+        }
+
         let reservoir_counters = own_project.reservoir_counters().clone();
         services.envelope_processor.send(ProcessEnvelope {
-            envelope: managed_envelope,
+            envelope: managed_envelope.into(),
             project_info: own_project_info.clone(),
             rate_limits: own_project.rate_limits().current_limits(),
             sampling_project_info: sampling_project_info.clone(),
@@ -648,7 +667,7 @@ impl Service for EnvelopeBufferService {
                         sleep = Duration::ZERO;
                 }
                 Some(message) = rx.recv() => {
-                    Self::handle_message(&mut buffer, message).await;
+                    Self::handle_message(&mut buffer, message, &services).await;
                         sleep = Duration::ZERO;
                 }
                 shutdown = shutdown.notified() => {

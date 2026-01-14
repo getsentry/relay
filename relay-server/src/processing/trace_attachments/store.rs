@@ -11,6 +11,7 @@ use crate::processing::Retention;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
 use crate::processing::utils::store::{
     AttributeMeta, extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
+    uuid_to_item_id,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::upload::StoreAttachment;
@@ -89,7 +90,7 @@ fn attachment_to_trace_item(
         organization_id: ctx.scoping.organization_id.value(),
         project_id: ctx.scoping.project_id.value(),
         trace_id: trace_id.into_value()?.to_string(),
-        item_id: attachment_id.into_value()?.into_bytes().to_vec(),
+        item_id: uuid_to_item_id(*attachment_id.into_value()?),
         item_type: TraceItemType::Attachment.into(),
         timestamp: Some(proto_timestamp(timestamp.into_value()?.0)),
         attributes: convert_attributes(annotated_meta, attributes, fields),

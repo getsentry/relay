@@ -37,31 +37,26 @@ pub fn otel_value_to_attribute(otel_value: OtelValue) -> Option<Attribute> {
             (AttributeType::String, Value::String(s))
         }
         OtelValue::ArrayValue(array) => {
-            // Filter out nested arrays and key-value lists for safety.
-            // This is not usually allowed by the OTLP protocol, but we filter
-            // these values out before serializing for robustness.
-            let safe_values: Vec<serde_json::Value> = array
+            let values: Vec<Annotated<Value>> = array
                 .values
                 .into_iter()
-                .filter_map(|v| match v.value? {
-                    OtelValue::StringValue(s) => Some(serde_json::Value::String(s)),
-                    OtelValue::BoolValue(b) => Some(serde_json::Value::Bool(b)),
-                    OtelValue::IntValue(i) => {
-                        Some(serde_json::Value::Number(serde_json::Number::from(i)))
-                    }
-                    OtelValue::DoubleValue(d) => {
-                        serde_json::Number::from_f64(d).map(serde_json::Value::Number)
-                    }
-                    OtelValue::BytesValue(bytes) => {
-                        String::from_utf8(bytes).ok().map(serde_json::Value::String)
-                    }
-                    // Skip nested complex types for safety
-                    OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => None,
+                .filter_map(|v| {
+                    Some(match v.value? {
+                        OtelValue::StringValue(s) => Value::String(s),
+                        OtelValue::BoolValue(b) => Value::Bool(b),
+                        OtelValue::IntValue(i) => Value::I64(i),
+                        OtelValue::DoubleValue(d) => Value::F64(d),
+                        OtelValue::BytesValue(bytes) => {
+                            Value::String(String::from_utf8(bytes).ok()?)
+                        }
+                        // Currently not supported.
+                        OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => return None,
+                    })
                 })
+                .map(Annotated::new)
                 .collect();
 
-            let json = serde_json::to_string(&safe_values).ok()?;
-            (AttributeType::String, Value::String(json))
+            (AttributeType::Array, Value::Array(values))
         }
         OtelValue::KvlistValue(kvlist) => {
             // Convert key-value list to JSON object and serialize as string.
@@ -226,10 +221,18 @@ mod tests {
         let attr = otel_value_to_attribute(otel_value).unwrap();
 
         let value = &attr.value.value;
-        assert_eq!(
-            get_value!(value!),
-            &Value::String("[\"item1\",42]".to_owned())
-        );
+        insta::assert_debug_snapshot!(value, @r#"
+        Array(
+            [
+                String(
+                    "item1",
+                ),
+                I64(
+                    42,
+                ),
+            ],
+        )
+        "#);
     }
 
     #[test]

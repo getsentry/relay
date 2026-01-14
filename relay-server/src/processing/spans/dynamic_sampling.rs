@@ -5,18 +5,18 @@ use chrono::Utc;
 use either::Either;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
-use relay_protocol::get_value;
-use relay_quotas::{DataCategory, Scoping};
+use relay_protocol::{FiniteF64, get_value};
+use relay_quotas::Scoping;
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ClientName;
-use crate::managed::{Counted, Managed, Quantities};
+use crate::managed::Managed;
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::Context;
 use crate::processing::spans::{
-    Error, ExpandedSpans, Indexed, Result, SampledSpans, SerializedSpans,
+    Error, ExpandedSpan, ExpandedSpans, Indexed, Result, SerializedSpans,
 };
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
@@ -107,9 +107,9 @@ pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
 /// All spans are evaluated in one go as they are required by the protocol to share the same
 /// DSC, which contains all the sampling relevant information.
 pub async fn run(
-    spans: Managed<SerializedSpans>,
+    mut spans: Managed<ExpandedSpans>,
     ctx: Context<'_>,
-) -> Result<Managed<SampledSpans>, Managed<ExtractedMetrics>> {
+) -> Result<Managed<ExpandedSpans>, Managed<ExtractedMetrics>> {
     let sampling_result = compute(&spans, ctx).await;
 
     relay_statsd::metric!(
@@ -121,19 +121,15 @@ pub async fn run(
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
         sampling_result => {
-            let sample_rate = sampling_result.sample_rate();
-            return Ok(spans.map(|spans, _| spans.sampled(sample_rate)));
+            spans.modify(|spans, _| {
+                spans.server_sample_rate = sampling_result.sample_rate();
+            });
+            return Ok(spans);
         }
     };
 
     // At this point the decision is to drop the spans.
-    let metrics = create_metrics(
-        spans.scoping(),
-        spans.span_count(),
-        spans.headers.dsc(),
-        SamplingDecision::Drop,
-    );
-    let (spans, metrics) = spans.split_once(|spans| (UnsampledSpans(spans), metrics));
+    let (spans, metrics) = split_indexed_and_total(spans, SamplingDecision::Drop);
 
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
     let _ = spans.reject_err(outcome);
@@ -141,7 +137,7 @@ pub async fn run(
     Err(metrics)
 }
 
-/// Rejects the indexed portion of the provided spans and returns the total count as metrics.
+/// Rejects the indexed portion of the provided sampled spans and returns the total count as metrics.
 ///
 /// This is used when the indexed payload is designated to be dropped *after* dynamic sampling (decision is keep),
 /// but metrics have not yet been extracted.
@@ -149,7 +145,7 @@ pub fn reject_indexed_spans(
     spans: Managed<ExpandedSpans>,
     error: Error,
 ) -> Managed<ExtractedMetrics> {
-    let (indexed, total) = split_indexed_and_total(spans);
+    let (indexed, total) = split_indexed_and_total(spans, SamplingDecision::Keep);
     let _ = indexed.reject_err(error);
     total
 }
@@ -171,29 +167,27 @@ pub fn try_split_indexed_and_total(
         return Either::Left(spans);
     }
 
-    Either::Right(split_indexed_and_total(spans))
+    Either::Right(split_indexed_and_total(spans, SamplingDecision::Keep))
 }
 
 /// Splits spans into indexed spans and metrics representing the total counts.
 ///
 /// Dynamic sampling internal function, outside users should use the safer, use case driven variants
 /// [`try_split_indexed_and_total`] and [`reject_indexed_spans`].
-fn split_indexed_and_total(spans: Managed<ExpandedSpans>) -> SpansAndMetrics {
+fn split_indexed_and_total(
+    spans: Managed<ExpandedSpans>,
+    decision: SamplingDecision,
+) -> SpansAndMetrics {
     let scoping = spans.scoping();
 
     spans.split_once(|spans| {
-        let metrics = create_metrics(
-            scoping,
-            spans.spans.len() as u32,
-            spans.headers.dsc(),
-            SamplingDecision::Keep,
-        );
+        let metrics = create_metrics(scoping, &spans.spans, spans.headers.dsc(), decision);
 
         (spans.into_indexed(), metrics)
     })
 }
 
-async fn compute(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> SamplingResult {
+async fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingResult {
     // The DSC is always required, we need it to evaluate all rules, if it is missing,
     // no rules can be applied -> we sample the item.
     let Some(dsc) = spans.headers.dsc() else {
@@ -252,15 +246,33 @@ fn is_sampling_config_supported(project_info: &ProjectInfo) -> bool {
     matches!(config, ErrorBoundary::Ok(config) if !config.unsupported())
 }
 
+/// Creates dynamic sampling metrics for spans.
+///
+/// The `c:spans/usage@none` metric is incremented for each span and additionally always tagged with
+/// `is_segment` (`true` if the span is a segment span, `false` otherwise). If the span is a
+/// segment, an additional tag is added, indicating if the segment span was created from a
+/// transaction. Currently this processing pipeline is never used for transaction spans and is
+/// therefor this tag is always `false`.
+///
+/// The `c:spans/count_per_root_project@none` metric is incremented for each span and added to the
+/// *sampling project*. The metric is tagged with dynamic sampling information, `decision`,
+/// `target_project_id`, `transaction` (from the trace root) and `is_segment`.
 fn create_metrics(
     scoping: Scoping,
-    span_count: u32,
+    spans: &[ExpandedSpan],
     dsc: Option<&DynamicSamplingContext>,
     sampling_decision: SamplingDecision,
 ) -> ExtractedMetrics {
     let mut metrics = ExtractedMetrics::default();
 
-    if span_count == 0 {
+    let total = spans.len();
+    let segments = spans
+        .iter()
+        .filter_map(|span| span.span.value())
+        .filter(|span| span.is_segment.value().is_some_and(|s| *s))
+        .count();
+
+    if total == 0 {
         return metrics;
     }
 
@@ -272,52 +284,94 @@ fn create_metrics(
         metadata.extracted_from_indexed = true;
     }
 
-    metrics.sampling_metrics.push(Bucket {
-        timestamp,
-        width: 0,
-        name: "c:spans/count_per_root_project@none".into(),
-        value: BucketValue::counter(span_count.into()),
-        tags: {
-            let mut tags = BTreeMap::new();
-            tags.insert("decision".to_owned(), sampling_decision.to_string());
-            tags.insert(
-                "target_project_id".to_owned(),
-                scoping.project_id.to_string(),
-            );
-            if let Some(tx) = dsc.and_then(|dsc| dsc.transaction.clone()) {
-                tags.insert("transaction".to_owned(), tx);
-            }
-            tags
-        },
-        metadata,
-    });
-    metrics.project_metrics.push(Bucket {
-        timestamp,
-        width: 0,
-        name: "c:spans/usage@none".into(),
-        value: BucketValue::counter(span_count.into()),
-        tags: Default::default(),
-        metadata,
-    });
+    let count_per_root_tags = {
+        let mut tags = BTreeMap::new();
+        tags.insert("decision".to_owned(), sampling_decision.to_string());
+        tags.insert(
+            "target_project_id".to_owned(),
+            scoping.project_id.to_string(),
+        );
+        if let Some(tx) = dsc.and_then(|dsc| dsc.transaction.clone()) {
+            tags.insert("transaction".to_owned(), tx);
+        }
+        tags.insert("is_segment".to_owned(), "false".to_owned());
+        tags
+    };
+
+    // Segment spans.
+    if segments > 0 {
+        let segments = FiniteF64::cast_from_u64(segments as u64);
+
+        metrics.sampling_metrics.push(Bucket {
+            timestamp,
+            width: 0,
+            name: "c:spans/count_per_root_project@none".into(),
+            value: BucketValue::counter(segments),
+            tags: {
+                let mut tags = count_per_root_tags.clone();
+                tags.insert("is_segment".to_owned(), "true".to_owned());
+                tags
+            },
+            metadata,
+        });
+
+        // This pipeline is only used for standalone spans, which are never extracted from a
+        // transaction.
+        //
+        // If this changes in the future this flag *must* be adjusted accordingly.
+        #[cfg(debug_assertions)]
+        assert_segments_not_was_transaction(spans);
+
+        metrics.project_metrics.push(Bucket {
+            timestamp,
+            width: 0,
+            name: "c:spans/usage@none".into(),
+            value: BucketValue::counter(segments),
+            tags: BTreeMap::from([
+                ("was_transaction".to_owned(), "false".to_owned()),
+                ("is_segment".to_owned(), "true".to_owned()),
+            ]),
+            metadata,
+        });
+    }
+
+    // Non-segment spans.
+    if total > segments {
+        let spans = FiniteF64::cast_from_u64((total - segments) as u64);
+
+        metrics.sampling_metrics.push(Bucket {
+            timestamp,
+            width: 0,
+            name: "c:spans/count_per_root_project@none".into(),
+            value: BucketValue::counter(spans),
+            tags: count_per_root_tags,
+            metadata,
+        });
+        metrics.project_metrics.push(Bucket {
+            timestamp,
+            width: 0,
+            name: "c:spans/usage@none".into(),
+            value: BucketValue::counter(spans),
+            tags: BTreeMap::from([("is_segment".to_owned(), "false".to_owned())]),
+            metadata,
+        });
+    }
 
     metrics
 }
 
-/// Spans which have been rejected/dropped by dynamic sampling.
-///
-/// Contained spans will only count towards the [`DataCategory::SpanIndexed`] category,
-/// as the total category is counted from now in in metrics.
-struct UnsampledSpans(SerializedSpans);
+/// Asserts all segments spans are not marked as being created from a transaction.
+#[cfg(debug_assertions)]
+fn assert_segments_not_was_transaction(spans: &[ExpandedSpan]) {
+    use relay_conventions::WAS_TRANSACTION;
+    use relay_protocol::Value;
 
-impl Counted for UnsampledSpans {
-    fn quantities(&self) -> Quantities {
-        self.0
-            .quantities()
-            .into_iter()
-            // Spans only count towards the indexed category -> filter the total category.
-            //
-            // All other categories are untouched.
-            .filter(|(c, _)| *c != DataCategory::Span)
-            .collect()
+    for span in spans.iter().flat_map(|s| s.span.value()) {
+        let was_transaction = span
+            .attributes
+            .value()
+            .and_then(|attr| attr.get_value(WAS_TRANSACTION));
+
+        debug_assert!(matches!(was_transaction, None | Some(&Value::Bool(false))));
     }
 }

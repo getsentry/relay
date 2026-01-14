@@ -24,7 +24,7 @@ TEST_CONFIG = {
 def create_attachment_metadata():
     return {
         "trace_id": uuid.uuid4().hex,
-        "attachment_id": str(uuid.uuid4()),
+        "attachment_id": uuid.uuid4().hex,
         "timestamp": 1760520026.781239,
         "filename": "myfile.txt",
         "content_type": "text/plain",
@@ -37,7 +37,6 @@ def create_attachment_metadata():
 def create_attachment_envelope(project_config):
     return Envelope(
         headers={
-            "event_id": "515539018c9b4260a6f999572f1661ee",
             "trace": {
                 "trace_id": "5b8efff798038103d269b633813fc60c",
                 "public_key": project_config["publicKeys"][0]["publicKey"],
@@ -142,7 +141,9 @@ def test_standalone_attachment_store(
 
     produced_item = items_consumer.get_item()
     expected_item_id = base64.b64encode(
-        uuid.UUID(hex=attachment_metadata["attachment_id"]).bytes
+        int(uuid.UUID(hex=attachment_metadata["attachment_id"]).hex, base=16).to_bytes(
+            16, "little"
+        )
     ).decode("utf-8")
     assert produced_item == {
         "attributes": {
@@ -203,7 +204,7 @@ def test_standalone_attachment_store(
         ),
         pytest.param(
             {"meta_length": None},
-            273,
+            269,
             "invalid_trace_attachment",
             id="missing_meta_length",
         ),
@@ -341,9 +342,9 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     assert attachment.payload.bytes == combined_payload
     assert attachment.headers == {
         "type": "attachment",
-        "length": 260,
+        "length": 256,
         "content_type": "application/vnd.sentry.trace-attachment",
-        "meta_length": 237,
+        "meta_length": 233,
         "span_id": span_id,
     }
 
@@ -406,7 +407,9 @@ def test_attachment_with_matching_span_store(
 
     attachment_item = items_consumer.get_item()
     expected_item_id = base64.b64encode(
-        uuid.UUID(hex=metadata["attachment_id"]).bytes
+        int(uuid.UUID(hex=metadata["attachment_id"]).hex, base=16).to_bytes(
+            16, "little"
+        )
     ).decode("utf-8")
     assert attachment_item == {
         "attributes": {
@@ -544,9 +547,9 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
         assert item.payload.bytes == combined_payload
         assert item.headers == {
             "type": "attachment",
-            "length": 260,
+            "length": 256,
             "content_type": "application/vnd.sentry.trace-attachment",
-            "meta_length": 237,
+            "meta_length": 233,
             "span_id": span_id,
         }
 
@@ -650,6 +653,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": "drop",
+                "is_segment": "false",
                 "target_project_id": "42",
                 "transaction": "tx_from_root",
             },
@@ -661,6 +665,9 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
         {
             "metadata": mock.ANY,
             "name": "c:spans/usage@none",
+            "tags": {
+                "is_segment": "false",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
@@ -1019,27 +1026,26 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
 @pytest.mark.parametrize(
     "quota_config,expected_outcomes",
     [
-        # TODO: https://github.com/getsentry/relay/issues/5469
-        # pytest.param(
-        #     [
-        #         {
-        #             "categories": ["span"],
-        #             "limit": 0,
-        #             "window": 3600,
-        #             "id": "span_limit",
-        #             "reasonCode": "span_quota_exceeded",
-        #         }
-        #     ],
-        #     {
-        #         # Rate limit spans
-        #         (DataCategory.SPAN.value, 2): 1,
-        #         (DataCategory.SPAN_INDEXED.value, 2): 1,
-        #         # Rate limit associated span attachments
-        #         (DataCategory.ATTACHMENT.value, 2): 64,
-        #         (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
-        #     },
-        #     id="span_quota_exceeded",
-        # ),
+        pytest.param(
+            [
+                {
+                    "categories": ["span"],
+                    "limit": 0,
+                    "window": 3600,
+                    "id": "span_limit",
+                    "reasonCode": "span_quota_exceeded",
+                }
+            ],
+            {
+                # Rate limit spans
+                (DataCategory.SPAN.value, 2): 1,
+                (DataCategory.SPAN_INDEXED.value, 2): 1,
+                # Rate limit associated span attachments
+                (DataCategory.ATTACHMENT.value, 2): 64,
+                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+            },
+            id="span_quota_exceeded",
+        ),
         pytest.param(
             [
                 {
@@ -1103,10 +1109,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     ],
 )
 def test_span_attachment_independent_rate_limiting(
-    mini_sentry,
-    relay,
-    quota_config,
-    expected_outcomes,
+    mini_sentry, relay, quota_config, expected_outcomes
 ):
 
     project_id = 42
@@ -1205,7 +1208,7 @@ def test_span_attachment_independent_rate_limiting(
 
     relay.send_envelope(project_id, envelope)
 
-    outcomes = mini_sentry.get_outcomes(n=len(expected_outcomes))
+    outcomes = mini_sentry.get_aggregated_outcomes()
     outcome_counter = Counter()
     for outcome in outcomes:
         key = (outcome["category"], outcome["outcome"])
@@ -1260,7 +1263,7 @@ def test_attachment_default_pii_scrubbing_meta(
     )
 
     metadata = {
-        "attachment_id": str(uuid.uuid4()),
+        "attachment_id": uuid.uuid4().hex,
         "timestamp": ts.timestamp(),
         "filename": "data.txt",
         "content_type": "text/plain",
@@ -1304,7 +1307,7 @@ def test_attachment_default_pii_scrubbing_meta(
     metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
 
     assert metadata_part == {
-        "attachment_id": mock.ANY,
+        "attachment_id": metadata["attachment_id"],
         "timestamp": time_within_delta(ts),
         "filename": "data.txt",
         "content_type": "text/plain",
@@ -1364,7 +1367,7 @@ def test_attachment_pii_scrubbing_meta_attribute(
     )
 
     metadata = {
-        "attachment_id": str(uuid.uuid4()),
+        "attachment_id": uuid.uuid4().hex,
         "timestamp": ts.timestamp(),
         "filename": "data.txt",
         "content_type": "text/plain",
@@ -1398,7 +1401,7 @@ def test_attachment_pii_scrubbing_meta_attribute(
     metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
 
     assert metadata_part == {
-        "attachment_id": mock.ANY,
+        "attachment_id": metadata["attachment_id"],
         "timestamp": time_within_delta(ts),
         "filename": "data.txt",
         "content_type": "text/plain",
@@ -1455,7 +1458,7 @@ def test_attachment_pii_scrubbing_body(mini_sentry, relay):
     )
 
     metadata = {
-        "attachment_id": str(uuid.uuid4()),
+        "attachment_id": uuid.uuid4().hex,
         "timestamp": ts.timestamp(),
         "filename": "log.txt",
         "content_type": "text/plain",

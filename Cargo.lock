@@ -1412,6 +1412,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f81ec6369c545a7d40e4589b5597581fa1c441fe1cce96dd1de43159910a36a2"
 
 [[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
 name = "foreign-types"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1683,7 +1689,18 @@ checksum = "5971ac85611da7067dbfcabef3c70ebb5606018acd9e2a3903a0da507521e0d5"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.1.3",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
 ]
 
 [[package]]
@@ -1692,7 +1709,7 @@ version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7382cf6263419f2d8df38c55d7da83da5c18aef87fc7a7fc1fb1e344edfe14c1"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.15.4",
 ]
 
 [[package]]
@@ -2142,7 +2159,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b0f83760fb341a774ed326568e19f5a863af4a952def8c39f9ab92fd95b88e5"
 dependencies = [
  "equivalent",
- "hashbrown",
+ "hashbrown 0.16.1",
 ]
 
 [[package]]
@@ -2421,9 +2438,9 @@ dependencies = [
 
 [[package]]
 name = "libz-sys"
-version = "1.1.20"
+version = "1.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2d16453e800a8cf6dd2fc3eb4bc99b786a9b90c663b8559a5b1a041bf89e472"
+checksum = "15d118bbf3771060e7311cc7bb0545b01d08a8b4a7de949198dec1fa0ca1c0f7"
 dependencies = [
  "cc",
  "libc",
@@ -2479,11 +2496,11 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.16.1"
+version = "0.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfe949189f46fabb938b3a9a0be30fdd93fd8a09260da863399a8cf3db756ec8"
+checksum = "a1dc47f592c06f33f8e3aea9591776ec7c9f9e4124778ff8a3c3b87159f7e593"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.16.1",
 ]
 
 [[package]]
@@ -3366,9 +3383,9 @@ dependencies = [
 
 [[package]]
 name = "pkg-config"
-version = "0.3.31"
+version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "953ec861398dccce10c670dfeaf3ec4911ca479e9c02154b3a215178c5f566f2"
+checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
 name = "plain"
@@ -3687,9 +3704,9 @@ dependencies = [
 
 [[package]]
 name = "rdkafka"
-version = "0.36.2"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1beea247b9a7600a81d4cc33f659ce1a77e1988323d7d2809c7ed1c21f4c316d"
+checksum = "5f1856d72dbbbea0d2a5b2eaf6af7fb3847ef2746e883b11781446a51dbc85c0"
 dependencies = [
  "futures-channel",
  "futures-util",
@@ -3706,9 +3723,9 @@ dependencies = [
 
 [[package]]
 name = "rdkafka-sys"
-version = "4.8.0+2.3.0"
+version = "4.9.0+2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ced38182dc436b3d9df0c77976f37a67134df26b050df1f0006688e46fc4c8be"
+checksum = "5230dca48bc354d718269f3e4353280e188b610f7af7e2fcf54b7a79d5802872"
 dependencies = [
  "cmake",
  "libc",
@@ -3815,7 +3832,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "relay"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -3834,7 +3851,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -3851,7 +3868,7 @@ dependencies = [
 
 [[package]]
 name = "relay-base-schema"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "regex",
  "relay-common",
@@ -3890,12 +3907,12 @@ dependencies = [
 
 [[package]]
 name = "relay-cardinality"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "async-trait",
  "criterion",
  "hash32",
- "hashbrown",
+ "hashbrown 0.15.4",
  "parking_lot",
  "relay-base-schema",
  "relay-common",
@@ -3911,14 +3928,14 @@ dependencies = [
 
 [[package]]
 name = "relay-cogs"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "insta",
 ]
 
 [[package]]
 name = "relay-common"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "chrono",
  "criterion",
@@ -3931,7 +3948,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "anyhow",
  "human-size",
@@ -3954,7 +3971,7 @@ dependencies = [
 
 [[package]]
 name = "relay-conventions"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "insta",
  "pest",
@@ -3971,7 +3988,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3979,7 +3996,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "anyhow",
  "relay-auth",
@@ -4002,7 +4019,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-derive"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4012,7 +4029,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-normalization"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "bytecount",
  "chrono",
@@ -4049,7 +4066,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-schema"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "bytecount",
  "chrono",
@@ -4075,7 +4092,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -4083,7 +4100,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "quote",
  "syn",
@@ -4091,7 +4108,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "indexmap",
  "insta",
@@ -4110,10 +4127,10 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "hash32",
- "hashbrown",
+ "hashbrown 0.15.4",
  "insta",
  "parking_lot",
  "rdkafka",
@@ -4130,7 +4147,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "console",
  "relay-common",
@@ -4144,14 +4161,14 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "ahash",
  "bytecount",
  "chrono",
  "criterion",
  "hash32",
- "hashbrown",
+ "hashbrown 0.15.4",
  "insta",
  "itertools 0.14.0",
  "priority-queue",
@@ -4177,7 +4194,7 @@ dependencies = [
 
 [[package]]
 name = "relay-monitors"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "relay-base-schema",
  "relay-event-schema",
@@ -4190,7 +4207,7 @@ dependencies = [
 
 [[package]]
 name = "relay-otel"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "insta",
  "opentelemetry-proto",
@@ -4202,7 +4219,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ourlogs"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "chrono",
  "hex",
@@ -4220,7 +4237,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "criterion",
  "memchr",
@@ -4230,7 +4247,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern-fuzz"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "libfuzzer-sys",
  "relay-pattern",
@@ -4238,7 +4255,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pii"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "hmac",
  "insta",
@@ -4265,13 +4282,13 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "android_trace_log",
  "bytes",
  "chrono",
  "data-encoding",
- "hashbrown",
+ "hashbrown 0.15.4",
  "insta",
  "itertools 0.14.0",
  "relay-base-schema",
@@ -4291,7 +4308,7 @@ dependencies = [
 
 [[package]]
 name = "relay-prosperoconv"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "anyhow",
  "dircpy",
@@ -4308,7 +4325,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "insta",
  "num-traits",
@@ -4326,7 +4343,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol-derive"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4336,11 +4353,11 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "ahash",
  "async-trait",
- "hashbrown",
+ "hashbrown 0.15.4",
  "insta",
  "itertools 0.14.0",
  "papaya",
@@ -4359,7 +4376,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "deadpool",
  "futures",
@@ -4373,7 +4390,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "criterion",
  "flate2",
@@ -4389,7 +4406,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4411,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "ahash",
  "anyhow",
@@ -4430,7 +4447,7 @@ dependencies = [
  "either",
  "flate2",
  "futures",
- "hashbrown",
+ "hashbrown 0.15.4",
  "http",
  "hyper",
  "hyper-util",
@@ -4509,7 +4526,7 @@ dependencies = [
 
 [[package]]
 name = "relay-spans"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "chrono",
  "hex",
@@ -4526,7 +4543,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "cadence",
  "crossbeam-channel",
@@ -4538,7 +4555,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "futures",
  "insta",
@@ -4550,7 +4567,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -4559,7 +4576,7 @@ dependencies = [
 
 [[package]]
 name = "relay-threading"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "criterion",
  "flume",
@@ -4571,7 +4588,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ua"
-version = "25.11.1"
+version = "25.12.1"
 dependencies = [
  "uaparser",
 ]
@@ -5120,9 +5137,9 @@ dependencies = [
 
 [[package]]
 name = "serde-vars"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd17b13c31689268178a0fdc71bca328adcd4384f55a537e01ee8b6ab0857e34"
+checksum = "c31ed6ad0418012bd1f7493bb01d9b107e81aec23042be9292d7d154909a5c45"
 dependencies = [
  "serde",
 ]
@@ -5427,7 +5444,7 @@ dependencies = [
  "futures-intrusive",
  "futures-io",
  "futures-util",
- "hashbrown",
+ "hashbrown 0.15.4",
  "hashlink",
  "indexmap",
  "log",

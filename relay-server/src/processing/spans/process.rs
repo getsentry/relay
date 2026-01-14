@@ -11,7 +11,7 @@ use relay_protocol::Annotated;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
 use crate::managed::Managed;
 use crate::processing::spans::{
-    self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SampledSpans,
+    self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SerializedSpans,
 };
 use crate::processing::{Context, trace_attachments};
 use crate::services::outcome::DiscardReason;
@@ -19,24 +19,32 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized spans.
 ///
 /// Individual, invalid spans are discarded.
-pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
+pub fn expand(spans: Managed<SerializedSpans>) -> Managed<ExpandedSpans> {
     spans.map(|spans, records| {
+        let SerializedSpans {
+            headers,
+            spans,
+            legacy,
+            integrations,
+            attachments,
+        } = spans;
+
         let mut all_spans = Vec::new();
 
-        for item in &spans.inner.spans {
+        for item in &spans {
             let expanded = expand_span_container(item);
             let expanded = records.or_default(expanded, item);
             all_spans.extend(expanded);
         }
 
-        for item in &spans.inner.legacy {
+        for item in &legacy {
             match expand_legacy_span(item) {
                 Ok(span) => all_spans.push(span),
                 Err(err) => drop(records.reject_err(err, item)),
             }
         }
 
-        spans::integrations::expand_into(&mut all_spans, records, spans.inner.integrations);
+        spans::integrations::expand_into(&mut all_spans, records, integrations);
 
         let mut span_id_mapping: BTreeMap<_, _> = BTreeMap::new();
         for span in all_spans {
@@ -54,7 +62,7 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
         }
 
         let mut stand_alone_attachments: Vec<ExpandedAttachment> = Vec::new();
-        for attachment in spans.inner.attachments {
+        for attachment in attachments {
             match parse_and_validate_span_attachment(&attachment) {
                 Ok((None, attachment)) => {
                     stand_alone_attachments.push(attachment);
@@ -77,9 +85,9 @@ pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
         }
 
         ExpandedSpans {
-            headers: spans.inner.headers,
-            server_sample_rate: spans.server_sample_rate,
+            headers,
             spans: span_id_mapping.into_values().collect(),
+            server_sample_rate: None,
             stand_alone_attachments,
             category: spans::TotalAndIndexed,
         }
@@ -151,6 +159,7 @@ fn normalize_span(
         let dsc = headers.dsc();
         let duration = span_duration(span);
         let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
+        let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
         validate_timestamps(span)?;
 
@@ -167,8 +176,8 @@ fn normalize_span(
             eap::normalize_dsc(&mut span.attributes, dsc);
         }
         eap::normalize_ai(&mut span.attributes, duration, model_costs);
-
-        eap::normalize_attribute_values(&mut span.attributes);
+        eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
+        eap::write_legacy_attributes(&mut span.attributes);
     };
 
     process_value(span, &mut TrimmingProcessor::new(), ProcessingState::root())?;
@@ -258,40 +267,12 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use chrono::DateTime;
-    use relay_pii::{DataScrubbingConfig, PiiConfig};
+    use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;
-    use relay_sampling::evaluation::ReservoirCounters;
 
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
-
-    fn make_context(
-        scrubbing_config: DataScrubbingConfig,
-        pii_config: Option<PiiConfig>,
-    ) -> Context<'static> {
-        let config = Box::leak(Box::new(relay_config::Config::default()));
-        let global_config = Box::leak(Box::new(relay_dynamic_config::GlobalConfig::default()));
-        let project_info = Box::leak(Box::new(ProjectInfo {
-            config: relay_dynamic_config::ProjectConfig {
-                pii_config,
-                datascrubbing_settings: scrubbing_config,
-                ..Default::default()
-            },
-            ..Default::default()
-        }));
-        let rate_limits = Box::leak(Box::new(relay_quotas::RateLimits::default()));
-        let reservoir_counters = Box::leak(Box::new(ReservoirCounters::default()));
-
-        Context {
-            config,
-            global_config,
-            project_info,
-            rate_limits,
-            sampling_project_info: None,
-            reservoir_counters,
-        }
-    }
 
     #[test]
     fn test_scrub_span_pii_default_rules_links() {
@@ -328,17 +309,26 @@ mod tests {
 
         let mut data = Annotated::<SpanV2>::from_json(json).unwrap();
 
-        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
-        scrubbing_config.scrub_data = true;
-        scrubbing_config.scrub_defaults = true;
-        scrubbing_config.scrub_ip_addresses = true;
-        scrubbing_config.sensitive_fields = vec![
+        let mut datascrubbing_settings = relay_pii::DataScrubbingConfig::default();
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = true;
+        datascrubbing_settings.scrub_ip_addresses = true;
+        datascrubbing_settings.sensitive_fields = vec![
             "value".to_owned(), // Make sure the inner 'value' of the attribute object isn't scrubbed.
             "very_sensitive_data".to_owned(),
         ];
-        scrubbing_config.exclude_fields = vec!["public_data".to_owned()];
+        datascrubbing_settings.exclude_fields = vec!["public_data".to_owned()];
 
-        let ctx = make_context(scrubbing_config, None);
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    datascrubbing_settings,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
         scrub_span(&mut data, ctx).unwrap();
 
         let link = data.value().unwrap().links.value().unwrap()[0]
@@ -441,10 +431,10 @@ mod tests {
 
         let mut data = Annotated::<SpanV2>::from_json(json).unwrap();
 
-        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
-        scrubbing_config.scrub_data = true;
-        scrubbing_config.scrub_defaults = false;
-        scrubbing_config.scrub_ip_addresses = false;
+        let mut datascrubbing_settings = relay_pii::DataScrubbingConfig::default();
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = false;
+        datascrubbing_settings.scrub_ip_addresses = false;
 
         let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
         {
@@ -537,7 +527,17 @@ mod tests {
         ))
         .unwrap();
 
-        let ctx = make_context(scrubbing_config, Some(config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(config),
+                    datascrubbing_settings,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
         scrub_span(&mut data, ctx).unwrap();
         let link = data.value().unwrap().links.value().unwrap()[0]
             .value()

@@ -65,11 +65,17 @@ convention_attributes!(
     RPC_SERVICE => "rpc.service",
     SEGMENT_ID => "sentry.segment.id",
     SEGMENT_NAME => "sentry.segment.name",
+    SENTRY_ACTION => "sentry.action",
+    SENTRY_DOMAIN => "sentry.domain",
+    SENTRY_GROUP => "sentry.group",
+    SENTRY_NORMALIZED_DESCRIPTION => "sentry.normalized_description",
     SERVER_ADDRESS => "server.address",
     SPAN_KIND => "sentry.kind",
     STATUS_MESSAGE => "sentry.status.message",
     URL_FULL => "url.full",
     URL_PATH => "url.path",
+    URL_SCHEME => "url.scheme",
+    URL_DOMAIN => "url.domain",
     USER_AGENT_ORIGINAL => "user_agent.original",
     USER_GEO_CITY => "user.geo.city",
     USER_GEO_COUNTRY_CODE => "user.geo.country_code",
@@ -81,6 +87,13 @@ convention_attributes!(
 ///
 /// Really do not add to this list, at all, ever. The only reason this opt-out even exists to make a
 /// transition easier for attributes which Relay already uses but aren't yet in conventions.
-mod not_yet_defined {}
-#[expect(unused, reason = "no special attributes at the moment")]
+mod not_yet_defined {
+    // The legacy http request method attribute used by transactions spans.
+    // Could not be added to sentry conventions at the time due to an attribute naming conflict that
+    // requires updating the sentry conventions code gen.
+    // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
+    pub const LEGACY_HTTP_REQUEST_METHOD: &str = "http.request_method";
+
+    pub const WAS_TRANSACTION: &str = "sentry.was_transaction";
+}
 pub use self::not_yet_defined::*;

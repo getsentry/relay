@@ -49,6 +49,7 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
+use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_attachments::TraceAttachmentsProcessor;
@@ -97,7 +98,6 @@ mod event;
 mod metrics;
 mod nel;
 mod profile;
-mod profile_chunk;
 mod replay;
 mod report;
 mod span;
@@ -287,6 +287,7 @@ impl ProcessingGroup {
 
         let span_v2_items = envelope.take_items_by(|item| {
             let exp_feature = project_info.has_feature(Feature::SpanV2ExperimentalProcessing);
+            let otlp_feature = project_info.has_feature(Feature::SpanV2OtlpProcessing);
             let is_supported_integration = {
                 matches!(
                     item.integration(),
@@ -298,7 +299,7 @@ impl ProcessingGroup {
 
             ItemContainer::<SpanV2>::is_container(item)
                 || (exp_feature && is_span)
-                || (exp_feature && is_supported_integration)
+                || ((exp_feature || otlp_feature) && is_supported_integration)
                 || (exp_feature && is_span_attachment)
         });
 
@@ -1170,6 +1171,7 @@ struct Processing {
     spans: SpansProcessor,
     check_ins: CheckInsProcessor,
     sessions: SessionsProcessor,
+    profile_chunks: ProfileChunksProcessor,
     trace_attachments: TraceAttachmentsProcessor,
 }
 
@@ -1260,6 +1262,7 @@ impl EnvelopeProcessorService {
                 spans: SpansProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 check_ins: CheckInsProcessor::new(Arc::clone(&quota_limiter)),
                 sessions: SessionsProcessor::new(Arc::clone(&quota_limiter)),
+                profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(quota_limiter),
             },
             geoip_lookup,
@@ -1691,33 +1694,6 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
-    async fn process_profile_chunks(
-        &self,
-        managed_envelope: &mut TypedEnvelope<ProfileChunkGroup>,
-        ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        profile_chunk::filter(managed_envelope, ctx.project_info);
-
-        if_processing!(self.inner.config, {
-            profile_chunk::process(
-                managed_envelope,
-                ctx.project_info,
-                ctx.global_config,
-                ctx.config,
-            );
-        });
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut ProcessingExtractedMetrics::new(),
-            ctx,
-        )
-        .await?;
-
-        Ok(None)
-    }
-
     /// Processes standalone items that require an event ID, but do not have an event on the same envelope.
     async fn process_standalone(
         &self,
@@ -2006,7 +1982,12 @@ impl EnvelopeProcessorService {
             }
             ProcessingGroup::Span => run!(process_standalone_spans, project_id, ctx),
             ProcessingGroup::ProfileChunk => {
-                run!(process_profile_chunks, ctx)
+                self.process_with_processor(
+                    &self.inner.processing.profile_chunks,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
             }
             // Currently is not used.
             ProcessingGroup::Metrics => {

@@ -155,7 +155,7 @@ impl processing::Processor for SpansProcessor {
             integrations,
             attachments,
         };
-        Some(Managed::from_envelope(envelope, work))
+        Some(Managed::with_meta_from(envelope, work))
     }
 
     async fn process(
@@ -170,12 +170,12 @@ impl processing::Processor for SpansProcessor {
         dynamic_sampling::validate_configs(ctx);
         dynamic_sampling::validate_dsc_presence(&spans).reject(&spans)?;
 
-        let spans = match dynamic_sampling::run(spans, ctx).await {
+        let spans = process::expand(spans);
+
+        let mut spans = match dynamic_sampling::run(spans, ctx).await {
             Ok(spans) => spans,
             Err(metrics) => return Ok(Output::metrics(metrics)),
         };
-
-        let mut spans = process::expand(spans);
 
         dynamic_sampling::validate_dsc(&spans).reject(&spans)?;
 
@@ -314,13 +314,6 @@ impl SerializedSpans {
         } = self;
 
         outcome_count(spans) + outcome_count(legacy) + outcome_count(integrations)
-    }
-
-    fn sampled(self, server_sample_rate: Option<f64>) -> SampledSpans {
-        SampledSpans {
-            inner: self,
-            server_sample_rate,
-        }
     }
 }
 
@@ -670,24 +663,6 @@ impl Counted for ExpandedSpan {
         quantities.extend(attachments.quantities());
 
         quantities
-    }
-}
-
-/// Spans which have been sampled by dynamic sampling.
-///
-/// Note: Spans where dynamic sampling could not yet make a sampling decision,
-/// are considered sampled.
-struct SampledSpans {
-    /// Sampled spans.
-    inner: SerializedSpans,
-
-    /// Server side applied (dynamic) sample rate.
-    server_sample_rate: Option<f64>,
-}
-
-impl Counted for SampledSpans {
-    fn quantities(&self) -> Quantities {
-        self.inner.quantities()
     }
 }
 

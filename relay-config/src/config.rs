@@ -171,7 +171,16 @@ trait ConfigObject: DeserializeOwned + Serialize {
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, &path))?;
         let f = io::BufReader::new(f);
 
-        let mut source = serde_vars::EnvSource::default();
+        let mut source = {
+            let file = serde_vars::FileSource::default()
+                .with_variable_prefix("${file:")
+                .with_variable_suffix("}")
+                .with_base_path(base);
+            let env = serde_vars::EnvSource::default()
+                .with_variable_prefix("${")
+                .with_variable_suffix("}");
+            (file, env)
+        };
         match Self::format() {
             ConfigFormat::Yaml => {
                 serde_vars::deserialize(serde_yaml::Deserializer::from_reader(f), &mut source)
@@ -874,21 +883,7 @@ pub struct Http {
     /// Controls whether the forward endpoint is enabled.
     ///
     /// The forward endpoint forwards unknown API requests to the upstream.
-    pub forward: Forward,
-}
-
-/// Controls the forward endpoint.
-///
-/// See also: [`Http::forward`].
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
-pub enum Forward {
-    /// The endpoint is enabled.
-    Enabled,
-    /// The endpoint is disabled.
-    Disabled,
-    /// The endpoint is disabled and each request is logged.
-    DisabledLog,
+    pub forward: bool,
 }
 
 impl Default for Http {
@@ -904,7 +899,7 @@ impl Default for Http {
             project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
-            forward: Forward::Enabled,
+            forward: true,
         }
     }
 }
@@ -936,11 +931,6 @@ fn spool_envelopes_max_envelope_delay_secs() -> u64 {
 /// Default refresh frequency in ms for the disk usage monitoring.
 fn spool_disk_usage_refresh_frequency_ms() -> u64 {
     100
-}
-
-/// Default bounded buffer size for handling backpressure.
-fn spool_max_backpressure_envelopes() -> usize {
-    500
 }
 
 /// Default max memory usage for unspooling.
@@ -991,11 +981,6 @@ pub struct EnvelopeSpool {
     /// Defaults to 100ms.
     #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
     pub disk_usage_refresh_frequency_ms: u64,
-    /// The amount of envelopes that the envelope buffer can push to its output queue.
-    ///
-    /// Defaults to 500.
-    #[serde(default = "spool_max_backpressure_envelopes")]
-    pub max_backpressure_envelopes: usize,
     /// The relative memory usage above which the buffer service will stop dequeueing envelopes.
     ///
     /// Only applies when [`Self::path`] is set.
@@ -1045,7 +1030,6 @@ impl Default for EnvelopeSpool {
             batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
-            max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
         }
@@ -2104,8 +2088,8 @@ impl Config {
         self.values.http.global_metrics
     }
 
-    /// Returns settings for the forward endpoint.
-    pub fn http_forward(&self) -> Forward {
+    /// Returns `true` if Relay supports forwarding unknown API requests.
+    pub fn http_forward(&self) -> bool {
         self.values.http.forward
     }
 
@@ -2344,11 +2328,6 @@ impl Config {
     /// Returns the refresh frequency for disk usage monitoring as a [`Duration`] object.
     pub fn spool_disk_usage_refresh_frequency_ms(&self) -> Duration {
         Duration::from_millis(self.values.spool.envelopes.disk_usage_refresh_frequency_ms)
-    }
-
-    /// Returns the maximum number of envelopes that can be put in the bounded buffer.
-    pub fn spool_max_backpressure_envelopes(&self) -> usize {
-        self.values.spool.envelopes.max_backpressure_envelopes
     }
 
     /// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
