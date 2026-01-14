@@ -88,9 +88,9 @@ impl Processor for TrimmingProcessor {
     ) -> ProcessingResult {
         // If we encounter a max_bytes or max_depth attribute it
         // resets the size and depth that is permitted below it.
-        if state.attrs().max_bytes.is_some() || state.attrs().max_depth.is_some() {
+        if state.max_bytes().is_some() || state.attrs().max_depth.is_some() {
             self.size_state.push(SizeState {
-                size_remaining: state.attrs().max_bytes,
+                size_remaining: state.max_bytes(),
                 encountered_at_depth: state.depth(),
                 max_depth: state.attrs().max_depth,
             });
@@ -131,7 +131,7 @@ impl Processor for TrimmingProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if let Some(max_chars) = state.attrs().max_chars {
+        if let Some(max_chars) = state.max_chars() {
             crate::trimming::trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
 
