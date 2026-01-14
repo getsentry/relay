@@ -439,12 +439,19 @@ mod tests {
     use super::*;
 
     use crate::annotated::Annotated;
-    use crate::value::{Object, Value};
+    use crate::value::{Array, Object, Value};
 
     #[test]
     fn test_estimate_size() {
         let json = r#"{"a":["Hello","World","aha","hmm",false,{"blub":42,"x":true},null]}"#;
         let value = Annotated::<Object<Value>>::from_json(json).unwrap();
         assert_eq!(estimate_size(value.value()), json.len());
+    }
+
+    #[test]
+    fn test_estimate_size_flat_scalars() {
+        let json = r#"[-17,"foobar",true]"#;
+        let value = Annotated::<Array<Value>>::from_json(json).unwrap();
+        assert_eq!(estimate_size_flat(value.value()), 2);
     }
 }
