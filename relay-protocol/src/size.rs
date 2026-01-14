@@ -107,7 +107,7 @@ impl ser::Serializer for &mut SizeEstimatingSerializer {
 
     #[inline]
     fn serialize_i64(self, v: i64) -> Result<(), Error> {
-        self.size += &v.to_string().len();
+        self.count_size(v.to_string().len());
         Ok(())
     }
 
@@ -422,7 +422,7 @@ impl ser::SerializeStructVariant for &mut SizeEstimatingSerializer {
         T: ?Sized + Serialize,
     {
         self.count_comma_sep();
-        self.size += 2;
+        self.count_size(2);
         key.serialize(&mut **self)?;
         value.serialize(&mut **self)
     }
