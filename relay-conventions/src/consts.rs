@@ -67,6 +67,7 @@ convention_attributes!(
     SEGMENT_ID => "sentry.segment.id",
     SEGMENT_NAME => "sentry.segment.name",
     SENTRY_ACTION => "sentry.action",
+    SENTRY_CATEGORY => "sentry.category",
     SENTRY_DOMAIN => "sentry.domain",
     SENTRY_GROUP => "sentry.group",
     SENTRY_NORMALIZED_DESCRIPTION => "sentry.normalized_description",

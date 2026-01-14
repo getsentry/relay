@@ -45,10 +45,6 @@ pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
 /// already set.  The category is derived from the span operation or other span
 /// attributes.
 pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
-    // TODO(mjq): Define these constants in sentry-conventions.
-    const SENTRY_CATEGORY: &str = "sentry.category";
-    const AUTO_UI_BROWSER_METRICS: &str = "auto.ui.browser.metrics";
-
     // Clients can explicitly set the category.
     if attributes
         .value()
@@ -92,7 +88,7 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
     } else if attributes_val
         .get_value(ORIGIN)
         .and_then(|v| v.as_str())
-        .is_some_and(|v| v == AUTO_UI_BROWSER_METRICS)
+        .is_some_and(|v| v == "auto.ui.browser.metrics")
     {
         Some("browser")
     } else {
