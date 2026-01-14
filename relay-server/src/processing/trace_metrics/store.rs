@@ -11,7 +11,9 @@ use uuid::Uuid;
 
 use crate::envelope::WithHeader;
 use crate::processing::trace_metrics::{Error, Result};
-use crate::processing::utils::store::{extract_client_sample_rate, extract_meta_attributes};
+use crate::processing::utils::store::{
+    extract_client_sample_rate, extract_meta_attributes, uuid_to_item_id,
+};
 use crate::processing::{self, Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
@@ -69,7 +71,7 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         downsampled_retention_days: ctx.retention.downsampled.into(),
         timestamp: Some(ts(timestamp.0)),
         trace_id: required!(metric.trace_id).to_string(),
-        item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
+        item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
         attributes: attributes(meta, attrs, fields),
         client_sample_rate,
         server_sample_rate: 1.0,

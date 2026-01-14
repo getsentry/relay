@@ -347,15 +347,6 @@ pub async fn handle_envelope(
 
     let project_key = envelope.meta().public_key();
 
-    // Prefetch sampling project key, current spooling implementations rely on this behavior.
-    //
-    // To be changed once spool v1 has been removed.
-    if let Some(sampling_project_key) = envelope.sampling_key()
-        && sampling_project_key != project_key
-    {
-        state.project_cache_handle().fetch(sampling_project_key);
-    }
-
     let rate_limits = state
         .project_cache_handle()
         .get(project_key)
