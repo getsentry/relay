@@ -17,7 +17,6 @@ use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, GlobalConfig, ProjectConfig,
 };
 use relay_event_normalization::AiOperationTypeMap;
-use relay_event_normalization::span::ai::enrich_ai_span;
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
     GeoIpLookup, MeasurementsConfig, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo,
@@ -69,17 +68,24 @@ pub async fn process(
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
+
+    // Extract metadata we need before we move/borrow managed_envelope mutably
+    let client_name =
+        crate::utils::client_name_tag(managed_envelope.envelope().meta().client_name()).to_owned();
+    let client_ip_opt = managed_envelope
+        .envelope()
+        .meta()
+        .client_addr()
+        .map(IpAddr::from);
+
     let normalize_span_config = NormalizeSpanConfig::new(
         ctx.config,
         ctx.global_config,
         ctx.project_info.config(),
         managed_envelope,
-        managed_envelope
-            .envelope()
-            .meta()
-            .client_addr()
-            .map(IpAddr::from),
+        client_ip_opt,
         geo_lookup,
+        &client_name,
     );
 
     let client_ip = managed_envelope.envelope().meta().client_addr();
@@ -262,6 +268,8 @@ struct NormalizeSpanConfig<'a> {
     /// An initialized GeoIP lookup.
     geo_lookup: &'a GeoIpLookup,
     span_op_defaults: BorrowedSpanOpDefaults<'a>,
+    /// The SDK client name for metrics tracking.
+    client_name: &'a str,
 }
 
 impl<'a> NormalizeSpanConfig<'a> {
@@ -272,6 +280,7 @@ impl<'a> NormalizeSpanConfig<'a> {
         managed_envelope: &ManagedEnvelope,
         client_ip: Option<IpAddr>,
         geo_lookup: &'a GeoIpLookup,
+        client_name: &'a str,
     ) -> Self {
         let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
 
@@ -301,6 +310,7 @@ impl<'a> NormalizeSpanConfig<'a> {
             client_ip,
             geo_lookup,
             span_op_defaults: global_config.span_op_defaults.borrow(),
+            client_name,
         }
     }
 }
@@ -357,6 +367,7 @@ fn normalize(
         client_ip,
         geo_lookup,
         span_op_defaults,
+        client_name,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -456,7 +467,34 @@ fn normalize(
 
     normalize_performance_score(span, performance_score);
 
-    enrich_ai_span(span, ai_model_costs, ai_operation_type_map);
+    let cost_status = relay_event_normalization::span::ai::enrich_ai_span(
+        span,
+        ai_model_costs,
+        ai_operation_type_map,
+    );
+
+    // Emit AI cost calculation metric if a cost calculation was attempted
+    if let Some(status) = cost_status {
+        use relay_event_normalization::span::ai::CostCalculationStatus;
+        let status_tag = match status {
+            CostCalculationStatus::Positive => "calculation_positive",
+            CostCalculationStatus::Negative => "calculation_negative",
+            CostCalculationStatus::Failed => "calculation_failed",
+        };
+
+        // Determine origin - use "manual" for manual instrumentation (other/unknown SDKs)
+        let origin = if client_name == "other" {
+            "manual"
+        } else {
+            client_name
+        };
+
+        relay_statsd::metric!(
+            counter(RelayCounters::AiCostCalculation) += 1,
+            status = status_tag,
+            origin = origin,
+        );
+    }
 
     tag_extraction::extract_measurements(span, is_mobile);
 
@@ -818,6 +856,7 @@ mod tests {
             client_ip: Some(IpAddr("2.125.160.216".to_owned())),
             geo_lookup: &GEO_LOOKUP,
             span_op_defaults: Default::default(),
+            client_name: "other",
         }
     }
 
