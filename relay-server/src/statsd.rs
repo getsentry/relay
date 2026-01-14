@@ -1030,3 +1030,16 @@ impl CounterMetric for RelayCounters {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ai_cost_calculation_metric_name() {
+        assert_eq!(
+            RelayCounters::AiCostCalculation.name(),
+            "ai.cost_calculation"
+        );
+    }
+}
