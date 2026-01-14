@@ -26,6 +26,7 @@ def test_ai_spans_example_transaction(
                 "outputPerToken": 0.02,
                 "outputReasoningPerToken": 0.03,
                 "inputCachedPerToken": 0.0,
+                "inputCacheWritePerToken": 0.0,
             },
         },
     }

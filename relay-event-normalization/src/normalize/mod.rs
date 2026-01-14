@@ -367,6 +367,8 @@ pub struct ModelCostV2 {
     pub output_reasoning_per_token: f64,
     /// The cost per input cached token
     pub input_cached_per_token: f64,
+    /// The cost per input cache write token
+    pub input_cache_write_per_token: f64,
 }
 
 /// A mapping of AI operation types from span.op to gen_ai.operation.type.
@@ -463,7 +465,7 @@ mod tests {
     #[test]
     fn test_model_cost_version_sent_as_number() {
         // Test integer version 2
-        let original_v2 = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
+        let original_v2 = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015,"inputCacheWritePerToken":0.0}}}"#;
         let deserialized_v2: ModelCosts = serde_json::from_str(original_v2).unwrap();
         assert_debug_snapshot!(
             deserialized_v2,
@@ -486,6 +488,7 @@ mod tests {
                     output_per_token: 0.06,
                     output_reasoning_per_token: 0.12,
                     input_cached_per_token: 0.015,
+                    input_cache_write_per_token: 0.0,
                 },
             },
         }
@@ -501,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_model_cost_config_v2() {
-        let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
+        let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015,"inputCacheWritePerToken":0.0}}}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
         assert_debug_snapshot!(deserialized, @r#"
         ModelCosts {
@@ -522,6 +525,7 @@ mod tests {
                     output_per_token: 0.06,
                     output_reasoning_per_token: 0.12,
                     input_cached_per_token: 0.015,
+                    input_cache_write_per_token: 0.0,
                 },
             },
         }
@@ -542,6 +546,7 @@ mod tests {
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
                 input_cached_per_token: 0.015,
+                input_cache_write_per_token: 0.0,
             },
         );
         let v2_config = ModelCosts {
@@ -557,6 +562,7 @@ mod tests {
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
                 input_cached_per_token: 0.015,
+                input_cache_write_per_token: 0.0,
             }
         );
     }
@@ -572,6 +578,7 @@ mod tests {
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
                 input_cached_per_token: 0.015,
+                input_cache_write_per_token: 0.0,
             },
         );
         models_map.insert(
@@ -581,6 +588,7 @@ mod tests {
                 output_per_token: 0.0008,
                 output_reasoning_per_token: 0.0016,
                 input_cached_per_token: 0.00035,
+                input_cache_write_per_token: 0.0,
             },
         );
 
@@ -599,6 +607,7 @@ mod tests {
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
                 input_cached_per_token: 0.015,
+                input_cache_write_per_token: 0.0,
             }
         );
 
@@ -610,6 +619,7 @@ mod tests {
                 output_per_token: 0.0008,
                 output_reasoning_per_token: 0.0016,
                 input_cached_per_token: 0.00035,
+                input_cache_write_per_token: 0.0,
             }
         );
 
@@ -619,7 +629,7 @@ mod tests {
     #[test]
     fn test_model_cost_unknown_version() {
         // Test that unknown versions are handled properly
-        let unknown_version_json = r#"{"version":3,"models":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005}}}"#;
+        let unknown_version_json = r#"{"version":3,"models":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005,"inputCacheWritePerToken":0.0}}}"#;
         let deserialized: ModelCosts = serde_json::from_str(unknown_version_json).unwrap();
         assert_eq!(deserialized.version, 3);
         assert!(!deserialized.is_enabled());

@@ -16,6 +16,10 @@ pub struct UsedTokens {
     ///
     /// This is a subset of [`Self::input_tokens`].
     pub input_cached_tokens: f64,
+    /// Amount of cache write tokens used.
+    ///
+    /// This is a subset of [`Self::input_tokens`].
+    pub input_cache_write_tokens: f64,
     /// Total amount of output tokens.
     pub output_tokens: f64,
     /// Total amount of reasoning tokens.
@@ -38,6 +42,7 @@ impl UsedTokens {
             output_tokens: get_value!(data.gen_ai_usage_output_tokens),
             output_reasoning_tokens: get_value!(data.gen_ai_usage_output_tokens_reasoning),
             input_cached_tokens: get_value!(data.gen_ai_usage_input_tokens_cached),
+            input_cache_write_tokens: get_value!(data.gen_ai_usage_input_tokens_cache_write),
         }
     }
 
@@ -86,7 +91,8 @@ pub fn calculate_costs(model_cost: &ModelCostV2, tokens: UsedTokens) -> Option<C
     }
 
     let input = (tokens.raw_input_tokens() * model_cost.input_per_token)
-        + (tokens.input_cached_tokens * model_cost.input_cached_per_token);
+        + (tokens.input_cached_tokens * model_cost.input_cached_per_token)
+        + (tokens.input_cache_write_tokens * model_cost.input_cache_write_per_token);
 
     // For now most of the models do not differentiate between reasoning and output token cost,
     // it costs the same.
@@ -340,6 +346,7 @@ mod tests {
                 output_per_token: 1.0,
                 output_reasoning_per_token: 1.0,
                 input_cached_per_token: 1.0,
+                input_cache_write_per_token: 1.0,
             },
             UsedTokens::from_span_data(&SpanData::default()),
         );
@@ -354,10 +361,12 @@ mod tests {
                 output_per_token: 2.0,
                 output_reasoning_per_token: 3.0,
                 input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.75,
             },
             UsedTokens {
                 input_tokens: 8.0,
                 input_cached_tokens: 5.0,
+                input_cache_write_tokens: 0.0,
                 output_tokens: 15.0,
                 output_reasoning_tokens: 9.0,
             },
@@ -381,10 +390,12 @@ mod tests {
                 // Should fallback to output token cost for reasoning.
                 output_reasoning_per_token: 0.0,
                 input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.0,
             },
             UsedTokens {
                 input_tokens: 8.0,
                 input_cached_tokens: 5.0,
+                input_cache_write_tokens: 0.0,
                 output_tokens: 15.0,
                 output_reasoning_tokens: 9.0,
             },
@@ -410,10 +421,12 @@ mod tests {
                 output_per_token: 2.0,
                 output_reasoning_per_token: 1.0,
                 input_cached_per_token: 1.0,
+                input_cache_write_per_token: 1.5,
             },
             UsedTokens {
                 input_tokens: 1.0,
                 input_cached_tokens: 11.0,
+                input_cache_write_tokens: 0.0,
                 output_tokens: 1.0,
                 output_reasoning_tokens: 9.0,
             },
@@ -424,6 +437,73 @@ mod tests {
         CalculatedCost {
             input: -9.0,
             output: -7.0,
+        }
+        ");
+    }
+
+    #[test]
+    fn test_calculate_cost_with_cache_writes() {
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 1.0,
+                output_per_token: 2.0,
+                output_reasoning_per_token: 3.0,
+                input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.75,
+            },
+            UsedTokens {
+                input_tokens: 100.0,
+                input_cached_tokens: 20.0,
+                input_cache_write_tokens: 30.0,
+                output_tokens: 50.0,
+                output_reasoning_tokens: 10.0,
+            },
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(cost, @r"
+        CalculatedCost {
+            input: 112.5,
+            output: 110.0,
+        }
+        ");
+    }
+
+    #[test]
+    fn test_calculate_cost_backward_compatibility_no_cache_write() {
+        // Test that cost calculation works when cache_write field is missing (backward compatibility)
+        let span_data = SpanData {
+            gen_ai_usage_input_tokens: Annotated::new(100.0.into()),
+            gen_ai_usage_input_tokens_cached: Annotated::new(20.0.into()),
+            gen_ai_usage_output_tokens: Annotated::new(50.0.into()),
+            // Note: gen_ai_usage_input_tokens_cache_write is NOT set (simulating old data)
+            ..Default::default()
+        };
+
+        let tokens = UsedTokens::from_span_data(&span_data);
+
+        // Verify cache_write_tokens defaults to 0.0
+        assert_eq!(tokens.input_cache_write_tokens, 0.0);
+
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 1.0,
+                output_per_token: 2.0,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.75,
+            },
+            tokens,
+        )
+        .unwrap();
+
+        // Cost should be calculated without cache_write_tokens
+        // input: (100 - 20) * 1.0 + 20 * 0.5 + 0 * 0.75 = 80 + 10 + 0 = 90
+        // output: 50 * 2.0 = 100
+        insta::assert_debug_snapshot!(cost, @r"
+        CalculatedCost {
+            input: 90.0,
+            output: 100.0,
         }
         ");
     }
