@@ -45,17 +45,14 @@ pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
 /// already set.  The category is derived from the span operation or other span
 /// attributes.
 pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
-    // Clients can explicitly set the category.
-    if attributes
-        .value()
-        .is_some_and(|attrs| attrs.contains_key(SENTRY_CATEGORY))
-    {
-        return;
-    }
-
     let Some(attributes_val) = attributes.value() else {
         return;
     };
+
+    // Clients can explicitly set the category.
+    if attribute_is_nonempty_string(attributes_val, SENTRY_CATEGORY) {
+        return;
+    }
 
     // Try to derive category from sentry.op.
     if let Some(op_value) = attributes_val.get_value(OP)
@@ -69,21 +66,14 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
         }
     }
 
-    fn attribute_is_set(attributes: &Attributes, key: &str) -> bool {
-        attributes
-            .get_value(key)
-            .and_then(|v| v.as_str())
-            .is_some_and(|s| !s.is_empty())
-    }
-
     // Without an op, rely on attributes typically found only on spans of the given category.
-    let category = if attribute_is_set(attributes_val, DB_SYSTEM_NAME) {
+    let category = if attribute_is_nonempty_string(attributes_val, DB_SYSTEM_NAME) {
         Some("db")
-    } else if attribute_is_set(attributes_val, HTTP_REQUEST_METHOD) {
+    } else if attribute_is_nonempty_string(attributes_val, HTTP_REQUEST_METHOD) {
         Some("http")
-    } else if attribute_is_set(attributes_val, UI_COMPONENT_NAME) {
+    } else if attribute_is_nonempty_string(attributes_val, UI_COMPONENT_NAME) {
         Some("ui")
-    } else if attribute_is_set(attributes_val, RESOURCE_RENDER_BLOCKING_STATUS) {
+    } else if attribute_is_nonempty_string(attributes_val, RESOURCE_RENDER_BLOCKING_STATUS) {
         Some("resource")
     } else if attributes_val
         .get_value(ORIGIN)
@@ -100,6 +90,13 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
         let attrs = attributes.get_or_insert_with(Default::default);
         attrs.insert(SENTRY_CATEGORY, category.to_owned());
     }
+}
+
+fn attribute_is_nonempty_string(attributes: &Attributes, key: &str) -> bool {
+    attributes
+        .get_value(key)
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| !s.is_empty())
 }
 
 /// Normalizes/validates all attribute types.
