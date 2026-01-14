@@ -1232,6 +1232,7 @@ def test_spansv2_attribute_normalization(
         "attributes": {
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.category": {"type": "string", "value": "db"},
             "sentry.op": {"type": "string", "value": "db"},
             "db.system.name": {"type": "string", "value": "mysql"},
             "db.operation.name": {"type": "string", "value": "SELECT"},
@@ -1270,6 +1271,7 @@ def test_spansv2_attribute_normalization(
         "attributes": {
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.category": {"type": "string", "value": "http"},
             "sentry.op": {"type": "string", "value": "http.client"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",

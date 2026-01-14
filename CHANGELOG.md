@@ -9,6 +9,7 @@
 **Features**:
 
 - Updates `rdkafka` to 2.10 which fixes some protocol incompatibilities with Kafka 4. ([#5523](https://github.com/getsentry/relay/pull/5523))
+- Add sentry.category normalization for V2 spans. ([#5533](https://github.com/getsentry/relay/pull/5533))
 - Include cache write token cost in cost calculation for gen_ai spans. ([#5530](https://github.com/getsentry/relay/pull/5530))
 
 **Bug Fixes**:
