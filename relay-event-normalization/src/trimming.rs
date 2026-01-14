@@ -136,9 +136,7 @@ impl Processor for TrimmingProcessor {
             return Ok(());
         }
 
-        if let Some(size_state) = self.size_state.last()
-            && let Some(size_remaining) = size_state.size_remaining
-        {
+        if let Some(size_remaining) = self.remaining_size() {
             trim_string(value, meta, size_remaining, 0);
         }
 
