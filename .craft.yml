@@ -1,55 +1,54 @@
-minVersion: "2.15.0"
+minVersion: 2.18.0
 changelog:
   policy: auto
-
 statusProvider:
   name: github
   config:
     contexts:
-      - "Build Docker Image (relay)"
-
+    - Build Docker Image (relay)
 targets:
-  - name: github
-  - name: registry
-    apps:
-      app:relay:
-        urlTemplate: https://downloads.sentry-cdn.com/relay/{{version}}/{{file}}
-        includeNames: /^relay-(Darwin|Linux|Windows).*$/i
-  - name: gcs
-    bucket: sentry-sdk-assets
-    includeNames: /^relay-(Darwin|Windows|Linux).*$/
-    paths:
-      - path: /relay/{{version}}/
-        metadata:
-          cacheControl: public, max-age=2592000
-      - path: /relay/latest/
-        metadata:
-          cacheControl: public, max-age=600
-  - id: release
-    name: docker
-    source: ghcr.io/getsentry/relay
-    target: ghcr.io/getsentry/relay
-  - id: release-dockerhub
-    name: docker
-    source: ghcr.io/getsentry/relay
-    target: getsentry/relay
-  - id: latest
-    name: docker
-    source: ghcr.io/getsentry/relay
-    target: ghcr.io/getsentry/relay
-    targetFormat: "{{{target}}}:latest"
-  - id: latest
-    name: docker
-    source: ghcr.io/getsentry/relay
-    target: getsentry/relay
-    targetFormat: "{{{target}}}:latest"
-
+- name: github
+- name: registry
+  apps:
+    app:relay:
+      urlTemplate: https://downloads.sentry-cdn.com/relay/{{version}}/{{file}}
+      includeNames: /^relay-(Darwin|Linux|Windows).*$/i
+- name: gcs
+  bucket: sentry-sdk-assets
+  includeNames: /^relay-(Darwin|Windows|Linux).*$/
+  paths:
+  - path: /relay/{{version}}/
+    metadata:
+      cacheControl: public, max-age=2592000
+  - path: /relay/latest/
+    metadata:
+      cacheControl: public, max-age=600
+- id: release
+  name: docker
+  source: ghcr.io/getsentry/relay
+  target: ghcr.io/getsentry/relay
+- id: release-dockerhub
+  name: docker
+  source: ghcr.io/getsentry/relay
+  target: getsentry/relay
+- id: latest
+  name: docker
+  source: ghcr.io/getsentry/relay
+  target: ghcr.io/getsentry/relay
+  targetFormat: '{{{target}}}:latest'
+- id: latest
+  name: docker
+  source: ghcr.io/getsentry/relay
+  target: getsentry/relay
+  targetFormat: '{{{target}}}:latest'
 requireNames:
-  - /^relay-Darwin-x86_64$/
-  - /^relay-Darwin-x86_64-dsym.zip$/
-  - /^relay-Linux-x86_64$/
-  - /^relay-Linux-x86_64-debug.zip$/
-  - /^relay-Linux-aarch64$/
-  - /^relay-Linux-aarch64-debug.zip$/
-  - /^relay-Windows-x86_64-pdb.zip$/
-  - /^relay-Windows-x86_64\.exe$/
+- /^relay-Darwin-x86_64$/
+- /^relay-Darwin-x86_64-dsym.zip$/
+- /^relay-Linux-x86_64$/
+- /^relay-Linux-x86_64-debug.zip$/
+- /^relay-Linux-aarch64$/
+- /^relay-Linux-aarch64-debug.zip$/
+- /^relay-Windows-x86_64-pdb.zip$/
+- /^relay-Windows-x86_64\.exe$/
+versioning:
+  policy: calver
