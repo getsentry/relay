@@ -32,12 +32,6 @@ pub fn extract_from_event(
         return None;
     }
 
-    if let Some(sample_rate) = global_config.options.span_extraction_sample_rate
-        && utils::sample(sample_rate).is_discard()
-    {
-        return None;
-    }
-
     let client_sample_rate = dsc.and_then(|ctx| ctx.sample_rate);
 
     let event = event.value()?;
@@ -365,25 +359,6 @@ mod tests {
                 .any(|item| item.as_ref().unwrap().ty() == &ItemType::Span),
             "{:?}",
             managed_envelope.envelope()
-        );
-    }
-
-    #[test]
-    fn extract_sampled_dropped() {
-        let mut global_config = GlobalConfig::default();
-        global_config.options.span_extraction_sample_rate = Some(0.0);
-        let (mut managed_envelope, event, _) = params();
-        assert!(
-            extract_from_event(
-                managed_envelope.envelope().dsc(),
-                &event,
-                &global_config,
-                &Default::default(),
-                None,
-                EventMetricsExtracted(false),
-                SpansExtracted(false),
-            )
-            .is_none()
         );
     }
 

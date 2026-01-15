@@ -49,7 +49,7 @@ pub struct ExtractMetricsConfig<'a> {
     pub sampling_decision: SamplingDecision,
     pub target_project_id: ProjectId,
     pub max_tag_value_size: usize,
-    pub extract_spans: bool,
+    pub extract_span_metrics: bool,
     pub transaction_from_dsc: Option<&'a str>,
 }
 
@@ -66,7 +66,7 @@ pub fn extract_metrics(event: &mut Event, config: ExtractMetricsConfig) -> Extra
         sampling_metrics: Vec::new(),
     };
 
-    if config.extract_spans {
+    if config.extract_span_metrics {
         extract_span_metrics_for_event(event, config, &mut metrics);
     }
 
@@ -1274,7 +1274,7 @@ mod tests {
                 sampling_decision: SamplingDecision::Keep,
                 target_project_id: ProjectId::new(4711),
                 max_tag_value_size: 200,
-                extract_spans: true,
+                extract_span_metrics: true,
                 transaction_from_dsc: Some("root_tx_name"),
             },
         )

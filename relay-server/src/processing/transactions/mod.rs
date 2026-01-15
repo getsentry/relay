@@ -298,7 +298,6 @@ impl Counted for ExpandedTransaction {
         let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
 
         let span_count = if flags.spans_extracted {
-            debug_assert!(!self.extracted_spans.is_empty());
             self.extracted_spans.len()
         } else {
             debug_assert!(self.extracted_spans.is_empty());
@@ -334,14 +333,6 @@ impl RateLimited for Managed<Box<ExpandedTransaction>> {
         R: RateLimiter,
     {
         let scoping = self.scoping();
-
-        // These debug assertions are here because this function does not check indexed or extracted
-        // span limits.
-        // TODO: encode flags into types instead.
-        debug_assert!(!self.flags.metrics_extracted);
-        debug_assert!(!self.flags.spans_extracted);
-
-        // FIXME: check indexed category if metrics extracted.
 
         // If there is a transaction limit, drop everything.
         // This also affects profiles that lost their transaction due to sampling.

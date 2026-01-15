@@ -105,6 +105,22 @@ pub fn prepare_data(
 
         utils::dsc::validate_and_set_dsc(&mut work.headers, &work.event, ctx);
 
+        // HACKish: The span extraction killswitch relies on a random number, so evaluate it only
+        // once and then pretend that spans were already extracted.
+        let span_extraction_sample_rate = ctx
+            .global_config
+            .options
+            .span_extraction_sample_rate
+            .unwrap_or(1.0);
+        if crate::utils::sample(span_extraction_sample_rate).is_discard() {
+            work.flags.spans_extracted = true;
+
+            // The kill switch is an emergency measure which breaks the product, so we accept
+            // omitting outcomes here:
+            record_keeper.lenient(DataCategory::Span);
+            record_keeper.lenient(DataCategory::SpanIndexed);
+        }
+
         utils::event::finalize(
             &work.headers,
             &mut work.event,
@@ -238,6 +254,9 @@ pub fn extract_metrics(
         Some(_) => SamplingDecision::Drop,
         None => SamplingDecision::Keep,
     };
+
+    // HACKish: If the killswitch for span extraction is on, we mark the transaction with
+    // `spans_extracted: true`
 
     work.try_map(|mut work, record_keeper| {
         let mut metrics = ProcessingExtractedMetrics::new();

@@ -124,14 +124,7 @@ pub fn extract_metrics(
     }
 
     // If spans were already extracted for an event, we rely on span processing to extract metrics.
-    let extract_spans = !spans_extracted
-        && crate::utils::sample(
-            ctx.global_config
-                .options
-                .span_extraction_sample_rate
-                .unwrap_or(1.0),
-        )
-        .is_keep();
+    let extract_span_metrics = !spans_extracted;
 
     let metrics = crate::metrics_extraction::event::extract_metrics(
         event,
@@ -143,7 +136,7 @@ pub fn extract_metrics(
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
                 .max_tag_value_length,
-            extract_spans,
+            extract_span_metrics,
             transaction_from_dsc: dsc.and_then(|dsc| dsc.transaction.as_deref()),
         },
     );
