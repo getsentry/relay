@@ -1010,7 +1010,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
             RelayCounters::CogsUsage => "cogs.usage",
-            RelayCounters::AiCostCalculation => "ai.cost_calculation",
+            RelayCounters::AiCostCalculation => "agent_monitoring.cost_calculation",
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
