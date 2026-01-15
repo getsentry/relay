@@ -24,6 +24,8 @@ use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
 mod size;
+#[allow(unused)]
+mod trimming;
 
 pub use self::ai::normalize_ai;
 pub use self::size::*;

@@ -297,7 +297,12 @@ impl Processor for TrimmingProcessor {
 }
 
 /// Trims the string to the given maximum length and updates meta data.
-fn trim_string(value: &mut String, meta: &mut Meta, max_chars: usize, max_chars_allowance: usize) {
+pub(crate) fn trim_string(
+    value: &mut String,
+    meta: &mut Meta,
+    max_chars: usize,
+    max_chars_allowance: usize,
+) {
     let hard_limit = max_chars + max_chars_allowance;
 
     if bytecount::num_chars(value.as_bytes()) <= hard_limit {
