@@ -55,6 +55,7 @@ pub fn client_name_tag(client_name: ClientName<'_>) -> &str {
 ///
 /// Returns "other" for unknown/unrecognized SDKs, or the well-known SDK name.
 /// "manual" should be used for manually instrumented spans (not SDK-generated).
+#[cfg(feature = "processing")]
 pub fn ai_origin_tag(client_name: ClientName<'_>) -> &'static str {
     match client_name {
         ClientName::Relay => "sentry.relay",

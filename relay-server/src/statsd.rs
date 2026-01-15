@@ -913,6 +913,7 @@ pub enum RelayCounters {
     /// - `origin`: The SDK origin, one of the well-known SDK names (e.g., "sentry.python",
     ///   "sentry.javascript.node"), "manual" for manually instrumented spans, or "other" for
     ///   unknown/unrecognized SDKs. Uses a cardinality-protected list similar to the `sdk` tag.
+    #[cfg(feature = "processing")]
     AiCostCalculation,
     /// The amount of times metrics of a project have been flushed without the project being
     /// fetched/available.
@@ -1010,6 +1011,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
             RelayCounters::CogsUsage => "cogs.usage",
+            #[cfg(feature = "processing")]
             RelayCounters::AiCostCalculation => "agent_monitoring.cost_calculation",
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
