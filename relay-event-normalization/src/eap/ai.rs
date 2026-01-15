@@ -89,6 +89,7 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
     let tokens = ai::UsedTokens {
         input_tokens: get_tokens(GEN_AI_USAGE_INPUT_TOKENS),
         input_cached_tokens: get_tokens(GEN_AI_USAGE_INPUT_CACHED_TOKENS),
+        input_cache_write_tokens: get_tokens(GEN_AI_USAGE_INPUT_CACHE_WRITE_TOKENS),
         output_tokens: get_tokens(GEN_AI_USAGE_OUTPUT_TOKENS),
         output_reasoning_tokens: get_tokens(GEN_AI_USAGE_OUTPUT_REASONING_TOKENS),
     };
@@ -133,6 +134,7 @@ mod tests {
                         output_per_token: 0.02,
                         output_reasoning_per_token: 0.03,
                         input_cached_per_token: 0.04,
+                        input_cache_write_per_token: 0.0,
                     },
                 ),
                 (
@@ -142,6 +144,7 @@ mod tests {
                         output_per_token: 0.05,
                         output_reasoning_per_token: 0.0,
                         input_cached_per_token: 0.0,
+                        input_cache_write_per_token: 0.0,
                     },
                 ),
             ]),

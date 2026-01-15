@@ -136,9 +136,7 @@ impl Processor for TrimmingProcessor {
             return Ok(());
         }
 
-        if let Some(size_state) = self.size_state.last()
-            && let Some(size_remaining) = size_state.size_remaining
-        {
+        if let Some(size_remaining) = self.remaining_size() {
             trim_string(value, meta, size_remaining, 0);
         }
 
@@ -447,7 +445,7 @@ mod tests {
         Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, PairList, SentryTags, Span,
         SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
     };
-    use relay_protocol::{Map, Remark, SerializableAnnotated, get_value};
+    use relay_protocol::{FromValue, IntoValue, Map, Remark, SerializableAnnotated, get_value};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -602,6 +600,60 @@ mod tests {
         let stripped_extra = SerializableAnnotated(&event.value().unwrap().extra);
 
         insta::assert_ron_snapshot!(stripped_extra);
+    }
+
+    /// Tests that a trimming a string takes a lower outer limit into account.
+    #[test]
+    fn test_string_trimming_limits() {
+        #[derive(ProcessValue, IntoValue, FromValue, Empty, Debug, Clone)]
+        struct Outer {
+            #[metastructure(max_bytes = 10)]
+            inner: Annotated<Inner>,
+        }
+
+        #[derive(ProcessValue, IntoValue, FromValue, Empty, Debug, Clone)]
+        struct Inner {
+            #[metastructure(max_bytes = 20)]
+            innerer: Annotated<String>,
+        }
+
+        let mut processor = TrimmingProcessor::new();
+
+        let mut outer = Annotated::new({
+            Outer {
+                inner: Annotated::new(Inner {
+                    innerer: Annotated::new("This string is 28 bytes long".into()),
+                }),
+            }
+        });
+
+        processor::process_value(&mut outer, &mut processor, ProcessingState::root()).unwrap();
+        let stripped = SerializableAnnotated(&outer);
+
+        insta::assert_ron_snapshot!(stripped, @r###"
+        {
+          "inner": {
+            "innerer": "This st...",
+          },
+          "_meta": {
+            "inner": {
+              "innerer": {
+                "": Meta(Some(MetaInner(
+                  rem: [
+                    [
+                      "!limit",
+                      s,
+                      7,
+                      10,
+                    ],
+                  ],
+                  len: Some(28),
+                ))),
+              },
+            },
+          },
+        }
+        "###);
     }
 
     #[test]

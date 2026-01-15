@@ -9,6 +9,8 @@
 **Features**:
 
 - Updates `rdkafka` to 2.10 which fixes some protocol incompatibilities with Kafka 4. ([#5523](https://github.com/getsentry/relay/pull/5523))
+- Add sentry.category normalization for V2 spans. ([#5533](https://github.com/getsentry/relay/pull/5533))
+- Include cache write token cost in cost calculation for gen_ai spans. ([#5530](https://github.com/getsentry/relay/pull/5530))
 
 **Bug Fixes**:
 
@@ -21,6 +23,7 @@
 - Release Docker image to GHCR and DockerHub via Craft. ([#5509](https://github.com/getsentry/relay/pull/5509))
 - Tag span `usage` and `count_per_root_project` metrics with segment information. ([#5511](https://github.com/getsentry/relay/pull/5511))
 - Experimental support for loading configuration values from files. ([#5531](https://github.com/getsentry/relay/pull/5531))
+- Remove support for global quotas. ([#5534](https://github.com/getsentry/relay/pull/5534))
 
 ## 25.12.1
 

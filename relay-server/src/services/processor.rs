@@ -75,7 +75,6 @@ use crate::{http, processing};
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
-    crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
     crate::services::upload::Upload,
@@ -1127,8 +1126,6 @@ pub struct Addrs {
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
-    #[cfg(feature = "processing")]
-    pub global_rate_limits: Option<Addr<GlobalRateLimits>>,
 }
 
 impl Default for Addrs {
@@ -1141,8 +1138,6 @@ impl Default for Addrs {
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator: Addr::dummy(),
-            #[cfg(feature = "processing")]
-            global_rate_limits: None,
         }
     }
 }
@@ -1157,7 +1152,7 @@ struct InnerProcessor {
     quotas_client: Option<AsyncRedisClient>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
-    rate_limiter: Option<Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>>,
+    rate_limiter: Option<Arc<RedisRateLimiter>>,
     geoip_lookup: GeoIpLookup,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
@@ -1212,17 +1207,11 @@ impl EnvelopeProcessorService {
         };
 
         #[cfg(feature = "processing")]
-        let global_rate_limits = addrs.global_rate_limits.clone().map(Into::into);
-
-        #[cfg(feature = "processing")]
-        let rate_limiter = match (quotas.clone(), global_rate_limits) {
-            (Some(redis), Some(global)) => Some(
-                RedisRateLimiter::new(redis, global)
-                    .max_limit(config.max_rate_limit())
-                    .cache(config.quota_cache_ratio(), config.quota_cache_max()),
-            ),
-            _ => None,
-        };
+        let rate_limiter = quotas.clone().map(|redis| {
+            RedisRateLimiter::new(redis)
+                .max_limit(config.max_rate_limit())
+                .cache(config.quota_cache_ratio(), config.quota_cache_max())
+        });
 
         let quota_limiter = Arc::new(QuotaRateLimiter::new(
             #[cfg(feature = "processing")]
@@ -3014,7 +3003,7 @@ impl EnforcementResult {
 enum RateLimiter {
     Cached,
     #[cfg(feature = "processing")]
-    Consistent(Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>),
+    Consistent(Arc<RedisRateLimiter>),
 }
 
 impl RateLimiter {

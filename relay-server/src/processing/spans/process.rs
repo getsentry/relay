@@ -163,7 +163,11 @@ fn normalize_span(
 
         validate_timestamps(span)?;
 
+        // normalize_sentry_op must be called before normalize_span_category
+        // because category derivation depends on having the sentry.op attribute
+        // available.
         eap::normalize_sentry_op(&mut span.attributes);
+        eap::normalize_span_category(&mut span.attributes);
         eap::normalize_attribute_types(&mut span.attributes);
         eap::normalize_attribute_names(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());

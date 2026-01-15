@@ -7,8 +7,6 @@ use relay_event_schema::protocol::EventId;
 
 use relay_sampling::DynamicSamplingContext;
 use relay_system::Addr;
-#[cfg(feature = "processing")]
-use relay_system::Service;
 use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
@@ -17,8 +15,6 @@ use crate::metrics::MetricOutcomes;
 #[cfg(feature = "processing")]
 use crate::service::create_redis_clients;
 use crate::services::global_config::GlobalConfigHandle;
-#[cfg(feature = "processing")]
-use crate::services::global_rate_limits::GlobalRateLimitsService;
 use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcessorServicePool};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::utils::ThreadPoolBuilder;
@@ -96,11 +92,6 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         .transpose()
         .unwrap();
 
-    #[cfg(feature = "processing")]
-    let global_rate_limits = redis_clients
-        .as_ref()
-        .map(|p| GlobalRateLimitsService::new(p.quotas.clone()).start_detached());
-
     let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
 
     let config = Arc::new(config);
@@ -120,8 +111,6 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             upload: None,
             aggregator,
-            #[cfg(feature = "processing")]
-            global_rate_limits,
         },
         metric_outcomes,
     )
