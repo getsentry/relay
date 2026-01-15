@@ -34,6 +34,9 @@ use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::SamplingResult;
 
 /// Parses the event payload.
+///
+/// This function boxes the resulting [`ExpandedTransaction`] because keeping it on the stack
+/// causes stack overflows in unit tests when run without optimizations.
 pub fn expand(
     work: Managed<SerializedTransaction>,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
@@ -69,6 +72,16 @@ pub fn expand(
                 ))),
                 additional_profile,
             );
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            // Fix broken span count headers
+            use relay_protocol::get_value;
+            let embedded = get_value!(event.spans).map_or(0, Vec::len);
+            let diff = embedded as isize - transaction_item.span_count() as isize;
+            record_keeper.modify_by(DataCategory::Span, diff);
+            record_keeper.modify_by(DataCategory::SpanIndexed, diff);
         }
 
         Ok::<_, Error>(Box::new(ExpandedTransaction {
