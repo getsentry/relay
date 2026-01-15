@@ -133,7 +133,6 @@ impl ItemScoping {
     /// or `None` if the scope type doesn't have an applicable identifier.
     pub fn scope_id(&self, scope: QuotaScope) -> Option<u64> {
         match scope {
-            QuotaScope::Global => None,
             QuotaScope::Organization => Some(self.organization_id.value()),
             QuotaScope::Project => Some(self.project_id.value()),
             QuotaScope::Key => self.key_id,
@@ -249,7 +248,7 @@ impl FromIterator<DataCategory> for DataCategories {
 
 /// The scope at which a quota is applied.
 ///
-/// Defines the granularity at which quotas are enforced, from global (affecting all data)
+/// Defines the granularity at which quotas are enforced, from organizations
 /// down to individual project keys. This enum only defines the type of scope,
 /// not the specific instance.
 ///
@@ -258,8 +257,6 @@ impl FromIterator<DataCategory> for DataCategories {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QuotaScope {
-    /// Global scope, matching all data regardless of origin.
-    Global,
     /// The organization level.
     ///
     /// This is the top-level scope.
@@ -286,7 +283,6 @@ impl QuotaScope {
     /// If the string doesn't match any known scope, returns [`QuotaScope::Unknown`].
     pub fn from_name(string: &str) -> Self {
         match string {
-            "global" => Self::Global,
             "organization" => Self::Organization,
             "project" => Self::Project,
             "key" => Self::Key,
@@ -299,7 +295,6 @@ impl QuotaScope {
     /// This is the lowercase string representation used in serialization.
     pub fn name(self) -> &'static str {
         match self {
-            Self::Global => "global",
             Self::Key => "key",
             Self::Project => "project",
             Self::Organization => "organization",
@@ -463,10 +458,6 @@ impl Quota {
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     fn matches_scope(&self, scoping: ItemScoping) -> bool {
-        if self.scope == QuotaScope::Global {
-            return true;
-        }
-
         // Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.
