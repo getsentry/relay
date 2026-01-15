@@ -321,7 +321,7 @@ impl Counted for ExpandedTransaction {
     }
 }
 
-impl RateLimited for Managed<ExpandedTransaction> {
+impl RateLimited for Managed<Box<ExpandedTransaction>> {
     type Error = Error;
     type Output = Self;
 

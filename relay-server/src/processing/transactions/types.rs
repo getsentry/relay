@@ -126,7 +126,7 @@ pub struct Flags {
 #[allow(clippy::large_enum_variant)]
 pub enum SampledPayload {
     /// We still have a transaction + child items, and it counts as both indexed + total.
-    Keep { payload: ExpandedTransaction },
+    Keep { payload: Box<ExpandedTransaction> },
     /// All we have left is a profile.
     Drop { profile: Option<Item> },
 }
@@ -180,7 +180,7 @@ impl WithHeaders {
                     attachments,
                     profile,
                     extracted_spans,
-                } = payload;
+                } = *payload;
 
                 items.extend(attachments);
                 items.extend(profile);
