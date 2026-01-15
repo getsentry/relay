@@ -911,9 +911,8 @@ pub enum RelayCounters {
     ///     - `calculation_negative`: Cost calculation resulted in negative values (token misalignment).
     ///     - `calculation_failed`: Cost calculation failed (no usage tokens found).
     /// - `origin`: The SDK origin, one of the well-known SDK names (e.g., "sentry.python",
-    ///   "sentry.javascript.node") or "manual" for manual instrumentation, or "other" for
-    ///   unknown/proprietary SDKs. Uses the same cardinality-protected list as the `sdk` tag
-    ///   on other metrics.
+    ///   "sentry.javascript.node"), "manual" for manually instrumented spans, or "other" for
+    ///   unknown/unrecognized SDKs. Uses a cardinality-protected list similar to the `sdk` tag.
     AiCostCalculation,
     /// The amount of times metrics of a project have been flushed without the project being
     /// fetched/available.

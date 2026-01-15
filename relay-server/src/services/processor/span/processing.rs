@@ -482,12 +482,7 @@ fn normalize(
             CostCalculationStatus::Failed => "calculation_failed",
         };
 
-        // Determine origin - use "manual" for manual instrumentation (other/unknown SDKs)
-        let origin = if client_name == "other" {
-            "manual"
-        } else {
-            client_name
-        };
+        let origin = crate::utils::ai_origin_tag(crate::envelope::ClientName::from(client_name));
 
         relay_statsd::metric!(
             counter(RelayCounters::AiCostCalculation) += 1,

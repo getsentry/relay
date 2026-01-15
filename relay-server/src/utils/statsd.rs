@@ -51,6 +51,37 @@ pub fn client_name_tag(client_name: ClientName<'_>) -> &str {
     }
 }
 
+/// Maps a client name to a low-cardinality AI origin tag for cost calculation metrics.
+///
+/// Returns "other" for unknown/unrecognized SDKs, or the well-known SDK name.
+/// "manual" should be used for manually instrumented spans (not SDK-generated).
+pub fn ai_origin_tag(client_name: ClientName<'_>) -> &'static str {
+    match client_name {
+        ClientName::Relay => "sentry.relay",
+        ClientName::Ruby => "sentry-ruby",
+        ClientName::CocoaFlutter => "sentry.cocoa.flutter",
+        ClientName::CocoaReactNative => "sentry.cocoa.react-native",
+        ClientName::Cocoa => "sentry.cocoa",
+        ClientName::Dotnet => "sentry.dotnet",
+        ClientName::AndroidReactNative => "sentry.java.android.react-native",
+        ClientName::AndroidJava => "sentry.java.android",
+        ClientName::SpringBoot => "sentry.java.spring-boot.jakarta",
+        ClientName::JavascriptBrowser => "sentry.javascript.browser",
+        ClientName::Electron => "sentry.javascript.electron",
+        ClientName::NestJs => "sentry.javascript.nestjs",
+        ClientName::NextJs => "sentry.javascript.nextjs",
+        ClientName::Node => "sentry.javascript.node",
+        ClientName::React => "sentry.javascript.react",
+        ClientName::Vue => "sentry.javascript.vue",
+        ClientName::Native => "sentry.native",
+        ClientName::Laravel => "sentry.php.laravel",
+        ClientName::Symfony => "sentry.php.symfony",
+        ClientName::Php => "sentry.php",
+        ClientName::Python => "sentry.python",
+        ClientName::Other(_) => "other",
+    }
+}
+
 /// Log statsd metrics about transaction name modifications.
 ///
 /// We have to look at event & meta before and after the modification is made,
