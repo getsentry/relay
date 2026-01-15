@@ -151,11 +151,12 @@ impl Counted for WithMetrics {
             }
             SampledPayload::Drop { profile } => {
                 // When the payload is gone, the metrics carry the data category.
-                profile.quantities()
+                let mut quantities = profile.quantities();
+                quantities.extend(metrics.quantities());
+                quantities
             }
         };
 
-        quantities.extend(metrics.quantities());
         quantities
     }
 }

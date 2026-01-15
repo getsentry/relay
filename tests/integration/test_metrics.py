@@ -1041,16 +1041,9 @@ def test_transaction_metrics_count_per_root_project(
     }
 
 
-@pytest.mark.parametrize(
-    "send_extracted_header,expect_metrics_extraction",
-    [(False, True), (True, False)],
-    ids=["must extract metrics", "mustn't extract metrics"],
-)
+@pytest.mark.parametrize("send_extracted_header", [False, True])
 def test_transaction_metrics_extraction_external_relays(
-    mini_sentry,
-    relay,
-    send_extracted_header,
-    expect_metrics_extraction,
+    mini_sentry, relay, send_extracted_header
 ):
     if send_extracted_header:
         item_headers = {"metrics_extracted": True}
@@ -1093,7 +1086,13 @@ def test_transaction_metrics_extraction_external_relays(
     envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
 
-    if expect_metrics_extraction:
+    if send_extracted_header:
+        _, error = mini_sentry.test_failures.get()
+        assert (
+            str(error)
+            == "Relay sent us event: Received a transaction which already had its metrics extracted."
+        )
+    else:
         metrics_envelope = mini_sentry.get_captured_envelope()
         assert len(metrics_envelope.items) == 1
 
@@ -1118,13 +1117,11 @@ def test_transaction_metrics_extraction_external_relays(
         assert not usage_metric.get("tags")  # empty or missing
         assert usage_metric["value"] == 1.0
 
-    assert mini_sentry.captured_envelopes.empty()
-
 
 @pytest.mark.parametrize(
     "send_extracted_header,expect_metrics_extraction",
     [(False, True), (True, False)],
-    ids=["must extract metrics", "mustn't extract metrics"],
+    ids=["must extract metrics", "must not extract metrics"],
 )
 def test_transaction_metrics_extraction_processing_relays(
     transactions_consumer,

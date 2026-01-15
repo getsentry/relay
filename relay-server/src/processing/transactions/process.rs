@@ -21,8 +21,8 @@ use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
 use crate::processing::transactions::types::{SampledPayload, WithMetrics};
 use crate::processing::transactions::{
-    Error, ExpandedTransaction, ExtractedSpans, Flags, SerializedTransaction, TransactionOutput,
-    profile, spans,
+    Error, ExpandedTransaction, ExtractedSpans, Flags, IndexedWrapper, SerializedTransaction,
+    TransactionOutput, profile, spans,
 };
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
@@ -268,10 +268,13 @@ pub fn extract_metrics(
         None => SamplingDecision::Keep,
     };
 
-    // HACKish: If the killswitch for span extraction is on, we mark the transaction with
-    // `spans_extracted: true`
-
     work.try_map(|mut work, record_keeper| {
+        if work.flags.metrics_extracted {
+            // txn and span counts will be off.
+            record_keeper.lenient(DataCategory::Transaction);
+            record_keeper.lenient(DataCategory::Span);
+        }
+
         let mut metrics = ProcessingExtractedMetrics::new();
         if sampling_decision.is_drop() || ctx.is_processing() {
             work.flags.metrics_extracted = extraction::extract_metrics(
@@ -283,7 +286,7 @@ pub fn extract_metrics(
                     ctx,
                     sampling_decision,
                     metrics_extracted: work.flags.metrics_extracted,
-                    spans_extracted: work.flags.spans_extracted, // TODO: what does fn do with this flag?
+                    spans_extracted: work.flags.spans_extracted,
                 },
             )?
             .0;
@@ -294,7 +297,7 @@ pub fn extract_metrics(
         let output = match drop_with_outcome {
             Some(outcome) => {
                 let profile = work.profile.take();
-                record_keeper.reject_err(outcome, work);
+                record_keeper.reject_err(outcome, IndexedWrapper(work));
                 WithMetrics {
                     headers,
                     payload: SampledPayload::Drop { profile },

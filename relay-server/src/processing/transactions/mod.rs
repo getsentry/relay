@@ -295,7 +295,13 @@ impl Counted for ExpandedTransaction {
             profile,
             extracted_spans,
         } = self;
-        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
+        let mut quantities = smallvec![
+            (DataCategory::TransactionIndexed, 1),
+            (DataCategory::Transaction, 1)
+        ];
+
+        quantities.extend(attachments.quantities());
+        quantities.extend(profile.quantities());
 
         let span_count = if flags.spans_extracted {
             self.extracted_spans.len()
@@ -303,18 +309,12 @@ impl Counted for ExpandedTransaction {
             debug_assert!(self.extracted_spans.is_empty());
             self.count_embedded_spans_and_self()
         };
-        quantities.extend([(DataCategory::SpanIndexed, span_count)]);
-
-        if !flags.metrics_extracted {
-            // The transaction still carries ownership over the total categories:
+        if span_count > 0 {
             quantities.extend([
-                (DataCategory::Transaction, 1),
+                (DataCategory::SpanIndexed, span_count),
                 (DataCategory::Span, span_count),
             ]);
         }
-
-        quantities.extend(attachments.quantities());
-        quantities.extend(profile.quantities());
 
         quantities
     }
@@ -407,6 +407,38 @@ impl RateLimited for Managed<Box<ExpandedTransaction>> {
         }
 
         Ok(self)
+    }
+}
+
+struct IndexedWrapper(Box<ExpandedTransaction>);
+
+impl Counted for IndexedWrapper {
+    fn quantities(&self) -> Quantities {
+        let this = &*self.0;
+        let ExpandedTransaction {
+            headers: _,
+            event,
+            flags,
+            attachments,
+            profile,
+            extracted_spans,
+        } = this;
+        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
+
+        quantities.extend(attachments.quantities());
+        quantities.extend(profile.quantities());
+
+        let span_count = if flags.spans_extracted {
+            extracted_spans.len()
+        } else {
+            debug_assert!(extracted_spans.is_empty());
+            this.count_embedded_spans_and_self()
+        };
+        if span_count > 0 {
+            quantities.extend([(DataCategory::SpanIndexed, span_count)]);
+        }
+
+        quantities
     }
 }
 
