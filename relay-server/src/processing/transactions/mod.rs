@@ -28,6 +28,7 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 #[cfg(feature = "processing")]
 use crate::processing::StoreHandle;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
+use crate::processing::transactions::process::SamplingOutput;
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
 use crate::processing::transactions::types::{Flags, SampledTransaction, WithHeaders, WithMetrics};
 use crate::processing::utils::event::{
@@ -187,13 +188,22 @@ impl Processor for TransactionProcessor {
         let quotas_client = None;
 
         relay_log::trace!("Sample transaction");
-        let work = process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await?;
+        let work =
+            match process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await? {
+                SamplingOutput::Keep(work) => work,
+                SamplingOutput::Drop { metrics, profile } => {
+                    return Ok(Output {
+                        main: profile.map(TransactionOutput::Profile),
+                        metrics: Some(metrics),
+                    });
+                }
+            };
 
         #[cfg(feature = "processing")]
         let server_sample_rate = 1.0; // FIXME
 
         relay_log::trace!("Processing profiles");
-        let work = process::process_profile(work, ctx, sampling_result.decision());
+        let work = process::process_profile(work, ctx);
 
         relay_log::trace!("Enforce quotas");
         let work = self.limiter.enforce_quotas(work, ctx).await?;
@@ -486,7 +496,10 @@ impl Counted for ExtractedSpans {
 
 /// Output of the transaction processor.
 #[derive(Debug)]
-pub struct TransactionOutput(Managed<WithHeaders>);
+pub enum TransactionOutput {
+    Full(Managed<ExpandedTransaction>),
+    Profile(Managed<Item>),
+}
 
 impl TransactionOutput {
     #[cfg(test)]

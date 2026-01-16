@@ -180,13 +180,24 @@ pub fn run_inbound_filters(
         .reject(work)
 }
 
+/// The result of dynamic sampling.
+pub enum SamplingOutput {
+    /// The decision was retain, maintain full transaction.
+    Keep(Managed<Box<ExpandedTransaction>>),
+    /// The decision was discard keep only extracted metrics and an optional profile.
+    Drop {
+        metrics: Managed<ExtractedMetrics>,
+        profile: Option<Managed<Item>>,
+    },
+}
+
 /// Computes the sampling decision for a transaction and associated items.
 pub async fn run_dynamic_sampling(
     work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
     quotas_client: Option<&AsyncRedisClient>,
-) -> Result<Managed<SampledTransaction>, Rejected<Error>> {
+) -> Result<SamplingOutput, Rejected<Error>> {
     let sampling_result =
         make_dynamic_sampling_decision(&work, ctx, filters_status, quotas_client).await;
 
@@ -197,17 +208,24 @@ pub async fn run_dynamic_sampling(
             // work.modify(|spans, _| {
             //     spans.server_sample_rate = sampling_result.sample_rate();
             // });
-            return Ok(work.map(|work, _| SampledTransaction::Keep(work)));
+            return Ok(SamplingOutput::Keep(work));
         }
     };
 
     // At this point the decision is to drop the payload.
     let (payload, remainder) = split_indexed_and_total(work, ctx, SamplingDecision::Drop)?;
 
+    // Need to process the profile before the event gets dropped:
+    let payload = process_profile(payload, ctx);
+
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
     let _ = payload.reject_err(outcome);
 
-    Ok(remainder.map(|(metrics, profile), _| SampledTransaction::Drop { profile, metrics }))
+    let (metrics, profile) = remainder.split_once(|x| x);
+    Ok(SamplingOutput::Drop {
+        metrics,
+        profile: profile.transpose(),
+    })
 }
 
 /// Computes the dynamic sampling decision for the unit of work, but does not perform action on data.
@@ -291,7 +309,9 @@ fn split_indexed_and_total(
         )?
         .0;
         profile = work.profile.take();
-        profile.set_sampled(sampling_decision.is_keep());
+        if let Some(profile) = profile.as_mut() {
+            profile.set_sampled(sampling_decision.is_keep());
+        }
         Ok::<_, Error>(())
     });
 
@@ -305,7 +325,7 @@ fn split_indexed_and_total(
 
 /// Processes the profile attached to the transaction.
 pub fn process_profile(
-    work: Managed<Box<ExpandedTransaction>>,
+    work: Managed<Box<ExpandedTransaction<_>>>,
     ctx: Context<'_>,
 ) -> Managed<Box<ExpandedTransaction>> {
     work.map(|mut work, record_keeper| {
