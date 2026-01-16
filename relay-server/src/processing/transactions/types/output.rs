@@ -2,6 +2,7 @@
 use relay_event_schema::protocol::Event;
 #[cfg(test)]
 use relay_protocol::Annotated;
+use relay_quotas::DataCategory;
 
 use crate::Envelope;
 use crate::envelope::{EnvelopeHeaders, Item};
@@ -48,9 +49,12 @@ impl Forward for TransactionOutput {
             TransactionOutput::Profile(headers, managed) => Ok(
                 managed.map(|item, _| Envelope::from_parts(headers, smallvec::smallvec![*item]))
             ),
-            TransactionOutput::Indexed(managed) => managed.try_map(|work, _| {
+            TransactionOutput::Indexed(managed) => managed.try_map(|work, record_keeper| {
                 // TODO: This should raise an error, Indexed output should go straight to kafka
-                // instead of an envelope.
+                // instead of an envelope. As long as we have this hack, ignore bookkeeping
+                record_keeper.lenient(DataCategory::Transaction);
+                record_keeper.lenient(DataCategory::Span);
+
                 work.serialize_envelope()
                     .map_err(drop)
                     .with_outcome(Outcome::Invalid(DiscardReason::Internal))
