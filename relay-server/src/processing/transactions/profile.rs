@@ -11,45 +11,18 @@ use relay_profiling::{ProfileId, ProfileType};
 use relay_protocol::{Annotated, Empty};
 use relay_protocol::{Getter, Remark, RemarkType};
 
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
-use crate::managed::{Counted, Managed, Quantities, RecordKeeper};
-use crate::processing::transactions::{Error, ExpandedTransaction, Transaction};
-use crate::processing::{Context, CountRateLimited};
+use crate::envelope::{ContentType, Item, ItemType};
+use crate::managed::RecordKeeper;
+use crate::processing::Context;
+use crate::processing::transactions::types::ExpandedTransaction;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::utils::should_filter;
-
-/// An item wrapper that counts as profile.
-#[derive(Debug)]
-pub struct Profile(pub Item);
-
-impl Counted for Profile {
-    fn quantities(&self) -> Quantities {
-        self.0.quantities()
-    }
-}
-
-/// A profile with metadata required to forward it.
-#[derive(Debug)]
-pub struct ProfileWithHeaders {
-    pub headers: EnvelopeHeaders,
-    pub item: Item,
-}
-
-impl Counted for ProfileWithHeaders {
-    fn quantities(&self) -> Quantities {
-        self.item.quantities()
-    }
-}
-
-impl CountRateLimited for Managed<ProfileWithHeaders> {
-    type Error = Error;
-}
 
 /// Filters out invalid profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
 pub fn filter(
-    work: &mut ExpandedTransaction<Transaction>,
+    work: &mut ExpandedTransaction,
     record_keeper: &mut RecordKeeper,
     ctx: Context,
     project_id: ProjectId,
@@ -61,12 +34,6 @@ pub fn filter(
     if should_filter(ctx.config, ctx.project_info, feature) {
         record_keeper.reject_err(
             Outcome::Invalid(DiscardReason::FeatureDisabled(feature)),
-            work.profile.take(),
-        );
-    } else if work.transaction.0.value().is_none() && profile_item.sampled() {
-        // A profile with `sampled=true` should never be without a transaction
-        record_keeper.reject_err(
-            Outcome::Invalid(DiscardReason::Profiling("missing_transaction")),
             work.profile.take(),
         );
     } else {

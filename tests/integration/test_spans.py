@@ -1218,9 +1218,7 @@ def test_rate_limit_indexed_consistent(
     outcomes_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("category", ["span"])
 def test_rate_limit_consistent_extracted(
-    category,
     mini_sentry,
     relay_with_processing,
     spans_consumer,
@@ -1238,7 +1236,7 @@ def test_rate_limit_consistent_extracted(
     }
     project_config["config"]["quotas"] = [
         {
-            "categories": [category],
+            "categories": ["span"],
             "limit": 2,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
@@ -1293,20 +1291,14 @@ def test_rate_limit_consistent_extracted(
     outcomes = summarize_outcomes()
 
     expected_outcomes = {
+        (12, 2): 2,
         (16, 2): 2,  # SpanIndexed, RateLimited
     }
-    metrics = metrics_consumer.get_metrics(timeout=1)
-    if category == "span":
-        (expected_outcomes.update({(12, 2): 2}),)  # Span, RateLimited
-        assert len(metrics) == 4
-        assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
-    else:
-        span_count = sum(
-            [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
-        )
-        assert span_count == 2
-
     assert outcomes == expected_outcomes
+
+    metrics = metrics_consumer.get_metrics(timeout=1)
+    assert len(metrics) == 4
+    assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
 
     outcomes_consumer.assert_empty()
 
