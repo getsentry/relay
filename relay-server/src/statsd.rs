@@ -903,6 +903,18 @@ pub enum RelayCounters {
     /// - `resource_id`: The COGS resource id.
     /// - `app_feature`: The COGS app feature.
     CogsUsage,
+    /// Number of AI cost calculations tracked by status and origin.
+    ///
+    /// This metric is tagged with:
+    /// - `status`: One of:
+    ///     - `calculation_positive`: Cost calculation succeeded with non-negative values.
+    ///     - `calculation_negative`: Cost calculation resulted in negative values (token misalignment).
+    ///     - `calculation_failed`: Cost calculation failed (no usage tokens found).
+    /// - `origin`: The SDK origin, one of the well-known SDK names (e.g., "sentry.python",
+    ///   "sentry.javascript.node"), "manual" for manually instrumented spans, or "other" for
+    ///   unknown/unrecognized SDKs. Uses a cardinality-protected list similar to the `sdk` tag.
+    #[cfg(feature = "processing")]
+    AiCostCalculation,
     /// The amount of times metrics of a project have been flushed without the project being
     /// fetched/available.
     ProjectStateFlushMetricsNoProject,
@@ -999,6 +1011,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
             RelayCounters::CogsUsage => "cogs.usage",
+            #[cfg(feature = "processing")]
+            RelayCounters::AiCostCalculation => "agent_monitoring.cost_calculation",
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
