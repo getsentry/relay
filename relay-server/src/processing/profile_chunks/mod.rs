@@ -168,7 +168,9 @@ impl Counted for SerializedProfileChunks {
             match pc.profile_type() {
                 Some(ProfileType::Ui) => ui += 1,
                 Some(ProfileType::Backend) => backend += 1,
-                None => {}
+                // These are invalid and will be dropped, but we default outcomes to the backend
+                // profile chunk category.
+                None => backend += 1,
             }
         }
 

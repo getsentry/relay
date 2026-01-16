@@ -159,11 +159,12 @@ impl Item {
                 (DataCategory::Span, item_count),
                 (DataCategory::SpanIndexed, item_count),
             ],
-            // NOTE: semantically wrong, but too expensive to parse.
             ItemType::ProfileChunk => match self.profile_type() {
                 Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
                 Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
-                None => smallvec![],
+                // Profile chunks without platform/profile type are considered invalid,
+                // fallback to `profile chunk` to still get outcomes.
+                None => smallvec![(DataCategory::ProfileChunk, item_count)],
             },
             ItemType::Integration => match self.integration() {
                 Some(Integration::Logs(LogsIntegration::OtelV1 { .. })) => smallvec![

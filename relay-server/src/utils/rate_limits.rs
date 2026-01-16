@@ -668,9 +668,8 @@ impl Enforcement {
             }
             ItemType::Span => !self.spans_indexed.is_active(),
             ItemType::ProfileChunk => match item.profile_type() {
-                Some(ProfileType::Backend) => !self.profile_chunks.is_active(),
+                Some(ProfileType::Backend) | None => !self.profile_chunks.is_active(),
                 Some(ProfileType::Ui) => !self.profile_chunks_ui.is_active(),
-                None => true,
             },
             ItemType::TraceMetric => !self.trace_metrics.is_active(),
             ItemType::Integration => match item.integration() {
@@ -1644,27 +1643,8 @@ mod tests {
 
     /// Limit profile chunks.
     #[tokio::test]
-    async fn test_enforce_limit_profile_chunks_no_profile_type() {
-        // In this test we have profile chunks which have not yet been classified, which means they
-        // should not be rate limited.
-        let mut envelope = envelope![ProfileChunk, ProfileChunk];
-
-        let mock = mock_limiter(&[DataCategory::ProfileChunk]);
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
-        assert!(!limits.is_limited());
-        assert_eq!(get_outcomes(enforcement), vec![]);
-
-        let mock = mock_limiter(&[DataCategory::ProfileChunkUi]);
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
-        assert!(!limits.is_limited());
-        assert_eq!(get_outcomes(enforcement), vec![]);
-
-        assert_eq!(envelope.envelope().len(), 2);
-    }
-
-    #[tokio::test]
     async fn test_enforce_limit_profile_chunks_ui() {
-        let mut envelope = envelope![];
+        let mut envelope = envelope![ProfileChunk];
 
         let mut item = Item::new(ItemType::ProfileChunk);
         item.set_profile_type(ProfileType::Backend);
@@ -1677,11 +1657,11 @@ mod tests {
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
-        assert_eq!(envelope.envelope().len(), 1);
+        assert_eq!(envelope.envelope().len(), 2);
         mock.lock()
             .await
             .assert_call(DataCategory::ProfileChunkUi, 1);
-        mock.lock().await.assert_call(DataCategory::ProfileChunk, 1);
+        mock.lock().await.assert_call(DataCategory::ProfileChunk, 2);
 
         assert_eq!(
             get_outcomes(enforcement),
@@ -1691,7 +1671,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_enforce_limit_profile_chunks_backend() {
-        let mut envelope = envelope![];
+        let mut envelope = envelope![ProfileChunk];
 
         let mut item = Item::new(ItemType::ProfileChunk);
         item.set_profile_type(ProfileType::Backend);
@@ -1708,11 +1688,11 @@ mod tests {
         mock.lock()
             .await
             .assert_call(DataCategory::ProfileChunkUi, 1);
-        mock.lock().await.assert_call(DataCategory::ProfileChunk, 1);
+        mock.lock().await.assert_call(DataCategory::ProfileChunk, 2);
 
         assert_eq!(
             get_outcomes(enforcement),
-            vec![(DataCategory::ProfileChunk, 1)]
+            vec![(DataCategory::ProfileChunk, 2)]
         );
     }
 

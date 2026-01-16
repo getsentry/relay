@@ -28,7 +28,7 @@ TEST_CONFIG = {
 }
 
 
-def sample_profile_v2_envelope(platform=None):
+def sample_profile_v2_envelope(platform="cocoa"):
     envelope = Envelope()
 
     with open(
@@ -47,7 +47,7 @@ def sample_profile_v2_envelope(platform=None):
     return envelope
 
 
-def android_profile_chunk_envelope(platform=None):
+def android_profile_chunk_envelope(platform="android"):
     envelope = Envelope()
 
     with open(
@@ -155,7 +155,13 @@ def test_profile_chunk_outcomes_invalid(
         "chunk_id": "11111111111111111111111111111111",
         "platform": "thisisnotvalid",
     }
-    envelope.add_item(Item(payload=PayloadRef(json=payload), type="profile_chunk"))
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(json=payload),
+            type="profile_chunk",
+            headers={"platform": "thisisnotvalid"},
+        )
+    )
 
     upstream.send_envelope(project_id, envelope)
 
@@ -178,7 +184,6 @@ def test_profile_chunk_outcomes_invalid(
     profiles_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("item_header_platform", [None, "cocoa"])
 @pytest.mark.parametrize(
     ["envelope"],
     [
@@ -195,7 +200,6 @@ def test_profile_chunk_outcomes_rate_limited(
     outcomes_consumer,
     profiles_consumer,
     envelope,
-    item_header_platform,
 ):
     """
     Tests that Relay reports correct outcomes when profile chunks are rate limited.
@@ -227,7 +231,7 @@ def test_profile_chunk_outcomes_rate_limited(
     ]
 
     # Create and send envelope containing the profile chunk
-    envelope = envelope(item_header_platform)
+    envelope = envelope()
     upstream = relay_with_processing(TEST_CONFIG)
     upstream.send_envelope(project_id, envelope)
 
@@ -257,7 +261,7 @@ def test_profile_chunk_outcomes_rate_limited(
     [
         ("cocoa", "profile_chunk_ui"),
         ("node", "profile_chunk"),
-        (None, "profile_chunk"),  # Special case, currently this will forward
+        (None, "profile_chunk"),
     ],
 )
 @pytest.mark.parametrize(
@@ -280,10 +284,6 @@ def test_profile_chunk_outcomes_rate_limited_fast(
     """
     Tests that Relay reports correct outcomes when profile chunks are rate limited already in the
     fast-path, using the item header.
-
-    The test is parameterized to also *not* send the necessary item header, in which case this currently
-    asserts the chunk is let through. Once Relay's behaviour is changed to reject or profile chunks
-    without the necessary headers or the profile type is defaulted this test needs to be adjusted accordingly.
     """
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -305,15 +305,11 @@ def test_profile_chunk_outcomes_rate_limited_fast(
     upstream = relay(mini_sentry)
     upstream.send_envelope(project_id, envelope)
 
-    if platform is None:
-        envelope = mini_sentry.get_captured_envelope()
-        assert [item.type for item in envelope.items] == ["profile_chunk"]
-    else:
-        outcome = mini_sentry.get_client_report()
-        assert outcome["rate_limited_events"] == [
-            {"category": category, "quantity": 1, "reason": "profile_chunks_exceeded"}
-        ]
-        assert mini_sentry.captured_envelopes.empty()
+    outcome = mini_sentry.get_client_report()
+    assert outcome["rate_limited_events"] == [
+        {"category": category, "quantity": 1, "reason": "profile_chunks_exceeded"}
+    ]
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
