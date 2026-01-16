@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
-use either::Either;
-use hyper::ext;
 use relay_base_schema::events::EventType;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::{Event, Metrics, SpanV2};
+use relay_event_schema::protocol::{Event, Metrics};
 use relay_profiling::ProfileError;
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
@@ -15,19 +13,16 @@ use relay_statsd::metric;
 use smallvec::smallvec;
 
 use crate::envelope::Item;
-use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
+use crate::managed::{Counted, Managed, ManagedResult, Quantities, Rejected};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
-use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::{
-    Error, ExpandedTransaction, ExtractedSpans, Flags, SerializedTransaction, TransactionOutput,
-    profile, spans,
-};
+use crate::processing::transactions::types::{ExpandedTransaction, Flags};
+use crate::processing::transactions::{Error, SerializedTransaction, profile, spans};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
 };
-use crate::processing::{Context, Output, QuotaRateLimiter, utils};
+use crate::processing::{Context, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::statsd::{RelayCounters, RelayTimers};
@@ -297,7 +292,7 @@ pub fn split_indexed_and_total(
     let scoping = work.scoping();
 
     let mut metrics = ProcessingExtractedMetrics::new();
-    let r = work.try_modify(|work, _| {
+    work.try_modify(|work, _| {
         work.flags.metrics_extracted = extraction::extract_metrics(
             &mut work.event,
             &mut metrics,
@@ -313,7 +308,7 @@ pub fn split_indexed_and_total(
         .0;
 
         Ok::<_, Error>(())
-    });
+    })?;
 
     Ok(work.split_once(|work| (Box::new(work.into_indexed()), metrics.into_inner())))
 }
@@ -356,11 +351,10 @@ pub fn extract_spans(
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
 ) -> Managed<Box<ExpandedTransaction<Indexed>>> {
-    work.modify(|mut work, r| {
+    work.modify(|work, r| {
         if let Some(results) = spans::extract_from_event(
             work.headers.dsc(),
             &work.event,
-            ctx.global_config,
             ctx.config,
             server_sample_rate,
             EventMetricsExtracted(work.flags.metrics_extracted),

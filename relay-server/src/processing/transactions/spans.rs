@@ -3,13 +3,12 @@ use std::error::Error;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::processing::utils::event::{EventMetricsExtracted, SpansExtracted, event_type};
 
-use crate::{processing, utils};
+use crate::processing;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::GlobalConfig;
 use relay_event_schema::protocol::{Event, Measurement, Measurements, Span};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit};
-use relay_protocol::{Annotated, Empty, get_value};
+use relay_protocol::{Annotated, Empty};
 use relay_sampling::DynamicSamplingContext;
 
 #[cfg(feature = "processing")]
@@ -17,7 +16,6 @@ use relay_sampling::DynamicSamplingContext;
 pub fn extract_from_event(
     dsc: Option<&DynamicSamplingContext>,
     event: &Annotated<Event>,
-    global_config: &GlobalConfig,
     config: &Config,
     server_sample_rate: Option<f64>,
     event_metrics_extracted: EventMetricsExtracted,
@@ -318,11 +316,10 @@ mod tests {
     fn extract_sampled_default() {
         let global_config = GlobalConfig::default();
         assert!(global_config.options.span_extraction_sample_rate.is_none());
-        let (mut managed_envelope, event, _) = params();
+        let (managed_envelope, event, _) = params();
         let spans = extract_from_event(
             managed_envelope.envelope().dsc(),
             &event,
-            &global_config,
             &Default::default(),
             None,
             EventMetricsExtracted(false),
@@ -342,11 +339,10 @@ mod tests {
     fn extract_sampled_explicit() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
-        let (mut managed_envelope, event, _) = params();
+        let (managed_envelope, event, _) = params();
         let spans = extract_from_event(
             managed_envelope.envelope().dsc(),
             &event,
-            &global_config,
             &Default::default(),
             None,
             EventMetricsExtracted(false),
@@ -370,7 +366,6 @@ mod tests {
         let spans = extract_from_event(
             managed_envelope.envelope().dsc(),
             &event,
-            &global_config,
             &Default::default(),
             Some(0.1),
             EventMetricsExtracted(false),

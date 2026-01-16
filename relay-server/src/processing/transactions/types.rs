@@ -1,14 +1,9 @@
-use relay_event_schema::protocol::{Event, SpanV2};
-use relay_protocol::Annotated;
-use relay_quotas::DataCategory;
-use relay_statsd::metric;
-
-use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
-use crate::managed::{Counted, Quantities};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
-use crate::processing::transactions::ExpandedTransaction;
-use crate::statsd::RelayTimers;
+mod expanded;
+pub use expanded::ExpandedTransaction;
+mod serialized;
+pub use serialized::SerializedTransaction;
+mod output;
+pub use output::TransactionOutput;
 
 /// Flags extracted from transaction item headers.
 ///

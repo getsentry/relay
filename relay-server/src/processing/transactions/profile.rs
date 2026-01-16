@@ -11,40 +11,12 @@ use relay_profiling::{ProfileId, ProfileType};
 use relay_protocol::{Annotated, Empty};
 use relay_protocol::{Getter, Remark, RemarkType};
 
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
-use crate::managed::{Counted, Managed, Quantities, RecordKeeper};
-use crate::processing::spans::TotalAndIndexed;
-use crate::processing::transactions::{Error, ExpandedTransaction};
-use crate::processing::{Context, CountRateLimited};
+use crate::envelope::{ContentType, Item, ItemType};
+use crate::managed::RecordKeeper;
+use crate::processing::Context;
+use crate::processing::transactions::types::ExpandedTransaction;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::utils::should_filter;
-
-/// An item wrapper that counts as profile.
-#[derive(Debug)]
-pub struct Profile(pub Item);
-
-impl Counted for Profile {
-    fn quantities(&self) -> Quantities {
-        self.0.quantities()
-    }
-}
-
-/// A profile with metadata required to forward it.
-#[derive(Debug)]
-pub struct ProfileWithHeaders {
-    pub headers: EnvelopeHeaders,
-    pub item: Item,
-}
-
-impl Counted for ProfileWithHeaders {
-    fn quantities(&self) -> Quantities {
-        self.item.quantities()
-    }
-}
-
-impl CountRateLimited for Managed<ProfileWithHeaders> {
-    type Error = Error;
-}
 
 /// Filters out invalid profiles.
 ///
