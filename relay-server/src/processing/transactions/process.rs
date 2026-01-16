@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use either::Either;
 use hyper::ext;
 use relay_base_schema::events::EventType;
 use relay_dynamic_config::ErrorBoundary;
@@ -91,6 +92,7 @@ pub fn expand(
             attachments,
             profile,
             extracted_spans: vec![],
+            category: TotalAndIndexed,
         }))
     })
 }
@@ -178,14 +180,45 @@ pub fn run_inbound_filters(
         .reject(work)
 }
 
-/// Computes the dynamic sampling decision for the unit of work, but does not perform action on data.
+/// Computes the sampling decision for a transaction and associated items.
 pub async fn run_dynamic_sampling(
+    work: Managed<Box<ExpandedTransaction>>,
+    ctx: Context<'_>,
+    filters_status: FiltersStatus,
+    quotas_client: Option<&AsyncRedisClient>,
+) -> Result<Either<Managed<Box<ExpandedTransaction>>, Managed<ExtractedMetrics>>, Rejected<Error>> {
+    let sampling_result =
+        make_dynamic_sampling_decision(&work, ctx, filters_status, quotas_client).await;
+
+    let sampling_match = match sampling_result {
+        SamplingResult::Match(m) if m.decision().is_drop() => m,
+        sampling_result => {
+            // TODO: needed?
+            // work.modify(|spans, _| {
+            //     spans.server_sample_rate = sampling_result.sample_rate();
+            // });
+            return Ok(Either::Left(work));
+        }
+    };
+
+    // At this point the decision is to drop the payload.
+    let (payload, metrics) = split_indexed_and_total(work, ctx, SamplingDecision::Drop)?;
+
+    let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
+    let _ = payload.reject_err(outcome);
+
+    Ok(Either::Right(metrics))
+}
+
+/// Computes the dynamic sampling decision for the unit of work, but does not perform action on data.
+async fn make_dynamic_sampling_decision(
     work: &Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
     quotas_client: Option<&AsyncRedisClient>,
 ) -> SamplingResult {
-    let sampling_result = do_run_dynamic_sampling(work, ctx, filters_status, quotas_client).await;
+    let sampling_result =
+        do_make_dynamic_sampling_decision(work, ctx, filters_status, quotas_client).await;
     relay_statsd::metric!(
         counter(RelayCounters::SamplingDecision) += 1,
         decision = sampling_result.decision().as_str(),
@@ -194,7 +227,7 @@ pub async fn run_dynamic_sampling(
     sampling_result
 }
 
-async fn do_run_dynamic_sampling(
+async fn do_make_dynamic_sampling_decision(
     work: &Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
@@ -223,6 +256,52 @@ async fn do_run_dynamic_sampling(
         Some(&reservoir),
     )
     .await
+}
+
+type IndexedAndMetrics = (
+    Managed<Box<ExpandedTransaction<Indexed>>>,
+    Managed<ExtractedMetrics>,
+);
+
+impl Counted for IndexedAndMetrics {
+    fn quantities(&self) -> Quantities {
+        let (indexed, metrics) = self;
+        let mut quantities = indexed.quantities();
+        quantities.extend(metrics.quantities());
+        quantities
+    }
+}
+
+/// Splits transaction into indexed payload and metrics representing the total counts.
+///
+/// Dynamic sampling internal function, outside users should use the safer, use case driven variants
+/// [`try_split_indexed_and_total`] and [`reject_indexed_spans`].
+fn split_indexed_and_total(
+    mut work: Managed<Box<ExpandedTransaction>>,
+    ctx: Context<'_>,
+    sampling_decision: SamplingDecision,
+) -> Result<IndexedAndMetrics, Rejected<Error>> {
+    let scoping = work.scoping();
+
+    let mut metrics = ProcessingExtractedMetrics::new();
+    let r = work.try_modify(|work, _| {
+        work.flags.metrics_extracted = extraction::extract_metrics(
+            &mut work.event,
+            &mut metrics,
+            ExtractMetricsContext {
+                dsc: work.headers.dsc(),
+                project_id: scoping.project_id,
+                ctx,
+                sampling_decision,
+                metrics_extracted: work.flags.metrics_extracted,
+                spans_extracted: work.flags.spans_extracted,
+            },
+        )?
+        .0;
+        Ok::<_, Error>(())
+    });
+
+    Ok(work.split_once(|work| (Box::new(work.into_indexed()), metrics.into_inner())))
 }
 
 /// Processes the profile attached to the transaction.
@@ -256,7 +335,7 @@ pub fn process_profile(
 }
 
 /// Extracts transaction & span metrics from the payload.
-pub fn extract_metrics(
+fn extract_metrics(
     mut work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     drop_with_outcome: Option<Outcome>,
@@ -364,27 +443,12 @@ pub fn extract_spans(
 
 /// Runs PiiProcessors on the event and its attachments.
 pub fn scrub(
-    work: Managed<WithMetrics>,
+    work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
-) -> Result<Managed<WithMetrics>, Rejected<Error>>
-where
-{
+) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
     work.try_map(|mut work, _| {
-        let WithMetrics {
-            headers,
-            payload,
-            metrics,
-        } = &mut work;
-        match payload {
-            SampledPayload::Keep { payload } => {
-                utils::event::scrub(&mut payload.event, ctx.project_info)?;
-                utils::attachments::scrub(payload.attachments.iter_mut(), ctx.project_info);
-            }
-            SampledPayload::Drop { profile } => {
-                // Profiles are not scrubbed
-            }
-        }
-
+        utils::event::scrub(&mut work.event, ctx.project_info)?;
+        utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
         Ok::<_, Error>(work)
     })
 }

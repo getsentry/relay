@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use either::Either;
 use relay_base_schema::events::EventType;
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::GeoIpLookup;
@@ -23,6 +24,7 @@ use crate::managed::TypedEnvelope;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
+use crate::metrics_extraction::transactions::ExtractedMetrics;
 #[cfg(feature = "processing")]
 use crate::processing::StoreHandle;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
@@ -183,21 +185,22 @@ impl Processor for TransactionProcessor {
         let quotas_client = self.quotas_client.as_ref();
         #[cfg(not(feature = "processing"))]
         let quotas_client = None;
+
         relay_log::trace!("Sample transaction");
-        let sampling_result =
-            process::run_dynamic_sampling(&work, ctx, filters_status, quotas_client).await;
+        let work =
+            match process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await? {
+                Either::Left(work) => work,
+                Either::Right(metrics) => return Ok(Output::metrics(metrics)),
+            };
 
         #[cfg(feature = "processing")]
-        let server_sample_rate = sampling_result.sample_rate();
+        let server_sample_rate = 1.0; // FIXME
 
         relay_log::trace!("Processing profiles");
         let work = process::process_profile(work, ctx, sampling_result.decision());
 
         relay_log::trace!("Enforce quotas");
-        let mut work = self.limiter.enforce_quotas(work, ctx).await?;
-
-        relay_log::trace!("Extract transaction metrics");
-        let mut work = process::extract_metrics(work, ctx, sampling_result.into_dropped_outcome())?;
+        let work = self.limiter.enforce_quotas(work, ctx).await?;
 
         // Need to scrub the transaction before extracting spans.
         relay_log::trace!("Scrubbing transaction");
@@ -205,18 +208,24 @@ impl Processor for TransactionProcessor {
 
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {
-            if let SampledPayload::Keep { payload } = &work.payload
-                && !payload.flags.fully_normalized
-            {
+            if !work.flags.fully_normalized {
                 relay_log::error!(
                     tags.project = %project_id,
-                    tags.ty = event_type(&payload.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                    tags.ty = event_type(&work.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
                     "ingested event without normalizing"
                 );
             };
 
             relay_log::trace!("Extract spans");
             work = process::extract_spans(work, ctx, server_sample_rate);
+
+            match process::try_split_indexed_and_total(work, ctx) {
+                Either::Left(spans) => Ok(Output::just(TransactionOutput::TotalAndIndexed(spans))),
+                Either::Right((spans, metrics)) => Ok(Output {
+                    main: Some(TransactionOutput::Indexed(spans)),
+                    metrics: Some(metrics),
+                }),
+            }
         }
 
         let (main, metrics) = work.split_once(
@@ -266,16 +275,18 @@ impl Counted for SerializedTransaction {
 /// The type parameter indicates whether metrics were already extracted, which changes how
 /// we count the transaction (total vs indexed).
 #[derive(Debug)]
-pub struct ExpandedTransaction {
+pub struct ExpandedTransaction<C = TotalAndIndexed> {
     headers: EnvelopeHeaders,
     event: Annotated<Event>,
     flags: Flags,
     attachments: Items,
     profile: Option<Item>,
     extracted_spans: Vec<Item>,
+    #[expect(unused, reason = "marker field, only set never read")]
+    category: C,
 }
 
-impl ExpandedTransaction {
+impl<T> ExpandedTransaction<T> {
     fn count_embedded_spans_and_self(&self) -> usize {
         1 + self
             .event
@@ -285,7 +296,30 @@ impl ExpandedTransaction {
     }
 }
 
-impl Counted for ExpandedTransaction {
+impl ExpandedTransaction<TotalAndIndexed> {
+    fn into_indexed(self) -> ExpandedTransaction<Indexed> {
+        let Self {
+            headers,
+            event,
+            flags,
+            attachments,
+            profile,
+            extracted_spans,
+            category: _,
+        } = self;
+        ExpandedTransaction {
+            headers,
+            event,
+            flags,
+            attachments,
+            profile,
+            extracted_spans,
+            category: Indexed,
+        }
+    }
+}
+
+impl Counted for ExpandedTransaction<TotalAndIndexed> {
     fn quantities(&self) -> Quantities {
         let Self {
             headers: _,
@@ -294,6 +328,7 @@ impl Counted for ExpandedTransaction {
             attachments,
             profile,
             extracted_spans,
+            category: _,
         } = self;
         let mut quantities = smallvec![
             (DataCategory::TransactionIndexed, 1),
@@ -320,15 +355,45 @@ impl Counted for ExpandedTransaction {
     }
 }
 
-impl RateLimited for Managed<Box<ExpandedTransaction>> {
-    type Error = Error;
+impl Counted for ExpandedTransaction<Indexed> {
+    fn quantities(&self) -> Quantities {
+        let Self {
+            headers: _,
+            event,
+            flags,
+            attachments,
+            profile,
+            extracted_spans,
+            category: _,
+        } = self;
+        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
+
+        quantities.extend(attachments.quantities());
+        quantities.extend(profile.quantities());
+
+        let span_count = if flags.spans_extracted {
+            self.extracted_spans.len()
+        } else {
+            debug_assert!(self.extracted_spans.is_empty());
+            self.count_embedded_spans_and_self()
+        };
+        if span_count > 0 {
+            quantities.extend([(DataCategory::SpanIndexed, span_count)]);
+        }
+
+        quantities
+    }
+}
+
+impl RateLimited for Managed<ExpandedTransaction<TotalAndIndexed>> {
     type Output = Self;
+    type Error = Error;
 
     async fn enforce<R>(
         mut self,
         mut rate_limiter: R,
         ctx: Context<'_>,
-    ) -> Result<Self, Rejected<Self::Error>>
+    ) -> Result<Self::Output, Rejected<Self::Error>>
     where
         R: RateLimiter,
     {
@@ -339,10 +404,8 @@ impl RateLimited for Managed<Box<ExpandedTransaction>> {
         let limits = rate_limiter
             .try_consume(scoping.item(DataCategory::Transaction), 1)
             .await;
-
         if !limits.is_empty() {
-            let error = Error::from(limits);
-            return Err(self.reject_err(error));
+            return Err(self.reject_err(Error::from(limits)));
         }
 
         // There is no limit on "total", but if metrics have already been extracted then
@@ -351,7 +414,6 @@ impl RateLimited for Managed<Box<ExpandedTransaction>> {
             let limits = rate_limiter
                 .try_consume(scoping.item(DataCategory::TransactionIndexed), 1)
                 .await;
-
             if !limits.is_empty() {
                 let error = Error::from(limits);
                 return Err(self.reject_err(error));
@@ -407,38 +469,6 @@ impl RateLimited for Managed<Box<ExpandedTransaction>> {
         }
 
         Ok(self)
-    }
-}
-
-struct IndexedWrapper(Box<ExpandedTransaction>);
-
-impl Counted for IndexedWrapper {
-    fn quantities(&self) -> Quantities {
-        let this = &*self.0;
-        let ExpandedTransaction {
-            headers: _,
-            event,
-            flags,
-            attachments,
-            profile,
-            extracted_spans,
-        } = this;
-        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
-
-        quantities.extend(attachments.quantities());
-        quantities.extend(profile.quantities());
-
-        let span_count = if flags.spans_extracted {
-            extracted_spans.len()
-        } else {
-            debug_assert!(extracted_spans.is_empty());
-            this.count_embedded_spans_and_self()
-        };
-        if span_count > 0 {
-            quantities.extend([(DataCategory::SpanIndexed, span_count)]);
-        }
-
-        quantities
     }
 }
 

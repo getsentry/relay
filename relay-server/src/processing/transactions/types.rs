@@ -144,7 +144,8 @@ impl Counted for WithMetrics {
             payload,
             metrics,
         } = self;
-        let mut quantities = match payload {
+
+        match payload {
             SampledPayload::Keep { payload } => {
                 // As long as we have a payload, the metrics do not carry any data category.
                 payload.quantities()
@@ -155,9 +156,7 @@ impl Counted for WithMetrics {
                 quantities.extend(metrics.quantities());
                 quantities
             }
-        };
-
-        quantities
+        }
     }
 }
 
