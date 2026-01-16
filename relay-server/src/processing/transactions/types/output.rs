@@ -4,7 +4,7 @@ use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 
 use crate::Envelope;
-use crate::envelope::Item;
+use crate::envelope::{EnvelopeHeaders, Item};
 use crate::managed::{Managed, ManagedEnvelope, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
 use crate::processing::StoreHandle;
@@ -19,7 +19,7 @@ use crate::services::store::StoreEnvelope;
 #[derive(Debug)]
 pub enum TransactionOutput {
     Full(Managed<Box<ExpandedTransaction>>),
-    Profile(Managed<Box<Item>>),
+    Profile(EnvelopeHeaders, Managed<Box<Item>>),
     Indexed(Managed<Box<ExpandedTransaction<Indexed>>>),
 }
 
@@ -28,7 +28,7 @@ impl TransactionOutput {
     pub fn event(self) -> Option<Annotated<Event>> {
         match self {
             TransactionOutput::Full(managed) => Some(managed.accept(|x| x).event),
-            TransactionOutput::Profile(_) => None,
+            TransactionOutput::Profile(_, _) => None,
             TransactionOutput::Indexed(managed) => Some(managed.accept(|x| x).event),
         }
     }
@@ -45,18 +45,15 @@ impl Forward for TransactionOutput {
                     .map_err(drop)
                     .with_outcome(Outcome::Invalid(DiscardReason::Internal))
             }),
-            TransactionOutput::Profile(managed) => todo!(),
-            TransactionOutput::Indexed(managed) => todo!(),
+            TransactionOutput::Profile(headers, managed) => Ok(
+                managed.map(|item, _| Envelope::from_parts(headers, smallvec::smallvec![*item]))
+            ),
+            TransactionOutput::Indexed(managed) => managed.try_map(|work, _| {
+                work.serialize_envelope()
+                    .map_err(drop)
+                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+            }),
         }
-        // self.try_map(|work, record_keeper| {
-        //     let output = work
-        //         .serialize_envelope()
-        //         .map_err(drop)
-        //         .with_outcome(Outcome::Invalid(DiscardReason::Internal));
-        //     record_keeper.lenient(DataCategory::Transaction); // TODO
-        //     record_keeper.lenient(DataCategory::Span); // TODO
-        //     output
-        // })
     }
 
     #[cfg(feature = "processing")]

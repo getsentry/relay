@@ -156,6 +156,7 @@ impl Processor for TransactionProcessor {
         let quotas_client = None;
 
         relay_log::trace!("Sample transaction");
+        let headers = work.headers.clone();
         let (work, _server_sample_rate) =
             match process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await? {
                 SamplingOutput::Keep {
@@ -164,7 +165,7 @@ impl Processor for TransactionProcessor {
                 } => (payload, sample_rate),
                 SamplingOutput::Drop { metrics, profile } => {
                     return Ok(Output {
-                        main: profile.map(TransactionOutput::Profile),
+                        main: profile.map(|p| TransactionOutput::Profile(headers, p)),
                         metrics: Some(metrics),
                     });
                 }
