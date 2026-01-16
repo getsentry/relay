@@ -30,7 +30,7 @@ local soak_time(region) =
                 DATADOG_MONITOR_IDS: if std.objectHas(soak_monitors, region) then soak_monitors[region] else soak_monitors.default,
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
                 SENTRY_PROJECTS: '4510703820210272:relay:relay',
-                SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
+                SENTRY_SINGLE_TENANT: 'false',
                 SENTRY_BASE: 'https://sentry.io/api/0',
                 // TODO: Set a proper error limit
                 ERROR_LIMIT: 500,
