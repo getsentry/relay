@@ -30,7 +30,7 @@ use crate::processing::StoreHandle;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::process::SamplingOutput;
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::types::{Flags, SampledTransaction};
+use crate::processing::transactions::types::Flags;
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -227,10 +227,12 @@ impl Processor for TransactionProcessor {
                 );
             };
 
-            relay_log::trace!("Extract spans");
-            work = process::extract_spans(work, ctx, server_sample_rate);
+            let (mut indexed, metrics) =
+                split_indexed_and_total(work, ctx, SamplingDecision::Keep)?;
 
-            let (indexed, metrics) = split_indexed_and_total(work, ctx, SamplingDecision::Keep)?;
+            relay_log::trace!("Extract spans");
+            indexed = process::extract_spans(indexed, ctx, server_sample_rate);
+
             return Ok(Output {
                 main: Some(TransactionOutput::Indexed(indexed)),
                 metrics: Some(metrics),
@@ -536,7 +538,7 @@ impl Counted for ExtractedSpans {
 #[derive(Debug)]
 pub enum TransactionOutput {
     Full(Managed<Box<ExpandedTransaction>>),
-    Profile(Managed<Item>),
+    Profile(Managed<Box<Item>>),
     Indexed(Managed<Box<ExpandedTransaction<Indexed>>>),
 }
 

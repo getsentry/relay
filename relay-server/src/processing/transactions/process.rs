@@ -20,7 +20,6 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::types::SampledTransaction;
 use crate::processing::transactions::{
     Error, ExpandedTransaction, ExtractedSpans, Flags, SerializedTransaction, TransactionOutput,
     profile, spans,
@@ -190,7 +189,7 @@ pub enum SamplingOutput {
     /// The decision was discard keep only extracted metrics and an optional profile.
     Drop {
         metrics: Managed<ExtractedMetrics>,
-        profile: Option<Managed<Item>>,
+        profile: Option<Managed<Box<Item>>>,
     },
 }
 
@@ -232,7 +231,7 @@ pub async fn run_dynamic_sampling(
 
     Ok(SamplingOutput::Drop {
         metrics,
-        profile: profile.transpose(),
+        profile: profile.map(|p, _| p.map(Box::new)).transpose(),
     })
 }
 
@@ -350,76 +349,13 @@ where
     })
 }
 
-// /// Extracts transaction & span metrics from the payload.
-// fn extract_metrics(
-//     mut work: Managed<Box<ExpandedTransaction>>,
-//     ctx: Context<'_>,
-//     drop_with_outcome: Option<Outcome>,
-// ) -> Result<Managed<WithMetrics>, Rejected<Error>> {
-//     let project_id = work.scoping().project_id;
-
-//     let sampling_decision = match drop_with_outcome {
-//         Some(_) => SamplingDecision::Drop,
-//         None => SamplingDecision::Keep,
-//     };
-
-//     work.try_map(|mut work, record_keeper| {
-//         if work.flags.metrics_extracted {
-//             // txn and span counts will be off.
-//             record_keeper.lenient(DataCategory::Transaction);
-//             record_keeper.lenient(DataCategory::Span);
-//         }
-
-//         let mut metrics = ProcessingExtractedMetrics::new();
-//         if sampling_decision.is_drop() || ctx.is_processing() {
-//             work.flags.metrics_extracted = extraction::extract_metrics(
-//                 &mut work.event,
-//                 &mut metrics,
-//                 ExtractMetricsContext {
-//                     dsc: work.headers.dsc(),
-//                     project_id,
-//                     ctx,
-//                     sampling_decision,
-//                     metrics_extracted: work.flags.metrics_extracted,
-//                     spans_extracted: work.flags.spans_extracted,
-//                 },
-//             )?
-//             .0;
-//         }
-
-//         let metrics = metrics.into_inner();
-//         let headers = work.headers.clone();
-//         let output = match drop_with_outcome {
-//             Some(outcome) => {
-//                 let profile = work.profile.take();
-//                 record_keeper.reject_err(outcome, IndexedWrapper(work));
-//                 WithMetrics {
-//                     headers,
-//                     payload: SampledTransaction::Drop { profile },
-//                     metrics,
-//                 }
-//             }
-//             None => WithMetrics {
-//                 headers,
-//                 payload: SampledTransaction::Keep { payload: work },
-//                 metrics,
-//             },
-//         };
-
-//         // Adds items in this data category.
-//         record_keeper.lenient(DataCategory::MetricBucket);
-
-//         Ok::<_, Error>(output)
-//     })
-// }
-
 /// Converts the spans embedded in the transaction into top-level span items.
 #[cfg(feature = "processing")]
 pub fn extract_spans(
-    mut work: Managed<Box<ExpandedTransaction>>,
+    mut work: Managed<Box<ExpandedTransaction<Indexed>>>,
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
-) -> Managed<Box<ExpandedTransaction>> {
+) -> Managed<Box<ExpandedTransaction<Indexed>>> {
     work.modify(|mut work, r| {
         if let Some(results) = spans::extract_from_event(
             work.headers.dsc(),
