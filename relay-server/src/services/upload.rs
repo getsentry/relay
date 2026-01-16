@@ -343,13 +343,13 @@ impl UploadServiceInner {
             #[cfg(debug_assertions)]
             let original_key = key.clone();
 
-            let stored_key = self
+            let _stored_key = self
                 .upload("attachment_v2", &session, body, Some(key))
                 .await
                 .reject(&trace_item)?;
 
             #[cfg(debug_assertions)]
-            debug_assert_eq!(stored_key, original_key);
+            debug_assert_eq!(_stored_key, original_key);
             relay_log::trace!("Finished attachment upload");
         }
 
