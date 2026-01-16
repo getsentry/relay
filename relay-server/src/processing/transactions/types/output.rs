@@ -49,6 +49,8 @@ impl Forward for TransactionOutput {
                 managed.map(|item, _| Envelope::from_parts(headers, smallvec::smallvec![*item]))
             ),
             TransactionOutput::Indexed(managed) => managed.try_map(|work, _| {
+                // TODO: This should raise an error, Indexed output should go straight to kafka
+                // instead of an envelope.
                 work.serialize_envelope()
                     .map_err(drop)
                     .with_outcome(Outcome::Invalid(DiscardReason::Internal))

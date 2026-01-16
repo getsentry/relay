@@ -7,6 +7,8 @@ import uuid
 from datetime import UTC, datetime, timedelta, timezone
 from time import sleep
 
+from sentry_relay.consts import DataCategory
+
 from .asserts import time_within_delta
 from .consts import (
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
@@ -866,35 +868,35 @@ def test_processing_quota_transaction_indexing(
 
     relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
     assert len(list(metrics_consumer.get_metrics())) > 0
-    # outcomes_consumer.assert_rate_limited(
-    #     "get_lost", categories=[DataCategory.TRANSACTION_INDEXED], ignore_other=True
-    # )
+    outcomes_consumer.assert_rate_limited(
+        "get_lost", categories=[DataCategory.TRANSACTION_INDEXED], ignore_other=True
+    )
 
-    # relay.send_event(project_id, make_transaction({"message": "3rd tx"}))
-    # outcomes_consumer.assert_rate_limited(
-    #     "get_lost",
-    #     categories=[DataCategory.TRANSACTION, DataCategory.TRANSACTION_INDEXED],
-    #     ignore_other=True,
-    #     timeout=3,
-    # )
+    relay.send_event(project_id, make_transaction({"message": "3rd tx"}))
+    outcomes_consumer.assert_rate_limited(
+        "get_lost",
+        categories=[DataCategory.TRANSACTION, DataCategory.TRANSACTION_INDEXED],
+        ignore_other=True,
+        timeout=3,
+    )
 
-    # with pytest.raises(HTTPError) as exc_info:
-    #     relay.send_event(project_id, make_transaction({"message": "4nd tx"}))
-    # assert exc_info.value.response.status_code == 429, "Expected a 429 status code"
-    # outcomes_consumer.assert_rate_limited(
-    #     "get_lost",
-    #     categories=[DataCategory.TRANSACTION, DataCategory.TRANSACTION_INDEXED],
-    #     ignore_other=True,
-    #     timeout=3,
-    # )
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_event(project_id, make_transaction({"message": "4nd tx"}))
+    assert exc_info.value.response.status_code == 429, "Expected a 429 status code"
+    outcomes_consumer.assert_rate_limited(
+        "get_lost",
+        categories=[DataCategory.TRANSACTION, DataCategory.TRANSACTION_INDEXED],
+        ignore_other=True,
+        timeout=3,
+    )
 
-    # # Ignore span metrics, they may be emitted because rate limits from transactions are not
-    # # currently enforced for spans, which they should be. See: https://github.com/getsentry/relay/issues/4961.
-    # metrics = {metric["name"] for (metric, _) in metrics_consumer.get_metrics()}
-    # assert metrics == {
-    #     "c:spans/count_per_root_project@none",
-    #     "c:spans/usage@none",
-    # }
+    # Ignore span metrics, they may be emitted because rate limits from transactions are not
+    # currently enforced for spans, which they should be. See: https://github.com/getsentry/relay/issues/4961.
+    metrics = {metric["name"] for (metric, _) in metrics_consumer.get_metrics()}
+    assert metrics == {
+        "c:spans/count_per_root_project@none",
+        "c:spans/usage@none",
+    }
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):

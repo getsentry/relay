@@ -136,7 +136,7 @@ pub fn extract_metrics(
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
                 .max_tag_value_length,
-            extract_span_metrics,
+            extract_spans: extract_span_metrics,
             transaction_from_dsc: dsc.and_then(|dsc| dsc.transaction.as_deref()),
         },
     );

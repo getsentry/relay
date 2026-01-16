@@ -102,7 +102,6 @@ impl Processor for TransactionProcessor {
     ) -> Option<Managed<Self::UnitOfWork>> {
         let headers = envelope.envelope().headers().clone();
 
-        #[allow(unused_mut)]
         let mut event = envelope
             .envelope_mut()
             .take_item_by(|item| matches!(*item.ty(), ItemType::Transaction))?;
