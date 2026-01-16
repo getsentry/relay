@@ -20,10 +20,10 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::types::{SampledTransaction, WithMetrics};
+use crate::processing::transactions::types::SampledTransaction;
 use crate::processing::transactions::{
-    Error, ExpandedTransaction, ExtractedSpans, Flags, IndexedWrapper, SerializedTransaction,
-    TransactionOutput, profile, spans,
+    Error, ExpandedTransaction, ExtractedSpans, Flags, SerializedTransaction, TransactionOutput,
+    profile, spans,
 };
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
@@ -209,21 +209,27 @@ pub async fn run_dynamic_sampling(
         keep => {
             return Ok(SamplingOutput::Keep {
                 payload,
-                sample_rate: sampling_result.sample_rate(),
+                sample_rate: keep.sample_rate(),
             });
         }
     };
 
     // At this point the decision is to drop the payload.
-    let (payload, remainder) = split_indexed_and_total(payload, ctx, SamplingDecision::Drop)?;
+    let (payload, metrics) = split_indexed_and_total(payload, ctx, SamplingDecision::Drop)?;
 
     // Need to process the profile before the event gets dropped:
     let payload = process_profile(payload, ctx);
+    let (payload, profile) = payload.split_once(|mut payload| {
+        let mut profile = payload.profile.take();
+        if let Some(profile) = profile.as_mut() {
+            profile.set_sampled(false);
+        }
+        (payload, profile)
+    });
 
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
     let _ = payload.reject_err(outcome);
 
-    let (metrics, profile) = remainder.split_once(|x| x);
     Ok(SamplingOutput::Drop {
         metrics,
         profile: profile.transpose(),
@@ -280,7 +286,7 @@ async fn do_make_dynamic_sampling_decision(
 
 type IndexedAndMetrics = (
     Managed<Box<ExpandedTransaction<Indexed>>>,
-    Managed<(ExtractedMetrics, Option<Item>)>,
+    Managed<ExtractedMetrics>,
 );
 
 /// Splits transaction into indexed payload and metrics representing the total counts.
@@ -292,7 +298,6 @@ pub fn split_indexed_and_total(
     let scoping = work.scoping();
 
     let mut metrics = ProcessingExtractedMetrics::new();
-    let mut profile = None;
     let r = work.try_modify(|work, _| {
         work.flags.metrics_extracted = extraction::extract_metrics(
             &mut work.event,
@@ -307,26 +312,21 @@ pub fn split_indexed_and_total(
             },
         )?
         .0;
-        profile = work.profile.take();
-        if let Some(profile) = profile.as_mut() {
-            profile.set_sampled(sampling_decision.is_keep());
-        }
+
         Ok::<_, Error>(())
     });
 
-    Ok(work.split_once(|work| {
-        (
-            Box::new(work.into_indexed()),
-            (metrics.into_inner(), profile),
-        )
-    }))
+    Ok(work.split_once(|work| (Box::new(work.into_indexed()), metrics.into_inner())))
 }
 
 /// Processes the profile attached to the transaction.
-pub fn process_profile(
-    work: Managed<Box<ExpandedTransaction<_>>>,
+pub fn process_profile<T>(
+    work: Managed<Box<ExpandedTransaction<T>>>,
     ctx: Context<'_>,
-) -> Managed<Box<ExpandedTransaction>> {
+) -> Managed<Box<ExpandedTransaction<T>>>
+where
+    ExpandedTransaction<T>: Counted,
+{
     work.map(|mut work, record_keeper| {
         let mut profile_id = None;
         if let Some(profile) = work.profile.as_mut() {
@@ -350,108 +350,98 @@ pub fn process_profile(
     })
 }
 
-/// Extracts transaction & span metrics from the payload.
-fn extract_metrics(
-    mut work: Managed<Box<ExpandedTransaction>>,
-    ctx: Context<'_>,
-    drop_with_outcome: Option<Outcome>,
-) -> Result<Managed<WithMetrics>, Rejected<Error>> {
-    let project_id = work.scoping().project_id;
+// /// Extracts transaction & span metrics from the payload.
+// fn extract_metrics(
+//     mut work: Managed<Box<ExpandedTransaction>>,
+//     ctx: Context<'_>,
+//     drop_with_outcome: Option<Outcome>,
+// ) -> Result<Managed<WithMetrics>, Rejected<Error>> {
+//     let project_id = work.scoping().project_id;
 
-    let sampling_decision = match drop_with_outcome {
-        Some(_) => SamplingDecision::Drop,
-        None => SamplingDecision::Keep,
-    };
+//     let sampling_decision = match drop_with_outcome {
+//         Some(_) => SamplingDecision::Drop,
+//         None => SamplingDecision::Keep,
+//     };
 
-    work.try_map(|mut work, record_keeper| {
-        if work.flags.metrics_extracted {
-            // txn and span counts will be off.
-            record_keeper.lenient(DataCategory::Transaction);
-            record_keeper.lenient(DataCategory::Span);
-        }
+//     work.try_map(|mut work, record_keeper| {
+//         if work.flags.metrics_extracted {
+//             // txn and span counts will be off.
+//             record_keeper.lenient(DataCategory::Transaction);
+//             record_keeper.lenient(DataCategory::Span);
+//         }
 
-        let mut metrics = ProcessingExtractedMetrics::new();
-        if sampling_decision.is_drop() || ctx.is_processing() {
-            work.flags.metrics_extracted = extraction::extract_metrics(
-                &mut work.event,
-                &mut metrics,
-                ExtractMetricsContext {
-                    dsc: work.headers.dsc(),
-                    project_id,
-                    ctx,
-                    sampling_decision,
-                    metrics_extracted: work.flags.metrics_extracted,
-                    spans_extracted: work.flags.spans_extracted,
-                },
-            )?
-            .0;
-        }
+//         let mut metrics = ProcessingExtractedMetrics::new();
+//         if sampling_decision.is_drop() || ctx.is_processing() {
+//             work.flags.metrics_extracted = extraction::extract_metrics(
+//                 &mut work.event,
+//                 &mut metrics,
+//                 ExtractMetricsContext {
+//                     dsc: work.headers.dsc(),
+//                     project_id,
+//                     ctx,
+//                     sampling_decision,
+//                     metrics_extracted: work.flags.metrics_extracted,
+//                     spans_extracted: work.flags.spans_extracted,
+//                 },
+//             )?
+//             .0;
+//         }
 
-        let metrics = metrics.into_inner();
-        let headers = work.headers.clone();
-        let output = match drop_with_outcome {
-            Some(outcome) => {
-                let profile = work.profile.take();
-                record_keeper.reject_err(outcome, IndexedWrapper(work));
-                WithMetrics {
-                    headers,
-                    payload: SampledTransaction::Drop { profile },
-                    metrics,
-                }
-            }
-            None => WithMetrics {
-                headers,
-                payload: SampledTransaction::Keep { payload: work },
-                metrics,
-            },
-        };
+//         let metrics = metrics.into_inner();
+//         let headers = work.headers.clone();
+//         let output = match drop_with_outcome {
+//             Some(outcome) => {
+//                 let profile = work.profile.take();
+//                 record_keeper.reject_err(outcome, IndexedWrapper(work));
+//                 WithMetrics {
+//                     headers,
+//                     payload: SampledTransaction::Drop { profile },
+//                     metrics,
+//                 }
+//             }
+//             None => WithMetrics {
+//                 headers,
+//                 payload: SampledTransaction::Keep { payload: work },
+//                 metrics,
+//             },
+//         };
 
-        // Adds items in this data category.
-        record_keeper.lenient(DataCategory::MetricBucket);
+//         // Adds items in this data category.
+//         record_keeper.lenient(DataCategory::MetricBucket);
 
-        Ok::<_, Error>(output)
-    })
-}
+//         Ok::<_, Error>(output)
+//     })
+// }
 
 /// Converts the spans embedded in the transaction into top-level span items.
 #[cfg(feature = "processing")]
 pub fn extract_spans(
-    mut work: Managed<WithMetrics>,
+    mut work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
-) -> Managed<WithMetrics> {
+) -> Managed<Box<ExpandedTransaction>> {
     work.modify(|mut work, r| {
-        let WithMetrics {
-            headers,
-            payload,
-            metrics,
-        } = work;
-        match payload {
-            SampledTransaction::Keep { payload } => {
-                if let Some(results) = spans::extract_from_event(
-                    headers.dsc(),
-                    &payload.event,
-                    ctx.global_config,
-                    ctx.config,
-                    server_sample_rate,
-                    EventMetricsExtracted(payload.flags.metrics_extracted),
-                    SpansExtracted(payload.flags.spans_extracted),
-                ) {
-                    payload.flags.spans_extracted = true;
-                    for result in results {
-                        match result {
-                            Ok(item) => payload.extracted_spans.push(item),
-                            Err(_) => {
-                                r.reject_err(
-                                    Outcome::Invalid(DiscardReason::InvalidSpan),
-                                    IndexedSpans(1),
-                                );
-                            }
-                        }
+        if let Some(results) = spans::extract_from_event(
+            work.headers.dsc(),
+            &work.event,
+            ctx.global_config,
+            ctx.config,
+            server_sample_rate,
+            EventMetricsExtracted(work.flags.metrics_extracted),
+            SpansExtracted(work.flags.spans_extracted),
+        ) {
+            work.flags.spans_extracted = true;
+            for result in results {
+                match result {
+                    Ok(item) => work.extracted_spans.push(item),
+                    Err(_) => {
+                        r.reject_err(
+                            Outcome::Invalid(DiscardReason::InvalidSpan),
+                            IndexedSpans(1),
+                        );
                     }
                 }
             }
-            SampledTransaction::Drop { profile } => {}
         }
     });
     work

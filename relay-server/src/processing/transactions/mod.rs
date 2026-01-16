@@ -30,7 +30,7 @@ use crate::processing::StoreHandle;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::process::SamplingOutput;
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::types::{Flags, SampledTransaction, WithHeaders, WithMetrics};
+use crate::processing::transactions::types::{Flags, SampledTransaction};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -213,7 +213,7 @@ impl Processor for TransactionProcessor {
 
         // Need to scrub the transaction before extracting spans.
         relay_log::trace!("Scrubbing transaction");
-        work = process::scrub(work, ctx)?;
+        let mut work = process::scrub(work, ctx)?;
 
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {
@@ -233,22 +233,13 @@ impl Processor for TransactionProcessor {
             let (indexed, metrics) = split_indexed_and_total(work, ctx, SamplingDecision::Keep)?;
             return Ok(Output {
                 main: Some(TransactionOutput::Indexed(indexed)),
-                metrics,
+                metrics: Some(metrics),
             });
         }
 
-        let (main, metrics) = work.split_once(
-            |WithMetrics {
-                 headers,
-                 payload,
-                 metrics,
-             }| (WithHeaders { headers, payload }, metrics),
-        );
-
-        relay_log::trace!("Done");
         Ok(Output {
-            main: Some(TransactionOutput(main)),
-            metrics: Some(metrics),
+            main: Some(TransactionOutput::Full(work)),
+            metrics: None,
         })
     }
 }
@@ -500,16 +491,18 @@ impl Counted for ExtractedSpans {
 /// Output of the transaction processor.
 #[derive(Debug)]
 pub enum TransactionOutput {
-    Full(Managed<ExpandedTransaction>),
+    Full(Managed<Box<ExpandedTransaction>>),
     Profile(Managed<Item>),
+    Indexed(Managed<Box<ExpandedTransaction<Indexed>>>),
 }
 
 impl TransactionOutput {
     #[cfg(test)]
     pub fn event(self) -> Option<Annotated<Event>> {
-        match self.0.accept(|x| x).payload {
-            SampledTransaction::Keep { payload } => Some(payload.event),
-            SampledTransaction::Drop { profile } => None,
+        match self {
+            TransactionOutput::Full(managed) => Some(managed.accept(|x| x).event),
+            TransactionOutput::Profile(managed) => None,
+            TransactionOutput::Indexed(managed) => Some(managed.accept(|x| x).event),
         }
     }
 }
@@ -519,7 +512,7 @@ impl Forward for TransactionOutput {
         self,
         ctx: ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        self.0.try_map(|work, record_keeper| {
+        self.try_map(|work, record_keeper| {
             let output = work
                 .serialize_envelope()
                 .map_err(drop)
