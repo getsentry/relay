@@ -188,9 +188,12 @@ impl Processor for TransactionProcessor {
         let quotas_client = None;
 
         relay_log::trace!("Sample transaction");
-        let work =
+        let (work, _server_sample_rate) =
             match process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await? {
-                SamplingOutput::Keep(work) => work,
+                SamplingOutput::Keep {
+                    payload,
+                    sample_rate,
+                } => (payload, sample_rate),
                 SamplingOutput::Drop { metrics, profile } => {
                     return Ok(Output {
                         main: profile.map(TransactionOutput::Profile),
@@ -200,7 +203,7 @@ impl Processor for TransactionProcessor {
             };
 
         #[cfg(feature = "processing")]
-        let server_sample_rate = 1.0; // FIXME
+        let server_sample_rate = _server_sample_rate;
 
         relay_log::trace!("Processing profiles");
         let work = process::process_profile(work, ctx);
@@ -214,6 +217,8 @@ impl Processor for TransactionProcessor {
 
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {
+            use crate::processing::transactions::process::split_indexed_and_total;
+
             if !work.flags.fully_normalized {
                 relay_log::error!(
                     tags.project = %project_id,
@@ -225,13 +230,11 @@ impl Processor for TransactionProcessor {
             relay_log::trace!("Extract spans");
             work = process::extract_spans(work, ctx, server_sample_rate);
 
-            match process::try_split_indexed_and_total(work, ctx) {
-                Either::Left(spans) => Ok(Output::just(TransactionOutput::TotalAndIndexed(spans))),
-                Either::Right((spans, metrics)) => Ok(Output {
-                    main: Some(TransactionOutput::Indexed(spans)),
-                    metrics: Some(metrics),
-                }),
-            }
+            let (indexed, metrics) = split_indexed_and_total(work, ctx, SamplingDecision::Keep)?;
+            return Ok(Output {
+                main: Some(TransactionOutput::Indexed(indexed)),
+                metrics,
+            });
         }
 
         let (main, metrics) = work.split_once(
@@ -391,7 +394,7 @@ impl Counted for ExpandedTransaction<Indexed> {
     }
 }
 
-impl RateLimited for Managed<ExpandedTransaction<TotalAndIndexed>> {
+impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
     type Output = Self;
     type Error = Error;
 

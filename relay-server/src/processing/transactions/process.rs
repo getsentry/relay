@@ -183,7 +183,10 @@ pub fn run_inbound_filters(
 /// The result of dynamic sampling.
 pub enum SamplingOutput {
     /// The decision was retain, maintain full transaction.
-    Keep(Managed<Box<ExpandedTransaction>>),
+    Keep {
+        payload: Managed<Box<ExpandedTransaction>>,
+        sample_rate: Option<f64>,
+    },
     /// The decision was discard keep only extracted metrics and an optional profile.
     Drop {
         metrics: Managed<ExtractedMetrics>,
@@ -193,27 +196,26 @@ pub enum SamplingOutput {
 
 /// Computes the sampling decision for a transaction and associated items.
 pub async fn run_dynamic_sampling(
-    work: Managed<Box<ExpandedTransaction>>,
+    payload: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
     quotas_client: Option<&AsyncRedisClient>,
 ) -> Result<SamplingOutput, Rejected<Error>> {
     let sampling_result =
-        make_dynamic_sampling_decision(&work, ctx, filters_status, quotas_client).await;
+        make_dynamic_sampling_decision(&payload, ctx, filters_status, quotas_client).await;
 
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
         keep => {
-            // TODO: needed?
-            // work.modify(|spans, _| {
-            //     spans.server_sample_rate = sampling_result.sample_rate();
-            // });
-            return Ok(SamplingOutput::Keep(work));
+            return Ok(SamplingOutput::Keep {
+                payload,
+                sample_rate: sampling_result.sample_rate(),
+            });
         }
     };
 
     // At this point the decision is to drop the payload.
-    let (payload, remainder) = split_indexed_and_total(work, ctx, SamplingDecision::Drop)?;
+    let (payload, remainder) = split_indexed_and_total(payload, ctx, SamplingDecision::Drop)?;
 
     // Need to process the profile before the event gets dropped:
     let payload = process_profile(payload, ctx);
@@ -282,10 +284,7 @@ type IndexedAndMetrics = (
 );
 
 /// Splits transaction into indexed payload and metrics representing the total counts.
-///
-/// Dynamic sampling internal function, outside users should use the safer, use case driven variants
-/// [`try_split_indexed_and_total`] and [`reject_indexed_spans`].
-fn split_indexed_and_total(
+pub fn split_indexed_and_total(
     mut work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     sampling_decision: SamplingDecision,
