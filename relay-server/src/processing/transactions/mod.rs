@@ -472,6 +472,50 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
     }
 }
 
+impl<T> ExpandedTransaction<T> {
+    // TODO: should only exist or `TotalAndIndexed`, Indexed should go straight to kafka.
+    pub fn serialize_envelope(self) -> Result<Box<Envelope>, serde_json::Error> {
+        let mut items = Items::new();
+
+        let span_count = self.count_embedded_spans_and_self() - 1;
+        let ExpandedTransaction {
+            headers,
+            event,
+            flags,
+            attachments,
+            profile,
+            extracted_spans,
+            category: _,
+        } = self;
+
+        items.extend(attachments);
+        items.extend(profile);
+        items.extend(extracted_spans);
+
+        // To be compatible with previous code, add the transaction at the end:
+        let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
+            event.to_json()?
+        });
+        let mut item = Item::new(ItemType::Transaction);
+        item.set_payload(ContentType::Json, data);
+
+        let Flags {
+            metrics_extracted,
+            spans_extracted,
+            fully_normalized,
+        } = flags;
+        item.set_metrics_extracted(metrics_extracted);
+        item.set_spans_extracted(spans_extracted);
+        item.set_fully_normalized(fully_normalized);
+
+        item.set_span_count(Some(span_count));
+
+        items.push(item);
+
+        Ok(Envelope::from_parts(headers, items))
+    }
+}
+
 /// Wrapper for spans extracted from a transaction.
 ///
 /// Needed to not emit the total category for spans.
@@ -512,15 +556,24 @@ impl Forward for TransactionOutput {
         self,
         ctx: ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        self.try_map(|work, record_keeper| {
-            let output = work
-                .serialize_envelope()
-                .map_err(drop)
-                .with_outcome(Outcome::Invalid(DiscardReason::Internal));
-            record_keeper.lenient(DataCategory::Transaction); // TODO
-            record_keeper.lenient(DataCategory::Span); // TODO
-            output
-        })
+        match self {
+            TransactionOutput::Full(managed) => managed.try_map(|work, record_keeper| {
+                work.serialize_envelope()
+                    .map_err(drop)
+                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+            }),
+            TransactionOutput::Profile(managed) => todo!(),
+            TransactionOutput::Indexed(managed) => todo!(),
+        }
+        // self.try_map(|work, record_keeper| {
+        //     let output = work
+        //         .serialize_envelope()
+        //         .map_err(drop)
+        //         .with_outcome(Outcome::Invalid(DiscardReason::Internal));
+        //     record_keeper.lenient(DataCategory::Transaction); // TODO
+        //     record_keeper.lenient(DataCategory::Span); // TODO
+        //     output
+        // })
     }
 
     #[cfg(feature = "processing")]
