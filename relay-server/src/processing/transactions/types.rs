@@ -123,109 +123,124 @@ pub struct Flags {
 // }
 
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-pub enum SampledPayload {
+pub enum SampledTransaction {
     /// We still have a transaction + child items, and it counts as both indexed + total.
-    Keep { payload: Box<ExpandedTransaction> },
-    /// All we have left is a profile.
-    Drop { profile: Option<Item> },
+    Keep(Box<ExpandedTransaction>),
+    /// All we have left is extracted metrics and an optional profile.
+    Drop {
+        metrics: ExtractedMetrics,
+        profile: Option<Item>,
+    },
 }
 
-pub struct WithMetrics {
-    pub headers: EnvelopeHeaders,
-    pub payload: SampledPayload,
-    pub metrics: ExtractedMetrics,
-}
-
-impl Counted for WithMetrics {
+impl Counted for SampledTransaction {
     fn quantities(&self) -> Quantities {
-        let Self {
-            headers: _,
-            payload,
-            metrics,
-        } = self;
-
-        match payload {
-            SampledPayload::Keep { payload } => {
-                // As long as we have a payload, the metrics do not carry any data category.
-                payload.quantities()
-            }
-            SampledPayload::Drop { profile } => {
-                // When the payload is gone, the metrics carry the data category.
-                let mut quantities = profile.quantities();
-                quantities.extend(metrics.quantities());
+        match self {
+            SampledTransaction::Keep(expanded_transaction) => expanded_transaction.quantities(),
+            SampledTransaction::Drop { metrics, profile } => {
+                let mut quantities = metrics.quantities();
+                quantities.extend(profile.quantities());
                 quantities
             }
         }
     }
 }
 
-#[derive(Debug)]
-pub struct WithHeaders {
-    pub headers: EnvelopeHeaders,
-    pub payload: SampledPayload,
-}
+// pub struct WithMetrics {
+//     pub headers: EnvelopeHeaders,
+//     pub payload: SamplingOutput,
+//     pub metrics: ExtractedMetrics,
+// }
 
-impl WithHeaders {
-    pub fn serialize_envelope(self) -> Result<Box<Envelope>, serde_json::Error> {
-        let Self { headers, payload } = self;
-        let mut items = Items::new();
-        match payload {
-            SampledPayload::Keep { payload } => {
-                let span_count = payload.count_embedded_spans_and_self() - 1;
-                let ExpandedTransaction {
-                    headers: _,
-                    event,
-                    flags,
-                    attachments,
-                    profile,
-                    extracted_spans,
-                } = *payload;
+// impl Counted for WithMetrics {
+//     fn quantities(&self) -> Quantities {
+//         let Self {
+//             headers: _,
+//             payload,
+//             metrics,
+//         } = self;
 
-                items.extend(attachments);
-                items.extend(profile);
-                items.extend(extracted_spans);
+//         match payload {
+//             SamplingOutput::Keep => {
+//                 // As long as we have a payload, the metrics do not carry any data category.
+//                 payload.quantities()
+//             }
+//             SamplingOutput::Drop { profile } => {
+//                 // When the payload is gone, the metrics carry the data category.
+//                 let mut quantities = profile.quantities();
+//                 quantities.extend(metrics.quantities());
+//                 quantities
+//             }
+//         }
+//     }
+// }
 
-                // To be compatible with previous code, add the transaction at the end:
-                let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
-                    event.to_json()?
-                });
-                let mut item = Item::new(ItemType::Transaction);
-                item.set_payload(ContentType::Json, data);
+// #[derive(Debug)]
+// pub struct WithHeaders {
+//     pub headers: EnvelopeHeaders,
+//     pub payload: SamplingOutput,
+// }
 
-                let Flags {
-                    metrics_extracted,
-                    spans_extracted,
-                    fully_normalized,
-                } = flags;
-                item.set_metrics_extracted(metrics_extracted);
-                item.set_spans_extracted(spans_extracted);
-                item.set_fully_normalized(fully_normalized);
+// impl WithHeaders {
+//     pub fn serialize_envelope(self) -> Result<Box<Envelope>, serde_json::Error> {
+//         let Self { headers, payload } = self;
+//         let mut items = Items::new();
+//         match payload {
+//             SamplingOutput::Keep { payload } => {
+//                 let span_count = payload.count_embedded_spans_and_self() - 1;
+//                 let ExpandedTransaction {
+//                     headers: _,
+//                     event,
+//                     flags,
+//                     attachments,
+//                     profile,
+//                     extracted_spans,
+//                 } = *payload;
 
-                item.set_span_count(Some(span_count));
+//                 items.extend(attachments);
+//                 items.extend(profile);
+//                 items.extend(extracted_spans);
 
-                items.push(item);
-            }
-            SampledPayload::Drop { profile } => {
-                if let Some(mut profile) = profile {
-                    items.push(profile);
-                }
-            }
-        }
+//                 // To be compatible with previous code, add the transaction at the end:
+//                 let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
+//                     event.to_json()?
+//                 });
+//                 let mut item = Item::new(ItemType::Transaction);
+//                 item.set_payload(ContentType::Json, data);
 
-        Ok(Envelope::from_parts(headers, items))
-    }
-}
+//                 let Flags {
+//                     metrics_extracted,
+//                     spans_extracted,
+//                     fully_normalized,
+//                 } = flags;
+//                 item.set_metrics_extracted(metrics_extracted);
+//                 item.set_spans_extracted(spans_extracted);
+//                 item.set_fully_normalized(fully_normalized);
 
-impl Counted for WithHeaders {
-    fn quantities(&self) -> Quantities {
-        let Self {
-            headers: _,
-            payload,
-        } = self;
-        match payload {
-            SampledPayload::Keep { payload } => payload.quantities(),
-            SampledPayload::Drop { profile } => profile.quantities(),
-        }
-    }
-}
+//                 item.set_span_count(Some(span_count));
+
+//                 items.push(item);
+//             }
+//             SamplingOutput::Drop { profile } => {
+//                 if let Some(mut profile) = profile {
+//                     items.push(profile);
+//                 }
+//             }
+//         }
+
+//         Ok(Envelope::from_parts(headers, items))
+//     }
+// }
+
+// impl Counted for WithHeaders {
+//     fn quantities(&self) -> Quantities {
+//         let Self {
+//             headers: _,
+//             payload,
+//         } = self;
+//         match payload {
+//             SamplingOutput::Keep { payload } => payload.quantities(),
+//             SamplingOutput::Drop { profile } => profile.quantities(),
+//         }
+//     }
+// }

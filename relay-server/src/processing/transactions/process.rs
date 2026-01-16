@@ -20,7 +20,7 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::types::{SampledPayload, WithMetrics};
+use crate::processing::transactions::types::{SampledTransaction, WithMetrics};
 use crate::processing::transactions::{
     Error, ExpandedTransaction, ExtractedSpans, Flags, IndexedWrapper, SerializedTransaction,
     TransactionOutput, profile, spans,
@@ -186,28 +186,28 @@ pub async fn run_dynamic_sampling(
     ctx: Context<'_>,
     filters_status: FiltersStatus,
     quotas_client: Option<&AsyncRedisClient>,
-) -> Result<Either<Managed<Box<ExpandedTransaction>>, Managed<ExtractedMetrics>>, Rejected<Error>> {
+) -> Result<Managed<SampledTransaction>, Rejected<Error>> {
     let sampling_result =
         make_dynamic_sampling_decision(&work, ctx, filters_status, quotas_client).await;
 
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
-        sampling_result => {
+        keep => {
             // TODO: needed?
             // work.modify(|spans, _| {
             //     spans.server_sample_rate = sampling_result.sample_rate();
             // });
-            return Ok(Either::Left(work));
+            return Ok(work.map(|work, _| SampledTransaction::Keep(work)));
         }
     };
 
     // At this point the decision is to drop the payload.
-    let (payload, metrics) = split_indexed_and_total(work, ctx, SamplingDecision::Drop)?;
+    let (payload, remainder) = split_indexed_and_total(work, ctx, SamplingDecision::Drop)?;
 
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
     let _ = payload.reject_err(outcome);
 
-    Ok(Either::Right(metrics))
+    Ok(remainder.map(|(metrics, profile), _| SampledTransaction::Drop { profile, metrics }))
 }
 
 /// Computes the dynamic sampling decision for the unit of work, but does not perform action on data.
@@ -260,17 +260,8 @@ async fn do_make_dynamic_sampling_decision(
 
 type IndexedAndMetrics = (
     Managed<Box<ExpandedTransaction<Indexed>>>,
-    Managed<ExtractedMetrics>,
+    Managed<(ExtractedMetrics, Option<Item>)>,
 );
-
-impl Counted for IndexedAndMetrics {
-    fn quantities(&self) -> Quantities {
-        let (indexed, metrics) = self;
-        let mut quantities = indexed.quantities();
-        quantities.extend(metrics.quantities());
-        quantities
-    }
-}
 
 /// Splits transaction into indexed payload and metrics representing the total counts.
 ///
@@ -284,6 +275,7 @@ fn split_indexed_and_total(
     let scoping = work.scoping();
 
     let mut metrics = ProcessingExtractedMetrics::new();
+    let mut profile = None;
     let r = work.try_modify(|work, _| {
         work.flags.metrics_extracted = extraction::extract_metrics(
             &mut work.event,
@@ -298,22 +290,27 @@ fn split_indexed_and_total(
             },
         )?
         .0;
+        profile = work.profile.take();
+        profile.set_sampled(sampling_decision.is_keep());
         Ok::<_, Error>(())
     });
 
-    Ok(work.split_once(|work| (Box::new(work.into_indexed()), metrics.into_inner())))
+    Ok(work.split_once(|work| {
+        (
+            Box::new(work.into_indexed()),
+            (metrics.into_inner(), profile),
+        )
+    }))
 }
 
 /// Processes the profile attached to the transaction.
 pub fn process_profile(
     work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
-    sampling_decision: SamplingDecision,
 ) -> Managed<Box<ExpandedTransaction>> {
     work.map(|mut work, record_keeper| {
         let mut profile_id = None;
         if let Some(profile) = work.profile.as_mut() {
-            profile.set_sampled(sampling_decision.is_keep());
             let result = profile::process(
                 profile,
                 work.headers.meta().client_addr(),
@@ -379,13 +376,13 @@ fn extract_metrics(
                 record_keeper.reject_err(outcome, IndexedWrapper(work));
                 WithMetrics {
                     headers,
-                    payload: SampledPayload::Drop { profile },
+                    payload: SampledTransaction::Drop { profile },
                     metrics,
                 }
             }
             None => WithMetrics {
                 headers,
-                payload: SampledPayload::Keep { payload: work },
+                payload: SampledTransaction::Keep { payload: work },
                 metrics,
             },
         };
@@ -411,7 +408,7 @@ pub fn extract_spans(
             metrics,
         } = work;
         match payload {
-            SampledPayload::Keep { payload } => {
+            SampledTransaction::Keep { payload } => {
                 if let Some(results) = spans::extract_from_event(
                     headers.dsc(),
                     &payload.event,
@@ -435,7 +432,7 @@ pub fn extract_spans(
                     }
                 }
             }
-            SampledPayload::Drop { profile } => {}
+            SampledTransaction::Drop { profile } => {}
         }
     });
     work

@@ -29,7 +29,7 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::StoreHandle;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::profile::{Profile, ProfileWithHeaders};
-use crate::processing::transactions::types::{Flags, SampledPayload, WithHeaders, WithMetrics};
+use crate::processing::transactions::types::{Flags, SampledTransaction, WithHeaders, WithMetrics};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_type,
 };
@@ -187,11 +187,7 @@ impl Processor for TransactionProcessor {
         let quotas_client = None;
 
         relay_log::trace!("Sample transaction");
-        let work =
-            match process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await? {
-                Either::Left(work) => work,
-                Either::Right(metrics) => return Ok(Output::metrics(metrics)),
-            };
+        let work = process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await?;
 
         #[cfg(feature = "processing")]
         let server_sample_rate = 1.0; // FIXME
@@ -496,8 +492,8 @@ impl TransactionOutput {
     #[cfg(test)]
     pub fn event(self) -> Option<Annotated<Event>> {
         match self.0.accept(|x| x).payload {
-            SampledPayload::Keep { payload } => Some(payload.event),
-            SampledPayload::Drop { profile } => None,
+            SampledTransaction::Keep { payload } => Some(payload.event),
+            SampledTransaction::Drop { profile } => None,
         }
     }
 }
