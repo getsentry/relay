@@ -12,12 +12,11 @@ use relay_sampling::evaluation::{ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use smallvec::smallvec;
 
-use crate::envelope::Item;
 use crate::managed::{Counted, Managed, ManagedResult, Quantities, Rejected};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
-use crate::processing::transactions::types::{ExpandedTransaction, Flags};
+use crate::processing::transactions::types::{ExpandedTransaction, Flags, Profile};
 use crate::processing::transactions::{Error, SerializedTransaction, profile, spans};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
@@ -184,7 +183,7 @@ pub enum SamplingOutput {
     /// The decision was discard keep only extracted metrics and an optional profile.
     Drop {
         metrics: Managed<ExtractedMetrics>,
-        profile: Option<Managed<Box<Item>>>,
+        profile: Option<Managed<Profile>>,
     },
 }
 
@@ -226,7 +225,9 @@ pub async fn run_dynamic_sampling(
 
     Ok(SamplingOutput::Drop {
         metrics,
-        profile: profile.map(|p, _| p.map(Box::new)).transpose(),
+        profile: profile
+            .transpose()
+            .map(|managed| managed.map(|item, _| Profile(Box::new(item)))),
     })
 }
 

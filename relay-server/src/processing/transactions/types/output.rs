@@ -5,12 +5,12 @@ use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item};
+use crate::envelope::EnvelopeHeaders;
 use crate::managed::{Managed, ManagedEnvelope, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
 use crate::processing::StoreHandle;
 use crate::processing::spans::Indexed;
-use crate::processing::transactions::types::ExpandedTransaction;
+use crate::processing::transactions::types::{ExpandedTransaction, Profile};
 use crate::processing::{Forward, ForwardContext};
 use crate::services::outcome::{DiscardReason, Outcome};
 #[cfg(feature = "processing")]
@@ -20,7 +20,7 @@ use crate::services::store::StoreEnvelope;
 #[derive(Debug)]
 pub enum TransactionOutput {
     Full(Managed<Box<ExpandedTransaction>>),
-    Profile(EnvelopeHeaders, Managed<Box<Item>>),
+    Profile(Box<EnvelopeHeaders>, Managed<Profile>),
     Indexed(Managed<Box<ExpandedTransaction<Indexed>>>),
 }
 
@@ -46,9 +46,9 @@ impl Forward for TransactionOutput {
                     .map_err(drop)
                     .with_outcome(Outcome::Invalid(DiscardReason::Internal))
             }),
-            TransactionOutput::Profile(headers, managed) => Ok(
-                managed.map(|item, _| Envelope::from_parts(headers, smallvec::smallvec![*item]))
-            ),
+            TransactionOutput::Profile(headers, managed) => Ok(managed.map(|Profile(item), _| {
+                Envelope::from_parts(*headers, smallvec::smallvec![*item])
+            })),
             TransactionOutput::Indexed(managed) => managed.try_map(|work, record_keeper| {
                 // TODO: This should raise an error, Indexed output should go straight to kafka
                 // instead of an envelope. As long as we have this hack, ignore bookkeeping

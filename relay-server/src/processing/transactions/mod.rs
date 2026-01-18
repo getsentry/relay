@@ -164,9 +164,16 @@ impl Processor for TransactionProcessor {
                     payload,
                     sample_rate,
                 } => (payload, sample_rate),
-                SamplingOutput::Drop { metrics, profile } => {
+                SamplingOutput::Drop {
+                    metrics,
+                    mut profile,
+                } => {
+                    // Remaining profile needs to be rate limited:
+                    if let Some(p) = profile {
+                        profile = Some(self.limiter.enforce_quotas(p, ctx).await?);
+                    }
                     return Ok(Output {
-                        main: profile.map(|p| TransactionOutput::Profile(headers, p)),
+                        main: profile.map(|p| TransactionOutput::Profile(Box::new(headers), p)),
                         metrics: Some(metrics),
                     });
                 }

@@ -4,6 +4,8 @@ mod serialized;
 pub use serialized::SerializedTransaction;
 mod output;
 pub use output::TransactionOutput;
+mod profile;
+pub use profile::Profile;
 
 /// Flags extracted from transaction item headers.
 ///
