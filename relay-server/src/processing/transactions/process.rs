@@ -65,7 +65,7 @@ pub fn expand(
                     .options
                     .span_extraction_sample_rate
                     .unwrap_or(1.0);
-                dbg!(crate::utils::sample(span_extraction_sample_rate).is_discard())
+                crate::utils::sample(span_extraction_sample_rate).is_discard()
             },
             spans_rate_limited: false,
         };
