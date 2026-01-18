@@ -278,7 +278,7 @@
 <a href=#278 id=278 data-nosnippet>278</a>        </span><span class="kw">let </span>is_metric = |i: <span class="kw-2">&amp;</span>Item| <span class="macro">matches!</span>(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
 <a href=#279 id=279 data-nosnippet>279</a>
 <a href=#280 id=280 data-nosnippet>280</a>        <span class="kw">let </span>metrics;
-<a href=#281 id=281 data-nosnippet>281</a>        (envelope, metrics) = envelope.split_once(|<span class="kw-2">mut </span>envelope| {
+<a href=#281 id=281 data-nosnippet>281</a>        (envelope, metrics) = envelope.split_once(|<span class="kw-2">mut </span>envelope, <span class="kw">_</span>| {
 <a href=#282 id=282 data-nosnippet>282</a>            <span class="kw">let </span>metrics = envelope.take_items_by(is_metric).into_vec();
 <a href=#283 id=283 data-nosnippet>283</a>            (envelope, metrics)
 <a href=#284 id=284 data-nosnippet>284</a>        });
