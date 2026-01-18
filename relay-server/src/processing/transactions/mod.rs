@@ -10,6 +10,8 @@ use relay_sampling::evaluation::SamplingDecision;
 use crate::envelope::ItemType;
 use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
 use crate::processing::transactions::process::SamplingOutput;
+#[cfg(feature = "processing")]
+use crate::processing::transactions::process::split_indexed_and_total;
 use crate::processing::transactions::types::{SerializedTransaction, TransactionOutput};
 use crate::processing::utils::event::event_type;
 use crate::processing::{Context, Output, Processor, QuotaRateLimiter};
@@ -176,17 +178,18 @@ impl Processor for TransactionProcessor {
         relay_log::trace!("Processing profiles");
         let work = process::process_profile(work, ctx);
 
-        relay_log::trace!("Enforce quotas");
-        let work = self.limiter.enforce_quotas(work, ctx).await?;
-
         // Need to scrub the transaction before extracting spans.
         relay_log::trace!("Scrubbing transaction");
         let work = process::scrub(work, ctx)?;
 
+        relay_log::trace!("Extract spans");
+        let work = process::extract_spans(work, ctx, server_sample_rate);
+
+        relay_log::trace!("Enforce quotas");
+        let work = self.limiter.enforce_quotas(work, ctx).await?;
+
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {
-            use crate::processing::transactions::process::split_indexed_and_total;
-
             if !work.flags.fully_normalized {
                 relay_log::error!(
                     tags.project = %project_id,
@@ -195,11 +198,7 @@ impl Processor for TransactionProcessor {
                 );
             };
 
-            let (mut indexed, metrics) =
-                split_indexed_and_total(work, ctx, SamplingDecision::Keep)?;
-
-            relay_log::trace!("Extract spans");
-            indexed = process::extract_spans(indexed, ctx, server_sample_rate);
+            let (indexed, metrics) = split_indexed_and_total(work, ctx, SamplingDecision::Keep)?;
 
             return Ok(Output {
                 main: Some(TransactionOutput::Indexed(indexed)),

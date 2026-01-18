@@ -291,6 +291,9 @@ pub fn split_indexed_and_total(
 ) -> Result<IndexedAndMetrics, Rejected<Error>> {
     let scoping = work.scoping();
 
+    // If extracted spans were removed by rate limiting, we also do not want any metrics:
+    let extract_span_metrics = !work.extracted_spans.is_empty();
+
     let mut metrics = ProcessingExtractedMetrics::new();
     work.try_modify(|work, _| {
         work.flags.metrics_extracted = extraction::extract_metrics(
@@ -302,7 +305,7 @@ pub fn split_indexed_and_total(
                 ctx,
                 sampling_decision,
                 metrics_extracted: work.flags.metrics_extracted,
-                spans_extracted: work.flags.spans_extracted,
+                extract_span_metrics,
             },
         )?
         .0;
@@ -356,10 +359,10 @@ where
 /// Converts the spans embedded in the transaction into top-level span items.
 #[cfg(feature = "processing")]
 pub fn extract_spans(
-    mut work: Managed<Box<ExpandedTransaction<Indexed>>>,
+    mut work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
-) -> Managed<Box<ExpandedTransaction<Indexed>>> {
+) -> Managed<Box<ExpandedTransaction>> {
     work.modify(|work, r| {
         if let Some(results) = spans::extract_from_event(
             work.headers.dsc(),

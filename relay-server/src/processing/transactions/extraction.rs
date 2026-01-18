@@ -40,7 +40,7 @@ pub struct ExtractMetricsContext<'a> {
     pub ctx: Context<'a>,
     pub sampling_decision: SamplingDecision,
     pub metrics_extracted: bool,
-    pub spans_extracted: bool,
+    pub extract_span_metrics: bool,
 }
 
 /// Extracts metrics from a transaction and its spans.
@@ -55,7 +55,7 @@ pub fn extract_metrics(
         ctx,
         sampling_decision,
         metrics_extracted,
-        spans_extracted,
+        extract_span_metrics,
     } = ctx;
     // TODO(follow-up): this function should always extract metrics. Dynamic sampling should validate
     // the full metrics extraction config and skip sampling if it is incomplete.
@@ -122,9 +122,6 @@ pub fn extract_metrics(
 
         return Ok(EventMetricsExtracted(false));
     }
-
-    // If spans were already extracted for an event, we rely on span processing to extract metrics.
-    let extract_span_metrics = !spans_extracted;
 
     let metrics = crate::metrics_extraction::event::extract_metrics(
         event,
