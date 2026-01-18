@@ -788,10 +788,13 @@ def test_transaction_metrics(
 
     if extract_metrics == "corrupted":
         config["transactionMetrics"] = TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION + 1
-
     elif extract_metrics:
         config["transactionMetrics"] = {
             "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+        }
+    else:
+        config["transactionMetrics"] = {
+            "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION - 1,
         }
 
     transaction = generate_transaction_item(timestamp.timestamp())
@@ -822,6 +825,12 @@ def test_transaction_metrics(
                 "total.time": {"value": 9.91, "unit": "millisecond"},
             }
         }
+
+    if not extract_metrics:
+        assert (
+            str(mini_sentry.test_failures.get(timeout=5)[1])
+            == "Relay sent us event: Processing Relay outdated, received tx config in version 2, which is not supported"
+        )
 
     if not extract_metrics or extract_metrics == "corrupted":
         message = metrics_consumer.poll(timeout=None)

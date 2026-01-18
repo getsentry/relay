@@ -213,7 +213,7 @@ pub async fn run_dynamic_sampling(
 
     // Need to process the profile before the event gets dropped:
     let payload = process_profile(payload, ctx);
-    let (payload, profile) = payload.split_once(|mut payload| {
+    let (payload, profile) = payload.split_once(|mut payload, _| {
         let mut profile = payload.profile.take();
         if let Some(profile) = profile.as_mut() {
             profile.set_sampled(false);
@@ -310,7 +310,16 @@ pub fn split_indexed_and_total(
         Ok::<_, Error>(())
     })?;
 
-    Ok(work.split_once(|work| (Box::new(work.into_indexed()), metrics.into_inner())))
+    Ok(work.split_once(|work, r| {
+        r.lenient(DataCategory::MetricBucket);
+        if !work.flags.metrics_extracted {
+            // Invalid config.
+            r.lenient(DataCategory::Transaction);
+            r.lenient(DataCategory::Span);
+        }
+
+        (Box::new(work.into_indexed()), metrics.into_inner())
+    }))
 }
 
 /// Processes the profile attached to the transaction.
