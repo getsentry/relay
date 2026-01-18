@@ -40,6 +40,7 @@ impl TransactionOutput {
         match self {
             TransactionOutput::Full(managed) => Some(managed.accept(|x| x).event),
             TransactionOutput::Profile(_, _) => None,
+            #[cfg(feature = "processing")]
             TransactionOutput::Indexed(managed) => Some(managed.accept(|x| x).event),
         }
     }
