@@ -1181,6 +1181,11 @@ def test_transaction_metrics_extraction_processing_relays(
         )
         metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
         assert metric_count_per_project["value"] == 1.0
+    else:
+        assert (
+            str(mini_sentry.test_failures.get(timeout=5)[1])
+            == "Relay sent us event: Received a transaction which already had its metrics extracted."
+        )
 
     metrics_consumer.assert_empty()
 

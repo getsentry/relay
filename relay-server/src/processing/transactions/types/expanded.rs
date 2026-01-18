@@ -210,6 +210,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
 
                 if !limits.is_empty() {
                     self.modify(|this, record_keeper| {
+                        this.flags.spans_rate_limited = true;
                         record_keeper.reject_err(
                             Error::from(limits),
                             std::mem::take(&mut this.extracted_spans),
@@ -254,6 +255,8 @@ impl<T> ExpandedTransaction<T> {
             metrics_extracted,
             spans_extracted,
             fully_normalized,
+            spans_rate_limited: _,
+            spans_killswitched: _,
         } = flags;
         item.set_metrics_extracted(metrics_extracted);
         item.set_spans_extracted(spans_extracted);

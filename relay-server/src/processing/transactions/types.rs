@@ -16,4 +16,6 @@ pub struct Flags {
     pub metrics_extracted: bool,
     pub spans_extracted: bool,
     pub fully_normalized: bool,
+    pub spans_rate_limited: bool,
+    pub spans_killswitched: bool,
 }

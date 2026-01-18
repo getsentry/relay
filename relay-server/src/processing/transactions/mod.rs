@@ -144,7 +144,7 @@ impl Processor for TransactionProcessor {
         let mut metrics = Metrics::default();
 
         relay_log::trace!("Expand transaction");
-        let mut work = process::expand(work)?;
+        let mut work = process::expand(work, ctx)?;
 
         relay_log::trace!("Prepare transaction data");
         process::prepare_data(&mut work, &mut ctx, &mut metrics)?;

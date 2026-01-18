@@ -39,6 +39,7 @@ use crate::utils::SamplingResult;
 /// causes stack overflows in unit tests when run without optimizations.
 pub fn expand(
     work: Managed<SerializedTransaction>,
+    ctx: Context<'_>,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
     work.try_map(|work, record_keeper| {
         let SerializedTransaction {
@@ -58,6 +59,15 @@ pub fn expand(
             spans_extracted: transaction_item.spans_extracted(),
             fully_normalized: headers.meta().request_trust().is_trusted()
                 && transaction_item.fully_normalized(),
+            spans_killswitched: {
+                let span_extraction_sample_rate = ctx
+                    .global_config
+                    .options
+                    .span_extraction_sample_rate
+                    .unwrap_or(1.0);
+                dbg!(crate::utils::sample(span_extraction_sample_rate).is_discard())
+            },
+            spans_rate_limited: false,
         };
         validate_flags(&flags);
 
@@ -118,22 +128,6 @@ pub fn prepare_data(
         profile::remove_context_if_rate_limited(&mut work.event, scoping, *ctx);
 
         utils::dsc::validate_and_set_dsc(&mut work.headers, &work.event, ctx);
-
-        // HACKish: The span extraction killswitch relies on a random number, so evaluate it only
-        // once and then pretend that spans were already extracted.
-        let span_extraction_sample_rate = ctx
-            .global_config
-            .options
-            .span_extraction_sample_rate
-            .unwrap_or(1.0);
-        if crate::utils::sample(span_extraction_sample_rate).is_discard() {
-            work.flags.spans_extracted = true;
-
-            // The kill switch is an emergency measure which breaks the product, so we accept
-            // omitting outcomes here:
-            record_keeper.lenient(DataCategory::Span);
-            record_keeper.lenient(DataCategory::SpanIndexed);
-        }
 
         utils::event::finalize(
             &work.headers,
@@ -310,6 +304,9 @@ pub fn split_indexed_and_total(
 ) -> Result<IndexedAndMetrics, Rejected<Error>> {
     let scoping = work.scoping();
 
+    let had_metrics_extracted = work.flags.metrics_extracted;
+    let extract_span_metrics = !work.flags.spans_rate_limited && !work.flags.spans_killswitched;
+
     let mut metrics = ProcessingExtractedMetrics::new();
     work.try_modify(|work, _| {
         work.flags.metrics_extracted = extraction::extract_metrics(
@@ -321,7 +318,7 @@ pub fn split_indexed_and_total(
                 ctx,
                 sampling_decision,
                 metrics_extracted: work.flags.metrics_extracted,
-                extract_span_metrics: true,
+                extract_span_metrics,
             },
         )?
         .0;
@@ -331,9 +328,13 @@ pub fn split_indexed_and_total(
 
     Ok(work.split_once(|work, r| {
         r.lenient(DataCategory::MetricBucket);
-        if !work.flags.metrics_extracted {
-            // Invalid config.
+        if had_metrics_extracted || !work.flags.metrics_extracted {
+            // Invalid config or invalid original transaction
             r.lenient(DataCategory::Transaction);
+            r.lenient(DataCategory::Span);
+        }
+
+        if work.flags.spans_killswitched {
             r.lenient(DataCategory::Span);
         }
 
@@ -380,6 +381,12 @@ pub fn extract_spans(
     server_sample_rate: Option<f64>,
 ) -> Managed<Box<ExpandedTransaction>> {
     work.modify(|work, r| {
+        if work.flags.spans_killswitched {
+            r.lenient(DataCategory::Span);
+            r.lenient(DataCategory::SpanIndexed);
+            return;
+        }
+
         if let Some(results) = spans::extract_from_event(
             work.headers.dsc(),
             &work.event,
