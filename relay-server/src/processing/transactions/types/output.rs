@@ -1,5 +1,7 @@
 #[cfg(test)]
+#[cfg(feature = "processing")]
 use relay_event_schema::protocol::Event;
+#[cfg(feature = "processing")]
 #[cfg(test)]
 use relay_protocol::Annotated;
 #[cfg(feature = "processing")]
@@ -35,6 +37,7 @@ pub enum TransactionOutput {
 }
 
 impl TransactionOutput {
+    #[cfg(feature = "processing")]
     #[cfg(test)]
     pub fn event(self) -> Option<Annotated<Event>> {
         match self {
