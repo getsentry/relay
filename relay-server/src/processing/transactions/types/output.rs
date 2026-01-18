@@ -19,8 +19,13 @@ use crate::services::store::StoreEnvelope;
 /// Output of the transaction processor.
 #[derive(Debug)]
 pub enum TransactionOutput {
+    /// The transaction has not been dropped by dynamic sampling.
     Full(Managed<Box<ExpandedTransaction>>),
+    /// The transaction has been dropped by dynamic sampling, only an optional profile remains.
     Profile(Box<EnvelopeHeaders>, Managed<Profile>),
+    /// The transaction has not been dropped by dynamic sampling, and metrics have been extracted.
+    ///
+    /// This is used in processing relays.
     Indexed(Managed<Box<ExpandedTransaction<Indexed>>>),
 }
 

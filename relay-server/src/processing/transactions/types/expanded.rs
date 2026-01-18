@@ -44,6 +44,9 @@ impl<T> ExpandedTransaction<T> {
 }
 
 impl ExpandedTransaction<TotalAndIndexed> {
+    /// Change the marker type of this transaction.
+    ///
+    /// Once converted, the payload will not count toward indexed categories.
     pub fn into_indexed(self) -> ExpandedTransaction<Indexed> {
         let Self {
             headers,
