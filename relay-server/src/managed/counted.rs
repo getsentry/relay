@@ -32,15 +32,6 @@ impl Counted for () {
     }
 }
 
-impl<A: Counted, B: Counted> Counted for (A, B) {
-    fn quantities(&self) -> Quantities {
-        let (a, b) = self;
-        let mut quantities = a.quantities();
-        quantities.extend(b.quantities());
-        quantities
-    }
-}
-
 impl<T: Counted> Counted for Option<T> {
     fn quantities(&self) -> Quantities {
         match self {
