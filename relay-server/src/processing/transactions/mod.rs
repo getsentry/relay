@@ -187,6 +187,10 @@ impl Processor for TransactionProcessor {
 
         relay_log::trace!("Enforce quotas");
         let work = self.limiter.enforce_quotas(work, ctx).await?;
+        let work = match work.transpose() {
+            either::Either::Left(work) => work,
+            either::Either::Right(metrics) => return Ok(Output::metrics(metrics)),
+        };
 
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled() {

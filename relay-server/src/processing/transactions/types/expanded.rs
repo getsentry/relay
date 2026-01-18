@@ -1,14 +1,18 @@
+use either::Either;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
+use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use smallvec::smallvec;
 
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Managed, Quantities, Rejected};
+use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::Error;
+use crate::processing::transactions::process::split_indexed_and_total;
 use crate::processing::transactions::types::Flags;
 use crate::processing::{Context, RateLimited, RateLimiter};
 use crate::statsd::RelayTimers;
@@ -129,13 +133,13 @@ impl Counted for ExpandedTransaction<Indexed> {
 }
 
 impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
-    type Output = Self;
+    type Output = Managed<Either<Box<ExpandedTransaction<TotalAndIndexed>>, ExtractedMetrics>>;
     type Error = Error;
 
     async fn enforce<R>(
         mut self,
         mut rate_limiter: R,
-        _ctx: Context<'_>,
+        ctx: Context<'_>,
     ) -> Result<Self::Output, Rejected<Self::Error>>
     where
         R: RateLimiter,
@@ -153,14 +157,15 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
 
         // There is no limit on "total", but if metrics have already been extracted then
         // also check the "indexed" limit:
-        if self.flags.metrics_extracted {
-            let limits = rate_limiter
-                .try_consume(scoping.item(DataCategory::TransactionIndexed), 1)
-                .await;
-            if !limits.is_empty() {
-                let error = Error::from(limits);
-                return Err(self.reject_err(error));
-            }
+        let limits = rate_limiter
+            .try_consume(scoping.item(DataCategory::TransactionIndexed), 1)
+            .await;
+        if !limits.is_empty() {
+            let error = Error::from(limits);
+            let (indexed, metrics) = split_indexed_and_total(self, ctx, SamplingDecision::Keep)?;
+            let _ = indexed.reject_err(error);
+
+            return Ok(metrics.map(|metrics, _| Either::Right(metrics)));
         }
 
         let attachment_quantities = self.attachments.quantities();
@@ -211,7 +216,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
             }
         }
 
-        Ok(self)
+        Ok(self.map(|work, _| Either::Left(work)))
     }
 }
 
