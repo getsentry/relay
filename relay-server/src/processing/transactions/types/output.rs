@@ -2,13 +2,17 @@
 use relay_event_schema::protocol::Event;
 #[cfg(test)]
 use relay_protocol::Annotated;
+#[cfg(feature = "processing")]
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
 use crate::envelope::EnvelopeHeaders;
-use crate::managed::{Managed, ManagedEnvelope, ManagedResult, Rejected};
+#[cfg(feature = "processing")]
+use crate::managed::ManagedEnvelope;
+use crate::managed::{Managed, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
 use crate::processing::StoreHandle;
+#[cfg(feature = "processing")]
 use crate::processing::spans::Indexed;
 use crate::processing::transactions::types::{ExpandedTransaction, Profile};
 use crate::processing::{Forward, ForwardContext};
@@ -26,6 +30,7 @@ pub enum TransactionOutput {
     /// The transaction has not been dropped by dynamic sampling, and metrics have been extracted.
     ///
     /// This is used in processing relays.
+    #[cfg(feature = "processing")]
     Indexed(Managed<Box<ExpandedTransaction<Indexed>>>),
 }
 
@@ -54,6 +59,7 @@ impl Forward for TransactionOutput {
             TransactionOutput::Profile(headers, managed) => Ok(managed.map(|Profile(item), _| {
                 Envelope::from_parts(*headers, smallvec::smallvec![*item])
             })),
+            #[cfg(feature = "processing")]
             TransactionOutput::Indexed(managed) => managed.try_map(|work, record_keeper| {
                 // TODO: This should raise an error, Indexed output should go straight to kafka
                 // instead of an envelope. As long as we have this hack, ignore bookkeeping

@@ -1,17 +1,16 @@
 use std::error::Error;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::processing::utils::event::{EventMetricsExtracted, SpansExtracted, event_type};
-
 use crate::processing;
+use crate::processing::utils::event::{EventMetricsExtracted, SpansExtracted, event_type};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_event_schema::protocol::{Event, Measurement, Measurements, Span};
-use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit};
+use relay_metrics::MetricNamespace;
+use relay_metrics::{FractionUnit, MetricUnit};
 use relay_protocol::{Annotated, Empty};
 use relay_sampling::DynamicSamplingContext;
 
-#[cfg(feature = "processing")]
 #[allow(clippy::too_many_arguments)]
 pub fn extract_from_event(
     dsc: Option<&DynamicSamplingContext>,
@@ -248,7 +247,6 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
 }
 
 #[cfg(test)]
-#[cfg(feature = "processing")]
 mod tests {
 
     use std::collections::BTreeMap;

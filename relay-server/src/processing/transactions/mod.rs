@@ -5,6 +5,7 @@ use relay_event_schema::protocol::Metrics;
 use relay_quotas::RateLimits;
 #[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
+#[cfg(feature = "processing")]
 use relay_sampling::evaluation::SamplingDecision;
 
 use crate::envelope::ItemType;
@@ -13,6 +14,7 @@ use crate::processing::transactions::process::SamplingOutput;
 #[cfg(feature = "processing")]
 use crate::processing::transactions::process::split_indexed_and_total;
 use crate::processing::transactions::types::{SerializedTransaction, TransactionOutput};
+#[cfg(feature = "processing")]
 use crate::processing::utils::event::event_type;
 use crate::processing::{Context, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -21,6 +23,7 @@ use crate::services::processor::ProcessingError;
 pub mod extraction;
 mod process;
 pub mod profile;
+#[cfg(feature = "processing")]
 pub mod spans;
 mod types;
 
@@ -136,6 +139,7 @@ impl Processor for TransactionProcessor {
         work: Managed<Self::UnitOfWork>,
         mut ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
+        #[cfg(feature = "processing")]
         let project_id = work.scoping().project_id;
         let mut metrics = Metrics::default();
 
@@ -153,31 +157,36 @@ impl Processor for TransactionProcessor {
 
         #[cfg(feature = "processing")]
         let quotas_client = self.quotas_client.as_ref();
-        #[cfg(not(feature = "processing"))]
-        let quotas_client = None;
 
         relay_log::trace!("Sample transaction");
         let headers = work.headers.clone();
-        let (work, _server_sample_rate) =
-            match process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await? {
-                SamplingOutput::Keep {
-                    payload,
-                    sample_rate,
-                } => (payload, sample_rate),
-                SamplingOutput::Drop {
-                    metrics,
-                    mut profile,
-                } => {
-                    // Remaining profile needs to be rate limited:
-                    if let Some(p) = profile {
-                        profile = Some(self.limiter.enforce_quotas(p, ctx).await?);
-                    }
-                    return Ok(Output {
-                        main: profile.map(|p| TransactionOutput::Profile(Box::new(headers), p)),
-                        metrics: Some(metrics),
-                    });
+        let (work, _server_sample_rate) = match process::run_dynamic_sampling(
+            work,
+            ctx,
+            filters_status,
+            #[cfg(feature = "processing")]
+            quotas_client,
+        )
+        .await?
+        {
+            SamplingOutput::Keep {
+                payload,
+                sample_rate,
+            } => (payload, sample_rate),
+            SamplingOutput::Drop {
+                metrics,
+                mut profile,
+            } => {
+                // Remaining profile needs to be rate limited:
+                if let Some(p) = profile {
+                    profile = Some(self.limiter.enforce_quotas(p, ctx).await?);
                 }
-            };
+                return Ok(Output {
+                    main: profile.map(|p| TransactionOutput::Profile(Box::new(headers), p)),
+                    metrics: Some(metrics),
+                });
+            }
+        };
 
         #[cfg(feature = "processing")]
         let server_sample_rate = _server_sample_rate;
@@ -187,10 +196,13 @@ impl Processor for TransactionProcessor {
 
         // Need to scrub the transaction before extracting spans.
         relay_log::trace!("Scrubbing transaction");
-        let work = process::scrub(work, ctx)?;
+        #[allow(unused_mut)]
+        let mut work = process::scrub(work, ctx)?;
 
-        relay_log::trace!("Extract spans");
-        let work = process::extract_spans(work, ctx, server_sample_rate);
+        #[cfg(feature = "processing")]
+        if ctx.config.processing_enabled() {
+            work = process::extract_spans(work, ctx, server_sample_rate);
+        }
 
         relay_log::trace!("Enforce quotas");
         let work = self.limiter.enforce_quotas(work, ctx).await?;
