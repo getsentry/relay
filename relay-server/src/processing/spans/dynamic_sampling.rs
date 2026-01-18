@@ -180,7 +180,7 @@ fn split_indexed_and_total(
 ) -> SpansAndMetrics {
     let scoping = spans.scoping();
 
-    spans.split_once(|spans| {
+    spans.split_once(|spans, _| {
         let metrics = create_metrics(scoping, &spans.spans, spans.headers.dsc(), decision);
 
         (spans.into_indexed(), metrics)
