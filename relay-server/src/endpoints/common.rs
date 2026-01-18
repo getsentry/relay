@@ -278,7 +278,7 @@ fn queue_envelope(
         let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
 
         let metrics;
-        (envelope, metrics) = envelope.split_once(|mut envelope| {
+        (envelope, metrics) = envelope.split_once(|mut envelope, _| {
             let metrics = envelope.take_items_by(is_metric).into_vec();
             (envelope, metrics)
         });
