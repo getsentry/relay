@@ -9,8 +9,6 @@ use crate::services::buffer::{
 };
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
-#[cfg(feature = "processing")]
-use crate::services::global_rate_limits::GlobalRateLimitsService;
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
@@ -238,11 +236,6 @@ impl ServiceState {
         #[cfg(feature = "processing")]
         let upload = UploadService::new(config.upload(), store.clone())?.map(|s| services.start(s));
 
-        #[cfg(feature = "processing")]
-        let global_rate_limits = redis_clients
-            .as_ref()
-            .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
-
         let envelope_buffer = PartitionedEnvelopeBuffer::create(
             config.spool_partitions(),
             config.clone(),
@@ -302,8 +295,6 @@ impl ServiceState {
                             #[cfg(feature = "processing")]
                             store_forwarder: store,
                             aggregator: aggregator.clone(),
-                            #[cfg(feature = "processing")]
-                            global_rate_limits,
                         },
                         metric_outcomes.clone(),
                     ),

@@ -1,9 +1,6 @@
 local utils = import '../libs/utils.libsonnet';
 local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
-// List of single tenant regions that use sentry-st organization
-local single_tenants = ['disney', 'geico', 'goldmansachs', 'ly', 's4s'];
-
 // List of datadog monitors to check during the soak time in the different regions
 local soak_monitors = {
   // (The Number of Pending Projects is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
@@ -26,15 +23,15 @@ local soak_time(region) =
               environment_variables: {
                 SENTRY_REGION: region,
                 GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}',
-                SENTRY_AUTH_TOKEN: if region == 's4s' then '{{SECRET:[devinfra-sentryst][token]}}' else '{{SECRET:[devinfra-sentrymysentry][token]}}',
+                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
                 DATADOG_MONITOR_IDS: if std.objectHas(soak_monitors, region) then soak_monitors[region] else soak_monitors.default,
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
-                SENTRY_PROJECTS: if region == 's4s' then '1513938:sentry-for-sentry:relay' else '4:relay:relay 9:pop-relay:relay-pop',
+                SENTRY_PROJECTS: '4510703820210272:relay:relay',
                 SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
-                SENTRY_BASE: if region == 's4s' then 'https://sentry.io/api/0' else 'https://sentry.my.sentry.io/api/0',
+                SENTRY_BASE: 'https://sentry.io/api/0',
                 // TODO: Set a proper error limit
                 ERROR_LIMIT: 500,
                 PAUSE_MESSAGE: 'Detecting issues in the deployment. Pausing pipeline.',
@@ -68,13 +65,12 @@ local deploy_canary(region) =
           jobs: {
             create_sentry_release: {
               environment_variables: {
-                SENTRY_ORG: 'sentry',
+                SENTRY_ORG: 'sentry-s4s2',
                 SENTRY_PROJECT: 'relay',
-                SENTRY_URL: 'https://sentry.my.sentry.io/',
+                SENTRY_URL: 'https://sentry-s4s2.sentry.io/',
                 // Temporary; self-service encrypted secrets aren't implemented yet.
                 // This should really be rotated to an internal integration token.
-                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
-                SENTRY_ENVIRONMENT: 'canary',
+                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
               },
               timeout: 1200,
               elastic_profile_id: 'relay',
@@ -88,15 +84,15 @@ local deploy_canary(region) =
               environment_variables: {
                 SENTRY_REGION: region,
                 GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}',
-                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-sentrymysentry][token]}}',
+                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the canary deployment
                 DATADOG_MONITOR_IDS: '14146876 154096671 237862997',
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
-                SENTRY_PROJECTS: '4:relay:relay 9:pop-relay:relay-pop',
+                SENTRY_PROJECTS: '4510703820210272:relay:relay',
                 SENTRY_SINGLE_TENANT: 'false',
-                SENTRY_BASE: 'https://sentry.my.sentry.io/api/0',
+                SENTRY_BASE: 'https://sentry.io/api/0',
                 // TODO: Set a proper error limit
                 ERROR_LIMIT: 500,
                 PAUSE_MESSAGE: 'Pausing pipeline due to canary failure.',
@@ -127,12 +123,12 @@ local deploy_primary(region) = [
       jobs: {
         create_sentry_release: {
           environment_variables: {
-            SENTRY_ORG: if std.member(single_tenants, region) then 'sentry-st' else 'sentry',
-            SENTRY_PROJECT: if std.member(single_tenants, region) then (if region == 's4s' then 'sentry-for-sentry' else region) else 'relay',
-            SENTRY_URL: if std.member(single_tenants, region) then 'https://sentry-st.sentry.io/' else 'https://sentry.my.sentry.io/',
+            SENTRY_ORG: 'sentry-s4s2',
+            SENTRY_PROJECT: 'relay',
+            SENTRY_URL: 'https://sentry-s4s2.sentry.io/',
             // Temporary; self-service encrypted secrets aren't implemented yet.
             // This should really be rotated to an internal integration token.
-            SENTRY_AUTH_TOKEN: if std.member(single_tenants, region) then '{{SECRET:[devinfra-temp][relay_sentry_st_auth_token]}}' else '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
+            SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
           },
           timeout: 1200,
           elastic_profile_id: 'relay',

@@ -10,7 +10,6 @@ use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 use thiserror::Error;
 
 use crate::cache::OpportunisticQuotaCache;
-use crate::global::GlobalLimiter;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
 use crate::statsd::{QuotaCounters, QuotaTimers};
@@ -23,19 +22,12 @@ const GRACE: u64 = 60;
 
 /// An error returned by [`RedisRateLimiter`].
 #[derive(Debug, Error)]
-pub enum RateLimitingError {
-    /// Failed to communicate with Redis.
-    #[error("failed to communicate with redis")]
-    Redis(
-        #[from]
-        #[source]
-        RedisError,
-    ),
-
-    /// Failed to check global rate limits via the service.
-    #[error("failed to check global rate limits")]
-    UnreachableGlobalRateLimits,
-}
+#[error("failed to communicate with redis")]
+pub struct RateLimitingError(
+    #[from]
+    #[source]
+    pub RedisError,
+);
 
 /// Creates a refund key for a given counter key.
 ///
@@ -174,11 +166,7 @@ impl<'a> RedisQuota<'a> {
     }
 
     fn shift(&self) -> u64 {
-        if self.quota.scope == QuotaScope::Global {
-            0
-        } else {
-            self.scoping.organization_id.value() % self.window
-        }
+        self.scoping.organization_id.value() % self.window
     }
 
     /// Returns the current time slot of the quota based on the timestamp.
@@ -211,7 +199,6 @@ impl<'a> RedisQuota<'a> {
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         let subscope = match self.quota.scope {
-            QuotaScope::Global => None,
             QuotaScope::Organization => None,
             scope => self.scoping.scope_id(scope),
         };
@@ -283,23 +270,21 @@ impl fmt::Display for QuotaCacheKey {
 ///
 /// Requires the `redis` feature.
 #[derive(Clone)]
-pub struct RedisRateLimiter<T> {
+pub struct RedisRateLimiter {
     client: AsyncRedisClient,
     cache: Option<Arc<OpportunisticQuotaCache<QuotaCacheKey>>>,
     script: &'static Script,
     max_limit: Option<u64>,
-    global_limiter: T,
 }
 
-impl<T: GlobalLimiter> RedisRateLimiter<T> {
+impl RedisRateLimiter {
     /// Creates a new [`RedisRateLimiter`] instance.
-    pub fn new(client: AsyncRedisClient, global_limiter: T) -> Self {
+    pub fn new(client: AsyncRedisClient) -> Self {
         RedisRateLimiter {
             client,
             cache: None,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
-            global_limiter,
         }
     }
 
@@ -356,8 +341,6 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
         let mut tracked_quotas = Vec::new();
         let mut rate_limits = RateLimits::new();
 
-        let mut global_quotas = vec![];
-
         let quantity = u64::try_from(quantity).unwrap_or(u64::MAX);
 
         for quota in quotas {
@@ -372,30 +355,26 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
             } else if let Some(mut quota) =
                 RedisQuota::new(quota, quantity, item_scoping, timestamp)
             {
-                if quota.scope == QuotaScope::Global {
-                    global_quotas.push(quota);
-                } else {
-                    if let Some(cache) = &self.cache {
-                        quota.quantity = match cache.check_quota(quota.for_cache(), quantity) {
-                            cache::Action::Accept => continue,
-                            cache::Action::Check(quantity) => quantity,
-                        };
-                    }
-
-                    let redis_key = quota.key().to_string();
-                    // Remaining quotas are expected to be track-able in Redis.
-                    let refund_key = get_refunded_quota_key(&redis_key);
-
-                    invocation.key(redis_key);
-                    invocation.key(refund_key);
-
-                    invocation.arg(quota.limit());
-                    invocation.arg(quota.key_expiry());
-                    invocation.arg(quota.quantity);
-                    invocation.arg(over_accept_once);
-
-                    tracked_quotas.push(quota);
+                if let Some(cache) = &self.cache {
+                    quota.quantity = match cache.check_quota(quota.for_cache(), quantity) {
+                        cache::Action::Accept => continue,
+                        cache::Action::Check(quantity) => quantity,
+                    };
                 }
+
+                let redis_key = quota.key().to_string();
+                // Remaining quotas are expected to be track-able in Redis.
+                let refund_key = get_refunded_quota_key(&redis_key);
+
+                invocation.key(redis_key);
+                invocation.key(refund_key);
+
+                invocation.arg(quota.limit());
+                invocation.arg(quota.key_expiry());
+                invocation.arg(quota.quantity);
+                invocation.arg(over_accept_once);
+
+                tracked_quotas.push(quota);
             } else {
                 // This quota is neither a static reject-all, nor can it be tracked in Redis due to
                 // missing fields. We're skipping this for forward-compatibility.
@@ -406,33 +385,12 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
             }
         }
 
-        if !global_quotas.is_empty() {
-            // We check the global rate limits before the other limits. This step must be separate from
-            // checking the other rate limits, since those are checked with a Redis script that works
-            // under the invariant that all keys are within the same Redis instance (given their partitioning).
-            // Global keys on the other hand are always on the same instance, so if they were to be mixed
-            // with normal keys the script will end up referencing keys from multiple instances, making it
-            // impossible for the script to work.
-            let rate_limited_global_quotas = self
-                .global_limiter
-                .check_global_rate_limits(&global_quotas)
-                .await?;
-
-            for quota in rate_limited_global_quotas {
-                let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-                rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
-            }
-        }
-
         // Either there are no quotas to run against Redis, or we already have a rate limit from a
         // zero-sized quota. In either cases, skip invoking the script and return early.
         if tracked_quotas.is_empty() || rate_limits.is_limited() {
             return Ok(rate_limits);
         }
 
-        // We get the Redis client after the global rate limiting since we don't want to hold the
-        // client across await points, otherwise it might be held for too long, and we will run out
-        // of connections.
         let mut connection = self.client.get_connection().await?;
         let result: ScriptResult = invocation
             .invoke_async(&mut connection)
@@ -462,6 +420,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
                 cache.set_quota(quota.for_cache(), state.consumed);
             }
         }
+        drop(connection);
 
         if let Some(cache) = &self.cache {
             let vacuum_start = std::time::Instant::now();
@@ -536,52 +495,27 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
+    use crate::MetricNamespaceScoping;
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
-    use crate::{GlobalRateLimiter, MetricNamespaceScoping};
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::RedisConfigOptions;
     use relay_redis::redis::AsyncCommands;
     use smallvec::smallvec;
-    use tokio::sync::Mutex;
 
-    struct MockGlobalLimiter {
-        client: AsyncRedisClient,
-        global_rate_limiter: Mutex<GlobalRateLimiter>,
-    }
-
-    impl GlobalLimiter for MockGlobalLimiter {
-        async fn check_global_rate_limits<'a>(
-            &self,
-            global_quotas: &'a [RedisQuota<'a>],
-        ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
-            self.global_rate_limiter
-                .lock()
-                .await
-                .filter_rate_limited(&self.client, global_quotas)
-                .await
-        }
-    }
-
-    fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
+    fn build_rate_limiter() -> RedisRateLimiter {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
         let client =
             AsyncRedisClient::single("test", &url, &RedisConfigOptions::default()).unwrap();
-
-        let global_limiter = MockGlobalLimiter {
-            client: client.clone(),
-            global_rate_limiter: Mutex::new(GlobalRateLimiter::default()),
-        };
 
         RedisRateLimiter {
             client,
             cache: None,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
-            global_limiter,
         }
     }
 
@@ -642,7 +576,7 @@ mod tests {
 
     /// Tests that a quota with and without namespace are counted separately.
     #[tokio::test]
-    async fn test_non_global_namespace_quota() {
+    async fn test_namespace_quota() {
         let quota_limit = 5;
         let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
             Quota {
@@ -752,57 +686,6 @@ mod tests {
                     vec![RateLimit {
                         categories: DataCategories::new(),
                         scope: RateLimitScope::Organization(OrganizationId::new(42)),
-                        reason_code: Some(ReasonCode::new("get_lost")),
-                        retry_after: rate_limits[0].retry_after,
-                        namespaces: smallvec![],
-                    }]
-                );
-            } else {
-                assert_eq!(rate_limits, vec![]);
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_simple_global_quota() {
-        let quotas = &[Quota {
-            id: Some(format!("test_simple_global_quota_{}", uuid::Uuid::new_v4()).into()),
-            categories: DataCategories::new(),
-            scope: QuotaScope::Global,
-            scope_id: None,
-            limit: Some(5),
-            window: Some(60),
-            reason_code: Some(ReasonCode::new("get_lost")),
-            namespace: None,
-        }];
-
-        let scoping = ItemScoping {
-            category: DataCategory::Error,
-            scoping: Scoping {
-                organization_id: OrganizationId::new(42),
-                project_id: ProjectId::new(43),
-                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                key_id: Some(44),
-            },
-            namespace: MetricNamespaceScoping::None,
-        };
-
-        let rate_limiter = build_rate_limiter();
-
-        for i in 0..10 {
-            let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas, scoping, 1, false)
-                .await
-                .expect("rate limiting failed")
-                .into_iter()
-                .collect();
-
-            if i >= 5 {
-                assert_eq!(
-                    rate_limits,
-                    vec![RateLimit {
-                        categories: DataCategories::new(),
-                        scope: RateLimitScope::Global,
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
                         namespaces: smallvec![],
