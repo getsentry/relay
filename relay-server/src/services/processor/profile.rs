@@ -61,7 +61,6 @@ pub fn filter<Group>(
 }
 
 #[cfg(test)]
-#[cfg(feature = "processing")]
 mod tests {
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;

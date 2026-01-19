@@ -3,18 +3,13 @@ use std::sync::Arc;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::Metrics;
 use relay_quotas::RateLimits;
-#[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
-#[cfg(feature = "processing")]
 use relay_sampling::evaluation::SamplingDecision;
 
 use crate::envelope::ItemType;
 use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
-use crate::processing::transactions::process::SamplingOutput;
-#[cfg(feature = "processing")]
-use crate::processing::transactions::process::split_indexed_and_total;
+use crate::processing::transactions::process::{SamplingOutput, split_indexed_and_total};
 use crate::processing::transactions::types::{SerializedTransaction, TransactionOutput};
-#[cfg(feature = "processing")]
 use crate::processing::utils::event::event_type;
 use crate::processing::{Context, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -23,7 +18,6 @@ use crate::services::processor::ProcessingError;
 pub mod extraction;
 mod process;
 pub mod profile;
-#[cfg(feature = "processing")]
 pub mod spans;
 mod types;
 
@@ -76,7 +70,6 @@ impl OutcomeError for Error {
 pub struct TransactionProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: GeoIpLookup,
-    #[cfg(feature = "processing")]
     quotas_client: Option<AsyncRedisClient>,
 }
 
@@ -85,12 +78,11 @@ impl TransactionProcessor {
     pub fn new(
         limiter: Arc<QuotaRateLimiter>,
         geoip_lookup: GeoIpLookup,
-        #[cfg(feature = "processing")] quotas_client: Option<AsyncRedisClient>,
+        quotas_client: Option<AsyncRedisClient>,
     ) -> Self {
         Self {
             limiter,
             geoip_lookup,
-            #[cfg(feature = "processing")]
             quotas_client,
         }
     }
@@ -139,7 +131,6 @@ impl Processor for TransactionProcessor {
         work: Managed<Self::UnitOfWork>,
         mut ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        #[cfg(feature = "processing")]
         let project_id = work.scoping().project_id;
         let mut metrics = Metrics::default();
 
@@ -155,41 +146,30 @@ impl Processor for TransactionProcessor {
         relay_log::trace!("Filter transaction");
         let filters_status = process::run_inbound_filters(&work, ctx)?;
 
-        #[cfg(feature = "processing")]
         let quotas_client = self.quotas_client.as_ref();
 
         relay_log::trace!("Sample transaction");
         let headers = work.headers.clone();
-        let (work, _server_sample_rate) = match process::run_dynamic_sampling(
-            work,
-            ctx,
-            filters_status,
-            #[cfg(feature = "processing")]
-            quotas_client,
-        )
-        .await?
-        {
-            SamplingOutput::Keep {
-                payload,
-                sample_rate,
-            } => (payload, sample_rate),
-            SamplingOutput::Drop {
-                metrics,
-                mut profile,
-            } => {
-                // Remaining profile needs to be rate limited:
-                if let Some(p) = profile {
-                    profile = Some(self.limiter.enforce_quotas(p, ctx).await?);
+        let (work, server_sample_rate) =
+            match process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await? {
+                SamplingOutput::Keep {
+                    payload,
+                    sample_rate,
+                } => (payload, sample_rate),
+                SamplingOutput::Drop {
+                    metrics,
+                    mut profile,
+                } => {
+                    // Remaining profile needs to be rate limited:
+                    if let Some(p) = profile {
+                        profile = self.limiter.enforce_quotas(p, ctx).await.ok();
+                    }
+                    return Ok(Output {
+                        main: profile.map(|p| TransactionOutput::Profile(Box::new(headers), p)),
+                        metrics: Some(metrics),
+                    });
                 }
-                return Ok(Output {
-                    main: profile.map(|p| TransactionOutput::Profile(Box::new(headers), p)),
-                    metrics: Some(metrics),
-                });
-            }
-        };
-
-        #[cfg(feature = "processing")]
-        let server_sample_rate = _server_sample_rate;
+            };
 
         relay_log::trace!("Processing profiles");
         let work = process::process_profile(work, ctx);
@@ -199,10 +179,7 @@ impl Processor for TransactionProcessor {
         #[allow(unused_mut)]
         let mut work = process::scrub(work, ctx)?;
 
-        #[cfg(feature = "processing")]
-        if ctx.config.processing_enabled() {
-            work = process::extract_spans(work, ctx, server_sample_rate);
-        }
+        work = process::extract_spans(work, ctx, server_sample_rate);
 
         relay_log::trace!("Enforce quotas");
         let work = self.limiter.enforce_quotas(work, ctx).await?;
@@ -211,8 +188,7 @@ impl Processor for TransactionProcessor {
             either::Either::Right(metrics) => return Ok(Output::metrics(metrics)),
         };
 
-        #[cfg(feature = "processing")]
-        if ctx.config.processing_enabled() {
+        if ctx.is_processing() {
             if !work.flags.fully_normalized {
                 relay_log::error!(
                     tags.project = %project_id,

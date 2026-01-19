@@ -7,26 +7,21 @@ use relay_event_schema::protocol::{Event, Metrics};
 use relay_profiling::ProfileError;
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
-#[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
-#[cfg(feature = "processing")]
 use smallvec::smallvec;
 
-#[cfg(feature = "processing")]
-use crate::managed::Quantities;
-use crate::managed::{Counted, Managed, ManagedResult, Rejected};
+use crate::managed::{Counted, Managed, ManagedResult, Quantities, Rejected};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
-#[cfg(feature = "processing")]
 use crate::processing::transactions::spans;
 use crate::processing::transactions::types::{ExpandedTransaction, Flags, Profile};
 use crate::processing::transactions::{Error, SerializedTransaction, profile};
-use crate::processing::utils::event::{EventFullyNormalized, FiltersStatus};
-#[cfg(feature = "processing")]
-use crate::processing::utils::event::{EventMetricsExtracted, SpansExtracted};
+use crate::processing::utils::event::{
+    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
+};
 use crate::processing::{Context, utils};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
@@ -192,16 +187,10 @@ pub async fn run_dynamic_sampling(
     payload: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    #[cfg(feature = "processing")] quotas_client: Option<&AsyncRedisClient>,
+    quotas_client: Option<&AsyncRedisClient>,
 ) -> Result<SamplingOutput, Rejected<Error>> {
-    let sampling_result = make_dynamic_sampling_decision(
-        &payload,
-        ctx,
-        filters_status,
-        #[cfg(feature = "processing")]
-        quotas_client,
-    )
-    .await;
+    let sampling_result =
+        make_dynamic_sampling_decision(&payload, ctx, filters_status, quotas_client).await;
 
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
@@ -242,16 +231,10 @@ async fn make_dynamic_sampling_decision(
     work: &Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    #[cfg(feature = "processing")] quotas_client: Option<&AsyncRedisClient>,
+    quotas_client: Option<&AsyncRedisClient>,
 ) -> SamplingResult {
-    let sampling_result = do_make_dynamic_sampling_decision(
-        work,
-        ctx,
-        filters_status,
-        #[cfg(feature = "processing")]
-        quotas_client,
-    )
-    .await;
+    let sampling_result =
+        do_make_dynamic_sampling_decision(work, ctx, filters_status, quotas_client).await;
     relay_statsd::metric!(
         counter(RelayCounters::SamplingDecision) += 1,
         decision = sampling_result.decision().as_str(),
@@ -264,7 +247,7 @@ async fn do_make_dynamic_sampling_decision(
     work: &Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    #[cfg(feature = "processing")] quotas_client: Option<&AsyncRedisClient>,
+    #[allow(unused)] quotas_client: Option<&AsyncRedisClient>,
 ) -> SamplingResult {
     // Always run dynamic sampling on processing Relays,
     // but delay decision until inbound filters have been fully processed.
@@ -343,6 +326,8 @@ pub fn split_indexed_and_total(
 }
 
 /// Processes the profile attached to the transaction.
+///
+/// Only runs in processing relays.
 pub fn process_profile<T>(
     work: Managed<Box<ExpandedTransaction<T>>>,
     ctx: Context<'_>,
@@ -350,6 +335,10 @@ pub fn process_profile<T>(
 where
     ExpandedTransaction<T>: Counted,
 {
+    if !ctx.is_processing() {
+        return work;
+    }
+
     work.map(|mut work, record_keeper| {
         let mut profile_id = None;
         if let Some(profile) = work.profile.as_mut() {
@@ -374,12 +363,17 @@ where
 }
 
 /// Converts the spans embedded in the transaction into top-level span items.
-#[cfg(feature = "processing")]
+///
+/// Only extracts spans in processing.
 pub fn extract_spans(
     mut work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
 ) -> Managed<Box<ExpandedTransaction>> {
+    if !ctx.is_processing() {
+        return work;
+    }
+
     work.modify(|work, r| {
         if work.flags.spans_killswitched {
             r.lenient(DataCategory::Span);
@@ -424,10 +418,8 @@ pub fn scrub(
     })
 }
 
-#[cfg(feature = "processing")]
 struct IndexedSpans(usize);
 
-#[cfg(feature = "processing")]
 impl Counted for IndexedSpans {
     fn quantities(&self) -> Quantities {
         smallvec![(DataCategory::SpanIndexed, self.0)]

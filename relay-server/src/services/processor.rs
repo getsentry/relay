@@ -1204,6 +1204,8 @@ impl EnvelopeProcessorService {
             }) => (Some(cardinality), Some(quotas)),
             None => (None, None),
         };
+        #[cfg(not(feature = "processing"))]
+        let quotas = None;
 
         #[cfg(feature = "processing")]
         let rate_limiter = quotas.clone().map(|redis| {
@@ -1251,7 +1253,6 @@ impl EnvelopeProcessorService {
                 transactions: TransactionProcessor::new(
                     Arc::clone(&quota_limiter),
                     geoip_lookup.clone(),
-                    #[cfg(feature = "processing")]
                     quotas.clone(),
                 ),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
