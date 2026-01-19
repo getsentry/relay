@@ -326,8 +326,6 @@ pub fn split_indexed_and_total(
 }
 
 /// Processes the profile attached to the transaction.
-///
-/// Only runs in processing relays.
 pub fn process_profile<T>(
     work: Managed<Box<ExpandedTransaction<T>>>,
     ctx: Context<'_>,
@@ -335,10 +333,6 @@ pub fn process_profile<T>(
 where
     ExpandedTransaction<T>: Counted,
 {
-    if !ctx.is_processing() {
-        return work;
-    }
-
     work.map(|mut work, record_keeper| {
         let mut profile_id = None;
         if let Some(profile) = work.profile.as_mut() {
