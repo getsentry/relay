@@ -178,7 +178,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             { DatabaseEnvelope::try_from(&**envelope)? }
         );
 
-        // Only accept the envelope after successful encoding
+        // Need to formally `accept` the envelope to convert it to an untracked envelope.
         envelope.accept(|_| ());
 
         self.batch.push(encoded_envelope);
@@ -211,7 +211,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         // Create a Managed instance for the envelope using the captured outcome aggregator.
         // If no outcome_aggregator is available (shouldn't happen in normal flow), we use a
         // dummy address which will discard any outcomes.
-        let outcome_aggregator = self.outcome_aggregator.clone().unwrap_or_else(Addr::dummy);
+        let outcome_aggregator = self.outcome_aggregator.clone().expect("Addr should have been added on push");
         let managed = Managed::from_envelope(envelope, outcome_aggregator);
 
         Ok(Some(managed))

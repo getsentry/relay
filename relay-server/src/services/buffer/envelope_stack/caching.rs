@@ -10,7 +10,7 @@ use crate::managed::Managed;
 pub struct CachingEnvelopeStack<S> {
     /// The underlying envelope stack
     inner: S,
-    /// The cached managed envelope (if any)
+    /// The cached envelope (if any)
     cached: Option<Managed<Box<Envelope>>>,
 }
 
