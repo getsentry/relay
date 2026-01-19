@@ -190,6 +190,11 @@ impl<T: Counted> Managed<T> {
         self.meta.received_at
     }
 
+    /// Returns a reference to the outcome aggregator.
+    pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
+        &self.meta.outcome_aggregator
+    }
+
     /// Scoping information stored in this context.
     pub fn scoping(&self) -> Scoping {
         self.meta.scoping

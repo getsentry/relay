@@ -15,6 +15,7 @@ rand = { workspace = true }
 relay-config = { path = "../../relay-config" }
 relay-log = { path = "../../relay-log" }
 relay-server = { path = "../../relay-server" }
+relay-system = { path = "../../relay-system" }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

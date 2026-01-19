@@ -380,6 +380,7 @@ dependencies = [
  "relay-config",
  "relay-log",
  "relay-server",
+ "relay-system",
  "serde_json",
  "tempfile",
  "tokio",

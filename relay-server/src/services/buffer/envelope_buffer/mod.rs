@@ -116,7 +116,10 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Pops the next-in-line envelope.
-    pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
+    ///
+    /// Returns a [`Managed`] envelope that will automatically emit outcomes when dropped
+    /// if not explicitly accepted.
+    pub async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, EnvelopeBufferError> {
         let envelope = relay_statsd::metric!(
             timer(RelayTimers::BufferPop),
             partition_id = self.partition_tag(),
@@ -388,7 +391,10 @@ where
     ///
     /// The priority of the envelope's stack is updated with the next envelope's received_at
     /// time. If the stack is empty after popping, it is removed from the priority queue.
-    pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
+    ///
+    /// Returns a [`Managed`] envelope that will automatically emit outcomes when dropped
+    /// if not explicitly accepted.
+    pub async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, EnvelopeBufferError> {
         let Some((QueueItem { key, value: stack }, _)) = self.priority_queue.peek_mut() else {
             return Ok(None);
         };

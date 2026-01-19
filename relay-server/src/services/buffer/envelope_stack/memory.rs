@@ -29,9 +29,9 @@ impl EnvelopeStack for MemoryEnvelopeStack {
         Ok(self.0.last().map(|e| e.received_at()))
     }
 
-    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
-        // Accept the envelope only when popping it
-        Ok(self.0.pop().map(|envelope| envelope.accept(|e| e)))
+    async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, Self::Error> {
+        // Return the managed envelope - caller is responsible for accepting or dropping
+        Ok(self.0.pop())
     }
 
     async fn flush(self) {}

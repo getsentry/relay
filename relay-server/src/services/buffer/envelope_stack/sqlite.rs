@@ -3,6 +3,7 @@ use std::num::NonZeroUsize;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
+use relay_system::Addr;
 
 use crate::envelope::Envelope;
 use crate::managed::Managed;
@@ -11,6 +12,7 @@ use crate::services::buffer::envelope_store::sqlite::{
     DatabaseBatch, DatabaseEnvelope, InsertEnvelopeError, SqliteEnvelopeStore,
     SqliteEnvelopeStoreError,
 };
+use crate::services::outcome::TrackOutcome;
 use crate::statsd::{RelayCounters, RelayTimers};
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
@@ -43,6 +45,9 @@ pub struct SqliteEnvelopeStack {
     check_disk: bool,
     /// The tag value of this partition which is used for reporting purposes.
     partition_tag: String,
+    /// Outcome aggregator address, automatically populated when the first envelope is pushed.
+    /// Used to create [`Managed`] instances when popping envelopes from the database.
+    outcome_aggregator: Option<Addr<TrackOutcome>>,
 }
 
 impl SqliteEnvelopeStack {
@@ -64,6 +69,7 @@ impl SqliteEnvelopeStack {
             batch: vec![],
             check_disk,
             partition_tag: partition_id.to_string(),
+            outcome_aggregator: None,
         }
     }
 
@@ -155,6 +161,11 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     async fn push(&mut self, envelope: Managed<Box<Envelope>>) -> Result<(), Self::Error> {
         debug_assert!(self.validate_envelope(&envelope));
 
+        // Capture the outcome aggregator on first push for creating Managed instances on pop.
+        if self.outcome_aggregator.is_none() {
+            self.outcome_aggregator = Some(envelope.outcome_aggregator().clone());
+        }
+
         if self.above_spool_threshold() {
             self.spool_to_disk().await?;
         }
@@ -187,17 +198,23 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(Some(envelope.received_at()))
     }
 
-    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
+    async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, Self::Error> {
         if self.batch.is_empty() && self.check_disk {
             self.unspool_from_disk().await?
         }
 
-        let Some(envelope) = self.batch.pop() else {
+        let Some(encoded_envelope) = self.batch.pop() else {
             return Ok(None);
         };
-        let envelope = envelope.try_into()?;
+        let envelope: Box<Envelope> = encoded_envelope.try_into()?;
 
-        Ok(Some(envelope))
+        // Create a Managed instance for the envelope using the captured outcome aggregator.
+        // If no outcome_aggregator is available (shouldn't happen in normal flow), we use a
+        // dummy address which will discard any outcomes.
+        let outcome_aggregator = self.outcome_aggregator.clone().unwrap_or_else(Addr::dummy);
+        let managed = Managed::from_envelope(envelope, outcome_aggregator);
+
+        Ok(Some(managed))
     }
 
     async fn flush(mut self) {
@@ -251,9 +268,16 @@ mod tests {
         let db = setup_db(false).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
 
-        // Create envelopes first so we can calculate actual size
+        // Create envelopes first so we can calculate actual size.
+        // Use the same envelopes for threshold calculation and pushing to ensure consistency.
         let envelopes = mock_envelopes(4);
         let threshold_size = calculate_compressed_size(&envelopes) - 1;
+
+        // Wrap the same envelopes in Managed for pushing
+        let managed_envs: Vec<_> = envelopes
+            .into_iter()
+            .map(|e| Managed::from_envelope(e, Addr::dummy()))
+            .collect();
 
         let mut stack = SqliteEnvelopeStack::new(
             0,
@@ -265,7 +289,6 @@ mod tests {
         );
 
         // We push the 4 envelopes without errors because they are below the threshold.
-        let managed_envs = managed_envelopes(4);
         for envelope in managed_envs {
             assert!(stack.push(envelope).await.is_ok());
         }
@@ -372,9 +395,20 @@ mod tests {
         let db = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
 
-        // Create envelopes first so we can calculate actual size
+        // Create envelopes first so we can calculate actual size.
+        // Use the same envelopes for threshold calculation and pushing to ensure consistency.
         let envelopes = mock_envelopes(7);
         let threshold_size = calculate_compressed_size(&envelopes[..5]) - 1;
+
+        // Collect event IDs and timestamps before wrapping in Managed
+        let event_ids: Vec<_> = envelopes.iter().map(|e| e.event_id().unwrap()).collect();
+        let timestamps: Vec<_> = envelopes.iter().map(|e| e.received_at()).collect();
+
+        // Wrap the same envelopes in Managed for pushing
+        let managed_envs: Vec<_> = envelopes
+            .into_iter()
+            .map(|e| Managed::from_envelope(e, Addr::dummy()))
+            .collect();
 
         // Create stack with threshold just below the size of first 5 envelopes
         let mut stack = SqliteEnvelopeStack::new(
@@ -387,12 +421,6 @@ mod tests {
         );
 
         // We push 7 envelopes.
-        let managed_envs = managed_envelopes(7);
-
-        // Collect event IDs and timestamps before pushing
-        let event_ids: Vec<_> = managed_envs.iter().map(|e| e.event_id().unwrap()).collect();
-        let timestamps: Vec<_> = managed_envs.iter().map(|e| e.received_at()).collect();
-
         for envelope in managed_envs {
             assert!(stack.push(envelope).await.is_ok());
         }

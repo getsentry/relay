@@ -29,7 +29,10 @@ pub trait EnvelopeStack: Send + std::fmt::Debug {
     fn peek(&mut self) -> impl Future<Output = Result<Option<DateTime<Utc>>, Self::Error>>;
 
     /// Pops the [`Envelope`] on top of the stack.
-    fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
+    ///
+    /// Returns a [`Managed`] envelope that will automatically emit outcomes when dropped
+    /// if not explicitly accepted.
+    fn pop(&mut self) -> impl Future<Output = Result<Option<Managed<Box<Envelope>>>, Self::Error>>;
 
     /// Persists all envelopes in the [`EnvelopeStack`]s to external storage, if possible,
     /// and consumes the stack provider.

@@ -357,7 +357,7 @@ impl EnvelopeBufferService {
                     .await?
                     .expect("Element disappeared despite exclusive excess");
 
-                Self::drop_expired(envelope, services);
+                Self::drop_expired(envelope);
 
                 Duration::ZERO // try next pop immediately
             }
@@ -417,10 +417,8 @@ impl EnvelopeBufferService {
         }
     }
 
-    fn drop_expired(envelope: Box<Envelope>, services: &Services) {
-        let mut managed_envelope =
-            ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
-        managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
+    fn drop_expired(envelope: Managed<Box<Envelope>>) {
+        let _ = envelope.reject_err(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
     async fn handle_message(
@@ -530,7 +528,8 @@ impl EnvelopeBufferService {
         relay_log::trace!("EnvelopeBufferService: popping envelope");
 
         // If we arrived here, know that both projects are available, so we pop the envelope.
-        let envelope = buffer
+        // The envelope is already managed, so it will auto-reject if dropped.
+        let mut managed_envelope = buffer
             .pop()
             .await?
             .expect("Element disappeared despite exclusive excess");
@@ -538,19 +537,13 @@ impl EnvelopeBufferService {
         // If the own project state is disabled, we want to drop the envelope and early return since
         // we can't do much about it.
         let Some(own_project_info) = own_project_info else {
-            let mut managed_envelope =
-                ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
-            managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
-
+            let _ = managed_envelope.reject_err(Outcome::Invalid(DiscardReason::ProjectId));
             return Ok(());
         };
 
         // We only extract the sampling project info if both projects belong to the same org.
         let sampling_project_info = sampling_project_info
             .filter(|info| info.organization_id == own_project_info.organization_id);
-
-        let mut managed_envelope =
-            Managed::from_envelope(envelope, services.outcome_aggregator.clone());
 
         if own_project
             .check_envelope(&mut managed_envelope)

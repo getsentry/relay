@@ -50,10 +50,10 @@ where
         }
     }
 
-    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
+    async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, Self::Error> {
         if let Some(envelope) = self.cached.take() {
-            // Accept the envelope when popping it - it's been successfully stored in cache
-            Ok(Some(envelope.accept(|e| e)))
+            // Return the managed envelope - caller is responsible for accepting or dropping
+            Ok(Some(envelope))
         } else {
             self.inner.pop().await
         }
