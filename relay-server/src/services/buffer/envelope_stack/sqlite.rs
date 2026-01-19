@@ -211,7 +211,10 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         // Create a Managed instance for the envelope using the captured outcome aggregator.
         // If no outcome_aggregator is available (shouldn't happen in normal flow), we use a
         // dummy address which will discard any outcomes.
-        let outcome_aggregator = self.outcome_aggregator.clone().expect("Addr should have been added on push");
+        let outcome_aggregator = self
+            .outcome_aggregator
+            .clone()
+            .expect("Addr should have been added on push");
         let managed = Managed::from_envelope(envelope, outcome_aggregator);
 
         Ok(Some(managed))
