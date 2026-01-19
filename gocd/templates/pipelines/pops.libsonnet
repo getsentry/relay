@@ -116,15 +116,15 @@ local deploy_pop_canary_job(region) =
     environment_variables: {
       SENTRY_REGION: region,
       GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}',
-      SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-sentrymysentry][token]}}',
+      SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
       DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
       DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
       // Datadog monitor IDs for the canary deployment
       DATADOG_MONITOR_IDS: if std.objectHas(canary_monitors, region) then canary_monitors[region] else canary_monitors.default,
       // Sentry projects to check for errors <project_id>:<project_slug>:<service>
-      SENTRY_PROJECTS: '9:pop-relay:relay-pop 4:relay:relay',
+      SENTRY_PROJECTS: '4510703820210272:relay:relay',
       SENTRY_SINGLE_TENANT: 'false',
-      SENTRY_BASE: 'https://sentry.my.sentry.io/api/0',
+      SENTRY_BASE: 'https://sentry.io/api/0',
       // TODO: Set a proper error limit
       ERROR_LIMIT: 500,
       PAUSE_MESSAGE: 'Pausing pipeline due to canary failure.',
@@ -180,7 +180,7 @@ local deploy_canary_pops_stage(region) =
             SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
           },
           tasks: [
-            gocdtasks.script(importstr '../bash/create-sentry-relay-release.sh'),
+            gocdtasks.script(importstr '../bash/create-sentry-relay-pop-release.sh'),
           ],
         },
       },

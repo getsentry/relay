@@ -1,24 +1,21 @@
 //! Profiles related processor code.
-use relay_dynamic_config::{Feature, GlobalConfig};
-use std::net::IpAddr;
+
+use relay_dynamic_config::Feature;
 
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_event_schema::protocol::Event;
-use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::Annotated;
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::ItemType;
 use crate::managed::{ItemAction, TypedEnvelope};
+use crate::processing::utils::event::event_type;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{TransactionGroup, event_type, should_filter};
+use crate::services::processor::should_filter;
 use crate::services::projects::project::ProjectInfo;
 
-/// Filters out invalid and duplicate profiles.
-///
-/// Returns the profile id of the single remaining profile, if there is one.
 pub fn filter<Group>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &Annotated<Event>,
@@ -63,111 +60,24 @@ pub fn filter<Group>(
     profile_id
 }
 
-/// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-pub fn process(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
-    event: &mut Annotated<Event>,
-    global_config: &GlobalConfig,
-    config: &Config,
-    project_info: &ProjectInfo,
-) -> Option<ProfileId> {
-    let client_ip = managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &project_info.config.filter_settings;
-
-    let profiling_enabled = project_info.has_feature(Feature::Profiling);
-    let mut profile_id = None;
-
-    managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::Profile => {
-            if !profiling_enabled {
-                return ItemAction::DropSilently;
-            }
-
-            // There should always be an event/transaction available at this stage.
-            // It is required to expand the profile. If it's missing, drop the item.
-            let Some(event) = event.value() else {
-                return ItemAction::DropSilently;
-            };
-
-            match expand_profile(
-                item,
-                event,
-                config,
-                client_ip,
-                filter_settings,
-                global_config,
-            ) {
-                Ok(id) => {
-                    profile_id = Some(id);
-                    ItemAction::Keep
-                }
-                Err(outcome) => ItemAction::Drop(outcome),
-            }
-        }
-        _ => ItemAction::Keep,
-    });
-
-    profile_id
-}
-
-/// Transfers transaction metadata to profile and check its size.
-fn expand_profile(
-    item: &mut Item,
-    event: &Event,
-    config: &Config,
-    client_ip: Option<IpAddr>,
-    filter_settings: &ProjectFiltersConfig,
-    global_config: &GlobalConfig,
-) -> Result<ProfileId, Outcome> {
-    match relay_profiling::expand_profile(
-        &item.payload(),
-        event,
-        client_ip,
-        filter_settings,
-        global_config,
-    ) {
-        Ok((id, payload)) => {
-            if payload.len() <= config.max_profile_size() {
-                item.set_payload(ContentType::Json, payload);
-                Ok(id)
-            } else {
-                Err(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(
-                        &relay_profiling::ProfileError::ExceedSizeLimit,
-                    ),
-                )))
-            }
-        }
-        Err(relay_profiling::ProfileError::Filtered(filter_stat_key)) => {
-            Err(Outcome::Filtered(filter_stat_key))
-        }
-        Err(err) => Err(Outcome::Invalid(DiscardReason::Profiling(
-            relay_profiling::discard_reason(&err),
-        ))),
-    }
-}
-
 #[cfg(test)]
-#[cfg(feature = "processing")]
 mod tests {
-    use crate::envelope::Envelope;
+    use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
-    use crate::processing;
+    use crate::processing::{self, Outputs};
     use crate::services::processor::Submit;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use insta::assert_debug_snapshot;
-    use relay_cogs::Token;
-    use relay_dynamic_config::Feature;
+    use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{EventId, ProfileContext};
     use relay_system::Addr;
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_profile_id_transfered() {
+    async fn process_event(envelope: Box<Envelope>) -> Option<Annotated<Event>> {
         let config = Config::from_json_value(serde_json::json!({
             "processing": {
                 "enabled": true,
@@ -176,6 +86,46 @@ mod tests {
         }))
         .unwrap();
         let processor = create_test_processor(config).await;
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
+        assert_eq!(envelopes.len(), 1);
+        let (group, envelope) = envelopes.pop().unwrap();
+
+        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
+
+        let mut project_info = ProjectInfo::default().sanitized(false);
+        project_info.config.transaction_metrics =
+            Some(ErrorBoundary::Ok(TransactionMetricsConfig::new()));
+        project_info.config.features.0.insert(Feature::Profiling);
+
+        let mut global_config = GlobalConfig::default();
+        global_config.normalize();
+        let message = ProcessEnvelopeGrouped {
+            group,
+            envelope,
+            ctx: processing::Context {
+                config: &processor.inner.config,
+                project_info: &project_info,
+                global_config: &global_config,
+                ..processing::Context::for_test()
+            },
+        };
+
+        let result = processor.process(message).await.unwrap()?;
+
+        let Submit::Output {
+            output: Outputs::Transactions(t),
+            ctx: _,
+        } = result
+        else {
+            panic!();
+        };
+        Some(t.event().unwrap())
+    }
+
+    #[tokio::test]
+    async fn test_profile_id_transfered() {
+        relay_log::init_test!();
+
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -253,41 +203,9 @@ mod tests {
             item
         });
 
-        let mut project_info = ProjectInfo::default();
-        project_info.config.features.0.insert(Feature::Profiling);
+        let event = process_event(envelope).await.unwrap();
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
-        assert_eq!(envelopes.len(), 1);
-
-        let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
-
-        let message = ProcessEnvelopeGrouped {
-            group,
-            envelope,
-            ctx: processing::Context {
-                project_info: &project_info,
-                ..processing::Context::for_test()
-            },
-        };
-
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
-            panic!();
-        };
-        let new_envelope = new_envelope.envelope();
-
-        // Get the re-serialized context.
-        let item = new_envelope
-            .get_item_by(|item| item.ty() == &ItemType::Transaction)
-            .unwrap();
-        let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
-        let context = transaction
-            .value()
-            .unwrap()
-            .context::<ProfileContext>()
-            .unwrap();
+        let context = event.value().unwrap().context::<ProfileContext>().unwrap();
 
         assert_debug_snapshot!(context, @r###"
         ProfileContext {
@@ -302,14 +220,6 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_profile_id_not_transfered() {
         // Setup
-        let config = Config::from_json_value(serde_json::json!({
-            "processing": {
-                "enabled": true,
-                "kafka_config": []
-            }
-        }))
-        .unwrap();
-        let processor = create_test_processor(config).await;
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -387,41 +297,8 @@ mod tests {
             item
         });
 
-        let mut project_info = ProjectInfo::default();
-        project_info.config.features.0.insert(Feature::Profiling);
-
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
-        assert_eq!(envelopes.len(), 1);
-
-        let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
-
-        let message = ProcessEnvelopeGrouped {
-            group,
-            envelope,
-            ctx: processing::Context {
-                project_info: &project_info,
-                ..processing::Context::for_test()
-            },
-        };
-
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
-            panic!();
-        };
-        let new_envelope = new_envelope.envelope();
-
-        // Get the re-serialized context.
-        let item = new_envelope
-            .get_item_by(|item| item.ty() == &ItemType::Transaction)
-            .unwrap();
-        let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
-        let context = transaction
-            .value()
-            .unwrap()
-            .context::<ProfileContext>()
-            .unwrap();
+        let event = process_event(envelope).await.unwrap();
+        let context = event.value().unwrap().context::<ProfileContext>().unwrap();
 
         assert_debug_snapshot!(context, @r###"
         ProfileContext {
@@ -434,9 +311,7 @@ mod tests {
     #[tokio::test]
     async fn filter_standalone_profile() {
         relay_log::init_test!();
-
         // Setup
-        let processor = create_test_processor(Default::default()).await;
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -461,42 +336,12 @@ mod tests {
             item
         });
 
-        let mut project_info = ProjectInfo::default();
-        project_info.config.features.0.insert(Feature::Profiling);
-
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
-        assert_eq!(envelopes.len(), 1);
-
-        let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope.clone(), Addr::dummy());
-
-        let message = ProcessEnvelopeGrouped {
-            group,
-            envelope,
-            ctx: processing::Context {
-                project_info: &project_info,
-                ..processing::Context::for_test()
-            },
-        };
-
-        let envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap();
-        assert!(envelope.is_none());
+        let event = process_event(envelope).await;
+        assert!(event.is_none());
     }
 
     #[tokio::test]
     async fn test_profile_id_removed_profiler_id_kept() {
-        // Setup
-        let config = Config::from_json_value(serde_json::json!({
-            "processing": {
-                "enabled": true,
-                "kafka_config": []
-            }
-        }))
-        .unwrap();
-        let processor = create_test_processor(config).await;
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -539,38 +384,8 @@ mod tests {
         let mut project_info = ProjectInfo::default();
         project_info.config.features.0.insert(Feature::Profiling);
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
-        assert_eq!(envelopes.len(), 1);
-
-        let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
-
-        let message = ProcessEnvelopeGrouped {
-            group,
-            envelope,
-            ctx: processing::Context {
-                project_info: &project_info,
-                ..processing::Context::for_test()
-            },
-        };
-
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
-            panic!();
-        };
-        let new_envelope = new_envelope.envelope();
-
-        // Get the re-serialized context.
-        let item = new_envelope
-            .get_item_by(|item| item.ty() == &ItemType::Transaction)
-            .unwrap();
-        let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
-        let context = transaction
-            .value()
-            .unwrap()
-            .context::<ProfileContext>()
-            .unwrap();
+        let event = process_event(envelope).await.unwrap();
+        let context = event.value().unwrap().context::<ProfileContext>().unwrap();
 
         assert_debug_snapshot!(context, @r###"
         ProfileContext {
