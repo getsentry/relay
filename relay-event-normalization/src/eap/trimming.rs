@@ -30,7 +30,7 @@ pub struct TrimmingProcessor {
     size_state: Vec<SizeState>,
     /// Whether we are currently trimming a collection of attributes.
     /// This case needs to be distinguished for the purpose of accounting
-    /// for string lengths.
+    /// for bool/number lengths, which we only want to count in attributes.
     in_attributes: bool,
 }
 
@@ -141,6 +141,53 @@ impl Processor for TrimmingProcessor {
 
         Ok(())
     }
+    fn process_u64(
+        &mut self,
+        _value: &mut u64,
+        _meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if self.in_attributes {
+            self.consume_size(8);
+        }
+        Ok(())
+    }
+
+    fn process_i64(
+        &mut self,
+        _value: &mut i64,
+        _meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if self.in_attributes {
+            self.consume_size(8);
+        }
+        Ok(())
+    }
+
+    fn process_f64(
+        &mut self,
+        _value: &mut f64,
+        _meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if self.in_attributes {
+            self.consume_size(8);
+        }
+        Ok(())
+    }
+
+    fn process_bool(
+        &mut self,
+        _value: &mut bool,
+        _meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if self.in_attributes {
+            self.consume_size(1);
+        }
+        Ok(())
+    }
 
     fn process_string(
         &mut self,
@@ -153,6 +200,7 @@ impl Processor for TrimmingProcessor {
         }
 
         if !state.attrs().trim {
+            self.consume_size(value.len());
             return Ok(());
         }
 
@@ -160,11 +208,7 @@ impl Processor for TrimmingProcessor {
             crate::trimming::trim_string(value, meta, size_remaining, 0);
         }
 
-        // Only count string size here if we're _not_ currently trimming attributes.
-        // In that case, the size accounting is already handled by `process_attributes`.
-        if !self.in_attributes {
-            self.consume_size(value.len());
-        }
+        self.consume_size(value.len());
 
         Ok(())
     }
@@ -294,7 +338,6 @@ impl Processor for TrimmingProcessor {
             processor::process_value(value, self, &value_state).inspect_err(|_| {
                 self.in_attributes = false;
             })?;
-            self.consume_size(size::attribute_size(value));
         }
 
         if let Some(split_idx) = split_idx {
@@ -316,7 +359,8 @@ impl Processor for TrimmingProcessor {
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::{Annotated, FromValue, IntoValue, SerializableAnnotated};
+    use relay_event_schema::protocol::{AttributeType, AttributeValue};
+    use relay_protocol::{Annotated, FromValue, IntoValue, SerializableAnnotated, Value};
 
     use super::*;
 
@@ -587,6 +631,82 @@ mod tests {
                       ]
                     ],
                     "len": 29
+                  }
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_array_attribute() {
+        let mut attributes = Attributes::new();
+
+        let array = vec![
+            Annotated::new("first string".into()),
+            Annotated::new("second string".into()),
+            Annotated::new("another string".into()),
+            Annotated::new("last string".into()),
+        ];
+
+        attributes.insert(
+            "array",
+            AttributeValue {
+                ty: Annotated::new(AttributeType::Array),
+                value: Annotated::new(Value::Array(array)),
+            },
+        );
+
+        let mut value = Annotated::new(TestObject {
+            attributes: Annotated::new(attributes),
+            number: Annotated::new(0),
+            body: Annotated::new("Short".to_owned()),
+        });
+
+        let mut processor = TrimmingProcessor::new(None);
+        let state = ProcessingState::new_root(Default::default(), []);
+        processor::process_value(&mut value, &mut processor, &state).unwrap();
+
+        // The key `"array"` and the first and second array value take up 5 + 12 + 13 = 30B in total,
+        // leaving 10B for the third array value and nothing for the last.
+        insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
+        {
+          "body": "Short",
+          "number": 0,
+          "attributes": {
+            "array": {
+              "type": "array",
+              "value": [
+                "first string",
+                "second string",
+                "another..."
+              ]
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "": {
+                "len": 55
+              },
+              "array": {
+                "value": {
+                  "": {
+                    "len": 4
+                  },
+                  "2": {
+                    "": {
+                      "rem": [
+                        [
+                          "!limit",
+                          "s",
+                          7,
+                          10
+                        ]
+                      ],
+                      "len": 14
+                    }
                   }
                 }
               }
