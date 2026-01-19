@@ -78,9 +78,6 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Adds a managed envelope to the buffer.
-    ///
-    /// The envelope remains managed throughout the operation, ensuring automatic rejection
-    /// with outcomes if any error occurs.
     pub async fn push(
         &mut self,
         envelope: Managed<Box<Envelope>>,
@@ -320,9 +317,6 @@ where
     ///
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
-    ///
-    /// The envelope remains managed throughout the push operation, ensuring that any failures
-    /// will automatically reject the envelope with outcomes when the Managed wrapper is dropped.
     pub async fn push(
         &mut self,
         envelope: Managed<Box<Envelope>>,

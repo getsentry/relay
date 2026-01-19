@@ -34,11 +34,9 @@ where
     type Error = S::Error;
 
     async fn push(&mut self, envelope: Managed<Box<Envelope>>) -> Result<(), Self::Error> {
-        // If there's a cached envelope, push it to the inner stack first
         if let Some(cached) = self.cached.take() {
             self.inner.push(cached).await?;
         }
-        // Cache the new managed envelope (not yet accepted)
         self.cached = Some(envelope);
 
         Ok(())
@@ -68,7 +66,6 @@ where
             relay_log::error!(
                 "error while pushing the cached envelope in the inner stack during flushing",
             );
-            // The managed envelope will be dropped here, automatically rejecting it
         }
         self.inner.flush().await;
     }

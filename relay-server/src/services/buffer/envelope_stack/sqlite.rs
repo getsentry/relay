@@ -359,7 +359,7 @@ mod tests {
         assert_eq!(peeked.timestamp_millis(), timestamps[4].timestamp_millis());
 
         // We pop 5 envelopes (in reverse order - LIFO).
-        for (i, expected_event_id) in event_ids.iter().enumerate().rev() {
+        for (_i, expected_event_id) in event_ids.iter().enumerate().rev() {
             let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(popped_envelope.event_id().unwrap(), *expected_event_id);
         }

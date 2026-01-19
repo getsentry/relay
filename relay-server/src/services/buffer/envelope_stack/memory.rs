@@ -8,7 +8,7 @@ use crate::managed::Managed;
 use super::EnvelopeStack;
 
 #[derive(Debug)]
-pub struct MemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
+pub struct MemoryEnvelopeStack(Vec<Managed<Box<Envelope>>>);
 
 impl MemoryEnvelopeStack {
     pub fn new() -> Self {
@@ -20,8 +20,7 @@ impl EnvelopeStack for MemoryEnvelopeStack {
     type Error = Infallible;
 
     async fn push(&mut self, envelope: Managed<Box<Envelope>>) -> Result<(), Self::Error> {
-        // Accept the envelope immediately since in-memory storage cannot fail
-        let envelope = envelope.accept(|e| e);
+        // Store the managed envelope without accepting - it will be accepted on pop
         self.0.push(envelope);
         Ok(())
     }
@@ -31,7 +30,8 @@ impl EnvelopeStack for MemoryEnvelopeStack {
     }
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
-        Ok(self.0.pop())
+        // Accept the envelope only when popping it
+        Ok(self.0.pop().map(|envelope| envelope.accept(|e| e)))
     }
 
     async fn flush(self) {}
