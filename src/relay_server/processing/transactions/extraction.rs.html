@@ -40,7 +40,7 @@
 <a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">pub </span>ctx: Context&lt;<span class="lifetime">'a</span>&gt;,
 <a href=#41 id=41 data-nosnippet>41</a>    <span class="kw">pub </span>sampling_decision: SamplingDecision,
 <a href=#42 id=42 data-nosnippet>42</a>    <span class="kw">pub </span>metrics_extracted: bool,
-<a href=#43 id=43 data-nosnippet>43</a>    <span class="kw">pub </span>spans_extracted: bool,
+<a href=#43 id=43 data-nosnippet>43</a>    <span class="kw">pub </span>extract_span_metrics: bool,
 <a href=#44 id=44 data-nosnippet>44</a>}
 <a href=#45 id=45 data-nosnippet>45</a>
 <a href=#46 id=46 data-nosnippet>46</a><span class="doccomment">/// Extracts metrics from a transaction and its spans.
@@ -55,111 +55,104 @@
 <a href=#55 id=55 data-nosnippet>55</a>        ctx,
 <a href=#56 id=56 data-nosnippet>56</a>        sampling_decision,
 <a href=#57 id=57 data-nosnippet>57</a>        metrics_extracted,
-<a href=#58 id=58 data-nosnippet>58</a>        spans_extracted,
+<a href=#58 id=58 data-nosnippet>58</a>        extract_span_metrics,
 <a href=#59 id=59 data-nosnippet>59</a>    } = ctx;
-<a href=#60 id=60 data-nosnippet>60</a>
-<a href=#61 id=61 data-nosnippet>61</a>    <span class="kw">if </span>metrics_extracted {
-<a href=#62 id=62 data-nosnippet>62</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(metrics_extracted));
-<a href=#63 id=63 data-nosnippet>63</a>    }
-<a href=#64 id=64 data-nosnippet>64</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(event) = event.value_mut() <span class="kw">else </span>{
-<a href=#65 id=65 data-nosnippet>65</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(metrics_extracted));
-<a href=#66 id=66 data-nosnippet>66</a>    };
-<a href=#67 id=67 data-nosnippet>67</a>
-<a href=#68 id=68 data-nosnippet>68</a>    <span class="comment">// NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
-<a href=#69 id=69 data-nosnippet>69</a>    // will upsert this configuration from transaction and conditional tagging fields, even if
-<a href=#70 id=70 data-nosnippet>70</a>    // it is not present in the actual project config payload.
-<a href=#71 id=71 data-nosnippet>71</a>    </span><span class="kw">let </span>combined_config = {
-<a href=#72 id=72 data-nosnippet>72</a>        <span class="kw">let </span>config = <span class="kw">match </span><span class="kw-2">&amp;</span>ctx.project_info.config.metric_extraction {
-<a href=#73 id=73 data-nosnippet>73</a>            ErrorBoundary::Ok(config) <span class="kw">if </span>config.is_supported() =&gt; config,
-<a href=#74 id=74 data-nosnippet>74</a>            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(metrics_extracted)),
-<a href=#75 id=75 data-nosnippet>75</a>        };
-<a href=#76 id=76 data-nosnippet>76</a>        <span class="kw">let </span>global_config = <span class="kw">match </span><span class="kw-2">&amp;</span>ctx.global_config.metric_extraction {
-<a href=#77 id=77 data-nosnippet>77</a>            ErrorBoundary::Ok(global_config) =&gt; global_config,
-<a href=#78 id=78 data-nosnippet>78</a>            <span class="attr">#[allow(unused_variables)]
-<a href=#79 id=79 data-nosnippet>79</a>            </span>ErrorBoundary::Err(e) =&gt; {
-<a href=#80 id=80 data-nosnippet>80</a>                <span class="kw">if </span><span class="macro">cfg!</span>(feature = <span class="string">"processing"</span>) &amp;&amp; ctx.config.processing_enabled() {
-<a href=#81 id=81 data-nosnippet>81</a>                    <span class="comment">// Config is invalid, but we will try to extract what we can with just the
-<a href=#82 id=82 data-nosnippet>82</a>                    // project config.
-<a href=#83 id=83 data-nosnippet>83</a>                    </span><span class="macro">relay_log::error!</span>(<span class="string">"Failed to parse global extraction config {e}"</span>);
-<a href=#84 id=84 data-nosnippet>84</a>                    MetricExtractionGroups::EMPTY
-<a href=#85 id=85 data-nosnippet>85</a>                } <span class="kw">else </span>{
-<a href=#86 id=86 data-nosnippet>86</a>                    <span class="comment">// If there's an error with global metrics extraction, it is safe to assume that this
-<a href=#87 id=87 data-nosnippet>87</a>                    // Relay instance is not up-to-date, and we should skip extraction.
-<a href=#88 id=88 data-nosnippet>88</a>                    </span><span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse global extraction config: {e}"</span>);
-<a href=#89 id=89 data-nosnippet>89</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(metrics_extracted));
-<a href=#90 id=90 data-nosnippet>90</a>                }
-<a href=#91 id=91 data-nosnippet>91</a>            }
-<a href=#92 id=92 data-nosnippet>92</a>        };
-<a href=#93 id=93 data-nosnippet>93</a>        CombinedMetricExtractionConfig::new(global_config, config)
-<a href=#94 id=94 data-nosnippet>94</a>    };
-<a href=#95 id=95 data-nosnippet>95</a>
-<a href=#96 id=96 data-nosnippet>96</a>    <span class="comment">// Require a valid transaction metrics config.
-<a href=#97 id=97 data-nosnippet>97</a>    </span><span class="kw">let </span>tx_config = <span class="kw">match </span><span class="kw-2">&amp;</span>ctx.project_info.config.transaction_metrics {
-<a href=#98 id=98 data-nosnippet>98</a>        <span class="prelude-val">Some</span>(ErrorBoundary::Ok(tx_config)) =&gt; tx_config,
-<a href=#99 id=99 data-nosnippet>99</a>        <span class="prelude-val">Some</span>(ErrorBoundary::Err(e)) =&gt; {
-<a href=#100 id=100 data-nosnippet>100</a>            <span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse legacy transaction metrics config: {e}"</span>);
-<a href=#101 id=101 data-nosnippet>101</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(metrics_extracted));
-<a href=#102 id=102 data-nosnippet>102</a>        }
-<a href=#103 id=103 data-nosnippet>103</a>        <span class="prelude-val">None </span>=&gt; {
-<a href=#104 id=104 data-nosnippet>104</a>            <span class="macro">relay_log::debug!</span>(<span class="string">"Legacy transaction metrics config is missing"</span>);
-<a href=#105 id=105 data-nosnippet>105</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(metrics_extracted));
-<a href=#106 id=106 data-nosnippet>106</a>        }
-<a href=#107 id=107 data-nosnippet>107</a>    };
-<a href=#108 id=108 data-nosnippet>108</a>
-<a href=#109 id=109 data-nosnippet>109</a>    <span class="kw">if </span>!tx_config.is_enabled() {
-<a href=#110 id=110 data-nosnippet>110</a>        <span class="kw">static </span>TX_CONFIG_ERROR: Once = Once::new();
-<a href=#111 id=111 data-nosnippet>111</a>        TX_CONFIG_ERROR.call_once(|| {
-<a href=#112 id=112 data-nosnippet>112</a>                <span class="kw">if </span>ctx.config.processing_enabled() {
-<a href=#113 id=113 data-nosnippet>113</a>                    <span class="macro">relay_log::error!</span>(
-<a href=#114 id=114 data-nosnippet>114</a>                        <span class="string">"Processing Relay outdated, received tx config in version {}, which is not supported"</span>,
-<a href=#115 id=115 data-nosnippet>115</a>                        tx_config.version
-<a href=#116 id=116 data-nosnippet>116</a>                    );
-<a href=#117 id=117 data-nosnippet>117</a>                }
-<a href=#118 id=118 data-nosnippet>118</a>            });
-<a href=#119 id=119 data-nosnippet>119</a>
-<a href=#120 id=120 data-nosnippet>120</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(metrics_extracted));
-<a href=#121 id=121 data-nosnippet>121</a>    }
+<a href=#60 id=60 data-nosnippet>60</a>    <span class="comment">// TODO(follow-up): this function should always extract metrics. Dynamic sampling should validate
+<a href=#61 id=61 data-nosnippet>61</a>    // the full metrics extraction config and skip sampling if it is incomplete.
+<a href=#62 id=62 data-nosnippet>62</a>
+<a href=#63 id=63 data-nosnippet>63</a>    </span><span class="kw">if </span>metrics_extracted {
+<a href=#64 id=64 data-nosnippet>64</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">true</span>));
+<a href=#65 id=65 data-nosnippet>65</a>    }
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(event) = event.value_mut() <span class="kw">else </span>{
+<a href=#67 id=67 data-nosnippet>67</a>        <span class="comment">// Nothing to extract, but metrics extraction was called.
+<a href=#68 id=68 data-nosnippet>68</a>        </span><span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">true</span>));
+<a href=#69 id=69 data-nosnippet>69</a>    };
+<a href=#70 id=70 data-nosnippet>70</a>
+<a href=#71 id=71 data-nosnippet>71</a>    <span class="comment">// NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
+<a href=#72 id=72 data-nosnippet>72</a>    // will upsert this configuration from transaction and conditional tagging fields, even if
+<a href=#73 id=73 data-nosnippet>73</a>    // it is not present in the actual project config payload.
+<a href=#74 id=74 data-nosnippet>74</a>    </span><span class="kw">let </span>combined_config = {
+<a href=#75 id=75 data-nosnippet>75</a>        <span class="kw">let </span>config = <span class="kw">match </span><span class="kw-2">&amp;</span>ctx.project_info.config.metric_extraction {
+<a href=#76 id=76 data-nosnippet>76</a>            ErrorBoundary::Ok(config) <span class="kw">if </span>config.is_supported() =&gt; config,
+<a href=#77 id=77 data-nosnippet>77</a>            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">false</span>)),
+<a href=#78 id=78 data-nosnippet>78</a>        };
+<a href=#79 id=79 data-nosnippet>79</a>        <span class="kw">let </span>global_config = <span class="kw">match </span><span class="kw-2">&amp;</span>ctx.global_config.metric_extraction {
+<a href=#80 id=80 data-nosnippet>80</a>            ErrorBoundary::Ok(global_config) =&gt; global_config,
+<a href=#81 id=81 data-nosnippet>81</a>            <span class="attr">#[allow(unused_variables)]
+<a href=#82 id=82 data-nosnippet>82</a>            </span>ErrorBoundary::Err(e) =&gt; {
+<a href=#83 id=83 data-nosnippet>83</a>                <span class="kw">if </span><span class="macro">cfg!</span>(feature = <span class="string">"processing"</span>) &amp;&amp; ctx.config.processing_enabled() {
+<a href=#84 id=84 data-nosnippet>84</a>                    <span class="comment">// Config is invalid, but we will try to extract what we can with just the
+<a href=#85 id=85 data-nosnippet>85</a>                    // project config.
+<a href=#86 id=86 data-nosnippet>86</a>                    </span><span class="macro">relay_log::error!</span>(<span class="string">"Failed to parse global extraction config {e}"</span>);
+<a href=#87 id=87 data-nosnippet>87</a>                    MetricExtractionGroups::EMPTY
+<a href=#88 id=88 data-nosnippet>88</a>                } <span class="kw">else </span>{
+<a href=#89 id=89 data-nosnippet>89</a>                    <span class="comment">// If there's an error with global metrics extraction, it is safe to assume that this
+<a href=#90 id=90 data-nosnippet>90</a>                    // Relay instance is not up-to-date, and we should skip extraction.
+<a href=#91 id=91 data-nosnippet>91</a>                    </span><span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse global extraction config: {e}"</span>);
+<a href=#92 id=92 data-nosnippet>92</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">false</span>));
+<a href=#93 id=93 data-nosnippet>93</a>                }
+<a href=#94 id=94 data-nosnippet>94</a>            }
+<a href=#95 id=95 data-nosnippet>95</a>        };
+<a href=#96 id=96 data-nosnippet>96</a>        CombinedMetricExtractionConfig::new(global_config, config)
+<a href=#97 id=97 data-nosnippet>97</a>    };
+<a href=#98 id=98 data-nosnippet>98</a>
+<a href=#99 id=99 data-nosnippet>99</a>    <span class="comment">// Require a valid transaction metrics config.
+<a href=#100 id=100 data-nosnippet>100</a>    </span><span class="kw">let </span>tx_config = <span class="kw">match </span><span class="kw-2">&amp;</span>ctx.project_info.config.transaction_metrics {
+<a href=#101 id=101 data-nosnippet>101</a>        <span class="prelude-val">Some</span>(ErrorBoundary::Ok(tx_config)) =&gt; tx_config,
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="prelude-val">Some</span>(ErrorBoundary::Err(e)) =&gt; {
+<a href=#103 id=103 data-nosnippet>103</a>            <span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse legacy transaction metrics config: {e}"</span>);
+<a href=#104 id=104 data-nosnippet>104</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">false</span>));
+<a href=#105 id=105 data-nosnippet>105</a>        }
+<a href=#106 id=106 data-nosnippet>106</a>        <span class="prelude-val">None </span>=&gt; {
+<a href=#107 id=107 data-nosnippet>107</a>            <span class="macro">relay_log::debug!</span>(<span class="string">"Legacy transaction metrics config is missing"</span>);
+<a href=#108 id=108 data-nosnippet>108</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">false</span>));
+<a href=#109 id=109 data-nosnippet>109</a>        }
+<a href=#110 id=110 data-nosnippet>110</a>    };
+<a href=#111 id=111 data-nosnippet>111</a>
+<a href=#112 id=112 data-nosnippet>112</a>    <span class="kw">if </span>!tx_config.is_enabled() {
+<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">static </span>TX_CONFIG_ERROR: Once = Once::new();
+<a href=#114 id=114 data-nosnippet>114</a>        TX_CONFIG_ERROR.call_once(|| {
+<a href=#115 id=115 data-nosnippet>115</a>                <span class="kw">if </span>ctx.config.processing_enabled() {
+<a href=#116 id=116 data-nosnippet>116</a>                    <span class="macro">relay_log::error!</span>(
+<a href=#117 id=117 data-nosnippet>117</a>                        <span class="string">"Processing Relay outdated, received tx config in version {}, which is not supported"</span>,
+<a href=#118 id=118 data-nosnippet>118</a>                        tx_config.version
+<a href=#119 id=119 data-nosnippet>119</a>                    );
+<a href=#120 id=120 data-nosnippet>120</a>                }
+<a href=#121 id=121 data-nosnippet>121</a>            });
 <a href=#122 id=122 data-nosnippet>122</a>
-<a href=#123 id=123 data-nosnippet>123</a>    <span class="comment">// If spans were already extracted for an event, we rely on span processing to extract metrics.
-<a href=#124 id=124 data-nosnippet>124</a>    </span><span class="kw">let </span>extract_spans = !spans_extracted
-<a href=#125 id=125 data-nosnippet>125</a>        &amp;&amp; <span class="kw">crate</span>::utils::sample(
-<a href=#126 id=126 data-nosnippet>126</a>            ctx.global_config
-<a href=#127 id=127 data-nosnippet>127</a>                .options
-<a href=#128 id=128 data-nosnippet>128</a>                .span_extraction_sample_rate
-<a href=#129 id=129 data-nosnippet>129</a>                .unwrap_or(<span class="number">1.0</span>),
-<a href=#130 id=130 data-nosnippet>130</a>        )
-<a href=#131 id=131 data-nosnippet>131</a>        .is_keep();
-<a href=#132 id=132 data-nosnippet>132</a>
-<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
-<a href=#134 id=134 data-nosnippet>134</a>        event,
-<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">crate</span>::metrics_extraction::event::ExtractMetricsConfig {
-<a href=#136 id=136 data-nosnippet>136</a>            config: combined_config,
-<a href=#137 id=137 data-nosnippet>137</a>            sampling_decision,
-<a href=#138 id=138 data-nosnippet>138</a>            target_project_id: project_id,
-<a href=#139 id=139 data-nosnippet>139</a>            max_tag_value_size: ctx
-<a href=#140 id=140 data-nosnippet>140</a>                .config
-<a href=#141 id=141 data-nosnippet>141</a>                .aggregator_config_for(MetricNamespace::Spans)
-<a href=#142 id=142 data-nosnippet>142</a>                .max_tag_value_length,
-<a href=#143 id=143 data-nosnippet>143</a>            extract_spans,
-<a href=#144 id=144 data-nosnippet>144</a>            transaction_from_dsc: dsc.and_then(|dsc| dsc.transaction.as_deref()),
-<a href=#145 id=145 data-nosnippet>145</a>        },
-<a href=#146 id=146 data-nosnippet>146</a>    );
-<a href=#147 id=147 data-nosnippet>147</a>
-<a href=#148 id=148 data-nosnippet>148</a>    extracted_metrics.extend(metrics, <span class="prelude-val">Some</span>(sampling_decision));
-<a href=#149 id=149 data-nosnippet>149</a>
-<a href=#150 id=150 data-nosnippet>150</a>    <span class="kw">if </span>!ctx.project_info.has_feature(Feature::DiscardTransaction) {
-<a href=#151 id=151 data-nosnippet>151</a>        <span class="kw">let </span>transaction_from_dsc = dsc.and_then(|dsc| dsc.transaction.as_deref());
-<a href=#152 id=152 data-nosnippet>152</a>
-<a href=#153 id=153 data-nosnippet>153</a>        <span class="kw">let </span>extractor = TransactionExtractor {
-<a href=#154 id=154 data-nosnippet>154</a>            config: tx_config,
-<a href=#155 id=155 data-nosnippet>155</a>            generic_config: <span class="prelude-val">Some</span>(combined_config),
-<a href=#156 id=156 data-nosnippet>156</a>            transaction_from_dsc,
-<a href=#157 id=157 data-nosnippet>157</a>            sampling_decision,
-<a href=#158 id=158 data-nosnippet>158</a>            target_project_id: project_id,
-<a href=#159 id=159 data-nosnippet>159</a>        };
-<a href=#160 id=160 data-nosnippet>160</a>
-<a href=#161 id=161 data-nosnippet>161</a>        extracted_metrics.extend(extractor.extract(event)<span class="question-mark">?</span>, <span class="prelude-val">Some</span>(sampling_decision));
-<a href=#162 id=162 data-nosnippet>162</a>    }
-<a href=#163 id=163 data-nosnippet>163</a>
-<a href=#164 id=164 data-nosnippet>164</a>    <span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">true</span>))
-<a href=#165 id=165 data-nosnippet>165</a>}</code></pre></div></section></main></body></html>
+<a href=#123 id=123 data-nosnippet>123</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">false</span>));
+<a href=#124 id=124 data-nosnippet>124</a>    }
+<a href=#125 id=125 data-nosnippet>125</a>
+<a href=#126 id=126 data-nosnippet>126</a>    <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
+<a href=#127 id=127 data-nosnippet>127</a>        event,
+<a href=#128 id=128 data-nosnippet>128</a>        <span class="kw">crate</span>::metrics_extraction::event::ExtractMetricsConfig {
+<a href=#129 id=129 data-nosnippet>129</a>            config: combined_config,
+<a href=#130 id=130 data-nosnippet>130</a>            sampling_decision,
+<a href=#131 id=131 data-nosnippet>131</a>            target_project_id: project_id,
+<a href=#132 id=132 data-nosnippet>132</a>            max_tag_value_size: ctx
+<a href=#133 id=133 data-nosnippet>133</a>                .config
+<a href=#134 id=134 data-nosnippet>134</a>                .aggregator_config_for(MetricNamespace::Spans)
+<a href=#135 id=135 data-nosnippet>135</a>                .max_tag_value_length,
+<a href=#136 id=136 data-nosnippet>136</a>            extract_spans: extract_span_metrics,
+<a href=#137 id=137 data-nosnippet>137</a>            transaction_from_dsc: dsc.and_then(|dsc| dsc.transaction.as_deref()),
+<a href=#138 id=138 data-nosnippet>138</a>        },
+<a href=#139 id=139 data-nosnippet>139</a>    );
+<a href=#140 id=140 data-nosnippet>140</a>
+<a href=#141 id=141 data-nosnippet>141</a>    extracted_metrics.extend(metrics, <span class="prelude-val">Some</span>(sampling_decision));
+<a href=#142 id=142 data-nosnippet>142</a>
+<a href=#143 id=143 data-nosnippet>143</a>    <span class="kw">if </span>!ctx.project_info.has_feature(Feature::DiscardTransaction) {
+<a href=#144 id=144 data-nosnippet>144</a>        <span class="kw">let </span>transaction_from_dsc = dsc.and_then(|dsc| dsc.transaction.as_deref());
+<a href=#145 id=145 data-nosnippet>145</a>
+<a href=#146 id=146 data-nosnippet>146</a>        <span class="kw">let </span>extractor = TransactionExtractor {
+<a href=#147 id=147 data-nosnippet>147</a>            config: tx_config,
+<a href=#148 id=148 data-nosnippet>148</a>            generic_config: <span class="prelude-val">Some</span>(combined_config),
+<a href=#149 id=149 data-nosnippet>149</a>            transaction_from_dsc,
+<a href=#150 id=150 data-nosnippet>150</a>            sampling_decision,
+<a href=#151 id=151 data-nosnippet>151</a>            target_project_id: project_id,
+<a href=#152 id=152 data-nosnippet>152</a>        };
+<a href=#153 id=153 data-nosnippet>153</a>
+<a href=#154 id=154 data-nosnippet>154</a>        extracted_metrics.extend(extractor.extract(event)<span class="question-mark">?</span>, <span class="prelude-val">Some</span>(sampling_decision));
+<a href=#155 id=155 data-nosnippet>155</a>    }
+<a href=#156 id=156 data-nosnippet>156</a>
+<a href=#157 id=157 data-nosnippet>157</a>    <span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">true</span>))
+<a href=#158 id=158 data-nosnippet>158</a>}</code></pre></div></section></main></body></html>
