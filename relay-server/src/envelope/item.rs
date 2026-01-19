@@ -129,6 +129,7 @@ impl Item {
                 smallvec![(DataCategory::Security, item_count)]
             }
             ItemType::Nel => smallvec![],
+            ItemType::Coop => smallvec![],
             ItemType::UnrealReport => smallvec![(DataCategory::Error, item_count)],
             ItemType::Attachment => smallvec![
                 (DataCategory::Attachment, self.attachment_body_size()),
@@ -687,6 +688,8 @@ pub enum ItemType {
     RawSecurity,
     /// NEL report as sent by the browser.
     Nel,
+    /// COOP report as sent by the browser.
+    Coop,
     /// Raw compressed UE4 crash report.
     UnrealReport,
     /// User feedback encoded as JSON.
@@ -763,6 +766,7 @@ impl ItemType {
             Self::FormData => "form_data",
             Self::RawSecurity => "raw_security",
             Self::Nel => "nel",
+            Self::Coop => "coop",
             Self::UnrealReport => "unreal_report",
             Self::UserReport => "user_report",
             Self::UserReportV2 => "feedback",
@@ -823,6 +827,7 @@ impl ItemType {
             ItemType::FormData => false,
             ItemType::RawSecurity => false,
             ItemType::Nel => false,
+            ItemType::Coop => false,
             ItemType::UnrealReport => false,
             ItemType::UserReport => false,
             ItemType::Session => true,
@@ -864,6 +869,7 @@ impl std::str::FromStr for ItemType {
             "form_data" => Self::FormData,
             "raw_security" => Self::RawSecurity,
             "nel" => Self::Nel,
+            "coop" => Self::Coop,
             "unreal_report" => Self::UnrealReport,
             "user_report" => Self::UserReport,
             "feedback" => Self::UserReportV2,

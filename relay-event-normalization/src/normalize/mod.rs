@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 pub mod breakdowns;
 pub mod contexts;
 pub mod nel;
+pub mod coop;
 pub mod request;
 pub mod span;
 pub mod user_agent;

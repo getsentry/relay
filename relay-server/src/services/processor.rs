@@ -24,7 +24,7 @@ use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
-    ClientReport, Event, EventId, Metrics, NetworkReportError, SpanV2,
+    ClientReport, CoopReportError, Event, EventId, Metrics, NetworkReportError, SpanV2,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
@@ -96,6 +96,7 @@ mod dynamic_sampling;
 mod event;
 mod metrics;
 mod nel;
+mod coop;
 mod profile;
 mod replay;
 mod report;
@@ -190,7 +191,7 @@ processing_group!(StandaloneGroup, Standalone);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
-processing_group!(LogGroup, Log, Nel);
+processing_group!(LogGroup, Log, Nel, Coop);
 processing_group!(TraceMetricGroup, TraceMetric);
 processing_group!(SpanGroup, Span);
 
@@ -230,6 +231,8 @@ pub enum ProcessingGroup {
     CheckIn,
     /// NEL reports.
     Nel,
+    /// COOP reports.
+    Coop,
     /// Logs.
     Log,
     /// Trace metrics.
@@ -353,6 +356,15 @@ impl ProcessingGroup {
             ))
         }
 
+        // COOP items are transformed into logs in their own processing step.
+        let coop_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Coop));
+        if !coop_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Coop,
+                Envelope::from_parts(headers.clone(), coop_items),
+            ))
+        }
+
         // Extract all metric items.
         //
         // Note: Should only be relevant in proxy mode. In other modes we send metrics through
@@ -465,6 +477,7 @@ impl ProcessingGroup {
             ProcessingGroup::Log => "log",
             ProcessingGroup::TraceMetric => "trace_metric",
             ProcessingGroup::Nel => "nel",
+            ProcessingGroup::Coop => "coop",
             ProcessingGroup::Span => "span",
             ProcessingGroup::SpanV2 => "span_v2",
             ProcessingGroup::Metrics => "metrics",
@@ -489,6 +502,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Log => AppFeature::Logs,
             ProcessingGroup::TraceMetric => AppFeature::TraceMetrics,
             ProcessingGroup::Nel => AppFeature::Logs,
+            ProcessingGroup::Coop => AppFeature::Logs,
             ProcessingGroup::Span => AppFeature::Spans,
             ProcessingGroup::SpanV2 => AppFeature::Spans,
             ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
@@ -542,6 +556,9 @@ pub enum ProcessingError {
 
     #[error("invalid nel report")]
     InvalidNelReport(#[source] NetworkReportError),
+
+    #[error("invalid coop report")]
+    InvalidCoopReport(#[source] CoopReportError),
 
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
@@ -1532,6 +1549,16 @@ impl EnvelopeProcessorService {
             .await
     }
 
+    async fn process_coop(
+        &self,
+        mut managed_envelope: ManagedEnvelope,
+        ctx: processing::Context<'_>,
+    ) -> Result<ProcessingResult, ProcessingError> {
+        coop::convert_to_logs(&mut managed_envelope);
+        self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
+            .await
+    }
+
     async fn process_with_processor<P: processing::Processor>(
         &self,
         processor: &P,
@@ -1698,6 +1725,7 @@ impl EnvelopeProcessorService {
                     .await
             }
             ProcessingGroup::Nel => self.process_nel(managed_envelope, ctx).await,
+            ProcessingGroup::Coop => self.process_coop(managed_envelope, ctx).await,
             ProcessingGroup::Log => {
                 self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
                     .await

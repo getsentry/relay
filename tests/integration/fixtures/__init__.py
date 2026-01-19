@@ -215,6 +215,51 @@ class SentryLike:
 
         return
 
+    def send_coop_event(
+        self,
+        project_id,
+        payload=None,
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+        if payload is None:
+            payload = [
+                {
+                    "age": 0,
+                    "body": {
+                        "disposition": "enforce",
+                        "effectivePolicy": "same-origin",
+                        "previousResponseURL": "https://example.com/previous",
+                        "referrer": "https://referrer.com/",
+                        "violation": "navigate-to-document",
+                    },
+                    "type": "coop",
+                    "url": "https://example.com/",
+                    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+                }
+            ]
+
+        if isinstance(payload, list):
+            kwargs = {"json": payload}
+        else:
+            raise ValueError(f"Invalid type {type(payload)} for payload.")
+
+        headers = {
+            "Content-Type": "application/reports+json",
+            **(headers or {}),
+        }
+
+        if dsn_key is None:
+            dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
+
+        url = f"/api/{project_id}/coop/?sentry_key={dsn_key}"
+
+        response = self.post(url, headers=headers, **kwargs)
+        response.raise_for_status()
+
+        return
+
     def send_otel_span(
         self,
         project_id,

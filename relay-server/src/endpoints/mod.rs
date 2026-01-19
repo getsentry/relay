@@ -15,6 +15,7 @@ mod integrations;
 mod minidump;
 mod monitor;
 mod nel;
+mod coop;
 #[cfg(sentry)]
 mod playstation;
 mod project_configs;
@@ -94,6 +95,7 @@ fn public_routes_raw(config: &Config) -> Router<ServiceState> {
         .route("/api/{project_id}/security/", security_report::route(config))
         .route("/api/{project_id}/csp-report/", security_report::route(config))
         .route("/api/{project_id}/nel/", nel::route(config))
+        .route("/api/{project_id}/coop/", coop::route(config))
         // No mandatory trailing slash here because people already use it like this.
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))
