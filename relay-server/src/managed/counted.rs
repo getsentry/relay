@@ -71,13 +71,12 @@ impl Counted for Box<Envelope> {
         let mut quantities = Quantities::new();
 
         // This matches the implementation of `ManagedEnvelope::reject`.
-        // Note: index_category is pushed first, then event_category (same order as ManagedEnvelope::reject).
         let summary = EnvelopeSummary::compute(self);
         if let Some(category) = summary.event_category {
-            if let Some(index_category) = category.index_category() {
-                quantities.push((index_category, 1));
-            }
             quantities.push((category, 1));
+            if let Some(category) = category.index_category() {
+                quantities.push((category, 1));
+            }
         }
 
         let data = [
