@@ -3,6 +3,7 @@ use std::convert::Infallible;
 use chrono::{DateTime, Utc};
 
 use crate::Envelope;
+use crate::managed::Managed;
 
 use super::EnvelopeStack;
 
@@ -18,7 +19,9 @@ impl MemoryEnvelopeStack {
 impl EnvelopeStack for MemoryEnvelopeStack {
     type Error = Infallible;
 
-    async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
+    async fn push(&mut self, envelope: Managed<Box<Envelope>>) -> Result<(), Self::Error> {
+        // Accept the envelope immediately since in-memory storage cannot fail
+        let envelope = envelope.accept(|e| e);
         self.0.push(envelope);
         Ok(())
     }

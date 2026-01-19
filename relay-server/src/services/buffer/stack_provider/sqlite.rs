@@ -132,7 +132,7 @@ mod tests {
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
     use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
-    use crate::services::buffer::testutils::utils::mock_envelopes;
+    use crate::services::buffer::testutils::utils::managed_envelopes;
 
     fn mock_config() -> Arc<Config> {
         let path = std::env::temp_dir()
@@ -167,7 +167,7 @@ mod tests {
             ProjectKeyPair::new(own_key, sampling_key),
         );
 
-        let envelopes = mock_envelopes(10);
+        let envelopes = managed_envelopes(10);
         for envelope in envelopes {
             envelope_stack.push(envelope).await.unwrap();
         }

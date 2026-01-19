@@ -431,7 +431,12 @@ impl EnvelopeBufferService {
         match message {
             EnvelopeBuffer::Push(envelope) => {
                 relay_log::trace!("EnvelopeBufferService: received push message");
-                Self::push(buffer, envelope.into_envelope(), services).await;
+                // Convert ManagedEnvelope to Managed<Box<Envelope>>
+                let managed = Managed::from_envelope(
+                    envelope.into_envelope(),
+                    services.outcome_aggregator.clone(),
+                );
+                Self::push(buffer, managed, services).await;
             }
         };
     }
@@ -460,7 +465,7 @@ impl EnvelopeBufferService {
 
     async fn push(
         buffer: &mut PolymorphicEnvelopeBuffer,
-        envelope: Box<Envelope>,
+        envelope: Managed<Box<Envelope>>,
         services: &Services,
     ) {
         let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
@@ -473,6 +478,7 @@ impl EnvelopeBufferService {
                 error = &e as &dyn std::error::Error,
                 "failed to push envelope"
             );
+            // The managed envelope was dropped, automatically rejecting it with an internal outcome
         }
     }
 

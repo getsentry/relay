@@ -13,6 +13,8 @@ pub mod utils {
     use crate::Envelope;
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
+    use crate::managed::Managed;
+    use relay_system::Addr;
 
     /// Sets up a temporary SQLite database for testing purposes.
     pub async fn setup_db(run_migrations: bool) -> Pool<Sqlite> {
@@ -85,6 +87,17 @@ pub mod utils {
         let now = Utc::now();
         (0..count)
             .map(|i| mock_envelope(now - chrono::Duration::seconds((count - i) as i64)))
+            .collect()
+    }
+
+    pub fn managed_envelope(received_at: DateTime<Utc>) -> Managed<Box<Envelope>> {
+        Managed::from_envelope(mock_envelope(received_at), Addr::dummy())
+    }
+
+    pub fn managed_envelopes(count: usize) -> Vec<Managed<Box<Envelope>>> {
+        let now = Utc::now();
+        (0..count)
+            .map(|i| managed_envelope(now - chrono::Duration::seconds((count - i) as i64)))
             .collect()
     }
 }
