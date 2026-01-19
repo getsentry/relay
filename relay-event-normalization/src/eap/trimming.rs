@@ -327,12 +327,14 @@ impl Processor for TrimmingProcessor {
 
         let mut split_idx = None;
         for (idx, (key, value)) in sorted.iter_mut().enumerate() {
-            self.consume_size(key.len());
-
-            if self.remaining_size() == Some(0) {
+            if let Some(remaining) = self.remaining_size()
+                && remaining < key.len()
+            {
                 split_idx = Some(idx);
                 break;
             }
+
+            self.consume_size(key.len());
 
             let value_state = state.enter_borrowed(key, None, ValueType::for_field(value));
             processor::process_value(value, self, &value_state).inspect_err(|_| {
@@ -372,6 +374,8 @@ mod tests {
         number: Annotated<u64>,
         #[metastructure(max_bytes = 40, trim = true)]
         attributes: Annotated<Attributes>,
+        #[metastructure(trim = true)]
+        footer: Annotated<String>,
     }
 
     #[test]
@@ -386,6 +390,7 @@ mod tests {
             attributes: Annotated::new(attributes),
             number: Annotated::new(0),
             body: Annotated::new("This is longer than allowed".to_owned()),
+            footer: Annotated::empty(),
         });
 
         let mut processor = TrimmingProcessor::new(None);
@@ -459,6 +464,7 @@ mod tests {
             attributes: Annotated::new(attributes),
             number: Annotated::new(0),
             body: Annotated::new("This is longer than allowed".to_owned()),
+            footer: Annotated::empty(),
         });
 
         let mut processor = TrimmingProcessor::new(None);
@@ -533,6 +539,7 @@ mod tests {
             attributes: Annotated::new(attributes),
             number: Annotated::new(0),
             body: Annotated::new("This is longer than allowed".to_owned()),
+            footer: Annotated::empty(),
         });
 
         let mut processor = TrimmingProcessor::new(None);
@@ -590,11 +597,13 @@ mod tests {
             attributes: Annotated::new(attributes),
             number: Annotated::new(0),
             body: Annotated::new("Short".to_owned()),
+            footer: Annotated::new("Hello World".to_owned()),
         });
 
         // The `body` takes up 5B, the `"small"` attribute 13B, and the key "medium string" another 13B.
         // That leaves 9B for the string's value.
         // Note that the `number` field doesn't take up any size.
+        // The `"footer"` is removed because it comes after the attributes and there's no space left.
         let mut processor = TrimmingProcessor::new(Some(40));
 
         let state = ProcessingState::new_root(Default::default(), []);
@@ -663,6 +672,7 @@ mod tests {
             attributes: Annotated::new(attributes),
             number: Annotated::new(0),
             body: Annotated::new("Short".to_owned()),
+            footer: Annotated::empty(),
         });
 
         let mut processor = TrimmingProcessor::new(None);
@@ -709,6 +719,45 @@ mod tests {
                     }
                   }
                 }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_oversized_key_does_not_consume_global_limit() {
+        let mut attributes = Attributes::new();
+        attributes.insert("a", 1); // 9B 
+        attributes.insert("this_key_is_exactly_35_chars_long!!", true); // 35B key + 1B = 36B
+
+        let mut value = Annotated::new(TestObject {
+            body: Annotated::new("Hi".to_owned()), // 2B
+            number: Annotated::new(0),
+            attributes: Annotated::new(attributes),
+            footer: Annotated::new("Hello World".to_owned()), // 11B
+        });
+
+        let mut processor = TrimmingProcessor::new(Some(30));
+        let state = ProcessingState::new_root(Default::default(), []);
+        processor::process_value(&mut value, &mut processor, &state).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
+        {
+          "body": "Hi",
+          "number": 0,
+          "attributes": {
+            "a": {
+              "type": "integer",
+              "value": 1
+            }
+          },
+          "footer": "Hello World",
+          "_meta": {
+            "attributes": {
+              "": {
+                "len": 45
               }
             }
           }
