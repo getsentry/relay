@@ -170,8 +170,6 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             self.spool_to_disk().await?;
         }
 
-        // Try to encode the envelope before accepting it. If encoding fails,
-        // the Managed wrapper will be dropped and automatically reject the envelope.
         let encoded_envelope = relay_statsd::metric!(
             timer(RelayTimers::BufferEnvelopesSerialization),
             partition_id = &self.partition_tag,
@@ -208,9 +206,6 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         };
         let envelope: Box<Envelope> = encoded_envelope.try_into()?;
 
-        // Create a Managed instance for the envelope using the captured outcome aggregator.
-        // If no outcome_aggregator is available (shouldn't happen in normal flow), we use a
-        // dummy address which will discard any outcomes.
         let outcome_aggregator = self
             .outcome_aggregator
             .clone()
@@ -297,7 +292,7 @@ mod tests {
         }
 
         // We push 1 more envelope which results in spooling, which fails because of a database
-        // problem. The managed envelope will be dropped and automatically rejected.
+        // problem.
         let envelope = managed_envelope(Utc::now());
         assert!(matches!(
             stack.push(envelope).await,
@@ -399,7 +394,6 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
 
         // Create envelopes first so we can calculate actual size.
-        // Use the same envelopes for threshold calculation and pushing to ensure consistency.
         let envelopes = mock_envelopes(7);
         let threshold_size = calculate_compressed_size(&envelopes[..5]) - 1;
 

@@ -20,7 +20,6 @@ impl EnvelopeStack for MemoryEnvelopeStack {
     type Error = Infallible;
 
     async fn push(&mut self, envelope: Managed<Box<Envelope>>) -> Result<(), Self::Error> {
-        // Store the managed envelope without accepting - it will be accepted on pop
         self.0.push(envelope);
         Ok(())
     }
@@ -30,7 +29,6 @@ impl EnvelopeStack for MemoryEnvelopeStack {
     }
 
     async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, Self::Error> {
-        // Return the managed envelope - caller is responsible for accepting or dropping
         Ok(self.0.pop())
     }
 

@@ -52,7 +52,6 @@ where
 
     async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, Self::Error> {
         if let Some(envelope) = self.cached.take() {
-            // Return the managed envelope - caller is responsible for accepting or dropping
             Ok(Some(envelope))
         } else {
             self.inner.pop().await

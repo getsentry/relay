@@ -476,7 +476,6 @@ impl EnvelopeBufferService {
                 error = &e as &dyn std::error::Error,
                 "failed to push envelope"
             );
-            // The managed envelope was dropped, automatically rejecting it with an internal outcome
         }
     }
 
@@ -528,7 +527,6 @@ impl EnvelopeBufferService {
         relay_log::trace!("EnvelopeBufferService: popping envelope");
 
         // If we arrived here, know that both projects are available, so we pop the envelope.
-        // The envelope is already managed, so it will auto-reject if dropped.
         let mut managed_envelope = buffer
             .pop()
             .await?
