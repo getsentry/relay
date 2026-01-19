@@ -23,7 +23,7 @@ use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
 };
 use crate::processing::{Context, utils};
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::SamplingResult;
@@ -143,7 +143,9 @@ pub fn normalize(
     geoip_lookup: &GeoIpLookup,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
     let project_id = work.scoping().project_id;
-    work.try_map(|mut work, _| {
+    work.try_map(|mut work, r| {
+        let original_span_count = work.count_embedded_spans_and_self();
+
         work.flags.fully_normalized = utils::event::normalize(
             &work.headers,
             &mut work.event,
@@ -153,6 +155,19 @@ pub fn normalize(
             geoip_lookup,
         )?
         .0;
+
+        // Normalization may have trimmed spans:
+        let new_span_count = work.count_embedded_spans_and_self();
+        if new_span_count < original_span_count {
+            let trimmed = original_span_count - new_span_count;
+            for category in [DataCategory::Span, DataCategory::SpanIndexed] {
+                r.reject_err(
+                    Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Span)),
+                    (category, trimmed),
+                );
+            }
+        }
+
         Ok::<_, Error>(work)
     })
 }

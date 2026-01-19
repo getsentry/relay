@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Emit outcomes for spans trimmed from a transaction. ([#5410](https://github.com/getsentry/relay/pull/5410))
+
 **Internal**:
 
 - Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))

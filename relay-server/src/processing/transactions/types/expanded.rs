@@ -34,7 +34,7 @@ pub struct ExpandedTransaction<C = TotalAndIndexed> {
 }
 
 impl<T> ExpandedTransaction<T> {
-    fn count_embedded_spans_and_self(&self) -> usize {
+    pub fn count_embedded_spans_and_self(&self) -> usize {
         1 + self
             .event
             .value()
