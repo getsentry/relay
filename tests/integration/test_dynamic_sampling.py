@@ -191,6 +191,8 @@ def _create_transaction_envelope(
     **kwargs,
 ):
     envelope = Envelope()
+    if event_id:
+        envelope.headers["event_id"] = event_id
     transaction_event, trace_id, event_id = _create_transaction_item(
         trace_id=trace_id, event_id=event_id, transaction=transaction, **kwargs
     )
