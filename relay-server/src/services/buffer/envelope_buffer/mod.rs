@@ -316,7 +316,7 @@ where
         );
     }
 
-    /// Pushes a managed envelope to the appropriate envelope stack and re-prioritizes the stack.
+    /// Pushes an envelope to the appropriate envelope stack and re-prioritizes the stack.
     ///
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
@@ -488,7 +488,7 @@ where
             .await;
     }
 
-    /// Pushes a new [`EnvelopeStack`] with the given managed [`Envelope`] inserted.
+    /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
     async fn push_stack(
         &mut self,
         stack_creation_type: StackCreationType,
