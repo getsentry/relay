@@ -6,6 +6,9 @@
 
 - Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
 
+**Bug Fixes**:
+
+- Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
 
 ## 26.1.0
 
@@ -618,7 +621,6 @@
 - Report invalid spans with appropriate outcome reason. ([#4051](https://github.com/getsentry/relay/pull/4051))
 - Use the duration reported by the profiler instead of the transaction. ([#4058](https://github.com/getsentry/relay/pull/4058))
 - Incorrect pattern matches involving adjacent any and wildcard matchers. ([#4072](https://github.com/getsentry/relay/pull/4072))
-- Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
 
 **Features**:
 
