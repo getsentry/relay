@@ -25,6 +25,7 @@ pub fn is_rolled_out(id: u64, rate: f32) -> PickResult {
 
 impl PickResult {
     /// Returns `true` if the sampling result is [`PickResult::Keep`].
+    #[cfg(feature = "processing")]
     pub fn is_keep(self) -> bool {
         matches!(self, PickResult::Keep)
     }
@@ -33,6 +34,7 @@ impl PickResult {
 /// Returns [`PickResult::Keep`] if the current item should be sampled.
 ///
 /// The passed `rate` is expected to be `0 <= rate <= 1`.
+#[cfg(feature = "processing")]
 pub fn sample(rate: f32) -> PickResult {
     match (rate >= 1.0) || (rate > 0.0 && rand::random::<f32>() < rate) {
         true => PickResult::Keep,
