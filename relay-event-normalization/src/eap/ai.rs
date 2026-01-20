@@ -6,6 +6,7 @@ use relay_protocol::Annotated;
 
 use crate::ModelCosts;
 use crate::span::ai;
+use crate::statsd::Counters;
 
 /// Normalizes AI attributes.
 ///
@@ -34,9 +35,13 @@ pub fn normalize_ai(
     }
 
     normalize_ai_type(attributes);
+    let span_origin = attributes
+        .get_value(ORIGIN)
+        .and_then(|v| v.as_str())
+        .map(String::from);
     normalize_total_tokens(attributes);
     normalize_tokens_per_second(attributes, duration);
-    normalize_ai_costs(attributes, costs);
+    normalize_ai_costs(attributes, costs, span_origin.as_deref());
 }
 
 /// Returns whether the item is should have AI normalizations applied.
@@ -109,7 +114,15 @@ fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Dur
 }
 
 /// Calculates model costs and serializes them into attributes.
-fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCosts>) {
+fn normalize_ai_costs(
+    attributes: &mut Attributes,
+    model_costs: Option<&ModelCosts>,
+    origin: Option<&str>,
+) {
+    if attributes.contains_key(GEN_AI_COST_TOTAL_TOKENS) {
+        return;
+    }
+
     let model_cost = attributes
         .get_value(GEN_AI_REQUEST_MODEL)
         .or_else(|| attributes.get_value(GEN_AI_RESPONSE_MODEL))
@@ -134,10 +147,28 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
     };
 
     let Some(costs) = ai::calculate_costs(model_cost, tokens) else {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_none",
+            origin = origin.unwrap_or("unknown"),
+        );
+
         return;
     };
 
-    // Overwrite all values, the attributes should reflect the values we used to calculate the total.
+    let metric_label = if costs.input > 0.0 && costs.output > 0.0 {
+        "calculation_positive"
+    } else if costs.input < 0.0 || costs.output < 0.0 {
+        "calculation_negative"
+    } else {
+        "calculation_zero"
+    };
+    relay_statsd::metric!(
+        counter(Counters::GenAiCostCalculationResult) += 1,
+        result = metric_label,
+        origin = origin.unwrap_or("unknown"),
+    );
+
     attributes.insert(GEN_AI_COST_INPUT_TOKENS, costs.input);
     attributes.insert(GEN_AI_COST_OUTPUT_TOKENS, costs.output);
     attributes.insert(GEN_AI_COST_TOTAL_TOKENS, costs.total());
