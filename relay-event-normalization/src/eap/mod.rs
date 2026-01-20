@@ -621,11 +621,11 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
         (DB_QUERY_TEXT, DESCRIPTION),
         (NORMALIZED_DB_QUERY, SENTRY_NORMALIZED_DESCRIPTION),
         (DB_OPERATION_NAME, SENTRY_ACTION),
-        (DB_SYSTEM_NAME, "db.system"),
+        (DB_SYSTEM_NAME, DB_SYSTEM),
         // HTTP attributes
         (SERVER_ADDRESS, SENTRY_DOMAIN),
         (HTTP_REQUEST_METHOD, SENTRY_ACTION),
-        (HTTP_RESPONSE_STATUS_CODE, "sentry.status_code"),
+        (HTTP_RESPONSE_STATUS_CODE, SENTRY_STATUS_CODE),
     ];
 
     for (current_attribute, legacy_attribute) in current_to_legacy_attributes {

@@ -272,8 +272,8 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 mod tests {
     use chrono::DateTime;
     use relay_conventions::{
-        DB_QUERY_TEXT, DB_SYSTEM_NAME, DESCRIPTION, HTTP_REQUEST_METHOD, OP, SENTRY_ACTION,
-        SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_NORMALIZED_DESCRIPTION, URL_FULL,
+        DB_QUERY_TEXT, DB_SYSTEM, DB_SYSTEM_NAME, DESCRIPTION, HTTP_REQUEST_METHOD, OP,
+        SENTRY_ACTION, SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_NORMALIZED_DESCRIPTION, URL_FULL,
     };
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
@@ -843,7 +843,7 @@ mod tests {
                     "SELECT * FROM users WHERE id = %s",
                 ),
                 (SENTRY_CATEGORY, "db"),
-                ("db.system", "postgresql"),
+                (DB_SYSTEM, "postgresql"),
                 (SENTRY_ACTION, "SELECT"),
                 (SENTRY_DOMAIN, ",users,"),
             ],
@@ -855,7 +855,7 @@ mod tests {
     fn test_insights_backend_queries_support_legacy() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             vec![
-                ("db.system", "postgresql"),
+                (DB_SYSTEM, "postgresql"),
                 (DESCRIPTION, "select * from users where id = 1"),
             ],
             vec![],
@@ -872,7 +872,7 @@ mod tests {
                     "SELECT * FROM users WHERE id = %s",
                 ),
                 (SENTRY_CATEGORY, "db"),
-                ("db.system", "postgresql"),
+                (DB_SYSTEM, "postgresql"),
                 (SENTRY_ACTION, "SELECT"),
                 (SENTRY_DOMAIN, ",users,"),
             ],
