@@ -5,9 +5,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::{
-    AiOperationTypeMap, MeasurementsConfig, ModelCosts, SpanOpDefaults,
-};
+use relay_event_normalization::{MeasurementsConfig, ModelCosts, SpanOpDefaults};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
@@ -51,10 +49,6 @@ pub struct GlobalConfig {
     /// Configuration for AI span measurements.
     #[serde(skip_serializing_if = "is_model_costs_empty")]
     pub ai_model_costs: ErrorBoundary<ModelCosts>,
-
-    /// Configuration to derive the `gen_ai.operation.type` field from other fields
-    #[serde(skip_serializing_if = "is_ai_operation_type_map_empty")]
-    pub ai_operation_type_map: ErrorBoundary<AiOperationTypeMap>,
 
     /// Configuration to derive the `span.op` from other span fields.
     #[serde(
@@ -349,10 +343,6 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
 
 fn is_model_costs_empty(value: &ErrorBoundary<ModelCosts>) -> bool {
     matches!(value, ErrorBoundary::Ok(model_costs) if model_costs.is_empty())
-}
-
-fn is_ai_operation_type_map_empty(value: &ErrorBoundary<AiOperationTypeMap>) -> bool {
-    matches!(value, ErrorBoundary::Ok(ai_operation_type_map) if ai_operation_type_map.is_empty())
 }
 
 #[cfg(test)]

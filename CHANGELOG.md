@@ -9,6 +9,7 @@
 
 **Internal**:
 
+- Embed AI operation type mappings into Relay. ([#5555](https://github.com/getsentry/relay/pull/5555))
 - Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
 
 ## 26.1.0
