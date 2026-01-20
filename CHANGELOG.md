@@ -2,13 +2,14 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Emit outcomes for spans trimmed from a transaction. ([#5410](https://github.com/getsentry/relay/pull/5410))
+- Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
+
 **Internal**:
 
 - Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
-
-**Bug Fixes**:
-
-- Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
 
 ## 26.1.0
 
