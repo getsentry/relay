@@ -17,9 +17,62 @@ pub fn normalize_ai(
         return;
     };
 
+    // Specifically only apply normalizations if the item is recognized as an AI item by the
+    // product.
+    if !is_ai_item(attributes) {
+        return;
+    }
+
+    normalize_ai_type(attributes);
     normalize_total_tokens(attributes);
     normalize_tokens_per_second(attributes, duration);
     normalize_ai_costs(attributes, costs);
+}
+
+/// Returns whether the item is should have AI normalizations applied.
+fn is_ai_item(attributes: &mut Attributes) -> bool {
+    // The product indicator whether we consider an item to be an EAP item.
+    if attributes
+        .get_value(GEN_AI_OPERATION_TYPE)
+        .and_then(|op| op.as_str())
+        .is_some()
+    {
+        return true;
+    }
+
+    // We use the operation name to infer the operation type.
+    if attributes
+        .get_value(GEN_AI_OPERATION_NAME)
+        .and_then(|op| op.as_str())
+        .is_some()
+    {
+        return true;
+    }
+
+    // Older SDKs may only send a span op which we also use to infer the operation type.
+    let span_op = attributes.get_value(SPAN_OP).and_then(|op| op.as_str());
+    if span_op.is_some_and(|op| op.starts_with("gen_ai.") || op.starts_with("ai.")) {
+        return true;
+    }
+
+    false
+}
+
+/// Normalizes the [`GEN_AI_OPERATION_TYPE`] and infers it from the AI operation if it is missing.
+fn normalize_ai_type(attributes: &mut Attributes) {
+    if attributes.contains_key(GEN_AI_OPERATION_TYPE) {
+        return;
+    }
+
+    let op_name = attributes
+        .get_value(GEN_AI_OPERATION_NAME)
+        .or_else(|| attributes.get_value(SPAN_OP))
+        .and_then(|v| v.as_str())
+        .and_then(|op| ai::infer_ai_operation_type(op))
+        // This is fine, this normalization only happens for known AI spans.
+        .unwrap_or(ai::DEFAULT_AI_OPERATION);
+
+    attributes.insert(GEN_AI_OPERATION_TYPE, op_name.to_owned());
 }
 
 /// Calculates the [`GEN_AI_USAGE_TOTAL_TOKENS`] attribute.
@@ -154,6 +207,7 @@ mod tests {
     #[test]
     fn test_normalize_ai_all_tokens() {
         let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
             "gen_ai.usage.input_tokens" => 1000,
             "gen_ai.usage.output_tokens" => 2000,
             "gen_ai.usage.output_tokens.reasoning" => 1000,
@@ -180,6 +234,10 @@ mod tests {
           "gen_ai.cost.total_tokens": {
             "type": "double",
             "value": 75.0
+          },
+          "gen_ai.operation.type": {
+            "type": "string",
+            "value": "ai_client"
           },
           "gen_ai.request.model": {
             "type": "string",
@@ -216,6 +274,7 @@ mod tests {
     #[test]
     fn test_normalize_ai_basic_tokens() {
         let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
             "gen_ai.usage.input_tokens" => 1000,
             "gen_ai.usage.output_tokens" => 2000,
             "gen_ai.request.model" => "gpt4-21-04".to_owned(),
@@ -240,6 +299,10 @@ mod tests {
           "gen_ai.cost.total_tokens": {
             "type": "double",
             "value": 190.0
+          },
+          "gen_ai.operation.type": {
+            "type": "string",
+            "value": "ai_client"
           },
           "gen_ai.request.model": {
             "type": "string",
@@ -268,6 +331,7 @@ mod tests {
     #[test]
     fn test_normalize_ai_basic_tokens_no_duration_no_cost() {
         let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
             "gen_ai.usage.input_tokens" => 1000,
             "gen_ai.usage.output_tokens" => 2000,
             "gen_ai.request.model" => "unknown".to_owned(),
@@ -277,6 +341,10 @@ mod tests {
 
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "gen_ai.operation.type": {
+            "type": "string",
+            "value": "ai_client"
+          },
           "gen_ai.request.model": {
             "type": "string",
             "value": "unknown"
@@ -300,6 +368,7 @@ mod tests {
     #[test]
     fn test_normalize_ai_does_not_overwrite() {
         let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
             "gen_ai.usage.input_tokens" => 1000,
             "gen_ai.usage.output_tokens" => 2000,
             "gen_ai.request.model" => "gpt4-21-04".to_owned(),
@@ -326,6 +395,10 @@ mod tests {
           "gen_ai.cost.total_tokens": {
             "type": "double",
             "value": 190.0
+          },
+          "gen_ai.operation.type": {
+            "type": "string",
+            "value": "ai_client"
           },
           "gen_ai.request.model": {
             "type": "string",
@@ -354,6 +427,7 @@ mod tests {
     #[test]
     fn test_normalize_ai_overwrite_individual_cost_if_not_total() {
         let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
             "gen_ai.usage.input_tokens" => 1000,
             "gen_ai.usage.output_tokens" => 2000,
             "gen_ai.request.model" => "gpt4-21-04".to_owned(),
@@ -387,6 +461,10 @@ mod tests {
             "type": "double",
             "value": 123.0
           },
+          "gen_ai.operation.type": {
+            "type": "string",
+            "value": "ai_client"
+          },
           "gen_ai.request.model": {
             "type": "string",
             "value": "gpt4-21-04"
@@ -413,6 +491,33 @@ mod tests {
 
     #[test]
     fn test_normalize_ai_no_ai_attributes() {
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.usage.input_tokens" => 1000,
+            "gen_ai.usage.output_tokens" => 2000,
+        });
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_millis(500)),
+            Some(&model_costs()),
+        );
+
+        assert_annotated_snapshot!(&mut attributes, @r#"
+        {
+          "gen_ai.usage.input_tokens": {
+            "type": "integer",
+            "value": 1000
+          },
+          "gen_ai.usage.output_tokens": {
+            "type": "integer",
+            "value": 2000
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_ai_no_ai_indicator_attribute() {
         let mut attributes = Annotated::new(attributes! {
             "foo" => 123,
         });

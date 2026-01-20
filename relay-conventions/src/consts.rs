@@ -76,6 +76,7 @@ convention_attributes!(
     SENTRY_NORMALIZED_DESCRIPTION => "sentry.normalized_description",
     SERVER_ADDRESS => "server.address",
     SPAN_KIND => "sentry.kind",
+    SPAN_OP => "sentry.op",
     STATUS_MESSAGE => "sentry.status.message",
     UI_COMPONENT_NAME => "ui.component_name",
     URL_FULL => "url.full",
