@@ -10,7 +10,6 @@
 
 - Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
 
-
 ## 26.1.0
 
 **Breaking Changes**:

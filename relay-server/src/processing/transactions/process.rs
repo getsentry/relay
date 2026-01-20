@@ -158,14 +158,16 @@ pub fn normalize(
 
         // Normalization may have trimmed spans:
         let new_span_count = work.count_embedded_spans_and_self();
-        if new_span_count < original_span_count {
-            let trimmed = original_span_count - new_span_count;
-            for category in [DataCategory::Span, DataCategory::SpanIndexed] {
-                r.reject_err(
-                    Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Span)),
-                    (category, trimmed),
-                );
-            }
+        if let Some(trimmed) = new_span_count.checked_sub(original_span_count)
+            && trimmed > 0
+        {
+            r.reject_err(
+                Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Span)),
+                [
+                    (DataCategory::Transaction, trimmed),
+                    (DataCategory::TransactionIndexed, trimmed),
+                ],
+            );
         }
 
         Ok::<_, Error>(work)
