@@ -3,13 +3,16 @@ use std::num::NonZeroUsize;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
+use relay_system::Addr;
 
 use crate::envelope::Envelope;
+use crate::managed::Managed;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
     DatabaseBatch, DatabaseEnvelope, InsertEnvelopeError, SqliteEnvelopeStore,
     SqliteEnvelopeStoreError,
 };
+use crate::services::outcome::TrackOutcome;
 use crate::statsd::{RelayCounters, RelayTimers};
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
@@ -42,6 +45,9 @@ pub struct SqliteEnvelopeStack {
     check_disk: bool,
     /// The tag value of this partition which is used for reporting purposes.
     partition_tag: String,
+    /// Outcome aggregator address, automatically populated when the first envelope is pushed.
+    /// Used to create [`Managed`] instances when popping envelopes from the database.
+    outcome_aggregator: Option<Addr<TrackOutcome>>,
 }
 
 impl SqliteEnvelopeStack {
@@ -63,6 +69,7 @@ impl SqliteEnvelopeStack {
             batch: vec![],
             check_disk,
             partition_tag: partition_id.to_string(),
+            outcome_aggregator: None,
         }
     }
 
@@ -151,8 +158,13 @@ impl SqliteEnvelopeStack {
 impl EnvelopeStack for SqliteEnvelopeStack {
     type Error = SqliteEnvelopeStackError;
 
-    async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
+    async fn push(&mut self, envelope: Managed<Box<Envelope>>) -> Result<(), Self::Error> {
         debug_assert!(self.validate_envelope(&envelope));
+
+        // Capture the outcome aggregator on first push for creating Managed instances on pop.
+        if self.outcome_aggregator.is_none() {
+            self.outcome_aggregator = Some(envelope.outcome_aggregator().clone());
+        }
 
         if self.above_spool_threshold() {
             self.spool_to_disk().await?;
@@ -161,8 +173,12 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         let encoded_envelope = relay_statsd::metric!(
             timer(RelayTimers::BufferEnvelopesSerialization),
             partition_id = &self.partition_tag,
-            { DatabaseEnvelope::try_from(envelope.as_ref())? }
+            { DatabaseEnvelope::try_from(&**envelope)? }
         );
+
+        // Need to formally `accept` the envelope to convert it to an untracked envelope.
+        envelope.accept(|_| ());
+
         self.batch.push(encoded_envelope);
 
         Ok(())
@@ -180,17 +196,23 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(Some(envelope.received_at()))
     }
 
-    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
+    async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, Self::Error> {
         if self.batch.is_empty() && self.check_disk {
             self.unspool_from_disk().await?
         }
 
-        let Some(envelope) = self.batch.pop() else {
+        let Some(encoded_envelope) = self.batch.pop() else {
             return Ok(None);
         };
-        let envelope = envelope.try_into()?;
+        let envelope: Box<Envelope> = encoded_envelope.try_into()?;
 
-        Ok(Some(envelope))
+        let outcome_aggregator = self
+            .outcome_aggregator
+            .clone()
+            .expect("Addr should have been added on push");
+        let managed = Managed::from_envelope(envelope, outcome_aggregator);
+
+        Ok(Some(managed))
     }
 
     async fn flush(mut self) {
@@ -207,7 +229,9 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::services::buffer::testutils::utils::{mock_envelope, mock_envelopes, setup_db};
+    use crate::services::buffer::testutils::utils::{
+        managed_envelope, managed_envelopes, mock_envelopes, setup_db,
+    };
 
     /// Helper function to calculate the total size of a slice of envelopes after compression
     fn calculate_compressed_size(envelopes: &[Box<Envelope>]) -> usize {
@@ -231,7 +255,7 @@ mod tests {
             true,
         );
 
-        let envelope = mock_envelope(Utc::now());
+        let envelope = managed_envelope(Utc::now());
         let _ = stack.push(envelope).await;
     }
 
@@ -242,9 +266,16 @@ mod tests {
         let db = setup_db(false).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
 
-        // Create envelopes first so we can calculate actual size
+        // Create envelopes first so we can calculate actual size.
+        // Use the same envelopes for threshold calculation and pushing to ensure consistency.
         let envelopes = mock_envelopes(4);
         let threshold_size = calculate_compressed_size(&envelopes) - 1;
+
+        // Wrap the same envelopes in Managed for pushing
+        let managed_envs: Vec<_> = envelopes
+            .into_iter()
+            .map(|e| Managed::from_envelope(e, Addr::dummy()))
+            .collect();
 
         let mut stack = SqliteEnvelopeStack::new(
             0,
@@ -256,30 +287,28 @@ mod tests {
         );
 
         // We push the 4 envelopes without errors because they are below the threshold.
-        for envelope in envelopes.clone() {
+        for envelope in managed_envs {
             assert!(stack.push(envelope).await.is_ok());
         }
 
         // We push 1 more envelope which results in spooling, which fails because of a database
         // problem.
-        let envelope = mock_envelope(Utc::now());
+        let envelope = managed_envelope(Utc::now());
         assert!(matches!(
             stack.push(envelope).await,
             Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
         ));
 
-        // The stack now contains the last of the 1 elements that were added. If we add a new one
-        // we will end up with 2.
-        let envelope = mock_envelope(Utc::now());
-        assert!(stack.push(envelope.clone()).await.is_ok());
+        // The stack now contains no elements since the batch was taken for spooling and failed.
+        // If we add a new one we will end up with 1.
+        let envelope = managed_envelope(Utc::now());
+        let expected_event_id = envelope.event_id().unwrap();
+        assert!(stack.push(envelope).await.is_ok());
         assert_eq!(stack.batch.len(), 1);
 
         // We pop the remaining elements, expecting the last added envelope to be on top.
         let popped_envelope_1 = stack.pop().await.unwrap().unwrap();
-        assert_eq!(
-            popped_envelope_1.event_id().unwrap(),
-            envelope.event_id().unwrap()
-        );
+        assert_eq!(popped_envelope_1.event_id().unwrap(), expected_event_id);
         assert_eq!(stack.batch.len(), 0);
     }
 
@@ -334,28 +363,26 @@ mod tests {
             true,
         );
 
-        let envelopes = mock_envelopes(5);
+        let managed_envs = managed_envelopes(5);
+
+        // Collect event IDs and timestamps before pushing (since envelopes are consumed)
+        let event_ids: Vec<_> = managed_envs.iter().map(|e| e.event_id().unwrap()).collect();
+        let timestamps: Vec<_> = managed_envs.iter().map(|e| e.received_at()).collect();
 
         // We push 5 envelopes.
-        for envelope in envelopes.clone() {
+        for envelope in managed_envs {
             assert!(stack.push(envelope).await.is_ok());
         }
         assert_eq!(stack.batch.len(), 5);
 
         // We peek the top element.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(
-            peeked.timestamp_millis(),
-            envelopes.clone()[4].received_at().timestamp_millis()
-        );
+        assert_eq!(peeked.timestamp_millis(), timestamps[4].timestamp_millis());
 
-        // We pop 5 envelopes.
-        for envelope in envelopes.iter().rev() {
+        // We pop 5 envelopes (in reverse order - LIFO).
+        for (_i, expected_event_id) in event_ids.iter().enumerate().rev() {
             let popped_envelope = stack.pop().await.unwrap().unwrap();
-            assert_eq!(
-                popped_envelope.event_id().unwrap(),
-                envelope.event_id().unwrap()
-            );
+            assert_eq!(popped_envelope.event_id().unwrap(), *expected_event_id);
         }
 
         assert_eq!(stack.batch.len(), 0);
@@ -366,9 +393,19 @@ mod tests {
         let db = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
 
-        // Create envelopes first so we can calculate actual size
+        // Create envelopes first so we can calculate actual size.
         let envelopes = mock_envelopes(7);
         let threshold_size = calculate_compressed_size(&envelopes[..5]) - 1;
+
+        // Collect event IDs and timestamps before wrapping in Managed
+        let event_ids: Vec<_> = envelopes.iter().map(|e| e.event_id().unwrap()).collect();
+        let timestamps: Vec<_> = envelopes.iter().map(|e| e.received_at()).collect();
+
+        // Wrap the same envelopes in Managed for pushing
+        let managed_envs: Vec<_> = envelopes
+            .into_iter()
+            .map(|e| Managed::from_envelope(e, Addr::dummy()))
+            .collect();
 
         // Create stack with threshold just below the size of first 5 envelopes
         let mut stack = SqliteEnvelopeStack::new(
@@ -381,56 +418,42 @@ mod tests {
         );
 
         // We push 7 envelopes.
-        for envelope in envelopes.clone() {
+        for envelope in managed_envs {
             assert!(stack.push(envelope).await.is_ok());
         }
         assert_eq!(stack.batch.len(), 2);
 
         // We peek the top element.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(
-            peeked.timestamp_millis(),
-            envelopes[6].received_at().timestamp_millis()
-        );
+        assert_eq!(peeked.timestamp_millis(), timestamps[6].timestamp_millis());
 
         // We pop envelopes, and we expect that the last 2 are in memory, since the first 5
         // should have been spooled to disk.
-        for envelope in envelopes[5..7].iter().rev() {
+        for i in (5..7).rev() {
             let popped_envelope = stack.pop().await.unwrap().unwrap();
-            assert_eq!(
-                popped_envelope.event_id().unwrap(),
-                envelope.event_id().unwrap()
-            );
+            assert_eq!(popped_envelope.event_id().unwrap(), event_ids[i]);
         }
         assert_eq!(stack.batch.len(), 0);
 
         // We peek the top element, which since the buffer is empty should result in a disk load.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(
-            peeked.timestamp_millis(),
-            envelopes[4].received_at().timestamp_millis()
-        );
+        assert_eq!(peeked.timestamp_millis(), timestamps[4].timestamp_millis());
 
         // We insert a new envelope, to test the load from disk happening during `peek()` gives
         // priority to this envelope in the stack.
-        let envelope = mock_envelope(Utc::now());
-        assert!(stack.push(envelope.clone()).await.is_ok());
+        let envelope = managed_envelope(Utc::now());
+        let expected_event_id = envelope.event_id().unwrap();
+        assert!(stack.push(envelope).await.is_ok());
 
         // We pop and expect the newly inserted element.
         let popped_envelope = stack.pop().await.unwrap().unwrap();
-        assert_eq!(
-            popped_envelope.event_id().unwrap(),
-            envelope.event_id().unwrap()
-        );
+        assert_eq!(popped_envelope.event_id().unwrap(), expected_event_id);
 
         // We pop 5 envelopes, which should not result in a disk load since `peek()` already should
         // have caused it.
-        for envelope in envelopes[0..5].iter().rev() {
+        for i in (0..5).rev() {
             let popped_envelope = stack.pop().await.unwrap().unwrap();
-            assert_eq!(
-                popped_envelope.event_id().unwrap(),
-                envelope.event_id().unwrap()
-            );
+            assert_eq!(popped_envelope.event_id().unwrap(), event_ids[i]);
         }
         assert_eq!(stack.batch.len(), 0);
     }
@@ -448,10 +471,10 @@ mod tests {
             true,
         );
 
-        let envelopes = mock_envelopes(5);
+        let managed_envs = managed_envelopes(5);
 
         // We push 5 envelopes and check that there is nothing on disk.
-        for envelope in envelopes.clone() {
+        for envelope in managed_envs {
             assert!(stack.push(envelope).await.is_ok());
         }
         assert_eq!(stack.batch.len(), 5);

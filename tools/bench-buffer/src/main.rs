@@ -3,7 +3,9 @@ use chrono::Utc;
 use clap::{Parser, ValueEnum};
 use rand::RngCore;
 use relay_config::Config;
+use relay_server::managed::Managed;
 use relay_server::{Envelope, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer};
+use relay_system::Addr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -133,7 +135,10 @@ async fn run_sequential(
         let envelope = mock_envelope(envelope_size, project_count, compression_ratio);
 
         let before = Instant::now();
-        buffer.push(envelope).await.unwrap();
+        buffer
+            .push(Managed::from_envelope(envelope, Addr::dummy()))
+            .await
+            .unwrap();
         let after = Instant::now();
 
         write_duration += after - before;
@@ -194,7 +199,10 @@ async fn run_interleaved(
         let envelope = mock_envelope(envelope_size, project_count, compression_ratio);
 
         let before = Instant::now();
-        buffer.push(envelope).await.unwrap();
+        buffer
+            .push(Managed::from_envelope(envelope, Addr::dummy()))
+            .await
+            .unwrap();
         let after_write = Instant::now();
         buffer.pop().await.unwrap();
         let after_read = Instant::now();

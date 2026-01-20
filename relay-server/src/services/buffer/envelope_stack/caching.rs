@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 
 use super::EnvelopeStack;
 use crate::envelope::Envelope;
+use crate::managed::Managed;
 
 /// An envelope stack implementation that caches one element in memory and delegates
 /// to another envelope stack for additional storage.
@@ -10,7 +11,7 @@ pub struct CachingEnvelopeStack<S> {
     /// The underlying envelope stack
     inner: S,
     /// The cached envelope (if any)
-    cached: Option<Box<Envelope>>,
+    cached: Option<Managed<Box<Envelope>>>,
 }
 
 impl<S> CachingEnvelopeStack<S>
@@ -32,7 +33,7 @@ where
 {
     type Error = S::Error;
 
-    async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
+    async fn push(&mut self, envelope: Managed<Box<Envelope>>) -> Result<(), Self::Error> {
         if let Some(cached) = self.cached.take() {
             self.inner.push(cached).await?;
         }
@@ -49,7 +50,7 @@ where
         }
     }
 
-    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
+    async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, Self::Error> {
         if let Some(envelope) = self.cached.take() {
             Ok(Some(envelope))
         } else {
@@ -73,7 +74,7 @@ where
 mod tests {
     use super::*;
     use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
-    use crate::services::buffer::testutils::utils::mock_envelope;
+    use crate::services::buffer::testutils::utils::managed_envelope;
 
     #[tokio::test]
     async fn test_caching_stack() {
@@ -81,8 +82,8 @@ mod tests {
         let mut stack = CachingEnvelopeStack::new(inner);
 
         // Create test envelopes with different timestamps
-        let envelope_1 = mock_envelope(Utc::now());
-        let envelope_2 = mock_envelope(Utc::now());
+        let envelope_1 = managed_envelope(Utc::now());
+        let envelope_2 = managed_envelope(Utc::now());
 
         // Push 2 envelopes
         stack.push(envelope_1).await.unwrap();

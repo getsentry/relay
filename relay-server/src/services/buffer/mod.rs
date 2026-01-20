@@ -357,7 +357,7 @@ impl EnvelopeBufferService {
                     .await?
                     .expect("Element disappeared despite exclusive excess");
 
-                Self::drop_expired(envelope, services);
+                Self::drop_expired(envelope);
 
                 Duration::ZERO // try next pop immediately
             }
@@ -417,10 +417,8 @@ impl EnvelopeBufferService {
         }
     }
 
-    fn drop_expired(envelope: Box<Envelope>, services: &Services) {
-        let mut managed_envelope =
-            ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
-        managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
+    fn drop_expired(envelope: Managed<Box<Envelope>>) {
+        let _ = envelope.reject_err(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
     async fn handle_message(
@@ -431,7 +429,12 @@ impl EnvelopeBufferService {
         match message {
             EnvelopeBuffer::Push(envelope) => {
                 relay_log::trace!("EnvelopeBufferService: received push message");
-                Self::push(buffer, envelope.into_envelope(), services).await;
+                // Convert ManagedEnvelope to Managed<Box<Envelope>>
+                let managed = Managed::from_envelope(
+                    envelope.into_envelope(),
+                    services.outcome_aggregator.clone(),
+                );
+                Self::push(buffer, managed, services).await;
             }
         };
     }
@@ -460,7 +463,7 @@ impl EnvelopeBufferService {
 
     async fn push(
         buffer: &mut PolymorphicEnvelopeBuffer,
-        envelope: Box<Envelope>,
+        envelope: Managed<Box<Envelope>>,
         services: &Services,
     ) {
         let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
@@ -524,7 +527,7 @@ impl EnvelopeBufferService {
         relay_log::trace!("EnvelopeBufferService: popping envelope");
 
         // If we arrived here, know that both projects are available, so we pop the envelope.
-        let envelope = buffer
+        let mut managed_envelope = buffer
             .pop()
             .await?
             .expect("Element disappeared despite exclusive excess");
@@ -532,19 +535,13 @@ impl EnvelopeBufferService {
         // If the own project state is disabled, we want to drop the envelope and early return since
         // we can't do much about it.
         let Some(own_project_info) = own_project_info else {
-            let mut managed_envelope =
-                ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
-            managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
-
+            let _ = managed_envelope.reject_err(Outcome::Invalid(DiscardReason::ProjectId));
             return Ok(());
         };
 
         // We only extract the sampling project info if both projects belong to the same org.
         let sampling_project_info = sampling_project_info
             .filter(|info| info.organization_id == own_project_info.organization_id);
-
-        let mut managed_envelope =
-            Managed::from_envelope(envelope, services.outcome_aggregator.clone());
 
         if own_project
             .check_envelope(&mut managed_envelope)
@@ -937,6 +934,10 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         assert_eq!(envelope_processor_rx.len(), 0);
+
+        let outcome = outcome_aggregator_rx.try_recv().unwrap();
+        assert_eq!(outcome.category, DataCategory::Transaction);
+        assert_eq!(outcome.quantity, 1);
 
         let outcome = outcome_aggregator_rx.try_recv().unwrap();
         assert_eq!(outcome.category, DataCategory::TransactionIndexed);

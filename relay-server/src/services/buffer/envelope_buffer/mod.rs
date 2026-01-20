@@ -13,6 +13,7 @@ use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
 use crate::envelope::Item;
+use crate::managed::Managed;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
@@ -76,8 +77,11 @@ impl PolymorphicEnvelopeBuffer {
         }
     }
 
-    /// Adds an envelope to the buffer.
-    pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
+    /// Adds a managed envelope to the buffer.
+    pub async fn push(
+        &mut self,
+        envelope: Managed<Box<Envelope>>,
+    ) -> Result<(), EnvelopeBufferError> {
         relay_statsd::metric!(
             distribution(RelayDistributions::BufferEnvelopeBodySize) =
                 envelope.items().map(Item::len).sum::<usize>() as u64,
@@ -112,7 +116,7 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Pops the next-in-line envelope.
-    pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
+    pub async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, EnvelopeBufferError> {
         let envelope = relay_statsd::metric!(
             timer(RelayTimers::BufferPop),
             partition_id = self.partition_tag(),
@@ -313,7 +317,10 @@ where
     ///
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
-    pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
+    pub async fn push(
+        &mut self,
+        envelope: Managed<Box<Envelope>>,
+    ) -> Result<(), EnvelopeBufferError> {
         let received_at = envelope.received_at();
 
         let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
@@ -329,12 +336,8 @@ where
         } else {
             // Since we have initialization code that creates all the necessary stacks, we assume
             // that any new stack that is added during the envelope buffer's lifecycle, is recreated.
-            self.push_stack(
-                StackCreationType::New,
-                ProjectKeyPair::from_envelope(&envelope),
-                Some(envelope),
-            )
-            .await?;
+            self.push_stack(StackCreationType::New, project_key_pair, Some(envelope))
+                .await?;
         }
         self.priority_queue
             .change_priority_by(&project_key_pair, |prio| {
@@ -385,7 +388,7 @@ where
     ///
     /// The priority of the envelope's stack is updated with the next envelope's received_at
     /// time. If the stack is empty after popping, it is removed from the priority queue.
-    pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
+    pub async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, EnvelopeBufferError> {
         let Some((QueueItem { key, value: stack }, _)) = self.priority_queue.peek_mut() else {
             return Ok(None);
         };
@@ -484,7 +487,7 @@ where
         &mut self,
         stack_creation_type: StackCreationType,
         project_key_pair: ProjectKeyPair,
-        envelope: Option<Box<Envelope>>,
+        envelope: Option<Managed<Box<Envelope>>>,
     ) -> Result<(), EnvelopeBufferError> {
         let received_at = envelope.as_ref().map_or(Utc::now(), |e| e.received_at());
 
@@ -726,6 +729,7 @@ mod tests {
     use crate::services::buffer::envelope_store::sqlite::DatabaseEnvelope;
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::utils::MemoryStat;
+    use relay_system::Addr;
 
     use super::*;
 
@@ -781,6 +785,14 @@ mod tests {
         MemoryChecker::new(MemoryStat::default(), mock_config("my/db/path").clone())
     }
 
+    fn managed_envelope(
+        own_key: ProjectKey,
+        sampling_key: Option<ProjectKey>,
+        event_id: Option<EventId>,
+    ) -> Managed<Box<Envelope>> {
+        Managed::from_envelope(new_envelope(own_key, sampling_key, event_id), Addr::dummy())
+    }
+
     async fn peek_received_at(buffer: &mut EnvelopeBuffer<MemoryStackProvider>) -> DateTime<Utc> {
         buffer.peek().await.unwrap().last_received_at().unwrap()
     }
@@ -796,12 +808,12 @@ mod tests {
         assert!(buffer.pop().await.unwrap().is_none());
         assert!(buffer.peek().await.unwrap().is_empty());
 
-        let envelope1 = new_envelope(project_key1, None, None);
-        let time1 = envelope1.meta().received_at();
+        let envelope1 = managed_envelope(project_key1, None, None);
+        let time1 = envelope1.received_at();
         buffer.push(envelope1).await.unwrap();
 
-        let envelope2 = new_envelope(project_key2, None, None);
-        let time2 = envelope2.meta().received_at();
+        let envelope2 = managed_envelope(project_key2, None, None);
+        let time2 = envelope2.received_at();
         buffer.push(envelope2).await.unwrap();
 
         // Both projects are ready, so project 2 is on top (has the newest envelopes):
@@ -813,8 +825,8 @@ mod tests {
         // Both projects are not ready, so project 1 is on top (has the oldest envelopes):
         assert_eq!(peek_received_at(&mut buffer).await, time1);
 
-        let envelope3 = new_envelope(project_key3, None, None);
-        let time3 = envelope3.meta().received_at();
+        let envelope3 = managed_envelope(project_key3, None, None);
+        let time3 = envelope3.received_at();
         buffer.push(envelope3).await.unwrap();
         buffer.mark_ready(&project_key3, false);
 
@@ -859,10 +871,10 @@ mod tests {
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        let envelope1 = new_envelope(project_key, None, None);
-        let time1 = envelope1.meta().received_at();
-        let envelope2 = new_envelope(project_key, None, None);
-        let time2 = envelope2.meta().received_at();
+        let envelope1 = managed_envelope(project_key, None, None);
+        let time1 = envelope1.received_at();
+        let envelope2 = managed_envelope(project_key, None, None);
+        let time2 = envelope2.received_at();
 
         assert!(time2 > time1);
 
@@ -887,16 +899,16 @@ mod tests {
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
 
-        let envelope1 = new_envelope(project_key1, None, None);
+        let envelope1 = managed_envelope(project_key1, None, None);
         let time1 = envelope1.received_at();
         buffer.push(envelope1).await.unwrap();
 
-        let envelope2 = new_envelope(project_key2, None, None);
+        let envelope2 = managed_envelope(project_key2, None, None);
         let time2 = envelope2.received_at();
         buffer.push(envelope2).await.unwrap();
 
-        let envelope3 = new_envelope(project_key1, Some(project_key2), None);
-        let time3 = envelope3.meta().received_at();
+        let envelope3 = managed_envelope(project_key1, Some(project_key2), None);
+        let time3 = envelope3.received_at();
         buffer.push(envelope3).await.unwrap();
 
         buffer.mark_ready(&project_key1, false);
@@ -959,11 +971,11 @@ mod tests {
 
         let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(0, mock_memory_checker());
         buffer
-            .push(new_envelope(project_key1, Some(project_key2), None))
+            .push(managed_envelope(project_key1, Some(project_key2), None))
             .await
             .unwrap();
         buffer
-            .push(new_envelope(project_key2, Some(project_key1), None))
+            .push(managed_envelope(project_key2, Some(project_key1), None))
             .await
             .unwrap();
         assert_eq!(buffer.priority_queue.len(), 2);
@@ -993,12 +1005,12 @@ mod tests {
 
         let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let event_id_1 = EventId::new();
-        let envelope1 = new_envelope(project_key_1, None, Some(event_id_1));
+        let envelope1 = managed_envelope(project_key_1, None, Some(event_id_1));
         let time1 = envelope1.received_at();
 
         let project_key_2 = ProjectKey::parse("b56ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let event_id_2 = EventId::new();
-        let envelope2 = new_envelope(project_key_2, None, Some(event_id_2));
+        let envelope2 = managed_envelope(project_key_2, None, Some(event_id_2));
         let time2 = envelope2.received_at();
 
         buffer.push(envelope1).await.unwrap();

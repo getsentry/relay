@@ -11,10 +11,12 @@ use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
 use relay_base_schema::project::ProjectKey;
+use relay_server::managed::Managed;
 use relay_server::{
     Envelope, EnvelopeStack, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer,
     SqliteEnvelopeStack, SqliteEnvelopeStore,
 };
+use relay_system::Addr;
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
     let options = SqliteConnectOptions::new()
@@ -115,7 +117,10 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                         |(mut stack, envelopes)| {
                             runtime.block_on(async {
                                 for envelope in envelopes {
-                                    stack.push(envelope).await.unwrap();
+                                    stack
+                                        .push(Managed::from_envelope(envelope, Addr::dummy()))
+                                        .await
+                                        .unwrap();
                                 }
                             });
                         },
@@ -145,7 +150,10 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 // Pre-fill the stack
                                 for _ in 0..size {
                                     let envelope = mock_envelope(envelope_size);
-                                    stack.push(envelope).await.unwrap();
+                                    stack
+                                        .push(Managed::from_envelope(envelope, Addr::dummy()))
+                                        .await
+                                        .unwrap();
                                 }
 
                                 stack
@@ -195,12 +203,24 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 for _ in 0..size {
                                     if rand::random::<bool>() {
                                         if let Some(envelope) = envelope_iter.next() {
-                                            stack.push(envelope).await.unwrap();
+                                            stack
+                                                .push(Managed::from_envelope(
+                                                    envelope,
+                                                    Addr::dummy(),
+                                                ))
+                                                .await
+                                                .unwrap();
                                         }
                                     } else if stack.pop().await.is_err() {
                                         // If pop fails (empty stack), push instead
                                         if let Some(envelope) = envelope_iter.next() {
-                                            stack.push(envelope).await.unwrap();
+                                            stack
+                                                .push(Managed::from_envelope(
+                                                    envelope,
+                                                    Addr::dummy(),
+                                                ))
+                                                .await
+                                                .unwrap();
                                         }
                                     }
                                 }
@@ -265,7 +285,10 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                             .await
                             .unwrap();
                     for envelope in envelopes.into_iter() {
-                        buffer.push(envelope).await.unwrap();
+                        buffer
+                            .push(Managed::from_envelope(envelope, Addr::dummy()))
+                            .await
+                            .unwrap();
                     }
                 })
             },
@@ -299,7 +322,10 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                     let n = envelopes.len();
                     for envelope in envelopes.into_iter() {
                         let public_key = envelope.meta().public_key();
-                        buffer.push(envelope).await.unwrap();
+                        buffer
+                            .push(Managed::from_envelope(envelope, Addr::dummy()))
+                            .await
+                            .unwrap();
                         // Mark as ready:
                         buffer.mark_ready(&public_key, true);
                     }

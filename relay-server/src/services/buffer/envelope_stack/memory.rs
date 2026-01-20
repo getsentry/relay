@@ -3,11 +3,12 @@ use std::convert::Infallible;
 use chrono::{DateTime, Utc};
 
 use crate::Envelope;
+use crate::managed::Managed;
 
 use super::EnvelopeStack;
 
 #[derive(Debug)]
-pub struct MemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
+pub struct MemoryEnvelopeStack(Vec<Managed<Box<Envelope>>>);
 
 impl MemoryEnvelopeStack {
     pub fn new() -> Self {
@@ -18,7 +19,7 @@ impl MemoryEnvelopeStack {
 impl EnvelopeStack for MemoryEnvelopeStack {
     type Error = Infallible;
 
-    async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
+    async fn push(&mut self, envelope: Managed<Box<Envelope>>) -> Result<(), Self::Error> {
         self.0.push(envelope);
         Ok(())
     }
@@ -27,7 +28,7 @@ impl EnvelopeStack for MemoryEnvelopeStack {
         Ok(self.0.last().map(|e| e.received_at()))
     }
 
-    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
+    async fn pop(&mut self) -> Result<Option<Managed<Box<Envelope>>>, Self::Error> {
         Ok(self.0.pop())
     }
 
