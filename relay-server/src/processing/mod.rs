@@ -80,7 +80,10 @@ pub struct Context<'a> {
     ///
     /// The caller needs to ensure the rate limits are not yet expired.
     pub rate_limits: &'a RateLimits,
-    /// Reservoir counters for "get more samples" functionality.
+
+    /// Counters used for getting more samples for a project on-demand.
+    ///
+    /// Reservoir counters are a legacy feature and will be removed in the near future.
     pub reservoir_counters: &'a ReservoirCounters,
 }
 

@@ -788,10 +788,13 @@ def test_transaction_metrics(
 
     if extract_metrics == "corrupted":
         config["transactionMetrics"] = TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION + 1
-
     elif extract_metrics:
         config["transactionMetrics"] = {
             "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+        }
+    else:
+        config["transactionMetrics"] = {
+            "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION - 1,
         }
 
     transaction = generate_transaction_item(timestamp.timestamp())
@@ -822,6 +825,12 @@ def test_transaction_metrics(
                 "total.time": {"value": 9.91, "unit": "millisecond"},
             }
         }
+
+    if not extract_metrics:
+        assert (
+            str(mini_sentry.test_failures.get(timeout=5)[1])
+            == "Relay sent us event: Processing Relay outdated, received tx config in version 2, which is not supported"
+        )
 
     if not extract_metrics or extract_metrics == "corrupted":
         message = metrics_consumer.poll(timeout=None)
@@ -1041,16 +1050,9 @@ def test_transaction_metrics_count_per_root_project(
     }
 
 
-@pytest.mark.parametrize(
-    "send_extracted_header,expect_metrics_extraction",
-    [(False, True), (True, False)],
-    ids=["must extract metrics", "mustn't extract metrics"],
-)
+@pytest.mark.parametrize("send_extracted_header", [False, True])
 def test_transaction_metrics_extraction_external_relays(
-    mini_sentry,
-    relay,
-    send_extracted_header,
-    expect_metrics_extraction,
+    mini_sentry, relay, send_extracted_header
 ):
     if send_extracted_header:
         item_headers = {"metrics_extracted": True}
@@ -1093,7 +1095,13 @@ def test_transaction_metrics_extraction_external_relays(
     envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
 
-    if expect_metrics_extraction:
+    if send_extracted_header:
+        _, error = mini_sentry.test_failures.get()
+        assert (
+            str(error)
+            == "Relay sent us event: Received a transaction which already had its metrics extracted."
+        )
+    else:
         metrics_envelope = mini_sentry.get_captured_envelope()
         assert len(metrics_envelope.items) == 1
 
@@ -1118,13 +1126,11 @@ def test_transaction_metrics_extraction_external_relays(
         assert not usage_metric.get("tags")  # empty or missing
         assert usage_metric["value"] == 1.0
 
-    assert mini_sentry.captured_envelopes.empty()
-
 
 @pytest.mark.parametrize(
     "send_extracted_header,expect_metrics_extraction",
     [(False, True), (True, False)],
-    ids=["must extract metrics", "mustn't extract metrics"],
+    ids=["must extract metrics", "must not extract metrics"],
 )
 def test_transaction_metrics_extraction_processing_relays(
     transactions_consumer,
@@ -1175,6 +1181,11 @@ def test_transaction_metrics_extraction_processing_relays(
         )
         metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
         assert metric_count_per_project["value"] == 1.0
+    else:
+        assert (
+            str(mini_sentry.test_failures.get(timeout=5)[1])
+            == "Relay sent us event: Received a transaction which already had its metrics extracted."
+        )
 
     metrics_consumer.assert_empty()
 
@@ -1241,11 +1252,9 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     ]
     filtered_events.sort(key=lambda x: x["category"])
 
-    # NOTE: span categories should be 2.
-    # Will be fixed in https://github.com/getsentry/relay/pull/5379.
     assert filtered_events == [
-        {"reason": "release-version", "category": "span", "quantity": 1},
-        {"reason": "release-version", "category": "span_indexed", "quantity": 1},
+        {"reason": "release-version", "category": "span", "quantity": 2},
+        {"reason": "release-version", "category": "span_indexed", "quantity": 2},
         {"reason": "release-version", "category": "transaction", "quantity": 1},
         {"reason": "release-version", "category": "transaction_indexed", "quantity": 1},
     ]

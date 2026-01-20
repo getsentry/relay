@@ -1,5 +1,6 @@
 import contextlib
 import json
+from unittest import mock
 import uuid
 from collections import Counter
 from datetime import UTC, datetime, timedelta, timezone
@@ -1218,9 +1219,7 @@ def test_rate_limit_indexed_consistent(
     outcomes_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("category", ["span"])
 def test_rate_limit_consistent_extracted(
-    category,
     mini_sentry,
     relay_with_processing,
     spans_consumer,
@@ -1238,7 +1237,7 @@ def test_rate_limit_consistent_extracted(
     }
     project_config["config"]["quotas"] = [
         {
-            "categories": [category],
+            "categories": ["span"],
             "limit": 2,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
@@ -1293,20 +1292,14 @@ def test_rate_limit_consistent_extracted(
     outcomes = summarize_outcomes()
 
     expected_outcomes = {
+        (12, 2): 2,
         (16, 2): 2,  # SpanIndexed, RateLimited
     }
-    metrics = metrics_consumer.get_metrics(timeout=1)
-    if category == "span":
-        (expected_outcomes.update({(12, 2): 2}),)  # Span, RateLimited
-        assert len(metrics) == 4
-        assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
-    else:
-        span_count = sum(
-            [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
-        )
-        assert span_count == 2
-
     assert outcomes == expected_outcomes
+
+    metrics = metrics_consumer.get_metrics(timeout=1)
+    assert len(metrics) == 4
+    assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
 
     outcomes_consumer.assert_empty()
 
@@ -1730,3 +1723,66 @@ def test_scrubs_ip_addresses(
         assert parent_span["attributes"]["sentry.user.ip"]["value"] == "127.0.0.1"
 
     spans_consumer.assert_empty()
+
+
+def test_outcomes_for_trimmed_spans(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {"max_event_size": "20MB"},
+            "outcomes": {"emit_outcomes": True},
+        },
+    )
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    event["spans"] = 10 * [
+        {
+            "platform": 1014 * 90 * "a",
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "origin": "manual",
+            "parent_span_id": "968cff94913ebb07",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "status": "success",
+            "tags": {
+                "extra_info": "added by user",
+            },
+            "sentry_tags": {
+                "release": 1024 * 100 * "b",
+            },
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    relay.send_event(project_id, event)
+
+    outcomes = mini_sentry.get_outcomes(n=2)
+    assert outcomes == [
+        {
+            "category": DataCategory.SPAN,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:span",
+            "timestamp": mock.ANY,
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:span",
+            "timestamp": mock.ANY,
+        },
+    ]

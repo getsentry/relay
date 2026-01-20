@@ -6,7 +6,7 @@ use either::Either;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
 use relay_protocol::{FiniteF64, get_value};
-use relay_quotas::Scoping;
+use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
@@ -180,7 +180,8 @@ fn split_indexed_and_total(
 ) -> SpansAndMetrics {
     let scoping = spans.scoping();
 
-    spans.split_once(|spans| {
+    spans.split_once(|spans, r| {
+        r.lenient(DataCategory::MetricBucket);
         let metrics = create_metrics(scoping, &spans.spans, spans.headers.dsc(), decision);
 
         (spans.into_indexed(), metrics)

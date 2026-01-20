@@ -60,6 +60,12 @@ impl Counted for (DataCategory, usize) {
     }
 }
 
+impl<const N: usize> Counted for [(DataCategory, usize); N] {
+    fn quantities(&self) -> Quantities {
+        smallvec::SmallVec::from_slice(self)
+    }
+}
+
 impl Counted for Item {
     fn quantities(&self) -> Quantities {
         self.quantities()
