@@ -65,6 +65,7 @@ mod test {
         assert_eq!(is_rolled_out(42, 100.0), PickResult::Keep);
     }
 
+    #[cfg(feature = "processing")]
     #[test]
     fn test_sample() {
         assert_eq!(sample(1.0), PickResult::Keep);
