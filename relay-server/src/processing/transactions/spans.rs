@@ -254,7 +254,6 @@ mod tests {
 
     use bytes::Bytes;
     use chrono::DateTime;
-    use relay_dynamic_config::GlobalConfig;
     use relay_event_schema::protocol::{
         Context, ContextInner, Contexts, Span, Timestamp, TraceContext,
     };
