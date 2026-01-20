@@ -343,13 +343,13 @@
 <a href=#343 id=343 data-nosnippet>343</a>            <span class="attr">#[cfg(debug_assertions)]
 <a href=#344 id=344 data-nosnippet>344</a>            </span><span class="kw">let </span>original_key = key.clone();
 <a href=#345 id=345 data-nosnippet>345</a>
-<a href=#346 id=346 data-nosnippet>346</a>            <span class="kw">let </span>stored_key = <span class="self">self
+<a href=#346 id=346 data-nosnippet>346</a>            <span class="kw">let </span>_stored_key = <span class="self">self
 <a href=#347 id=347 data-nosnippet>347</a>                </span>.upload(<span class="string">"attachment_v2"</span>, <span class="kw-2">&amp;</span>session, body, <span class="prelude-val">Some</span>(key))
 <a href=#348 id=348 data-nosnippet>348</a>                .<span class="kw">await
 <a href=#349 id=349 data-nosnippet>349</a>                </span>.reject(<span class="kw-2">&amp;</span>trace_item)<span class="question-mark">?</span>;
 <a href=#350 id=350 data-nosnippet>350</a>
 <a href=#351 id=351 data-nosnippet>351</a>            <span class="attr">#[cfg(debug_assertions)]
-<a href=#352 id=352 data-nosnippet>352</a>            </span><span class="macro">debug_assert_eq!</span>(stored_key, original_key);
+<a href=#352 id=352 data-nosnippet>352</a>            </span><span class="macro">debug_assert_eq!</span>(_stored_key, original_key);
 <a href=#353 id=353 data-nosnippet>353</a>            <span class="macro">relay_log::trace!</span>(<span class="string">"Finished attachment upload"</span>);
 <a href=#354 id=354 data-nosnippet>354</a>        }
 <a href=#355 id=355 data-nosnippet>355</a>
