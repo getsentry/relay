@@ -1470,21 +1470,13 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.csp, @r#"
-        Csp {
-            effective_directive: "style-src",
-            blocked_uri: "self",
-            document_uri: "http://example.com/foo",
-            original_policy: ~,
-            referrer: ~,
-            status_code: ~,
-            violated_directive: "style-src http://cdn.example.com",
-            source_file: ~,
-            line_number: ~,
-            column_number: ~,
-            script_sample: "console.log(\"lo\")",
-            disposition: ~,
-            other: {},
+        assert_annotated_snapshot!(event.csp, @r#"
+        {
+          "effective_directive": "style-src",
+          "blocked_uri": "self",
+          "document_uri": "http://example.com/foo",
+          "violated_directive": "style-src http://cdn.example.com",
+          "script_sample": "console.log(\"lo\")"
         }
         "#);
     }
