@@ -28,11 +28,6 @@ impl PickResult {
     pub fn is_keep(self) -> bool {
         matches!(self, PickResult::Keep)
     }
-
-    /// Returns `true` if the sampling result is [`PickResult::Discard`].
-    pub fn is_discard(self) -> bool {
-        !self.is_keep()
-    }
 }
 
 /// Returns [`PickResult::Keep`] if the current item should be sampled.
