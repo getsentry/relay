@@ -147,21 +147,6 @@ pub struct Options {
     )]
     pub metric_bucket_dist_encodings: BucketEncodings,
 
-    /// Overall sampling of span extraction.
-    ///
-    /// This number represents the fraction of transactions for which
-    /// spans are extracted.
-    ///
-    /// `None` is the default and interpreted as a value of 1.0 (extract everything).
-    ///
-    /// Note: Any value below 1.0 will cause the product to break, so use with caution.
-    #[serde(
-        rename = "relay.span-extraction.sample-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub span_extraction_sample_rate: Option<f32>,
-
     /// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
     ///
     /// At this point, it doesn't accept IP addresses in CIDR format.. yet.

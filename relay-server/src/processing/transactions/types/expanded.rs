@@ -256,7 +256,6 @@ impl<T> ExpandedTransaction<T> {
             spans_extracted,
             fully_normalized,
             spans_rate_limited: _,
-            spans_killswitched: _,
         } = flags;
         item.set_metrics_extracted(metrics_extracted);
         item.set_spans_extracted(spans_extracted);

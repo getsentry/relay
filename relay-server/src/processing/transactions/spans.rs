@@ -254,7 +254,6 @@ mod tests {
 
     use bytes::Bytes;
     use chrono::DateTime;
-    use relay_dynamic_config::GlobalConfig;
     use relay_event_schema::protocol::{
         Context, ContextInner, Contexts, Span, Timestamp, TraceContext,
     };
@@ -311,55 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_sampled_default() {
-        let global_config = GlobalConfig::default();
-        assert!(global_config.options.span_extraction_sample_rate.is_none());
-        let (managed_envelope, event, _) = params();
-        let spans = extract_from_event(
-            managed_envelope.envelope().dsc(),
-            &event,
-            &Default::default(),
-            None,
-            EventMetricsExtracted(false),
-            SpansExtracted(false),
-        )
-        .unwrap();
-        assert!(
-            spans
-                .iter()
-                .any(|item| item.as_ref().unwrap().ty() == &ItemType::Span),
-            "{:?}",
-            managed_envelope.envelope()
-        );
-    }
-
-    #[test]
-    fn extract_sampled_explicit() {
-        let mut global_config = GlobalConfig::default();
-        global_config.options.span_extraction_sample_rate = Some(1.0);
-        let (managed_envelope, event, _) = params();
-        let spans = extract_from_event(
-            managed_envelope.envelope().dsc(),
-            &event,
-            &Default::default(),
-            None,
-            EventMetricsExtracted(false),
-            SpansExtracted(false),
-        )
-        .unwrap();
-        assert!(
-            spans
-                .iter()
-                .any(|item| item.as_ref().unwrap().ty() == &ItemType::Span),
-            "{:?}",
-            managed_envelope.envelope()
-        );
-    }
-
-    #[test]
     fn extract_sample_rates() {
-        let mut global_config = GlobalConfig::default();
-        global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
         let (managed_envelope, event, _) = params(); // client sample rate is 0.2
         let spans = extract_from_event(
             managed_envelope.envelope().dsc(),

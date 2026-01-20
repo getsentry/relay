@@ -34,7 +34,6 @@ use crate::utils::SamplingResult;
 /// causes stack overflows in unit tests when run without optimizations.
 pub fn expand(
     work: Managed<SerializedTransaction>,
-    ctx: Context<'_>,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
     work.try_map(|work, record_keeper| {
         let SerializedTransaction {
@@ -54,14 +53,6 @@ pub fn expand(
             spans_extracted: transaction_item.spans_extracted(),
             fully_normalized: headers.meta().request_trust().is_trusted()
                 && transaction_item.fully_normalized(),
-            spans_killswitched: {
-                let span_extraction_sample_rate = ctx
-                    .global_config
-                    .options
-                    .span_extraction_sample_rate
-                    .unwrap_or(1.0);
-                crate::utils::sample(span_extraction_sample_rate).is_discard()
-            },
             spans_rate_limited: false,
         };
         validate_flags(&flags);
@@ -306,7 +297,7 @@ pub fn split_indexed_and_total(
     let scoping = work.scoping();
 
     let had_metrics_extracted = work.flags.metrics_extracted;
-    let extract_span_metrics = !work.flags.spans_rate_limited && !work.flags.spans_killswitched;
+    let extract_span_metrics = !work.flags.spans_rate_limited;
 
     let mut metrics = ProcessingExtractedMetrics::new();
     work.try_modify(|work, _| {
@@ -332,10 +323,6 @@ pub fn split_indexed_and_total(
         if had_metrics_extracted || !work.flags.metrics_extracted {
             // Invalid config or invalid original transaction
             r.lenient(DataCategory::Transaction);
-            r.lenient(DataCategory::Span);
-        }
-
-        if work.flags.spans_killswitched {
             r.lenient(DataCategory::Span);
         }
 
@@ -387,12 +374,6 @@ pub fn extract_spans(
     }
 
     work.modify(|work, r| {
-        if work.flags.spans_killswitched {
-            r.lenient(DataCategory::Span);
-            r.lenient(DataCategory::SpanIndexed);
-            return;
-        }
-
         if let Some(results) = spans::extract_from_event(
             work.headers.dsc(),
             &work.event,

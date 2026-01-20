@@ -255,67 +255,6 @@ def test_span_extraction(
     spans_consumer.assert_empty()
 
 
-@pytest.mark.parametrize(
-    "sample_rate,expected_spans,expected_metrics",
-    [
-        (None, 2, 4),
-        (1.0, 2, 4),
-        (0.0, 0, 0),
-    ],
-)
-def test_span_extraction_with_sampling(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    metrics_consumer,
-    sample_rate,
-    expected_spans,
-    expected_metrics,
-):
-    mini_sentry.global_config["options"] = {
-        "relay.span-extraction.sample-rate": sample_rate
-    }
-
-    relay = relay_with_processing(options=TEST_CONFIG)
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
-
-    spans_consumer = spans_consumer()
-    metrics_consumer = metrics_consumer()
-
-    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    duration = timedelta(milliseconds=500)
-    start = end - duration
-    event["spans"] = [
-        {
-            "description": "GET /api/0/organizations/?member=1",
-            "op": "http",
-            "parent_span_id": "968cff94913ebb07",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": start.isoformat(),
-            "timestamp": end.isoformat(),
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        },
-    ]
-
-    relay.send_event(project_id, event)
-
-    if expected_spans > 0:
-        spans = spans_consumer.get_spans(n=expected_spans)
-        assert len(spans) == expected_spans
-
-    metrics = metrics_consumer.get_metrics()
-    span_metrics = [m for (m, _) in metrics if ":spans/" in m["name"]]
-    assert len(span_metrics) == expected_metrics
-
-    spans_consumer.assert_empty()
-    metrics_consumer.assert_empty()
-
-
 def test_duplicate_performance_score(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
     project_id = 42
