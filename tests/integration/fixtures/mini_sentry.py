@@ -3,6 +3,7 @@ import datetime
 import copy
 import zstandard
 import json
+import logging
 import os
 import re
 import uuid
@@ -17,6 +18,9 @@ from pytest_localserver.http import WSGIServer
 from sentry_sdk.envelope import Envelope
 
 from . import SentryLike
+
+# Set up logger for regression tracking issues
+logger = logging.getLogger(__name__)
 
 _version_re = re.compile(r'(?m)^version\s*=\s*"(.*?)"\s*$')
 with open(os.path.join(os.path.dirname(__file__), "../../../relay/Cargo.toml")) as f:
@@ -49,6 +53,14 @@ class Sentry(SentryLike):
         self.request_log = []
         self.project_config_simulate_pending = False
         self.project_config_ignore_revision = False
+        
+        # Regression tracking storage (simulates Django models)
+        # GroupHash: maps (project_id, fingerprint) -> group_id
+        self.group_hashes = {}
+        # RegressionGroup: maps regression_group_id -> regression_data
+        self.regression_groups = {}
+        # Issue groups: maps group_id -> issue_data
+        self.issue_groups = {}
 
         self.timeout = 10
 
@@ -262,6 +274,138 @@ class Sentry(SentryLike):
             ]
             outcomes.sort(key=lambda o: sorted(o.items()))
             return outcomes
+
+    def bulk_get_groups_from_fingerprints(self, project_id, fingerprints):
+        """
+        Simulates Sentry's bulk_get_groups_from_fingerprints function.
+        Maps fingerprints to group IDs via GroupHash records.
+        
+        Returns dict mapping fingerprints to group_ids, or None if no hash exists.
+        Fixes SENTRY-2DG5: Handles orphaned RegressionGroups gracefully.
+        """
+        result = {}
+        for fingerprint in fingerprints:
+            key = (project_id, fingerprint)
+            group_id = self.group_hashes.get(key)
+            
+            if group_id is None:
+                # Check if this is an orphaned regression group
+                orphaned_regression = self._check_orphaned_regression(project_id, fingerprint)
+                if orphaned_regression:
+                    logger.warning(
+                        "Missing issue group for regression issue: "
+                        f"project_id={project_id}, fingerprint={fingerprint}, "
+                        f"regression_id={orphaned_regression}"
+                    )
+                result[fingerprint] = None
+            else:
+                # Verify the group actually exists
+                if group_id not in self.issue_groups:
+                    logger.warning(
+                        f"GroupHash exists but Issue group missing: "
+                        f"project_id={project_id}, fingerprint={fingerprint}, group_id={group_id}"
+                    )
+                    result[fingerprint] = None
+                else:
+                    result[fingerprint] = group_id
+        
+        return result
+
+    def _check_orphaned_regression(self, project_id, fingerprint):
+        """
+        Check if a RegressionGroup exists without corresponding GroupHash/Issue.
+        Returns regression_group_id if orphaned, None otherwise.
+        """
+        for regression_id, regression_data in self.regression_groups.items():
+            if (regression_data.get("project_id") == project_id and
+                regression_data.get("fingerprint") == fingerprint):
+                return regression_id
+        return None
+
+    def create_regression_group(self, project_id, fingerprint, regression_data=None):
+        """
+        Creates a RegressionGroup record to track a regression.
+        This may happen before the corresponding issue is created.
+        """
+        regression_id = uuid.uuid4().hex
+        self.regression_groups[regression_id] = {
+            "project_id": project_id,
+            "fingerprint": fingerprint,
+            "created_at": datetime.datetime.now(datetime.UTC).isoformat(),
+            **(regression_data or {})
+        }
+        return regression_id
+
+    def create_issue_group(self, project_id, fingerprint, group_data=None):
+        """
+        Creates an Issue group and corresponding GroupHash record.
+        This links the fingerprint to a group_id.
+        """
+        group_id = uuid.uuid4().hex
+        
+        # Create the issue group
+        self.issue_groups[group_id] = {
+            "project_id": project_id,
+            "fingerprint": fingerprint,
+            "created_at": datetime.datetime.now(datetime.UTC).isoformat(),
+            **(group_data or {})
+        }
+        
+        # Create the GroupHash mapping
+        key = (project_id, fingerprint)
+        self.group_hashes[key] = group_id
+        
+        return group_id
+
+    def delete_issue_group(self, group_id):
+        """
+        Deletes an issue group and its GroupHash records.
+        This can leave orphaned RegressionGroups.
+        """
+        if group_id not in self.issue_groups:
+            return False
+        
+        issue_data = self.issue_groups[group_id]
+        project_id = issue_data.get("project_id")
+        fingerprint = issue_data.get("fingerprint")
+        
+        # Remove GroupHash
+        if project_id and fingerprint:
+            key = (project_id, fingerprint)
+            self.group_hashes.pop(key, None)
+        
+        # Remove Issue group
+        del self.issue_groups[group_id]
+        
+        return True
+
+    def cleanup_orphaned_regressions(self):
+        """
+        Cleanup utility to detect and remove orphaned RegressionGroups.
+        Fixes SENTRY-2DG5: Validates RegressionGroups have corresponding issue groups.
+        """
+        orphaned = []
+        for regression_id, regression_data in list(self.regression_groups.items()):
+            project_id = regression_data.get("project_id")
+            fingerprint = regression_data.get("fingerprint")
+            
+            if not project_id or not fingerprint:
+                continue
+            
+            # Check if corresponding GroupHash/Issue exists
+            key = (project_id, fingerprint)
+            group_id = self.group_hashes.get(key)
+            
+            if group_id is None or group_id not in self.issue_groups:
+                orphaned.append(regression_id)
+                logger.info(
+                    f"Cleaning up orphaned RegressionGroup: "
+                    f"regression_id={regression_id}, project_id={project_id}, "
+                    f"fingerprint={fingerprint}"
+                )
+                del self.regression_groups[regression_id]
+        
+        return orphaned
 
 
 def _get_project_id(public_key, project_configs):
