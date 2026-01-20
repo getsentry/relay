@@ -157,6 +157,7 @@ pub fn normalize(
         .0;
 
         // Normalization may have trimmed spans:
+        debug_assert!(!work.flags.spans_extracted);
         let new_span_count = work.count_embedded_spans_and_self();
         if let Some(trimmed) = original_span_count.checked_sub(new_span_count)
             && trimmed > 0
