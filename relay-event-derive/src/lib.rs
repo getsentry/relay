@@ -482,8 +482,6 @@ impl FieldAttrs {
 
         let bytes_size = if let Some(ref bytes_size) = self.bytes_size {
             bytes_size.as_tokens()
-        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.bytes_size)
         } else {
             quote!(::relay_event_schema::processor::SizeMode::Static(None))
         };
