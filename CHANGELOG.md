@@ -6,6 +6,7 @@
 
 - Emit outcomes for spans trimmed from a transaction. ([#5410](https://github.com/getsentry/relay/pull/5410))
 - Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
+- Fix inconsistencies with Insights' expected attributes. ([#5561](https://github.com/getsentry/relay/pull/5561))
 
 **Internal**:
 
@@ -29,7 +30,6 @@
 - Write item IDs of logs, metrics and trace attachments in correct byte order. ([#5526](https://github.com/getsentry/relay/pull/5526))
 - Reworked AI span extraction to also take trace context into account. ([#5515](https://github.com/getsentry/relay/pull/5515))
 - Mark root spans (spans without a parent) as segments in OTEL conversion. ([#5532](https://github.com/getsentry/relay/pull/5532))
-- Fix inconsistencies with Insights' expected attributes. ([#5561](https://github.com/getsentry/relay/pull/5561))
 
 **Internal**:
 
