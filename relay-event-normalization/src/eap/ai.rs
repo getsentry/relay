@@ -66,8 +66,8 @@ fn normalize_ai_type(attributes: &mut Attributes) {
 
     let op_name = attributes
         .get_value(GEN_AI_OPERATION_NAME)
-        .or_else(|| attributes.get_value(SPAN_OP))
         .and_then(|v| v.as_str())
+        .or_else(|| attributes.get_value(SPAN_OP).and_then(|v| v.as_str()))
         .and_then(|op| ai::infer_ai_operation_type(op))
         // This is fine, this normalization only happens for known AI spans.
         .unwrap_or(ai::DEFAULT_AI_OPERATION);
