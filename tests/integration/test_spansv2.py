@@ -1247,7 +1247,7 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
             },
-            "sentry.domain": {"type": "string", "value": "users"},
+            "sentry.domain": {"type": "string", "value": ",users,"},
             "sentry.normalized_db_query": {
                 "type": "string",
                 "value": "SELECT id FROM users WHERE id = %s AND name = %s",
