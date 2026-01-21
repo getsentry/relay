@@ -1267,13 +1267,17 @@ mod tests {
             #[metastructure(max_chars = 10, trim = true)]
             body: Annotated<String>,
             // This should neither be trimmed nor factor into size calculations.
-            #[metastructure(trim = false, bytes_size = 0)]
+            #[metastructure(trim = false, bytes_size = "always_zero")]
             number: Annotated<u64>,
             // This should count as 10B.
             #[metastructure(trim = false, bytes_size = 10)]
             other_number: Annotated<u64>,
             #[metastructure(trim = true)]
             footer: Annotated<String>,
+        }
+
+        fn always_zero(_state: &ProcessingState) -> Option<usize> {
+            Some(0)
         }
 
         let mut object = Annotated::new(TestObject {
