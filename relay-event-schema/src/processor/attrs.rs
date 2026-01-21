@@ -253,6 +253,21 @@ impl FieldAttrs {
         self
     }
 
+    /// Sets the maximum number of bytes allowed in the field.
+    pub const fn max_bytes(mut self, max_bytes: usize) -> Self {
+        self.max_bytes = SizeMode::Static(Some(max_bytes));
+        self
+    }
+
+    /// Sets the maximum number of bytes allowed in the field dynamically based on the current state.
+    pub const fn max_bytes_dynamic(
+        mut self,
+        max_bytes: fn(&ProcessingState) -> Option<usize>,
+    ) -> Self {
+        self.max_bytes = SizeMode::Dynamic(max_bytes);
+        self
+    }
+
     /// Sets whether additional properties should be retained during normalization.
     pub const fn retain(mut self, retain: bool) -> Self {
         self.retain = retain;

@@ -633,6 +633,10 @@ impl Service for EnvelopeBufferService {
 
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
         loop {
+            relay_statsd::metric!(
+                counter(RelayCounters::BufferServiceLoopIteration) += 1,
+                partition_id = &partition_tag
+            );
             let mut sleep = DEFAULT_SLEEP;
 
             tokio::select! {

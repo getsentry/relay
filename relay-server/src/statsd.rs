@@ -735,6 +735,8 @@ pub enum RelayCounters {
     /// Number of times one or more projects of an envelope were pending when trying to pop
     /// their envelope.
     BufferProjectPending,
+    /// Number of iterations of the envelope buffer service loop.
+    BufferServiceLoopIteration,
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
@@ -973,6 +975,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
             RelayCounters::BufferProjectChangedEvent => "buffer.project_changed_event",
             RelayCounters::BufferProjectPending => "buffer.project_pending",
+            RelayCounters::BufferServiceLoopIteration => "buffer.service_loop_iteration",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::OutcomeQuantity => "events.outcome_quantity",
             RelayCounters::ProjectStateRequest => "project_state.request",

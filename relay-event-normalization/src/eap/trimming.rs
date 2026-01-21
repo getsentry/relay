@@ -26,28 +26,14 @@ struct SizeState {
 /// This means that large attributes will be trimmed or discarded before small ones.
 #[derive(Default)]
 pub struct TrimmingProcessor {
-    max_item_size: Option<usize>,
     size_state: Vec<SizeState>,
 }
 
 impl TrimmingProcessor {
     /// Creates a new trimming processor.
-    ///
-    /// The `max_item_size` parameter is a global byte size
-    /// limit for the item being processed.
-    pub fn new(max_item_size: Option<usize>) -> Self {
-        let mut size_state = Vec::new();
-        if max_item_size.is_some() {
-            size_state.push(SizeState {
-                size_remaining: max_item_size,
-                encountered_at_depth: 0,
-                max_depth: None,
-            });
-        }
-
+    pub fn new() -> Self {
         Self {
-            max_item_size,
-            size_state,
+            size_state: Default::default(),
         }
     }
 
@@ -342,7 +328,12 @@ impl Processor for TrimmingProcessor {
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{AttributeType, AttributeValue};
+    use std::borrow::Cow;
+
+    use relay_event_schema::{
+        processor::FieldAttrs,
+        protocol::{AttributeType, AttributeValue},
+    };
     use relay_protocol::{Annotated, FromValue, IntoValue, SerializableAnnotated, Value};
 
     use super::*;
@@ -379,7 +370,7 @@ mod tests {
             footer: Annotated::empty(),
         });
 
-        let mut processor = TrimmingProcessor::new(None);
+        let mut processor = TrimmingProcessor::new();
 
         let state = ProcessingState::new_root(Default::default(), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
@@ -453,7 +444,7 @@ mod tests {
             footer: Annotated::empty(),
         });
 
-        let mut processor = TrimmingProcessor::new(None);
+        let mut processor = TrimmingProcessor::new();
 
         let state = ProcessingState::new_root(Default::default(), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
@@ -528,7 +519,7 @@ mod tests {
             footer: Annotated::empty(),
         });
 
-        let mut processor = TrimmingProcessor::new(None);
+        let mut processor = TrimmingProcessor::new();
 
         let state = ProcessingState::new_root(Default::default(), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
@@ -586,13 +577,14 @@ mod tests {
             footer: Annotated::new("Hello World".to_owned()),
         });
 
+        let mut processor = TrimmingProcessor::new();
+
         // The `body` takes up 5B, `other_number` 10B, the `"small"` attribute 13B, and the key "medium string" another 13B.
         // That leaves 9B for the string's value.
         // Note that the `number` field doesn't take up any size.
         // The `"footer"` is removed because it comes after the attributes and there's no space left.
-        let mut processor = TrimmingProcessor::new(Some(50));
-
-        let state = ProcessingState::new_root(Default::default(), []);
+        let state =
+            ProcessingState::new_root(Some(Cow::Owned(FieldAttrs::default().max_bytes(50))), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
@@ -663,7 +655,7 @@ mod tests {
             footer: Annotated::empty(),
         });
 
-        let mut processor = TrimmingProcessor::new(None);
+        let mut processor = TrimmingProcessor::new();
         let state = ProcessingState::new_root(Default::default(), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
 
@@ -727,8 +719,9 @@ mod tests {
             footer: Annotated::new("Hello World".to_owned()), // 11B
         });
 
-        let mut processor = TrimmingProcessor::new(Some(30));
-        let state = ProcessingState::new_root(Default::default(), []);
+        let mut processor = TrimmingProcessor::new();
+        let state =
+            ProcessingState::new_root(Some(Cow::Owned(FieldAttrs::default().max_bytes(30))), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
