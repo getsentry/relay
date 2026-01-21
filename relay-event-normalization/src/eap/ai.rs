@@ -49,8 +49,8 @@ fn is_ai_item(attributes: &mut Attributes) -> bool {
         return true;
     }
 
-    // Older SDKs may only send a span op which we also use to infer the operation type.
-    let span_op = attributes.get_value(SPAN_OP).and_then(|op| op.as_str());
+    // Older SDKs may only send a (span) op which we also use to infer the operation type.
+    let span_op = attributes.get_value(OP).and_then(|op| op.as_str());
     if span_op.is_some_and(|op| op.starts_with("gen_ai.") || op.starts_with("ai.")) {
         return true;
     }
@@ -67,7 +67,7 @@ fn normalize_ai_type(attributes: &mut Attributes) {
     let op_name = attributes
         .get_value(GEN_AI_OPERATION_NAME)
         .and_then(|v| v.as_str())
-        .or_else(|| attributes.get_value(SPAN_OP).and_then(|v| v.as_str()))
+        .or_else(|| attributes.get_value(OP).and_then(|v| v.as_str()))
         .and_then(|op| ai::infer_ai_operation_type(op))
         // This is fine, this normalization only happens for known AI spans.
         .unwrap_or(ai::DEFAULT_AI_OPERATION);
