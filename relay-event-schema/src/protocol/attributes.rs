@@ -16,7 +16,7 @@ pub struct Attribute {
     pub value: AttributeValue,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, trim = false)]
     pub other: Object<Value>,
 }
 
@@ -91,6 +91,21 @@ impl_from!(String, AttributeType::String);
 impl_from!(i64, AttributeType::Integer);
 impl_from!(f64, AttributeType::Double);
 impl_from!(bool, AttributeType::Boolean);
+
+impl From<Annotated<&str>> for AttributeValue {
+    fn from(value: Annotated<&str>) -> Self {
+        Self {
+            ty: Annotated::new(AttributeType::String),
+            value: value.map_value(Into::into),
+        }
+    }
+}
+
+impl From<&str> for AttributeValue {
+    fn from(value: &str) -> Self {
+        Self::from(Annotated::new(value))
+    }
+}
 
 /// Determines the `Pii` value for an attribute (or, more exactly, the
 /// attribute's `value` field) by looking it up in `relay-conventions`.
@@ -324,6 +339,9 @@ impl<const N: usize> From<[(String, Annotated<Attribute>); N]> for Attributes {
     }
 }
 
+// We need to manually implement `ProcessValue` for `Attributes`.
+// Deriving it, even with `process_func`, causes both `process_value`
+// and `process_child_values` to be called because it's a newtype struct.
 impl ProcessValue for Attributes {
     #[inline]
     fn value_type(&self) -> EnumSet<ValueType> {

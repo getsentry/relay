@@ -8,6 +8,8 @@ local pipedream_config = {
   name: 'relay-pop',
   auto_deploy: false,
   exclude_regions: [
+    'de',
+    's4s2',
     'customer-1',
     'customer-2',
     'customer-4',

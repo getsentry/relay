@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Emit outcomes for spans trimmed from a transaction. ([#5410](https://github.com/getsentry/relay/pull/5410))
+- Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
+
+**Internal**:
+
+- Embed AI operation type mappings into Relay. ([#5555](https://github.com/getsentry/relay/pull/5555))
+- Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
+
+## 26.1.0
+
 **Breaking Changes**:
 
 - Return status code `413` if a request is rejected due to size limits. ([#5474](https://github.com/getsentry/relay/pull/5474))
@@ -24,6 +36,7 @@
 - Release Docker image to GHCR and DockerHub via Craft. ([#5509](https://github.com/getsentry/relay/pull/5509))
 - Tag span `usage` and `count_per_root_project` metrics with segment information. ([#5511](https://github.com/getsentry/relay/pull/5511))
 - Experimental support for loading configuration values from files. ([#5531](https://github.com/getsentry/relay/pull/5531))
+- Remove support for global quotas. ([#5534](https://github.com/getsentry/relay/pull/5534))
 
 ## 25.12.1
 
