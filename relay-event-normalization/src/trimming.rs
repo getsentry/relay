@@ -101,18 +101,19 @@ impl Processor for TrimmingProcessor {
             }
         }
 
-        for size_state in self.size_state.iter_mut() {
-            // After processing a value, update the remaining bag sizes. We have a separate if-let
-            // here in case somebody defines nested databags (a struct with bag_size that contains
-            // another struct with a different bag_size), in case we just exited a databag we want
-            // to update the bag_size_state of the outer databag with the remaining size.
-            //
-            // This also has to happen after string trimming, which is why it's running in
-            // after_process.
-
-            if state.entered_anything() {
-                // Do not subtract if state is from newtype struct.
-                let item_length = relay_protocol::estimate_size_flat(value) + 1;
+        // After processing a value, update the remaining bag sizes. We have a separate if-let
+        // here in case somebody defines nested databags (a struct with bag_size that contains
+        // another struct with a different bag_size), in case we just exited a databag we want
+        // to update the bag_size_state of the outer databag with the remaining size.
+        //
+        // This also has to happen after string trimming, which is why it's running in
+        // after_process.
+        if state.entered_anything() && !self.size_state.is_empty() {
+            // Do not subtract if state is from newtype struct.
+            let item_length = state
+                .bytes_size()
+                .unwrap_or_else(|| relay_protocol::estimate_size_flat(value) + 1);
+            for size_state in self.size_state.iter_mut() {
                 size_state.size_remaining = size_state
                     .size_remaining
                     .map(|size| size.saturating_sub(item_length));
@@ -1251,6 +1252,85 @@ mod tests {
                 ],
             ),
         )
+        "###);
+    }
+
+    #[test]
+    fn test_fixed_item_size() {
+        #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
+        struct TestObject {
+            #[metastructure(max_bytes = 28)]
+            inner: Annotated<TestObjectInner>,
+        }
+        #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
+        struct TestObjectInner {
+            #[metastructure(max_chars = 10, trim = true)]
+            body: Annotated<String>,
+            // This should neither be trimmed nor factor into size calculations.
+            #[metastructure(trim = false, bytes_size = 0)]
+            number: Annotated<u64>,
+            // This should count as 10B.
+            #[metastructure(trim = false, bytes_size = 10)]
+            other_number: Annotated<u64>,
+            #[metastructure(trim = true)]
+            footer: Annotated<String>,
+        }
+
+        let mut object = Annotated::new(TestObject {
+            inner: Annotated::new(TestObjectInner {
+                body: Annotated::new("Longer than 10 chars".to_owned()),
+                number: Annotated::new(13),
+                other_number: Annotated::new(12),
+                footer: Annotated::new("There should only be 'Th...' left".to_owned()),
+            }),
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut object, &mut processor, ProcessingState::root()).unwrap();
+
+        // * `body` gets trimmed to 13B (10 chars + `...`)
+        // * `number` counts as 0B
+        // * `other_number` counts as 10B
+        // That leaves 5B for the `footer`.
+        insta::assert_ron_snapshot!(SerializableAnnotated(&object), @r###"
+        {
+          "inner": {
+            "body": "Longer ...",
+            "number": 13,
+            "other_number": 12,
+            "footer": "Th...",
+          },
+          "_meta": {
+            "inner": {
+              "body": {
+                "": Meta(Some(MetaInner(
+                  rem: [
+                    [
+                      "!limit",
+                      s,
+                      7,
+                      10,
+                    ],
+                  ],
+                  len: Some(20),
+                ))),
+              },
+              "footer": {
+                "": Meta(Some(MetaInner(
+                  rem: [
+                    [
+                      "!limit",
+                      s,
+                      2,
+                      5,
+                    ],
+                  ],
+                  len: Some(33),
+                ))),
+              },
+            },
+          },
+        }
         "###);
     }
 }
