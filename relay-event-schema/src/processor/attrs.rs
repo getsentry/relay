@@ -151,7 +151,7 @@ pub struct FieldAttrs {
     ///
     /// There are two axes to this:
     /// * `Static`/`Dynamic` denotes whether the value is fixed or computed based
-    /// on the `ProcessingState`;
+    ///   on the `ProcessingState`;
     /// * `None` means a processor should use its default method to compute/estimate the size,
     ///   `Some(size)` means the item should count as `size` bytes.
     pub bytes_size: SizeMode,
