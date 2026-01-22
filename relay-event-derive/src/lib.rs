@@ -387,6 +387,7 @@ struct FieldAttrs {
     max_chars_allowance: Option<TokenStream>,
     max_depth: Option<TokenStream>,
     max_bytes: Option<Size>,
+    bytes_size: Option<Size>,
     trim: Option<bool>,
 }
 
@@ -479,6 +480,12 @@ impl FieldAttrs {
             quote!(::relay_event_schema::processor::SizeMode::Static(None))
         };
 
+        let bytes_size = if let Some(ref bytes_size) = self.bytes_size {
+            bytes_size.as_tokens()
+        } else {
+            quote!(::relay_event_schema::processor::SizeMode::Static(None))
+        };
+
         let characters = if let Some(ref characters) = self.characters {
             quote!(Some(#characters))
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
@@ -498,6 +505,7 @@ impl FieldAttrs {
                 characters: #characters,
                 max_depth: #max_depth,
                 max_bytes: #max_bytes,
+                bytes_size: #bytes_size,
                 pii: #pii,
                 retain: #retain,
                 trim: #trim,
@@ -568,6 +576,8 @@ fn parse_field_attributes(
                 rv.max_depth = Some(quote!(#s));
             } else if ident == "max_bytes" {
                 rv.max_bytes = Some(meta.value()?.parse()?);
+            } else if ident == "bytes_size" {
+                rv.bytes_size = Some(meta.value()?.parse()?);
             } else if ident == "pii" {
                 rv.pii = Some(meta.value()?.parse()?);
             } else if ident == "retain" {

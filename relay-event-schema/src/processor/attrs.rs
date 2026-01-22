@@ -147,6 +147,14 @@ pub struct FieldAttrs {
     pub max_depth: Option<usize>,
     /// The maximum number of bytes of this field.
     pub max_bytes: SizeMode,
+    /// How this item's size is computed.
+    ///
+    /// There are two axes to this:
+    /// * `Static`/`Dynamic` denotes whether the value is fixed or computed based
+    ///   on the `ProcessingState`;
+    /// * `None` means a processor should use its default method to compute/estimate the size,
+    ///   `Some(size)` means the item should count as `size` bytes.
+    pub bytes_size: SizeMode,
     /// The type of PII on the field.
     pub pii: PiiMode,
     /// Whether additional properties should be retained during normalization.
@@ -193,6 +201,7 @@ impl FieldAttrs {
             pii: PiiMode::Static(Pii::False),
             retain: false,
             trim: true,
+            bytes_size: SizeMode::Static(None),
         }
     }
 
@@ -504,6 +513,18 @@ impl<'a> ProcessingState<'a> {
         match self.attrs().max_bytes {
             SizeMode::Static(n) => n,
             SizeMode::Dynamic(max_bytes_fn) => max_bytes_fn(self),
+        }
+    }
+
+    /// Returns the bytes size for this state.
+    ///
+    /// If the state's `FieldAttrs` contain a fixed `bytes_size` value,
+    /// it is returned. If they contain a dynamic `bytes_size` value (a function),
+    /// it is applied to this state and the output returned.
+    pub fn bytes_size(&self) -> Option<usize> {
+        match self.attrs().bytes_size {
+            SizeMode::Static(n) => n,
+            SizeMode::Dynamic(bytes_size_fn) => bytes_size_fn(self),
         }
     }
 

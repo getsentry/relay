@@ -27,10 +27,6 @@ struct SizeState {
 #[derive(Default)]
 pub struct TrimmingProcessor {
     size_state: Vec<SizeState>,
-    /// Whether we are currently trimming a collection of attributes.
-    /// This case needs to be distinguished for the purpose of accounting
-    /// for bool/number lengths, which we only want to count in attributes.
-    in_attributes: bool,
 }
 
 impl TrimmingProcessor {
@@ -38,7 +34,6 @@ impl TrimmingProcessor {
     pub fn new() -> Self {
         Self {
             size_state: Default::default(),
-            in_attributes: false,
         }
     }
 
@@ -71,7 +66,8 @@ impl TrimmingProcessor {
             .min()
     }
 
-    fn consume_size(&mut self, size: usize) {
+    fn consume_size(&mut self, state: Option<&ProcessingState>, default: usize) {
+        let size = state.and_then(|s| s.bytes_size()).unwrap_or(default);
         for remaining in self
             .size_state
             .iter_mut()
@@ -131,11 +127,9 @@ impl Processor for TrimmingProcessor {
         &mut self,
         _value: &mut u64,
         _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if self.in_attributes {
-            self.consume_size(8);
-        }
+        self.consume_size(Some(state), 8);
         Ok(())
     }
 
@@ -143,11 +137,9 @@ impl Processor for TrimmingProcessor {
         &mut self,
         _value: &mut i64,
         _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if self.in_attributes {
-            self.consume_size(8);
-        }
+        self.consume_size(Some(state), 8);
         Ok(())
     }
 
@@ -155,11 +147,9 @@ impl Processor for TrimmingProcessor {
         &mut self,
         _value: &mut f64,
         _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if self.in_attributes {
-            self.consume_size(8);
-        }
+        self.consume_size(Some(state), 8);
         Ok(())
     }
 
@@ -167,11 +157,9 @@ impl Processor for TrimmingProcessor {
         &mut self,
         _value: &mut bool,
         _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if self.in_attributes {
-            self.consume_size(1);
-        }
+        self.consume_size(Some(state), 1);
         Ok(())
     }
 
@@ -186,7 +174,7 @@ impl Processor for TrimmingProcessor {
         }
 
         if !state.attrs().trim {
-            self.consume_size(value.len());
+            self.consume_size(Some(state), value.len());
             return Ok(());
         }
 
@@ -194,7 +182,7 @@ impl Processor for TrimmingProcessor {
             crate::trimming::trim_string(value, meta, size_remaining, 0);
         }
 
-        self.consume_size(value.len());
+        self.consume_size(Some(state), value.len());
 
         Ok(())
     }
@@ -301,9 +289,6 @@ impl Processor for TrimmingProcessor {
             return Ok(());
         }
 
-        // Mark `self.in_attributes` so we don't double-count string sizes
-        self.in_attributes = true;
-
         let original_length = size::attributes_size(attributes);
 
         // Sort attributes by key + value size so small attributes are more likely to be preserved
@@ -320,12 +305,10 @@ impl Processor for TrimmingProcessor {
                 break;
             }
 
-            self.consume_size(key.len());
+            self.consume_size(None, key.len());
 
             let value_state = state.enter_borrowed(key, None, ValueType::for_field(value));
-            processor::process_value(value, self, &value_state).inspect_err(|_| {
-                self.in_attributes = false;
-            })?;
+            processor::process_value(value, self, &value_state)?;
         }
 
         if let Some(split_idx) = split_idx {
@@ -338,8 +321,6 @@ impl Processor for TrimmingProcessor {
         if new_size != original_length {
             meta.set_original_length(Some(original_length));
         }
-
-        self.in_attributes = false;
 
         Ok(())
     }
@@ -362,7 +343,11 @@ mod tests {
         #[metastructure(max_chars = 10, trim = true)]
         body: Annotated<String>,
         // This should neither be trimmed nor factor into size calculations.
+        #[metastructure(trim = false, bytes_size = 0)]
         number: Annotated<u64>,
+        // This should count as 10B.
+        #[metastructure(trim = false, bytes_size = 10)]
+        other_number: Annotated<u64>,
         #[metastructure(max_bytes = 40, trim = true)]
         attributes: Annotated<Attributes>,
         #[metastructure(trim = true)]
@@ -379,7 +364,8 @@ mod tests {
 
         let mut value = Annotated::new(TestObject {
             attributes: Annotated::new(attributes),
-            number: Annotated::new(0),
+            number: Annotated::empty(),
+            other_number: Annotated::empty(),
             body: Annotated::new("This is longer than allowed".to_owned()),
             footer: Annotated::empty(),
         });
@@ -392,7 +378,6 @@ mod tests {
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
         {
           "body": "This is...",
-          "number": 0,
           "attributes": {
             "medium string": {
               "type": "string",
@@ -453,7 +438,8 @@ mod tests {
 
         let mut value = Annotated::new(TestObject {
             attributes: Annotated::new(attributes),
-            number: Annotated::new(0),
+            number: Annotated::empty(),
+            other_number: Annotated::empty(),
             body: Annotated::new("This is longer than allowed".to_owned()),
             footer: Annotated::empty(),
         });
@@ -466,7 +452,6 @@ mod tests {
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
         {
           "body": "This is...",
-          "number": 0,
           "attributes": {
             "medium attribute": {
               "type": "string",
@@ -528,7 +513,8 @@ mod tests {
 
         let mut value = Annotated::new(TestObject {
             attributes: Annotated::new(attributes),
-            number: Annotated::new(0),
+            number: Annotated::empty(),
+            other_number: Annotated::empty(),
             body: Annotated::new("This is longer than allowed".to_owned()),
             footer: Annotated::empty(),
         });
@@ -541,7 +527,6 @@ mod tests {
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
         {
           "body": "This is...",
-          "number": 0,
           "attributes": {
             "attribute with long name": {
               "type": "integer",
@@ -587,24 +572,26 @@ mod tests {
         let mut value = Annotated::new(TestObject {
             attributes: Annotated::new(attributes),
             number: Annotated::new(0),
+            other_number: Annotated::new(0),
             body: Annotated::new("Short".to_owned()),
             footer: Annotated::new("Hello World".to_owned()),
         });
 
         let mut processor = TrimmingProcessor::new();
 
-        // The `body` takes up 5B, the `"small"` attribute 13B, and the key "medium string" another 13B.
+        // The `body` takes up 5B, `other_number` 10B, the `"small"` attribute 13B, and the key "medium string" another 13B.
         // That leaves 9B for the string's value.
         // Note that the `number` field doesn't take up any size.
         // The `"footer"` is removed because it comes after the attributes and there's no space left.
         let state =
-            ProcessingState::new_root(Some(Cow::Owned(FieldAttrs::default().max_bytes(40))), []);
+            ProcessingState::new_root(Some(Cow::Owned(FieldAttrs::default().max_bytes(50))), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
         {
           "body": "Short",
           "number": 0,
+          "other_number": 0,
           "attributes": {
             "medium string": {
               "type": "string",
@@ -662,7 +649,8 @@ mod tests {
 
         let mut value = Annotated::new(TestObject {
             attributes: Annotated::new(attributes),
-            number: Annotated::new(0),
+            number: Annotated::empty(),
+            other_number: Annotated::empty(),
             body: Annotated::new("Short".to_owned()),
             footer: Annotated::empty(),
         });
@@ -676,7 +664,6 @@ mod tests {
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
         {
           "body": "Short",
-          "number": 0,
           "attributes": {
             "array": {
               "type": "array",
@@ -727,6 +714,7 @@ mod tests {
         let mut value = Annotated::new(TestObject {
             body: Annotated::new("Hi".to_owned()), // 2B
             number: Annotated::new(0),
+            other_number: Annotated::empty(),
             attributes: Annotated::new(attributes),
             footer: Annotated::new("Hello World".to_owned()), // 11B
         });
