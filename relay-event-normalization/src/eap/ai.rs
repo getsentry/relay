@@ -37,11 +37,18 @@ pub fn normalize_ai(
     normalize_ai_type(attributes);
     let span_origin = attributes
         .get_value(ORIGIN)
+    let platform = attributes
+        .get_value(PLATFORM)
         .and_then(|v| v.as_str())
         .map(String::from);
     normalize_total_tokens(attributes);
     normalize_tokens_per_second(attributes, duration);
-    normalize_ai_costs(attributes, costs, span_origin.as_deref());
+    normalize_ai_costs(
+        attributes,
+        costs,
+        span_origin.as_deref(),
+        platform.as_deref(),
+    );
 }
 
 /// Returns whether the item is should have AI normalizations applied.
@@ -113,11 +120,60 @@ fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Dur
     }
 }
 
+/// Maps a span origin to a well-known AI integration name for metrics.
+///
+/// Origins follow the pattern `auto.<integration>.<source>` or `auto.<category>.<protocol>.<source>`.
+/// This function extracts recognized AI integrations for cleaner metric tagging.
+fn map_origin_to_integration(origin: Option<&str>) -> &'static str {
+    match origin {
+        Some(o) if o.starts_with("auto.ai.openai") => "openai",
+        Some(o) if o.starts_with("auto.ai.openai_agents") => "openai_agents",
+        Some(o) if o.starts_with("auto.ai.anthropic") => "anthropic",
+        Some(o) if o.starts_with("auto.ai.cohere") => "cohere",
+        Some(o) if o.starts_with("auto.vercelai.") => "vercelai",
+        Some(o) if o.starts_with("auto.ai.langchain") => "langchain",
+        Some(o) if o.starts_with("auto.ai.langgraph") => "langgraph",
+        Some(o) if o.starts_with("auto.ai.google_genai") => "google_genai",
+        Some(o) if o.starts_with("auto.ai.pydantic_ai") => "pydantic_ai",
+        Some(o) if o.starts_with("auto.ai.huggingface_hub") => "huggingface_hub",
+        Some(o) if o.starts_with("auto.ai.litellm") => "litellm",
+        Some(o) if o.starts_with("auto.ai.mcp") => "mcp",
+        Some(o) if o.starts_with("auto.ai.mcp_server") => "mcp_server",
+        Some(o) if o.starts_with("auto.ai.claude_agent_sdk") => "claude_agent_sdk",
+        Some(o) if o.starts_with("auto.ai.") => "other",
+        Some(_) => "other",
+        None => "unknown",
+    }
+}
+
+fn platform_tag(platform: Option<&str>) -> &'static str {
+    match platform {
+        Some("cocoa") => "cocoa",
+        Some("csharp") => "csharp",
+        Some("edge") => "edge",
+        Some("go") => "go",
+        Some("java") => "java",
+        Some("javascript") => "javascript",
+        Some("julia") => "julia",
+        Some("native") => "native",
+        Some("node") => "node",
+        Some("objc") => "objc",
+        Some("perl") => "perl",
+        Some("php") => "php",
+        Some("python") => "python",
+        Some("ruby") => "ruby",
+        Some("swift") => "swift",
+        Some(_) => "other",
+        None => "unknown",
+    }
+}
+
 /// Calculates model costs and serializes them into attributes.
 fn normalize_ai_costs(
     attributes: &mut Attributes,
     model_costs: Option<&ModelCosts>,
     origin: Option<&str>,
+    platform: Option<&str>,
 ) {
     if attributes.contains_key(GEN_AI_COST_TOTAL_TOKENS) {
         return;
@@ -146,11 +202,15 @@ fn normalize_ai_costs(
         output_reasoning_tokens: get_tokens(GEN_AI_USAGE_OUTPUT_REASONING_TOKENS),
     };
 
+    let integration = map_origin_to_integration(origin);
+    let platform = platform_tag(platform);
+
     let Some(costs) = ai::calculate_costs(model_cost, tokens) else {
         relay_statsd::metric!(
             counter(Counters::GenAiCostCalculationResult) += 1,
             result = "calculation_none",
-            origin = origin.unwrap_or("unknown"),
+            integration = integration,
+            platform = platform,
         );
 
         return;
@@ -166,7 +226,8 @@ fn normalize_ai_costs(
     relay_statsd::metric!(
         counter(Counters::GenAiCostCalculationResult) += 1,
         result = metric_label,
-        origin = origin.unwrap_or("unknown"),
+        integration = integration,
+        platform = platform,
     );
 
     attributes.insert(GEN_AI_COST_INPUT_TOKENS, costs.input);
