@@ -1,3 +1,5 @@
+use std::ops::Bound;
+
 use relay_event_schema::processor::{
     self, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor, ValueType,
 };
@@ -284,19 +286,25 @@ impl Processor for TrimmingProcessor {
             }
 
             if let Some(split_key) = split_key {
-                let mut i = split_key.clone();
+                let mut i = split_key.as_str();
 
-                for (key, value) in value.range_mut(split_key..) {
+                // Morally this is just `range_mut(split_key.as_str()..)`, but that doesn't work for type
+                // inference reasons.
+                for (key, value) in value.range_mut::<str, (Bound<&str>, Bound<&str>)>((
+                    Bound::Included(split_key.as_str()),
+                    Bound::Unbounded,
+                )) {
                     match self.delete_value(Some(key.as_ref())) {
                         ProcessingAction::DeleteValueHard => break,
                         ProcessingAction::DeleteValueFirm => value.delete_firm(),
                         _ => unreachable!(),
                     }
 
-                    i = key.clone();
+                    i = key.as_str();
                 }
 
-                let _ = value.split_off(&i);
+                let split_key = i.to_owned();
+                let _ = value.split_off(&split_key);
             }
 
             if value.len() != original_length {
