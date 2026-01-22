@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-protocol/src/macros.rs`."><title>macros.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_protocol" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0 (ded5c06cf 2025-12-08)" data-channel="1.92.0" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_protocol/</div>macros.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">/// Returns a reference to the typed [`Annotated`] value at a given path.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-protocol/src/macros.rs`."><title>macros.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_protocol" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0 (254b59607 2026-01-19)" data-channel="1.93.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_protocol/</div>macros.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">/// Returns a reference to the typed [`Annotated`] value at a given path.
 <a href=#2 id=2 data-nosnippet>2</a>///
 <a href=#3 id=3 data-nosnippet>3</a>/// The return type depends on the path expression used. By default, this macro will resolve to an
 <a href=#4 id=4 data-nosnippet>4</a>/// `Option&lt;&amp;Annotated&lt;T&gt;&gt;`, where the option is `Some` if the path exists. Note that if the
@@ -68,7 +68,7 @@
 <a href=#68 id=68 data-nosnippet>68</a>    };
 <a href=#69 id=69 data-nosnippet>69</a>    (<span class="macro-nonterminal">$root</span>:ident $( <span class="macro-nonterminal">$tail</span>:tt )<span class="kw-2">*</span>) =&gt; {{
 <a href=#70 id=70 data-nosnippet>70</a>        <span class="kw">let </span><span class="macro-nonterminal">$root </span>= <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$root</span>);
-<a href=#71 id=71 data-nosnippet>71</a>        <span class="macro-nonterminal">$</span><span class="macro">crate::get_path!</span>(@<span class="macro-nonterminal">access $root</span>, $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>);
+<a href=#71 id=71 data-nosnippet>71</a>        <span class="macro-nonterminal">$crate::get_path</span>!(@access <span class="macro-nonterminal">$root</span>, $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>);
 <a href=#72 id=72 data-nosnippet>72</a>        <span class="macro-nonterminal">$root
 <a href=#73 id=73 data-nosnippet>73</a>    </span>}};
 <a href=#74 id=74 data-nosnippet>74</a>}
@@ -141,7 +141,7 @@
 <a href=#141 id=141 data-nosnippet>141</a>    };
 <a href=#142 id=142 data-nosnippet>142</a>    (<span class="macro-nonterminal">$root</span>:ident $( <span class="macro-nonterminal">$tail</span>:tt )<span class="kw-2">*</span>) =&gt; {{
 <a href=#143 id=143 data-nosnippet>143</a>        <span class="kw">let </span><span class="macro-nonterminal">$root </span>= <span class="macro-nonterminal">$root</span>.value();
-<a href=#144 id=144 data-nosnippet>144</a>        <span class="macro-nonterminal">$</span><span class="macro">crate::get_value!</span>(@<span class="macro-nonterminal">access $root</span>, $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>);
+<a href=#144 id=144 data-nosnippet>144</a>        <span class="macro-nonterminal">$crate::get_value</span>!(@access <span class="macro-nonterminal">$root</span>, $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>);
 <a href=#145 id=145 data-nosnippet>145</a>        <span class="macro-nonterminal">$root
 <a href=#146 id=146 data-nosnippet>146</a>    </span>}};
 <a href=#147 id=147 data-nosnippet>147</a>}
@@ -160,9 +160,9 @@
 <a href=#160 id=160 data-nosnippet>160</a>/// [`Empty`]: crate::Empty
 <a href=#161 id=161 data-nosnippet>161</a></span><span class="attr">#[macro_export]
 <a href=#162 id=162 data-nosnippet>162</a></span><span class="macro">macro_rules!</span> derive_string_meta_structure {
-<a href=#163 id=163 data-nosnippet>163</a>    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$expectation</span>:expr) =&gt; {
-<a href=#164 id=164 data-nosnippet>164</a>        <span class="kw">impl </span><span class="macro-nonterminal">$crate::FromValue </span><span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
-<a href=#165 id=165 data-nosnippet>165</a>            <span class="kw">fn </span><span class="macro-nonterminal">from_value</span>(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+<a href=#163 id=163 data-nosnippet>163</a>    (<span class="macro-nonterminal">$type</span>:ident, <span class="macro-nonterminal">$expectation</span>:expr) =&gt; {
+<a href=#164 id=164 data-nosnippet>164</a>        <span class="kw">impl </span><span class="macro-nonterminal">$crate::FromValue </span><span class="kw">for </span><span class="macro-nonterminal">$type </span>{
+<a href=#165 id=165 data-nosnippet>165</a>            <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
 <a href=#166 id=166 data-nosnippet>166</a>                <span class="kw">match </span>value {
 <a href=#167 id=167 data-nosnippet>167</a>                    Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; <span class="kw">match </span>value.parse() {
 <a href=#168 id=168 data-nosnippet>168</a>                        <span class="prelude-val">Ok</span>(value) =&gt; Annotated(<span class="prelude-val">Some</span>(value), meta),
@@ -182,8 +182,8 @@
 <a href=#182 id=182 data-nosnippet>182</a>            }
 <a href=#183 id=183 data-nosnippet>183</a>        }
 <a href=#184 id=184 data-nosnippet>184</a>
-<a href=#185 id=185 data-nosnippet>185</a>        <span class="kw">impl </span><span class="macro-nonterminal">$crate::IntoValue </span><span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
-<a href=#186 id=186 data-nosnippet>186</a>            <span class="kw">fn </span><span class="macro-nonterminal">into_value</span>(<span class="self">self</span>) -&gt; Value {
+<a href=#185 id=185 data-nosnippet>185</a>        <span class="kw">impl </span><span class="macro-nonterminal">$crate::IntoValue </span><span class="kw">for </span><span class="macro-nonterminal">$type </span>{
+<a href=#186 id=186 data-nosnippet>186</a>            <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; Value {
 <a href=#187 id=187 data-nosnippet>187</a>                Value::String(<span class="self">self</span>.to_string())
 <a href=#188 id=188 data-nosnippet>188</a>            }
 <a href=#189 id=189 data-nosnippet>189</a>
@@ -200,8 +200,8 @@
 <a href=#200 id=200 data-nosnippet>200</a>            }
 <a href=#201 id=201 data-nosnippet>201</a>        }
 <a href=#202 id=202 data-nosnippet>202</a>
-<a href=#203 id=203 data-nosnippet>203</a>        <span class="kw">impl </span><span class="macro-nonterminal">$crate::Empty </span><span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
-<a href=#204 id=204 data-nosnippet>204</a>            <span class="kw">fn </span><span class="macro-nonterminal">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#203 id=203 data-nosnippet>203</a>        <span class="kw">impl </span><span class="macro-nonterminal">$crate::Empty </span><span class="kw">for </span><span class="macro-nonterminal">$type </span>{
+<a href=#204 id=204 data-nosnippet>204</a>            <span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
 <a href=#205 id=205 data-nosnippet>205</a>                <span class="bool-val">false
 <a href=#206 id=206 data-nosnippet>206</a>            </span>}
 <a href=#207 id=207 data-nosnippet>207</a>        }
@@ -458,4 +458,5 @@
 <a href=#458 id=458 data-nosnippet>458</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(outer.inners[<span class="string">"key"</span>].value), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="number">1</span>));
 <a href=#459 id=459 data-nosnippet>459</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(outer.inners[<span class="string">"key"</span>].<span class="macro">value!</span>), <span class="kw-2">&amp;</span><span class="number">1</span>);
 <a href=#460 id=460 data-nosnippet>460</a>    }
-<a href=#461 id=461 data-nosnippet>461</a>}</code></pre></div></section></main></body></html>
+<a href=#461 id=461 data-nosnippet>461</a>}
+</code></pre></div></section></main></body></html>

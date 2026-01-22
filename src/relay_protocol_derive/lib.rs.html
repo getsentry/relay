@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-protocol-derive/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_protocol_derive" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0 (ded5c06cf 2025-12-08)" data-channel="1.92.0" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_protocol_derive/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Derives for Relay's protocol traits.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-protocol-derive/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_protocol_derive" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0 (254b59607 2026-01-19)" data-channel="1.93.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_protocol_derive/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Derives for Relay's protocol traits.
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="attr">#![doc(
 <a href=#4 id=4 data-nosnippet>4</a>    html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
@@ -86,7 +86,7 @@
 <a href=#86 id=86 data-nosnippet>86</a>
 <a href=#87 id=87 data-nosnippet>87</a>    <span class="prelude-val">Ok</span>(s.gen_impl(<span class="macro">quote!</span> {
 <a href=#88 id=88 data-nosnippet>88</a>        <span class="attr">#[automatically_derived]
-<a href=#89 id=89 data-nosnippet>89</a>        </span>gen <span class="kw">impl </span>::relay_protocol::Empty <span class="kw">for </span>@<span class="self">Self </span>{
+<a href=#89 id=89 data-nosnippet>89</a>        </span><span class="kw">gen impl </span>::relay_protocol::Empty <span class="kw">for </span>@<span class="self">Self </span>{
 <a href=#90 id=90 data-nosnippet>90</a>            <span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
 <a href=#91 id=91 data-nosnippet>91</a>                <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
 <a href=#92 id=92 data-nosnippet>92</a>                    #is_empty_arms
@@ -127,7 +127,7 @@
 <a href=#127 id=127 data-nosnippet>127</a>    <span class="prelude-val">Ok</span>(<span class="kw">match </span>t {
 <a href=#128 id=128 data-nosnippet>128</a>        Trait::From =&gt; s.gen_impl(<span class="macro">quote!</span> {
 <a href=#129 id=129 data-nosnippet>129</a>            <span class="attr">#[automatically_derived]
-<a href=#130 id=130 data-nosnippet>130</a>            </span>gen <span class="kw">impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
+<a href=#130 id=130 data-nosnippet>130</a>            </span><span class="kw">gen impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
 <a href=#131 id=131 data-nosnippet>131</a>                <span class="kw">fn </span>from_value(
 <a href=#132 id=132 data-nosnippet>132</a>                    __value: ::relay_protocol::Annotated&lt;::relay_protocol::Value&gt;,
 <a href=#133 id=133 data-nosnippet>133</a>                ) -&gt; ::relay_protocol::Annotated&lt;<span class="self">Self</span>&gt; {
@@ -140,7 +140,7 @@
 <a href=#140 id=140 data-nosnippet>140</a>        }),
 <a href=#141 id=141 data-nosnippet>141</a>        Trait::To =&gt; s.gen_impl(<span class="macro">quote!</span> {
 <a href=#142 id=142 data-nosnippet>142</a>            <span class="attr">#[automatically_derived]
-<a href=#143 id=143 data-nosnippet>143</a>            </span>gen <span class="kw">impl </span>::relay_protocol::IntoValue <span class="kw">for </span>@<span class="self">Self </span>{
+<a href=#143 id=143 data-nosnippet>143</a>            </span><span class="kw">gen impl </span>::relay_protocol::IntoValue <span class="kw">for </span>@<span class="self">Self </span>{
 <a href=#144 id=144 data-nosnippet>144</a>                <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; ::relay_protocol::Value {
 <a href=#145 id=145 data-nosnippet>145</a>                    ::relay_protocol::IntoValue::into_value(<span class="self">self</span>.<span class="number">0</span>)
 <a href=#146 id=146 data-nosnippet>146</a>                }
@@ -250,7 +250,7 @@
 <a href=#250 id=250 data-nosnippet>250</a>        Trait::From =&gt; {
 <a href=#251 id=251 data-nosnippet>251</a>            s.gen_impl(<span class="macro">quote!</span> {
 <a href=#252 id=252 data-nosnippet>252</a>                <span class="attr">#[automatically_derived]
-<a href=#253 id=253 data-nosnippet>253</a>                </span>gen <span class="kw">impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
+<a href=#253 id=253 data-nosnippet>253</a>                </span><span class="kw">gen impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
 <a href=#254 id=254 data-nosnippet>254</a>                    <span class="kw">fn </span>from_value(
 <a href=#255 id=255 data-nosnippet>255</a>                        __value: ::relay_protocol::Annotated&lt;::relay_protocol::Value&gt;,
 <a href=#256 id=256 data-nosnippet>256</a>                    ) -&gt; ::relay_protocol::Annotated&lt;<span class="self">Self</span>&gt; {
@@ -270,7 +270,7 @@
 <a href=#270 id=270 data-nosnippet>270</a>        Trait::To =&gt; {
 <a href=#271 id=271 data-nosnippet>271</a>            s.gen_impl(<span class="macro">quote!</span> {
 <a href=#272 id=272 data-nosnippet>272</a>                <span class="attr">#[automatically_derived]
-<a href=#273 id=273 data-nosnippet>273</a>                </span>gen <span class="kw">impl </span>::relay_protocol::IntoValue <span class="kw">for </span>@<span class="self">Self </span>{
+<a href=#273 id=273 data-nosnippet>273</a>                </span><span class="kw">gen impl </span>::relay_protocol::IntoValue <span class="kw">for </span>@<span class="self">Self </span>{
 <a href=#274 id=274 data-nosnippet>274</a>                    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; ::relay_protocol::Value {
 <a href=#275 id=275 data-nosnippet>275</a>                        <span class="kw">match </span><span class="self">self </span>{
 <a href=#276 id=276 data-nosnippet>276</a>                            #to_value_body
@@ -474,7 +474,7 @@
 <a href=#474 id=474 data-nosnippet>474</a>            <span class="kw">if </span>is_tuple_struct {
 <a href=#475 id=475 data-nosnippet>475</a>                s.gen_impl(<span class="macro">quote!</span> {
 <a href=#476 id=476 data-nosnippet>476</a>                    <span class="attr">#[automatically_derived]
-<a href=#477 id=477 data-nosnippet>477</a>                    </span>gen <span class="kw">impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
+<a href=#477 id=477 data-nosnippet>477</a>                    </span><span class="kw">gen impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
 <a href=#478 id=478 data-nosnippet>478</a>                        <span class="kw">fn </span>from_value(
 <a href=#479 id=479 data-nosnippet>479</a>                            __value: ::relay_protocol::Annotated&lt;::relay_protocol::Value&gt;,
 <a href=#480 id=480 data-nosnippet>480</a>                        ) -&gt; ::relay_protocol::Annotated&lt;<span class="self">Self</span>&gt; {
@@ -503,7 +503,7 @@
 <a href=#503 id=503 data-nosnippet>503</a>            } <span class="kw">else </span>{
 <a href=#504 id=504 data-nosnippet>504</a>                s.gen_impl(<span class="macro">quote!</span> {
 <a href=#505 id=505 data-nosnippet>505</a>                    <span class="attr">#[automatically_derived]
-<a href=#506 id=506 data-nosnippet>506</a>                    </span>gen <span class="kw">impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
+<a href=#506 id=506 data-nosnippet>506</a>                    </span><span class="kw">gen impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
 <a href=#507 id=507 data-nosnippet>507</a>                        <span class="kw">fn </span>from_value(
 <a href=#508 id=508 data-nosnippet>508</a>                            <span class="kw-2">mut </span>__value: ::relay_protocol::Annotated&lt;::relay_protocol::Value&gt;,
 <a href=#509 id=509 data-nosnippet>509</a>                        ) -&gt; ::relay_protocol::Annotated&lt;<span class="self">Self</span>&gt; {
@@ -523,7 +523,7 @@
 <a href=#523 id=523 data-nosnippet>523</a>                    }
 <a href=#524 id=524 data-nosnippet>524</a>
 <a href=#525 id=525 data-nosnippet>525</a>                    <span class="attr">#[automatically_derived]
-<a href=#526 id=526 data-nosnippet>526</a>                    </span>gen <span class="kw">impl </span>::relay_protocol::FromObjectRef <span class="kw">for </span>@<span class="self">Self </span>{
+<a href=#526 id=526 data-nosnippet>526</a>                    </span><span class="kw">gen impl </span>::relay_protocol::FromObjectRef <span class="kw">for </span>@<span class="self">Self </span>{
 <a href=#527 id=527 data-nosnippet>527</a>                        <span class="kw">fn </span>from_object_ref(__obj: <span class="kw-2">&amp;mut </span>relay_protocol::Object&lt;::relay_protocol::Value&gt;) -&gt; <span class="self">Self </span>{
 <a href=#528 id=528 data-nosnippet>528</a>                            #from_value_body;
 <a href=#529 id=529 data-nosnippet>529</a>                            #to_structure_assemble_pat
@@ -566,7 +566,7 @@
 <a href=#566 id=566 data-nosnippet>566</a>
 <a href=#567 id=567 data-nosnippet>567</a>            <span class="kw">let </span>into_value = s.gen_impl(<span class="macro">quote!</span> {
 <a href=#568 id=568 data-nosnippet>568</a>                <span class="attr">#[automatically_derived]
-<a href=#569 id=569 data-nosnippet>569</a>                </span>gen <span class="kw">impl </span>::relay_protocol::IntoValue <span class="kw">for </span>@<span class="self">Self </span>{
+<a href=#569 id=569 data-nosnippet>569</a>                </span><span class="kw">gen impl </span>::relay_protocol::IntoValue <span class="kw">for </span>@<span class="self">Self </span>{
 <a href=#570 id=570 data-nosnippet>570</a>                    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; ::relay_protocol::Value {
 <a href=#571 id=571 data-nosnippet>571</a>                        #into_value
 <a href=#572 id=572 data-nosnippet>572</a>                    }
@@ -594,7 +594,7 @@
 <a href=#594 id=594 data-nosnippet>594</a>
 <a href=#595 id=595 data-nosnippet>595</a>            <span class="kw">let </span>into_object_ref = (!is_tuple_struct).then(|| s.gen_impl(<span class="macro">quote!</span> {
 <a href=#596 id=596 data-nosnippet>596</a>                <span class="attr">#[automatically_derived]
-<a href=#597 id=597 data-nosnippet>597</a>                </span>gen <span class="kw">impl </span>::relay_protocol::IntoObjectRef <span class="kw">for </span>@<span class="self">Self </span>{
+<a href=#597 id=597 data-nosnippet>597</a>                </span><span class="kw">gen impl </span>::relay_protocol::IntoObjectRef <span class="kw">for </span>@<span class="self">Self </span>{
 <a href=#598 id=598 data-nosnippet>598</a>                    <span class="kw">fn </span>into_object_ref(<span class="self">self</span>, __map: <span class="kw-2">&amp;mut </span>::relay_protocol::Object&lt;::relay_protocol::Value&gt;) {
 <a href=#599 id=599 data-nosnippet>599</a>                        <span class="kw">let </span>#to_value_pat = <span class="self">self</span>;
 <a href=#600 id=600 data-nosnippet>600</a>                        #to_value_body;
@@ -814,4 +814,5 @@
 <a href=#814 id=814 data-nosnippet>814</a>    }
 <a href=#815 id=815 data-nosnippet>815</a>
 <a href=#816 id=816 data-nosnippet>816</a>    <span class="bool-val">true
-<a href=#817 id=817 data-nosnippet>817</a></span>}</code></pre></div></section></main></body></html>
+<a href=#817 id=817 data-nosnippet>817</a></span>}
+</code></pre></div></section></main></body></html>
