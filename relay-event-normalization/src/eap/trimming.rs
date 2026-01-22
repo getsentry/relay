@@ -27,13 +27,15 @@ struct SizeState {
 #[derive(Default)]
 pub struct TrimmingProcessor {
     size_state: Vec<SizeState>,
+    removed_key_byte_budget: usize,
 }
 
 impl TrimmingProcessor {
     /// Creates a new trimming processor.
-    pub fn new() -> Self {
+    pub fn new(removed_key_byte_budget: usize) -> Self {
         Self {
             size_state: Default::default(),
+            removed_key_byte_budget,
         }
     }
 
@@ -76,6 +78,21 @@ impl TrimmingProcessor {
             *remaining = remaining.saturating_sub(size);
         }
     }
+
+    /// Returns a `ProcessingAction` for removing the given key.
+    ///
+    /// If there is enough `removed_key_byte_budget` left to accomodate the key,
+    /// this will be `ProcessingAction::DeleteFirm` (which causes a remark to be left).
+    /// Otherwise, it will be `ProcessingAction::DeleteHard` (the key is removed without a trace).
+    fn delete_value(&mut self, key: Option<&str>) -> ProcessingAction {
+        let len = key.map_or(0, |key| key.len());
+        if len <= self.removed_key_byte_budget {
+            self.removed_key_byte_budget -= len;
+            ProcessingAction::DeleteValueFirm
+        } else {
+            ProcessingAction::DeleteValueHard
+        }
+    }
 }
 
 impl Processor for TrimmingProcessor {
@@ -96,11 +113,12 @@ impl Processor for TrimmingProcessor {
         }
 
         if state.attrs().trim {
+            let key = state.keys().next();
             if self.remaining_size() == Some(0) {
-                return Err(ProcessingAction::DeleteValueHard);
+                return Err(self.delete_value(key));
             }
             if self.remaining_depth(state) == Some(0) {
-                return Err(ProcessingAction::DeleteValueHard);
+                return Err(self.delete_value(key));
             }
         }
         Ok(())
@@ -266,7 +284,19 @@ impl Processor for TrimmingProcessor {
             }
 
             if let Some(split_key) = split_key {
-                let _ = value.split_off(&split_key);
+                let mut i = split_key.clone();
+
+                for (key, value) in value.range_mut(split_key..) {
+                    match self.delete_value(Some(key.as_ref())) {
+                        ProcessingAction::DeleteValueHard => break,
+                        ProcessingAction::DeleteValueFirm => value.delete_firm(),
+                        _ => unreachable!(),
+                    }
+
+                    i = key.clone();
+                }
+
+                let _ = value.split_off(&i);
             }
 
             if value.len() != original_length {
@@ -312,7 +342,19 @@ impl Processor for TrimmingProcessor {
         }
 
         if let Some(split_idx) = split_idx {
-            let _ = sorted.split_off(split_idx);
+            let mut i = split_idx;
+
+            for (key, value) in &mut sorted[split_idx..] {
+                match self.delete_value(Some(key.as_ref())) {
+                    ProcessingAction::DeleteValueHard => break,
+                    ProcessingAction::DeleteValueFirm => value.delete_firm(),
+                    _ => unreachable!(),
+                }
+
+                i += 1;
+            }
+
+            let _ = sorted.split_off(i);
         }
 
         attributes.0 = sorted.into_iter().collect();
@@ -370,7 +412,7 @@ mod tests {
             footer: Annotated::empty(),
         });
 
-        let mut processor = TrimmingProcessor::new();
+        let mut processor = TrimmingProcessor::new(100);
 
         let state = ProcessingState::new_root(Default::default(), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
@@ -379,6 +421,7 @@ mod tests {
         {
           "body": "This is...",
           "attributes": {
+            "attribute is very large and should be removed": null,
             "medium string": {
               "type": "string",
               "value": "This string..."
@@ -392,6 +435,16 @@ mod tests {
             "attributes": {
               "": {
                 "len": 101
+              },
+              "attribute is very large and should be removed": {
+                "": {
+                  "rem": [
+                    [
+                      "delete_firm",
+                      "x"
+                    ]
+                  ]
+                }
               },
               "medium string": {
                 "value": {
@@ -444,7 +497,7 @@ mod tests {
             footer: Annotated::empty(),
         });
 
-        let mut processor = TrimmingProcessor::new();
+        let mut processor = TrimmingProcessor::new(100);
 
         let state = ProcessingState::new_root(Default::default(), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
@@ -519,7 +572,7 @@ mod tests {
             footer: Annotated::empty(),
         });
 
-        let mut processor = TrimmingProcessor::new();
+        let mut processor = TrimmingProcessor::new(100);
 
         let state = ProcessingState::new_root(Default::default(), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
@@ -528,6 +581,7 @@ mod tests {
         {
           "body": "This is...",
           "attributes": {
+            "attribute is very large and should be removed": null,
             "attribute with long name": {
               "type": "integer",
               "value": 71
@@ -541,6 +595,16 @@ mod tests {
             "attributes": {
               "": {
                 "len": 91
+              },
+              "attribute is very large and should be removed": {
+                "": {
+                  "rem": [
+                    [
+                      "delete_firm",
+                      "x"
+                    ]
+                  ]
+                }
               }
             },
             "body": {
@@ -577,7 +641,7 @@ mod tests {
             footer: Annotated::new("Hello World".to_owned()),
         });
 
-        let mut processor = TrimmingProcessor::new();
+        let mut processor = TrimmingProcessor::new(100);
 
         // The `body` takes up 5B, `other_number` 10B, the `"small"` attribute 13B, and the key "medium string" another 13B.
         // That leaves 9B for the string's value.
@@ -593,6 +657,7 @@ mod tests {
           "number": 0,
           "other_number": 0,
           "attributes": {
+            "attribute is very large and should be removed": null,
             "medium string": {
               "type": "string",
               "value": "This s..."
@@ -602,10 +667,21 @@ mod tests {
               "value": 17
             }
           },
+          "footer": null,
           "_meta": {
             "attributes": {
               "": {
                 "len": 101
+              },
+              "attribute is very large and should be removed": {
+                "": {
+                  "rem": [
+                    [
+                      "delete_firm",
+                      "x"
+                    ]
+                  ]
+                }
               },
               "medium string": {
                 "value": {
@@ -621,6 +697,16 @@ mod tests {
                     "len": 29
                   }
                 }
+              }
+            },
+            "footer": {
+              "": {
+                "rem": [
+                  [
+                    "delete_firm",
+                    "x"
+                  ]
+                ]
               }
             }
           }
@@ -655,7 +741,7 @@ mod tests {
             footer: Annotated::empty(),
         });
 
-        let mut processor = TrimmingProcessor::new();
+        let mut processor = TrimmingProcessor::new(100);
         let state = ProcessingState::new_root(Default::default(), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
 
@@ -719,7 +805,7 @@ mod tests {
             footer: Annotated::new("Hello World".to_owned()), // 11B
         });
 
-        let mut processor = TrimmingProcessor::new();
+        let mut processor = TrimmingProcessor::new(100);
         let state =
             ProcessingState::new_root(Some(Cow::Owned(FieldAttrs::default().max_bytes(30))), []);
         processor::process_value(&mut value, &mut processor, &state).unwrap();
@@ -732,13 +818,24 @@ mod tests {
             "a": {
               "type": "integer",
               "value": 1
-            }
+            },
+            "this_key_is_exactly_35_chars_long!!": null
           },
           "footer": "Hello World",
           "_meta": {
             "attributes": {
               "": {
                 "len": 45
+              },
+              "this_key_is_exactly_35_chars_long!!": {
+                "": {
+                  "rem": [
+                    [
+                      "delete_firm",
+                      "x"
+                    ]
+                  ]
+                }
               }
             }
           }

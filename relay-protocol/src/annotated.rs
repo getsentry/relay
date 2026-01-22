@@ -6,6 +6,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::meta::{Error, Meta};
 use crate::traits::{Empty, FromValue, IntoValue, SkipSerialization};
 use crate::value::{Map, Value};
+use crate::{Remark, RemarkType};
 
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
@@ -235,6 +236,25 @@ impl<T> Annotated<T> {
         }
 
         other()
+    }
+
+    pub fn delete_hard(&mut self) {
+        self.0 = None;
+    }
+
+    pub fn delete_firm(&mut self) {
+        self.0 = None;
+        self.1.add_remark(Remark {
+            ty: RemarkType::Removed,
+            rule_id: "delete_firm".to_owned(),
+            range: None,
+        });
+    }
+}
+
+impl<T: IntoValue> Annotated<T> {
+    pub fn delete_soft(&mut self) {
+        self.1.set_original_value(self.0.take());
     }
 }
 

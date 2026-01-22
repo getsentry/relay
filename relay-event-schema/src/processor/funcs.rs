@@ -19,10 +19,10 @@ where
 
     match result {
         Ok(()) => (),
-        Err(ProcessingAction::DeleteValueHard) => v.0 = None,
-        Err(ProcessingAction::DeleteValueSoft) => {
-            v.1.set_original_value(v.0.take());
-        }
+        Err(ProcessingAction::DeleteValueHard) => v.delete_hard(),
+        Err(ProcessingAction::DeleteValueFirm) => v.delete_firm(),
+        Err(ProcessingAction::DeleteValueSoft) => v.delete_soft(),
+
         x @ Err(ProcessingAction::InvalidTransaction(_)) => return x,
     }
 
