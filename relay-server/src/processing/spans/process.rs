@@ -271,9 +271,16 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use chrono::DateTime;
+    use relay_conventions::{
+        DB_QUERY_TEXT, DB_SYSTEM, DB_SYSTEM_NAME, DESCRIPTION, HTTP_REQUEST_METHOD, OP,
+        SENTRY_ACTION, SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_NORMALIZED_DESCRIPTION, URL_FULL,
+    };
+    use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;
 
+    use crate::Envelope;
+    use crate::extractors::RequestMeta;
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
@@ -758,5 +765,195 @@ mod tests {
             ..Default::default()
         });
         assert!(r.is_err());
+    }
+
+    fn prepare_normalize_span_params(
+        string_attributes: &[(&str, &str)],
+        float_attributes: &[(&str, f64)],
+    ) -> (
+        Annotated<SpanV2>,
+        EnvelopeHeaders,
+        GeoIpLookup,
+        Context<'static>,
+    ) {
+        let mut attributes = Attributes::new();
+        string_attributes
+            .iter()
+            .for_each(|(key, value)| attributes.insert(*key, value.to_owned()));
+        float_attributes
+            .iter()
+            .for_each(|(key, value)| attributes.insert(*key, *value));
+        let attrs_json =
+            serde_json::to_string(&SerializableAnnotated(&Annotated::new(attributes))).unwrap();
+        let span_json = format!(
+            r#"{{
+             "trace_id": "5b8efff798038103d269b633813fc60c",
+             "span_id": "eee19b7ec3c1b175",
+             "start_timestamp": 1715000000.0,
+             "end_timestamp": 1715000001.0,
+             "name": "test",
+             "status": "ok",
+             "attributes": {attrs_json}
+         }}"#
+        );
+        let span = Annotated::<SpanV2>::from_json(&span_json).unwrap();
+
+        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let meta = RequestMeta::new(dsn);
+        let envelope = Envelope::from_request(Some(EventId::new()), meta);
+        let headers = envelope.headers().to_owned();
+
+        (span, headers, GeoIpLookup::empty(), Context::for_test())
+    }
+
+    fn assert_attributes_contains(
+        span: &Annotated<SpanV2>,
+        string_attributes: &[(&str, &str)],
+        float_attributes: &[(&str, f64)],
+    ) {
+        let attrs = span.value().unwrap().attributes.value().unwrap();
+        string_attributes.iter().for_each(|(key, value)| {
+            assert_eq!(attrs.get_value(*key).and_then(|v| v.as_str()), Some(*value),)
+        });
+        float_attributes.iter().for_each(|(key, value)| {
+            assert_eq!(attrs.get_value(*key).and_then(|v| v.as_f64()), Some(*value),)
+        });
+    }
+
+    #[test]
+    fn test_insights_backend_queries_support_modern() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                (DB_SYSTEM_NAME, "postgresql"),
+                (DB_QUERY_TEXT, "select * from users where id = 1"),
+            ],
+            &[],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (DESCRIPTION, "select * from users where id = 1"),
+                (
+                    SENTRY_NORMALIZED_DESCRIPTION,
+                    "SELECT * FROM users WHERE id = %s",
+                ),
+                (SENTRY_CATEGORY, "db"),
+                (DB_SYSTEM, "postgresql"),
+                (SENTRY_ACTION, "SELECT"),
+                (SENTRY_DOMAIN, ",users,"),
+            ],
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_insights_backend_queries_support_legacy() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                (DB_SYSTEM, "postgresql"),
+                (DESCRIPTION, "select * from users where id = 1"),
+            ],
+            &[],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (DESCRIPTION, "select * from users where id = 1"),
+                (
+                    SENTRY_NORMALIZED_DESCRIPTION,
+                    "SELECT * FROM users WHERE id = %s",
+                ),
+                (SENTRY_CATEGORY, "db"),
+                (DB_SYSTEM, "postgresql"),
+                (SENTRY_ACTION, "SELECT"),
+                (SENTRY_DOMAIN, ",users,"),
+            ],
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_insights_backend_outbound_api_requests_support_modern() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                ("sentry.kind", SpanKind::Client.as_str()),
+                (HTTP_REQUEST_METHOD, "GET"),
+                (URL_FULL, "https://www.example.com/path?param=value"),
+            ],
+            &[("http.response.status_code", 502.)],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (SENTRY_CATEGORY, "http"),
+                (OP, "http.client"),
+                (DESCRIPTION, "GET https://www.example.com/path?param=value"),
+                (SENTRY_ACTION, "GET"),
+                (SENTRY_DOMAIN, "*.example.com"),
+            ],
+            &[("sentry.status_code", 502.)],
+        );
+    }
+
+    #[test]
+    fn test_insights_backend_outbound_api_requests_support_legacy_absolute() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                (OP, "http.client"),
+                (DESCRIPTION, "GET https://www.example.com/path?param=value"),
+            ],
+            &[("http.response.status_code", 502.)],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (SENTRY_CATEGORY, "http"),
+                (OP, "http.client"),
+                (DESCRIPTION, "GET https://www.example.com/path?param=value"),
+                (SENTRY_ACTION, "GET"),
+                (SENTRY_DOMAIN, "*.example.com"),
+            ],
+            &[("sentry.status_code", 502.)],
+        );
+    }
+
+    #[test]
+    fn test_insights_backend_outbound_api_requests_support_legacy_relative() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                (OP, "http.client"),
+                (DESCRIPTION, "GET /path?param=value"),
+                ("server.address", "www.example.com"),
+            ],
+            &[("http.response.status_code", 502.)],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (SENTRY_CATEGORY, "http"),
+                (OP, "http.client"),
+                (DESCRIPTION, "GET /path?param=value"),
+                (SENTRY_ACTION, "GET"),
+                (SENTRY_DOMAIN, "*.example.com"),
+            ],
+            &[("sentry.status_code", 502.)],
+        );
     }
 }

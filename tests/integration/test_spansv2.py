@@ -1234,6 +1234,7 @@ def test_spansv2_attribute_normalization(
             "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.category": {"type": "string", "value": "db"},
             "sentry.op": {"type": "string", "value": "db"},
+            "db.system": {"type": "string", "value": "mysql"},
             "db.system.name": {"type": "string", "value": "mysql"},
             "db.operation.name": {"type": "string", "value": "SELECT"},
             "sentry.action": {"type": "string", "value": "SELECT"},
@@ -1242,7 +1243,11 @@ def test_spansv2_attribute_normalization(
                 "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
             },
             "db.collection.name": {"type": "string", "value": "users"},
-            "sentry.domain": {"type": "string", "value": "users"},
+            "sentry.description": {
+                "type": "string",
+                "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
+            },
+            "sentry.domain": {"type": "string", "value": ",users,"},
             "sentry.normalized_db_query": {
                 "type": "string",
                 "value": "SELECT id FROM users WHERE id = %s AND name = %s",
@@ -1255,7 +1260,6 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": "f79af0ba3d26284c",
             },
-            "sentry.group": {"type": "string", "value": "f79af0ba3d26284c"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1272,6 +1276,10 @@ def test_spansv2_attribute_normalization(
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.category": {"type": "string", "value": "http"},
+            "sentry.description": {
+                "type": "string",
+                "value": "GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+            },
             "sentry.op": {"type": "string", "value": "http.client"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",

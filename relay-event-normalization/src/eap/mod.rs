@@ -537,19 +537,29 @@ fn normalize_http_attributes(
     };
 
     // Skip normalization if not an http span.
-    // This is equivalent to conditionally scrubbing by span category in the V1 pipeline.
-    if !attributes.contains_key(HTTP_REQUEST_METHOD)
-        && !attributes.contains_key(LEGACY_HTTP_REQUEST_METHOD)
+    if attributes
+        .get_value(SENTRY_CATEGORY)
+        .is_none_or(|category| category.as_str().unwrap_or_default() != "http")
     {
         return;
     }
 
     let op = attributes.get_value(OP).and_then(|v| v.as_str());
 
+    let (description_method, description_url) = match attributes
+        .get_value(DESCRIPTION)
+        .and_then(|v| v.as_str())
+        .and_then(|description| description.split_once(' '))
+    {
+        Some((method, url)) => (Some(method), Some(url)),
+        _ => (None, None),
+    };
+
     let method = attributes
         .get_value(HTTP_REQUEST_METHOD)
         .or_else(|| attributes.get_value(LEGACY_HTTP_REQUEST_METHOD))
-        .and_then(|v| v.as_str());
+        .and_then(|v| v.as_str())
+        .or(description_method);
 
     let server_address = attributes
         .get_value(SERVER_ADDRESS)
@@ -558,12 +568,7 @@ fn normalize_http_attributes(
     let url: Option<&str> = attributes
         .get_value(URL_FULL)
         .and_then(|v| v.as_str())
-        .or_else(|| {
-            attributes
-                .get_value(DESCRIPTION)
-                .and_then(|v| v.as_str())
-                .and_then(|description| description.split_once(' ').map(|(_, url)| url))
-        });
+        .or(description_url);
     let url_scheme = attributes.get_value(URL_SCHEME).and_then(|v| v.as_str());
 
     // If the span op is "http.client" and the method and url are present,
@@ -615,13 +620,14 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     // Map of new sentry conventions attributes to legacy SpanV1 attributes
     let current_to_legacy_attributes = [
         // DB attributes
+        (DB_QUERY_TEXT, DESCRIPTION),
         (NORMALIZED_DB_QUERY, SENTRY_NORMALIZED_DESCRIPTION),
-        (NORMALIZED_DB_QUERY_HASH, SENTRY_GROUP),
         (DB_OPERATION_NAME, SENTRY_ACTION),
-        (DB_COLLECTION_NAME, SENTRY_DOMAIN),
+        (DB_SYSTEM_NAME, DB_SYSTEM),
         // HTTP attributes
         (SERVER_ADDRESS, SENTRY_DOMAIN),
         (HTTP_REQUEST_METHOD, SENTRY_ACTION),
+        (HTTP_RESPONSE_STATUS_CODE, SENTRY_STATUS_CODE),
     ];
 
     for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
@@ -631,6 +637,30 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
             };
             attributes.insert(legacy_attribute, attr.value.clone());
         }
+    }
+
+    if !attributes.contains_key(SENTRY_DOMAIN)
+        && let Some(db_domain) = attributes
+            .get_value(DB_COLLECTION_NAME)
+            .and_then(|value| value.as_str())
+            .map(|collection_name| collection_name.to_owned())
+    {
+        // sentry.domain must be wrapped in preceding and trailing commas, for old hacky reasons.
+        attributes.insert(
+            SENTRY_DOMAIN,
+            match (db_domain.starts_with(','), db_domain.ends_with(',')) {
+                (true, true) => db_domain,
+                (true, false) => format!("{db_domain},"),
+                (false, true) => format!(",{db_domain}"),
+                (false, false) => format!(",{db_domain},"),
+            },
+        );
+    }
+
+    if let Some(&Value::String(method)) = attributes.get_value(HTTP_REQUEST_METHOD).as_ref()
+        && let Some(&Value::String(url)) = attributes.get_value(URL_FULL).as_ref()
+    {
+        attributes.insert(DESCRIPTION, format!("{method} {url}"))
     }
 }
 
@@ -1434,6 +1464,10 @@ mod tests {
             "type": "string",
             "value": "http.client"
           },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "http.request.method": {
             "type": "string",
             "value": "GET"
@@ -1454,6 +1488,10 @@ mod tests {
           "http.request.method": {
             "type": "string",
             "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
           },
           "sentry.op": {
             "type": "string",
@@ -1476,6 +1514,10 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
         {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1505,6 +1547,10 @@ mod tests {
             "type": "string",
             "value": "GET"
           },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1530,6 +1576,10 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
         {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1557,6 +1607,10 @@ mod tests {
           "http.request.method": {
             "type": "string",
             "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
           },
           "sentry.op": {
             "type": "string",
@@ -1645,6 +1699,10 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
         {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1673,6 +1731,10 @@ mod tests {
           "http.request_method": {
             "type": "string",
             "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
           },
           "sentry.description": {
             "type": "string",
@@ -1748,6 +1810,10 @@ mod tests {
             "type": "string",
             "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
           },
+          "db.system": {
+            "type": "string",
+            "value": "mongodb"
+          },
           "db.system.name": {
             "type": "string",
             "value": "mongodb"
@@ -1756,13 +1822,13 @@ mod tests {
             "type": "string",
             "value": "FIND"
           },
+          "sentry.description": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
           "sentry.domain": {
             "type": "string",
-            "value": "documents"
-          },
-          "sentry.group": {
-            "type": "string",
-            "value": "aedc5c7e8cec726b"
+            "value": ",documents,"
           },
           "sentry.normalized_db_query": {
             "type": "string",
