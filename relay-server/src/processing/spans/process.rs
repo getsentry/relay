@@ -768,8 +768,8 @@ mod tests {
     }
 
     fn prepare_normalize_span_params(
-        string_attributes: Vec<(&str, &str)>,
-        float_attributes: Vec<(&str, f64)>,
+        string_attributes: &[(&str, &str)],
+        float_attributes: &[(&str, f64)],
     ) -> (
         Annotated<SpanV2>,
         EnvelopeHeaders,
@@ -778,11 +778,11 @@ mod tests {
     ) {
         let mut attributes = Attributes::new();
         string_attributes
-            .into_iter()
-            .for_each(|(key, value)| attributes.insert(key, value.to_owned()));
+            .iter()
+            .for_each(|(key, value)| attributes.insert(*key, value.to_owned()));
         float_attributes
-            .into_iter()
-            .for_each(|(key, value)| attributes.insert(key, value));
+            .iter()
+            .for_each(|(key, value)| attributes.insert(*key, *value));
         let attrs_json =
             serde_json::to_string(&SerializableAnnotated(&Annotated::new(attributes))).unwrap();
         let span_json = format!(
@@ -810,33 +810,33 @@ mod tests {
 
     fn assert_attributes_contains(
         span: &Annotated<SpanV2>,
-        string_attributes: Vec<(&str, &str)>,
-        float_attributes: Vec<(&str, f64)>,
+        string_attributes: &[(&str, &str)],
+        float_attributes: &[(&str, f64)],
     ) {
         let attrs = span.value().unwrap().attributes.value().unwrap();
-        string_attributes.into_iter().for_each(|(key, value)| {
-            assert_eq!(attrs.get_value(key).and_then(|v| v.as_str()), Some(value),)
+        string_attributes.iter().for_each(|(key, value)| {
+            assert_eq!(attrs.get_value(*key).and_then(|v| v.as_str()), Some(*value),)
         });
-        float_attributes.into_iter().for_each(|(key, value)| {
-            assert_eq!(attrs.get_value(key).and_then(|v| v.as_f64()), Some(value),)
+        float_attributes.iter().for_each(|(key, value)| {
+            assert_eq!(attrs.get_value(*key).and_then(|v| v.as_f64()), Some(*value),)
         });
     }
 
     #[test]
     fn test_insights_backend_queries_support_modern() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
-            vec![
+            &[
                 (DB_SYSTEM_NAME, "postgresql"),
                 (DB_QUERY_TEXT, "select * from users where id = 1"),
             ],
-            vec![],
+            &[],
         );
 
         normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
-            vec![
+            &[
                 (DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY_NORMALIZED_DESCRIPTION,
@@ -847,25 +847,25 @@ mod tests {
                 (SENTRY_ACTION, "SELECT"),
                 (SENTRY_DOMAIN, ",users,"),
             ],
-            vec![],
+            &[],
         );
     }
 
     #[test]
     fn test_insights_backend_queries_support_legacy() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
-            vec![
+            &[
                 (DB_SYSTEM, "postgresql"),
                 (DESCRIPTION, "select * from users where id = 1"),
             ],
-            vec![],
+            &[],
         );
 
         normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
-            vec![
+            &[
                 (DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY_NORMALIZED_DESCRIPTION,
@@ -876,84 +876,84 @@ mod tests {
                 (SENTRY_ACTION, "SELECT"),
                 (SENTRY_DOMAIN, ",users,"),
             ],
-            vec![],
+            &[],
         );
     }
 
     #[test]
     fn test_insights_backend_outbound_api_requests_support_modern() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
-            vec![
+            &[
                 ("sentry.kind", SpanKind::Client.as_str()),
                 (HTTP_REQUEST_METHOD, "GET"),
                 (URL_FULL, "https://www.example.com/path?param=value"),
             ],
-            vec![("http.response.status_code", 502.)],
+            &[("http.response.status_code", 502.)],
         );
 
         normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
-            vec![
+            &[
                 (SENTRY_CATEGORY, "http"),
                 (OP, "http.client"),
                 (DESCRIPTION, "GET https://www.example.com/path?param=value"),
                 (SENTRY_ACTION, "GET"),
                 (SENTRY_DOMAIN, "*.example.com"),
             ],
-            vec![("sentry.status_code", 502.)],
+            &[("sentry.status_code", 502.)],
         );
     }
 
     #[test]
     fn test_insights_backend_outbound_api_requests_support_legacy_absolute() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
-            vec![
+            &[
                 (OP, "http.client"),
                 (DESCRIPTION, "GET https://www.example.com/path?param=value"),
             ],
-            vec![("http.response.status_code", 502.)],
+            &[("http.response.status_code", 502.)],
         );
 
         normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
-            vec![
+            &[
                 (SENTRY_CATEGORY, "http"),
                 (OP, "http.client"),
                 (DESCRIPTION, "GET https://www.example.com/path?param=value"),
                 (SENTRY_ACTION, "GET"),
                 (SENTRY_DOMAIN, "*.example.com"),
             ],
-            vec![("sentry.status_code", 502.)],
+            &[("sentry.status_code", 502.)],
         );
     }
 
     #[test]
     fn test_insights_backend_outbound_api_requests_support_legacy_relative() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
-            vec![
+            &[
                 (OP, "http.client"),
                 (DESCRIPTION, "GET /path?param=value"),
                 ("server.address", "www.example.com"),
             ],
-            vec![("http.response.status_code", 502.)],
+            &[("http.response.status_code", 502.)],
         );
 
         normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
-            vec![
+            &[
                 (SENTRY_CATEGORY, "http"),
                 (OP, "http.client"),
                 (DESCRIPTION, "GET /path?param=value"),
                 (SENTRY_ACTION, "GET"),
                 (SENTRY_DOMAIN, "*.example.com"),
             ],
-            vec![("sentry.status_code", 502.)],
+            &[("sentry.status_code", 502.)],
         );
     }
 }

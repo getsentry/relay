@@ -646,19 +646,15 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
             .map(|collection_name| collection_name.to_owned())
     {
         // sentry.domain must be wrapped in preceding and trailing commas, for old hacky reasons.
-        if db_domain.starts_with(",") && db_domain.ends_with(",") {
-            attributes.insert(SENTRY_DOMAIN, db_domain);
-        } else {
-            let mut comma_separated_domain = String::with_capacity(db_domain.len() + 2);
-            if !db_domain.starts_with(",") {
-                comma_separated_domain.push(',');
-            }
-            comma_separated_domain.push_str(&db_domain);
-            if !db_domain.ends_with(",") {
-                comma_separated_domain.push(',');
-            }
-            attributes.insert(SENTRY_DOMAIN, comma_separated_domain);
-        }
+        attributes.insert(
+            SENTRY_DOMAIN,
+            match (db_domain.starts_with(','), db_domain.ends_with(',')) {
+                (true, true) => db_domain,
+                (true, false) => format!("{db_domain},"),
+                (false, true) => format!(",{db_domain}"),
+                (false, false) => format!(",{db_domain},"),
+            },
+        );
     }
 
     if let Some(&Value::String(method)) = attributes.get_value(HTTP_REQUEST_METHOD).as_ref()
