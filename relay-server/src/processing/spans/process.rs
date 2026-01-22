@@ -296,9 +296,11 @@ mod tests {
         DB_QUERY_TEXT, DB_SYSTEM, DB_SYSTEM_NAME, DESCRIPTION, HTTP_REQUEST_METHOD, OP,
         SENTRY_ACTION, SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_NORMALIZED_DESCRIPTION, URL_FULL,
     };
-    use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
+    use relay_event_schema::protocol::{
+        AttributeType, AttributeValue, Attributes, EventId, SpanKind,
+    };
     use relay_pii::PiiConfig;
-    use relay_protocol::SerializableAnnotated;
+    use relay_protocol::{SerializableAnnotated, Value};
 
     use crate::Envelope;
     use crate::extractors::RequestMeta;
@@ -791,6 +793,7 @@ mod tests {
     fn prepare_normalize_span_params(
         string_attributes: &[(&str, &str)],
         float_attributes: &[(&str, f64)],
+        array_attributes: &[(&str, &[&str])],
     ) -> (
         Annotated<SpanV2>,
         EnvelopeHeaders,
@@ -804,6 +807,19 @@ mod tests {
         float_attributes
             .iter()
             .for_each(|(key, value)| attributes.insert(*key, *value));
+        array_attributes.iter().for_each(|(key, values)| {
+            let array_value = AttributeValue {
+                ty: AttributeType::Array.into(),
+                value: Value::Array(
+                    values
+                        .iter()
+                        .map(|v| Value::String(v.to_string()).into())
+                        .collect(),
+                )
+                .into(),
+            };
+            attributes.insert(*key, array_value);
+        });
         let attrs_json =
             serde_json::to_string(&SerializableAnnotated(&Annotated::new(attributes))).unwrap();
         let span_json = format!(
@@ -851,6 +867,7 @@ mod tests {
                 (DB_QUERY_TEXT, "select * from users where id = 1"),
             ],
             &[],
+            &[],
         );
 
         normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
@@ -879,6 +896,7 @@ mod tests {
                 (DB_SYSTEM, "postgresql"),
                 (DESCRIPTION, "select * from users where id = 1"),
             ],
+            &[],
             &[],
         );
 
@@ -910,6 +928,7 @@ mod tests {
                 (URL_FULL, "https://www.example.com/path?param=value"),
             ],
             &[("http.response.status_code", 502.)],
+            &[],
         );
 
         normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
@@ -935,6 +954,7 @@ mod tests {
                 (DESCRIPTION, "GET https://www.example.com/path?param=value"),
             ],
             &[("http.response.status_code", 502.)],
+            &[],
         );
 
         normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
@@ -961,6 +981,7 @@ mod tests {
                 ("server.address", "www.example.com"),
             ],
             &[("http.response.status_code", 502.)],
+            &[],
         );
 
         normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
@@ -976,5 +997,75 @@ mod tests {
             ],
             &[("sentry.status_code", 502.)],
         );
+    }
+
+    #[test]
+    fn test_insights_backend_caches_put() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[],
+            &[("cache.item_size", 1024.)],
+            &[("cache.key", &["key1", "key2"])],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[(OP, "cache.put"), (DESCRIPTION, "key1, key2")],
+            &[("cache.item_size", 1024.)],
+        );
+        let cache_key_attribute = span
+            .value()
+            .and_then(|v| v.attributes.value())
+            .and_then(|span| span.get_value("cache.key"));
+        insta::assert_debug_snapshot!(cache_key_attribute, @r###"
+        Some(
+            Array(
+                [
+                    String(
+                        "key1",
+                    ),
+                    String(
+                        "key2",
+                    ),
+                ],
+            ),
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_insights_backend_caches_get() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[],
+            &[("cache.hit", 1.), ("cache.item_size", 1024.)],
+            &[("cache.key", &["key1", "key2"])],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[(OP, "cache.get"), (DESCRIPTION, "key1, key2")],
+            &[("cache.hit", 1.), ("cache.item_size", 1024.)],
+        );
+        let cache_key_attribute = span
+            .value()
+            .and_then(|v| v.attributes.value())
+            .and_then(|span| span.get_value("cache.key"));
+        insta::assert_debug_snapshot!(cache_key_attribute, @r###"
+        Some(
+            Array(
+                [
+                    String(
+                        "key1",
+                    ),
+                    String(
+                        "key2",
+                    ),
+                ],
+            ),
+        )
+        "###);
     }
 }

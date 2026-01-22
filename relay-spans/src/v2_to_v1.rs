@@ -268,6 +268,14 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         return faas_trigger.to_owned();
     }
 
+    if attributes.contains_key("cache.key") {
+        if attributes.contains_key("cache.hit") {
+            return String::from("cache.get");
+        } else {
+            return String::from("cache.put");
+        }
+    }
+
     op
 }
 

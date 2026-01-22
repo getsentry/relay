@@ -665,6 +665,19 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     {
         attributes.insert(DESCRIPTION, format!("{method} {url}"))
     }
+
+    if !attributes.contains_key(DESCRIPTION)
+        && let Some(&Value::Array(keys)) = attributes.get_value("cache.key").as_ref()
+        && let description = keys
+            .iter()
+            .flat_map(|k| k.value())
+            .flat_map(|k| k.as_str())
+            .collect::<Vec<&str>>()
+            .join(", ")
+        && !description.is_empty()
+    {
+        attributes.insert(DESCRIPTION, description);
+    }
 }
 
 #[cfg(test)]
@@ -2151,6 +2164,169 @@ mod tests {
           "some.other.attribute": {
             "type": "string",
             "value": "value"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_write_legacy_attributes_cache_key() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "cache.key": {
+            "type": "array",
+            "value": ["key1", "key2", "key3"]
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        write_legacy_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "cache.key": {
+            "type": "array",
+            "value": [
+              "key1",
+              "key2",
+              "key3"
+            ]
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "key1, key2, key3"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_write_legacy_attributes_cache_key_single() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "cache.key": {
+            "type": "array",
+            "value": ["single_key"]
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        write_legacy_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "cache.key": {
+            "type": "array",
+            "value": [
+              "single_key"
+            ]
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "single_key"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_write_legacy_attributes_cache_key_empty() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "cache.key": {
+            "type": "array",
+            "value": []
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        write_legacy_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "cache.key": {
+            "type": "array",
+            "value": []
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_write_legacy_attributes_cache_key_with_nulls() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "cache.key": {
+            "type": "array",
+            "value": ["key1", null, "key2"]
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        write_legacy_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "cache.key": {
+            "type": "array",
+            "value": [
+              "key1",
+              null,
+              "key2"
+            ]
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "key1, key2"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_write_legacy_attributes_cache_key_does_not_overwrite_description() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "cache.key": {
+            "type": "array",
+            "value": ["key1", "key2"]
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "existing description"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        write_legacy_attributes(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "cache.key": {
+            "type": "array",
+            "value": [
+              "key1",
+              "key2"
+            ]
+          },
+          "sentry.description": {
+            "type": "string",
+            "value": "existing description"
           }
         }
         "#);
