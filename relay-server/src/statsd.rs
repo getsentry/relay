@@ -34,6 +34,11 @@ pub enum RelayGauges {
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
     BufferStackCount,
+    /// Number of elements in the envelope buffer across all the stacks.
+    ///
+    /// This metric is tagged with:
+    /// - `storage_type`: The type of storage used in the envelope buffer.
+    BufferEnvelopesCount,
     /// The used disk for the buffer.
     BufferDiskUsed,
     /// The currently used memory by the entire system.
@@ -85,32 +90,32 @@ pub enum RelayGauges {
 impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
-            RelayGauges::AsyncPoolQueueSize => "async_pool.queue_size",
-            RelayGauges::AsyncPoolUtilization => "async_pool.utilization",
-            RelayGauges::AsyncPoolActivity => "async_pool.activity",
-            RelayGauges::NetworkOutage => "upstream.network_outage",
-            RelayGauges::BufferStackCount => "buffer.stack_count",
-            RelayGauges::BufferDiskUsed => "buffer.disk_used",
-            RelayGauges::SystemMemoryUsed => "health.system_memory.used",
-            RelayGauges::SystemMemoryTotal => "health.system_memory.total",
+            Self::AsyncPoolQueueSize => "async_pool.queue_size",
+            Self::AsyncPoolUtilization => "async_pool.utilization",
+            Self::AsyncPoolActivity => "async_pool.activity",
+            Self::NetworkOutage => "upstream.network_outage",
+            Self::BufferStackCount => "buffer.stack_count",
+            Self::BufferDiskUsed => "buffer.disk_used",
+            Self::SystemMemoryUsed => "health.system_memory.used",
+            Self::SystemMemoryTotal => "health.system_memory.total",
             #[cfg(feature = "processing")]
-            RelayGauges::RedisPoolConnections => "redis.pool.connections",
+            Self::RedisPoolConnections => "redis.pool.connections",
             #[cfg(feature = "processing")]
-            RelayGauges::RedisPoolIdleConnections => "redis.pool.idle_connections",
+            Self::RedisPoolIdleConnections => "redis.pool.idle_connections",
             #[cfg(feature = "processing")]
-            RelayGauges::RedisPoolMaxConnections => "redis.pool.max_connections",
+            Self::RedisPoolMaxConnections => "redis.pool.max_connections",
             #[cfg(feature = "processing")]
-            RelayGauges::RedisPoolWaitingForConnection => "redis.pool.waiting_for_connection",
-            RelayGauges::ProjectCacheNotificationChannel => {
-                "project_cache.notification_channel.size"
-            }
-            RelayGauges::ProjectCacheScheduledFetches => "project_cache.fetches.size",
-            RelayGauges::ServerActiveConnections => "server.http.connections",
+            Self::RedisPoolWaitingForConnection => "redis.pool.waiting_for_connection",
+            Self::ProjectCacheNotificationChannel => "project_cache.notification_channel.size",
+            Self::ProjectCacheScheduledFetches => "project_cache.fetches.size",
+            Self::ServerActiveConnections => "server.http.connections",
             #[cfg(feature = "processing")]
-            RelayGauges::MetricDelayMax => "metrics.delay.max",
-            RelayGauges::ServiceUtilization => "service.utilization",
+            Self::MetricDelayMax => "metrics.delay.max",
+            Self::ServiceUtilization => "service.utilization",
             #[cfg(feature = "processing")]
-            RelayGauges::ConcurrentAttachmentUploads => "attachment.upload.concurrent",
+            Self::ConcurrentAttachmentUploads => "attachment.upload.concurrent",
+
+            Self::BufferEnvelopesCount => "buffer.envelopes_count",
         }
     }
 }
@@ -227,11 +232,6 @@ pub enum RelayDistributions {
     ///  - `is_container`: Whether this item is a container holding multiple items.
     EnvelopeItemSize,
 
-    /// Number of elements in the envelope buffer across all the stacks.
-    ///
-    /// This metric is tagged with:
-    /// - `storage_type`: The type of storage used in the envelope buffer.
-    BufferEnvelopesCount,
     /// The amount of bytes in the item payloads of an envelope pushed to the envelope buffer.
     ///
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
@@ -352,7 +352,6 @@ impl DistributionMetric for RelayDistributions {
             Self::EventSpans => "event.spans",
             Self::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             Self::BucketsPerBatch => "metrics.buckets.per_batch",
-            Self::BufferEnvelopesCount => "buffer.envelopes_count",
             Self::BufferEnvelopeBodySize => "buffer.envelope_body_size",
             Self::BufferEnvelopeSize => "buffer.envelope_size",
             Self::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",

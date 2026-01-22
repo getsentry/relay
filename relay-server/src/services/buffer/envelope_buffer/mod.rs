@@ -78,51 +78,49 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
-        relay_statsd::metric!(
-            distribution(RelayDistributions::BufferEnvelopeBodySize) =
-                envelope.items().map(Item::len).sum::<usize>() as u64,
-            partition_id = self.partition_tag()
-        );
-
-        relay_statsd::metric!(
-            timer(RelayTimers::BufferPush),
-            partition_id = self.partition_tag(),
-            {
-                match self {
-                    Self::Sqlite(buffer) => buffer.push(envelope).await,
-                    Self::InMemory(buffer) => buffer.push(envelope).await,
-                }?;
+        let partition_tag = self.partition_tag().to_owned();
+        match self {
+            Self::Sqlite(buffer) => {
+                relay_statsd::metric!(
+                    distribution(RelayDistributions::BufferEnvelopeBodySize) =
+                        envelope.items().map(Item::len).sum::<usize>() as u64,
+                    partition_id = &partition_tag
+                );
+                relay_statsd::metric!(
+                    timer(RelayTimers::BufferPush),
+                    partition_id = &partition_tag,
+                    { buffer.push(envelope).await }
+                )
             }
-        );
+            Self::InMemory(buffer) => buffer.push(envelope).await,
+        }?;
+
         Ok(())
     }
 
     /// Returns a reference to the next-in-line envelope.
     pub async fn peek(&mut self) -> Result<Peek, EnvelopeBufferError> {
-        relay_statsd::metric!(
-            timer(RelayTimers::BufferPeek),
-            partition_id = self.partition_tag(),
-            {
-                match self {
-                    Self::Sqlite(buffer) => buffer.peek().await,
-                    Self::InMemory(buffer) => buffer.peek().await,
-                }
-            }
-        )
+        match self {
+            Self::Sqlite(buffer) => relay_statsd::metric!(
+                timer(RelayTimers::BufferPeek),
+                partition_id = self.partition_tag(),
+                { buffer.peek().await }
+            ),
+            Self::InMemory(buffer) => buffer.peek().await,
+        }
     }
 
     /// Pops the next-in-line envelope.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let envelope = relay_statsd::metric!(
-            timer(RelayTimers::BufferPop),
-            partition_id = self.partition_tag(),
-            {
-                match self {
-                    Self::Sqlite(buffer) => buffer.pop().await,
-                    Self::InMemory(buffer) => buffer.pop().await,
-                }?
-            }
-        );
+        let envelope = match self {
+            Self::Sqlite(buffer) => relay_statsd::metric!(
+                timer(RelayTimers::BufferPop),
+                partition_id = self.partition_tag(),
+                { buffer.pop().await }
+            ),
+            Self::InMemory(buffer) => buffer.pop().await,
+        }?;
+
         Ok(envelope)
     }
 
@@ -576,7 +574,7 @@ where
             false => "false",
         };
         relay_statsd::metric!(
-            distribution(RelayDistributions::BufferEnvelopesCount) = total_count,
+            gauge(RelayGauges::BufferEnvelopesCount) = total_count,
             initialized = initialized,
             stack_type = self.stack_provider.stack_type(),
             partition_id = &self.partition_tag
