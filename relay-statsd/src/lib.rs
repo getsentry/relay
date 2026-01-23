@@ -214,12 +214,12 @@ pub fn set_client(client: MetricsClient) {
 /// Set a test client for the period of the called function (only affects the current thread).
 // TODO: replace usages with `init_basic`
 pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
-    with_capturing_test_client_options(1.0, f)
+    with_capturing_test_client_sample_rate(1.0, f)
 }
 
 /// Set a test client with a custom global sample rate for the period of the called function.
 #[doc(hidden)]
-pub fn with_capturing_test_client_options(sample_rate: f32, f: impl FnOnce()) -> Vec<String> {
+pub fn with_capturing_test_client_sample_rate(sample_rate: f32, f: impl FnOnce()) -> Vec<String> {
     let (rx, sink) = cadence::SpyMetricSink::new();
     let test_client = MetricsClient {
         statsd_client: StatsdClient::from_sink("", sink),
@@ -732,7 +732,8 @@ mod tests {
 
     use crate::{
         CounterMetric, DistributionMetric, GaugeMetric, MetricsClient, SetMetric, TimerMetric,
-        set_client, with_capturing_test_client, with_capturing_test_client_options, with_client,
+        set_client, with_capturing_test_client, with_capturing_test_client_sample_rate,
+        with_client,
     };
 
     enum TestGauges {
@@ -990,18 +991,17 @@ mod tests {
 
     #[test]
     fn test_local_sample_rate_overrides_global() {
-        // With global sample rate of 1.0, no @rate is added to the output
+        // With global sample rate of 0.999, no @rate is added to the output
         // With a local override, the local rate should appear in the output
-        let captures = with_capturing_test_client_options(1.0, || {
+        let captures = with_capturing_test_client_sample_rate(0.999999, || {
             // Without explicit sampling, no @rate in output (global is 1.0)
             metric!(distribution(TestDistribution) = 100);
             // With explicit sampling, should use local rate (0.01)
             metric!(distribution(TestDistribution, sample = 0.01) = 200);
         });
-
         assert_eq!(captures.len(), 2);
-        // First metric has no sample rate (global is 1.0, so it's omitted)
-        assert_eq!(captures[0], "distribution:100|d");
+        // First metric has no sample rate
+        assert_eq!(&captures[0][..24], "distribution:100|d|@0.99");
         // Second metric uses local sample rate
         assert_eq!(captures[1], "distribution:200|d|@0.01");
     }
@@ -1010,7 +1010,7 @@ mod tests {
     fn test_timer_local_sample_rate_overrides_global() {
         // With global sample rate of 1.0, no @rate is added to the output
         // With a local override, the local rate should appear in the output
-        let captures = with_capturing_test_client_options(1.0, || {
+        let captures = with_capturing_test_client_sample_rate(1.0, || {
             let duration = Duration::from_secs(1);
             // Without explicit sampling, no @rate in output (global is 1.0)
             metric!(timer(TestTimer) = duration);
