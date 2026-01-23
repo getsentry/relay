@@ -44,7 +44,7 @@ pub fn platform_tag(event: &Event) -> &'static str {
 }
 
 /// Maps a client name to a low-cardinality statsd tag.
-pub fn client_name_tag(client_name: ClientName<'_>) -> &str {
+pub fn client_name_tag(client_name: ClientName<'_>) -> &'static str {
     match client_name {
         ClientName::Other(_) => "other",
         well_known => well_known.as_str(),
