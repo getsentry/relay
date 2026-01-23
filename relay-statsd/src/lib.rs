@@ -144,7 +144,7 @@ impl MetricsClient {
     pub fn send_metric_with_sample_rate<'a, T>(
         &'a self,
         mut metric: MetricBuilder<'a, '_, T>,
-        sample_rate_override: Option<f64>,
+        sample_rate: Option<f64>,
     ) where
         T: Metric + From<String>,
     {
@@ -157,9 +157,9 @@ impl MetricsClient {
         }
 
         // Use the override sample rate if provided, otherwise use the global sample rate
-        let effective_sample_rate = sample_rate_override.unwrap_or(self.sample_rate.into());
-        if effective_sample_rate > 0.0 && effective_sample_rate < 1.0 {
-            metric = metric.with_sampling_rate(effective_sample_rate);
+        let sample_rate = sample_rate.unwrap_or(self.sample_rate.into());
+        if sample_rate > 0.0 && sample_rate < 1.0 {
+            metric = metric.with_sampling_rate(sample_rate);
         }
 
         if let Err(error) = metric.try_send() {
@@ -412,10 +412,10 @@ where
 /// );
 ///
 /// // use an explicit sample rate that overrides the global rate
-/// metric!(timer(MyTimer::ProcessA, sampling = 0.01) = start_time.elapsed());
+/// metric!(timer(MyTimer::ProcessA, sample = 0.01) = start_time.elapsed());
 ///
 /// // timed block with explicit sample rate
-/// metric!(timer(MyTimer::ProcessA, sampling = 0.01), {
+/// metric!(timer(MyTimer::ProcessA, sample = 0.01), {
 ///     process_a();
 /// });
 /// ```
@@ -510,7 +510,7 @@ pub trait CounterMetric {
 /// );
 ///
 /// // record with an explicit sample rate that overrides the global rate
-/// metric!(distribution(QueueSize, sampling = 0.01) = queue.len() as u64);
+/// metric!(distribution(QueueSize, sample = 0.01) = queue.len() as u64);
 /// ```
 pub trait DistributionMetric {
     /// Returns the distribution metric name that will be sent to statsd.
@@ -647,13 +647,13 @@ macro_rules! metric {
     };
 
     // distribution with explicit sample rate (overrides global sample rate)
-    (distribution($id:expr, sampling = $sampling:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
+    (distribution($id:expr, sample = $sample:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric_with_sample_rate(
                 client.distribution_with_tags(&$crate::DistributionMetric::name(&$id), $value)
                     $(.with_tag(stringify!($($k).*), $v))*,
-                Some($sampling as f64)
+                Some($sample as f64)
             )
         })
     };
@@ -681,7 +681,7 @@ macro_rules! metric {
     };
 
     // timer value with explicit sample rate (overrides global sample rate)
-    (timer($id:expr, sampling = $sampling:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
+    (timer($id:expr, sample = $sample:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric_with_sample_rate(
@@ -689,7 +689,7 @@ macro_rules! metric {
                 // but we want milliseconds for historical reasons.
                 client.distribution_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
                     $(.with_tag(stringify!($($k).*), $v))*,
-                Some($sampling as f64)
+                Some($sample as f64)
             )
         })
     };
@@ -708,10 +708,10 @@ macro_rules! metric {
     };
 
     // timed block with explicit sample rate (overrides global sample rate)
-    (timer($id:expr, sampling = $sampling:expr), $($($k:ident).* = $v:expr,)* $block:block) => {{
+    (timer($id:expr, sample = $sample:expr), $($($k:ident).* = $v:expr,)* $block:block) => {{
         let now = std::time::Instant::now();
         let rv = {$block};
-        $crate::metric!(timer($id, sampling = $sampling) = now.elapsed() $(, $($k).* = $v)*);
+        $crate::metric!(timer($id, sample = $sample) = now.elapsed() $(, $($k).* = $v)*);
         rv
     }};
 
@@ -873,7 +873,7 @@ mod tests {
     #[test]
     fn test_distribution_with_explicit_sample_rate() {
         let captures = with_capturing_test_client(|| {
-            metric!(distribution(TestDistribution, sampling = 0.5) = 123);
+            metric!(distribution(TestDistribution, sample = 0.5) = 123);
         });
         assert_eq!(captures, ["distribution:123|d|@0.5"]);
     }
@@ -882,7 +882,7 @@ mod tests {
     fn test_distribution_with_explicit_sample_rate_and_tags() {
         let captures = with_capturing_test_client(|| {
             metric!(
-                distribution(TestDistribution, sampling = 0.01) = 456,
+                distribution(TestDistribution, sample = 0.01) = 456,
                 server = "server1",
                 host = "host1",
             );
@@ -941,7 +941,7 @@ mod tests {
     fn test_timer_with_explicit_sample_rate() {
         let captures = with_capturing_test_client(|| {
             let duration = Duration::from_secs(100);
-            metric!(timer(TestTimer, sampling = 0.5) = duration);
+            metric!(timer(TestTimer, sample = 0.5) = duration);
         });
         assert_eq!(captures, ["timer:100000|d|@0.5"]);
     }
@@ -951,7 +951,7 @@ mod tests {
         let captures = with_capturing_test_client(|| {
             let duration = Duration::from_secs(100);
             metric!(
-                timer(TestTimer, sampling = 0.01) = duration,
+                timer(TestTimer, sample = 0.01) = duration,
                 server = "server1",
             );
         });
@@ -961,7 +961,7 @@ mod tests {
     #[test]
     fn test_timed_block_with_explicit_sample_rate() {
         let captures = with_capturing_test_client(|| {
-            metric!(timer(TestTimer, sampling = 0.5), {
+            metric!(timer(TestTimer, sample = 0.5), {
                 // your code could be here
             })
         });
@@ -996,7 +996,7 @@ mod tests {
             // Without explicit sampling, no @rate in output (global is 1.0)
             metric!(distribution(TestDistribution) = 100);
             // With explicit sampling, should use local rate (0.01)
-            metric!(distribution(TestDistribution, sampling = 0.01) = 200);
+            metric!(distribution(TestDistribution, sample = 0.01) = 200);
         });
 
         assert_eq!(captures.len(), 2);
@@ -1015,7 +1015,7 @@ mod tests {
             // Without explicit sampling, no @rate in output (global is 1.0)
             metric!(timer(TestTimer) = duration);
             // With explicit sampling, should use local rate (0.01)
-            metric!(timer(TestTimer, sampling = 0.01) = duration);
+            metric!(timer(TestTimer, sample = 0.01) = duration);
         });
 
         assert_eq!(captures.len(), 2);
