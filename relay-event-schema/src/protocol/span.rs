@@ -611,6 +611,10 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.response.tokens_per_second", pii = "maybe")]
     pub gen_ai_response_tokens_per_second: Annotated<Value>,
 
+    /// Time to first token from the LLM response
+    #[metastructure(field = "gen_ai.response.time_to_first_token", pii = "maybe")]
+    pub gen_ai_response_time_to_first_token: Annotated<Value>,
+
     /// The available tools for a request to an LLM
     #[metastructure(
         field = "gen_ai.request.available_tools",
@@ -1492,6 +1496,7 @@ mod tests {
             gen_ai_response_object: ~,
             gen_ai_response_streaming: ~,
             gen_ai_response_tokens_per_second: ~,
+            gen_ai_response_time_to_first_token: ~,
             gen_ai_request_available_tools: ~,
             gen_ai_request_frequency_penalty: ~,
             gen_ai_request_presence_penalty: ~,
