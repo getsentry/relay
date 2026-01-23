@@ -943,6 +943,9 @@ mod tests {
         assert_eq!(envelope_processor_rx.len(), 0);
 
         let outcome = outcome_aggregator_rx.try_recv().unwrap();
+        assert_eq!(outcome.category, DataCategory::Transaction);
+        assert_eq!(outcome.quantity, 1);
+        let outcome = outcome_aggregator_rx.try_recv().unwrap();
         assert_eq!(outcome.category, DataCategory::TransactionIndexed);
         assert_eq!(outcome.quantity, 1);
     }
