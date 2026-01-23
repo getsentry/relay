@@ -28,7 +28,7 @@
 //!     prefix: "myprefix",
 //!     host: "localhost:8125",
 //!     default_tags: BTreeMap::new(),
-//!     sample_rate: 1.0,
+//!     sample_rate: 1.0.into(),
 //!     aggregate: true,
 //!     allow_high_cardinality_tags: false
 //! });
@@ -91,9 +91,9 @@ impl From<f64> for SampleRate {
     }
 }
 
-impl Into<f64> for SampleRate {
-    fn into(self) -> f64 {
-        self.0
+impl From<SampleRate> for f64 {
+    fn from(val: SampleRate) -> Self {
+        val.0
     }
 }
 
@@ -122,7 +122,7 @@ pub struct MetricsClientConfig<'a, A> {
     /// Tags that are added to all metrics.
     pub default_tags: BTreeMap<String, String>,
     /// Default sample rate for metrics, between 0.0 (= 0%) and 1.0 (= 100%)
-    pub default_sample_rate: SampleRate,
+    pub sample_rate: SampleRate,
     /// If metrics should be batched or send immediately upstream.
     pub aggregate: bool,
     /// If high cardinality tags should be removed from metrics.
@@ -297,7 +297,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
         relay_log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
 
-    let sample_rate: f64 = config.default_sample_rate.into();
+    let sample_rate: f64 = config.sample_rate.into();
     relay_log::debug!(
         "metrics sample rate is set to {sample_rate}{}",
         if sample_rate == 0.0 {
@@ -349,7 +349,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
     set_client(MetricsClient {
         statsd_client,
         default_tags: config.default_tags,
-        default_sample_rate: config.default_sample_rate,
+        default_sample_rate: config.sample_rate,
         rx: None,
     });
 }
