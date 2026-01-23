@@ -122,7 +122,7 @@ pub struct MetricsClientConfig<'a, A> {
     /// Tags that are added to all metrics.
     pub default_tags: BTreeMap<String, String>,
     /// Default sample rate for metrics, between 0.0 (= 0%) and 1.0 (= 100%)
-    pub default_sample_rate: f64,
+    pub default_sample_rate: SampleRate,
     /// If metrics should be batched or send immediately upstream.
     pub aggregate: bool,
     /// If high cardinality tags should be removed from metrics.
@@ -163,7 +163,10 @@ impl MetricsClient {
     ) where
         T: Metric + From<String>,
     {
-        let effective_sample_rate = sample_rate.unwrap_or(self.default_sample_rate).into();
+        let effective_sample_rate = match sample_rate {
+            Some(sample_rate) => sample_rate.0.min(self.default_sample_rate.0),
+            None => self.default_sample_rate.0,
+        };
         if !Self::should_send(effective_sample_rate) {
             return;
         }
@@ -294,8 +297,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
         relay_log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
 
-    // Normalize sample_rate
-    let sample_rate = config.default_sample_rate.clamp(0., 1.);
+    let sample_rate: f64 = config.default_sample_rate.into();
     relay_log::debug!(
         "metrics sample rate is set to {sample_rate}{}",
         if sample_rate == 0.0 {
@@ -347,7 +349,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
     set_client(MetricsClient {
         statsd_client,
         default_tags: config.default_tags,
-        default_sample_rate: SampleRate(sample_rate),
+        default_sample_rate: config.default_sample_rate,
         rx: None,
     });
 }
@@ -426,9 +428,13 @@ where
 /// );
 ///
 /// // use an explicit sample rate that overrides the global rate
+///
+/// // the override will be capped by the globally configured sample rate.
 /// metric!(timer(MyTimer::ProcessA, sample = 0.01) = start_time.elapsed());
 ///
 /// // timed block with explicit sample rate
+///
+/// // the override will be capped by the globally configured sample rate.
 /// metric!(timer(MyTimer::ProcessA, sample = 0.01), {
 ///     process_a();
 /// });
@@ -1037,5 +1043,21 @@ mod tests {
         assert_eq!(captures[0], "timer:1000|d");
         // Second metric uses local sample rate
         assert_eq!(captures[1], "timer:1000|d|@0.01");
+    }
+
+    #[test]
+    fn test_local_sample_rate_capped() {
+        let captures = with_capturing_test_client_sample_rate(0.0, || {
+            metric!(distribution(TestDistribution, sample = 0.01) = 200);
+        });
+        assert_eq!(captures.len(), 0);
+    }
+
+    #[test]
+    fn test_global_disabled() {
+        let captures = with_capturing_test_client_sample_rate(0.0, || {
+            metric!(distribution(TestDistribution) = 200);
+        });
+        assert_eq!(captures.len(), 0);
     }
 }
