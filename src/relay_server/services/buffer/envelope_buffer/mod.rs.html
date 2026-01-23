@@ -78,50 +78,50 @@
 <a href=#78 id=78 data-nosnippet>78</a>
 <a href=#79 id=79 data-nosnippet>79</a>    <span class="doccomment">/// Adds an envelope to the buffer.
 <a href=#80 id=80 data-nosnippet>80</a>    </span><span class="kw">pub async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
-<a href=#81 id=81 data-nosnippet>81</a>        <span class="kw">let </span>partition_tag = <span class="self">self</span>.partition_tag().to_owned();
-<a href=#82 id=82 data-nosnippet>82</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#83 id=83 data-nosnippet>83</a>            <span class="self">Self</span>::Sqlite(buffer) =&gt; {
-<a href=#84 id=84 data-nosnippet>84</a>                <span class="macro">relay_statsd::metric!</span>(
-<a href=#85 id=85 data-nosnippet>85</a>                    distribution(RelayDistributions::BufferEnvelopeBodySize) =
-<a href=#86 id=86 data-nosnippet>86</a>                        envelope.items().map(Item::len).sum::&lt;usize&gt;() <span class="kw">as </span>u64,
-<a href=#87 id=87 data-nosnippet>87</a>                    partition_id = <span class="kw-2">&amp;</span>partition_tag
-<a href=#88 id=88 data-nosnippet>88</a>                );
-<a href=#89 id=89 data-nosnippet>89</a>                <span class="macro">relay_statsd::metric!</span>(
-<a href=#90 id=90 data-nosnippet>90</a>                    timer(RelayTimers::BufferPush),
-<a href=#91 id=91 data-nosnippet>91</a>                    partition_id = <span class="kw-2">&amp;</span>partition_tag,
-<a href=#92 id=92 data-nosnippet>92</a>                    { buffer.push(envelope).<span class="kw">await </span>}
-<a href=#93 id=93 data-nosnippet>93</a>                )
-<a href=#94 id=94 data-nosnippet>94</a>            }
-<a href=#95 id=95 data-nosnippet>95</a>            <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
-<a href=#96 id=96 data-nosnippet>96</a>        }<span class="question-mark">?</span>;
-<a href=#97 id=97 data-nosnippet>97</a>
-<a href=#98 id=98 data-nosnippet>98</a>        <span class="prelude-val">Ok</span>(())
-<a href=#99 id=99 data-nosnippet>99</a>    }
-<a href=#100 id=100 data-nosnippet>100</a>
-<a href=#101 id=101 data-nosnippet>101</a>    <span class="doccomment">/// Returns a reference to the next-in-line envelope.
-<a href=#102 id=102 data-nosnippet>102</a>    </span><span class="kw">pub async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Peek, EnvelopeBufferError&gt; {
-<a href=#103 id=103 data-nosnippet>103</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#104 id=104 data-nosnippet>104</a>            <span class="self">Self</span>::Sqlite(buffer) =&gt; <span class="macro">relay_statsd::metric!</span>(
-<a href=#105 id=105 data-nosnippet>105</a>                timer(RelayTimers::BufferPeek),
-<a href=#106 id=106 data-nosnippet>106</a>                partition_id = <span class="self">self</span>.partition_tag(),
-<a href=#107 id=107 data-nosnippet>107</a>                { buffer.peek().<span class="kw">await </span>}
-<a href=#108 id=108 data-nosnippet>108</a>            ),
-<a href=#109 id=109 data-nosnippet>109</a>            <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
-<a href=#110 id=110 data-nosnippet>110</a>        }
+<a href=#81 id=81 data-nosnippet>81</a>        <span class="macro">relay_statsd::metric!</span>(
+<a href=#82 id=82 data-nosnippet>82</a>            distribution(RelayDistributions::BufferEnvelopeBodySize, sample = <span class="number">0.01</span>) =
+<a href=#83 id=83 data-nosnippet>83</a>                envelope.items().map(Item::len).sum::&lt;usize&gt;() <span class="kw">as </span>u64,
+<a href=#84 id=84 data-nosnippet>84</a>            partition_id = <span class="self">self</span>.partition_tag()
+<a href=#85 id=85 data-nosnippet>85</a>        );
+<a href=#86 id=86 data-nosnippet>86</a>
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="macro">relay_statsd::metric!</span>(
+<a href=#88 id=88 data-nosnippet>88</a>            timer(RelayTimers::BufferPush, sample = <span class="number">0.01</span>),
+<a href=#89 id=89 data-nosnippet>89</a>            partition_id = <span class="self">self</span>.partition_tag(),
+<a href=#90 id=90 data-nosnippet>90</a>            {
+<a href=#91 id=91 data-nosnippet>91</a>                <span class="kw">match </span><span class="self">self </span>{
+<a href=#92 id=92 data-nosnippet>92</a>                    <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
+<a href=#93 id=93 data-nosnippet>93</a>                    <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
+<a href=#94 id=94 data-nosnippet>94</a>                }
+<a href=#95 id=95 data-nosnippet>95</a>            }
+<a href=#96 id=96 data-nosnippet>96</a>        )
+<a href=#97 id=97 data-nosnippet>97</a>    }
+<a href=#98 id=98 data-nosnippet>98</a>
+<a href=#99 id=99 data-nosnippet>99</a>    <span class="doccomment">/// Returns a reference to the next-in-line envelope.
+<a href=#100 id=100 data-nosnippet>100</a>    </span><span class="kw">pub async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Peek, EnvelopeBufferError&gt; {
+<a href=#101 id=101 data-nosnippet>101</a>        <span class="macro">relay_statsd::metric!</span>(
+<a href=#102 id=102 data-nosnippet>102</a>            timer(RelayTimers::BufferPeek, sample = <span class="number">0.01</span>),
+<a href=#103 id=103 data-nosnippet>103</a>            partition_id = <span class="self">self</span>.partition_tag(),
+<a href=#104 id=104 data-nosnippet>104</a>            {
+<a href=#105 id=105 data-nosnippet>105</a>                <span class="kw">match </span><span class="self">self </span>{
+<a href=#106 id=106 data-nosnippet>106</a>                    <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
+<a href=#107 id=107 data-nosnippet>107</a>                    <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
+<a href=#108 id=108 data-nosnippet>108</a>                }
+<a href=#109 id=109 data-nosnippet>109</a>            }
+<a href=#110 id=110 data-nosnippet>110</a>        )
 <a href=#111 id=111 data-nosnippet>111</a>    }
 <a href=#112 id=112 data-nosnippet>112</a>
 <a href=#113 id=113 data-nosnippet>113</a>    <span class="doccomment">/// Pops the next-in-line envelope.
 <a href=#114 id=114 data-nosnippet>114</a>    </span><span class="kw">pub async fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;, EnvelopeBufferError&gt; {
-<a href=#115 id=115 data-nosnippet>115</a>        <span class="kw">let </span>envelope = <span class="kw">match </span><span class="self">self </span>{
-<a href=#116 id=116 data-nosnippet>116</a>            <span class="self">Self</span>::Sqlite(buffer) =&gt; <span class="macro">relay_statsd::metric!</span>(
-<a href=#117 id=117 data-nosnippet>117</a>                timer(RelayTimers::BufferPop),
-<a href=#118 id=118 data-nosnippet>118</a>                partition_id = <span class="self">self</span>.partition_tag(),
-<a href=#119 id=119 data-nosnippet>119</a>                { buffer.pop().<span class="kw">await </span>}
-<a href=#120 id=120 data-nosnippet>120</a>            ),
-<a href=#121 id=121 data-nosnippet>121</a>            <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
-<a href=#122 id=122 data-nosnippet>122</a>        }<span class="question-mark">?</span>;
-<a href=#123 id=123 data-nosnippet>123</a>
-<a href=#124 id=124 data-nosnippet>124</a>        <span class="prelude-val">Ok</span>(envelope)
+<a href=#115 id=115 data-nosnippet>115</a>        <span class="macro">relay_statsd::metric!</span>(
+<a href=#116 id=116 data-nosnippet>116</a>            timer(RelayTimers::BufferPop, sample = <span class="number">0.01</span>),
+<a href=#117 id=117 data-nosnippet>117</a>            partition_id = <span class="self">self</span>.partition_tag(),
+<a href=#118 id=118 data-nosnippet>118</a>            {
+<a href=#119 id=119 data-nosnippet>119</a>                <span class="kw">match </span><span class="self">self </span>{
+<a href=#120 id=120 data-nosnippet>120</a>                    <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
+<a href=#121 id=121 data-nosnippet>121</a>                    <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
+<a href=#122 id=122 data-nosnippet>122</a>                }
+<a href=#123 id=123 data-nosnippet>123</a>            }
+<a href=#124 id=124 data-nosnippet>124</a>        )
 <a href=#125 id=125 data-nosnippet>125</a>    }
 <a href=#126 id=126 data-nosnippet>126</a>
 <a href=#127 id=127 data-nosnippet>127</a>    <span class="doccomment">/// Marks a project as ready or not ready.

@@ -569,7 +569,7 @@
 <a href=#569 id=569 data-nosnippet>569</a>    ///
 <a href=#570 id=570 data-nosnippet>570</a>    /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
 <a href=#571 id=571 data-nosnippet>571</a>    /// Defaults to `1.0` (100%).
-<a href=#572 id=572 data-nosnippet>572</a>    </span><span class="kw">pub </span>sample_rate: f32,
+<a href=#572 id=572 data-nosnippet>572</a>    </span><span class="kw">pub </span>sample_rate: f64,
 <a href=#573 id=573 data-nosnippet>573</a>    <span class="doccomment">/// Interval for periodic metrics emitted from Relay.
 <a href=#574 id=574 data-nosnippet>574</a>    ///
 <a href=#575 id=575 data-nosnippet>575</a>    /// Setting it to `0` seconds disables the periodic metrics.
@@ -2179,7 +2179,7 @@
 <a href=#2179 id=2179 data-nosnippet>2179</a>    }
 <a href=#2180 id=2180 data-nosnippet>2180</a>
 <a href=#2181 id=2181 data-nosnippet>2181</a>    <span class="doccomment">/// Returns the global sample rate for all metrics.
-<a href=#2182 id=2182 data-nosnippet>2182</a>    </span><span class="kw">pub fn </span>metrics_sample_rate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f32 {
+<a href=#2182 id=2182 data-nosnippet>2182</a>    </span><span class="kw">pub fn </span>metrics_sample_rate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f64 {
 <a href=#2183 id=2183 data-nosnippet>2183</a>        <span class="self">self</span>.values.metrics.sample_rate
 <a href=#2184 id=2184 data-nosnippet>2184</a>    }
 <a href=#2185 id=2185 data-nosnippet>2185</a>
