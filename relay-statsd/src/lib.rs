@@ -894,23 +894,23 @@ mod tests {
     #[test]
     fn test_distribution_with_explicit_sample_rate() {
         let captures = with_capturing_test_client(|| {
-            metric!(distribution(TestDistribution, sample = 0.5) = 123);
+            metric!(distribution(TestDistribution, sample = 0.999999999) = 123);
         });
-        assert_eq!(captures, ["distribution:123|d|@0.5"]);
+        assert_eq!(captures, ["distribution:123|d|@0.999999999"]);
     }
 
     #[test]
     fn test_distribution_with_explicit_sample_rate_and_tags() {
         let captures = with_capturing_test_client(|| {
             metric!(
-                distribution(TestDistribution, sample = 0.01) = 456,
+                distribution(TestDistribution, sample = 0.999999999) = 456,
                 server = "server1",
                 host = "host1",
             );
         });
         assert_eq!(
             captures,
-            ["distribution:456|d|@0.01|#server:server1,host:host1"]
+            ["distribution:456|d|@0.999999999|#server:server1,host:host1"]
         );
     }
 
@@ -962,9 +962,9 @@ mod tests {
     fn test_timer_with_explicit_sample_rate() {
         let captures = with_capturing_test_client(|| {
             let duration = Duration::from_secs(100);
-            metric!(timer(TestTimer, sample = 0.5) = duration);
+            metric!(timer(TestTimer, sample = 0.999999999) = duration);
         });
-        assert_eq!(captures, ["timer:100000|d|@0.5"]);
+        assert_eq!(captures, ["timer:100000|d|@0.999999999"]);
     }
 
     #[test]
@@ -972,22 +972,22 @@ mod tests {
         let captures = with_capturing_test_client(|| {
             let duration = Duration::from_secs(100);
             metric!(
-                timer(TestTimer, sample = 0.01) = duration,
+                timer(TestTimer, sample = 0.999999999) = duration,
                 server = "server1",
             );
         });
-        assert_eq!(captures, ["timer:100000|d|@0.01|#server:server1"]);
+        assert_eq!(captures, ["timer:100000|d|@0.999999999|#server:server1"]);
     }
 
     #[test]
     fn test_timed_block_with_explicit_sample_rate() {
         let captures = with_capturing_test_client(|| {
-            metric!(timer(TestTimer, sample = 0.5), {
+            metric!(timer(TestTimer, sample = 0.999999999), {
                 // your code could be here
             })
         });
         // just check the sample rate to not make this flaky
-        assert!(captures[0].contains("|d|@0.5"));
+        assert!(captures[0].contains("|d|@0.999999999"));
     }
 
     #[test]
@@ -1013,17 +1013,17 @@ mod tests {
     fn test_local_sample_rate_overrides_global() {
         // With global sample rate of 0.999, no @rate is added to the output
         // With a local override, the local rate should appear in the output
-        let captures = with_capturing_test_client_sample_rate(0.999999, || {
+        let captures = with_capturing_test_client_sample_rate(0.999999999, || {
             // Without explicit sampling, no @rate in output (global is 1.0)
             metric!(distribution(TestDistribution) = 100);
             // With explicit sampling, should use local rate (0.01)
-            metric!(distribution(TestDistribution, sample = 0.01) = 200);
+            metric!(distribution(TestDistribution, sample = 0.999999998) = 200);
         });
         assert_eq!(captures.len(), 2);
         // First metric has no sample rate
-        assert_eq!(&captures[0][..24], "distribution:100|d|@0.99");
+        assert_eq!(captures[0], "distribution:100|d|@0.999999999");
         // Second metric uses local sample rate
-        assert_eq!(captures[1], "distribution:200|d|@0.01");
+        assert_eq!(captures[1], "distribution:200|d|@0.999999998");
     }
 
     #[test]
@@ -1034,21 +1034,21 @@ mod tests {
             let duration = Duration::from_secs(1);
             // Without explicit sampling, no @rate in output (global is 1.0)
             metric!(timer(TestTimer) = duration);
-            // With explicit sampling, should use local rate (0.01)
-            metric!(timer(TestTimer, sample = 0.01) = duration);
+            // With explicit sampling, should use local rate (0.999999999)
+            metric!(timer(TestTimer, sample = 0.999999999) = duration);
         });
 
         assert_eq!(captures.len(), 2);
         // First metric has no sample rate (global is 1.0, so it's omitted)
         assert_eq!(captures[0], "timer:1000|d");
         // Second metric uses local sample rate
-        assert_eq!(captures[1], "timer:1000|d|@0.01");
+        assert_eq!(captures[1], "timer:1000|d|@0.999999999");
     }
 
     #[test]
     fn test_local_sample_rate_capped() {
         let captures = with_capturing_test_client_sample_rate(0.0, || {
-            metric!(distribution(TestDistribution, sample = 0.01) = 200);
+            metric!(distribution(TestDistribution, sample = 0.999999999) = 200);
         });
         assert_eq!(captures.len(), 0);
     }
