@@ -135,7 +135,7 @@ impl MetricsClient {
     where
         T: Metric + From<String>,
     {
-        self.send_metric_with_sample_rate(metric, None)
+        self.send_metric_with_sample_rate(metric, 1.0)
     }
 
     /// Send a metric with an explicit sample rate that overrides the global sample rate.
@@ -144,7 +144,7 @@ impl MetricsClient {
     pub fn send_metric_with_sample_rate<'a, T>(
         &'a self,
         mut metric: MetricBuilder<'a, '_, T>,
-        sample_rate: Option<f64>,
+        sample_rate: f64,
     ) where
         T: Metric + From<String>,
     {
@@ -157,9 +157,10 @@ impl MetricsClient {
         }
 
         // Use the override sample rate if provided, otherwise use the global sample rate
-        let sample_rate = sample_rate.unwrap_or(self.sample_rate.into());
         if sample_rate > 0.0 && sample_rate < 1.0 {
             metric = metric.with_sampling_rate(sample_rate);
+        } else if self.sample_rate > 0.0 && self.sample_rate < 1.0 {
+            metric = metric.with_sampling_rate(self.sample_rate.into());
         }
 
         if let Err(error) = metric.try_send() {
@@ -653,7 +654,7 @@ macro_rules! metric {
             client.send_metric_with_sample_rate(
                 client.distribution_with_tags(&$crate::DistributionMetric::name(&$id), $value)
                     $(.with_tag(stringify!($($k).*), $v))*,
-                Some($sample as f64)
+                $sample
             )
         })
     };
@@ -689,7 +690,7 @@ macro_rules! metric {
                 // but we want milliseconds for historical reasons.
                 client.distribution_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
                     $(.with_tag(stringify!($($k).*), $v))*,
-                Some($sample as f64)
+                $sample
             )
         })
     };
