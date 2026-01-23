@@ -8,6 +8,16 @@ use crate::ModelCosts;
 use crate::span::ai;
 
 /// Normalizes AI attributes.
+///
+/// This aggressively overwrites existing AI attributes, in order to guarantee a consistent data
+/// set for the AI product module.
+///
+/// As an example, an OTeL user may be manually instrumenting AI request costs on spans but in a
+/// local currency. Sentry's AI model requires a consistent cost value, independent of local
+/// currencies.
+///
+/// Callers may choose to only run this normalization in processing mode to not have the
+/// normalization run multiple times.
 pub fn normalize_ai(
     attributes: &mut Annotated<Attributes>,
     duration: Option<Duration>,
@@ -52,10 +62,6 @@ fn is_ai_item(attributes: &mut Attributes) -> bool {
 
 /// Normalizes the [`GEN_AI_OPERATION_TYPE`] and infers it from the AI operation if it is missing.
 fn normalize_ai_type(attributes: &mut Attributes) {
-    if attributes.contains_key(GEN_AI_OPERATION_TYPE) {
-        return;
-    }
-
     let op_name = attributes
         .get_value(GEN_AI_OPERATION_NAME)
         .or_else(|| attributes.get_value(OP))
@@ -69,10 +75,6 @@ fn normalize_ai_type(attributes: &mut Attributes) {
 
 /// Calculates the [`GEN_AI_USAGE_TOTAL_TOKENS`] attribute.
 fn normalize_total_tokens(attributes: &mut Attributes) {
-    if attributes.contains_key(GEN_AI_USAGE_TOTAL_TOKENS) {
-        return;
-    }
-
     let input_tokens = attributes
         .get_value(GEN_AI_USAGE_INPUT_TOKENS)
         .and_then(|v| v.as_f64());
@@ -95,10 +97,6 @@ fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Dur
         return;
     };
 
-    if attributes.contains_key(GEN_AI_RESPONSE_TPS) {
-        return;
-    }
-
     let output_tokens = attributes
         .get_value(GEN_AI_USAGE_OUTPUT_TOKENS)
         .and_then(|v| v.as_f64())
@@ -112,10 +110,6 @@ fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Dur
 
 /// Calculates model costs and serializes them into attributes.
 fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCosts>) {
-    if attributes.contains_key(GEN_AI_COST_TOTAL_TOKENS) {
-        return;
-    }
-
     let model_cost = attributes
         .get_value(GEN_AI_REQUEST_MODEL)
         .or_else(|| attributes.get_value(GEN_AI_RESPONSE_MODEL))
@@ -417,7 +411,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_ai_overwrite_individual_cost_if_not_total() {
+    fn test_normalize_ai_overwrite_costs() {
         let mut attributes = Annotated::new(attributes! {
             "gen_ai.operation.type" => "ai_client".to_owned(),
             "gen_ai.usage.input_tokens" => 1000,
@@ -443,15 +437,15 @@ mod tests {
         {
           "gen_ai.cost.input_tokens": {
             "type": "double",
-            "value": 99.0
+            "value": 90.0
           },
           "gen_ai.cost.output_tokens": {
             "type": "double",
-            "value": 99.0
+            "value": 100.0
           },
           "gen_ai.cost.total_tokens": {
             "type": "double",
-            "value": 123.0
+            "value": 190.0
           },
           "gen_ai.operation.type": {
             "type": "string",
@@ -463,7 +457,7 @@ mod tests {
           },
           "gen_ai.response.tokens_per_second": {
             "type": "double",
-            "value": 42.0
+            "value": 4000.0
           },
           "gen_ai.usage.input_tokens": {
             "type": "integer",
@@ -474,8 +468,8 @@ mod tests {
             "value": 2000
           },
           "gen_ai.usage.total_tokens": {
-            "type": "integer",
-            "value": 1337
+            "type": "double",
+            "value": 3000.0
           }
         }
         "#);

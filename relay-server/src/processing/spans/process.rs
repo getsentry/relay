@@ -179,7 +179,9 @@ fn normalize_span(
         if matches!(span.is_segment.value(), Some(true)) {
             eap::normalize_dsc(&mut span.attributes, dsc);
         }
-        eap::normalize_ai(&mut span.attributes, duration, model_costs);
+        if ctx.is_processing() {
+            eap::normalize_ai(&mut span.attributes, duration, model_costs);
+        }
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
     };
