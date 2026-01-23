@@ -82,6 +82,21 @@ use std::time::Duration;
 /// Maximum number of metric events that can be queued before we start dropping them
 const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
 
+#[derive(Debug, Clone, Copy)]
+pub struct SampleRate(f64);
+
+impl From<f64> for SampleRate {
+    fn from(value: f64) -> Self {
+        Self(value.clamp(0.0, 1.0))
+    }
+}
+
+impl Into<f64> for SampleRate {
+    fn into(self) -> f64 {
+        self.0
+    }
+}
+
 /// Client configuration object to store globally.
 #[derive(Debug)]
 pub struct MetricsClient {
@@ -90,7 +105,7 @@ pub struct MetricsClient {
     /// Default tags to apply to every metric.
     pub default_tags: BTreeMap<String, String>,
     /// Global sample rate.
-    pub sample_rate: f32,
+    pub default_sample_rate: SampleRate,
     /// Receiver for external listeners.
     ///
     /// Only available when the client was initialized with `init_basic`.
@@ -106,8 +121,8 @@ pub struct MetricsClientConfig<'a, A> {
     pub host: A,
     /// Tags that are added to all metrics.
     pub default_tags: BTreeMap<String, String>,
-    /// Sample rate for metrics, between 0.0 (= 0%) and 1.0 (= 100%)
-    pub sample_rate: f32,
+    /// Default sample rate for metrics, between 0.0 (= 0%) and 1.0 (= 100%)
+    pub default_sample_rate: f64,
     /// If metrics should be batched or send immediately upstream.
     pub aggregate: bool,
     /// If high cardinality tags should be removed from metrics.
@@ -135,7 +150,7 @@ impl MetricsClient {
     where
         T: Metric + From<String>,
     {
-        self.send_metric_with_sample_rate(metric, 1.0)
+        self.send_metric_with_sample_rate(metric, None)
     }
 
     /// Send a metric with an explicit sample rate that overrides the global sample rate.
@@ -144,11 +159,12 @@ impl MetricsClient {
     pub fn send_metric_with_sample_rate<'a, T>(
         &'a self,
         mut metric: MetricBuilder<'a, '_, T>,
-        sample_rate: f64,
+        sample_rate: Option<SampleRate>,
     ) where
         T: Metric + From<String>,
     {
-        if !self._should_send() {
+        let effective_sample_rate = sample_rate.unwrap_or(self.default_sample_rate).into();
+        if !Self::should_send(effective_sample_rate) {
             return;
         }
 
@@ -156,11 +172,8 @@ impl MetricsClient {
             metric = metric.with_tag(k, v);
         }
 
-        // Use the override sample rate if provided, otherwise use the global sample rate
-        if sample_rate > 0.0 && sample_rate < 1.0 {
-            metric = metric.with_sampling_rate(sample_rate);
-        } else if self.sample_rate > 0.0 && self.sample_rate < 1.0 {
-            metric = metric.with_sampling_rate(self.sample_rate.into());
+        if effective_sample_rate < 1.0 {
+            metric = metric.with_sampling_rate(effective_sample_rate);
         }
 
         if let Err(error) = metric.try_send() {
@@ -172,10 +185,10 @@ impl MetricsClient {
         }
     }
 
-    fn _should_send(&self) -> bool {
-        if self.sample_rate <= 0.0 {
+    fn should_send(sample_rate: f64) -> bool {
+        if sample_rate <= 0.0 {
             false
-        } else if self.sample_rate >= 1.0 {
+        } else if sample_rate >= 1.0 {
             true
         } else {
             // Using thread local RNG and uniform distribution here because Rng::gen_range is
@@ -183,8 +196,8 @@ impl MetricsClient {
             // See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more
             // details.
             let mut rng = rand::rng();
-            let s: f32 = rng.sample(StandardUniform);
-            s <= self.sample_rate
+            let s: f64 = rng.sample(StandardUniform);
+            s <= sample_rate
         }
     }
 }
@@ -220,12 +233,12 @@ pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
 
 /// Set a test client with a custom global sample rate for the period of the called function.
 #[doc(hidden)]
-pub fn with_capturing_test_client_sample_rate(sample_rate: f32, f: impl FnOnce()) -> Vec<String> {
+pub fn with_capturing_test_client_sample_rate(sample_rate: f64, f: impl FnOnce()) -> Vec<String> {
     let (rx, sink) = cadence::SpyMetricSink::new();
     let test_client = MetricsClient {
         statsd_client: StatsdClient::from_sink("", sink),
         default_tags: Default::default(),
-        sample_rate,
+        default_sample_rate: sample_rate.into(),
         rx: None,
     };
 
@@ -249,7 +262,7 @@ pub fn init_basic() -> Option<crossbeam_channel::Receiver<Vec<u8>>> {
             let test_client = MetricsClient {
                 statsd_client: StatsdClient::from_sink("", sink),
                 default_tags: Default::default(),
-                sample_rate: 1.0,
+                default_sample_rate: 1.0.into(),
                 rx: Some(receiver.clone()),
             };
             cell.replace(Some(Arc::new(test_client)));
@@ -282,7 +295,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
     }
 
     // Normalize sample_rate
-    let sample_rate = config.sample_rate.clamp(0., 1.);
+    let sample_rate = config.default_sample_rate.clamp(0., 1.);
     relay_log::debug!(
         "metrics sample rate is set to {sample_rate}{}",
         if sample_rate == 0.0 {
@@ -334,7 +347,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
     set_client(MetricsClient {
         statsd_client,
         default_tags: config.default_tags,
-        sample_rate,
+        default_sample_rate: SampleRate(sample_rate),
         rx: None,
     });
 }
@@ -654,7 +667,7 @@ macro_rules! metric {
             client.send_metric_with_sample_rate(
                 client.distribution_with_tags(&$crate::DistributionMetric::name(&$id), $value)
                     $(.with_tag(stringify!($($k).*), $v))*,
-                $sample
+                Some($sample.into())
             )
         })
     };
@@ -690,7 +703,7 @@ macro_rules! metric {
                 // but we want milliseconds for historical reasons.
                 client.distribution_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
                     $(.with_tag(stringify!($($k).*), $v))*,
-                $sample
+                Some($sample.into())
             )
         })
     };
@@ -813,7 +826,7 @@ mod tests {
         set_client(MetricsClient {
             statsd_client: StatsdClient::from_sink("", NopMetricSink),
             default_tags: Default::default(),
-            sample_rate: 1.0,
+            default_sample_rate: 1.0.into(),
             rx: None,
         });
         let client2 = with_client(|c| format!("{c:?}"));
