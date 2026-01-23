@@ -91,10 +91,9 @@ impl PolymorphicEnvelopeBuffer {
                 match self {
                     Self::Sqlite(buffer) => buffer.push(envelope).await,
                     Self::InMemory(buffer) => buffer.push(envelope).await,
-                }?;
+                }
             }
-        );
-        Ok(())
+        )
     }
 
     /// Returns a reference to the next-in-line envelope.
@@ -113,17 +112,16 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Pops the next-in-line envelope.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let envelope = relay_statsd::metric!(
+        relay_statsd::metric!(
             timer(RelayTimers::BufferPop, sample = 0.01),
             partition_id = self.partition_tag(),
             {
                 match self {
                     Self::Sqlite(buffer) => buffer.pop().await,
                     Self::InMemory(buffer) => buffer.pop().await,
-                }?
+                }
             }
-        );
-        Ok(envelope)
+        )
     }
 
     /// Marks a project as ready or not ready.
