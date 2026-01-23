@@ -2,6 +2,7 @@
 
 use std::error::Error;
 use std::num::NonZeroU8;
+use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64};
@@ -235,14 +236,10 @@ pub struct EnvelopeBufferService {
     global_config_rx: watch::Receiver<global_config::Status>,
     services: Services,
     metrics: Arc<EnvelopeBufferMetrics>,
-    sleep: Duration,
 }
 
-/// The maximum amount of time between evaluations of dequeue conditions.
-///
-/// Some condition checks are sync (`has_capacity`), so cannot be awaited. The sleep in cancelled
-/// whenever a new message or a global config update comes in.
-const DEFAULT_SLEEP: Duration = Duration::from_secs(1);
+/// Time between attempts to fetch a project config. Used to debounce project config fetches.
+const PROJECT_FETCH_INTERVAL: Duration = Duration::from_secs(1);
 
 impl EnvelopeBufferService {
     /// Creates a memory or disk based [`EnvelopeBufferService`], depending on the given config.
@@ -264,7 +261,6 @@ impl EnvelopeBufferService {
                 item_count: AtomicU64::new(0),
                 storage_size: AtomicU64::new(0),
             }),
-            sleep: Duration::ZERO,
         }
     }
 
@@ -277,19 +273,7 @@ impl EnvelopeBufferService {
         ObservableEnvelopeBuffer { addr, metrics }
     }
 
-    /// Wait for the configured amount of time and make sure the project cache is ready to receive.
-    async fn ready_to_pop(&mut self, buffer: &PolymorphicEnvelopeBuffer, dequeue: bool) {
-        self.system_ready(buffer, dequeue).await;
-
-        if self.sleep > Duration::ZERO {
-            tokio::time::sleep(self.sleep).await;
-        }
-    }
-
-    /// Waits until the system is ready to unspool envelopes.
-    ///
-    /// This function ensures that unspooling only happens when it's safe and appropriate to do so.
-    /// It continuously checks specific system conditions and only returns when they are all satisfied.
+    /// Returns whether the system is ready to unspool envelopes.
     ///
     /// # Preconditions for Unspooling
     ///
@@ -307,16 +291,11 @@ impl EnvelopeBufferService {
     /// 2. **Global Configuration Availability**:
     ///    - Unspooling requires a valid, ready-to-use global configuration.
     ///      If the configuration is not yet initialized or ready, unspooling must wait.
-    async fn system_ready(&self, buffer: &PolymorphicEnvelopeBuffer, dequeue: bool) {
-        loop {
-            let memory_ready = buffer.is_memory() || self.memory_ready();
-            let global_config_ready = self.global_config_rx.borrow().is_ready();
+    fn system_ready(&self, buffer: &PolymorphicEnvelopeBuffer) -> bool {
+        let memory_ready = buffer.is_memory() || self.memory_ready();
+        let global_config_ready = self.global_config_rx.borrow().is_ready();
 
-            if memory_ready && global_config_ready && dequeue {
-                return;
-            }
-            tokio::time::sleep(DEFAULT_SLEEP).await;
-        }
+        memory_ready && global_config_ready
     }
 
     fn memory_ready(&self) -> bool {
@@ -325,13 +304,15 @@ impl EnvelopeBufferService {
     }
 
     /// Tries to pop an envelope for a ready project.
+    ///
+    /// Returns [`ControlFlow::Continue`] when there's more to be popped.
     async fn try_pop(
         partition_tag: &str,
         config: &Config,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
-    ) -> Result<Duration, EnvelopeBufferError> {
-        let sleep = match buffer.peek().await? {
+    ) -> Result<ControlFlow<()>, EnvelopeBufferError> {
+        let flow = match buffer.peek().await? {
             Peek::Empty => {
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
@@ -339,7 +320,7 @@ impl EnvelopeBufferService {
                     partition_id = partition_tag
                 );
 
-                DEFAULT_SLEEP // wait for reset by `handle_message`.
+                ControlFlow::Break(())
             }
             Peek::Ready {
                 last_received_at, ..
@@ -359,7 +340,7 @@ impl EnvelopeBufferService {
 
                 Self::drop_expired(envelope, services);
 
-                Duration::ZERO // try next pop immediately
+                ControlFlow::Continue(()) // try next pop immediately
             }
             Peek::Ready {
                 project_key_pair, ..
@@ -373,7 +354,7 @@ impl EnvelopeBufferService {
 
                 Self::pop_and_forward(partition_tag, services, buffer, project_key_pair).await?;
 
-                Duration::ZERO // try next pop immediately
+                ControlFlow::Continue(()) // try next pop immediately
             }
             Peek::NotReady {
                 project_key_pair,
@@ -397,14 +378,14 @@ impl EnvelopeBufferService {
 
                     // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
                     // time.
-                    buffer.mark_seen(&project_key_pair, DEFAULT_SLEEP);
+                    buffer.mark_seen(&project_key_pair, PROJECT_FETCH_INTERVAL);
                 }
 
-                DEFAULT_SLEEP // wait and prioritize handling new messages.
+                ControlFlow::Break(())
             }
         };
 
-        Ok(sleep)
+        Ok(flow)
     }
 
     fn trigger_project_fetch(project_key_pair: ProjectKeyPair, services: &Services) {
@@ -594,7 +575,7 @@ fn is_expired(last_received_at: DateTime<Utc>, config: &Config) -> bool {
 impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
-    async fn run(mut self, mut rx: Receiver<Self::Interface>) {
+    async fn run(self, mut rx: Receiver<Self::Interface>) {
         let config = self.config.clone();
         let memory_checker = MemoryChecker::new(self.memory_stat.clone(), config.clone());
         let mut global_config_rx = self.global_config_rx.clone();
@@ -637,26 +618,36 @@ impl Service for EnvelopeBufferService {
                 counter(RelayCounters::BufferServiceLoopIteration) += 1,
                 partition_id = &partition_tag
             );
-            let mut sleep = DEFAULT_SLEEP;
 
-            tokio::select! {
-                // NOTE: we do not select a bias here.
-                // On the one hand, we might want to prioritize dequeuing over enqueuing
-                // so we do not exceed the buffer capacity by starving the dequeue.
-                // on the other hand, prioritizing old messages violates the LIFO design.
-                _ = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                    match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
-                            Ok(new_sleep) => {
-                                sleep = new_sleep;
-                            }
-                            Err(error) => {
-                                relay_log::error!(
-                                error = &error as &dyn std::error::Error,
-                                "failed to pop envelope"
-                            );
-                        }
+            // 1 - Dequeue as many envelopes as possible.
+            while dequeue.load(Ordering::Relaxed) && self.system_ready(&buffer) {
+                match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
+                    Ok(ControlFlow::Continue(())) => continue,
+                    Ok(ControlFlow::Break(())) => break,
+                    Err(e) => {
+                        relay_log::error!(
+                            error = &e as &dyn std::error::Error,
+                            "failed to dequeue envelope"
+                        );
+                        break;
                     }
                 }
+            }
+
+            // 2 - Wait for a state change.
+            tokio::select! {
+                biased;
+
+                shutdown = shutdown.notified() => {
+                    // In case the shutdown was handled, we break out of the loop signaling that
+                        // there is no need to process anymore envelopes.
+                        if Self::handle_shutdown(&mut buffer, shutdown).await {
+                            break;
+                        }
+                }
+
+                _ = global_config_rx.changed() => {}
+
                 change = project_changes.recv() => {
                     match change {
                             Ok(ProjectChange::Ready(project_key)) => {
@@ -668,26 +659,15 @@ impl Service for EnvelopeBufferService {
                             _ => {}
                         };
                         relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
-                        sleep = Duration::ZERO;
+
                 }
                 Some(message) = rx.recv() => {
                     Self::handle_message(&mut buffer, message, &services).await;
-                        sleep = Duration::ZERO;
                 }
-                shutdown = shutdown.notified() => {
-                    // In case the shutdown was handled, we break out of the loop signaling that
-                        // there is no need to process anymore envelopes.
-                        if Self::handle_shutdown(&mut buffer, shutdown).await {
-                            break;
-                        }
-                }
-                Ok(()) = global_config_rx.changed() => {
-                    sleep = Duration::ZERO;
-                }
+
                 else => break,
             }
 
-            self.sleep = sleep;
             self.update_observable_state(&mut buffer);
         }
 
