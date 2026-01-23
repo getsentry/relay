@@ -180,6 +180,7 @@ mod tests {
                 gen_ai_response_object: ~,
                 gen_ai_response_streaming: ~,
                 gen_ai_response_tokens_per_second: ~,
+                gen_ai_response_time_to_first_token: ~,
                 gen_ai_request_available_tools: ~,
                 gen_ai_request_frequency_penalty: ~,
                 gen_ai_request_presence_penalty: ~,
