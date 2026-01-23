@@ -678,7 +678,7 @@ def test_span_ingestion(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "user_agent.original": {
                     "type": "string",
-                    "value": "python-requests/2.32.4",
+                    "value": "python-requests/2.32.5",
                 },
             },
             "end_timestamp": end.timestamp(),
@@ -746,7 +746,7 @@ def test_span_ingestion(
                 "ui.component_name": {"type": "string", "value": "MyComponent"},
                 "user_agent.original": {
                     "type": "string",
-                    "value": "python-requests/2.32.4",
+                    "value": "python-requests/2.32.5",
                 },
             },
             "end_timestamp": end.timestamp(),
