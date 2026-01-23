@@ -159,7 +159,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         }
 
         let encoded_envelope = relay_statsd::metric!(
-            timer(RelayTimers::BufferEnvelopesSerialization),
+            timer(RelayTimers::BufferEnvelopesSerialization, sample = 0.01),
             partition_id = &self.partition_tag,
             { DatabaseEnvelope::try_from(envelope.as_ref())? }
         );
