@@ -28,7 +28,7 @@
 //!     prefix: "myprefix",
 //!     host: "localhost:8125",
 //!     default_tags: BTreeMap::new(),
-//!     sample_rate: 1.0,
+//!     sample_rate: 1.0.into(),
 //!     aggregate: true,
 //!     allow_high_cardinality_tags: false
 //! });
@@ -82,6 +82,21 @@ use std::time::Duration;
 /// Maximum number of metric events that can be queued before we start dropping them
 const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
 
+#[derive(Debug, Clone, Copy)]
+pub struct SampleRate(f64);
+
+impl From<f64> for SampleRate {
+    fn from(value: f64) -> Self {
+        Self(value.clamp(0.0, 1.0))
+    }
+}
+
+impl From<SampleRate> for f64 {
+    fn from(val: SampleRate) -> Self {
+        val.0
+    }
+}
+
 /// Client configuration object to store globally.
 #[derive(Debug)]
 pub struct MetricsClient {
@@ -90,7 +105,7 @@ pub struct MetricsClient {
     /// Default tags to apply to every metric.
     pub default_tags: BTreeMap<String, String>,
     /// Global sample rate.
-    pub sample_rate: f32,
+    pub default_sample_rate: SampleRate,
     /// Receiver for external listeners.
     ///
     /// Only available when the client was initialized with `init_basic`.
@@ -106,8 +121,8 @@ pub struct MetricsClientConfig<'a, A> {
     pub host: A,
     /// Tags that are added to all metrics.
     pub default_tags: BTreeMap<String, String>,
-    /// Sample rate for metrics, between 0.0 (= 0%) and 1.0 (= 100%)
-    pub sample_rate: f32,
+    /// Default sample rate for metrics, between 0.0 (= 0%) and 1.0 (= 100%)
+    pub sample_rate: SampleRate,
     /// If metrics should be batched or send immediately upstream.
     pub aggregate: bool,
     /// If high cardinality tags should be removed from metrics.
@@ -131,19 +146,37 @@ impl DerefMut for MetricsClient {
 impl MetricsClient {
     /// Send a metric with the default tags defined on this `MetricsClient`.
     #[inline(always)]
-    pub fn send_metric<'a, T>(&'a self, mut metric: MetricBuilder<'a, '_, T>)
+    pub fn send_metric<'a, T>(&'a self, metric: MetricBuilder<'a, '_, T>)
     where
         T: Metric + From<String>,
     {
-        if !self._should_send() {
+        self.send_metric_with_sample_rate(metric, None)
+    }
+
+    /// Send a metric with an explicit sample rate that overrides the global sample rate.
+    #[doc(hidden)]
+    #[inline(always)]
+    pub fn send_metric_with_sample_rate<'a, T>(
+        &'a self,
+        mut metric: MetricBuilder<'a, '_, T>,
+        sample_rate: Option<SampleRate>,
+    ) where
+        T: Metric + From<String>,
+    {
+        let effective_sample_rate = match sample_rate {
+            Some(sample_rate) => sample_rate.0.min(self.default_sample_rate.0),
+            None => self.default_sample_rate.0,
+        };
+        if !Self::should_send(effective_sample_rate) {
             return;
         }
 
         for (k, v) in &self.default_tags {
             metric = metric.with_tag(k, v);
         }
-        if self.sample_rate > 0.0 && self.sample_rate < 1.0 {
-            metric = metric.with_sampling_rate(self.sample_rate.into());
+
+        if effective_sample_rate < 1.0 {
+            metric = metric.with_sampling_rate(effective_sample_rate);
         }
 
         if let Err(error) = metric.try_send() {
@@ -155,10 +188,10 @@ impl MetricsClient {
         }
     }
 
-    fn _should_send(&self) -> bool {
-        if self.sample_rate <= 0.0 {
+    fn should_send(sample_rate: f64) -> bool {
+        if sample_rate <= 0.0 {
             false
-        } else if self.sample_rate >= 1.0 {
+        } else if sample_rate >= 1.0 {
             true
         } else {
             // Using thread local RNG and uniform distribution here because Rng::gen_range is
@@ -166,8 +199,8 @@ impl MetricsClient {
             // See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more
             // details.
             let mut rng = rand::rng();
-            let s: f32 = rng.sample(StandardUniform);
-            s <= self.sample_rate
+            let s: f64 = rng.sample(StandardUniform);
+            s <= sample_rate
         }
     }
 }
@@ -198,11 +231,17 @@ pub fn set_client(client: MetricsClient) {
 /// Set a test client for the period of the called function (only affects the current thread).
 // TODO: replace usages with `init_basic`
 pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
+    with_capturing_test_client_sample_rate(1.0, f)
+}
+
+/// Set a test client with a custom global sample rate for the period of the called function.
+#[doc(hidden)]
+pub fn with_capturing_test_client_sample_rate(sample_rate: f64, f: impl FnOnce()) -> Vec<String> {
     let (rx, sink) = cadence::SpyMetricSink::new();
     let test_client = MetricsClient {
         statsd_client: StatsdClient::from_sink("", sink),
         default_tags: Default::default(),
-        sample_rate: 1.0,
+        default_sample_rate: sample_rate.into(),
         rx: None,
     };
 
@@ -226,7 +265,7 @@ pub fn init_basic() -> Option<crossbeam_channel::Receiver<Vec<u8>>> {
             let test_client = MetricsClient {
                 statsd_client: StatsdClient::from_sink("", sink),
                 default_tags: Default::default(),
-                sample_rate: 1.0,
+                default_sample_rate: 1.0.into(),
                 rx: Some(receiver.clone()),
             };
             cell.replace(Some(Arc::new(test_client)));
@@ -258,8 +297,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
         relay_log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
 
-    // Normalize sample_rate
-    let sample_rate = config.sample_rate.clamp(0., 1.);
+    let sample_rate: f64 = config.sample_rate.into();
     relay_log::debug!(
         "metrics sample rate is set to {sample_rate}{}",
         if sample_rate == 0.0 {
@@ -311,7 +349,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
     set_client(MetricsClient {
         statsd_client,
         default_tags: config.default_tags,
-        sample_rate,
+        default_sample_rate: config.sample_rate,
         rx: None,
     });
 }
@@ -389,6 +427,17 @@ where
 ///     }
 /// );
 ///
+/// // use an explicit sample rate that overrides the global rate
+///
+/// // the override will be capped by the globally configured sample rate.
+/// metric!(timer(MyTimer::ProcessA, sample = 0.01) = start_time.elapsed());
+///
+/// // timed block with explicit sample rate
+///
+/// // the override will be capped by the globally configured sample rate.
+/// metric!(timer(MyTimer::ProcessA, sample = 0.01), {
+///     process_a();
+/// });
 /// ```
 pub trait TimerMetric {
     /// Returns the timer metric name that will be sent to statsd.
@@ -470,7 +519,7 @@ pub trait CounterMetric {
 /// let queue = VecDeque::new();
 /// # let _hint: &VecDeque<()> = &queue;
 ///
-/// // record a distribution value
+/// // record a distribution value (uses global sample rate)
 /// metric!(distribution(QueueSize) = queue.len() as u64);
 ///
 /// // record with tags
@@ -479,6 +528,9 @@ pub trait CounterMetric {
 ///     server = "server1",
 ///     host = "host1",
 /// );
+///
+/// // record with an explicit sample rate that overrides the global rate
+/// metric!(distribution(QueueSize, sample = 0.01) = queue.len() as u64);
 /// ```
 pub trait DistributionMetric {
     /// Returns the distribution metric name that will be sent to statsd.
@@ -614,7 +666,19 @@ macro_rules! metric {
         })
     };
 
-    // distribution
+    // distribution with explicit sample rate (overrides global sample rate)
+    (distribution($id:expr, sample = $sample:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
+        $crate::with_client(|client| {
+            use $crate::_pred::*;
+            client.send_metric_with_sample_rate(
+                client.distribution_with_tags(&$crate::DistributionMetric::name(&$id), $value)
+                    $(.with_tag(stringify!($($k).*), $v))*,
+                Some($sample.into())
+            )
+        })
+    };
+
+    // distribution (uses global sample rate)
     (distribution($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
@@ -636,7 +700,21 @@ macro_rules! metric {
         })
     };
 
-    // timer value (duration)
+    // timer value with explicit sample rate (overrides global sample rate)
+    (timer($id:expr, sample = $sample:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
+        $crate::with_client(|client| {
+            use $crate::_pred::*;
+            client.send_metric_with_sample_rate(
+                // NOTE: cadence distribution support Duration out of the box and converts it to nanos,
+                // but we want milliseconds for historical reasons.
+                client.distribution_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
+                    $(.with_tag(stringify!($($k).*), $v))*,
+                Some($sample.into())
+            )
+        })
+    };
+
+    // timer value (uses global sample rate)
     (timer($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
@@ -649,7 +727,15 @@ macro_rules! metric {
         })
     };
 
-    // timed block
+    // timed block with explicit sample rate (overrides global sample rate)
+    (timer($id:expr, sample = $sample:expr), $($($k:ident).* = $v:expr,)* $block:block) => {{
+        let now = std::time::Instant::now();
+        let rv = {$block};
+        $crate::metric!(timer($id, sample = $sample) = now.elapsed() $(, $($k).* = $v)*);
+        rv
+    }};
+
+    // timed block (uses global sample rate)
     (timer($id:expr), $($($k:ident).* = $v:expr,)* $block:block) => {{
         let now = std::time::Instant::now();
         let rv = {$block};
@@ -666,7 +752,8 @@ mod tests {
 
     use crate::{
         CounterMetric, DistributionMetric, GaugeMetric, MetricsClient, SetMetric, TimerMetric,
-        set_client, with_capturing_test_client, with_client,
+        set_client, with_capturing_test_client, with_capturing_test_client_sample_rate,
+        with_client,
     };
 
     enum TestGauges {
@@ -745,7 +832,7 @@ mod tests {
         set_client(MetricsClient {
             statsd_client: StatsdClient::from_sink("", NopMetricSink),
             default_tags: Default::default(),
-            sample_rate: 1.0,
+            default_sample_rate: 1.0.into(),
             rx: None,
         });
         let client2 = with_client(|c| format!("{c:?}"));
@@ -805,6 +892,29 @@ mod tests {
     }
 
     #[test]
+    fn test_distribution_with_explicit_sample_rate() {
+        let captures = with_capturing_test_client(|| {
+            metric!(distribution(TestDistribution, sample = 0.999999999) = 123);
+        });
+        assert_eq!(captures, ["distribution:123|d|@0.999999999"]);
+    }
+
+    #[test]
+    fn test_distribution_with_explicit_sample_rate_and_tags() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                distribution(TestDistribution, sample = 0.999999999) = 456,
+                server = "server1",
+                host = "host1",
+            );
+        });
+        assert_eq!(
+            captures,
+            ["distribution:456|d|@0.999999999|#server:server1,host:host1"]
+        );
+    }
+
+    #[test]
     fn test_set_tags_with_dots() {
         let captures = with_capturing_test_client(|| {
             metric!(
@@ -849,6 +959,38 @@ mod tests {
     }
 
     #[test]
+    fn test_timer_with_explicit_sample_rate() {
+        let captures = with_capturing_test_client(|| {
+            let duration = Duration::from_secs(100);
+            metric!(timer(TestTimer, sample = 0.999999999) = duration);
+        });
+        assert_eq!(captures, ["timer:100000|d|@0.999999999"]);
+    }
+
+    #[test]
+    fn test_timer_with_explicit_sample_rate_and_tags() {
+        let captures = with_capturing_test_client(|| {
+            let duration = Duration::from_secs(100);
+            metric!(
+                timer(TestTimer, sample = 0.999999999) = duration,
+                server = "server1",
+            );
+        });
+        assert_eq!(captures, ["timer:100000|d|@0.999999999|#server:server1"]);
+    }
+
+    #[test]
+    fn test_timed_block_with_explicit_sample_rate() {
+        let captures = with_capturing_test_client(|| {
+            metric!(timer(TestTimer, sample = 0.999999999), {
+                // your code could be here
+            })
+        });
+        // just check the sample rate to not make this flaky
+        assert!(captures[0].contains("|d|@0.999999999"));
+    }
+
+    #[test]
     fn nanos_rounding_error() {
         let one_day = Duration::from_secs(60 * 60 * 24);
         let captures = with_capturing_test_client(|| {
@@ -865,5 +1007,57 @@ mod tests {
 
         // for very long durations, precision is lost:
         assert_eq!(captures, ["timer:31536000000|d"]);
+    }
+
+    #[test]
+    fn test_local_sample_rate_overrides_global() {
+        // With global sample rate of 0.999, no @rate is added to the output
+        // With a local override, the local rate should appear in the output
+        let captures = with_capturing_test_client_sample_rate(0.999999999, || {
+            // Without explicit sampling, no @rate in output (global is 1.0)
+            metric!(distribution(TestDistribution) = 100);
+            // With explicit sampling, should use local rate (0.01)
+            metric!(distribution(TestDistribution, sample = 0.999999998) = 200);
+        });
+        assert_eq!(captures.len(), 2);
+        // First metric has no sample rate
+        assert_eq!(captures[0], "distribution:100|d|@0.999999999");
+        // Second metric uses local sample rate
+        assert_eq!(captures[1], "distribution:200|d|@0.999999998");
+    }
+
+    #[test]
+    fn test_timer_local_sample_rate_overrides_global() {
+        // With global sample rate of 1.0, no @rate is added to the output
+        // With a local override, the local rate should appear in the output
+        let captures = with_capturing_test_client_sample_rate(1.0, || {
+            let duration = Duration::from_secs(1);
+            // Without explicit sampling, no @rate in output (global is 1.0)
+            metric!(timer(TestTimer) = duration);
+            // With explicit sampling, should use local rate (0.999999999)
+            metric!(timer(TestTimer, sample = 0.999999999) = duration);
+        });
+
+        assert_eq!(captures.len(), 2);
+        // First metric has no sample rate (global is 1.0, so it's omitted)
+        assert_eq!(captures[0], "timer:1000|d");
+        // Second metric uses local sample rate
+        assert_eq!(captures[1], "timer:1000|d|@0.999999999");
+    }
+
+    #[test]
+    fn test_local_sample_rate_capped() {
+        let captures = with_capturing_test_client_sample_rate(0.0, || {
+            metric!(distribution(TestDistribution, sample = 0.999999999) = 200);
+        });
+        assert_eq!(captures.len(), 0);
+    }
+
+    #[test]
+    fn test_global_disabled() {
+        let captures = with_capturing_test_client_sample_rate(0.0, || {
+            metric!(distribution(TestDistribution) = 200);
+        });
+        assert_eq!(captures.len(), 0);
     }
 }

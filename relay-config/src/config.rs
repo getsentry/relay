@@ -569,7 +569,7 @@ pub struct Metrics {
     ///
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
-    pub sample_rate: f32,
+    pub sample_rate: f64,
     /// Interval for periodic metrics emitted from Relay.
     ///
     /// Setting it to `0` seconds disables the periodic metrics.
@@ -2179,7 +2179,7 @@ impl Config {
     }
 
     /// Returns the global sample rate for all metrics.
-    pub fn metrics_sample_rate(&self) -> f32 {
+    pub fn metrics_sample_rate(&self) -> f64 {
         self.values.metrics.sample_rate
     }
 

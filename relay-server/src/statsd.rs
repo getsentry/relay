@@ -30,15 +30,15 @@ pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
-    /// The number of individual stacks in the priority queue.
-    ///
-    /// Per combination of `(own_key, sampling_key)`, a new stack is created.
-    BufferStackCount,
     /// Number of elements in the envelope buffer across all the stacks.
     ///
     /// This metric is tagged with:
     /// - `storage_type`: The type of storage used in the envelope buffer.
     BufferEnvelopesCount,
+    /// The number of individual stacks in the priority queue.
+    ///
+    /// Per combination of `(own_key, sampling_key)`, a new stack is created.
+    BufferStackCount,
     /// The used disk for the buffer.
     BufferDiskUsed,
     /// The currently used memory by the entire system.
@@ -94,6 +94,7 @@ impl GaugeMetric for RelayGauges {
             Self::AsyncPoolUtilization => "async_pool.utilization",
             Self::AsyncPoolActivity => "async_pool.activity",
             Self::NetworkOutage => "upstream.network_outage",
+            Self::BufferEnvelopesCount => "buffer.envelopes_count",
             Self::BufferStackCount => "buffer.stack_count",
             Self::BufferDiskUsed => "buffer.disk_used",
             Self::SystemMemoryUsed => "health.system_memory.used",
@@ -114,8 +115,6 @@ impl GaugeMetric for RelayGauges {
             Self::ServiceUtilization => "service.utilization",
             #[cfg(feature = "processing")]
             Self::ConcurrentAttachmentUploads => "attachment.upload.concurrent",
-
-            Self::BufferEnvelopesCount => "buffer.envelopes_count",
         }
     }
 }
@@ -231,7 +230,6 @@ pub enum RelayDistributions {
     ///  - `item_type`: The type of the items being counted.
     ///  - `is_container`: Whether this item is a container holding multiple items.
     EnvelopeItemSize,
-
     /// The amount of bytes in the item payloads of an envelope pushed to the envelope buffer.
     ///
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
