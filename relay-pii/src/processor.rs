@@ -202,7 +202,7 @@ impl Processor for PiiProcessor<'_> {
                 Ok(()) => value.push_str(&basename),
                 Err(
                     ProcessingAction::DeleteValueHard
-                    | ProcessingAction::DeleteValueWithRemark
+                    | ProcessingAction::DeleteValueWithRemark(_)
                     | ProcessingAction::DeleteValueSoft,
                 ) => {
                     basename[1..].clone_into(value);

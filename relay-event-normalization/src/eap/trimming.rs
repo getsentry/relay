@@ -90,7 +90,7 @@ impl TrimmingProcessor {
         let len = key.map_or(0, |key| key.len());
         if len <= self.removed_key_byte_budget {
             self.removed_key_byte_budget -= len;
-            ProcessingAction::DeleteValueWithRemark
+            ProcessingAction::DeleteValueWithRemark("trimmed")
         } else {
             ProcessingAction::DeleteValueHard
         }
@@ -295,7 +295,9 @@ impl Processor for TrimmingProcessor {
                 {
                     match self.delete_value(Some(key.as_ref())) {
                         ProcessingAction::DeleteValueHard => break,
-                        ProcessingAction::DeleteValueWithRemark => value.delete_with_remark(),
+                        ProcessingAction::DeleteValueWithRemark(rule_id) => {
+                            value.delete_with_remark(rule_id)
+                        }
                         _ => unreachable!(),
                     }
 
@@ -354,7 +356,9 @@ impl Processor for TrimmingProcessor {
             for (key, value) in &mut sorted[split_idx..] {
                 match self.delete_value(Some(key.as_ref())) {
                     ProcessingAction::DeleteValueHard => break,
-                    ProcessingAction::DeleteValueWithRemark => value.delete_with_remark(),
+                    ProcessingAction::DeleteValueWithRemark(rule_id) => {
+                        value.delete_with_remark(rule_id)
+                    }
                     _ => unreachable!(),
                 }
 
