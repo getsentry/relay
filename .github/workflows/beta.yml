@@ -22,7 +22,7 @@ jobs:
           - 6379:6379
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: recursive
 
