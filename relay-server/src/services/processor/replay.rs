@@ -3,7 +3,7 @@ use std::error::Error;
 use std::net::IpAddr;
 
 use crate::envelope::{ContentType, ItemType};
-use crate::managed::TypedEnvelope;
+use crate::managed::{Counted, TypedEnvelope};
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessingError, ReplayGroup, should_filter};
 use crate::services::projects::project::ProjectInfo;
@@ -20,6 +20,7 @@ use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{EventId, Replay};
 use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
+use relay_quotas::DataCategory;
 use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
 use serde::{Deserialize, Serialize};
@@ -32,8 +33,11 @@ pub fn process(
     project_info: &ProjectInfo,
     geoip_lookup: &GeoIpLookup,
 ) -> Result<(), ProcessingError> {
+    // META: Do some filtering
+
     // If the replay feature is not enabled drop the items silently.
     if should_filter(config, project_info, Feature::SessionReplay) {
+        // Q: What is the point of drop silently here, is it ok if we change it to something else?
         managed_envelope.drop_items_silently();
         return Ok(());
     }
@@ -46,6 +50,8 @@ pub fn process(
         managed_envelope.drop_items_silently();
         return Ok(());
     }
+
+    // META: Do some data messaging (can be fallible)
 
     let meta = managed_envelope.envelope().meta();
     let user_agent = RawUserAgentInfo {
@@ -64,6 +70,7 @@ pub fn process(
         user_agent: user_agent.as_deref(),
     };
 
+    // FIXME: This can go wrong in a couple ways need to find all of them.
     let mut scrubber = if project_info.has_feature(Feature::SessionReplayRecordingScrubbing) {
         let datascrubbing_config = rpc
             .config
@@ -81,10 +88,15 @@ pub fn process(
         None
     };
 
+    // META: Do the actual processing work (seems like we are updating the payload here)
+
+    // META: This seems like a reasonable unit of work?
+    // Q: This seems funky one failed one and all go bad?
     for item in managed_envelope.envelope_mut().items_mut() {
         match item.ty() {
             ItemType::ReplayEvent => {
                 let replay_event = handle_replay_event_item(item.payload(), &rpc)?;
+                // META: Can probably make this nicer since we can do this in the forward?
                 item.set_payload(ContentType::Json, replay_event);
             }
             ItemType::ReplayRecording => {
@@ -104,8 +116,9 @@ pub fn process(
     Ok(())
 }
 
+// TODO: Try doing it without this and see if that works :thinking:
 #[derive(Debug)]
-struct ReplayProcessingConfig<'a> {
+pub struct ReplayProcessingConfig<'a> {
     pub config: &'a ProjectConfig,
     pub global_config: &'a GlobalConfig,
     pub geoip_lookup: &'a GeoIpLookup,
@@ -125,6 +138,10 @@ fn handle_replay_event_item(
     match process_replay_event(&payload, config) {
         Ok(replay) => {
             if let Some(replay_type) = replay.value() {
+                // Move this into the filtering function?
+                // Q: Check where this is done in the other reworks.
+
+                // Meta: Can move this before the processing no?
                 relay_filter::should_filter(
                     replay_type,
                     config.client_addr,
@@ -150,6 +167,9 @@ fn handle_replay_event_item(
                 }
             }
 
+            // FIXME: Move that into the forward.
+            // Q: I think this can be done int the forwarding
+            // A bit like re-serializing.
             match replay.to_json() {
                 Ok(json) => Ok(json.into_bytes().into()),
                 Err(error) => {
@@ -163,6 +183,7 @@ fn handle_replay_event_item(
             }
         }
         Err(error) => {
+            // FIXME: Q: This can be omitted right?
             relay_log::debug!(
                 error = &error as &dyn Error,
                 event_id = ?config.event_id,
@@ -171,6 +192,7 @@ fn handle_replay_event_item(
                 "invalid replay event"
             );
             Err(match error {
+                //  META: Nice errors to have on the processor error struct.
                 ReplayError::NoContent => {
                     ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEventNoPayload)
                 }
@@ -193,14 +215,21 @@ fn process_replay_event(
     payload: &[u8],
     config: &ReplayProcessingConfig<'_>,
 ) -> Result<Annotated<Replay>, ReplayError> {
+    // META: Seems like the actual logic is here.
+
+    // META: Expand
     let mut replay =
         Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
 
-    let Some(replay_value) = replay.value_mut() else {
+    // FIXME: Does not need to be mut.
+    let Some(replay_value) = replay.value() else {
         return Err(ReplayError::NoContent);
     };
 
+    // META: Validate
     replay::validate(replay_value)?;
+
+    // META: Normalize
     replay::normalize(
         &mut replay,
         config.client_addr,
@@ -208,12 +237,15 @@ fn process_replay_event(
         config.geoip_lookup,
     );
 
+    // META: PII Scrubbing
+    // new
     if let Some(ref config) = config.config.pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
         processor::process_value(&mut replay, &mut processor, ProcessingState::root())
             .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
     }
 
+    // Legacy
     let pii_config = config
         .config
         .datascrubbing_settings
@@ -245,6 +277,8 @@ fn handle_replay_recording_item(
         return Ok(payload);
     }
 
+    // Q: Unclear to me where this should fit in?
+
     // Limit expansion of recordings to the max replay size. The payload is
     // decompressed temporarily and then immediately re-compressed. However, to
     // limit memory pressure, we use the replay limit as a good overall limit for
@@ -268,10 +302,16 @@ fn handle_replay_recording_item(
 // Replay Video Processing
 
 #[derive(Debug, Deserialize, Serialize)]
-struct ReplayVideoEvent {
-    replay_event: Bytes,
-    replay_recording: Bytes,
-    replay_video: Bytes,
+pub struct ReplayVideoEvent {
+    pub replay_event: Bytes,
+    pub replay_recording: Bytes,
+    pub replay_video: Bytes,
+}
+
+impl Counted for ReplayVideoEvent {
+    fn quantities(&self) -> crate::managed::Quantities {
+        smallvec::smallvec![(DataCategory::Replay, 1)]
+    }
 }
 
 fn handle_replay_video_item(
@@ -279,10 +319,11 @@ fn handle_replay_video_item(
     scrubber: Option<&mut RecordingScrubber>,
     config: &ReplayProcessingConfig<'_>,
 ) -> Result<Bytes, ProcessingError> {
+    // META: This seems to incorporate the various other types.
     let ReplayVideoEvent {
         replay_event,
         replay_recording,
-        replay_video,
+        replay_video, // FIXME: (Tobias) Follow-up make this nicer.
     } = rmp_serde::from_slice(&payload)
         .map_err(|_| ProcessingError::InvalidReplay(DiscardReason::InvalidReplayVideoEvent))?;
 
@@ -298,6 +339,8 @@ fn handle_replay_video_item(
             DiscardReason::InvalidReplayVideoEvent,
         ));
     }
+
+    // TODO: So the video is not actually used for anything? Just need to pack everything back up again.
 
     match rmp_serde::to_vec_named(&ReplayVideoEvent {
         replay_event,

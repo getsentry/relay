@@ -50,6 +50,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
+use crate::processing::replays::ReplaysProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_attachments::TraceAttachmentsProcessor;
@@ -98,7 +99,7 @@ mod event;
 mod metrics;
 mod nel;
 mod profile;
-mod replay;
+pub(crate) mod replay;
 mod report;
 mod span;
 
@@ -1173,6 +1174,7 @@ struct Processing {
     sessions: SessionsProcessor,
     profile_chunks: ProfileChunksProcessor,
     trace_attachments: TraceAttachmentsProcessor,
+    replays: ReplaysProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1263,7 +1265,8 @@ impl EnvelopeProcessorService {
                 check_ins: CheckInsProcessor::new(Arc::clone(&quota_limiter)),
                 sessions: SessionsProcessor::new(Arc::clone(&quota_limiter)),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
-                trace_attachments: TraceAttachmentsProcessor::new(quota_limiter),
+                trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
+                replays: ReplaysProcessor::new(quota_limiter, geoip_lookup.clone()),
             },
             geoip_lookup,
             config,
@@ -1757,14 +1760,18 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
+    // TODO: Start porting this logic over
     /// Processes replays.
     async fn process_replays(
         &self,
         managed_envelope: &mut TypedEnvelope<ReplayGroup>,
         ctx: processing::Context<'_>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
+        // Q: Check how this is handled in the other ports
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
+        // META: Do the processing
+        // Q: Is this taking a managed envelop an issue?
         replay::process(
             managed_envelope,
             ctx.global_config,
@@ -1773,6 +1780,8 @@ impl EnvelopeProcessorService {
             &self.inner.geoip_lookup,
         )?;
 
+        // META: Enforce the quotas
+        // Q: What is being extracted that needs the checks here.
         self.enforce_quotas(
             managed_envelope,
             Annotated::empty(),
@@ -1781,6 +1790,7 @@ impl EnvelopeProcessorService {
         )
         .await?;
 
+        // Obs: This seems to be the output of the processing
         Ok(Some(extracted_metrics))
     }
 
@@ -1913,6 +1923,7 @@ impl EnvelopeProcessorService {
             .meta_mut()
             .set_project_id(project_id);
 
+        // TODO: Understand what this is doing.
         macro_rules! run {
             ($fn_name:ident $(, $args:expr)*) => {
                 async {
@@ -1949,7 +1960,9 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Standalone => run!(process_standalone, project_id, ctx),
             ProcessingGroup::ClientReport => run!(process_client_reports, ctx),
             ProcessingGroup::Replay => {
-                run!(process_replays, ctx)
+                self.process_with_processor(&self.inner.processing.replays, managed_envelope, ctx)
+                    .await
+                // run!(process_replays, ctx)
             }
             ProcessingGroup::CheckIn => {
                 self.process_with_processor(&self.inner.processing.check_ins, managed_envelope, ctx)
