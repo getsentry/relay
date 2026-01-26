@@ -5,6 +5,8 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::processing::Context;
 use crate::processing::Managed;
 use crate::processing::profile_chunks::{Result, SerializedProfileChunks};
+use crate::statsd::RelayCounters;
+use crate::utils;
 
 /// Processes profile chunks.
 pub fn process(profile_chunks: &mut Managed<SerializedProfileChunks>, ctx: Context<'_>) {
@@ -13,6 +15,7 @@ pub fn process(profile_chunks: &mut Managed<SerializedProfileChunks>, ctx: Conte
         return;
     }
 
+    let sdk = utils::client_name_tag(profile_chunks.headers.meta().client_name());
     let client_ip = profile_chunks.headers.meta().client_addr();
     let filter_settings = &ctx.project_info.config.filter_settings;
 
@@ -41,6 +44,11 @@ pub fn process(profile_chunks: &mut Managed<SerializedProfileChunks>, ctx: Conte
             //
             // Once the item header on the item is required, this is no longer required.
             if item.profile_type().is_none() {
+                relay_statsd::metric!(
+                    counter(RelayCounters::ProfileChunksWithoutPlatform) += 1,
+                    sdk = sdk
+                );
+
                 item.set_profile_type(pc.profile_type());
                 match pc.profile_type() {
                     ProfileType::Ui => records.modify_by(DataCategory::ProfileChunkUi, 1),

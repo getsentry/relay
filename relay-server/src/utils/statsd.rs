@@ -44,11 +44,8 @@ pub fn platform_tag(event: &Event) -> &'static str {
 }
 
 /// Maps a client name to a low-cardinality statsd tag.
-pub fn client_name_tag(client_name: ClientName<'_>) -> &str {
-    match client_name {
-        ClientName::Other(_) => "other",
-        well_known => well_known.as_str(),
-    }
+pub fn client_name_tag(client_name: ClientName<'_>) -> &'static str {
+    client_name.as_static_str().unwrap_or("other")
 }
 
 /// Log statsd metrics about transaction name modifications.
