@@ -37,6 +37,8 @@ pub fn normalize_ai(
     normalize_ai_type(attributes);
     let span_origin = attributes
         .get_value(ORIGIN)
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let platform = attributes
         .get_value(PLATFORM)
         .and_then(|v| v.as_str())
