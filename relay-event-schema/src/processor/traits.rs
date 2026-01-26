@@ -17,7 +17,7 @@ pub enum ProcessingAction {
 
     /// Discards the value entirely, but leaves a remark.
     #[error("value should be hard-deleted (unreachable, should not surface as error!)")]
-    DeleteValueFirm,
+    DeleteValueWithRemark,
 
     /// Discards the value and moves it into meta's `original_value`.
     #[error("value should be hard-deleted (unreachable, should not surface as error!)")]

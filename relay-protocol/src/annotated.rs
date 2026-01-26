@@ -242,11 +242,11 @@ impl<T> Annotated<T> {
         self.0 = None;
     }
 
-    pub fn delete_firm(&mut self) {
+    pub fn delete_with_remark(&mut self) {
         self.0 = None;
         self.1.add_remark(Remark {
             ty: RemarkType::Removed,
-            rule_id: "delete_firm".to_owned(),
+            rule_id: "trimmed".to_owned(),
             range: None,
         });
     }

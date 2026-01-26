@@ -84,13 +84,13 @@ impl TrimmingProcessor {
     /// Returns a `ProcessingAction` for removing the given key.
     ///
     /// If there is enough `removed_key_byte_budget` left to accomodate the key,
-    /// this will be `ProcessingAction::DeleteFirm` (which causes a remark to be left).
-    /// Otherwise, it will be `ProcessingAction::DeleteHard` (the key is removed without a trace).
+    /// this will be `ProcessingAction::DeleteValueWithRemark` (which causes a remark to be left).
+    /// Otherwise, it will be `ProcessingAction::DeleteValueHard` (the key is removed without a trace).
     fn delete_value(&mut self, key: Option<&str>) -> ProcessingAction {
         let len = key.map_or(0, |key| key.len());
         if len <= self.removed_key_byte_budget {
             self.removed_key_byte_budget -= len;
-            ProcessingAction::DeleteValueFirm
+            ProcessingAction::DeleteValueWithRemark
         } else {
             ProcessingAction::DeleteValueHard
         }
@@ -290,13 +290,12 @@ impl Processor for TrimmingProcessor {
 
                 // Morally this is just `range_mut(split_key.as_str()..)`, but that doesn't work for type
                 // inference reasons.
-                for (key, value) in value.range_mut::<str, (Bound<&str>, Bound<&str>)>((
-                    Bound::Included(split_key.as_str()),
-                    Bound::Unbounded,
-                )) {
+                for (key, value) in value
+                    .range_mut::<str, _>((Bound::Included(split_key.as_str()), Bound::Unbounded))
+                {
                     match self.delete_value(Some(key.as_ref())) {
                         ProcessingAction::DeleteValueHard => break,
-                        ProcessingAction::DeleteValueFirm => value.delete_firm(),
+                        ProcessingAction::DeleteValueWithRemark => value.delete_with_remark(),
                         _ => unreachable!(),
                     }
 
@@ -355,7 +354,7 @@ impl Processor for TrimmingProcessor {
             for (key, value) in &mut sorted[split_idx..] {
                 match self.delete_value(Some(key.as_ref())) {
                     ProcessingAction::DeleteValueHard => break,
-                    ProcessingAction::DeleteValueFirm => value.delete_firm(),
+                    ProcessingAction::DeleteValueWithRemark => value.delete_with_remark(),
                     _ => unreachable!(),
                 }
 
@@ -448,7 +447,7 @@ mod tests {
                 "": {
                   "rem": [
                     [
-                      "delete_firm",
+                      "trimmed",
                       "x"
                     ]
                   ]
@@ -608,7 +607,7 @@ mod tests {
                 "": {
                   "rem": [
                     [
-                      "delete_firm",
+                      "trimmed",
                       "x"
                     ]
                   ]
@@ -685,7 +684,7 @@ mod tests {
                 "": {
                   "rem": [
                     [
-                      "delete_firm",
+                      "trimmed",
                       "x"
                     ]
                   ]
@@ -711,7 +710,7 @@ mod tests {
               "": {
                 "rem": [
                   [
-                    "delete_firm",
+                    "trimmed",
                     "x"
                   ]
                 ]
@@ -839,7 +838,7 @@ mod tests {
                 "": {
                   "rem": [
                     [
-                      "delete_firm",
+                      "trimmed",
                       "x"
                     ]
                   ]

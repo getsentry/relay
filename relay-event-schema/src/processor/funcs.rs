@@ -20,7 +20,7 @@ where
     match result {
         Ok(()) => (),
         Err(ProcessingAction::DeleteValueHard) => v.delete_hard(),
-        Err(ProcessingAction::DeleteValueFirm) => v.delete_firm(),
+        Err(ProcessingAction::DeleteValueWithRemark) => v.delete_with_remark(),
         Err(ProcessingAction::DeleteValueSoft) => v.delete_soft(),
 
         x @ Err(ProcessingAction::InvalidTransaction(_)) => return x,
