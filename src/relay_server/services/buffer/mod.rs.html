@@ -943,78 +943,81 @@
 <a href=#943 id=943 data-nosnippet>943</a>        <span class="macro">assert_eq!</span>(envelope_processor_rx.len(), <span class="number">0</span>);
 <a href=#944 id=944 data-nosnippet>944</a>
 <a href=#945 id=945 data-nosnippet>945</a>        <span class="kw">let </span>outcome = outcome_aggregator_rx.try_recv().unwrap();
-<a href=#946 id=946 data-nosnippet>946</a>        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::TransactionIndexed);
+<a href=#946 id=946 data-nosnippet>946</a>        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::Transaction);
 <a href=#947 id=947 data-nosnippet>947</a>        <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">1</span>);
-<a href=#948 id=948 data-nosnippet>948</a>    }
-<a href=#949 id=949 data-nosnippet>949</a>
-<a href=#950 id=950 data-nosnippet>950</a>    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
-<a href=#951 id=951 data-nosnippet>951</a>    </span><span class="kw">async fn </span>test_partitioned_buffer() {
-<a href=#952 id=952 data-nosnippet>952</a>        <span class="kw">let </span>(_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
-<a href=#953 id=953 data-nosnippet>953</a>            GlobalConfig::default(),
-<a href=#954 id=954 data-nosnippet>954</a>        )));
-<a href=#955 id=955 data-nosnippet>955</a>        <span class="kw">let </span>(outcome_aggregator, _outcome_rx) = Addr::custom();
-<a href=#956 id=956 data-nosnippet>956</a>        <span class="kw">let </span>project_cache_handle = ProjectCacheHandle::for_test();
-<a href=#957 id=957 data-nosnippet>957</a>        <span class="kw">let </span>(envelope_processor, <span class="kw-2">mut </span>envelope_processor_rx) = Addr::custom();
-<a href=#958 id=958 data-nosnippet>958</a>
-<a href=#959 id=959 data-nosnippet>959</a>        <span class="comment">// Create common services for both buffers
-<a href=#960 id=960 data-nosnippet>960</a>        </span><span class="kw">let </span>services = Services {
-<a href=#961 id=961 data-nosnippet>961</a>            envelope_processor,
-<a href=#962 id=962 data-nosnippet>962</a>            project_cache_handle: project_cache_handle.clone(),
-<a href=#963 id=963 data-nosnippet>963</a>            outcome_aggregator,
-<a href=#964 id=964 data-nosnippet>964</a>        };
-<a href=#965 id=965 data-nosnippet>965</a>
-<a href=#966 id=966 data-nosnippet>966</a>        <span class="comment">// Create two buffer services
-<a href=#967 id=967 data-nosnippet>967</a>        </span><span class="kw">let </span>config = Arc::new(Config::default());
+<a href=#948 id=948 data-nosnippet>948</a>        <span class="kw">let </span>outcome = outcome_aggregator_rx.try_recv().unwrap();
+<a href=#949 id=949 data-nosnippet>949</a>        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::TransactionIndexed);
+<a href=#950 id=950 data-nosnippet>950</a>        <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">1</span>);
+<a href=#951 id=951 data-nosnippet>951</a>    }
+<a href=#952 id=952 data-nosnippet>952</a>
+<a href=#953 id=953 data-nosnippet>953</a>    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
+<a href=#954 id=954 data-nosnippet>954</a>    </span><span class="kw">async fn </span>test_partitioned_buffer() {
+<a href=#955 id=955 data-nosnippet>955</a>        <span class="kw">let </span>(_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
+<a href=#956 id=956 data-nosnippet>956</a>            GlobalConfig::default(),
+<a href=#957 id=957 data-nosnippet>957</a>        )));
+<a href=#958 id=958 data-nosnippet>958</a>        <span class="kw">let </span>(outcome_aggregator, _outcome_rx) = Addr::custom();
+<a href=#959 id=959 data-nosnippet>959</a>        <span class="kw">let </span>project_cache_handle = ProjectCacheHandle::for_test();
+<a href=#960 id=960 data-nosnippet>960</a>        <span class="kw">let </span>(envelope_processor, <span class="kw-2">mut </span>envelope_processor_rx) = Addr::custom();
+<a href=#961 id=961 data-nosnippet>961</a>
+<a href=#962 id=962 data-nosnippet>962</a>        <span class="comment">// Create common services for both buffers
+<a href=#963 id=963 data-nosnippet>963</a>        </span><span class="kw">let </span>services = Services {
+<a href=#964 id=964 data-nosnippet>964</a>            envelope_processor,
+<a href=#965 id=965 data-nosnippet>965</a>            project_cache_handle: project_cache_handle.clone(),
+<a href=#966 id=966 data-nosnippet>966</a>            outcome_aggregator,
+<a href=#967 id=967 data-nosnippet>967</a>        };
 <a href=#968 id=968 data-nosnippet>968</a>
-<a href=#969 id=969 data-nosnippet>969</a>        <span class="kw">let </span>buffer1 = EnvelopeBufferService::new(
-<a href=#970 id=970 data-nosnippet>970</a>            <span class="number">0</span>,
-<a href=#971 id=971 data-nosnippet>971</a>            config.clone(),
-<a href=#972 id=972 data-nosnippet>972</a>            MemoryStat::default(),
-<a href=#973 id=973 data-nosnippet>973</a>            global_rx.clone(),
-<a href=#974 id=974 data-nosnippet>974</a>            services.clone(),
-<a href=#975 id=975 data-nosnippet>975</a>        );
-<a href=#976 id=976 data-nosnippet>976</a>
-<a href=#977 id=977 data-nosnippet>977</a>        <span class="kw">let </span>buffer2 = EnvelopeBufferService::new(
-<a href=#978 id=978 data-nosnippet>978</a>            <span class="number">1</span>,
-<a href=#979 id=979 data-nosnippet>979</a>            config.clone(),
-<a href=#980 id=980 data-nosnippet>980</a>            MemoryStat::default(),
-<a href=#981 id=981 data-nosnippet>981</a>            global_rx,
-<a href=#982 id=982 data-nosnippet>982</a>            services,
-<a href=#983 id=983 data-nosnippet>983</a>        );
-<a href=#984 id=984 data-nosnippet>984</a>
-<a href=#985 id=985 data-nosnippet>985</a>        <span class="comment">// Start both services and create partitioned buffer
-<a href=#986 id=986 data-nosnippet>986</a>        </span><span class="kw">let </span>observable1 = buffer1.start_in(<span class="kw-2">&amp;</span>TokioServiceSpawn);
-<a href=#987 id=987 data-nosnippet>987</a>        <span class="kw">let </span>observable2 = buffer2.start_in(<span class="kw-2">&amp;</span>TokioServiceSpawn);
-<a href=#988 id=988 data-nosnippet>988</a>
-<a href=#989 id=989 data-nosnippet>989</a>        <span class="kw">let </span>partitioned = PartitionedEnvelopeBuffer {
-<a href=#990 id=990 data-nosnippet>990</a>            buffers: Arc::new(<span class="macro">vec!</span>[observable1, observable2]),
-<a href=#991 id=991 data-nosnippet>991</a>            hasher: PartitionedEnvelopeBuffer::build_hasher(),
-<a href=#992 id=992 data-nosnippet>992</a>        };
-<a href=#993 id=993 data-nosnippet>993</a>
-<a href=#994 id=994 data-nosnippet>994</a>        <span class="comment">// Create two envelopes with different project keys
-<a href=#995 id=995 data-nosnippet>995</a>        </span><span class="kw">let </span>envelope1 = new_managed_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
-<a href=#996 id=996 data-nosnippet>996</a>        <span class="kw">let </span>project_key = envelope1.meta().public_key();
-<a href=#997 id=997 data-nosnippet>997</a>        <span class="kw">let </span>project_info = Arc::new(ProjectInfo::default());
-<a href=#998 id=998 data-nosnippet>998</a>        project_cache_handle
-<a href=#999 id=999 data-nosnippet>999</a>            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
-<a href=#1000 id=1000 data-nosnippet>1000</a>
-<a href=#1001 id=1001 data-nosnippet>1001</a>        <span class="kw">let </span>envelope2 = new_managed_envelope(<span class="bool-val">false</span>, <span class="string">"bar"</span>);
-<a href=#1002 id=1002 data-nosnippet>1002</a>        <span class="kw">let </span>project_key = envelope2.meta().public_key();
-<a href=#1003 id=1003 data-nosnippet>1003</a>        <span class="kw">let </span>project_info = Arc::new(ProjectInfo::default());
-<a href=#1004 id=1004 data-nosnippet>1004</a>        project_cache_handle
-<a href=#1005 id=1005 data-nosnippet>1005</a>            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
-<a href=#1006 id=1006 data-nosnippet>1006</a>
-<a href=#1007 id=1007 data-nosnippet>1007</a>        <span class="comment">// Send envelopes to their respective buffers
-<a href=#1008 id=1008 data-nosnippet>1008</a>        </span><span class="kw">let </span>buffer1 = <span class="kw-2">&amp;</span>partitioned.buffers[<span class="number">0</span>];
-<a href=#1009 id=1009 data-nosnippet>1009</a>        <span class="kw">let </span>buffer2 = <span class="kw-2">&amp;</span>partitioned.buffers[<span class="number">1</span>];
-<a href=#1010 id=1010 data-nosnippet>1010</a>
-<a href=#1011 id=1011 data-nosnippet>1011</a>        buffer1.addr().send(EnvelopeBuffer::Push(envelope1));
-<a href=#1012 id=1012 data-nosnippet>1012</a>        buffer2.addr().send(EnvelopeBuffer::Push(envelope2));
+<a href=#969 id=969 data-nosnippet>969</a>        <span class="comment">// Create two buffer services
+<a href=#970 id=970 data-nosnippet>970</a>        </span><span class="kw">let </span>config = Arc::new(Config::default());
+<a href=#971 id=971 data-nosnippet>971</a>
+<a href=#972 id=972 data-nosnippet>972</a>        <span class="kw">let </span>buffer1 = EnvelopeBufferService::new(
+<a href=#973 id=973 data-nosnippet>973</a>            <span class="number">0</span>,
+<a href=#974 id=974 data-nosnippet>974</a>            config.clone(),
+<a href=#975 id=975 data-nosnippet>975</a>            MemoryStat::default(),
+<a href=#976 id=976 data-nosnippet>976</a>            global_rx.clone(),
+<a href=#977 id=977 data-nosnippet>977</a>            services.clone(),
+<a href=#978 id=978 data-nosnippet>978</a>        );
+<a href=#979 id=979 data-nosnippet>979</a>
+<a href=#980 id=980 data-nosnippet>980</a>        <span class="kw">let </span>buffer2 = EnvelopeBufferService::new(
+<a href=#981 id=981 data-nosnippet>981</a>            <span class="number">1</span>,
+<a href=#982 id=982 data-nosnippet>982</a>            config.clone(),
+<a href=#983 id=983 data-nosnippet>983</a>            MemoryStat::default(),
+<a href=#984 id=984 data-nosnippet>984</a>            global_rx,
+<a href=#985 id=985 data-nosnippet>985</a>            services,
+<a href=#986 id=986 data-nosnippet>986</a>        );
+<a href=#987 id=987 data-nosnippet>987</a>
+<a href=#988 id=988 data-nosnippet>988</a>        <span class="comment">// Start both services and create partitioned buffer
+<a href=#989 id=989 data-nosnippet>989</a>        </span><span class="kw">let </span>observable1 = buffer1.start_in(<span class="kw-2">&amp;</span>TokioServiceSpawn);
+<a href=#990 id=990 data-nosnippet>990</a>        <span class="kw">let </span>observable2 = buffer2.start_in(<span class="kw-2">&amp;</span>TokioServiceSpawn);
+<a href=#991 id=991 data-nosnippet>991</a>
+<a href=#992 id=992 data-nosnippet>992</a>        <span class="kw">let </span>partitioned = PartitionedEnvelopeBuffer {
+<a href=#993 id=993 data-nosnippet>993</a>            buffers: Arc::new(<span class="macro">vec!</span>[observable1, observable2]),
+<a href=#994 id=994 data-nosnippet>994</a>            hasher: PartitionedEnvelopeBuffer::build_hasher(),
+<a href=#995 id=995 data-nosnippet>995</a>        };
+<a href=#996 id=996 data-nosnippet>996</a>
+<a href=#997 id=997 data-nosnippet>997</a>        <span class="comment">// Create two envelopes with different project keys
+<a href=#998 id=998 data-nosnippet>998</a>        </span><span class="kw">let </span>envelope1 = new_managed_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+<a href=#999 id=999 data-nosnippet>999</a>        <span class="kw">let </span>project_key = envelope1.meta().public_key();
+<a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="kw">let </span>project_info = Arc::new(ProjectInfo::default());
+<a href=#1001 id=1001 data-nosnippet>1001</a>        project_cache_handle
+<a href=#1002 id=1002 data-nosnippet>1002</a>            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
+<a href=#1003 id=1003 data-nosnippet>1003</a>
+<a href=#1004 id=1004 data-nosnippet>1004</a>        <span class="kw">let </span>envelope2 = new_managed_envelope(<span class="bool-val">false</span>, <span class="string">"bar"</span>);
+<a href=#1005 id=1005 data-nosnippet>1005</a>        <span class="kw">let </span>project_key = envelope2.meta().public_key();
+<a href=#1006 id=1006 data-nosnippet>1006</a>        <span class="kw">let </span>project_info = Arc::new(ProjectInfo::default());
+<a href=#1007 id=1007 data-nosnippet>1007</a>        project_cache_handle
+<a href=#1008 id=1008 data-nosnippet>1008</a>            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
+<a href=#1009 id=1009 data-nosnippet>1009</a>
+<a href=#1010 id=1010 data-nosnippet>1010</a>        <span class="comment">// Send envelopes to their respective buffers
+<a href=#1011 id=1011 data-nosnippet>1011</a>        </span><span class="kw">let </span>buffer1 = <span class="kw-2">&amp;</span>partitioned.buffers[<span class="number">0</span>];
+<a href=#1012 id=1012 data-nosnippet>1012</a>        <span class="kw">let </span>buffer2 = <span class="kw-2">&amp;</span>partitioned.buffers[<span class="number">1</span>];
 <a href=#1013 id=1013 data-nosnippet>1013</a>
-<a href=#1014 id=1014 data-nosnippet>1014</a>        <span class="comment">// Verify both envelopes were received
-<a href=#1015 id=1015 data-nosnippet>1015</a>        </span><span class="macro">assert!</span>(envelope_processor_rx.recv().<span class="kw">await</span>.is_some());
-<a href=#1016 id=1016 data-nosnippet>1016</a>        <span class="macro">assert!</span>(envelope_processor_rx.recv().<span class="kw">await</span>.is_some());
-<a href=#1017 id=1017 data-nosnippet>1017</a>        <span class="macro">assert!</span>(envelope_processor_rx.is_empty());
-<a href=#1018 id=1018 data-nosnippet>1018</a>    }
-<a href=#1019 id=1019 data-nosnippet>1019</a>}
+<a href=#1014 id=1014 data-nosnippet>1014</a>        buffer1.addr().send(EnvelopeBuffer::Push(envelope1));
+<a href=#1015 id=1015 data-nosnippet>1015</a>        buffer2.addr().send(EnvelopeBuffer::Push(envelope2));
+<a href=#1016 id=1016 data-nosnippet>1016</a>
+<a href=#1017 id=1017 data-nosnippet>1017</a>        <span class="comment">// Verify both envelopes were received
+<a href=#1018 id=1018 data-nosnippet>1018</a>        </span><span class="macro">assert!</span>(envelope_processor_rx.recv().<span class="kw">await</span>.is_some());
+<a href=#1019 id=1019 data-nosnippet>1019</a>        <span class="macro">assert!</span>(envelope_processor_rx.recv().<span class="kw">await</span>.is_some());
+<a href=#1020 id=1020 data-nosnippet>1020</a>        <span class="macro">assert!</span>(envelope_processor_rx.is_empty());
+<a href=#1021 id=1021 data-nosnippet>1021</a>    }
+<a href=#1022 id=1022 data-nosnippet>1022</a>}
 </code></pre></div></section></main></body></html>
