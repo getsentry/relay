@@ -128,7 +128,7 @@ jobs:
     outputs:
       devservices-files-changed: ${{ steps.changes.outputs.devservices-files-changed }}
     steps:
-      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v4.1.7
+      - uses: actions/checkout@v6.0.2
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         name: Check for file changes
         id: changes
