@@ -145,6 +145,9 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
         op if op.starts_with("ai.generateText.doGenerate") => "ai_client",
         op if op.starts_with("ai.generateText") => "agent",
 
+        op if op.starts_with("ai.generateObject.doGenerate") => "ai_client",
+        op if op.starts_with("ai.generateObject") => "agent",
+
         op if op.starts_with("ai.toolCall") => "tool",
         // No match:
         _ => return None,
