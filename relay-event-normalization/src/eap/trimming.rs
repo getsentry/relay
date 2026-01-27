@@ -781,7 +781,8 @@ mod tests {
               "value": [
                 "first string",
                 "second string",
-                "another..."
+                "another...",
+                null
               ]
             }
           },
@@ -792,9 +793,6 @@ mod tests {
               },
               "array": {
                 "value": {
-                  "": {
-                    "len": 4
-                  },
                   "2": {
                     "": {
                       "rem": [
@@ -806,6 +804,16 @@ mod tests {
                         ]
                       ],
                       "len": 14
+                    }
+                  },
+                  "3": {
+                    "": {
+                      "rem": [
+                        [
+                          "trimmed",
+                          "x"
+                        ]
+                      ]
                     }
                   }
                 }
