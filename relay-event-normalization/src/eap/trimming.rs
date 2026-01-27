@@ -240,7 +240,21 @@ impl Processor for TrimmingProcessor {
             }
 
             if let Some(split_index) = split_index {
-                let _ = value.split_off(split_index);
+                let mut i = split_index;
+
+                for item in &mut value[split_index..] {
+                    match self.delete_value(None) {
+                        ProcessingAction::DeleteValueHard => break,
+                        ProcessingAction::DeleteValueWithRemark(rule_id) => {
+                            item.delete_with_remark(rule_id)
+                        }
+                        _ => unreachable!(),
+                    }
+
+                    i += 1;
+                }
+
+                let _ = value.split_off(i);
             }
 
             if value.len() != original_length {
