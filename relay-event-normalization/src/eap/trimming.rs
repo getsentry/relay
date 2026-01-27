@@ -15,6 +15,24 @@ struct SizeState {
     size_remaining: Option<usize>,
 }
 
+/// The action to take when deleting a value.
+#[derive(Debug, Clone, Copy)]
+enum DeleteAction {
+    /// Delete the value without leaving a trace.
+    Hard,
+    /// Delete the value and leave a remark with the given rule ID.
+    WithRemark(&'static str),
+}
+
+impl From<DeleteAction> for ProcessingAction {
+    fn from(action: DeleteAction) -> Self {
+        match action {
+            DeleteAction::Hard => ProcessingAction::DeleteValueHard,
+            DeleteAction::WithRemark(rule_id) => ProcessingAction::DeleteValueWithRemark(rule_id),
+        }
+    }
+}
+
 /// Processor for trimming EAP items (logs, V2 spans).
 ///
 /// This primarily differs from the regular [`TrimmingProcessor`](crate::trimming::TrimmingProcessor)
@@ -81,18 +99,18 @@ impl TrimmingProcessor {
         }
     }
 
-    /// Returns a `ProcessingAction` for removing the given key.
+    /// Returns a `DeleteAction` for removing the given key.
     ///
     /// If there is enough `removed_key_byte_budget` left to accomodate the key,
-    /// this will be `ProcessingAction::DeleteValueWithRemark` (which causes a remark to be left).
-    /// Otherwise, it will be `ProcessingAction::DeleteValueHard` (the key is removed without a trace).
-    fn delete_value(&mut self, key: Option<&str>) -> ProcessingAction {
+    /// this will be `DeleteAction::WithRemark` (which causes a remark to be left).
+    /// Otherwise, it will be `DeleteAction::Hard` (the key is removed without a trace).
+    fn delete_value(&mut self, key: Option<&str>) -> DeleteAction {
         let len = key.map_or(0, |key| key.len());
         if len <= self.removed_key_byte_budget {
             self.removed_key_byte_budget -= len;
-            ProcessingAction::DeleteValueWithRemark("trimmed")
+            DeleteAction::WithRemark("trimmed")
         } else {
-            ProcessingAction::DeleteValueHard
+            DeleteAction::Hard
         }
     }
 }
@@ -117,10 +135,10 @@ impl Processor for TrimmingProcessor {
         if state.attrs().trim {
             let key = state.keys().next();
             if self.remaining_size() == Some(0) {
-                return Err(self.delete_value(key));
+                return Err(self.delete_value(key).into());
             }
             if self.remaining_depth(state) == Some(0) {
-                return Err(self.delete_value(key));
+                return Err(self.delete_value(key).into());
             }
         }
         Ok(())
@@ -244,11 +262,8 @@ impl Processor for TrimmingProcessor {
 
                 for item in &mut value[split_index..] {
                     match self.delete_value(None) {
-                        ProcessingAction::DeleteValueHard => break,
-                        ProcessingAction::DeleteValueWithRemark(rule_id) => {
-                            item.delete_with_remark(rule_id)
-                        }
-                        _ => unreachable!(),
+                        DeleteAction::Hard => break,
+                        DeleteAction::WithRemark(rule_id) => item.delete_with_remark(rule_id),
                     }
 
                     i += 1;
@@ -310,11 +325,8 @@ impl Processor for TrimmingProcessor {
                     i = key.as_str();
 
                     match self.delete_value(Some(key.as_ref())) {
-                        ProcessingAction::DeleteValueHard => break,
-                        ProcessingAction::DeleteValueWithRemark(rule_id) => {
-                            value.delete_with_remark(rule_id)
-                        }
-                        _ => unreachable!(),
+                        DeleteAction::Hard => break,
+                        DeleteAction::WithRemark(rule_id) => value.delete_with_remark(rule_id),
                     }
                 }
 
@@ -369,11 +381,8 @@ impl Processor for TrimmingProcessor {
 
             for (key, value) in &mut sorted[split_idx..] {
                 match self.delete_value(Some(key.as_ref())) {
-                    ProcessingAction::DeleteValueHard => break,
-                    ProcessingAction::DeleteValueWithRemark(rule_id) => {
-                        value.delete_with_remark(rule_id)
-                    }
-                    _ => unreachable!(),
+                    DeleteAction::Hard => break,
+                    DeleteAction::WithRemark(rule_id) => value.delete_with_remark(rule_id),
                 }
 
                 i += 1;
