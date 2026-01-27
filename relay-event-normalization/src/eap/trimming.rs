@@ -293,6 +293,8 @@ impl Processor for TrimmingProcessor {
                 for (key, value) in value
                     .range_mut::<str, _>((Bound::Included(split_key.as_str()), Bound::Unbounded))
                 {
+                    i = key.as_str();
+
                     match self.delete_value(Some(key.as_ref())) {
                         ProcessingAction::DeleteValueHard => break,
                         ProcessingAction::DeleteValueWithRemark(rule_id) => {
@@ -300,8 +302,6 @@ impl Processor for TrimmingProcessor {
                         }
                         _ => unreachable!(),
                     }
-
-                    i = key.as_str();
                 }
 
                 let split_key = i.to_owned();
