@@ -824,6 +824,16 @@ pub enum RelayCounters {
     /// Number of spans produced in the new format.
     #[cfg(feature = "processing")]
     SpanV2Produced,
+    /// Number of user sessions produced to the EAP snuba-items topic.
+    ///
+    /// This metric is only emitted when the `UserSessionsEap` feature flag is enabled,
+    /// tracking double-writes of session data to the EAP (Event Analytics Platform).
+    ///
+    /// This metric is tagged with:
+    ///  - `session_type`: Either `"update"` for individual session updates or `"aggregate"` for
+    ///    pre-aggregated session data.
+    #[cfg(feature = "processing")]
+    SessionsEapProduced,
     /// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,
     /// Minidump, Unreal.
     ///
@@ -991,6 +1001,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
             #[cfg(feature = "processing")]
             RelayCounters::SpanV2Produced => "store.produced.span_v2",
+            #[cfg(feature = "processing")]
+            RelayCounters::SessionsEapProduced => "sessions.eap.produced",
             RelayCounters::EventProtocol => "event.protocol",
             RelayCounters::EventTransaction => "event.transaction",
             RelayCounters::TransactionNameChanges => "event.transaction_name_changes",
