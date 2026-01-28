@@ -1,4 +1,4 @@
-use relay_protocol::{Annotated, IntoValue, Meta};
+use relay_protocol::{Annotated, IntoValue, Meta, Remark, RemarkType};
 
 use crate::processor::{
     ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
@@ -19,14 +19,37 @@ where
 
     match result {
         Ok(()) => (),
-        Err(ProcessingAction::DeleteValueHard) => v.delete_hard(),
-        Err(ProcessingAction::DeleteValueWithRemark(rule_id)) => v.delete_with_remark(rule_id),
-        Err(ProcessingAction::DeleteValueSoft) => v.delete_soft(),
+        Err(ProcessingAction::DeleteValueHard) => delete_hard(v),
+        Err(ProcessingAction::DeleteValueWithRemark(rule_id)) => delete_with_remark(v, rule_id),
+        Err(ProcessingAction::DeleteValueSoft) => delete_soft(v),
 
         x @ Err(ProcessingAction::InvalidTransaction(_)) => return x,
     }
 
     Ok(())
+}
+
+/// Deletes an `Annotated`'s value.
+pub fn delete_hard<T>(v: &mut Annotated<T>) {
+    v.0 = None;
+}
+
+/// Deletes an `Annotated`'s value and adds a remark to the metadata.
+///
+/// The passed `rule_id` is used in the remark.
+pub fn delete_with_remark<T>(v: &mut Annotated<T>, rule_id: &str) {
+    v.0 = None;
+    v.1.add_remark(Remark {
+        ty: RemarkType::Removed,
+        rule_id: rule_id.to_owned(),
+        range: None,
+    });
+}
+
+/// Deletes this `Annotated`'s value, but retains it as the original
+/// value in the metadata.
+pub fn delete_soft<T: IntoValue>(v: &mut Annotated<T>) {
+    v.1.set_original_value(v.0.take());
 }
 
 /// Processes the value using the given processor.

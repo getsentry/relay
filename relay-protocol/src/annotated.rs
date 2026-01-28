@@ -6,7 +6,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::meta::{Error, Meta};
 use crate::traits::{Empty, FromValue, IntoValue, SkipSerialization};
 use crate::value::{Map, Value};
-use crate::{Remark, RemarkType};
 
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
@@ -236,31 +235,6 @@ impl<T> Annotated<T> {
         }
 
         other()
-    }
-
-    /// Deletes this `Annotated`'s value.
-    pub fn delete_hard(&mut self) {
-        self.0 = None;
-    }
-
-    /// Deletes this `Annotated`'s value and adds a remark to the metadata.
-    ///
-    /// The passed `rule_id` is used in the remark.
-    pub fn delete_with_remark(&mut self, rule_id: &str) {
-        self.0 = None;
-        self.1.add_remark(Remark {
-            ty: RemarkType::Removed,
-            rule_id: rule_id.to_owned(),
-            range: None,
-        });
-    }
-}
-
-impl<T: IntoValue> Annotated<T> {
-    /// Deletes this `Annotated`'s value, but retains it as the original
-    /// value in the metadata.
-    pub fn delete_soft(&mut self) {
-        self.1.set_original_value(self.0.take());
     }
 }
 

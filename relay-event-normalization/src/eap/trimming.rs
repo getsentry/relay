@@ -263,7 +263,9 @@ impl Processor for TrimmingProcessor {
                 for item in &mut value[split_index..] {
                     match self.delete_value(None) {
                         DeleteAction::Hard => break,
-                        DeleteAction::WithRemark(rule_id) => item.delete_with_remark(rule_id),
+                        DeleteAction::WithRemark(rule_id) => {
+                            processor::delete_with_remark(item, rule_id)
+                        }
                     }
 
                     i += 1;
@@ -326,7 +328,9 @@ impl Processor for TrimmingProcessor {
 
                     match self.delete_value(Some(key.as_ref())) {
                         DeleteAction::Hard => break,
-                        DeleteAction::WithRemark(rule_id) => value.delete_with_remark(rule_id),
+                        DeleteAction::WithRemark(rule_id) => {
+                            processor::delete_with_remark(value, rule_id)
+                        }
                     }
                 }
 
@@ -382,7 +386,9 @@ impl Processor for TrimmingProcessor {
             for (key, value) in &mut sorted[split_idx..] {
                 match self.delete_value(Some(key.as_ref())) {
                     DeleteAction::Hard => break,
-                    DeleteAction::WithRemark(rule_id) => value.delete_with_remark(rule_id),
+                    DeleteAction::WithRemark(rule_id) => {
+                        processor::delete_with_remark(value, rule_id)
+                    }
                 }
 
                 i += 1;
