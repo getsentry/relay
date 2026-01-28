@@ -41,6 +41,7 @@ pub enum ReplayError {
 ///
 /// Returns `Ok(())`, if the Replay is valid and can be normalized. Otherwise, returns
 /// `Err(ReplayError::InvalidPayload)` describing the missing or invalid data.
+// FIXME: Change the error type once this is moved.
 pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
     replay
         .replay_id
