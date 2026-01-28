@@ -115,8 +115,8 @@ fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Dur
 /// This function extracts recognized AI integrations for cleaner metric tagging.
 fn map_origin_to_integration(origin: Option<&str>) -> &'static str {
     match origin {
-        Some(o) if o.starts_with("auto.ai.openai") => "openai",
         Some(o) if o.starts_with("auto.ai.openai_agents") => "openai_agents",
+        Some(o) if o.starts_with("auto.ai.openai") => "openai",
         Some(o) if o.starts_with("auto.ai.anthropic") => "anthropic",
         Some(o) if o.starts_with("auto.ai.cohere") => "cohere",
         Some(o) if o.starts_with("auto.vercelai.") => "vercelai",
@@ -126,8 +126,8 @@ fn map_origin_to_integration(origin: Option<&str>) -> &'static str {
         Some(o) if o.starts_with("auto.ai.pydantic_ai") => "pydantic_ai",
         Some(o) if o.starts_with("auto.ai.huggingface_hub") => "huggingface_hub",
         Some(o) if o.starts_with("auto.ai.litellm") => "litellm",
-        Some(o) if o.starts_with("auto.ai.mcp") => "mcp",
         Some(o) if o.starts_with("auto.ai.mcp_server") => "mcp_server",
+        Some(o) if o.starts_with("auto.ai.mcp") => "mcp",
         Some(o) if o.starts_with("auto.ai.claude_agent_sdk") => "claude_agent_sdk",
         Some(o) if o.starts_with("auto.ai.") => "other",
         Some(_) => "other",
@@ -199,13 +199,17 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
         return;
     };
 
-    let metric_label = if costs.input > 0.0 && costs.output > 0.0 {
+    let metric_label = if (costs.input > 0.0 && costs.output > 0.0)
+        || ((costs.input > 0.0 && costs.output == 0.0)
+            || (costs.input == 0.0 && costs.output > 0.0))
+    {
         "calculation_positive"
     } else if costs.input < 0.0 || costs.output < 0.0 {
         "calculation_negative"
     } else {
         "calculation_zero"
     };
+
     relay_statsd::metric!(
         counter(Counters::GenAiCostCalculationResult) += 1,
         result = metric_label,
