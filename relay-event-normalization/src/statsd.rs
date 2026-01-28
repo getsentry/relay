@@ -1,4 +1,16 @@
-use relay_statsd::TimerMetric;
+use relay_statsd::{CounterMetric, TimerMetric};
+
+pub enum Counters {
+    GenAiCostCalculationResult,
+}
+
+impl CounterMetric for Counters {
+    fn name(&self) -> &'static str {
+        match *self {
+            Self::GenAiCostCalculationResult => "genai.cost_calculation.result",
+        }
+    }
+}
 
 pub enum Timers {
     /// Measures how log normalization of SQL queries in span description take.
