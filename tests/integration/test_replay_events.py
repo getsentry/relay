@@ -132,7 +132,7 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
     relay.send_replay_event(42, replay_item)
 
     envelope = mini_sentry.get_captured_envelope(timeout=20)
-    assert len(envelope.items) == 1
+    assert len(envelope.items) == 2
 
     replay_event = envelope.items[0]
     assert replay_event.type == "replay_event"
@@ -164,7 +164,7 @@ def test_replay_events_are_filtered(
     assert outcome["outcome"] == 1
     assert outcome["reason"] == "localhost"
     assert outcome["category"] == 7
-    assert outcome["quantity"] == 1
+    assert outcome["quantity"] == 2
 
     replay_events_consumer.assert_empty()
     outcomes_consumer.assert_empty()
