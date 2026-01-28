@@ -1617,7 +1617,6 @@ impl EnvelopeProcessorService {
             .meta_mut()
             .set_project_id(project_id);
 
-        // TODO: Understand what this is doing.
         macro_rules! run {
             ($fn_name:ident $(, $args:expr)*) => {
                 async {
@@ -1661,7 +1660,6 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Replay => {
                 self.process_with_processor(&self.inner.processing.replays, managed_envelope, ctx)
                     .await
-                // run!(process_replays, ctx)
             }
             ProcessingGroup::CheckIn => {
                 self.process_with_processor(&self.inner.processing.check_ins, managed_envelope, ctx)
