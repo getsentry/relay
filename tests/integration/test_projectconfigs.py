@@ -271,7 +271,16 @@ def test_unparsable_project_config(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
-def test_cached_project_config(mini_sentry, relay):
+@pytest.mark.parametrize("i", range(25))
+def test_cached_project_config(mini_sentry, relay, i):
+    from http.client import HTTPConnection
+
+    HTTPConnection.debuglevel = 1
+    import logging
+
+    logging.basicConfig(level=logging.DEBUG)
+    logging.getLogger("urllib3").setLevel(logging.DEBUG)
+
     mini_sentry.project_config_ignore_revision = True
 
     project_key = 42

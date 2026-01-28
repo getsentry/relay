@@ -740,7 +740,7 @@ jobs:
     needs: build-setup
     name: Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
       SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}

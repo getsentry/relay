@@ -7,7 +7,7 @@ resolver = "2"
 # Debug information slows down the build and increases caches in the
 # target folder, but we don't require stack traces in most cases.
 debug = false
-opt-level = 1
+# opt-level = 1
 
 [profile.dev-debug]
 # A version of the dev profile with debug information enabled, for e.g. local
