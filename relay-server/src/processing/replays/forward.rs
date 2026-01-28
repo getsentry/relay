@@ -55,8 +55,6 @@ impl Forward for ReplaysOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        // FIXME: Already construct the kafka message here?
-
         let envelope = self.serialize_envelope(ctx)?;
         let envelope = ManagedEnvelope::from(envelope).into_processed();
 

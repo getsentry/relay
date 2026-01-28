@@ -28,7 +28,6 @@ pub enum Error {
     #[error("replay feature flag missing")]
     FilterFeatureFlag,
 
-    // TODO:: Q: Add a more detailed version here, for the (0,n) case?
     /// There is an invalid amount of `replay_event` and `replay_recording` items in the envelope.
     ///
     /// There should be either 0 of both or 1 of both.
@@ -55,7 +54,6 @@ pub enum Error {
     #[error("invalid replay")]
     InvalidReplayRecordingEvent,
 
-    // FIXME: Think about merging these since having both seems a bit overkill.
     /// The PII config for scrubbing the recording could not be loaded.
     #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
@@ -180,7 +178,6 @@ impl processing::Processor for ReplaysProcessor {
         replays: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        // TODO: Q: Does it make sense to check for ctx.processing here?
         let replays = filter::feature_flag(replays, ctx)?;
         let mut replays = process::expand(replays);
 
@@ -239,7 +236,6 @@ pub struct ExpandedReplays {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
-    // FIXME: Might not need to be a vec in the future.
     /// Expanded replays
     replays: Vec<ExpandedReplay>,
 }
