@@ -6,7 +6,7 @@ use crate::processing::Context;
 use crate::processing::replays::{Error, ExpandedReplays, SerializedReplays};
 use crate::statsd::RelayCounters;
 
-/// Reject data if the feature is disabled.
+/// Filters replays sent for a project which does not allow replay ingestion.
 pub fn feature_flag(
     replays: Managed<SerializedReplays>,
     ctx: Context<'_>,
@@ -22,6 +22,7 @@ pub fn feature_flag(
     }
 }
 
+/// Applies inbound filters to individual replays.
 pub fn filter(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
     let client_addr = replays.headers.meta().client_addr();
     let event_id = replays.headers.event_id();
@@ -29,9 +30,7 @@ pub fn filter(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
     replays.retain(
         |replays| &mut replays.replays,
         |replay, _| {
-            let Some(event) = replay.get_event().value() else {
-                return Err(Error::NoEventContent);
-            };
+            let event = replay.get_event().value().ok_or(Error::NoEventContent)?;
 
             relay_filter::should_filter(
                 event,

@@ -16,29 +16,29 @@ use crate::processing::replays::{
 use crate::statsd::RelayTimers;
 
 fn expand_video(item: &Item) -> Result<ExpandedReplay, Error> {
-    let (headers, payload) = item.destruct();
-
     let ReplayVideoEvent {
-        replay_event,
-        replay_recording,
-        replay_video,
-    } = rmp_serde::from_slice(&payload).map_err(|_| Error::InvalidReplayVideoEvent)?;
+        replay_event: event,
+        replay_recording: recording,
+        replay_video: video,
+    } = rmp_serde::from_slice(&item.payload()).map_err(|_| Error::InvalidReplayVideoEvent)?;
 
-    if replay_video.is_empty() {
+    if video.is_empty() {
         return Err(Error::InvalidReplayVideoEvent);
     }
 
-    let event = Annotated::<Replay>::from_json_bytes(&replay_event)
+    let event = Annotated::<Replay>::from_json_bytes(&event)
         .map_err(|e| Error::CouldNotParseEvent(e.to_string()))?;
 
     Ok(ExpandedReplay::NativeReplay {
-        video_header: headers,
         event,
-        recording: replay_recording,
-        video: replay_video,
+        recording,
+        video,
     })
 }
 
+/// Parses all serialized replays into their [`ExpandedReplays`] representation.
+///
+/// Discards items if they are invalid or there is an invalid combination/amount.
 pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
     replays.map(|replays, records| {
         let SerializedReplays {
@@ -54,14 +54,12 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
         match (events.as_slice(), recordings.as_slice()) {
             ([], []) => (),
             ([event], [recording]) => {
-                let (event_header, event_bytes) = event.destruct();
-                let (recording_header, recording_bytes) = recording.destruct();
+                let event_bytes = event.payload();
+                let recording_bytes = recording.payload();
 
                 match Annotated::<Replay>::from_json_bytes(&event_bytes) {
                     Ok(event) => {
                         replays.push(ExpandedReplay::WebReplay {
-                            event_header,
-                            recording_header,
                             event,
                             recording: recording_bytes,
                         });
@@ -82,8 +80,9 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
             }
         }
 
-        // From the SDKs it seems like there will only be onr video per envelope but that is not
-        // clearly specified anywhere.
+        // From the SDKs it seems like there will only be one video per envelope but that is not
+        // clearly specified anywhere. Also it seems like their will always only be a video or a
+        // (event, recording).
         for video in &videos {
             match expand_video(video) {
                 Ok(replay) => replays.push(replay),
@@ -95,8 +94,8 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
     })
 }
 
+/// Normalizes individual replay events.
 pub fn normalize(replays: &mut Managed<ExpandedReplays>, geoip_lookup: &GeoIpLookup) {
-    // Q: We now construct our config here on demand, is that ok, or do we want our own config?
     let meta = replays.headers.meta();
     let client_addr = meta.client_addr();
     let user_agent = RawUserAgentInfo {
@@ -109,14 +108,15 @@ pub fn normalize(replays: &mut Managed<ExpandedReplays>, geoip_lookup: &GeoIpLoo
             replay::normalize(
                 replay.get_event(),
                 client_addr,
-                &user_agent.as_deref(), // FIXME: Get rid of this.
+                &user_agent.as_deref(),
                 geoip_lookup,
             )
         }
     })
 }
 
-pub fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Error> {
+/// Applies PII scrubbing to individual replay events.
+fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Error> {
     if let Some(ref config) = ctx.project_info.config.pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
         processor::process_value(event, &mut processor, ProcessingState::root())
@@ -141,10 +141,14 @@ pub fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<()
 pub fn scrub(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
     replays.retain(
         |replays| &mut replays.replays,
-        |replay, _| scrub_event(replay.get_event(), ctx),
+        |replay, _| {
+            scrub_event(replay.get_event(), ctx)
+                .inspect_err(|err| relay_log::debug!("failed to scrub pii from replay: {err}"))
+        },
     );
 }
 
+/// Applies PII scrubbing to replay recordings.
 pub fn scrub_recording(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
     if !ctx
         .project_info

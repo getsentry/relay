@@ -10,7 +10,7 @@ use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 use serde::{Deserialize, Serialize};
 
-use crate::envelope::{EnvelopeHeaders, Item, ItemHeaders, ItemType};
+use crate::envelope::{EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -74,9 +74,9 @@ pub enum Error {
     #[error("replay filtered with reason: {0:?}")]
     Filtered(FilterStatKey),
 
-    /// Failed to re-serialize the replay event.
+    /// Failed to re-serialize the replay.
     #[error("failed to serialize replay")]
-    FailedToSerializeReplayEvent,
+    FailedToSerializeReplay,
 }
 
 impl OutcomeError for Error {
@@ -107,7 +107,7 @@ impl OutcomeError for Error {
                 Some(Outcome::RateLimited(reason_code))
             }
             Self::Filtered(key) => Some(Outcome::Filtered(key.clone())),
-            Self::FailedToSerializeReplayEvent => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::FailedToSerializeReplay => Some(Outcome::Invalid(DiscardReason::Internal)),
         };
         (outcome, self)
     }
@@ -135,7 +135,6 @@ impl ReplaysProcessor {
     }
 }
 
-// TODO: Q: We seems to use both `processing::Processor` and `Processor` ask about the preference.
 impl processing::Processor for ReplaysProcessor {
     type UnitOfWork = SerializedReplays;
     type Output = ReplaysOutput;
@@ -220,8 +219,11 @@ impl Counted for SerializedReplays {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ReplayVideoEvent {
+    /// Replay event (json).
     pub replay_event: Bytes,
+    /// Replay recording data (rrweb).
     pub replay_recording: Bytes,
+    /// Replay video (raw bytes).
     pub replay_video: Bytes,
 }
 
@@ -244,15 +246,7 @@ pub struct ExpandedReplays {
 
 impl Counted for ExpandedReplays {
     fn quantities(&self) -> crate::managed::Quantities {
-        let count: usize = self
-            .replays
-            .iter()
-            .map(|r| match r {
-                ExpandedReplay::WebReplay { .. } => 2,
-                ExpandedReplay::NativeReplay { .. } => 1,
-            })
-            .sum();
-        smallvec::smallvec![(DataCategory::Replay, count)]
+        self.replays.quantities()
     }
 }
 
@@ -260,24 +254,16 @@ impl CountRateLimited for Managed<ExpandedReplays> {
     type Error = Error;
 }
 
-#[derive(Debug)]
-// FIXME: Come up with some better naming here.
 /// An expanded Replay.
-///
-/// Either a web replay, not containing a video or a native replay with a video.
-#[expect(
-    clippy::large_enum_variant,
-    reason = "both variants contain large Annotated<Replay> which dominates the size"
-)]
+#[derive(Debug)]
 enum ExpandedReplay {
+    /// A web replay (event + rrweb recording)
     WebReplay {
-        event_header: ItemHeaders,
-        recording_header: ItemHeaders,
         event: Annotated<Replay>,
         recording: Bytes,
     },
+    /// A native replay (event + rrweb recording + video)
     NativeReplay {
-        video_header: ItemHeaders,
         event: Annotated<Replay>,
         recording: Bytes,
         video: Bytes,
@@ -300,38 +286,19 @@ impl Counted for ExpandedReplay {
 impl ExpandedReplay {
     fn get_event(&mut self) -> &mut Annotated<Replay> {
         match self {
-            ExpandedReplay::WebReplay {
-                event_header: _,
-                recording_header: _,
-                event,
-                recording: _,
-            } => event,
-            ExpandedReplay::NativeReplay {
-                video_header: _,
-                event,
-                recording: _,
-                video: _,
-            } => event,
+            ExpandedReplay::WebReplay { event, .. } => event,
+            ExpandedReplay::NativeReplay { event, .. } => event,
         }
     }
 
     fn get_recording(&mut self) -> &mut Bytes {
         match self {
-            ExpandedReplay::WebReplay {
-                event_header: _,
-                recording_header: _,
-                event: _,
-                recording,
-            } => recording,
-            ExpandedReplay::NativeReplay {
-                video_header: _,
-                event: _,
-                recording,
-                video: _,
-            } => recording,
+            ExpandedReplay::WebReplay { recording, .. } => recording,
+            ExpandedReplay::NativeReplay { recording, .. } => recording,
         }
     }
 }
 
+/// Output produced by the [`ReplaysProcessor`].
 #[derive(Debug)]
 pub struct ReplaysOutput(Managed<ExpandedReplays>);

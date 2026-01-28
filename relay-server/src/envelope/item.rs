@@ -26,7 +26,6 @@ impl Item {
     /// Creates a new item with the given type.
     pub fn new(ty: ItemType) -> Self {
         Self {
-            // FIXME: Check where / if they are currently being used for replays.
             headers: ItemHeaders {
                 ty,
                 length: Some(0),
@@ -531,16 +530,6 @@ impl Item {
         V: Into<Value>,
     {
         self.headers.other.insert(name.into(), value.into())
-    }
-
-    // FIXME: Temporary solution, might not need this in the end
-    pub fn from_parts(headers: ItemHeaders, payload: Bytes) -> Self {
-        Self { headers, payload }
-    }
-
-    pub fn destruct(&self) -> (ItemHeaders, Bytes) {
-        let Self { headers, payload } = self;
-        (headers.clone(), payload.clone())
     }
 
     /// Determines whether the given item creates an event.

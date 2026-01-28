@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use smallvec::{SmallVec, smallvec};
 
 use crate::Envelope;
 use crate::envelope::{ContentType, Item, ItemType, Items};
@@ -10,101 +11,36 @@ use crate::processing::replays::{
 };
 use crate::processing::{self, Forward};
 
-// FIXME: Simplify this function
+/// Errors that can occur when serializing an expanded replay into envelope items.
+#[derive(Debug, thiserror::Error)]
+enum SerializeReplayError {
+    /// Failed to serialize the replay event to JSON.
+    #[error("json serialization failed")]
+    Json(#[from] serde_json::Error),
+    /// Failed to serialize the replay video event to MessagePack.
+    #[error("msgpack serialization failed")]
+    MsgPack(#[from] rmp_serde::encode::Error),
+}
+
 impl Forward for ReplaysOutput {
     fn serialize_envelope(
         self,
         _ctx: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        Ok(self.0.map(|s, r| {
-            let ExpandedReplays { headers, replays } = s;
+        Ok(self.0.map(|replays, records| {
+            let ExpandedReplays { headers, replays } = replays;
             let mut items = Items::new();
-            let event_id = headers.event_id();
 
             for replay in replays {
-                match replay {
-                    ExpandedReplay::WebReplay {
-                        event_header,
-                        recording_header,
-                        event,
-                        recording,
-                    } => {
-                        // Parse the replay again.
-                        match event.to_json() {
-                            Ok(json) => {
-                                let event: Bytes = json.into_bytes().into();
-
-                                // items.push(Item::from_parts(event_header, event));
-                                let mut item = Item::new(ItemType::ReplayEvent);
-                                item.set_payload(ContentType::Json, event);
-                                items.push(item);
-
-                                items.push(Item::from_parts(recording_header, recording));
-                            }
-                            Err(error) => {
-                                relay_log::error!(
-                                    error = &error as &dyn std::error::Error,
-                                    event_id = ?event_id,
-                                    "failed to serialize replay"
-                                );
-
-                                // FIXME: Not a super fan of this.
-                                r.reject_err(
-                                    Error::FailedToSerializeReplayEvent,
-                                    ExpandedReplay::WebReplay {
-                                        event_header,
-                                        recording_header,
-                                        event,
-                                        recording,
-                                    },
-                                );
-                            }
-                        }
-                    }
-                    ExpandedReplay::NativeReplay {
-                        video_header,
-                        event,
-                        recording,
-                        video,
-                    } => {
-                        // FIXME: Kind of duplicate logic
-                        let event_bytes: Bytes = match event.to_json() {
-                            Ok(json) => json.into_bytes().into(),
-                            Err(error) => {
-                                relay_log::error!(
-                                    error = &error as &dyn std::error::Error,
-                                    event_id = ?event_id,
-                                    "failed to serialize replay"
-                                );
-
-                                r.reject_err(
-                                    Error::FailedToSerializeReplayEvent,
-                                    ExpandedReplay::NativeReplay {
-                                        video_header,
-                                        event,
-                                        recording,
-                                        video,
-                                    },
-                                );
-                                continue;
-                            }
-                        };
-
-                        let video_event = ReplayVideoEvent {
-                            replay_event: event_bytes,
-                            replay_recording: recording,
-                            replay_video: video,
-                        };
-                        match rmp_serde::to_vec_named(&video_event) {
-                            Ok(payload) => {
-                                items.push(Item::from_parts(video_header, payload.into()));
-                            }
-                            Err(_) => {
-                                // FIXME: Come up with a better error here.
-                                // Err(ProcessingError::InvalidReplay(DiscardReason::InvalidReplayVideoEvent,))
-                                r.reject_err(Error::FailedToSerializeReplayEvent, video_event);
-                            }
-                        }
+                match serialize_replay(&replay) {
+                    Ok(replay_items) => items.extend(replay_items),
+                    Err(error) => {
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            event_id = ?headers.event_id(),
+                            "failed to serialize replay"
+                        );
+                        records.reject_err(Error::FailedToSerializeReplay, replay);
                     }
                 }
             }
@@ -127,5 +63,52 @@ impl Forward for ReplaysOutput {
         s.store(crate::services::store::StoreEnvelope { envelope });
 
         Ok(())
+    }
+}
+
+fn create_replay_event_item(payload: Bytes) -> Item {
+    let mut item = Item::new(ItemType::ReplayEvent);
+    item.set_payload(ContentType::Json, payload);
+    item
+}
+
+fn create_replay_recording_item(payload: Bytes) -> Item {
+    let mut item = Item::new(ItemType::ReplayRecording);
+    item.set_payload(ContentType::OctetStream, payload);
+    item
+}
+
+fn create_replay_video_item(payload: Bytes) -> Item {
+    let mut item = Item::new(ItemType::ReplayVideo);
+    item.set_payload(ContentType::MsgPack, payload);
+    item
+}
+
+fn serialize_replay(replay: &ExpandedReplay) -> Result<SmallVec<[Item; 2]>, SerializeReplayError> {
+    match replay {
+        ExpandedReplay::WebReplay { event, recording } => {
+            let event_bytes: Bytes = event.to_json()?.into_bytes().into();
+
+            Ok(smallvec![
+                create_replay_event_item(event_bytes),
+                create_replay_recording_item(recording.clone()),
+            ])
+        }
+        ExpandedReplay::NativeReplay {
+            event,
+            recording,
+            video,
+        } => {
+            let event_bytes: Bytes = event.to_json()?.into_bytes().into();
+
+            let video_event = ReplayVideoEvent {
+                replay_event: event_bytes,
+                replay_recording: recording.clone(),
+                replay_video: video.clone(),
+            };
+
+            let payload = rmp_serde::to_vec_named(&video_event)?;
+            Ok(smallvec![create_replay_video_item(payload.into())])
+        }
     }
 }
