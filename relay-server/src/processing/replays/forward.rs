@@ -2,10 +2,13 @@ use bytes::Bytes;
 
 use crate::Envelope;
 use crate::envelope::{ContentType, Item, ItemType, Items};
-use crate::managed::{Managed, ManagedEnvelope, Rejected};
-use crate::processing::replays::{Error, ExpandedReplay, ExpandedReplays, ReplaysOutput};
+#[cfg(feature = "processing")]
+use crate::managed::ManagedEnvelope;
+use crate::managed::{Managed, Rejected};
+use crate::processing::replays::{
+    Error, ExpandedReplay, ExpandedReplays, ReplayVideoEvent, ReplaysOutput,
+};
 use crate::processing::{self, Forward};
-use crate::services::processor::replay::ReplayVideoEvent;
 
 // FIXME: Simplify this function
 impl Forward for ReplaysOutput {

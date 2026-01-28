@@ -8,6 +8,7 @@ use relay_filter::FilterStatKey;
 use relay_pii::PiiConfigError;
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
+use serde::{Deserialize, Serialize};
 
 use crate::envelope::{EnvelopeHeaders, Item, ItemHeaders, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Rejected};
@@ -214,6 +215,19 @@ impl Counted for SerializedReplays {
             DataCategory::Replay,
             self.events.len() + self.recordings.len() + self.videos.len()
         )]
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ReplayVideoEvent {
+    pub replay_event: Bytes,
+    pub replay_recording: Bytes,
+    pub replay_video: Bytes,
+}
+
+impl Counted for ReplayVideoEvent {
+    fn quantities(&self) -> crate::managed::Quantities {
+        smallvec::smallvec![(DataCategory::Replay, 1)]
     }
 }
 

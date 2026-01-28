@@ -10,8 +10,9 @@ use relay_statsd::metric;
 use crate::envelope::Item;
 use crate::managed::Managed;
 use crate::processing::Context;
-use crate::processing::replays::{Error, ExpandedReplay, ExpandedReplays, SerializedReplays};
-use crate::services::processor::replay::ReplayVideoEvent;
+use crate::processing::replays::{
+    Error, ExpandedReplay, ExpandedReplays, ReplayVideoEvent, SerializedReplays,
+};
 use crate::statsd::RelayTimers;
 
 fn expand_video(item: &Item) -> Result<ExpandedReplay, Error> {
