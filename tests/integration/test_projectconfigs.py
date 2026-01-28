@@ -271,7 +271,7 @@ def test_unparsable_project_config(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
-@pytest.mark.parametrize("i", range(25))
+@pytest.mark.parametrize("i", range(100))
 def test_cached_project_config(mini_sentry, relay, i):
     from http.client import HTTPConnection
 
