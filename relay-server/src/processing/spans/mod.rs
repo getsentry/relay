@@ -252,7 +252,7 @@ impl Forward for SpanOutput {
 
         let ctx = store::Context {
             server_sample_rate: spans.server_sample_rate,
-            retention: ctx.retention(|r| r.span.as_ref()),
+            retention: retention!(ctx, span),
         };
 
         let spans_and_attachments = spans.split(|spans| spans.into_parts());
