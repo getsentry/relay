@@ -1,3 +1,5 @@
+import pytest
+
 from datetime import datetime, timezone, timedelta
 from unittest import mock
 
@@ -27,12 +29,14 @@ def envelope_with_trace_metrics(*payloads: dict) -> Envelope:
     return envelope
 
 
+@pytest.mark.parametrize("retention_config_field", ("retentions", "item_configs"))
 def test_trace_metric_extraction(
     mini_sentry,
     relay,
     relay_with_processing,
     items_consumer,
     outcomes_consumer,
+    retention_config_field,
 ):
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -41,9 +45,20 @@ def test_trace_metric_extraction(
     project_config["config"]["features"] = [
         "organizations:tracemetrics-ingestion",
     ]
-    project_config["config"]["retentions"] = {
-        "traceMetric": {"standard": 30, "downsampled": 13 * 30},
-    }
+
+    if retention_config_field == "retentions":
+        project_config["config"]["retentions"] = {
+            "traceMetric": {"standard": 30, "downsampled": 13 * 30},
+        }
+    elif retention_config_field == "item_configs":
+        project_config["config"]["itemConfigs"] = {
+            "traceMetric": {"retention": {"standard": 30, "downsampled": 13 * 30}}
+        }
+        # Put a bogus value in `"retentions"`. The one in `"item_configs"` should
+        # take precedence.
+        project_config["config"]["retentions"] = {
+            "traceMetric": {"standard": 1, "downsampled": 1},
+        }
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
     start = datetime.now(timezone.utc)

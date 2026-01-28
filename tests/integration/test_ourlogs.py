@@ -54,12 +54,14 @@ def timestamps(ts: datetime):
     }
 
 
+@pytest.mark.parametrize("retention_config_field", ("retentions", "item_configs"))
 def test_ourlog_multiple_containers_not_allowed(
     mini_sentry,
     relay,
     relay_with_processing,
     items_consumer,
     outcomes_consumer,
+    retention_config_field,
 ):
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -68,9 +70,20 @@ def test_ourlog_multiple_containers_not_allowed(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-    project_config["config"]["retentions"] = {
-        "log": {"standard": 30, "downsampled": 13 * 30},
-    }
+
+    if retention_config_field == "retentions":
+        project_config["config"]["retentions"] = {
+            "log": {"standard": 30, "downsampled": 13 * 30},
+        }
+    elif retention_config_field == "item_configs":
+        project_config["config"]["itemConfigs"] = {
+            "log": {"retention": {"standard": 30, "downsampled": 13 * 30}}
+        }
+        # Put a bogus value in `"retentions"`. The one in `"item_configs"` should
+        # take precedence.
+        project_config["config"]["retentions"] = {
+            "log": {"standard": 1, "downsampled": 1},
+        }
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
     start = datetime.now(timezone.utc)
@@ -639,18 +652,31 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     }
 
 
+@pytest.mark.parametrize("retention_config_field", ("retentions", "item_configs"))
 def test_ourlog_extraction_is_disabled_without_feature(
     mini_sentry,
     relay_with_processing,
     items_consumer,
+    retention_config_field,
 ):
     items_consumer = items_consumer()
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["retentions"] = {
-        "log": {"standard": 30, "downsampled": 13 * 30},
-    }
+
+    if retention_config_field == "retentions":
+        project_config["config"]["retentions"] = {
+            "log": {"standard": 30, "downsampled": 13 * 30},
+        }
+    elif retention_config_field == "item_configs":
+        project_config["config"]["itemConfigs"] = {
+            "log": {"retention": {"standard": 30, "downsampled": 13 * 30}}
+        }
+        # Put a bogus value in `"retentions"`. The one in `"item_configs"` should
+        # take precedence.
+        project_config["config"]["retentions"] = {
+            "log": {"standard": 1, "downsampled": 1},
+        }
 
     project_config["config"]["features"] = []
 
