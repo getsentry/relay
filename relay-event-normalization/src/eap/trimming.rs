@@ -99,11 +99,11 @@ impl TrimmingProcessor {
         }
     }
 
-    /// Returns a `DeleteAction` for removing the given key.
+    /// Returns a [`DeleteAction`] for removing the given key.
     ///
     /// If there is enough `removed_key_byte_budget` left to accomodate the key,
-    /// this will be `DeleteAction::WithRemark` (which causes a remark to be left).
-    /// Otherwise, it will be `DeleteAction::Hard` (the key is removed without a trace).
+    /// this will be [`DeleteAction::WithRemark`] (which causes a remark to be left).
+    /// Otherwise, it will be [`DeleteAction::Hard`] (the key is removed without a trace).
     fn delete_value(&mut self, key: Option<&str>) -> DeleteAction {
         let len = key.map_or(0, |key| key.len());
         if len <= self.removed_key_byte_budget {
