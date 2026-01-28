@@ -581,7 +581,7 @@ dev = [
     { name = "types-requests", specifier = ">=2.32.4.20250611" },
     { name = "types-setuptools", specifier = ">=74.1.0.20240907" },
     { name = "werkzeug", specifier = ">=3.1.3" },
-    { name = "wheel", specifier = "==0.45.1" },
+    { name = "wheel", specifier = "==0.46.2" },
     { name = "zstandard", specifier = ">=0.18.0" },
 ]
 
@@ -755,10 +755,13 @@ wheels = [
 
 [[package]]
 name = "wheel"
-version = "0.45.1"
+version = "0.46.2"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
+dependencies = [
+    { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
 wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/wheel-0.45.1-py3-none-any.whl", hash = "sha256:708e7481cc80179af0e556bbf0cc00b8444c7321e2700b8d8580231d13017248" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/wheel-0.46.2-py3-none-any.whl", hash = "sha256:33ae60725d69eaa249bc1982e739943c23b34b58d51f1cb6253453773aca6e65" },
 ]
 
 [[package]]

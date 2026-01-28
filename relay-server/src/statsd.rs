@@ -956,6 +956,11 @@ pub enum RelayCounters {
     /// - `dsc`: yes or no
     /// - `sdk`: low-cardinality client name
     EnvelopeWithLogs,
+    /// Amount of profile chunks without a platform item header.
+    ///
+    /// The metric is emitted when processing profile chunks, profile chunks which are fast path
+    /// rate limited are not counted in this metric.
+    ProfileChunksWithoutPlatform,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1014,6 +1019,7 @@ impl CounterMetric for RelayCounters {
             #[cfg(feature = "processing")]
             RelayCounters::AttachmentUpload => "attachment.upload",
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
+            RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
         }
     }
 }
