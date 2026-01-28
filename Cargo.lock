@@ -394,7 +394,7 @@ dependencies = [
  "bitflags 2.9.4",
  "cexpr",
  "clang-sys",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -2171,7 +2171,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b0f83760fb341a774ed326568e19f5a863af4a952def8c39f9ab92fd95b88e5"
 dependencies = [
  "equivalent",
- "hashbrown 0.16.1",
+ "hashbrown 0.15.4",
 ]
 
 [[package]]
@@ -2269,15 +2269,6 @@ name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -2398,7 +2389,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -3133,7 +3124,7 @@ dependencies = [
  "prost 0.14.3",
  "serde",
  "serde_json",
- "tonic 0.14.2",
+ "tonic",
  "tonic-prost",
 ]
 
@@ -3571,7 +3562,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9552f850d5f0964a4e4d0bf306459ac29323ddfbae05e35a7c0d35cb0803cc5"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn",
@@ -3588,15 +3579,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "prost-types"
-version = "0.13.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4759aa0d3a6232fb8dbdb97b61de2c20047c68aca932c7ed76da9d788508d670"
-dependencies = [
- "prost 0.13.3",
 ]
 
 [[package]]
@@ -4533,7 +4515,7 @@ dependencies = [
  "pin-project-lite",
  "priority-queue",
  "prost 0.14.3",
- "prost-types 0.14.3",
+ "prost-types",
  "rand 0.9.2",
  "regex",
  "relay-auth",
@@ -4569,7 +4551,7 @@ dependencies = [
  "rmp-serde",
  "semver",
  "sentry",
- "sentry_protos 0.5.0",
+ "sentry_protos",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -5083,17 +5065,17 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "2.1.14"
+version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f01fcce99be02498bef97737246faf446ad246c3110b3190cc02df2e95c3398"
+checksum = "18d151a1fd11abf859f75d199a49ae16c4e0460d4461171ae2c6a477599ca6d7"
 dependencies = [
  "jsonschema",
- "prost 0.13.3",
- "sentry_protos 0.4.8",
+ "prost 0.14.3",
+ "sentry_protos",
  "serde",
  "serde_json",
  "serde_yaml",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "url",
 ]
 
@@ -5175,24 +5157,13 @@ dependencies = [
 
 [[package]]
 name = "sentry_protos"
-version = "0.4.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf33a607845b7433ca41476e79004c1e2eaebf682f4c1d8e2145a288914ce8d8"
-dependencies = [
- "prost 0.13.3",
- "prost-types 0.13.3",
- "tonic 0.13.1",
-]
-
-[[package]]
-name = "sentry_protos"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4544fc955b4587df17166521e836334c337c994d839f07e906d2838274d0d90a"
 dependencies = [
  "prost 0.14.3",
- "prost-types 0.14.3",
- "tonic 0.14.2",
+ "prost-types",
+ "tonic",
  "tonic-prost",
 ]
 
@@ -5879,7 +5850,7 @@ dependencies = [
  "getrandom 0.3.2",
  "once_cell",
  "rustix 1.0.7",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6099,35 +6070,6 @@ dependencies = [
 
 [[package]]
 name = "tonic"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e581ba15a835f4d9ea06c55ab1bd4dce26fc53752c69a04aac00703bfb49ba9"
-dependencies = [
- "async-trait",
- "axum",
- "base64 0.22.1",
- "bytes",
- "h2",
- "http",
- "http-body",
- "http-body-util",
- "hyper",
- "hyper-timeout",
- "hyper-util",
- "percent-encoding",
- "pin-project",
- "prost 0.13.3",
- "socket2 0.5.10",
- "tokio",
- "tokio-stream",
- "tower",
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
-name = "tonic"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb7613188ce9f7df5bfe185db26c5814347d110db17920415cf2fbcad85e7203"
@@ -6163,7 +6105,7 @@ checksum = "66bd50ad6ce1252d87ef024b3d64fe4c3cf54a86fb9ef4c631fdd0ded7aeaa67"
 dependencies = [
  "bytes",
  "prost 0.14.3",
- "tonic 0.14.2",
+ "tonic",
 ]
 
 [[package]]
