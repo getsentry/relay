@@ -262,10 +262,13 @@ impl CountRateLimited for Managed<ExpandedReplays> {
 
 #[derive(Debug)]
 // FIXME: Come up with some better naming here.
-// FIXME: Check if we can safely_ignore this warning
 /// An expanded Replay.
 ///
 /// Either a web replay, not containing a video or a native replay with a video.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "both variants contain large Annotated<Replay> which dominates the size"
+)]
 enum ExpandedReplay {
     WebReplay {
         event_header: ItemHeaders,
