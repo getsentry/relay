@@ -33,12 +33,14 @@ def envelope_with_spans(*payloads: dict, trace_info=None) -> Envelope:
     return envelope
 
 
+@pytest.mark.parametrize("retention_config_field", ("retentions", "item_configs"))
 def test_spansv2_basic(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
+    retention_config_field,
 ):
     """
     A basic test making sure spans can be ingested and have basic normalizations applied.
@@ -54,9 +56,26 @@ def test_spansv2_basic(
                 "organizations:standalone-span-ingestion",
                 "projects:span-v2-experimental-processing",
             ],
-            "retentions": {"span": {"standard": 42, "downsampled": 1337}},
         }
     )
+
+    if retention_config_field == "retentions":
+        project_config["config"].update(
+            {
+                "retentions": {"span": {"standard": 42, "downsampled": 1337}},
+            }
+        )
+    elif retention_config_field == "item_configs":
+        project_config["config"].update(
+            {
+                "itemConfigs": {
+                    "span": {"retention": {"standard": 42, "downsampled": 1337}}
+                },
+                # Put a bogus value in `"retentions"`. The one in `"item_configs"` should
+                # take precedence.
+                "retentions": {"span": {"standard": 1, "downsampled": 1}},
+            }
+        )
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
@@ -1126,11 +1145,9 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
     }
 
 
+@pytest.mark.parametrize("retention_config_field", ("retentions", "item_configs"))
 def test_spansv2_attribute_normalization(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    spans_consumer,
+    mini_sentry, relay, relay_with_processing, spans_consumer, retention_config_field
 ):
     """
     A test making sure spans undergo attribute normalization after ingestion.
@@ -1145,9 +1162,26 @@ def test_spansv2_attribute_normalization(
                 "organizations:standalone-span-ingestion",
                 "projects:span-v2-experimental-processing",
             ],
-            "retentions": {"span": {"standard": 42, "downsampled": 1337}},
         }
     )
+
+    if retention_config_field == "retentions":
+        project_config["config"].update(
+            {
+                "retentions": {"span": {"standard": 42, "downsampled": 1337}},
+            }
+        )
+    elif retention_config_field == "item_configs":
+        project_config["config"].update(
+            {
+                "itemConfigs": {
+                    "span": {"retention": {"standard": 42, "downsampled": 1337}}
+                },
+                # Put a bogus value in `"retentions"`. The one in `"item_configs"` should
+                # take precedence.
+                "retentions": {"span": {"standard": 1, "downsampled": 1}},
+            }
+        )
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 

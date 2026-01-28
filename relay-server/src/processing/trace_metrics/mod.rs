@@ -176,7 +176,7 @@ impl Forward for TraceMetricOutput {
         let ctx = store::Context {
             scoping: metrics.scoping(),
             received_at: metrics.received_at(),
-            retention: ctx.retention(|r| r.trace_metric.as_ref()),
+            retention: retention!(ctx, trace_metric),
         };
 
         for metric in metrics.split(|metrics| metrics.metrics) {

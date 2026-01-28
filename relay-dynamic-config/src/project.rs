@@ -50,6 +50,8 @@ pub struct ProjectConfig {
     /// Retention settings for different products.
     #[serde(default, skip_serializing_if = "RetentionsConfig::is_empty")]
     pub retentions: RetentionsConfig,
+    #[serde(default, skip_serializing_if = "ItemConfigs::is_empty")]
+    pub item_configs: ItemConfigs,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
@@ -159,6 +161,7 @@ impl Default for ProjectConfig {
             event_retention: None,
             downsampled_event_retention: None,
             retentions: Default::default(),
+            item_configs: Default::default(),
             quotas: Vec::new(),
             sampling: None,
             measurements: None,
@@ -274,6 +277,44 @@ impl RetentionsConfig {
         } = self;
 
         log.is_none() && span.is_none() && trace_metric.is_none() && trace_attachment.is_none()
+    }
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Default)]
+pub struct ItemConfig {
+    pub retention: Option<RetentionConfig>,
+}
+
+impl ItemConfig {
+    fn is_empty(&self) -> bool {
+        let Self { retention } = self;
+        retention.is_none()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemConfigs {
+    #[serde(default, skip_serializing_if = "ItemConfig::is_empty")]
+    pub log: ItemConfig,
+    #[serde(default, skip_serializing_if = "ItemConfig::is_empty")]
+    pub span: ItemConfig,
+    #[serde(default, skip_serializing_if = "ItemConfig::is_empty")]
+    pub trace_metric: ItemConfig,
+    #[serde(default, skip_serializing_if = "ItemConfig::is_empty")]
+    pub trace_attachment: ItemConfig,
+}
+
+impl ItemConfigs {
+    fn is_empty(&self) -> bool {
+        let Self {
+            log,
+            span,
+            trace_metric,
+            trace_attachment,
+        } = self;
+
+        log.is_empty() && span.is_empty() && trace_metric.is_empty() && trace_attachment.is_empty()
     }
 }
 

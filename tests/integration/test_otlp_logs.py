@@ -1,3 +1,5 @@
+import pytest
+
 from datetime import datetime, timezone, timedelta
 from unittest import mock
 
@@ -13,8 +15,14 @@ TEST_CONFIG = {
 }
 
 
+@pytest.mark.parametrize("retention_config_field", ("retentions", "item_configs"))
 def test_otlp_logs_conversion(
-    mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    outcomes_consumer,
+    items_consumer,
+    retention_config_field,
 ):
     """Test OTLP logs conversion including basic and complex attributes."""
     items_consumer = items_consumer()
@@ -25,9 +33,20 @@ def test_otlp_logs_conversion(
         "organizations:ourlogs-ingestion",
         "organizations:relay-otel-logs-endpoint",
     ]
-    project_config["config"]["retentions"] = {
-        "log": {"standard": 30, "downsampled": 13 * 30},
-    }
+
+    if retention_config_field == "retentions":
+        project_config["config"]["retentions"] = {
+            "log": {"standard": 30, "downsampled": 13 * 30},
+        }
+    elif retention_config_field == "item_configs":
+        project_config["config"]["itemConfigs"] = {
+            "log": {"retention": {"standard": 30, "downsampled": 13 * 30}}
+        }
+        # Put a bogus value in `"retentions"`. The one in `"item_configs"` should
+        # take precedence.
+        project_config["config"]["retentions"] = {
+            "log": {"standard": 1, "downsampled": 1},
+        }
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
@@ -182,8 +201,14 @@ def test_otlp_logs_conversion(
     ]
 
 
+@pytest.mark.parametrize("retention_config_field", ("retentions", "item_configs"))
 def test_otlp_logs_multiple_records(
-    mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    outcomes_consumer,
+    items_consumer,
+    retention_config_field,
 ):
     """Test multiple log records in a single payload."""
     items_consumer = items_consumer()
@@ -194,9 +219,20 @@ def test_otlp_logs_multiple_records(
         "organizations:ourlogs-ingestion",
         "organizations:relay-otel-logs-endpoint",
     ]
-    project_config["config"]["retentions"] = {
-        "log": {"standard": 30, "downsampled": 13 * 30},
-    }
+
+    if retention_config_field == "retentions":
+        project_config["config"]["retentions"] = {
+            "log": {"standard": 30, "downsampled": 13 * 30},
+        }
+    elif retention_config_field == "item_configs":
+        project_config["config"]["itemConfigs"] = {
+            "log": {"retention": {"standard": 30, "downsampled": 13 * 30}}
+        }
+        # Put a bogus value in `"retentions"`. The one in `"item_configs"` should
+        # take precedence.
+        project_config["config"]["retentions"] = {
+            "log": {"standard": 1, "downsampled": 1},
+        }
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 

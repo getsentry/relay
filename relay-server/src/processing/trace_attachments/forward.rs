@@ -41,7 +41,7 @@ impl Forward for Managed<ExpandedAttachments> {
         s: StoreHandle<'_>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let retention = ctx.retention(|r| r.trace_attachment.as_ref());
+        let retention = retention!(ctx, trace_attachment);
         let server_sample_rate = self.server_sample_rate;
         for attachment in self.split(|work| work.attachments) {
             if let Ok(message) = store::convert(attachment, retention, server_sample_rate) {

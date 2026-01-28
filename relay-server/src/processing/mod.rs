@@ -16,6 +16,7 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
 mod common;
+#[macro_use]
 mod forward;
 mod limits;
 

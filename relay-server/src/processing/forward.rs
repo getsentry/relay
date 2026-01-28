@@ -1,7 +1,7 @@
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 #[cfg(feature = "processing")]
-use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
+use relay_dynamic_config::RetentionConfig;
 #[cfg(feature = "processing")]
 use relay_system::{Addr, FromMessage};
 
@@ -82,20 +82,24 @@ pub struct ForwardContext<'a> {
     pub project_info: &'a ProjectInfo,
 }
 
+/// Extracts a [`Retention`] for an `item` type from a [`ForwardContext`].
+///
+/// This will first try the `item_configs` in the contained project config,
+/// then the `retentions`, then [`ForwardContext::event_retention()`].
+macro_rules! retention {
+    ($ctx:expr, $item:ident) => {
+        if let Some(retention) = $ctx.project_info.config.item_configs.$item.retention {
+            crate::processing::forward::Retention::from(retention)
+        } else if let Some(retention) = $ctx.project_info.config.retentions.$item {
+            crate::processing::forward::Retention::from(retention)
+        } else {
+            $ctx.event_retention()
+        }
+    };
+}
+
 #[cfg(feature = "processing")]
 impl ForwardContext<'_> {
-    /// Returns the [`Retention`] for a specific type/product.
-    pub fn retention<F>(&self, f: F) -> Retention
-    where
-        F: FnOnce(&RetentionsConfig) -> Option<&RetentionConfig>,
-    {
-        if let Some(retention) = f(&self.project_info.config.retentions) {
-            return Retention::from(*retention);
-        }
-
-        self.event_retention()
-    }
-
     /// Returns the event [`Retention`].
     ///
     /// This retention is also often used for older products and can be considered a default

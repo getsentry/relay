@@ -192,7 +192,7 @@ impl Forward for LogOutput {
         let ctx = store::Context {
             scoping: logs.scoping(),
             received_at: logs.received_at(),
-            retention: ctx.retention(|r| r.log.as_ref()),
+            retention: retention!(ctx, log),
         };
 
         for log in logs.split(|logs| logs.logs) {
