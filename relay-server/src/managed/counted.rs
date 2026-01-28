@@ -60,6 +60,12 @@ impl Counted for (DataCategory, usize) {
     }
 }
 
+impl<const N: usize> Counted for [(DataCategory, usize); N] {
+    fn quantities(&self) -> Quantities {
+        smallvec::SmallVec::from_slice(self)
+    }
+}
+
 impl Counted for Item {
     fn quantities(&self) -> Quantities {
         self.quantities()
@@ -68,11 +74,15 @@ impl Counted for Item {
 
 impl Counted for Box<Envelope> {
     fn quantities(&self) -> Quantities {
+        EnvelopeSummary::compute(self).quantities()
+    }
+}
+
+impl Counted for EnvelopeSummary {
+    fn quantities(&self) -> Quantities {
         let mut quantities = Quantities::new();
 
-        // This matches the implementation of `ManagedEnvelope::reject`.
-        let summary = EnvelopeSummary::compute(self);
-        if let Some(category) = summary.event_category {
+        if let Some(category) = self.event_category {
             quantities.push((category, 1));
             if let Some(category) = category.index_category() {
                 quantities.push((category, 1));
@@ -80,35 +90,29 @@ impl Counted for Box<Envelope> {
         }
 
         let data = [
-            (
-                DataCategory::Attachment,
-                summary.attachment_quantities.bytes(),
-            ),
+            (DataCategory::Attachment, self.attachment_quantities.bytes()),
             (
                 DataCategory::AttachmentItem,
-                summary.attachment_quantities.count(),
+                self.attachment_quantities.count(),
             ),
-            (DataCategory::Profile, summary.profile_quantity),
-            (DataCategory::ProfileIndexed, summary.profile_quantity),
-            (DataCategory::Span, summary.span_quantity),
-            (DataCategory::SpanIndexed, summary.span_quantity),
+            (DataCategory::Profile, self.profile_quantity),
+            (DataCategory::ProfileIndexed, self.profile_quantity),
+            (DataCategory::Span, self.span_quantity),
+            (DataCategory::SpanIndexed, self.span_quantity),
             (
                 DataCategory::Transaction,
-                summary.secondary_transaction_quantity,
+                self.secondary_transaction_quantity,
             ),
-            (DataCategory::Span, summary.secondary_span_quantity),
-            (DataCategory::Replay, summary.replay_quantity),
-            (DataCategory::ProfileChunk, summary.profile_chunk_quantity),
-            (
-                DataCategory::ProfileChunkUi,
-                summary.profile_chunk_ui_quantity,
-            ),
-            (DataCategory::UserReportV2, summary.user_report_quantity),
-            (DataCategory::TraceMetric, summary.trace_metric_quantity),
-            (DataCategory::LogItem, summary.log_item_quantity),
-            (DataCategory::LogByte, summary.log_byte_quantity),
-            (DataCategory::Monitor, summary.monitor_quantity),
-            (DataCategory::Session, summary.session_quantity),
+            (DataCategory::Span, self.secondary_span_quantity),
+            (DataCategory::Replay, self.replay_quantity),
+            (DataCategory::ProfileChunk, self.profile_chunk_quantity),
+            (DataCategory::ProfileChunkUi, self.profile_chunk_ui_quantity),
+            (DataCategory::UserReportV2, self.user_report_quantity),
+            (DataCategory::TraceMetric, self.trace_metric_quantity),
+            (DataCategory::LogItem, self.log_item_quantity),
+            (DataCategory::LogByte, self.log_byte_quantity),
+            (DataCategory::Monitor, self.monitor_quantity),
+            (DataCategory::Session, self.session_quantity),
         ];
 
         for (category, quantity) in data {

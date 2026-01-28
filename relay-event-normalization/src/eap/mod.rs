@@ -17,13 +17,15 @@ use relay_spans::derive_op_for_v2_span;
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::description::{scrub_db_query, scrub_http};
 use crate::span::tag_extraction::{
-    domain_from_scrubbed_http, domain_from_server_address, sql_action_from_query,
-    sql_tables_from_query,
+    domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
+    sql_action_from_query, sql_tables_from_query,
 };
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
 mod size;
+#[allow(unused)]
+mod trimming;
 
 pub use self::ai::normalize_ai;
 pub use self::size::*;
@@ -39,6 +41,64 @@ pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
     let inferred_op = derive_op_for_v2_span(attributes);
     let attrs = attributes.get_or_insert_with(Default::default);
     attrs.insert_if_missing(OP, || inferred_op);
+}
+
+/// Infers the sentry.category attribute and inserts it into `attributes` if not
+/// already set.  The category is derived from the span operation or other span
+/// attributes.
+pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
+    let Some(attributes_val) = attributes.value() else {
+        return;
+    };
+
+    // Clients can explicitly set the category.
+    if attribute_is_nonempty_string(attributes_val, SENTRY_CATEGORY) {
+        return;
+    }
+
+    // Try to derive category from sentry.op.
+    if let Some(op_value) = attributes_val.get_value(OP)
+        && let Some(op_str) = op_value.as_str()
+    {
+        let op_lowercase = op_str.to_lowercase();
+        if let Some(category) = span_op_to_category(&op_lowercase) {
+            let attrs = attributes.get_or_insert_with(Default::default);
+            attrs.insert(SENTRY_CATEGORY, category.to_owned());
+            return;
+        }
+    }
+
+    // Without an op, rely on attributes typically found only on spans of the given category.
+    let category = if attribute_is_nonempty_string(attributes_val, DB_SYSTEM_NAME) {
+        Some("db")
+    } else if attribute_is_nonempty_string(attributes_val, HTTP_REQUEST_METHOD) {
+        Some("http")
+    } else if attribute_is_nonempty_string(attributes_val, UI_COMPONENT_NAME) {
+        Some("ui")
+    } else if attribute_is_nonempty_string(attributes_val, RESOURCE_RENDER_BLOCKING_STATUS) {
+        Some("resource")
+    } else if attributes_val
+        .get_value(ORIGIN)
+        .and_then(|v| v.as_str())
+        .is_some_and(|v| v == "auto.ui.browser.metrics")
+    {
+        Some("browser")
+    } else {
+        None
+    };
+
+    // Write the derived category to attributes
+    if let Some(category) = category {
+        let attrs = attributes.get_or_insert_with(Default::default);
+        attrs.insert(SENTRY_CATEGORY, category.to_owned());
+    }
+}
+
+fn attribute_is_nonempty_string(attributes: &Attributes, key: &str) -> bool {
+    attributes
+        .get_value(key)
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| !s.is_empty())
 }
 
 /// Normalizes/validates all attribute types.
@@ -477,19 +537,29 @@ fn normalize_http_attributes(
     };
 
     // Skip normalization if not an http span.
-    // This is equivalent to conditionally scrubbing by span category in the V1 pipeline.
-    if !attributes.contains_key(HTTP_REQUEST_METHOD)
-        && !attributes.contains_key(LEGACY_HTTP_REQUEST_METHOD)
+    if attributes
+        .get_value(SENTRY_CATEGORY)
+        .is_none_or(|category| category.as_str().unwrap_or_default() != "http")
     {
         return;
     }
 
     let op = attributes.get_value(OP).and_then(|v| v.as_str());
 
+    let (description_method, description_url) = match attributes
+        .get_value(DESCRIPTION)
+        .and_then(|v| v.as_str())
+        .and_then(|description| description.split_once(' '))
+    {
+        Some((method, url)) => (Some(method), Some(url)),
+        _ => (None, None),
+    };
+
     let method = attributes
         .get_value(HTTP_REQUEST_METHOD)
         .or_else(|| attributes.get_value(LEGACY_HTTP_REQUEST_METHOD))
-        .and_then(|v| v.as_str());
+        .and_then(|v| v.as_str())
+        .or(description_method);
 
     let server_address = attributes
         .get_value(SERVER_ADDRESS)
@@ -498,12 +568,7 @@ fn normalize_http_attributes(
     let url: Option<&str> = attributes
         .get_value(URL_FULL)
         .and_then(|v| v.as_str())
-        .or_else(|| {
-            attributes
-                .get_value(DESCRIPTION)
-                .and_then(|v| v.as_str())
-                .and_then(|description| description.split_once(' ').map(|(_, url)| url))
-        });
+        .or(description_url);
     let url_scheme = attributes.get_value(URL_SCHEME).and_then(|v| v.as_str());
 
     // If the span op is "http.client" and the method and url are present,
@@ -555,13 +620,14 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     // Map of new sentry conventions attributes to legacy SpanV1 attributes
     let current_to_legacy_attributes = [
         // DB attributes
+        (DB_QUERY_TEXT, DESCRIPTION),
         (NORMALIZED_DB_QUERY, SENTRY_NORMALIZED_DESCRIPTION),
-        (NORMALIZED_DB_QUERY_HASH, SENTRY_GROUP),
         (DB_OPERATION_NAME, SENTRY_ACTION),
-        (DB_COLLECTION_NAME, SENTRY_DOMAIN),
+        (DB_SYSTEM_NAME, DB_SYSTEM),
         // HTTP attributes
         (SERVER_ADDRESS, SENTRY_DOMAIN),
         (HTTP_REQUEST_METHOD, SENTRY_ACTION),
+        (HTTP_RESPONSE_STATUS_CODE, SENTRY_STATUS_CODE),
     ];
 
     for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
@@ -571,6 +637,30 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
             };
             attributes.insert(legacy_attribute, attr.value.clone());
         }
+    }
+
+    if !attributes.contains_key(SENTRY_DOMAIN)
+        && let Some(db_domain) = attributes
+            .get_value(DB_COLLECTION_NAME)
+            .and_then(|value| value.as_str())
+            .map(|collection_name| collection_name.to_owned())
+    {
+        // sentry.domain must be wrapped in preceding and trailing commas, for old hacky reasons.
+        attributes.insert(
+            SENTRY_DOMAIN,
+            match (db_domain.starts_with(','), db_domain.ends_with(',')) {
+                (true, true) => db_domain,
+                (true, false) => format!("{db_domain},"),
+                (false, true) => format!(",{db_domain}"),
+                (false, false) => format!(",{db_domain},"),
+            },
+        );
+    }
+
+    if let Some(&Value::String(method)) = attributes.get_value(HTTP_REQUEST_METHOD).as_ref()
+        && let Some(&Value::String(url)) = attributes.get_value(URL_FULL).as_ref()
+    {
+        attributes.insert(DESCRIPTION, format!("{method} {url}"))
     }
 }
 
@@ -1374,6 +1464,10 @@ mod tests {
             "type": "string",
             "value": "http.client"
           },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "http.request.method": {
             "type": "string",
             "value": "GET"
@@ -1394,6 +1488,10 @@ mod tests {
           "http.request.method": {
             "type": "string",
             "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
           },
           "sentry.op": {
             "type": "string",
@@ -1416,6 +1514,10 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
         {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1445,6 +1547,10 @@ mod tests {
             "type": "string",
             "value": "GET"
           },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1470,6 +1576,10 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
         {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1497,6 +1607,10 @@ mod tests {
           "http.request.method": {
             "type": "string",
             "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
           },
           "sentry.op": {
             "type": "string",
@@ -1585,6 +1699,10 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
         {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1613,6 +1731,10 @@ mod tests {
           "http.request_method": {
             "type": "string",
             "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
           },
           "sentry.description": {
             "type": "string",
@@ -1688,6 +1810,10 @@ mod tests {
             "type": "string",
             "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
           },
+          "db.system": {
+            "type": "string",
+            "value": "mongodb"
+          },
           "db.system.name": {
             "type": "string",
             "value": "mongodb"
@@ -1696,13 +1822,13 @@ mod tests {
             "type": "string",
             "value": "FIND"
           },
+          "sentry.description": {
+            "type": "string",
+            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
+          },
           "sentry.domain": {
             "type": "string",
-            "value": "documents"
-          },
-          "sentry.group": {
-            "type": "string",
-            "value": "aedc5c7e8cec726b"
+            "value": ",documents,"
           },
           "sentry.normalized_db_query": {
             "type": "string",
@@ -1719,6 +1845,293 @@ mod tests {
           "sentry.op": {
             "type": "string",
             "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_explicit() {
+        // Category is already explicitly set, should not be overwritten
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "sentry.category": {
+            "type": "string",
+            "value": "custom"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "custom"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_op_db() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "db"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_op_http() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_op_ui_framework() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "sentry.op": {
+            "type": "string",
+            "value": "ui.react.render"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "ui.react"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "ui.react.render"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_db_system() {
+        // Category derived from db.system.name when no op
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_http_method() {
+        // Category derived from http.request.method when no op or db
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_ui_component() {
+        // Category derived from ui.component_name
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "ui.component_name": {
+            "type": "string",
+            "value": "MyComponent"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "ui"
+          },
+          "ui.component_name": {
+            "type": "string",
+            "value": "MyComponent"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_resource() {
+        // Category derived from resource.render_blocking_status
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "resource.render_blocking_status": {
+            "type": "string",
+            "value": "blocking"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "resource.render_blocking_status": {
+            "type": "string",
+            "value": "blocking"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "resource"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_browser_origin() {
+        // Category derived from sentry.origin with browser metrics value
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.ui.browser.metrics"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "browser"
+          },
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.ui.browser.metrics"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_no_match() {
+        // No category derived when no relevant attributes are present
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "some.other.attribute": {
+            "type": "string",
+            "value": "value"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "some.other.attribute": {
+            "type": "string",
+            "value": "value"
           }
         }
         "#);

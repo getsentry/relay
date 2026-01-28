@@ -1,6 +1,5 @@
 //! AI cost calculation.
 
-use crate::normalize::AiOperationTypeMap;
 use crate::{ModelCostV2, ModelCosts};
 use relay_event_schema::protocol::{
     Event, Measurements, OperationType, Span, SpanData, TraceContext,
@@ -16,6 +15,10 @@ pub struct UsedTokens {
     ///
     /// This is a subset of [`Self::input_tokens`].
     pub input_cached_tokens: f64,
+    /// Amount of cache write tokens used.
+    ///
+    /// This is a subset of [`Self::input_tokens`].
+    pub input_cache_write_tokens: f64,
     /// Total amount of output tokens.
     pub output_tokens: f64,
     /// Total amount of reasoning tokens.
@@ -38,6 +41,7 @@ impl UsedTokens {
             output_tokens: get_value!(data.gen_ai_usage_output_tokens),
             output_reasoning_tokens: get_value!(data.gen_ai_usage_output_tokens_reasoning),
             input_cached_tokens: get_value!(data.gen_ai_usage_input_tokens_cached),
+            input_cache_write_tokens: get_value!(data.gen_ai_usage_input_tokens_cache_write),
         }
     }
 
@@ -86,7 +90,8 @@ pub fn calculate_costs(model_cost: &ModelCostV2, tokens: UsedTokens) -> Option<C
     }
 
     let input = (tokens.raw_input_tokens() * model_cost.input_per_token)
-        + (tokens.input_cached_tokens * model_cost.input_cached_per_token);
+        + (tokens.input_cached_tokens * model_cost.input_cached_per_token)
+        + (tokens.input_cache_write_tokens * model_cost.input_cache_write_per_token);
 
     // For now most of the models do not differentiate between reasoning and output token cost,
     // it costs the same.
@@ -99,6 +104,56 @@ pub fn calculate_costs(model_cost: &ModelCostV2, tokens: UsedTokens) -> Option<C
         + (tokens.output_reasoning_tokens * reasoning_cost);
 
     Some(CalculatedCost { input, output })
+}
+
+/// Default AI operation stored in [`GEN_AI_OPERATION_TYPE`](relay_conventions::GEN_AI_OPERATION_TYPE)
+/// for AI spans without a well known AI span op.
+///
+/// See also: [`infer_ai_operation_type`].
+pub const DEFAULT_AI_OPERATION: &str = "ai_client";
+
+/// Infers the AI operation from an AI operation name.
+///
+/// The operation name is usually inferred from the
+/// [`GEN_AI_OPERATION_NAME`](relay_conventions::GEN_AI_OPERATION_NAME) span attribute and the span
+/// operation.
+///
+/// Sentry expects the operation type in the
+/// [`GEN_AI_OPERATION_TYPE`](relay_conventions::GEN_AI_OPERATION_TYPE) attribute.
+///
+/// The function returns `None` when the op is not a well known AI operation, callers likely want to default
+/// the value to [`DEFAULT_AI_OPERATION`] for AI spans.
+pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
+    let ai_op = match op_name {
+        // Full matches:
+        "ai.run.generateText"
+        | "ai.run.generateObject"
+        | "gen_ai.invoke_agent"
+        | "ai.pipeline.generate_text"
+        | "ai.pipeline.generate_object"
+        | "ai.pipeline.stream_text"
+        | "ai.pipeline.stream_object"
+        | "gen_ai.create_agent"
+        | "invoke_agent"
+        | "create_agent" => "agent",
+        "gen_ai.execute_tool" | "execute_tool" => "tool",
+        "gen_ai.handoff" | "handoff" => "handoff",
+        // Prefix matches:
+        op if op.starts_with("ai.streamText.doStream") => "ai_client",
+        op if op.starts_with("ai.streamText") => "agent",
+
+        op if op.starts_with("ai.generateText.doGenerate") => "ai_client",
+        op if op.starts_with("ai.generateText") => "agent",
+
+        op if op.starts_with("ai.generateObject.doGenerate") => "ai_client",
+        op if op.starts_with("ai.generateObject") => "agent",
+
+        op if op.starts_with("ai.toolCall") => "tool",
+        // No match:
+        _ => return None,
+    };
+
+    Some(ai_op)
 }
 
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
@@ -200,7 +255,6 @@ fn enrich_ai_span_data(
     measurements: &Annotated<Measurements>,
     duration: f64,
     model_costs: Option<&ModelCosts>,
-    operation_type_map: Option<&AiOperationTypeMap>,
 ) {
     if !is_ai_span(span_data, span_op.value()) {
         return;
@@ -215,17 +269,20 @@ fn enrich_ai_span_data(
     if let Some(model_costs) = model_costs {
         extract_ai_data(data, duration, model_costs);
     }
-    if let Some(operation_type_map) = operation_type_map {
-        infer_ai_operation_type(data, span_op.value(), operation_type_map);
-    }
+
+    let ai_op_type = data
+        .gen_ai_operation_name
+        .value()
+        .or(span_op.value())
+        .and_then(|op| infer_ai_operation_type(op))
+        .unwrap_or(DEFAULT_AI_OPERATION);
+
+    data.gen_ai_operation_type
+        .set_value(Some(ai_op_type.to_owned()));
 }
 
 /// Enrich the AI span data
-pub fn enrich_ai_span(
-    span: &mut Span,
-    model_costs: Option<&ModelCosts>,
-    operation_type_map: Option<&AiOperationTypeMap>,
-) {
+pub fn enrich_ai_span(span: &mut Span, model_costs: Option<&ModelCosts>) {
     let duration = span
         .get_value("span.duration")
         .and_then(|v| v.as_f64())
@@ -237,16 +294,11 @@ pub fn enrich_ai_span(
         &span.measurements,
         duration,
         model_costs,
-        operation_type_map,
     );
 }
 
 /// Extract the ai data from all of an event's spans
-pub fn enrich_ai_event_data(
-    event: &mut Event,
-    model_costs: Option<&ModelCosts>,
-    operation_type_map: Option<&AiOperationTypeMap>,
-) {
+pub fn enrich_ai_event_data(event: &mut Event, model_costs: Option<&ModelCosts>) {
     let event_duration = event
         .get_value("event.duration")
         .and_then(|v| v.as_f64())
@@ -264,7 +316,6 @@ pub fn enrich_ai_event_data(
             &event.measurements,
             event_duration,
             model_costs,
-            operation_type_map,
         );
     }
     let spans = event.spans.value_mut().iter_mut().flatten();
@@ -282,29 +333,7 @@ pub fn enrich_ai_event_data(
             &span.measurements,
             span_duration,
             model_costs,
-            operation_type_map,
         );
-    }
-}
-
-///  Infer AI operation type mapping to a span.
-///
-/// This function sets the gen_ai.operation.type attribute based on the value of either
-/// gen_ai.operation.name or span.op based on the provided operation type map configuration.
-fn infer_ai_operation_type(
-    data: &mut SpanData,
-    span_op: Option<&OperationType>,
-    operation_type_map: &AiOperationTypeMap,
-) {
-    let op_type = data
-        .gen_ai_operation_name
-        .value()
-        .or(span_op)
-        .and_then(|op| operation_type_map.get_operation_type(op));
-
-    if let Some(operation_type) = op_type {
-        data.gen_ai_operation_type
-            .set_value(Some(operation_type.to_owned()));
     }
 }
 
@@ -325,12 +354,18 @@ fn is_ai_span(span_data: &Annotated<SpanData>, span_op: Option<&OperationType>) 
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use relay_pattern::Pattern;
-    use relay_protocol::assert_annotated_snapshot;
+    use relay_protocol::{FromValue, assert_annotated_snapshot};
+    use serde_json::json;
 
     use super::*;
+
+    fn ai_span_with_data(data: serde_json::Value) -> Span {
+        Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(data.into()),
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn test_calculate_cost_no_tokens() {
@@ -340,6 +375,7 @@ mod tests {
                 output_per_token: 1.0,
                 output_reasoning_per_token: 1.0,
                 input_cached_per_token: 1.0,
+                input_cache_write_per_token: 1.0,
             },
             UsedTokens::from_span_data(&SpanData::default()),
         );
@@ -354,10 +390,12 @@ mod tests {
                 output_per_token: 2.0,
                 output_reasoning_per_token: 3.0,
                 input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.75,
             },
             UsedTokens {
                 input_tokens: 8.0,
                 input_cached_tokens: 5.0,
+                input_cache_write_tokens: 0.0,
                 output_tokens: 15.0,
                 output_reasoning_tokens: 9.0,
             },
@@ -381,10 +419,12 @@ mod tests {
                 // Should fallback to output token cost for reasoning.
                 output_reasoning_per_token: 0.0,
                 input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.0,
             },
             UsedTokens {
                 input_tokens: 8.0,
                 input_cached_tokens: 5.0,
+                input_cache_write_tokens: 0.0,
                 output_tokens: 15.0,
                 output_reasoning_tokens: 9.0,
             },
@@ -410,10 +450,12 @@ mod tests {
                 output_per_token: 2.0,
                 output_reasoning_per_token: 1.0,
                 input_cached_per_token: 1.0,
+                input_cache_write_per_token: 1.5,
             },
             UsedTokens {
                 input_tokens: 1.0,
                 input_cached_tokens: 11.0,
+                input_cache_write_tokens: 0.0,
                 output_tokens: 1.0,
                 output_reasoning_tokens: 9.0,
             },
@@ -428,35 +470,83 @@ mod tests {
         ");
     }
 
+    #[test]
+    fn test_calculate_cost_with_cache_writes() {
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 1.0,
+                output_per_token: 2.0,
+                output_reasoning_per_token: 3.0,
+                input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.75,
+            },
+            UsedTokens {
+                input_tokens: 100.0,
+                input_cached_tokens: 20.0,
+                input_cache_write_tokens: 30.0,
+                output_tokens: 50.0,
+                output_reasoning_tokens: 10.0,
+            },
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(cost, @r"
+        CalculatedCost {
+            input: 112.5,
+            output: 110.0,
+        }
+        ");
+    }
+
+    #[test]
+    fn test_calculate_cost_backward_compatibility_no_cache_write() {
+        // Test that cost calculation works when cache_write field is missing (backward compatibility)
+        let span_data = SpanData {
+            gen_ai_usage_input_tokens: Annotated::new(100.0.into()),
+            gen_ai_usage_input_tokens_cached: Annotated::new(20.0.into()),
+            gen_ai_usage_output_tokens: Annotated::new(50.0.into()),
+            // Note: gen_ai_usage_input_tokens_cache_write is NOT set (simulating old data)
+            ..Default::default()
+        };
+
+        let tokens = UsedTokens::from_span_data(&span_data);
+
+        // Verify cache_write_tokens defaults to 0.0
+        assert_eq!(tokens.input_cache_write_tokens, 0.0);
+
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 1.0,
+                output_per_token: 2.0,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.75,
+            },
+            tokens,
+        )
+        .unwrap();
+
+        // Cost should be calculated without cache_write_tokens
+        // input: (100 - 20) * 1.0 + 20 * 0.5 + 0 * 0.75 = 80 + 10 + 0 = 90
+        // output: 50 * 2.0 = 100
+        insta::assert_debug_snapshot!(cost, @r"
+        CalculatedCost {
+            input: 90.0,
+            output: 100.0,
+        }
+        ");
+    }
+
     /// Test that the AI operation type is inferred from a gen_ai.operation.name attribute.
     #[test]
     fn test_infer_ai_operation_type_from_gen_ai_operation_name() {
-        let operation_types = HashMap::from([
-            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
-            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
-            (
-                Pattern::new("gen_ai.invoke_agent").unwrap(),
-                "agent".to_owned(),
-            ),
-        ]);
-
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
-
-        let span_data = r#"{
+        let mut span = ai_span_with_data(json!({
             "gen_ai.operation.name": "invoke_agent"
-        }"#;
-        let mut span_data: Annotated<SpanData> = Annotated::from_json(span_data).unwrap();
+        }));
 
-        infer_ai_operation_type(
-            span_data.value_mut().as_mut().unwrap(),
-            None,
-            &operation_type_map,
-        );
+        enrich_ai_span(&mut span, None);
 
-        assert_annotated_snapshot!(&span_data, @r#"
+        assert_annotated_snapshot!(&span.data, @r#"
         {
           "gen_ai.operation.name": "invoke_agent",
           "gen_ai.operation.type": "agent"
@@ -467,24 +557,14 @@ mod tests {
     /// Test that the AI operation type is inferred from a span.op attribute.
     #[test]
     fn test_infer_ai_operation_type_from_span_op() {
-        let operation_types = HashMap::from([
-            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
-            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
-            (
-                Pattern::new("gen_ai.invoke_agent").unwrap(),
-                "agent".to_owned(),
-            ),
-        ]);
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
+        let mut span = Span {
+            op: "gen_ai.invoke_agent".to_owned().into(),
+            ..Default::default()
         };
 
-        let mut span_data = SpanData::default();
-        let span_op: OperationType = "gen_ai.invoke_agent".into();
-        infer_ai_operation_type(&mut span_data, Some(&span_op), &operation_type_map);
+        enrich_ai_span(&mut span, None);
 
-        assert_annotated_snapshot!(Annotated::new(span_data), @r#"
+        assert_annotated_snapshot!(span.data, @r#"
         {
           "gen_ai.operation.type": "agent"
         }
@@ -494,32 +574,13 @@ mod tests {
     /// Test that the AI operation type is inferred from a fallback.
     #[test]
     fn test_infer_ai_operation_type_from_fallback() {
-        let operation_types = HashMap::from([
-            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
-            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
-            (
-                Pattern::new("gen_ai.invoke_agent").unwrap(),
-                "agent".to_owned(),
-            ),
-        ]);
-
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
-
-        let span_data = r#"{
+        let mut span = ai_span_with_data(json!({
             "gen_ai.operation.name": "embeddings"
-        }"#;
-        let mut span_data: Annotated<SpanData> = Annotated::from_json(span_data).unwrap();
+        }));
 
-        infer_ai_operation_type(
-            span_data.value_mut().as_mut().unwrap(),
-            None,
-            &operation_type_map,
-        );
+        enrich_ai_span(&mut span, None);
 
-        assert_annotated_snapshot!(&span_data, @r#"
+        assert_annotated_snapshot!(&span.data, @r#"
         {
           "gen_ai.operation.name": "embeddings",
           "gen_ai.operation.type": "ai_client"
@@ -595,20 +656,7 @@ mod tests {
         let mut annotated_event: Annotated<Event> = Annotated::from_json(event_json).unwrap();
         let event = annotated_event.value_mut().as_mut().unwrap();
 
-        let operation_types = HashMap::from([
-            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
-            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
-            (
-                Pattern::new("gen_ai.invoke_agent").unwrap(),
-                "agent".to_owned(),
-            ),
-        ]);
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
-
-        enrich_ai_event_data(event, None, Some(&operation_type_map));
+        enrich_ai_event_data(event, None);
 
         assert_annotated_snapshot!(&annotated_event, @r#"
         {
@@ -694,20 +742,7 @@ mod tests {
         let mut annotated_event: Annotated<Event> = Annotated::from_json(event_json).unwrap();
         let event = annotated_event.value_mut().as_mut().unwrap();
 
-        let operation_types = HashMap::from([
-            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
-            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
-            (
-                Pattern::new("gen_ai.invoke_agent").unwrap(),
-                "agent".to_owned(),
-            ),
-        ]);
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
-
-        enrich_ai_event_data(event, None, Some(&operation_type_map));
+        enrich_ai_event_data(event, None);
 
         assert_annotated_snapshot!(&annotated_event, @r#"
         {
@@ -799,20 +834,7 @@ mod tests {
         let mut annotated_event: Annotated<Event> = Annotated::from_json(event_json).unwrap();
         let event = annotated_event.value_mut().as_mut().unwrap();
 
-        let operation_types = HashMap::from([
-            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
-            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
-            (
-                Pattern::new("gen_ai.invoke_agent").unwrap(),
-                "agent".to_owned(),
-            ),
-        ]);
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
-
-        enrich_ai_event_data(event, None, Some(&operation_type_map));
+        enrich_ai_event_data(event, None);
 
         assert_annotated_snapshot!(&annotated_event, @r#"
         {

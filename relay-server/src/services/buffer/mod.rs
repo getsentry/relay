@@ -633,6 +633,10 @@ impl Service for EnvelopeBufferService {
 
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
         loop {
+            relay_statsd::metric!(
+                counter(RelayCounters::BufferServiceLoopIteration) += 1,
+                partition_id = &partition_tag
+            );
             let mut sleep = DEFAULT_SLEEP;
 
             tokio::select! {
@@ -938,6 +942,9 @@ mod tests {
 
         assert_eq!(envelope_processor_rx.len(), 0);
 
+        let outcome = outcome_aggregator_rx.try_recv().unwrap();
+        assert_eq!(outcome.category, DataCategory::Transaction);
+        assert_eq!(outcome.quantity, 1);
         let outcome = outcome_aggregator_rx.try_recv().unwrap();
         assert_eq!(outcome.category, DataCategory::TransactionIndexed);
         assert_eq!(outcome.quantity, 1);

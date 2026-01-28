@@ -27,7 +27,6 @@ use relay_protocol::{
 use smallvec::SmallVec;
 use uuid::Uuid;
 
-use crate::normalize::AiOperationTypeMap;
 use crate::normalize::request;
 use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::extract_span_tags_from_event;
@@ -141,9 +140,6 @@ pub struct NormalizationConfig<'a> {
     /// Configuration for calculating the cost of AI model runs
     pub ai_model_costs: Option<&'a ModelCosts>,
 
-    /// Configuration for mapping AI operation types from span.op to gen_ai.operation.type
-    pub ai_operation_type_map: Option<&'a AiOperationTypeMap>,
-
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
 
@@ -198,7 +194,6 @@ impl Default for NormalizationConfig<'_> {
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
             ai_model_costs: Default::default(),
-            ai_operation_type_map: Default::default(),
             enable_trimming: false,
             measurements: None,
             normalize_spans: true,
@@ -328,7 +323,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             .get_or_default::<PerformanceScoreContext>()
             .score_profile_version = Annotated::new(version);
     }
-    enrich_ai_event_data(event, config.ai_model_costs, config.ai_operation_type_map);
+    enrich_ai_event_data(event, config.ai_model_costs);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
     normalize_trace_context_tags(event);
@@ -2304,6 +2299,7 @@ mod tests {
                                 output_per_token: 0.02,
                                 output_reasoning_per_token: 0.03,
                                 input_cached_per_token: 0.0,
+                                input_cache_write_per_token: 0.0,
                             },
                         ),
                         (
@@ -2313,6 +2309,7 @@ mod tests {
                                 output_per_token: 0.03,
                                 output_reasoning_per_token: 0.04,
                                 input_cached_per_token: 0.0,
+                                input_cache_write_per_token: 0.0,
                             },
                         ),
                     ]),
@@ -2332,7 +2329,8 @@ mod tests {
           "gen_ai.cost.total_tokens": 50.0,
           "gen_ai.cost.input_tokens": 10.0,
           "gen_ai.cost.output_tokens": 40.0,
-          "gen_ai.response.tokens_per_second": 62500.0
+          "gen_ai.response.tokens_per_second": 62500.0,
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
@@ -2344,7 +2342,8 @@ mod tests {
           "gen_ai.cost.total_tokens": 80.0,
           "gen_ai.cost.input_tokens": 20.0,
           "gen_ai.cost.output_tokens": 60.0,
-          "gen_ai.response.tokens_per_second": 62500.0
+          "gen_ai.response.tokens_per_second": 62500.0,
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
     }
@@ -2417,6 +2416,7 @@ mod tests {
                                 output_per_token: 0.02,
                                 output_reasoning_per_token: 0.03,
                                 input_cached_per_token: 0.04,
+                                input_cache_write_per_token: 0.0,
                             },
                         ),
                         (
@@ -2426,6 +2426,7 @@ mod tests {
                                 output_per_token: 0.05,
                                 output_reasoning_per_token: 0.0,
                                 input_cached_per_token: 0.0,
+                                input_cache_write_per_token: 0.0,
                             },
                         ),
                     ]),
@@ -2447,7 +2448,8 @@ mod tests {
           "gen_ai.cost.total_tokens": 75.0,
           "gen_ai.cost.input_tokens": 25.0,
           "gen_ai.cost.output_tokens": 50.0,
-          "gen_ai.response.tokens_per_second": 2000.0
+          "gen_ai.response.tokens_per_second": 2000.0,
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
@@ -2459,7 +2461,8 @@ mod tests {
           "gen_ai.cost.total_tokens": 190.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
-          "gen_ai.response.tokens_per_second": 2000.0
+          "gen_ai.response.tokens_per_second": 2000.0,
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
         assert_annotated_snapshot!(span3, @r#"
@@ -2471,7 +2474,8 @@ mod tests {
           "gen_ai.cost.total_tokens": 190.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
-          "gen_ai.response.tokens_per_second": 2000.0
+          "gen_ai.response.tokens_per_second": 2000.0,
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
     }
@@ -2511,6 +2515,7 @@ mod tests {
                             output_per_token: 0.02,
                             output_reasoning_per_token: 0.03,
                             input_cached_per_token: 0.0,
+                            input_cache_write_per_token: 0.0,
                         },
                     )]),
                 }),
@@ -2522,7 +2527,8 @@ mod tests {
 
         assert_annotated_snapshot!(span, @r#"
         {
-          "gen_ai.request.model": "claude-2.1"
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.operation.type": "agent"
         }
         "#);
     }
@@ -2581,6 +2587,7 @@ mod tests {
                                 output_per_token: 0.02,
                                 output_reasoning_per_token: 0.0,
                                 input_cached_per_token: 0.04,
+                                input_cache_write_per_token: 0.0,
                             },
                         ),
                         (
@@ -2590,6 +2597,7 @@ mod tests {
                                 output_per_token: 0.05,
                                 output_reasoning_per_token: 0.06,
                                 input_cached_per_token: 0.0,
+                                input_cache_write_per_token: 0.0,
                             },
                         ),
                     ]),
@@ -2611,7 +2619,8 @@ mod tests {
           "gen_ai.cost.total_tokens": 65.0,
           "gen_ai.cost.input_tokens": 25.0,
           "gen_ai.cost.output_tokens": 40.0,
-          "gen_ai.response.tokens_per_second": 62500.0
+          "gen_ai.response.tokens_per_second": 62500.0,
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
@@ -2623,7 +2632,8 @@ mod tests {
           "gen_ai.cost.total_tokens": 190.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
-          "gen_ai.response.tokens_per_second": 62500.0
+          "gen_ai.response.tokens_per_second": 62500.0,
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
     }
@@ -2666,7 +2676,8 @@ mod tests {
         assert_annotated_snapshot!(span, @r#"
         {
           "gen_ai.usage.total_tokens": 500.0,
-          "gen_ai.usage.input_tokens": 500
+          "gen_ai.usage.input_tokens": 500,
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
     }
@@ -2709,7 +2720,8 @@ mod tests {
         assert_annotated_snapshot!(span, @r#"
         {
           "gen_ai.usage.total_tokens": 1000.0,
-          "gen_ai.usage.output_tokens": 1000
+          "gen_ai.usage.output_tokens": 1000,
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
     }
@@ -2742,40 +2754,13 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types: HashMap::from([
-                (Pattern::new("gen_ai.chat").unwrap(), "chat".to_owned()),
-                (
-                    Pattern::new("gen_ai.execute_tool").unwrap(),
-                    "execute_tool".to_owned(),
-                ),
-                (
-                    Pattern::new("gen_ai.handoff").unwrap(),
-                    "handoff".to_owned(),
-                ),
-                (
-                    Pattern::new("gen_ai.invoke_agent").unwrap(),
-                    "invoke_agent".to_owned(),
-                ),
-                // fallback to agent
-                (Pattern::new("gen_ai.*").unwrap(), "agent".to_owned()),
-            ]),
-        };
-
-        normalize_event(
-            &mut event,
-            &NormalizationConfig {
-                ai_operation_type_map: Some(&operation_type_map),
-                ..NormalizationConfig::default()
-            },
-        );
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let [span1, span2, span3] = collect_span_data(event);
 
         assert_annotated_snapshot!(span1, @r#"
         {
-          "gen_ai.operation.type": "chat"
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
@@ -2785,86 +2770,9 @@ mod tests {
         "#);
         assert_annotated_snapshot!(span3, @r#"
         {
-          "gen_ai.operation.type": "agent"
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
-    }
-
-    #[test]
-    fn test_ai_operation_type_disabled_map() {
-        let json = r#"
-            {
-                "type": "transaction",
-                "transaction": "test-transaction",
-                "spans": [
-                    {
-                        "op": "gen_ai.chat",
-                        "description": "AI chat completion",
-                        "data": {}
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-
-        let operation_type_map = AiOperationTypeMap {
-            version: 0, // Disabled version
-            operation_types: HashMap::from([(
-                Pattern::new("gen_ai.chat").unwrap(),
-                "chat".to_owned(),
-            )]),
-        };
-
-        normalize_event(
-            &mut event,
-            &NormalizationConfig {
-                ai_operation_type_map: Some(&operation_type_map),
-                ..NormalizationConfig::default()
-            },
-        );
-
-        let [span] = collect_span_data(event);
-
-        // Should not set operation type when map is disabled
-        assert_annotated_snapshot!(span, @"{}");
-    }
-
-    #[test]
-    fn test_ai_operation_type_empty_map() {
-        let json = r#"
-            {
-                "type": "transaction",
-                "transaction": "test-transaction",
-                "spans": [
-                    {
-                        "op": "gen_ai.chat",
-                        "description": "AI chat completion",
-                        "data": {}
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types: HashMap::new(),
-        };
-
-        normalize_event(
-            &mut event,
-            &NormalizationConfig {
-                ai_operation_type_map: Some(&operation_type_map),
-                ..NormalizationConfig::default()
-            },
-        );
-
-        let [span] = collect_span_data(event);
-
-        // Should not set operation type when map is empty
-        assert_annotated_snapshot!(span, @"{}");
     }
 
     #[test]

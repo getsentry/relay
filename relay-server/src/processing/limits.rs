@@ -6,13 +6,8 @@ use crate::managed::OutcomeError;
 use crate::processing::{Context, Counted, Managed, Rejected};
 
 #[cfg(feature = "processing")]
-use crate::services::{
-    global_rate_limits::GlobalRateLimitsServiceHandle, projects::cache::ProjectCacheHandle,
-};
+use crate::services::projects::cache::ProjectCacheHandle;
 use crate::statsd::RelayTimers;
-
-#[cfg(feature = "processing")]
-type Redis = relay_quotas::RedisRateLimiter<GlobalRateLimitsServiceHandle>;
 
 /// A quota based rate limiter for Relay's new processing pipeline.
 ///
@@ -22,13 +17,16 @@ pub struct QuotaRateLimiter {
     #[cfg(feature = "processing")]
     project_cache: ProjectCacheHandle,
     #[cfg(feature = "processing")]
-    redis: Option<Redis>,
+    redis: Option<relay_quotas::RedisRateLimiter>,
 }
 
 impl QuotaRateLimiter {
     /// Creates a new [`Self`].
     #[cfg(feature = "processing")]
-    pub fn new(project_cache: ProjectCacheHandle, redis: Option<Redis>) -> Self {
+    pub fn new(
+        project_cache: ProjectCacheHandle,
+        redis: Option<relay_quotas::RedisRateLimiter>,
+    ) -> Self {
         Self {
             project_cache,
             redis,
@@ -200,20 +198,16 @@ mod redis {
     use crate::services::projects::cache::Project;
 
     use super::*;
-    use relay_quotas::GlobalLimiter;
 
     /// A [`RateLimiter`] implementation which enforces quotas with Redis.
-    pub struct RedisRateLimiter<'a, T> {
-        pub redis: &'a relay_quotas::RedisRateLimiter<T>,
+    pub struct RedisRateLimiter<'a> {
+        pub redis: &'a relay_quotas::RedisRateLimiter,
         pub quotas: CombinedQuotas<'a>,
         pub limits: RateLimits,
         pub project: Project<'a>,
     }
 
-    impl<T> RateLimiter for RedisRateLimiter<'_, T>
-    where
-        T: GlobalLimiter,
-    {
+    impl RateLimiter for RedisRateLimiter<'_> {
         async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits {
             let limits = self
                 .redis
@@ -234,7 +228,7 @@ mod redis {
         }
     }
 
-    impl<T> Drop for RedisRateLimiter<'_, T> {
+    impl Drop for RedisRateLimiter<'_> {
         fn drop(&mut self) {
             let limits = std::mem::take(&mut self.limits);
             self.project.rate_limits().merge(limits);

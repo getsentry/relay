@@ -4,7 +4,18 @@
 
 **Bug Fixes**:
 
-- Write item IDs of logs, metrics and trace attachments in correct byte order. ([#5526](https://github.com/getsentry/relay/pull/5526))
+- Emit outcomes for spans trimmed from a transaction. ([#5410](https://github.com/getsentry/relay/pull/5410))
+- Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
+- Fix inconsistencies with Insights' expected attributes. ([#5561](https://github.com/getsentry/relay/pull/5561))
+
+**Internal**:
+
+- Embed AI operation type mappings into Relay. ([#5555](https://github.com/getsentry/relay/pull/5555))
+- Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
+- Add `gen_ai_response_time_to_first_token` as a `SpanData` attribute. ([#5575](https://github.com/getsentry/relay/pull/5575))
+- Add sampling to expensive envelope buffer statsd metrics. ([#5576](https://github.com/getsentry/relay/pull/5576))
+
+## 26.1.0
 
 **Breaking Changes**:
 
@@ -13,15 +24,21 @@
 **Features**:
 
 - Updates `rdkafka` to 2.10 which fixes some protocol incompatibilities with Kafka 4. ([#5523](https://github.com/getsentry/relay/pull/5523))
+- Add sentry.category normalization for V2 spans. ([#5533](https://github.com/getsentry/relay/pull/5533))
+- Include cache write token cost in cost calculation for gen_ai spans. ([#5530](https://github.com/getsentry/relay/pull/5530))
 
 **Bug Fixes**:
 
+- Write item IDs of logs, metrics and trace attachments in correct byte order. ([#5526](https://github.com/getsentry/relay/pull/5526))
 - Reworked AI span extraction to also take trace context into account. ([#5515](https://github.com/getsentry/relay/pull/5515))
+- Mark root spans (spans without a parent) as segments in OTEL conversion. ([#5532](https://github.com/getsentry/relay/pull/5532))
 
 **Internal**:
 
 - Release Docker image to GHCR and DockerHub via Craft. ([#5509](https://github.com/getsentry/relay/pull/5509))
 - Tag span `usage` and `count_per_root_project` metrics with segment information. ([#5511](https://github.com/getsentry/relay/pull/5511))
+- Experimental support for loading configuration values from files. ([#5531](https://github.com/getsentry/relay/pull/5531))
+- Remove support for global quotas. ([#5534](https://github.com/getsentry/relay/pull/5534))
 
 ## 25.12.1
 

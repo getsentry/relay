@@ -1478,7 +1478,7 @@ fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
 
 /// Returns the category of a span from its operation. The mapping is available in:
 /// <https://develop.sentry.dev/sdk/performance/span-operations/>
-fn span_op_to_category(op: &str) -> Option<&str> {
+pub fn span_op_to_category(op: &str) -> Option<&str> {
     let mut it = op.split('.'); // e.g. "ui.react.render"
     match (it.next(), it.next()) {
         // Known categories with prefixes:

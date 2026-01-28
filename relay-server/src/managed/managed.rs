@@ -216,25 +216,22 @@ impl<T: Counted> Managed<T> {
     /// quantities are transferred to, there may be new additional data categories created.
     pub fn split_once<F, S, U>(self, f: F) -> (Managed<S>, Managed<U>)
     where
-        F: FnOnce(T) -> (S, U),
+        F: FnOnce(T, &mut RecordKeeper) -> (S, U),
         S: Counted,
         U: Counted,
     {
         debug_assert!(!self.is_done());
 
         let (value, meta) = self.destructure();
-        #[cfg(debug_assertions)]
         let quantities = value.quantities();
 
-        let (a, b) = f(value);
+        let mut records = RecordKeeper::new(&meta, quantities);
 
-        #[cfg(debug_assertions)]
-        debug::Quantities::from(&quantities)
-            // Instead of `assert_only_extra`, used for extracted metrics also counting
-            // in the `metric bucket` category, it may make sense to give the mapping function
-            // control over which categories to ignore, similar to the record keeper's lenient
-            // method.
-            .assert_only_extra(debug::Quantities::from(&a) + debug::Quantities::from(&b));
+        let (a, b) = f(value, &mut records);
+
+        let mut quantities = a.quantities();
+        quantities.extend(b.quantities());
+        records.success(quantities);
 
         (
             Managed::from_parts(a, Arc::clone(&meta)),

@@ -171,7 +171,16 @@ trait ConfigObject: DeserializeOwned + Serialize {
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, &path))?;
         let f = io::BufReader::new(f);
 
-        let mut source = serde_vars::EnvSource::default();
+        let mut source = {
+            let file = serde_vars::FileSource::default()
+                .with_variable_prefix("${file:")
+                .with_variable_suffix("}")
+                .with_base_path(base);
+            let env = serde_vars::EnvSource::default()
+                .with_variable_prefix("${")
+                .with_variable_suffix("}");
+            (file, env)
+        };
         match Self::format() {
             ConfigFormat::Yaml => {
                 serde_vars::deserialize(serde_yaml::Deserializer::from_reader(f), &mut source)
@@ -560,7 +569,7 @@ pub struct Metrics {
     ///
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
-    pub sample_rate: f32,
+    pub sample_rate: f64,
     /// Interval for periodic metrics emitted from Relay.
     ///
     /// Setting it to `0` seconds disables the periodic metrics.
@@ -2170,7 +2179,7 @@ impl Config {
     }
 
     /// Returns the global sample rate for all metrics.
-    pub fn metrics_sample_rate(&self) -> f32 {
+    pub fn metrics_sample_rate(&self) -> f64 {
         self.values.metrics.sample_rate
     }
 

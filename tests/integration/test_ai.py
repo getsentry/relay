@@ -26,24 +26,8 @@ def test_ai_spans_example_transaction(
                 "outputPerToken": 0.02,
                 "outputReasoningPerToken": 0.03,
                 "inputCachedPerToken": 0.0,
+                "inputCacheWritePerToken": 0.0,
             },
-        },
-    }
-    mini_sentry.global_config["aiOperationTypeMap"] = {
-        "version": 1,
-        "operationTypes": {
-            "ai.run.generateText": "agent",
-            "ai.run.generateObject": "agent",
-            "invoke_agent": "agent",
-            "gen_ai.invoke_agent": "agent",
-            "ai.pipeline.generate_text": "agent",
-            "ai.pipeline.generate_object": "agent",
-            "ai.pipeline.stream_text": "agent",
-            "ai.pipeline.stream_object": "agent",
-            "gen_ai.create_agent": "agent",
-            "gen_ai.execute_tool": "tool",
-            "gen_ai.handoff": "handoff",
-            "*": "ai_client",
         },
     }
 

@@ -219,7 +219,6 @@ pub fn normalize(
         .aggregator_config_for(MetricNamespace::Transactions);
 
     let ai_model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
-    let ai_operation_type_map = ctx.global_config.ai_operation_type_map.as_ref().ok();
     let http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
     let project_info = ctx.project_info;
@@ -288,7 +287,6 @@ pub fn normalize(
             span_description_rules: project_info.config.span_description_rules.as_ref(),
             geoip_lookup: Some(geoip_lookup),
             ai_model_costs,
-            ai_operation_type_map,
             enable_trimming: true,
             measurements: Some(CombinedMeasurementsConfig::new(
                 ctx.project_info.config().measurements.as_ref(),

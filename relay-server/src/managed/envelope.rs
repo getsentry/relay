@@ -10,6 +10,7 @@ use relay_system::Addr;
 
 use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
+use crate::managed::Counted as _;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{Processed, ProcessingGroup};
 use crate::statsd::{RelayCounters, RelayTimers};
@@ -347,144 +348,8 @@ impl ManagedEnvelope {
             }
         }
 
-        if let Some(category) = self.event_category() {
-            if let Some(category) = category.index_category() {
-                self.track_outcome(outcome.clone(), category, 1);
-            }
-            self.track_outcome(outcome.clone(), category, 1);
-        }
-
-        if self.context.summary.attachment_quantities.bytes() > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Attachment,
-                self.context.summary.attachment_quantities.bytes(),
-            );
-        }
-
-        if self.context.summary.attachment_quantities.count() > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::AttachmentItem,
-                self.context.summary.attachment_quantities.count(),
-            );
-        }
-
-        if self.context.summary.monitor_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Monitor,
-                self.context.summary.monitor_quantity,
-            );
-        }
-
-        if self.context.summary.profile_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Profile,
-                self.context.summary.profile_quantity,
-            );
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::ProfileIndexed,
-                self.context.summary.profile_quantity,
-            );
-        }
-
-        if self.context.summary.span_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Span,
-                self.context.summary.span_quantity,
-            );
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::SpanIndexed,
-                self.context.summary.span_quantity,
-            );
-        }
-
-        if self.context.summary.log_item_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::LogItem,
-                self.context.summary.log_item_quantity,
-            );
-        }
-        if self.context.summary.log_byte_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::LogByte,
-                self.context.summary.log_byte_quantity,
-            );
-        }
-
-        // Track outcomes for attached secondary transactions, e.g. extracted from metrics.
-        //
-        // Primary transaction count is already tracked through the event category
-        // (see: `Self::event_category()`).
-        if self.context.summary.secondary_transaction_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                // Secondary transaction counts are never indexed transactions
-                DataCategory::Transaction,
-                self.context.summary.secondary_transaction_quantity,
-            );
-        }
-
-        // Track outcomes for attached secondary spans, e.g. extracted from metrics.
-        //
-        // Primary span count is already tracked through `SpanIndexed`.
-        if self.context.summary.secondary_span_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                // Secondary transaction counts are never indexed transactions
-                DataCategory::Span,
-                self.context.summary.secondary_span_quantity,
-            );
-        }
-
-        if self.context.summary.replay_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Replay,
-                self.context.summary.replay_quantity,
-            );
-        }
-
-        // Track outcomes for user reports, the legacy item type for user feedback.
-        //
-        // User reports are not events, but count toward UserReportV2 for quotas and outcomes.
-        if self.context.summary.user_report_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::UserReportV2,
-                self.context.summary.user_report_quantity,
-            );
-        }
-
-        if self.context.summary.profile_chunk_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::ProfileChunk,
-                self.context.summary.profile_chunk_quantity,
-            );
-        }
-
-        if self.context.summary.profile_chunk_ui_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::ProfileChunkUi,
-                self.context.summary.profile_chunk_ui_quantity,
-            );
-        }
-
-        if self.context.summary.session_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Session,
-                self.context.summary.session_quantity,
-            );
+        for (category, quantity) in self.context.summary.quantities() {
+            self.track_outcome(outcome.clone(), category, quantity);
         }
 
         self.finish(RelayCounters::EnvelopeRejected, handling);
