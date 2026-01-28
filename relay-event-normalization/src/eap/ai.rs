@@ -35,22 +35,9 @@ pub fn normalize_ai(
     }
 
     normalize_ai_type(attributes);
-    let span_origin = attributes
-        .get_value(ORIGIN)
-        .and_then(|v| v.as_str())
-        .map(String::from);
-    let platform = attributes
-        .get_value(PLATFORM)
-        .and_then(|v| v.as_str())
-        .map(String::from);
     normalize_total_tokens(attributes);
     normalize_tokens_per_second(attributes, duration);
-    normalize_ai_costs(
-        attributes,
-        costs,
-        span_origin.as_deref(),
-        platform.as_deref(),
-    );
+    normalize_ai_costs(attributes, costs);
 }
 
 /// Returns whether the item is should have AI normalizations applied.
@@ -171,15 +158,9 @@ fn platform_tag(platform: Option<&str>) -> &'static str {
 }
 
 /// Calculates model costs and serializes them into attributes.
-fn normalize_ai_costs(
-    attributes: &mut Attributes,
-    model_costs: Option<&ModelCosts>,
-    origin: Option<&str>,
-    platform: Option<&str>,
-) {
-    if attributes.contains_key(GEN_AI_COST_TOTAL_TOKENS) {
-        return;
-    }
+fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCosts>) {
+    let origin = extract_string_value(attributes, ORIGIN);
+    let platform = extract_string_value(attributes, PLATFORM);
 
     let model_cost = attributes
         .get_value(GEN_AI_REQUEST_MODEL)
@@ -235,6 +216,10 @@ fn normalize_ai_costs(
     attributes.insert(GEN_AI_COST_INPUT_TOKENS, costs.input);
     attributes.insert(GEN_AI_COST_OUTPUT_TOKENS, costs.output);
     attributes.insert(GEN_AI_COST_TOTAL_TOKENS, costs.total());
+}
+
+fn extract_string_value<'a>(attributes: &'a Attributes, key: &str) -> Option<&'a str> {
+    attributes.get_value(key).and_then(|v| v.as_str())
 }
 
 #[cfg(test)]
