@@ -1,15 +1,13 @@
 import time
+from collections import defaultdict
 
-from requests import Session
-from requests.adapters import HTTPAdapter
+import requests
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-from urllib3.util import Retry
 
 from sentry_relay.auth import SecretKey
 
 
 class SentryLike:
-    _health_check_passed = False
 
     default_dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
 
@@ -25,10 +23,7 @@ class SentryLike:
         self.upstream = upstream
         self.public_key = public_key
 
-        self.session = Session()
-        self.session.mount(
-            "http://", HTTPAdapter(max_retries=Retry(total=5, backoff_factor=0.1))
-        )
+        self._health_check_passed = defaultdict(lambda: False)
 
     def get_dsn_public_key_configs(self, project_id):
         """
@@ -111,12 +106,12 @@ class SentryLike:
                     raise
                 backoff *= 2
 
-    def wait_relay_health_check(self):
-        if self._health_check_passed:
+    def wait_relay_health_check(self, mode="ready"):
+        if self._health_check_passed[mode]:
             return
 
-        self._wait("/api/relay/healthcheck/ready/", is_internal=True)
-        self._health_check_passed = True
+        self._wait(f"/api/relay/healthcheck/{mode}/", is_internal=True)
+        self._health_check_passed[mode] = True
 
     def __repr__(self):
         return f"<{self.__class__.__name__}({repr(self.upstream)})>"
@@ -569,7 +564,7 @@ class SentryLike:
             timeout = 10
 
         url = self.url if not is_internal else self.internal_url
-        return self.session.request(method, url + path, timeout=timeout, **kwargs)
+        return requests.request(method, url + path, timeout=timeout, **kwargs)
 
     def post(self, path, **kwargs):
         return self.request("post", path, **kwargs)
