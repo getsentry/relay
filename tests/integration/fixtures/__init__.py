@@ -1,5 +1,4 @@
 import time
-from collections import defaultdict
 
 import requests
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -22,8 +21,6 @@ class SentryLike:
         self.internal_server_address = internal_server_address or server_address
         self.upstream = upstream
         self.public_key = public_key
-
-        self._health_check_passed = defaultdict(lambda: False)
 
     def get_dsn_public_key_configs(self, project_id):
         """
@@ -105,13 +102,6 @@ class SentryLike:
                 if backoff > 10:
                     raise
                 backoff *= 2
-
-    def wait_relay_health_check(self, mode="ready"):
-        if self._health_check_passed[mode]:
-            return
-
-        self._wait(f"/api/relay/healthcheck/{mode}/", is_internal=True)
-        self._health_check_passed[mode] = True
 
     def __repr__(self):
         return f"<{self.__class__.__name__}({repr(self.upstream)})>"

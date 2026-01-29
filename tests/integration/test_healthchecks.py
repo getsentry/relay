@@ -79,7 +79,7 @@ def test_readiness(mini_sentry, relay, get_relay_binary, random_port, port, chec
         assert not check(get_relay_binary(), relay, "ready")
 
         mini_sentry.app.view_functions["check_challenge"] = original_check_challenge
-        relay.wait_relay_health_check()
+        relay.wait_health_check()
     finally:
         mini_sentry.clear_test_failures()
 
