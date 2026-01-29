@@ -78,7 +78,7 @@ fn create_replay_recording_item(payload: Bytes) -> Item {
 
 fn create_replay_video_item(payload: Bytes) -> Item {
     let mut item = Item::new(ItemType::ReplayVideo);
-    item.set_payload(ContentType::MsgPack, payload);
+    item.set_payload(ContentType::OctetStream, payload);
     item
 }
 
