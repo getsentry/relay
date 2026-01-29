@@ -26,11 +26,11 @@ mod ai;
 mod size;
 pub mod time;
 pub mod trace_metric;
-#[allow(unused)]
 mod trimming;
 
 pub use self::ai::normalize_ai;
 pub use self::size::*;
+pub use self::trimming::{REMOVED_KEY_BYTE_BUDGET, TrimmingProcessor};
 
 /// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
 pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
