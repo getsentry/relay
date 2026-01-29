@@ -180,11 +180,13 @@ impl processing::Processor for ReplaysProcessor {
 
         validate::validate(&mut replays);
         process::normalize(&mut replays, &self.geoip_lookup);
-        process::scrub(&mut replays, ctx);
         filter::filter(&mut replays, ctx);
+
+        let mut replays = self.limiter.enforce_quotas(replays, ctx).await?;
+
+        process::scrub(&mut replays, ctx);
         process::scrub_recording(&mut replays, ctx);
 
-        let replays = self.limiter.enforce_quotas(replays, ctx).await?;
         Ok(Output::just(ReplaysOutput(replays)))
     }
 }
