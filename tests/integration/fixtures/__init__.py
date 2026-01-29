@@ -1,4 +1,5 @@
 import time
+from collections import defaultdict
 
 import requests
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
