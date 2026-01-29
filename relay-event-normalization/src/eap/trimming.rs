@@ -9,6 +9,11 @@ use relay_protocol::{Array, Empty, Meta, Object};
 
 use crate::eap::size;
 
+/// Default value for a [`TrimmingProcessor`]'s `removed_key_byte_budget` field.
+///
+/// This determines the limit up to which the keys of discarded items will be kept.
+pub const REMOVED_KEY_BYTE_BUDGET: usize = 10 * 1024;
+
 #[derive(Clone, Debug)]
 struct SizeState {
     max_depth: Option<usize>,
