@@ -225,8 +225,9 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             version,
         )
 
+        relay.wait_relay_health_check("live")
         if wait_health_check:
-            relay.wait_relay_health_check()
+            relay.wait_relay_health_check("ready")
 
             # Filter out health check failures, which can happen during startup
             filtered_test_failures = Queue()

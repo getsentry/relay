@@ -9,7 +9,7 @@ import os
 import subprocess
 import pytest
 
-from requests import HTTPError
+from requests import HTTPError, ConnectionError
 
 
 def failing_check_challenge(*args, **kwargs):
@@ -37,8 +37,12 @@ def cli_healthcheck(relay_binary, relay, mode):
 
 
 def http_healthcheck(_, relay, mode):
-    response = relay.get(f"/api/relay/healthcheck/{mode}/", is_internal=True)
-    return response.status_code == 200
+    try:
+        response = relay.get(f"/api/relay/healthcheck/{mode}/", is_internal=True)
+    except ConnectionError:
+        return False
+    else:
+        return response.status_code == 200
 
 
 @pytest.mark.parametrize("port", [None, "random"])

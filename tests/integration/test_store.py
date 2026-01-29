@@ -202,6 +202,7 @@ def test_store_with_low_memory(mini_sentry, relay):
 
     try:
         with pytest.raises(HTTPError):
+            print("SENDING")
             relay.send_event(project_id, {"message": "pls ignore"})
         pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_envelope(timeout=1))
 
