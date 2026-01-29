@@ -6,7 +6,7 @@ use relay_protocol::Annotated;
 
 use crate::ModelCosts;
 use crate::span::ai;
-use crate::statsd::Counters;
+use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
 
 /// Normalizes AI attributes.
 ///
@@ -109,54 +109,6 @@ fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Dur
     }
 }
 
-/// Maps a span origin to a well-known AI integration name for metrics.
-///
-/// Origins follow the pattern `auto.<integration>.<source>` or `auto.<category>.<protocol>.<source>`.
-/// This function extracts recognized AI integrations for cleaner metric tagging.
-fn map_origin_to_integration(origin: Option<&str>) -> &'static str {
-    match origin {
-        Some(o) if o.starts_with("auto.ai.openai_agents") => "openai_agents",
-        Some(o) if o.starts_with("auto.ai.openai") => "openai",
-        Some(o) if o.starts_with("auto.ai.anthropic") => "anthropic",
-        Some(o) if o.starts_with("auto.ai.cohere") => "cohere",
-        Some(o) if o.starts_with("auto.vercelai.") => "vercelai",
-        Some(o) if o.starts_with("auto.ai.langchain") => "langchain",
-        Some(o) if o.starts_with("auto.ai.langgraph") => "langgraph",
-        Some(o) if o.starts_with("auto.ai.google_genai") => "google_genai",
-        Some(o) if o.starts_with("auto.ai.pydantic_ai") => "pydantic_ai",
-        Some(o) if o.starts_with("auto.ai.huggingface_hub") => "huggingface_hub",
-        Some(o) if o.starts_with("auto.ai.litellm") => "litellm",
-        Some(o) if o.starts_with("auto.ai.mcp_server") => "mcp_server",
-        Some(o) if o.starts_with("auto.ai.mcp") => "mcp",
-        Some(o) if o.starts_with("auto.ai.claude_agent_sdk") => "claude_agent_sdk",
-        Some(o) if o.starts_with("auto.ai.") => "other",
-        Some(_) => "other",
-        None => "unknown",
-    }
-}
-
-fn platform_tag(platform: Option<&str>) -> &'static str {
-    match platform {
-        Some("cocoa") => "cocoa",
-        Some("csharp") => "csharp",
-        Some("edge") => "edge",
-        Some("go") => "go",
-        Some("java") => "java",
-        Some("javascript") => "javascript",
-        Some("julia") => "julia",
-        Some("native") => "native",
-        Some("node") => "node",
-        Some("objc") => "objc",
-        Some("perl") => "perl",
-        Some("php") => "php",
-        Some("python") => "python",
-        Some("ruby") => "ruby",
-        Some("swift") => "swift",
-        Some(_) => "other",
-        None => "unknown",
-    }
-}
-
 /// Calculates model costs and serializes them into attributes.
 fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCosts>) {
     let origin = extract_string_value(attributes, ORIGIN);
@@ -188,34 +140,15 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
     let integration = map_origin_to_integration(origin);
     let platform = platform_tag(platform);
 
-    let Some(costs) = ai::calculate_costs(model_cost, tokens) else {
+    let Some(costs) = ai::calculate_costs(model_cost, tokens, integration, platform) else {
         relay_statsd::metric!(
             counter(Counters::GenAiCostCalculationResult) += 1,
             result = "calculation_none",
             integration = integration,
             platform = platform,
         );
-
         return;
     };
-
-    let metric_label = if (costs.input > 0.0 && costs.output > 0.0)
-        || ((costs.input > 0.0 && costs.output == 0.0)
-            || (costs.input == 0.0 && costs.output > 0.0))
-    {
-        "calculation_positive"
-    } else if costs.input < 0.0 || costs.output < 0.0 {
-        "calculation_negative"
-    } else {
-        "calculation_zero"
-    };
-
-    relay_statsd::metric!(
-        counter(Counters::GenAiCostCalculationResult) += 1,
-        result = metric_label,
-        integration = integration,
-        platform = platform,
-    );
 
     attributes.insert(GEN_AI_COST_INPUT_TOKENS, costs.input);
     attributes.insert(GEN_AI_COST_OUTPUT_TOKENS, costs.output);

@@ -1,5 +1,6 @@
 //! AI cost calculation.
 
+use crate::statsd::Counters;
 use crate::{ModelCostV2, ModelCosts};
 use relay_event_schema::protocol::{
     Event, Measurements, OperationType, Span, SpanData, TraceContext,
@@ -84,7 +85,12 @@ impl CalculatedCost {
 /// Calculates the total cost for a model call.
 ///
 /// Returns `None` if no tokens were used.
-pub fn calculate_costs(model_cost: &ModelCostV2, tokens: UsedTokens) -> Option<CalculatedCost> {
+pub fn calculate_costs(
+    model_cost: &ModelCostV2,
+    tokens: UsedTokens,
+    integration: &str,
+    platform: &str,
+) -> Option<CalculatedCost> {
     if !tokens.has_usage() {
         return None;
     }
@@ -102,6 +108,19 @@ pub fn calculate_costs(model_cost: &ModelCostV2, tokens: UsedTokens) -> Option<C
 
     let output = (tokens.raw_output_tokens() * model_cost.output_per_token)
         + (tokens.output_reasoning_tokens * reasoning_cost);
+
+    let metric_label = match (input.signum(), output.signum()) {
+        (-1.0, _) | (_, -1.0) => "calculation_negative",
+        (0.0, 0.0) => "calculation_zero",
+        _ => "calculation_positive",
+    };
+
+    relay_statsd::metric!(
+        counter(Counters::GenAiCostCalculationResult) += 1,
+        result = metric_label,
+        integration = integration,
+        platform = platform,
+    );
 
     Some(CalculatedCost { input, output })
 }
@@ -162,7 +181,7 @@ fn extract_ai_model_cost_data(model_cost: Option<&ModelCostV2>, data: &mut SpanD
     let Some(model_cost) = model_cost else { return };
 
     let used_tokens = UsedTokens::from_span_data(&*data);
-    let Some(costs) = calculate_costs(model_cost, used_tokens) else {
+    let Some(costs) = calculate_costs(model_cost, used_tokens, "unknown", "unknown") else {
         return;
     };
 
@@ -378,6 +397,8 @@ mod tests {
                 input_cache_write_per_token: 1.0,
             },
             UsedTokens::from_span_data(&SpanData::default()),
+            "test",
+            "test",
         );
         assert!(cost.is_none());
     }
@@ -399,6 +420,8 @@ mod tests {
                 output_tokens: 15.0,
                 output_reasoning_tokens: 9.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -428,6 +451,8 @@ mod tests {
                 output_tokens: 15.0,
                 output_reasoning_tokens: 9.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -459,6 +484,8 @@ mod tests {
                 output_tokens: 1.0,
                 output_reasoning_tokens: 9.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -487,6 +514,8 @@ mod tests {
                 output_tokens: 50.0,
                 output_reasoning_tokens: 10.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -523,6 +552,8 @@ mod tests {
                 input_cache_write_per_token: 0.75,
             },
             tokens,
+            "test",
+            "test",
         )
         .unwrap();
 
