@@ -11,41 +11,43 @@ use crate::protocol::{Attributes, OperationType, SpanId, Timestamp, TraceId};
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SpanV2 {
     /// The ID of the trace to which this span belongs.
-    #[metastructure(required = true, nonempty = true, trim = false)]
+    #[metastructure(required = true, nonempty = true, trim = false, bytes_size = 0)]
     pub trace_id: Annotated<TraceId>,
 
     /// The ID of the span enclosing this span.
+    #[metastructure(trim = false, bytes_size = 0)]
     pub parent_span_id: Annotated<SpanId>,
 
     /// The Span ID.
-    #[metastructure(required = true, nonempty = true, trim = false)]
+    #[metastructure(required = true, nonempty = true, trim = false, bytes_size = 0)]
     pub span_id: Annotated<SpanId>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(required = true)]
+    #[metastructure(required = true, bytes_size = 0)]
     pub name: Annotated<OperationType>,
 
     /// The span's status.
-    #[metastructure(required = true)]
+    #[metastructure(required = true, bytes_size = 0)]
     pub status: Annotated<SpanV2Status>,
 
     /// Whether this span is the root span of a segment.
+    #[metastructure(trim = false, bytes_size = 0)]
     pub is_segment: Annotated<bool>,
 
     /// Timestamp when the span started.
-    #[metastructure(required = true)]
+    #[metastructure(required = true, trim = false, bytes_size = 0)]
     pub start_timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the span was ended.
-    #[metastructure(required = true)]
+    #[metastructure(required = true, trim = false, bytes_size = 0)]
     pub end_timestamp: Annotated<Timestamp>,
 
     /// Links from this span to other spans.
-    #[metastructure(pii = "maybe")]
+    #[metastructure(pii = "maybe", trim = true)]
     pub links: Annotated<Array<SpanV2Link>>,
 
     /// Arbitrary attributes on a span.
-    #[metastructure(pii = "true", trim = false)]
+    #[metastructure(pii = "true", trim = true)]
     pub attributes: Annotated<Attributes>,
 
     /// Additional arbitrary fields for forwards compatibility.
