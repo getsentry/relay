@@ -10,7 +10,7 @@ use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 use serde::{Deserialize, Serialize};
 
-use crate::envelope::{EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{EnvelopeHeaders, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -145,18 +145,15 @@ impl processing::Processor for ReplaysProcessor {
         let headers = envelope.envelope().headers().clone();
         let events = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::ReplayEvent))
-            .into_vec();
+            .take_items_by(|item| matches!(item.ty(), ItemType::ReplayEvent));
 
         let recordings = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::ReplayRecording))
-            .into_vec();
+            .take_items_by(|item| matches!(item.ty(), ItemType::ReplayRecording));
 
         let videos = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::ReplayVideo))
-            .into_vec();
+            .take_items_by(|item| matches!(item.ty(), ItemType::ReplayVideo));
 
         // If there are no events, recordings or videos there is nothing for us to do.
         if events.is_empty() && recordings.is_empty() && videos.is_empty() {
@@ -198,11 +195,11 @@ pub struct SerializedReplays {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
     /// A list of replay events.
-    events: Vec<Item>,
+    events: Items,
     /// A list of replay recordings.
-    recordings: Vec<Item>,
+    recordings: Items,
     /// A list of replay videos.
-    videos: Vec<Item>,
+    videos: Items,
 }
 
 impl Counted for SerializedReplays {
