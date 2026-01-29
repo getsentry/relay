@@ -83,6 +83,8 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
         // From the SDKs it seems like there will only be one video per envelope but that is not
         // clearly specified anywhere. Also it seems like their will always only be a video or a
         // (event, recording).
+        // Currently the logic still allows for multiple videos per envelope as well as 'native' and
+        // 'web' replays in the same envelope, in the future we could be more strict on this.
         for video in &videos {
             match expand_video(video) {
                 Ok(replay) => replays.push(replay),
@@ -115,7 +117,6 @@ pub fn normalize(replays: &mut Managed<ExpandedReplays>, geoip_lookup: &GeoIpLoo
     })
 }
 
-/// Applies PII scrubbing to individual replay events.
 fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Error> {
     if let Some(ref config) = ctx.project_info.config.pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
@@ -138,6 +139,7 @@ fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Er
     Ok(())
 }
 
+/// Applies PII scrubbing to individual replay events.
 pub fn scrub(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
     replays.retain(
         |replays| &mut replays.replays,
