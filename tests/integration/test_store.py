@@ -195,14 +195,13 @@ def test_store_proxy_config(mini_sentry, relay):
 
 def test_store_with_low_memory(mini_sentry, relay):
     relay = relay(
-        mini_sentry, {"health": {"max_memory_percent": 0.0}}, wait_health_check=False
+        mini_sentry, {"health": {"max_memory_percent": 0.0}}, wait_health_check="live"
     )
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
     try:
         with pytest.raises(HTTPError):
-            print("SENDING")
             relay.send_event(project_id, {"message": "pls ignore"})
         pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_envelope(timeout=1))
 
@@ -906,7 +905,7 @@ def test_events_buffered_before_auth(relay, mini_sentry):
 
     # keep max backoff as short as the configuration allows (1 sec)
     relay_options = {"http": {"max_retry_interval": 1}}
-    relay = relay(mini_sentry, relay_options, wait_health_check=False)
+    relay = relay(mini_sentry, relay_options, wait_health_check="live")
 
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
