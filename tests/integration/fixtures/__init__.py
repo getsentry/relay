@@ -1,9 +1,7 @@
 import time
 
-from requests import Session
-from requests.adapters import HTTPAdapter
+import requests
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-from urllib3.util import Retry
 
 from sentry_relay.auth import SecretKey
 
@@ -24,11 +22,6 @@ class SentryLike:
         self.internal_server_address = internal_server_address or server_address
         self.upstream = upstream
         self.public_key = public_key
-
-        self.session = Session()
-        self.session.mount(
-            "http://", HTTPAdapter(max_retries=Retry(total=5, backoff_factor=0.1))
-        )
 
     def get_dsn_public_key_configs(self, project_id):
         """
@@ -569,7 +562,7 @@ class SentryLike:
             timeout = 10
 
         url = self.url if not is_internal else self.internal_url
-        return self.session.request(method, url + path, timeout=timeout, **kwargs)
+        return requests.request(method, url + path, timeout=timeout, **kwargs)
 
     def post(self, path, **kwargs):
         return self.request("post", path, **kwargs)
