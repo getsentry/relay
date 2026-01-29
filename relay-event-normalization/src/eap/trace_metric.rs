@@ -71,5 +71,6 @@ mod tests {
         assert_metric_name!("foo bar", "foo_bar");
         assert_metric_name!("foo!@#bar", "foo_bar");
         assert_metric_name!("   foo.bar    ", "_foo.bar_");
+        assert_metric_name!("unicøøde", "unic_de");
     }
 }
