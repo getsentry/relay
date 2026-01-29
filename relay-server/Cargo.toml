@@ -58,7 +58,7 @@ mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 objectstore-client = { workspace = true }
-opentelemetry-proto = { workspace = true }
+opentelemetry-proto = { workspace = true, features = ["gen-tonic", "with-serde", "metrics"] }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
@@ -80,6 +80,7 @@ relay-kafka = { workspace = true, optional = true }
 relay-log = { workspace = true, features = ["sentry"] }
 relay-metrics = { workspace = true }
 relay-monitors = { workspace = true }
+relay-otel = { workspace = true }
 relay-ourlogs = { workspace = true }
 relay-pii = { workspace = true }
 relay-profiling = { workspace = true }

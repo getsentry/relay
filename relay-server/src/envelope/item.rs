@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
-use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
+use crate::integrations::{
+    Integration, LogsIntegration, SpansIntegration, TraceMetricsIntegration,
+};
 use crate::statsd::RelayTimers;
 
 #[derive(Clone, Debug)]
@@ -179,6 +181,9 @@ impl Item {
                         (DataCategory::Span, item_count),
                         (DataCategory::SpanIndexed, item_count),
                     ]
+                }
+                Some(Integration::TraceMetrics(TraceMetricsIntegration::OtelV1 { .. })) => {
+                    smallvec![(DataCategory::TraceMetric, item_count)]
                 }
                 None => smallvec![],
             },

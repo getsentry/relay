@@ -9,12 +9,14 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::Envelope;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
 use crate::envelope::{ContainerWriteError, ItemContainer};
+use crate::integrations::Integration;
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use smallvec::smallvec;
 
 mod filter;
+mod integrations;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
@@ -112,11 +114,21 @@ impl processing::Processor for TraceMetricsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::TraceMetric))
             .into_vec();
 
-        if metrics.is_empty() {
+        // Extract integration items for trace metrics (e.g., OTLP metrics)
+        let integrations = envelope
+            .envelope_mut()
+            .take_items_by(|item| matches!(item.integration(), Some(Integration::TraceMetrics(_))))
+            .into_vec();
+
+        if metrics.is_empty() && integrations.is_empty() {
             return None;
         }
 
-        let work = SerializedTraceMetrics { headers, metrics };
+        let work = SerializedTraceMetrics {
+            headers,
+            metrics,
+            integrations,
+        };
         Some(Managed::with_meta_from(envelope, work))
     }
 
@@ -199,17 +211,26 @@ pub struct SerializedTraceMetrics {
     ///
     /// But at this point this has not yet been validated.
     pub metrics: Vec<Item>,
+    /// Trace metrics which Relay received from arbitrary integrations (e.g., OTLP metrics endpoint).
+    pub integrations: Vec<Item>,
+}
+
+impl SerializedTraceMetrics {
+    fn items(&self) -> impl Iterator<Item = &Item> {
+        self.metrics.iter().chain(self.integrations.iter())
+    }
+
+    /// Returns the total count of all trace metrics contained.
+    fn count(&self) -> usize {
+        self.items()
+            .map(|item| item.item_count().unwrap_or(1) as usize)
+            .sum()
+    }
 }
 
 impl Counted for SerializedTraceMetrics {
     fn quantities(&self) -> Quantities {
-        let count = self
-            .metrics
-            .iter()
-            .map(|item| item.item_count().unwrap_or(1) as usize)
-            .sum();
-
-        smallvec![(DataCategory::TraceMetric, count)]
+        smallvec![(DataCategory::TraceMetric, self.count())]
     }
 }
 

@@ -78,6 +78,7 @@ pub fn check_envelope_size_limits(
             ItemType::Integration => match item.integration() {
                 Some(Integration::Logs(_)) => config.max_logs_integration_size(),
                 Some(Integration::Spans(_)) => config.max_spans_integration_size(),
+                Some(Integration::TraceMetrics(_)) => config.max_trace_metrics_integration_size(),
                 None => NO_LIMIT,
             },
             ItemType::ProfileChunk => config.max_profile_size(),

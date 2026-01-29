@@ -2393,6 +2393,12 @@ impl Config {
         self.max_container_size()
     }
 
+    /// Returns the maximum payload size for trace metrics integration items in bytes.
+    pub fn max_trace_metrics_integration_size(&self) -> usize {
+        // Not explicitly configured, inherited from the maximum size of a container.
+        self.max_container_size()
+    }
+
     /// Returns the maximum size of an envelope payload in bytes.
     ///
     /// Individual item size limits still apply.

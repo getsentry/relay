@@ -8,7 +8,7 @@ use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::RequestMeta;
 use crate::processing::Context;
 use crate::processing::Managed;
-use crate::processing::trace_metrics::{Error, Result};
+use crate::processing::trace_metrics::{Error, Result, integrations};
 use crate::processing::trace_metrics::{ExpandedTraceMetrics, SerializedTraceMetrics};
 use crate::services::outcome::DiscardReason;
 
@@ -18,11 +18,16 @@ use crate::services::outcome::DiscardReason;
 pub fn expand(metrics: Managed<SerializedTraceMetrics>) -> Managed<ExpandedTraceMetrics> {
     metrics.map(|metrics, records| {
         let mut all_metrics = Vec::new();
+
+        // Expand regular trace metric containers
         for item in metrics.metrics {
             let expanded = expand_trace_metric_container(&item);
             let expanded = records.or_default(expanded, item);
             all_metrics.extend(expanded);
         }
+
+        // Expand integration items (e.g., OTLP metrics)
+        integrations::expand_into(&mut all_metrics, records, metrics.integrations);
 
         ExpandedTraceMetrics {
             headers: metrics.headers,

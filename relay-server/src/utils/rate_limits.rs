@@ -676,6 +676,7 @@ impl Enforcement {
             ItemType::Integration => match item.integration() {
                 Some(Integration::Logs(_)) => !(self.log_items.is_active() || self.log_bytes.is_active()),
                 Some(Integration::Spans(_)) => !self.spans_indexed.is_active(),
+                Some(Integration::TraceMetrics(_)) => !self.trace_metrics.is_active(),
                 None => true,
             },
             ItemType::Event
