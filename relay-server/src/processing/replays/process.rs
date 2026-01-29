@@ -71,12 +71,12 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
                 }
             }
             (a, b) => {
-                a.iter().for_each(|e| {
-                    records.reject_err(Error::InvalidItemCount, e);
-                });
-                b.iter().for_each(|e| {
-                    records.reject_err(Error::InvalidItemCount, e);
-                });
+                for item in a {
+                    records.reject_err(Error::InvalidItemCount, item);
+                }
+                for item in b {
+                    records.reject_err(Error::InvalidItemCount, item);
+                }
             }
         }
 
