@@ -7,15 +7,15 @@ pub enum Counters {
 impl CounterMetric for Counters {
     fn name(&self) -> &'static str {
         match *self {
-            /// Records the status of the AI cost calculation.
-            /// The metric is tagged with:
-            ///  - `result`: The outcome of the cost calculation. Possible values are:
-            ///     `calculation_negative`,
-            ///     `calculation_zero`,
-            ///     `calculation_positive`,
-            ///     `calculation_none`
-            ///  - `integration`: The integration used for the cost calculation.
-            ///  - `platform`: The platform used for the cost calculation.
+            // Records the status of the AI cost calculation.
+            // The metric is tagged with:
+            //  - `result`: The outcome of the cost calculation. Possible values are:
+            //     `calculation_negative`,
+            //     `calculation_zero`,
+            //     `calculation_positive`,
+            //     `calculation_none`
+            //  - `integration`: The integration used for the cost calculation.
+            //  - `platform`: The platform used for the cost calculation.
             Self::GenAiCostCalculationResult => "gen_ai.cost_calculation.result",
         }
     }

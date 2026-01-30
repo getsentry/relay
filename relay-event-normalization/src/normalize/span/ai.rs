@@ -109,10 +109,10 @@ pub fn calculate_costs(
     let output = (tokens.raw_output_tokens() * model_cost.output_per_token)
         + (tokens.output_reasoning_tokens * reasoning_cost);
 
-    let metric_label = match (input.signum(), output.signum()) {
-        (-1.0, _) | (_, -1.0) => "calculation_negative",
-        (0.0, 0.0) => "calculation_zero",
-        _ => "calculation_positive",
+    let metric_label = match (input, output) {
+        (x, y) if x < 0.0 || y < 0.0 => "negative",
+        (0.0, 0.0) => "zero",
+        _ => "positive",
     };
 
     relay_statsd::metric!(
