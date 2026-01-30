@@ -2,6 +2,7 @@ use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleError, RecycleRes
 use futures::FutureExt;
 use redis::AsyncConnectionConfig;
 use redis::cluster::ClusterClientBuilder;
+use redis::io::tcp::{TcpSettings, socket2::TcpKeepalive};
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 use tokio::time::Instant;
@@ -157,7 +158,7 @@ impl CustomClusterManager {
         read_from_replicas: bool,
         options: RedisConfigOptions,
     ) -> RedisResult<Self> {
-        let mut client = ClusterClientBuilder::new(params);
+        let mut client = ClusterClientBuilder::new(params).tcp_settings(create_tcp_settings());
 
         if read_from_replicas {
             client = client.read_from_replicas();
@@ -258,9 +259,14 @@ impl CustomSingleManager {
             connection_config =
                 connection_config.set_response_timeout(Some(Duration::from_secs(response_timeout)));
         }
+
+        let connection_info = params
+            .into_connection_info()?
+            .set_tcp_settings(create_tcp_settings());
+
         Ok(Self {
             name,
-            client: redis::Client::open(params)?,
+            client: redis::Client::open(connection_info)?,
             connection_config,
         })
     }
@@ -323,4 +329,11 @@ fn cmd_name(cmd: &Cmd) -> &str {
         // Non exhaustive enum.
         Some(_) | None => "<unknown>",
     }
+}
+
+/// Creates TCP settings configured with tcp `nodelay` and `keepalive`.
+fn create_tcp_settings() -> TcpSettings {
+    TcpSettings::default()
+        .set_nodelay(true)
+        .set_keepalive(TcpKeepalive::new())
 }
