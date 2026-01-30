@@ -206,6 +206,10 @@ impl Counted for SerializedReplays {
     fn quantities(&self) -> crate::managed::Quantities {
         smallvec::smallvec![(
             DataCategory::Replay,
+            // There is a discrepancy between how 'web replays' and 'native replays' are counted.
+            // For 'web replays' we count the replay_event and the replay_recording separately.
+            // For 'native replays' we count the replay_video as one even though it contains
+            // a replay_event and replay_recording.
             self.events.len() + self.recordings.len() + self.videos.len()
         )]
     }
