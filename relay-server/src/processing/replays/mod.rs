@@ -183,7 +183,7 @@ impl processing::Processor for ReplaysProcessor {
 
         let mut replays = self.limiter.enforce_quotas(replays, ctx).await?;
 
-        process::scrub(&mut replays, ctx);
+        process::scrub(&mut replays, ctx)?;
 
         Ok(Output::just(ReplaysOutput(replays)))
     }
