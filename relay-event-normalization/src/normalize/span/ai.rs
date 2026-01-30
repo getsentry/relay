@@ -92,6 +92,12 @@ pub fn calculate_costs(
     platform: &str,
 ) -> Option<CalculatedCost> {
     if !tokens.has_usage() {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_none",
+            integration = integration,
+            platform = platform,
+        );
         return None;
     }
 
@@ -110,9 +116,9 @@ pub fn calculate_costs(
         + (tokens.output_reasoning_tokens * reasoning_cost);
 
     let metric_label = match (input, output) {
-        (x, y) if x < 0.0 || y < 0.0 => "negative",
-        (0.0, 0.0) => "zero",
-        _ => "positive",
+        (x, y) if x < 0.0 || y < 0.0 => "calculation_negative",
+        (0.0, 0.0) => "calculation_zero",
+        _ => "calculation_positive",
     };
 
     relay_statsd::metric!(
