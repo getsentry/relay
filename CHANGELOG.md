@@ -15,6 +15,7 @@
 - Add `gen_ai_response_time_to_first_token` as a `SpanData` attribute. ([#5575](https://github.com/getsentry/relay/pull/5575))
 - Add sampling to expensive envelope buffer statsd metrics. ([#5576](https://github.com/getsentry/relay/pull/5576))
 - Use new processor architecture to process replays. ([#5580](https://github.com/getsentry/relay/pull/5580))
+- Normalizes and validates trace metric names. ([#5589](https://github.com/getsentry/relay/pull/5589))
 
 ## 26.1.0
 

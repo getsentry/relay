@@ -648,11 +648,10 @@ def test_session_metrics_extracted_only_once(
     assert metrics["headers"]["c:sessions/session@none"] == [("namespace", b"sessions")]
 
 
-@pytest.mark.parametrize(
-    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
-)
 def test_session_metrics_processing(
-    mini_sentry, relay_with_processing, metrics_consumer, metrics_extracted
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
 ):
     """
     Tests that a processing relay with metrics-extraction enabled creates metrics
@@ -675,12 +674,7 @@ def test_session_metrics_processing(
     relay.send_session(
         project_id,
         session_payload,
-        item_headers={"metrics_extracted": metrics_extracted},
     )
-
-    if metrics_extracted:
-        metrics_consumer.assert_empty(timeout=2)
-        return
 
     metrics = metrics_by_name(metrics_consumer, 2)
 

@@ -101,6 +101,7 @@ fn scrub_trace_metric(metric: &mut Annotated<TraceMetric>, ctx: Context<'_>) -> 
 /// Normalizes an individual trace metric entry.
 fn normalize_trace_metric(metric: &mut Annotated<TraceMetric>, meta: &RequestMeta) -> Result<()> {
     if let Some(metric_value) = metric.value_mut() {
+        eap::trace_metric::normalize_metric_name(metric_value)?;
         eap::normalize_received(&mut metric_value.attributes, meta.received_at());
         eap::normalize_client_address(&mut metric_value.attributes, meta.client_addr());
         eap::normalize_user_agent(
