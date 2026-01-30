@@ -71,6 +71,13 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
                 }
             }
             (a, b) => {
+                relay_log::error!(
+                    sdk = headers.meta().client().unwrap_or("unknown"),
+                    event_count = a.len(),
+                    recording_count = b.len(),
+                    "replay item recording mismatch"
+                );
+
                 for item in a {
                     records.reject_err(Error::InvalidItemCount, item);
                 }
@@ -90,6 +97,16 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
                 Ok(replay) => replays.push(replay),
                 Err(err) => drop(records.reject_err(err, video)),
             }
+        }
+
+        if replays.len() > 1 {
+            relay_log::error!(
+                sdk = headers.meta().client().unwrap_or("unknown"),
+                event_count = events.len(),
+                recording_count = recordings.len(),
+                video_count = videos.len(),
+                "multiple replay items in same envelope"
+            );
         }
 
         ExpandedReplays { headers, replays }
