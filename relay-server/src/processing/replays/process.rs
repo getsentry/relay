@@ -10,7 +10,7 @@ use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
 
 use crate::envelope::Item;
-use crate::managed::Managed;
+use crate::managed::{Managed, Rejected};
 use crate::processing::Context;
 use crate::processing::replays::{
     Error, ExpandedReplay, ExpandedReplays, ReplayVideoEvent, SerializedReplays,
@@ -155,14 +155,14 @@ fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Er
     Ok(())
 }
 
-fn scrub_recordings(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
+fn scrub_recordings(
+    replays: &mut Managed<ExpandedReplays>,
+    ctx: Context<'_>,
+) -> Result<(), Rejected<Error>> {
     let event_id = replays.headers.event_id();
     let pii_config = match ctx.project_info.config.datascrubbing_settings.pii_config() {
         Ok(config) => config.as_ref(),
-        Err(e) => {
-            let _ = replays.reject_err(Error::PiiConfig(e.clone()));
-            return;
-        }
+        Err(e) => return Err(replays.reject_err(Error::PiiConfig(e.clone()))),
     };
 
     replays.retain(
@@ -197,10 +197,16 @@ fn scrub_recordings(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
             Ok::<(), Error>(())
         },
     );
+    Ok(())
 }
 
 /// Applies PII scrubbing to individual replay events and recordings.
-pub fn scrub(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
+///
+/// Will reject the entire envelope if loading the pii config fails for replay_recordings.
+pub fn scrub(
+    replays: &mut Managed<ExpandedReplays>,
+    ctx: Context<'_>,
+) -> Result<(), Rejected<Error>> {
     replays.retain(
         |replays| &mut replays.replays,
         |replay, _| {
@@ -213,6 +219,8 @@ pub fn scrub(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
         .project_info
         .has_feature(Feature::SessionReplayRecordingScrubbing)
     {
-        scrub_recordings(replays, ctx);
+        scrub_recordings(replays, ctx)
+    } else {
+        Ok(())
     }
 }
