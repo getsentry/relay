@@ -702,7 +702,7 @@ mod tests {
             ) srpe
             inner join foo on foo.id = foo_id
         ",
-        "SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe INNER JOIN foo ON id = foo_id"
+        "SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) srpe WHERE x = %s) srpe INNER JOIN foo ON id = foo_id"
     );
 
     scrub_sql_test!(
