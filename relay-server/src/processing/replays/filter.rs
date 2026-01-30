@@ -6,6 +6,9 @@ use crate::processing::Context;
 use crate::processing::replays::{Error, ExpandedReplays, SerializedReplays};
 use crate::statsd::RelayCounters;
 
+/// Maximum expected segment ID for a replay session, under normal operation.
+const MAX_SEGMENTS_ID: u64 = 720;
+
 /// Filters replays sent for a project which does not allow replay ingestion.
 pub fn feature_flag(
     replays: Managed<SerializedReplays>,
@@ -43,7 +46,7 @@ pub fn filter(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
             // Log segments that exceed the hour limit so we can diagnose errant SDKs
             // or exotic customer implementations.
             if let Some(segment_id) = event.segment_id.value()
-                && *segment_id > 720
+                && *segment_id > MAX_SEGMENTS_ID
             {
                 metric!(counter(RelayCounters::ReplayExceededSegmentLimit) += 1);
 
