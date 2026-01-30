@@ -63,6 +63,7 @@ fn make_app(service: ServiceState, f: impl FnOnce(&Config) -> axum::Router<Servi
     //  - Responses go from bottom to top
     let middleware = ServiceBuilder::new()
         .layer(axum::middleware::from_fn(middlewares::metrics))
+        .layer(axum::middleware::from_fn(middlewares::content_length))
         .layer(CatchPanicLayer::custom(middlewares::handle_panic))
         .layer(SetResponseHeaderLayer::overriding(
             header::SERVER,
