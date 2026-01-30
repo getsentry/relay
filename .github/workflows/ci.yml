@@ -359,7 +359,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm curl
+          sudo apt-get install -y llvm curl libcurl4-openssl-dev
 
       - name: Install sentry-cli
         run: |
@@ -435,7 +435,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm curl
+          sudo apt-get install -y llvm curl libcurl4-openssl-dev
 
       - name: Install sentry-cli
         run: |
