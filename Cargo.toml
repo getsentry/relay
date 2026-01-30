@@ -201,7 +201,7 @@ sha2 = "0.10.9"
 similar-asserts = "1.7.0"
 smallvec = { version = "1.15.1", features = ["serde"] }
 socket2 = "0.6.2"
-sqlparser = "0.59.0"
+sqlparser = "0.60.0"
 sqlx = { version = "0.8.6", default-features = false }
 statsdproxy = { version = "0.4.1", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
@@ -225,8 +225,3 @@ utf16string = "0.2.0"
 uuid = { version = "1.18.1", features = ["serde", "v4", "v7"] }
 walkdir = "2.5.0"
 zstd = { version = "0.13.3", features = ["experimental"] }
-
-# Patch until https://github.com/apache/datafusion-sqlparser-rs/pull/2060 has been merged.
-# This prevents stack overflows in span description normalization.
-[patch.crates-io]
-sqlparser_derive = { git = "https://github.com/apache/datafusion-sqlparser-rs", rev = "ade40826563451cc14c130af9d689f4050dbdb15" }
