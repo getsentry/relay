@@ -3,6 +3,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 
 use relay_event_normalization::GeoIpLookup;
+use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::Replay;
 use relay_filter::FilterStatKey;
 use relay_pii::PiiConfigError;
@@ -36,15 +37,15 @@ pub enum Error {
 
     /// The Replay event could not be parsed from JSON.
     #[error("invalid json: {0}")]
-    CouldNotParseEvent(String),
+    CouldNotParseEvent(#[from] serde_json::Error),
 
     /// The Replay event was parsed but did not match the schema.
     #[error("no data found")]
     NoEventContent,
 
     /// The Replay contains invalid data or is missing a required field.
-    #[error("invalid payload {0}")]
-    InvalidPayload(String),
+    #[error("replay validation failed: {0}")]
+    InvalidPayload(#[from] relay_event_normalization::replay::ReplayError),
 
     /// The Replay video could not be parsed.
     #[error("invalid replay video")]
@@ -54,22 +55,20 @@ pub enum Error {
     #[error("invalid replay")]
     InvalidReplayRecordingEvent,
 
-    /// The PII config for scrubbing the recording could not be loaded.
+    /// The PII config could not be loaded.
     #[error("invalid pii config")]
-    PiiConfigError(PiiConfigError),
+    PiiConfig(PiiConfigError),
 
     /// An error occurred during PII scrubbing of the Replay.
-    ///
-    /// This error is usually returned when the PII configuration fails to parse.
     #[error("failed to scrub PII: {0}")]
-    CouldNotScrub(String),
+    CouldNotScrub(#[from] ProcessingAction),
 
     /// The Replays are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
 
     /// Replays filtered due to a filtering rule
-    #[error("replay filtered with reason: {0:?}")]
+    #[error("replay filtered with reason: {0}")]
     Filtered(FilterStatKey),
 
     /// Failed to re-serialize the replay.
@@ -97,7 +96,7 @@ impl OutcomeError for Error {
             Self::InvalidReplayRecordingEvent => {
                 Some(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
             }
-            Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
+            Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::CouldNotScrub(_) => Some(Outcome::Invalid(DiscardReason::InvalidReplayEventPii)),
 
             Self::RateLimited(limits) => {

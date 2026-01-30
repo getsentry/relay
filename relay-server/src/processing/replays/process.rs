@@ -1,3 +1,5 @@
+use smallvec::SmallVec;
+
 use relay_dynamic_config::Feature;
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo, replay};
 use relay_event_schema::processor::{self, ProcessingState};
@@ -26,8 +28,7 @@ fn expand_video(item: &Item) -> Result<ExpandedReplay, Error> {
         return Err(Error::InvalidReplayVideoEvent);
     }
 
-    let event = Annotated::<Replay>::from_json_bytes(&event)
-        .map_err(|e| Error::CouldNotParseEvent(e.to_string()))?;
+    let event = Annotated::<Replay>::from_json_bytes(&event)?;
 
     Ok(ExpandedReplay::NativeReplay {
         event,
@@ -65,8 +66,7 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
                         });
                     }
                     Err(err) => {
-                        records.reject_err(Error::CouldNotParseEvent(err.to_string()), event);
-                        records.reject_err(Error::CouldNotParseEvent(err.to_string()), recording);
+                        records.reject_err(Error::from(err), SmallVec::from([event, recording]));
                     }
                 }
             }
@@ -120,8 +120,7 @@ pub fn normalize(replays: &mut Managed<ExpandedReplays>, geoip_lookup: &GeoIpLoo
 fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Error> {
     if let Some(ref config) = ctx.project_info.config.pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
-        processor::process_value(event, &mut processor, ProcessingState::root())
-            .map_err(|e| Error::CouldNotScrub(e.to_string()))?;
+        processor::process_value(event, &mut processor, ProcessingState::root())?;
     }
 
     let pii_config = ctx
@@ -129,12 +128,11 @@ fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Er
         .config
         .datascrubbing_settings
         .pii_config()
-        .map_err(|e| Error::CouldNotScrub(e.to_string()))?;
+        .map_err(|e| Error::PiiConfig(e.clone()))?;
 
     if let Some(config) = pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
-        processor::process_value(event, &mut processor, ProcessingState::root())
-            .map_err(|e| Error::CouldNotScrub(e.to_string()))?;
+        processor::process_value(event, &mut processor, ProcessingState::root())?;
     };
     Ok(())
 }
@@ -169,7 +167,7 @@ pub fn scrub_recording(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>)
                 .config
                 .datascrubbing_settings
                 .pii_config()
-                .map_err(|e| Error::PiiConfigError(e.clone()))?
+                .map_err(|e| Error::PiiConfig(e.clone()))?
                 .as_ref();
 
             let mut scrubber = RecordingScrubber::new(
