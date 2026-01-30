@@ -256,7 +256,7 @@ impl CustomSingleManager {
         let mut connection_config = AsyncConnectionConfig::new();
         if let Some(response_timeout) = options.response_timeout {
             connection_config =
-                connection_config.set_response_timeout(Duration::from_secs(response_timeout));
+                connection_config.set_response_timeout(Some(Duration::from_secs(response_timeout)));
         }
         Ok(Self {
             name,
@@ -319,6 +319,8 @@ fn emit_metrics<T>(result: Result<T, &RedisError>, elapsed: Duration, client: &s
 fn cmd_name(cmd: &Cmd) -> &str {
     match cmd.args_iter().next() {
         Some(redis::Arg::Simple(data)) => std::str::from_utf8(data).unwrap_or("<unknown>"),
-        Some(redis::Arg::Cursor) | None => "<unknown>",
+        Some(redis::Arg::Cursor) => "<unknown>",
+        // Non exhaustive enum.
+        Some(_) | None => "<unknown>",
     }
 }
