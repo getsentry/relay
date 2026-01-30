@@ -11,16 +11,26 @@ use crate::normalize::user_agent;
 use crate::user_agent::RawUserAgentInfo;
 use crate::{GeoIpLookup, trimming};
 
-/// Replay validation or normalization error.
+/// Replay validation error.
 ///
-/// This error is returned from [`validate`] and [`normalize`].
+/// This error is returned from [`validate`].
 #[derive(Debug, thiserror::Error)]
 pub enum ReplayError {
-    /// The Replay contains invalid data or is missing a required field.
-    ///
-    /// This is returned from [`validate`].
-    #[error("invalid payload {0}")]
-    InvalidPayload(String),
+    /// The replay event is missing a `replay_id`.
+    #[error("missing replay_id")]
+    MissingReplayId,
+    /// The replay event is missing a `segment_id`.
+    #[error("missing segment_id")]
+    MissingSegmentId,
+    /// The `segment_id` is to large to fit in a a u16.
+    #[error("segment_id too large")]
+    SegmentIdTooLarge,
+    /// One or more of the `error_ids` have an error.
+    #[error("invalid error_id specified")]
+    InvalidErrorId,
+    /// One or more of the `trace_ids` have an error.
+    #[error("invalid trace_id specified")]
+    InvalidTraceId,
 }
 
 /// Checks if the Replay event is structurally valid.
@@ -31,17 +41,15 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
     replay
         .replay_id
         .value()
-        .ok_or_else(|| ReplayError::InvalidPayload("missing replay_id".to_owned()))?;
+        .ok_or(ReplayError::MissingReplayId)?;
 
     let segment_id = *replay
         .segment_id
         .value()
-        .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_owned()))?;
+        .ok_or(ReplayError::MissingSegmentId)?;
 
     if segment_id > u16::MAX as u64 {
-        return Err(ReplayError::InvalidPayload(
-            "segment_id exceeded u16 limit".to_owned(),
-        ));
+        return Err(ReplayError::SegmentIdTooLarge);
     }
 
     if replay
@@ -51,9 +59,7 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         .flat_map(|v| v.iter())
         .any(|v| v.meta().has_errors())
     {
-        return Err(ReplayError::InvalidPayload(
-            "Invalid error-id specified.".to_owned(),
-        ));
+        return Err(ReplayError::InvalidErrorId);
     }
 
     if replay
@@ -63,9 +69,7 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         .flat_map(|v| v.iter())
         .any(|v| v.meta().has_errors())
     {
-        return Err(ReplayError::InvalidPayload(
-            "Invalid trace-id specified.".to_owned(),
-        ));
+        return Err(ReplayError::InvalidTraceId);
     }
 
     Ok(())
