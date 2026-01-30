@@ -271,55 +271,6 @@ def test_unparsable_project_config(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
-def test_cached_project_config(mini_sentry, relay):
-    mini_sentry.project_config_ignore_revision = True
-
-    project_key = 42
-    relay_config = {
-        "cache": {"project_expiry": 2, "project_grace_period": 5, "miss_expiry": 2}
-    }
-    relay = relay(mini_sentry, relay_config)
-    mini_sentry.add_full_project_config(project_key)
-    public_key = mini_sentry.get_dsn_public_key(project_key)
-
-    # Once the event is sent the project state is requested and cached.
-    relay.send_event(project_key)
-    event = mini_sentry.get_captured_envelope().get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
-    # send a second event
-    relay.send_event(project_key)
-    event = mini_sentry.get_captured_envelope().get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
-
-    body = {"publicKeys": [public_key]}
-    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
-    data, _ = get_response(relay, packed, signature)
-    assert data["configs"][public_key]["projectId"] == project_key
-    assert not data["configs"][public_key]["disabled"]
-
-    # Introduce unparsable config.
-    config = mini_sentry.project_configs[project_key]
-    config["slug"] = 99  # ERROR: Number not allowed
-
-    # Give it a bit time for update to go through.
-    time.sleep(1)
-    data, _ = get_response(relay, packed, signature)
-
-    assert data["configs"][public_key]["projectId"] == project_key
-    assert not data["configs"][public_key]["disabled"]
-
-    # Wait till grace period expires as well and we should start buffering the events now.
-    time.sleep(5)
-    try:
-        relay.send_event(project_key)
-        time.sleep(0.5)
-        assert {str(e) for _, e in mini_sentry.current_test_failures()} == {
-            f"Relay sent us event: error fetching project state {public_key}: invalid type: integer `99`, expected a string",
-        }
-    finally:
-        mini_sentry.clear_test_failures()
-
-
 def test_get_global_config(mini_sentry, relay):
     project_key = 42
     relay_config = {

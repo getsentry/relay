@@ -200,7 +200,11 @@ impl Processor for PiiProcessor<'_> {
             let basename = value.split_off(index);
             match self.process_string(value, meta, state) {
                 Ok(()) => value.push_str(&basename),
-                Err(ProcessingAction::DeleteValueHard) | Err(ProcessingAction::DeleteValueSoft) => {
+                Err(
+                    ProcessingAction::DeleteValueHard
+                    | ProcessingAction::DeleteValueWithRemark(_)
+                    | ProcessingAction::DeleteValueSoft,
+                ) => {
                     basename[1..].clone_into(value);
                 }
                 Err(ProcessingAction::InvalidTransaction(x)) => {

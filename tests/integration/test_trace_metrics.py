@@ -52,7 +52,7 @@ def test_trace_metric_extraction(
         "timestamp": start.timestamp(),
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
-        "name": "http.request.duration",
+        "name": "http.request.duration seconds",
         "type": "distribution",
         "value": 123.45,
         "unit": "millisecond",
@@ -75,7 +75,7 @@ def test_trace_metric_extraction(
                     "values": [{"stringValue": "foo"}, {"stringValue": "bar"}]
                 }
             },
-            "sentry.metric_name": {"stringValue": "http.request.duration"},
+            "sentry.metric_name": {"stringValue": "http.request.duration_seconds"},
             "sentry.metric_type": {"stringValue": "distribution"},
             "sentry.metric_unit": {"stringValue": "millisecond"},
             "sentry.value": {"doubleValue": 123.45},
@@ -101,7 +101,7 @@ def test_trace_metric_extraction(
             "sentry.browser.version": {"stringValue": mock.ANY},
             "http.method": {"stringValue": "GET"},
             "http.status_code": {"intValue": "200"},
-            "sentry._internal.cooccuring.name.http.request.duration": {
+            "sentry._internal.cooccuring.name.http.request.duration_seconds": {
                 "boolValue": True
             },
             "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
