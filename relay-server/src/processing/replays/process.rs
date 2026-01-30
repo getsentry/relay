@@ -53,6 +53,7 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
         // There should be at most one event and recording and if there is one there needs to be
         // one of the other
         match (events.as_slice(), recordings.as_slice()) {
+            // Valid case (no 'web replays') if the envelope contains some replay_videos ('native replays')
             ([], []) => (),
             ([event], [recording]) => {
                 let event_bytes = event.payload();
