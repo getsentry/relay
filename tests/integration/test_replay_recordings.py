@@ -20,16 +20,23 @@ def test_replay_recordings(mini_sentry, relay_chain):
     envelope.add_item(
         Item(payload=PayloadRef(bytes=b"{}\n[]"), type="replay_recording")
     )
+    envelope.add_item(
+        Item(payload=PayloadRef(json=generate_replay_sdk_event()), type="replay_event")
+    )
 
     relay.send_envelope(project_id, envelope)
 
     envelope = mini_sentry.get_captured_envelope()
-    assert len(envelope.items) == 1
+    assert len(envelope.items) == 2
+    assert {item.type for item in envelope.items} == {
+        "replay_recording",
+        "replay_event",
+    }
 
-    session_item = envelope.items[0]
-    assert session_item.type == "replay_recording"
-
-    replay_recording = session_item.get_bytes()
+    recording_item = next(
+        item for item in envelope.items if item.type == "replay_recording"
+    )
+    replay_recording = recording_item.get_bytes()
     assert replay_recording.startswith(b"{}\n")  # The body is compressed
 
 

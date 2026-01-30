@@ -330,6 +330,9 @@ class SentryLike:
     def send_replay_event(self, project_id, payload, item_headers=None):
         envelope = Envelope()
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="replay_event"))
+        envelope.add_item(
+            Item(payload=PayloadRef(bytes=b"{}\n[]"), type="replay_recording")
+        )
         if envelope.headers is None:
             envelope.headers = {}
 
