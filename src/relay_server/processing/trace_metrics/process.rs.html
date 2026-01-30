@@ -101,27 +101,28 @@
 <a href=#101 id=101 data-nosnippet>101</a><span class="doccomment">/// Normalizes an individual trace metric entry.
 <a href=#102 id=102 data-nosnippet>102</a></span><span class="kw">fn </span>normalize_trace_metric(metric: <span class="kw-2">&amp;mut </span>Annotated&lt;TraceMetric&gt;, meta: <span class="kw-2">&amp;</span>RequestMeta) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
 <a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(metric_value) = metric.value_mut() {
-<a href=#104 id=104 data-nosnippet>104</a>        eap::normalize_received(<span class="kw-2">&amp;mut </span>metric_value.attributes, meta.received_at());
-<a href=#105 id=105 data-nosnippet>105</a>        eap::normalize_client_address(<span class="kw-2">&amp;mut </span>metric_value.attributes, meta.client_addr());
-<a href=#106 id=106 data-nosnippet>106</a>        eap::normalize_user_agent(
-<a href=#107 id=107 data-nosnippet>107</a>            <span class="kw-2">&amp;mut </span>metric_value.attributes,
-<a href=#108 id=108 data-nosnippet>108</a>            meta.user_agent(),
-<a href=#109 id=109 data-nosnippet>109</a>            meta.client_hints(),
-<a href=#110 id=110 data-nosnippet>110</a>        );
-<a href=#111 id=111 data-nosnippet>111</a>        eap::normalize_attribute_types(<span class="kw-2">&amp;mut </span>metric_value.attributes);
-<a href=#112 id=112 data-nosnippet>112</a>    };
-<a href=#113 id=113 data-nosnippet>113</a>
-<a href=#114 id=114 data-nosnippet>114</a>    process_value(
-<a href=#115 id=115 data-nosnippet>115</a>        metric,
-<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw-2">&amp;mut </span>SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
-<a href=#117 id=117 data-nosnippet>117</a>        ProcessingState::root(),
-<a href=#118 id=118 data-nosnippet>118</a>    )<span class="question-mark">?</span>;
-<a href=#119 id=119 data-nosnippet>119</a>
-<a href=#120 id=120 data-nosnippet>120</a>    <span class="kw">if let </span>Annotated(<span class="prelude-val">None</span>, meta) = metric {
-<a href=#121 id=121 data-nosnippet>121</a>        <span class="macro">relay_log::debug!</span>(<span class="string">"empty metric: {meta:?}"</span>);
-<a href=#122 id=122 data-nosnippet>122</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Invalid(DiscardReason::NoData));
-<a href=#123 id=123 data-nosnippet>123</a>    }
-<a href=#124 id=124 data-nosnippet>124</a>
-<a href=#125 id=125 data-nosnippet>125</a>    <span class="prelude-val">Ok</span>(())
-<a href=#126 id=126 data-nosnippet>126</a>}
+<a href=#104 id=104 data-nosnippet>104</a>        eap::trace_metric::normalize_metric_name(metric_value)<span class="question-mark">?</span>;
+<a href=#105 id=105 data-nosnippet>105</a>        eap::normalize_received(<span class="kw-2">&amp;mut </span>metric_value.attributes, meta.received_at());
+<a href=#106 id=106 data-nosnippet>106</a>        eap::normalize_client_address(<span class="kw-2">&amp;mut </span>metric_value.attributes, meta.client_addr());
+<a href=#107 id=107 data-nosnippet>107</a>        eap::normalize_user_agent(
+<a href=#108 id=108 data-nosnippet>108</a>            <span class="kw-2">&amp;mut </span>metric_value.attributes,
+<a href=#109 id=109 data-nosnippet>109</a>            meta.user_agent(),
+<a href=#110 id=110 data-nosnippet>110</a>            meta.client_hints(),
+<a href=#111 id=111 data-nosnippet>111</a>        );
+<a href=#112 id=112 data-nosnippet>112</a>        eap::normalize_attribute_types(<span class="kw-2">&amp;mut </span>metric_value.attributes);
+<a href=#113 id=113 data-nosnippet>113</a>    };
+<a href=#114 id=114 data-nosnippet>114</a>
+<a href=#115 id=115 data-nosnippet>115</a>    process_value(
+<a href=#116 id=116 data-nosnippet>116</a>        metric,
+<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw-2">&amp;mut </span>SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+<a href=#118 id=118 data-nosnippet>118</a>        ProcessingState::root(),
+<a href=#119 id=119 data-nosnippet>119</a>    )<span class="question-mark">?</span>;
+<a href=#120 id=120 data-nosnippet>120</a>
+<a href=#121 id=121 data-nosnippet>121</a>    <span class="kw">if let </span>Annotated(<span class="prelude-val">None</span>, meta) = metric {
+<a href=#122 id=122 data-nosnippet>122</a>        <span class="macro">relay_log::debug!</span>(<span class="string">"empty metric: {meta:?}"</span>);
+<a href=#123 id=123 data-nosnippet>123</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Invalid(DiscardReason::NoData));
+<a href=#124 id=124 data-nosnippet>124</a>    }
+<a href=#125 id=125 data-nosnippet>125</a>
+<a href=#126 id=126 data-nosnippet>126</a>    <span class="prelude-val">Ok</span>(())
+<a href=#127 id=127 data-nosnippet>127</a>}
 </code></pre></div></section></main></body></html>
