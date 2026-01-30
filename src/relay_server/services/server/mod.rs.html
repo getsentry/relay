@@ -108,8 +108,8 @@
 <a href=#108 id=108 data-nosnippet>108</a>        .tcp_keepalive(config.keepalive_timeout(), KEEPALIVE_RETRIES)
 <a href=#109 id=109 data-nosnippet>109</a>        .idle_timeout(config.idle_timeout());
 <a href=#110 id=110 data-nosnippet>110</a>
-<a href=#111 id=111 data-nosnippet>111</a>    <span class="kw">let </span><span class="kw-2">mut </span>server = axum_server::from_tcp(listener)
-<a href=#112 id=112 data-nosnippet>112</a>        .acceptor(acceptor)
+<a href=#111 id=111 data-nosnippet>111</a>    <span class="kw">let </span><span class="kw-2">mut </span>server = axum_server::from_tcp(listener)<span class="question-mark">?
+<a href=#112 id=112 data-nosnippet>112</a>        </span>.acceptor(acceptor)
 <a href=#113 id=113 data-nosnippet>113</a>        .handle(handle.clone());
 <a href=#114 id=114 data-nosnippet>114</a>
 <a href=#115 id=115 data-nosnippet>115</a>    server
@@ -224,7 +224,7 @@
 <a href=#224 id=224 data-nosnippet>224</a>    }
 <a href=#225 id=225 data-nosnippet>225</a>}
 <a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a><span class="kw">async fn </span>emit_active_connections_metric(interval: <span class="prelude-ty">Option</span>&lt;Duration&gt;, handle: Handle) {
+<a href=#227 id=227 data-nosnippet>227</a><span class="kw">async fn </span>emit_active_connections_metric(interval: <span class="prelude-ty">Option</span>&lt;Duration&gt;, handle: Handle&lt;SocketAddr&gt;) {
 <a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>ticker) = interval.map(tokio::time::interval) <span class="kw">else </span>{
 <a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">return</span>;
 <a href=#230 id=230 data-nosnippet>230</a>    };
