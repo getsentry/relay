@@ -137,43 +137,24 @@ fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Er
     Ok(())
 }
 
-/// Applies PII scrubbing to individual replay events.
-pub fn scrub(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
-    replays.retain(
-        |replays| &mut replays.replays,
-        |replay, _| {
-            scrub_event(replay.get_event(), ctx)
-                .inspect_err(|err| relay_log::debug!("failed to scrub pii from replay: {err}"))
-        },
-    );
-}
-
-/// Applies PII scrubbing to replay recordings.
-pub fn scrub_recording(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
-    if !ctx
-        .project_info
-        .has_feature(Feature::SessionReplayRecordingScrubbing)
-    {
-        return;
-    }
-
+fn scrub_recordings(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
     let event_id = replays.headers.event_id();
+    let pii_config = match ctx.project_info.config.datascrubbing_settings.pii_config() {
+        Ok(config) => config.as_ref(),
+        Err(e) => {
+            let _ = replays.reject_err(Error::PiiConfig(e.clone()));
+            return;
+        }
+    };
 
     replays.retain(
         |replays| &mut replays.replays,
         |replay, _| {
-            let datascrubbing_config = ctx
-                .project_info
-                .config
-                .datascrubbing_settings
-                .pii_config()
-                .map_err(|e| Error::PiiConfig(e.clone()))?
-                .as_ref();
-
+            // Has some internal state so don't move out of the retain.
             let mut scrubber = RecordingScrubber::new(
                 ctx.config.max_replay_uncompressed_size(),
                 ctx.project_info.config.pii_config.as_ref(),
-                datascrubbing_config,
+                pii_config,
             );
 
             if scrubber.is_empty() {
@@ -198,4 +179,22 @@ pub fn scrub_recording(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>)
             Ok::<(), Error>(())
         },
     );
+}
+
+/// Applies PII scrubbing to individual replay events and recordings.
+pub fn scrub(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
+    replays.retain(
+        |replays| &mut replays.replays,
+        |replay, _| {
+            scrub_event(replay.get_event(), ctx)
+                .inspect_err(|err| relay_log::debug!("failed to scrub pii from replay: {err}"))
+        },
+    );
+
+    if ctx
+        .project_info
+        .has_feature(Feature::SessionReplayRecordingScrubbing)
+    {
+        scrub_recordings(replays, ctx);
+    }
 }
