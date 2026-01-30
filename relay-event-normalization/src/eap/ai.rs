@@ -6,7 +6,7 @@ use relay_protocol::Annotated;
 
 use crate::ModelCosts;
 use crate::span::ai;
-use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
+use crate::statsd::{map_origin_to_integration, platform_tag};
 
 /// Normalizes AI attributes.
 ///
@@ -141,12 +141,6 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
     let platform = platform_tag(platform);
 
     let Some(costs) = ai::calculate_costs(model_cost, tokens, integration, platform) else {
-        relay_statsd::metric!(
-            counter(Counters::GenAiCostCalculationResult) += 1,
-            result = "calculation_none",
-            integration = integration,
-            platform = platform,
-        );
         return;
     };
 
