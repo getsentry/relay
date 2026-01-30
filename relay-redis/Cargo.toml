@@ -19,7 +19,6 @@ redis = { workspace = true, optional = true, features = [
     "cluster",
     "r2d2",
     "tls-native-tls",
-    "keep-alive",
     "script",
     "tokio-native-tls-comp",
     "cluster-async",
