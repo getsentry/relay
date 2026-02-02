@@ -2,6 +2,7 @@ use relay_statsd::{CounterMetric, TimerMetric};
 
 pub enum Counters {
     /// Records the status of the AI cost calculation.
+    ///
     /// The metric is tagged with:
     ///  - `result`: The outcome of the cost calculation. Possible values are:
     ///    `calculation_negative`,

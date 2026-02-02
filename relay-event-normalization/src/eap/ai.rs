@@ -144,6 +144,7 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
         return;
     };
 
+    // Overwrite all values, the attributes should reflect the values we used to calculate the total.
     attributes.insert(GEN_AI_COST_INPUT_TOKENS, costs.input);
     attributes.insert(GEN_AI_COST_OUTPUT_TOKENS, costs.output);
     attributes.insert(GEN_AI_COST_TOTAL_TOKENS, costs.total());
