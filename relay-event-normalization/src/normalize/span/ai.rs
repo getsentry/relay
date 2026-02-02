@@ -1,5 +1,6 @@
 //! AI cost calculation.
 
+use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
 use crate::{ModelCostV2, ModelCosts};
 use relay_event_schema::protocol::{
     Event, Measurements, OperationType, Span, SpanData, TraceContext,
@@ -84,8 +85,19 @@ impl CalculatedCost {
 /// Calculates the total cost for a model call.
 ///
 /// Returns `None` if no tokens were used.
-pub fn calculate_costs(model_cost: &ModelCostV2, tokens: UsedTokens) -> Option<CalculatedCost> {
+pub fn calculate_costs(
+    model_cost: &ModelCostV2,
+    tokens: UsedTokens,
+    integration: &str,
+    platform: &str,
+) -> Option<CalculatedCost> {
     if !tokens.has_usage() {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_none",
+            integration = integration,
+            platform = platform,
+        );
         return None;
     }
 
@@ -102,6 +114,19 @@ pub fn calculate_costs(model_cost: &ModelCostV2, tokens: UsedTokens) -> Option<C
 
     let output = (tokens.raw_output_tokens() * model_cost.output_per_token)
         + (tokens.output_reasoning_tokens * reasoning_cost);
+
+    let metric_label = match (input, output) {
+        (x, y) if x < 0.0 || y < 0.0 => "calculation_negative",
+        (0.0, 0.0) => "calculation_zero",
+        _ => "calculation_positive",
+    };
+
+    relay_statsd::metric!(
+        counter(Counters::GenAiCostCalculationResult) += 1,
+        result = metric_label,
+        integration = integration,
+        platform = platform,
+    );
 
     Some(CalculatedCost { input, output })
 }
@@ -158,11 +183,18 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
 
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
 /// Calculated cost is in US dollars.
-fn extract_ai_model_cost_data(model_cost: Option<&ModelCostV2>, data: &mut SpanData) {
+fn extract_ai_model_cost_data(
+    model_cost: Option<&ModelCostV2>,
+    data: &mut SpanData,
+    origin: Option<&str>,
+    platform: Option<&str>,
+) {
     let Some(model_cost) = model_cost else { return };
 
     let used_tokens = UsedTokens::from_span_data(&*data);
-    let Some(costs) = calculate_costs(model_cost, used_tokens) else {
+    let integration = map_origin_to_integration(origin);
+    let platform = platform_tag(platform);
+    let Some(costs) = calculate_costs(model_cost, used_tokens, integration, platform) else {
         return;
     };
 
@@ -220,7 +252,13 @@ fn set_total_tokens(data: &mut SpanData) {
 }
 
 /// Extract the additional data into the span
-fn extract_ai_data(data: &mut SpanData, duration: f64, ai_model_costs: &ModelCosts) {
+fn extract_ai_data(
+    data: &mut SpanData,
+    duration: f64,
+    ai_model_costs: &ModelCosts,
+    origin: Option<&str>,
+    platform: Option<&str>,
+) {
     // Extracts the response tokens per second
     if data.gen_ai_response_tokens_per_second.value().is_none()
         && duration > 0.0
@@ -244,7 +282,12 @@ fn extract_ai_data(data: &mut SpanData, duration: f64, ai_model_costs: &ModelCos
                 .and_then(|val| val.as_str())
         })
     {
-        extract_ai_model_cost_data(ai_model_costs.cost_per_token(model_id), data)
+        extract_ai_model_cost_data(
+            ai_model_costs.cost_per_token(model_id),
+            data,
+            origin,
+            platform,
+        )
     }
 }
 
@@ -255,6 +298,8 @@ fn enrich_ai_span_data(
     measurements: &Annotated<Measurements>,
     duration: f64,
     model_costs: Option<&ModelCosts>,
+    origin: Option<&str>,
+    platform: Option<&str>,
 ) {
     if !is_ai_span(span_data, span_op.value()) {
         return;
@@ -267,7 +312,7 @@ fn enrich_ai_span_data(
     set_total_tokens(data);
 
     if let Some(model_costs) = model_costs {
-        extract_ai_data(data, duration, model_costs);
+        extract_ai_data(data, duration, model_costs, origin, platform);
     }
 
     let ai_op_type = data
@@ -294,6 +339,8 @@ pub fn enrich_ai_span(span: &mut Span, model_costs: Option<&ModelCosts>) {
         &span.measurements,
         duration,
         model_costs,
+        span.origin.as_str(),
+        span.platform.as_str(),
     );
 }
 
@@ -316,6 +363,8 @@ pub fn enrich_ai_event_data(event: &mut Event, model_costs: Option<&ModelCosts>)
             &event.measurements,
             event_duration,
             model_costs,
+            trace_context.origin.as_str(),
+            event.platform.as_str(),
         );
     }
     let spans = event.spans.value_mut().iter_mut().flatten();
@@ -326,6 +375,7 @@ pub fn enrich_ai_event_data(event: &mut Event, model_costs: Option<&ModelCosts>)
             .get_value("span.duration")
             .and_then(|v| v.as_f64())
             .unwrap_or(0.0);
+        let span_platform = span.platform.as_str().or_else(|| event.platform.as_str());
 
         enrich_ai_span_data(
             &mut span.data,
@@ -333,6 +383,8 @@ pub fn enrich_ai_event_data(event: &mut Event, model_costs: Option<&ModelCosts>)
             &span.measurements,
             span_duration,
             model_costs,
+            span.origin.as_str(),
+            span_platform,
         );
     }
 }
@@ -378,6 +430,8 @@ mod tests {
                 input_cache_write_per_token: 1.0,
             },
             UsedTokens::from_span_data(&SpanData::default()),
+            "test",
+            "test",
         );
         assert!(cost.is_none());
     }
@@ -399,6 +453,8 @@ mod tests {
                 output_tokens: 15.0,
                 output_reasoning_tokens: 9.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -428,6 +484,8 @@ mod tests {
                 output_tokens: 15.0,
                 output_reasoning_tokens: 9.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -459,6 +517,8 @@ mod tests {
                 output_tokens: 1.0,
                 output_reasoning_tokens: 9.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -487,6 +547,8 @@ mod tests {
                 output_tokens: 50.0,
                 output_reasoning_tokens: 10.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -523,6 +585,8 @@ mod tests {
                 input_cache_write_per_token: 0.75,
             },
             tokens,
+            "test",
+            "test",
         )
         .unwrap();
 
