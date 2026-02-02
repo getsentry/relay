@@ -14,6 +14,7 @@
 - Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
 - Add `gen_ai_response_time_to_first_token` as a `SpanData` attribute. ([#5575](https://github.com/getsentry/relay/pull/5575))
 - Add sampling to expensive envelope buffer statsd metrics. ([#5576](https://github.com/getsentry/relay/pull/5576))
+- Use new processor architecture to process replays. ([#5580](https://github.com/getsentry/relay/pull/5580))
 - Add `gen_ai.cost_calculation.result` metric to track AI cost calculation outcomes by integration and platform. ([#5560](https://github.com/getsentry/relay/pull/5560))
 - Normalizes and validates trace metric names. ([#5589](https://github.com/getsentry/relay/pull/5589))
 

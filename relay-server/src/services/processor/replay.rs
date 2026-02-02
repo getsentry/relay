@@ -183,6 +183,13 @@ fn handle_replay_event_item(
                 ReplayError::InvalidPayload(_) => {
                     ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEvent)
                 }
+                ReplayError::MissingReplayId
+                | ReplayError::MissingSegmentId
+                | ReplayError::SegmentIdTooLarge
+                | ReplayError::InvalidErrorId
+                | ReplayError::InvalidTraceId => {
+                    ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEvent)
+                }
             })
         }
     }
