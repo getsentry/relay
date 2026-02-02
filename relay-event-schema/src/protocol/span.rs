@@ -668,6 +668,14 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.system", legacy_alias = "ai.model.provider")]
     pub gen_ai_system: Annotated<Value>,
 
+    /// The system instructions passed to the model.
+    #[metastructure(
+        field = "gen_ai.system_instructions",
+        legacy_alias = "gen_ai.system.message",
+        pii = "maybe"
+    )]
+    pub gen_ai_system_instructions: Annotated<Value>,
+
     /// The name of the tool being called
     #[metastructure(
         field = "gen_ai.tool.name",
@@ -1507,6 +1515,7 @@ mod tests {
             gen_ai_response_finish_reason: ~,
             gen_ai_response_id: ~,
             gen_ai_system: ~,
+            gen_ai_system_instructions: ~,
             gen_ai_tool_name: ~,
             gen_ai_operation_name: ~,
             gen_ai_operation_type: ~,
