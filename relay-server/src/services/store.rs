@@ -103,6 +103,16 @@ pub struct StoreMetrics {
     pub retention: u16,
 }
 
+/// Publishes session metric buckets to EAP via the snuba-items topic.
+///
+/// Used when the `UserSessionsEap` feature flag is enabled for double-write.
+#[derive(Clone, Debug)]
+pub struct StoreSessionMetricsEap {
+    pub buckets: Vec<Bucket>,
+    pub scoping: Scoping,
+    pub retention: u16,
+}
+
 /// Publishes a log item to the Sentry core application through Kafka.
 #[derive(Debug)]
 pub struct StoreTraceItem {
@@ -175,6 +185,8 @@ pub enum Store {
     Envelope(StoreEnvelope),
     /// Aggregated generic metrics.
     Metrics(StoreMetrics),
+    /// Session metrics routed to EAP (Event Analytics Platform).
+    SessionMetricsEap(StoreSessionMetricsEap),
     /// A singular [`TraceItem`].
     TraceItem(Managed<StoreTraceItem>),
     /// A singular Span.
@@ -189,6 +201,7 @@ impl Store {
         match self {
             Store::Envelope(_) => "envelope",
             Store::Metrics(_) => "metrics",
+            Store::SessionMetricsEap(_) => "session_metrics_eap",
             Store::TraceItem(_) => "log",
             Store::Span(_) => "span",
             Store::ProfileChunk(_) => "profile_chunk",
@@ -211,6 +224,14 @@ impl FromMessage<StoreMetrics> for Store {
 
     fn from_message(message: StoreMetrics, _: ()) -> Self {
         Self::Metrics(message)
+    }
+}
+
+impl FromMessage<StoreSessionMetricsEap> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: StoreSessionMetricsEap, _: ()) -> Self {
+        Self::SessionMetricsEap(message)
     }
 }
 
@@ -273,6 +294,7 @@ impl StoreService {
             match message {
                 Store::Envelope(message) => self.handle_store_envelope(message),
                 Store::Metrics(message) => self.handle_store_metrics(message),
+                Store::SessionMetricsEap(message) => self.handle_store_session_metrics_eap(message),
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
                 Store::Span(message) => self.handle_store_span(message),
                 Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
@@ -588,6 +610,162 @@ impl StoreService {
             metric!(
                 gauge(RelayGauges::MetricDelayMax) = max,
                 namespace = namespace.as_str()
+            );
+        }
+    }
+
+    /// Sends session metric buckets to EAP (snuba-items topic) as TraceItems.
+    fn handle_store_session_metrics_eap(&self, message: StoreSessionMetricsEap) {
+        use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
+        use std::collections::HashMap;
+
+        const NAMESPACE: uuid::Uuid = uuid::Uuid::from_bytes([
+            0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78,
+            0x90, 0xa1,
+        ]);
+
+        let StoreSessionMetricsEap {
+            buckets,
+            scoping,
+            retention,
+        } = message;
+        let now = UnixTimestamp::now();
+        let mut error = None;
+        let mut row_count: u64 = 0;
+
+        let kafka_headers = BTreeMap::from([
+            ("project_id".into(), scoping.project_id.to_string()),
+            (
+                "item_type".into(),
+                i32::from(TraceItemType::UserSession).to_string(),
+            ),
+        ]);
+
+        for bucket in buckets {
+            let tags_str = bucket
+                .tags
+                .iter()
+                .map(|(k, v)| format!("{k}={v}"))
+                .collect::<Vec<_>>()
+                .join(",");
+
+            // Build base attributes from tags.
+            let mut base_attributes: HashMap<String, AnyValue> = HashMap::new();
+            for (tag, attr) in [
+                ("session.status", "status"),
+                ("release", "release"),
+                ("environment", "environment"),
+                ("sdk", "sdk"),
+                ("abnormal_mechanism", "abnormal_mechanism"),
+            ] {
+                if let Some(v) = bucket.tags.get(tag) {
+                    base_attributes.insert(
+                        attr.into(),
+                        AnyValue {
+                            value: Some(any_value::Value::StringValue(v.into())),
+                        },
+                    );
+                }
+            }
+
+            let timestamp = Some(prost_types::Timestamp {
+                seconds: bucket.timestamp.as_secs() as i64,
+                nanos: 0,
+            });
+            let received = Some(prost_types::Timestamp {
+                seconds: now.as_secs() as i64,
+                nanos: 0,
+            });
+
+            // Helper to emit a single EAP row.
+            let mut emit_row = |key_suffix: &str, attributes: HashMap<String, AnyValue>| {
+                let item_key = format!(
+                    "{}_{}_{}_{}_{}_{}",
+                    scoping.project_id,
+                    bucket.name,
+                    bucket.timestamp.as_secs(),
+                    tags_str,
+                    key_suffix,
+                    scoping.organization_id,
+                );
+                let uuid = uuid::Uuid::new_v5(&NAMESPACE, item_key.as_bytes());
+
+                let trace_item = TraceItem {
+                    organization_id: scoping.organization_id.value(),
+                    project_id: scoping.project_id.value(),
+                    trace_id: uuid.to_string(),
+                    item_id: uuid.as_bytes()[..16].into(),
+                    item_type: i32::from(TraceItemType::UserSession),
+                    timestamp: timestamp.clone(),
+                    received: received.clone(),
+                    retention_days: retention.into(),
+                    downsampled_retention_days: retention.into(),
+                    attributes,
+                    client_sample_rate: 1.0,
+                    server_sample_rate: 1.0,
+                };
+
+                match self.produce(
+                    KafkaTopic::Items,
+                    KafkaMessage::Item {
+                        headers: kafka_headers.clone(),
+                        message: trace_item,
+                        item_type: TraceItemType::UserSession,
+                    },
+                ) {
+                    Ok(()) => row_count += 1,
+                    Err(e) => {
+                        error.get_or_insert(e);
+                    }
+                }
+            };
+
+            // For Counter buckets: emit one row with session_count.
+            // For Set buckets: emit one row per hashed ID for proper unique counting.
+            match &bucket.value {
+                relay_metrics::BucketValue::Counter(c) => {
+                    let mut attributes = base_attributes.clone();
+                    attributes.insert(
+                        "session_count".into(),
+                        AnyValue {
+                            value: Some(any_value::Value::DoubleValue((*c).into())),
+                        },
+                    );
+                    emit_row("", attributes);
+                }
+                relay_metrics::BucketValue::Set(s) => {
+                    let hash_attr = if bucket.name.to_string().contains("/user@") {
+                        "user_id"
+                    } else {
+                        "errored_session_id"
+                    };
+
+                    for hashed_id in s.iter() {
+                        let mut attributes = base_attributes.clone();
+                        attributes.insert(
+                            hash_attr.into(),
+                            AnyValue {
+                                value: Some(any_value::Value::IntValue(*hashed_id as i64)),
+                            },
+                        );
+                        emit_row(&hashed_id.to_string(), attributes);
+                    }
+                }
+                // Distribution and Gauge not used for sessions, skip them.
+                _ => {}
+            }
+        }
+
+        if row_count > 0 {
+            metric!(
+                counter(RelayCounters::SessionsEapProduced) += row_count,
+                session_type = "metric_bucket"
+            );
+        }
+        if let Some(e) = error {
+            relay_log::error!(
+                error = &e as &dyn std::error::Error,
+                "failed to produce session metrics to EAP: {e}"
             );
         }
     }

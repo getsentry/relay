@@ -824,14 +824,14 @@ pub enum RelayCounters {
     /// Number of spans produced in the new format.
     #[cfg(feature = "processing")]
     SpanV2Produced,
-    /// Number of user sessions produced to the EAP snuba-items topic.
+    /// Number of session metric buckets produced to the EAP snuba-items topic.
     ///
     /// This metric is only emitted when the `UserSessionsEap` feature flag is enabled,
-    /// tracking double-writes of session data to the EAP (Event Analytics Platform).
+    /// routing aggregated session metrics to EAP (Event Analytics Platform) instead of
+    /// the legacy ingest-metrics topic.
     ///
     /// This metric is tagged with:
-    ///  - `session_type`: Either `"update"` for individual session updates or `"aggregate"` for
-    ///    pre-aggregated session data.
+    ///  - `session_type`: Currently always `"metric_bucket"` for aggregated session metrics.
     #[cfg(feature = "processing")]
     SessionsEapProduced,
     /// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,

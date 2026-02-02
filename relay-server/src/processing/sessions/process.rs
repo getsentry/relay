@@ -212,38 +212,17 @@ fn normalize_attributes(attrs: &mut SessionAttributes, ctx: &NormalizeContext<'_
     Ok(())
 }
 
-/// Extracts session metrics and optionally returns the expanded sessions for EAP storage.
-///
-/// When `eap_enabled` is true, this function returns both the extracted metrics (for the legacy
-/// pipeline) and the expanded sessions (for double-write to the snuba-items topic as
-/// TRACE_ITEM_TYPE_USER_SESSION).
-///
-/// This enables a gradual migration from the legacy session metrics to the new EAP-based
-/// user sessions storage, with both paths running in parallel during the migration period.
-pub fn extract_with_eap(
+pub fn extract_metrics(
     sessions: Managed<ExpandedSessions>,
     ctx: Context<'_>,
-    eap_enabled: bool,
-) -> (Managed<ExtractedMetrics>, Option<Managed<ExpandedSessions>>) {
+) -> Managed<ExtractedMetrics> {
     let should_extract_abnormal_mechanism = ctx
         .project_info
         .config
         .session_metrics
         .should_extract_abnormal_mechanism();
 
-    // If EAP is enabled, we need to clone the sessions before consuming them for metrics.
-    // Use `wrap` to create a new Managed with the same metadata but cloned data.
-    let eap_sessions = if eap_enabled {
-        Some(sessions.wrap(ExpandedSessions {
-            headers: sessions.headers.clone(),
-            updates: sessions.updates.clone(),
-            aggregates: sessions.aggregates.clone(),
-        }))
-    } else {
-        None
-    };
-
-    let metrics = sessions.map(|sessions, records| {
+    sessions.map(|sessions, records| {
         let mut metrics = Vec::new();
         let meta = sessions.headers.meta();
 
@@ -277,7 +256,5 @@ pub fn extract_with_eap(
             project_metrics: metrics,
             sampling_metrics: Vec::new(),
         }
-    });
-
-    (metrics, eap_sessions)
+    })
 }
