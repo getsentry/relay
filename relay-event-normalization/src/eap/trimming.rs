@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::ops::Bound;
 
 use relay_event_schema::processor::{
@@ -360,13 +361,41 @@ impl Processor for TrimmingProcessor {
 
         let original_length = size::attributes_size(attributes);
 
-        // Sort attributes by key + value size so small attributes are more likely to be preserved
+        // Sort attributes by key + value size so small attributes are more likely to be preserved.
+        // Attributes with missing values will be sorted at the beginning.
         let inner = std::mem::take(&mut attributes.0);
         let mut sorted: Vec<_> = inner.into_iter().collect();
-        sorted.sort_by_cached_key(|(k, v)| k.len() + size::attribute_size(v));
+        sorted.sort_by(
+            |(k1, v1), (k2, v2)| match (v1.value().is_some(), v2.value().is_some()) {
+                (false, false) => k1.len().cmp(&k2.len()),
+                (false, true) => Ordering::Less,
+                (true, false) => Ordering::Greater,
+                (true, true) => (k1.len() + size::attribute_size(v1))
+                    .cmp(&(k2.len() + size::attribute_size(v2))),
+            },
+        );
+
+        // Drop keys without values once we run out of
+        // `removed_key_budget`.
+        sorted.retain(|(k, v)| {
+            if v.value().is_some() {
+                return true;
+            }
+
+            match self.delete_value(Some(k)) {
+                DeleteAction::Hard => false,
+                DeleteAction::WithRemark(_) => true,
+            }
+        });
 
         let mut split_idx = None;
         for (idx, (key, value)) in sorted.iter_mut().enumerate() {
+            if value.value().is_none() {
+                // Keys without values were already treated in the `retain` above.
+                // In any case, we don't want such keys to be counted against the
+                // trimming size budget.
+                continue;
+            }
             if let Some(remaining) = self.remaining_size()
                 && remaining < key.len()
             {
@@ -883,6 +912,69 @@ mod tests {
                       "x"
                     ]
                   ]
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_invalid_values() {
+        let mut attributes = Attributes::new();
+        attributes.insert("small", 17); // 13B
+        attributes.insert("medium string", "This string should be trimmed"); // 42B
+        attributes.insert("attribute is very large and should be removed", true); // 47B
+        // Manually insert "broken" attributes. We have enough `removed_key_byte_budget`
+        // for the first but not the second.
+        attributes
+            .0
+            .insert("removed attribute".to_owned(), Annotated::empty());
+        attributes
+            .0
+            .insert("another removed attribute".to_owned(), Annotated::empty());
+
+        let mut attributes = Annotated::new(attributes);
+
+        let state =
+            ProcessingState::new_root(Some(Cow::Owned(FieldAttrs::default().max_bytes(40))), []);
+        processor::process_value(&mut attributes, &mut TrimmingProcessor::new(20), &state).unwrap();
+        let attributes_after_trimming = attributes.clone();
+        processor::process_value(&mut attributes, &mut TrimmingProcessor::new(20), &state).unwrap();
+
+        assert_eq!(
+            &attributes, &attributes_after_trimming,
+            "trimming should be idempotent"
+        );
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
+        {
+          "medium string": {
+            "type": "string",
+            "value": "This string..."
+          },
+          "removed attribute": null,
+          "small": {
+            "type": "integer",
+            "value": 17
+          },
+          "_meta": {
+            "": {
+              "len": 143
+            },
+            "medium string": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "!limit",
+                      "s",
+                      11,
+                      14
+                    ]
+                  ],
+                  "len": 29
                 }
               }
             }
