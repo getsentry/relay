@@ -29,6 +29,9 @@ pub enum Error {
     /// Received trace metric exceeds the configured size limit.
     #[error("trace metric exeeds size limit")]
     TooLarge,
+    /// The metric name is not valid.
+    #[error("trace metric name is not valid")]
+    InvalidMetricName,
     /// The trace metrics are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
@@ -55,6 +58,12 @@ impl From<RateLimits> for Error {
     }
 }
 
+impl From<relay_event_normalization::eap::trace_metric::InvalidMetricName> for Error {
+    fn from(_: relay_event_normalization::eap::trace_metric::InvalidMetricName) -> Self {
+        Self::InvalidMetricName
+    }
+}
+
 impl crate::managed::OutcomeError for Error {
     type Error = Self;
 
@@ -66,6 +75,7 @@ impl crate::managed::OutcomeError for Error {
             Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
                 DiscardItemType::TraceMetric,
             ))),
+            Self::InvalidMetricName => Some(Outcome::Invalid(DiscardReason::InvalidTraceMetric)),
             Self::ProcessingFailed(_) => {
                 relay_log::error!("internal error: trace metric processing failed");
                 Some(Outcome::Invalid(DiscardReason::Internal))

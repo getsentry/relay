@@ -7,6 +7,7 @@ import signal
 import stat
 import requests
 import subprocess
+from collections import defaultdict
 
 import yaml
 import pytest
@@ -47,12 +48,21 @@ class Relay(SentryLike):
         self.options = options
         self.version = version
 
+        self._health_check_passed = defaultdict(lambda: False)
+
     def wait_for_exit(self, timeout=5):
         try:
             return self.process.wait(timeout)
         except subprocess.TimeoutExpired:
             self.process.kill()
             raise
+
+    def wait_health_check(self, mode="ready"):
+        if self._health_check_passed[mode]:
+            return
+
+        self._wait(f"/api/relay/healthcheck/{mode}/", is_internal=True)
+        self._health_check_passed[mode] = True
 
     def shutdown(self, sig=signal.SIGKILL):
         self.process.send_signal(sig)
@@ -124,7 +134,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         options=None,
         prepare=None,
         external=None,
-        wait_health_check=True,
+        wait_health_check="ready",
         static_relays=None,
         static_credentials=None,
         credentials=None,
@@ -226,7 +236,9 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         )
 
         if wait_health_check:
-            relay.wait_relay_health_check()
+            relay.wait_health_check("live")
+            if wait_health_check == "ready":
+                relay.wait_health_check("ready")
 
             # Filter out health check failures, which can happen during startup
             filtered_test_failures = Queue()
