@@ -6,6 +6,7 @@ use relay_protocol::Annotated;
 
 use crate::ModelCosts;
 use crate::span::ai;
+use crate::statsd::{map_origin_to_integration, platform_tag};
 
 /// Normalizes AI attributes.
 ///
@@ -110,6 +111,9 @@ fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Dur
 
 /// Calculates model costs and serializes them into attributes.
 fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCosts>) {
+    let origin = extract_string_value(attributes, ORIGIN);
+    let platform = extract_string_value(attributes, PLATFORM);
+
     let model_cost = attributes
         .get_value(GEN_AI_REQUEST_MODEL)
         .or_else(|| attributes.get_value(GEN_AI_RESPONSE_MODEL))
@@ -133,7 +137,10 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
         output_reasoning_tokens: get_tokens(GEN_AI_USAGE_OUTPUT_REASONING_TOKENS),
     };
 
-    let Some(costs) = ai::calculate_costs(model_cost, tokens) else {
+    let integration = map_origin_to_integration(origin);
+    let platform = platform_tag(platform);
+
+    let Some(costs) = ai::calculate_costs(model_cost, tokens, integration, platform) else {
         return;
     };
 
@@ -141,6 +148,10 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
     attributes.insert(GEN_AI_COST_INPUT_TOKENS, costs.input);
     attributes.insert(GEN_AI_COST_OUTPUT_TOKENS, costs.output);
     attributes.insert(GEN_AI_COST_TOTAL_TOKENS, costs.total());
+}
+
+fn extract_string_value<'a>(attributes: &'a Attributes, key: &str) -> Option<&'a str> {
+    attributes.get_value(key).and_then(|v| v.as_str())
 }
 
 #[cfg(test)]
