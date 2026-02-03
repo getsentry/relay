@@ -31,6 +31,26 @@ pub enum ReplayError {
     /// One or more of the `trace_ids` have an error.
     #[error("invalid trace_id specified")]
     InvalidTraceId,
+
+    /// The Replay event could not be parsed from JSON.
+    #[error("invalid json")]
+    CouldNotParse(#[from] serde_json::Error),
+
+    /// The Replay event was parsed but did not match the schema.
+    #[error("no data found")]
+    NoContent,
+
+    /// The Replay contains invalid data or is missing a required field.
+    ///
+    /// This is returned from [`validate`].
+    #[error("invalid payload {0}")]
+    InvalidPayload(String),
+
+    /// An error occurred during PII scrubbing of the Replay.
+    ///
+    /// This erorr is usually returned when the PII configuration fails to parse.
+    #[error("failed to scrub PII: {0}")]
+    CouldNotScrub(String),
 }
 
 /// Checks if the Replay event is structurally valid.

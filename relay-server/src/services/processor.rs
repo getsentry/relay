@@ -98,6 +98,7 @@ mod event;
 mod metrics;
 mod nel;
 mod profile;
+mod replay;
 mod report;
 mod span;
 
@@ -562,6 +563,12 @@ pub enum ProcessingError {
     #[error("invalid processing group type")]
     InvalidProcessingGroup(Box<InvalidProcessingGroupType>),
 
+    #[error("invalid replay")]
+    InvalidReplay(DiscardReason),
+
+    #[error("replay filtered with reason: {0:?}")]
+    ReplayFiltered(FilterStatKey),
+
     #[cfg(feature = "processing")]
     #[error("nintendo switch dying message processing failed {0:?}")]
     InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
@@ -612,6 +619,8 @@ impl ProcessingError {
             Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
+            Self::InvalidReplay(reason) => Some(Outcome::Invalid(*reason)),
+            Self::ReplayFiltered(key) => Some(Outcome::Filtered(key.clone())),
             Self::InvalidProcessingGroup(_) => None,
 
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
@@ -1489,6 +1498,33 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
+    /// Processes replays.
+    async fn process_replays(
+        &self,
+        managed_envelope: &mut TypedEnvelope<ReplayGroup>,
+        ctx: processing::Context<'_>,
+    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
+        let mut extracted_metrics = ProcessingExtractedMetrics::new();
+
+        replay::process(
+            managed_envelope,
+            ctx.global_config,
+            ctx.config,
+            ctx.project_info,
+            &self.inner.geoip_lookup,
+        )?;
+
+        self.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            &mut extracted_metrics,
+            ctx,
+        )
+        .await?;
+
+        Ok(Some(extracted_metrics))
+    }
+
     async fn process_nel(
         &self,
         mut managed_envelope: ManagedEnvelope,
@@ -1658,8 +1694,16 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Standalone => run!(process_standalone, project_id, ctx),
             ProcessingGroup::ClientReport => run!(process_client_reports, ctx),
             ProcessingGroup::Replay => {
-                self.process_with_processor(&self.inner.processing.replays, managed_envelope, ctx)
+                if ctx.project_info.has_feature(Feature::NewReplayProcessing) {
+                    self.process_with_processor(
+                        &self.inner.processing.replays,
+                        managed_envelope,
+                        ctx,
+                    )
                     .await
+                } else {
+                    run!(process_replays, ctx)
+                }
             }
             ProcessingGroup::CheckIn => {
                 self.process_with_processor(&self.inner.processing.check_ins, managed_envelope, ctx)
