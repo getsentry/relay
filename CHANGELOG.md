@@ -17,6 +17,7 @@
 - Use new processor architecture to process replays. ([#5580](https://github.com/getsentry/relay/pull/5580))
 - Add `gen_ai.cost_calculation.result` metric to track AI cost calculation outcomes by integration and platform. ([#5560](https://github.com/getsentry/relay/pull/5560))
 - Normalizes and validates trace metric names. ([#5589](https://github.com/getsentry/relay/pull/5589))
+- Add manual category to cost calculation metric origin tag ([#5603](https://github.com/getsentry/relay/pull/5603))
 
 ## 26.1.0
 
