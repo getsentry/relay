@@ -2,47 +2,37 @@
 
 use relay_dynamic_config::Feature;
 
-use relay_base_schema::events::EventType;
-use relay_base_schema::project::ProjectId;
 use relay_config::Config;
-use relay_event_schema::protocol::Event;
-use relay_profiling::{ProfileError, ProfileId};
-use relay_protocol::Annotated;
+use relay_profiling::ProfileError;
 
 use crate::envelope::ItemType;
 use crate::managed::{ItemAction, TypedEnvelope};
-use crate::processing::utils::event::event_type;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::should_filter;
 use crate::services::projects::project::ProjectInfo;
 
 pub fn filter<Group>(
     managed_envelope: &mut TypedEnvelope<Group>,
-    event: &Annotated<Event>,
     config: &Config,
-    project_id: ProjectId,
     project_info: &ProjectInfo,
-) -> Option<ProfileId> {
+) {
     let profiling_disabled = should_filter(config, project_info, Feature::Profiling);
-    let has_transaction = event_type(event) == Some(EventType::Transaction);
-    let mut profile_id = None;
-    managed_envelope.retain_items(|item| match item.ty() {
-        // First profile found in the envelope, we'll keep it if metadata are valid.
-        ItemType::Profile if profile_id.is_none() => {
-            if profiling_disabled {
-                return ItemAction::DropSilently;
-            }
 
+    let mut saw_profile = false;
+    managed_envelope.retain_items(|item| match item.ty() {
+        ItemType::Profile if profiling_disabled => ItemAction::DropSilently,
+        // First profile found in the envelope, we'll keep it if metadata are valid.
+        ItemType::Profile if !saw_profile => {
             // Drop profile without a transaction in the same envelope,
             // except if unsampled profiles are allowed for this project.
-            let profile_allowed = has_transaction || !item.sampled();
+            let profile_allowed = !item.sampled();
             if !profile_allowed {
                 return ItemAction::DropSilently;
             }
 
-            match relay_profiling::parse_metadata(&item.payload(), project_id) {
-                Ok(id) => {
-                    profile_id = Some(id);
+            match relay_profiling::parse_metadata(&item.payload()) {
+                Ok(_) => {
+                    saw_profile = true;
                     ItemAction::Keep
                 }
                 Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
@@ -56,8 +46,6 @@ pub fn filter<Group>(
         ))),
         _ => ItemAction::Keep,
     });
-
-    profile_id
 }
 
 #[cfg(test)]
@@ -72,7 +60,8 @@ mod tests {
     use crate::testutils::create_test_processor;
     use insta::assert_debug_snapshot;
     use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, TransactionMetricsConfig};
-    use relay_event_schema::protocol::{EventId, ProfileContext};
+    use relay_event_schema::protocol::{Event, EventId, ProfileContext};
+    use relay_protocol::Annotated;
     use relay_system::Addr;
 
     use super::*;

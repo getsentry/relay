@@ -185,6 +185,11 @@ impl<T: Counted> Managed<T> {
         Managed::from_parts(other, Arc::clone(&self.meta))
     }
 
+    /// Boxes the contained value.
+    pub fn boxed(self) -> Managed<Box<T>> {
+        self.map(|value, _| Box::new(value))
+    }
+
     /// Original received timestamp.
     pub fn received_at(&self) -> DateTime<Utc> {
         self.meta.received_at
