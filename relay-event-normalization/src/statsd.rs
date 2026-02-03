@@ -59,6 +59,7 @@ pub fn map_origin_to_integration(origin: Option<&str>) -> &'static str {
         Some(o) if o.starts_with("auto.ai.mcp") => "mcp",
         Some(o) if o.starts_with("auto.ai.claude_agent_sdk") => "claude_agent_sdk",
         Some(o) if o.starts_with("auto.ai.") => "other",
+        Some(o) if o.starts_with("manual") => "manual",
         Some(_) => "other",
         None => "unknown",
     }
