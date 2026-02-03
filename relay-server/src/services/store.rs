@@ -283,9 +283,17 @@ impl StoreService {
     fn handle_store_envelope(&self, message: StoreEnvelope) {
         let StoreEnvelope { mut envelope } = message;
 
+        let scoping = envelope.scoping();
         match self.store_envelope(&mut envelope) {
             Ok(()) => envelope.accept(),
-            Err(_) => envelope.reject(Outcome::Invalid(DiscardReason::Internal)),
+            Err(error) => {
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    tags.project_key = %scoping.project_key,
+                    "failed to store envelope"
+                );
+            }
         }
     }
 
