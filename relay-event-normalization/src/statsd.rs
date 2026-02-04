@@ -8,7 +8,8 @@ pub enum Counters {
     ///    `calculation_negative`,
     ///    `calculation_zero`,
     ///    `calculation_positive`,
-    ///    `calculation_none`
+    ///    `calculation_no_tokens`
+    ///    `calculation_no_model_cost_available`
     ///  - `integration`: The integration used for the cost calculation.
     ///  - `platform`: The platform used for the cost calculation.
     GenAiCostCalculationResult,
