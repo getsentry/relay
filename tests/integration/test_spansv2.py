@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest import mock
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -1431,3 +1431,72 @@ def test_invalid_spans(mini_sentry, relay):
     ]
 
     assert mini_sentry.captured_envelopes.empty()
+
+
+@pytest.mark.parametrize(
+    "delta,error",
+    [
+        (-timedelta(days=2), "past_timestamp"),
+        (timedelta(days=2), "future_timestamp"),
+    ],
+)
+def test_time_corrections(mini_sentry, relay, delta, error):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+    project_config["config"]["retentions"] = {
+        "span": {"standard": 1, "downsampled": 100},
+    }
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": (ts + delta).timestamp(),
+            "end_timestamp": (ts + delta).timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "is_segment": True,
+            "name": "some op",
+            "status": "ok",
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    assert item_payload["items"][0] == {
+        "_meta": {
+            "start_timestamp": {
+                "": {
+                    "err": [
+                        [
+                            error,
+                            {
+                                "sdk_time": time_within_delta(ts + delta),
+                                "server_time": time_within_delta(ts),
+                            },
+                        ]
+                    ]
+                }
+            }
+        },
+        "attributes": mock.ANY,
+        "status": "ok",
+        "is_segment": True,
+        "name": "some op",
+        "start_timestamp": time_within_delta(ts),
+        "end_timestamp": time_within_delta(ts),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b175",
+    }
