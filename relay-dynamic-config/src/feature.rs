@@ -138,15 +138,6 @@ pub enum Feature {
     /// Enable the experimental Trace Attachment pipeline in Relay.
     #[serde(rename = "projects:trace-attachment-processing")]
     TraceAttachmentProcessing,
-    /// Enable EAP (Event Analytics Platform) double-write for user sessions.
-    ///
-    /// When enabled, session data is sent both through the legacy metrics pipeline
-    /// and directly to the snuba-items topic as TRACE_ITEM_TYPE_USER_SESSION.
-    /// This enables migration to the new EAP-based user sessions storage.
-    ///
-    /// Serialized as `organizations:user-sessions-eap`.
-    #[serde(rename = "organizations:user-sessions-eap")]
-    UserSessionsEap,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

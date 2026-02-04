@@ -2449,8 +2449,10 @@ impl EnvelopeProcessorService {
 
     /// Processes metric buckets and sends them to kafka.
     ///
-    /// Applies rate limiting and cardinality limiting, then submits to the store.
-    /// If `UserSessionsEap` is enabled, session metrics are also sent to EAP.
+    /// This function runs the following steps:
+    ///  - cardinality limiting
+    ///  - rate limiting
+    ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
     async fn encode_metrics_processing(
         &self,
@@ -2458,9 +2460,7 @@ impl EnvelopeProcessorService {
         store_forwarder: &Addr<Store>,
     ) {
         use crate::constants::DEFAULT_EVENT_RETENTION;
-        use crate::services::store::{StoreMetrics, StoreSessionMetricsEap};
-        use relay_dynamic_config::Feature;
-        use relay_metrics::MetricNamespace;
+        use crate::services::store::StoreMetrics;
 
         for ProjectBuckets {
             buckets,
@@ -2487,28 +2487,13 @@ impl EnvelopeProcessorService {
                 .event_retention
                 .unwrap_or(DEFAULT_EVENT_RETENTION);
 
-            // Always send all buckets to the legacy metrics path.
+            // The store forwarder takes care of bucket splitting internally, so we can submit the
+            // entire list of buckets. There is no batching needed here.
             store_forwarder.send(StoreMetrics {
-                buckets: buckets.clone(),
+                buckets,
                 scoping,
                 retention,
             });
-
-            // If EAP double-write is enabled, also send session metrics to EAP.
-            if project_info.config.features.has(Feature::UserSessionsEap) {
-                let session_buckets: Vec<_> = buckets
-                    .into_iter()
-                    .filter(|b| b.name.namespace() == MetricNamespace::Sessions)
-                    .collect();
-
-                if !session_buckets.is_empty() {
-                    store_forwarder.send(StoreSessionMetricsEap {
-                        buckets: session_buckets,
-                        scoping,
-                        retention,
-                    });
-                }
-            }
         }
     }
 

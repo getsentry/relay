@@ -826,8 +826,8 @@ pub enum RelayCounters {
     SpanV2Produced,
     /// Number of session metric buckets produced to the EAP snuba-items topic.
     ///
-    /// This metric is only emitted when the `UserSessionsEap` feature flag is enabled,
-    /// routing aggregated session metrics to EAP (Event Analytics Platform) instead of
+    /// This metric is only emitted when the organization is rolled out via `sessions_eap_rollout_rate`,
+    /// routing aggregated session metrics to EAP (Event Analytics Platform) in addition to
     /// the legacy ingest-metrics topic.
     ///
     /// This metric is tagged with:

@@ -104,7 +104,6 @@ impl processing::Processor for SessionsProcessor {
         let sessions = self.limiter.enforce_quotas(sessions, ctx).await?;
 
         let sessions = process::extract_metrics(sessions, ctx);
-
         Ok(Output::metrics(sessions))
     }
 }

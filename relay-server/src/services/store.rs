@@ -103,16 +103,6 @@ pub struct StoreMetrics {
     pub retention: u16,
 }
 
-/// Publishes session metric buckets to EAP via the snuba-items topic.
-///
-/// Used when the `UserSessionsEap` feature flag is enabled for double-write.
-#[derive(Clone, Debug)]
-pub struct StoreSessionMetricsEap {
-    pub buckets: Vec<Bucket>,
-    pub scoping: Scoping,
-    pub retention: u16,
-}
-
 /// Publishes a log item to the Sentry core application through Kafka.
 #[derive(Debug)]
 pub struct StoreTraceItem {
@@ -185,8 +175,6 @@ pub enum Store {
     Envelope(StoreEnvelope),
     /// Aggregated generic metrics.
     Metrics(StoreMetrics),
-    /// Session metrics routed to EAP (Event Analytics Platform).
-    SessionMetricsEap(StoreSessionMetricsEap),
     /// A singular [`TraceItem`].
     TraceItem(Managed<StoreTraceItem>),
     /// A singular Span.
@@ -201,7 +189,6 @@ impl Store {
         match self {
             Store::Envelope(_) => "envelope",
             Store::Metrics(_) => "metrics",
-            Store::SessionMetricsEap(_) => "session_metrics_eap",
             Store::TraceItem(_) => "log",
             Store::Span(_) => "span",
             Store::ProfileChunk(_) => "profile_chunk",
@@ -224,14 +211,6 @@ impl FromMessage<StoreMetrics> for Store {
 
     fn from_message(message: StoreMetrics, _: ()) -> Self {
         Self::Metrics(message)
-    }
-}
-
-impl FromMessage<StoreSessionMetricsEap> for Store {
-    type Response = NoResponse;
-
-    fn from_message(message: StoreSessionMetricsEap, _: ()) -> Self {
-        Self::SessionMetricsEap(message)
     }
 }
 
@@ -294,7 +273,6 @@ impl StoreService {
             match message {
                 Store::Envelope(message) => self.handle_store_envelope(message),
                 Store::Metrics(message) => self.handle_store_metrics(message),
-                Store::SessionMetricsEap(message) => self.handle_store_session_metrics_eap(message),
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
                 Store::Span(message) => self.handle_store_span(message),
                 Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
@@ -543,8 +521,17 @@ impl StoreService {
         let global_config = self.global_config.current();
         let mut encoder = BucketEncoder::new(&global_config);
 
+        // Check if this organization is rolled out for sessions EAP double-write.
+        let sessions_eap_rollout_rate = global_config.options.sessions_eap_rollout_rate;
+        let emit_sessions_to_eap =
+            utils::is_rolled_out(scoping.organization_id.value(), sessions_eap_rollout_rate)
+                .is_keep();
+
         let now = UnixTimestamp::now();
         let mut delay_stats = ByNamespace::<(u64, u64, u64)>::default();
+
+        // Collect session buckets for EAP if rolled out.
+        let mut session_buckets = Vec::new();
 
         for mut bucket in buckets {
             let namespace = encoder.prepare(&mut bucket);
@@ -555,6 +542,11 @@ impl StoreService {
                 *total += delay;
                 *count += 1;
                 *max = (*max).max(delay);
+            }
+
+            // Collect session buckets for EAP double-write.
+            if emit_sessions_to_eap && namespace == MetricNamespace::Sessions {
+                session_buckets.push(bucket.clone());
             }
 
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
@@ -588,6 +580,11 @@ impl StoreService {
             }
         }
 
+        // Also emit session buckets to EAP if rolled out.
+        if !session_buckets.is_empty() {
+            self.emit_session_metrics_to_eap(&session_buckets, scoping, retention);
+        }
+
         if let Some(error) = error {
             relay_log::error!(
                 error = &error as &dyn std::error::Error,
@@ -614,21 +611,21 @@ impl StoreService {
         }
     }
 
-    /// Sends session metric buckets to EAP (snuba-items topic) as TraceItems.
-    fn handle_store_session_metrics_eap(&self, message: StoreSessionMetricsEap) {
+    /// Emits session metric buckets to EAP (snuba-items topic) as TraceItems.
+    ///
+    /// This is called when the organization is rolled out for sessions EAP double-write
+    /// via `sessions_eap_rollout_rate`.
+    fn emit_session_metrics_to_eap(&self, buckets: &[Bucket], scoping: Scoping, retention: u16) {
         use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
         use std::collections::HashMap;
+
+        use crate::processing::utils::store::uuid_to_item_id;
 
         const NAMESPACE: uuid::Uuid = uuid::Uuid::from_bytes([
             0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78,
             0x90, 0xa1,
         ]);
 
-        let StoreSessionMetricsEap {
-            buckets,
-            scoping,
-            retention,
-        } = message;
         let now = UnixTimestamp::now();
         let mut error = None;
         let mut row_count: u64 = 0;
@@ -640,6 +637,11 @@ impl StoreService {
                 i32::from(TraceItemType::UserSession).to_string(),
             ),
         ]);
+
+        let received = Some(prost_types::Timestamp {
+            seconds: now.as_secs() as i64,
+            nanos: 0,
+        });
 
         for bucket in buckets {
             let tags_str = bucket
@@ -672,10 +674,6 @@ impl StoreService {
                 seconds: bucket.timestamp.as_secs() as i64,
                 nanos: 0,
             });
-            let received = Some(prost_types::Timestamp {
-                seconds: now.as_secs() as i64,
-                nanos: 0,
-            });
 
             // Helper to emit a single EAP row.
             let mut emit_row = |key_suffix: &str, attributes: HashMap<String, AnyValue>| {
@@ -693,11 +691,11 @@ impl StoreService {
                 let trace_item = TraceItem {
                     organization_id: scoping.organization_id.value(),
                     project_id: scoping.project_id.value(),
-                    trace_id: uuid.to_string(),
-                    item_id: uuid.as_bytes()[..16].into(),
+                    trace_id: uuid.as_simple().to_string(),
+                    item_id: uuid_to_item_id(uuid),
                     item_type: i32::from(TraceItemType::UserSession),
-                    timestamp: timestamp.clone(),
-                    received: received.clone(),
+                    timestamp,
+                    received,
                     retention_days: retention.into(),
                     downsampled_retention_days: retention.into(),
                     attributes,
