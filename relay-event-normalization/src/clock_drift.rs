@@ -90,6 +90,18 @@ impl ClockDriftProcessor {
         self.correction.is_some()
     }
 
+    /// Applies correction metadata to the passed `meta`.
+    pub fn apply_correction_meta(&self, meta: &mut Meta) {
+        let Some(correction) = self.correction else {
+            return;
+        };
+
+        meta.add_error(Error::with(self.kind.clone(), |e| {
+            e.insert("sdk_time", correction.sent_at.to_rfc3339());
+            e.insert("server_time", self.received_at.to_rfc3339());
+        }));
+    }
+
     /// Processes the given `UnixTimestamp` by applying clock drift correction.
     pub fn process_timestamp(&self, timestamp: &mut UnixTimestamp) {
         if let Some(correction) = self.correction {
@@ -117,14 +129,9 @@ impl Processor for ClockDriftProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if let Some(correction) = self.correction {
+        if self.correction.is_some() {
             event.process_child_values(self, state)?;
-
-            let timestamp_meta = event.timestamp.meta_mut();
-            timestamp_meta.add_error(Error::with(self.kind.clone(), |e| {
-                e.insert("sdk_time", correction.sent_at.to_rfc3339());
-                e.insert("server_time", self.received_at.to_rfc3339());
-            }));
+            self.apply_correction_meta(event.timestamp.meta_mut());
         }
 
         Ok(())
