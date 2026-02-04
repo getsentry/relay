@@ -33,7 +33,10 @@ pub fn filter(replays: &mut Managed<ExpandedReplays>, ctx: Context<'_>) {
     replays.retain(
         |replays| &mut replays.replays,
         |replay, _| {
-            let event = replay.get_event().value().ok_or(Error::NoEventContent)?;
+            let Some(event) = replay.event_mut() else {
+                return Ok(());
+            };
+            let event = event.value().ok_or(Error::NoEventContent)?;
 
             relay_filter::should_filter(
                 event,
