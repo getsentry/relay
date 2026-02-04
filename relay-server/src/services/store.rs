@@ -189,7 +189,7 @@ impl Store {
         match self {
             Store::Envelope(_) => "envelope",
             Store::Metrics(_) => "metrics",
-            Store::TraceItem(_) => "log",
+            Store::TraceItem(_) => "trace_item",
             Store::Span(_) => "span",
             Store::ProfileChunk(_) => "profile_chunk",
         }
@@ -281,16 +281,13 @@ impl StoreService {
     }
 
     fn handle_store_envelope(&self, message: StoreEnvelope) {
-        let StoreEnvelope {
-            envelope: mut managed,
-        } = message;
+        let StoreEnvelope { mut envelope } = message;
 
-        let scoping = managed.scoping();
-
-        match self.store_envelope(&mut managed) {
-            Ok(()) => managed.accept(),
+        let scoping = envelope.scoping();
+        match self.store_envelope(&mut envelope) {
+            Ok(()) => envelope.accept(),
             Err(error) => {
-                managed.reject(Outcome::Invalid(DiscardReason::Internal));
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
                 relay_log::error!(
                     error = &error as &dyn Error,
                     tags.project_key = %scoping.project_key,
@@ -661,32 +658,23 @@ impl StoreService {
             self.produce(KafkaTopic::Spans, message)
         });
 
-        match result {
-            Ok(()) => {
-                relay_statsd::metric!(
-                    counter(RelayCounters::SpanV2Produced) += 1,
-                    via = "processing"
-                );
+        if result.is_ok() {
+            relay_statsd::metric!(
+                counter(RelayCounters::SpanV2Produced) += 1,
+                via = "processing"
+            );
 
-                // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
-                // or the segments consumer, depending on which will produce outcomes later.
-                self.outcome_aggregator.send(TrackOutcome {
-                    category: DataCategory::SpanIndexed,
-                    event_id: None,
-                    outcome: Outcome::Accepted,
-                    quantity: 1,
-                    remote_addr: None,
-                    scoping,
-                    timestamp: received_at,
-                });
-            }
-            Err(error) => {
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    tags.project_key = %scoping.project_key,
-                    "failed to store span"
-                );
-            }
+            // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
+            // or the segments consumer, depending on which will produce outcomes later.
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::SpanIndexed,
+                event_id: None,
+                outcome: Outcome::Accepted,
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: received_at,
+            });
         }
     }
 
@@ -755,7 +743,18 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         relay_log::trace!("Sending kafka message of type {}", message.variant());
 
-        let topic_name = self.producer.client.send_message(topic, &message)?;
+        let topic_name = self
+            .producer
+            .client
+            .send_message(topic, &message)
+            .inspect_err(|err| {
+                relay_log::error!(
+                    error = err as &dyn Error,
+                    tags.topic = ?topic,
+                    tags.message = message.variant(),
+                    "failed to produce to Kafka"
+                )
+            })?;
 
         match &message {
             KafkaMessage::Metric {
