@@ -294,7 +294,7 @@ impl Counted for ExpandedReplay {
 }
 
 impl ExpandedReplay {
-    fn get_event(&mut self) -> Option<&mut Annotated<Replay>> {
+    fn event_mut(&mut self) -> Option<&mut Annotated<Replay>> {
         match self {
             ExpandedReplay::WebReplay { event, .. } => Some(event),
             ExpandedReplay::NativeReplay { event, .. } => Some(event),
@@ -303,7 +303,7 @@ impl ExpandedReplay {
         }
     }
 
-    fn get_recording(&mut self) -> Option<&mut Bytes> {
+    fn recording_mut(&mut self) -> Option<&mut Bytes> {
         match self {
             ExpandedReplay::WebReplay { recording, .. } => Some(recording),
             ExpandedReplay::NativeReplay { recording, .. } => Some(recording),

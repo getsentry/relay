@@ -134,7 +134,7 @@ pub fn normalize(replays: &mut Managed<ExpandedReplays>, geoip_lookup: &GeoIpLoo
 
     replays.modify(|replay, _| {
         for replay in replay.replays.iter_mut() {
-            if let Some(event) = replay.get_event() {
+            if let Some(event) = replay.event_mut() {
                 replay::normalize(event, client_addr, &user_agent.as_deref(), geoip_lookup)
             }
         }
@@ -174,7 +174,7 @@ fn scrub_recordings(
     replays.retain(
         |replays| &mut replays.replays,
         |replay, _| {
-            let Some(payload) = replay.get_recording() else {
+            let Some(payload) = replay.recording_mut() else {
                 return Ok(());
             };
 
@@ -219,7 +219,7 @@ pub fn scrub(
     replays.retain(
         |replays| &mut replays.replays,
         |replay, _| {
-            if let Some(event) = replay.get_event() {
+            if let Some(event) = replay.event_mut() {
                 scrub_event(event, ctx)
                     .inspect_err(|err| relay_log::debug!("failed to scrub pii from replay: {err}"))
             } else {
