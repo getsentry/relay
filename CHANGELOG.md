@@ -30,6 +30,7 @@
 - Add EAP double-write for session data. ([#5588](https://github.com/getsentry/relay/pull/5588))
 - Always process OTLP spans with the span streaming pipeline. ([#5631](https://github.com/getsentry/relay/pull/5631))
 - Embed AI operation type mappings into Relay. ([#5555](https://github.com/getsentry/relay/pull/5555))
+- Apply continuous profiling rate limits to transaction profiles. ([#5614](https://github.com/getsentry/relay/pull/5614)
 - Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
 - Add `gen_ai_response_time_to_first_token` as a `SpanData` attribute. ([#5575](https://github.com/getsentry/relay/pull/5575))
 - Add sampling to expensive envelope buffer statsd metrics. ([#5576](https://github.com/getsentry/relay/pull/5576))

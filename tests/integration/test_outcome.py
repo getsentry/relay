@@ -1578,7 +1578,9 @@ def test_profile_outcomes_too_many(
     assert profiles_consumer.get_profile()
 
 
-@pytest.mark.parametrize("quota_category", ["transaction", "profile"])
+@pytest.mark.parametrize(
+    "quota_category", ["transaction", "profile", "profile_chunk_ui"]
+)
 def test_profile_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
@@ -1607,15 +1609,12 @@ def test_profile_outcomes_rate_limited(
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
             "aggregator": {
                 "bucket_interval": 1,
                 "flush_interval": 1,
             },
-        },
+        }
     }
-
     upstream = relay_with_processing(config)
 
     with open(
@@ -1667,7 +1666,7 @@ def test_profile_outcomes_rate_limited(
         for (category, quantity) in expected_categories
     ]
 
-    if quota_category == "profile":
+    if quota_category != "transaction":
         expected_outcomes.append(
             {
                 "category": DataCategory.SPAN_INDEXED,
@@ -1711,10 +1710,6 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
                 "bucket_interval": 1,
                 "flush_interval": 0,
             },
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
         },
     }
 
