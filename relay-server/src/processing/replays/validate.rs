@@ -8,7 +8,10 @@ pub fn validate(replays: &mut Managed<ExpandedReplays>) {
     replays.retain(
         |replays| &mut replays.replays,
         |replay, _| {
-            let event = replay.get_event().value().ok_or(Error::NoEventContent)?;
+            let Some(event) = replay.get_event() else {
+                return Ok(());
+            };
+            let event = event.value().ok_or(Error::NoEventContent)?;
             replay::validate(event).map_err(Error::from)
         },
     )

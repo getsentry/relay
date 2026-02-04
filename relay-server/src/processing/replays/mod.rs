@@ -31,7 +31,8 @@ pub enum Error {
 
     /// There is an invalid amount of `replay_event` and `replay_recording` items in the envelope.
     ///
-    /// There should be either 0 of both or 1 of both.
+    /// Valid quantity combinations: (0, 0), (1, 1), (1, 0), or (0, 1).
+    /// Standalone events and recordings are supported for SDK compatibility.
     #[error("invalid item count")]
     InvalidItemCount,
 
@@ -265,6 +266,16 @@ enum ExpandedReplay {
         recording: Bytes,
         video: Bytes,
     },
+    /// A standalone replay event.
+    ///
+    /// Although a `replay_event` and `replay_recording` should always be send together in an
+    /// envelope, this is not the case for some SDKs. As such, support this to not break them.
+    StandaloneEvent { event: Annotated<Replay> },
+    /// A standalone replay recording.
+    ///
+    /// Although a `replay_event` and `replay_recording` should always be send together in an
+    /// envelope, this is not the case for some SDKs. As such, support this to not break them.
+    StandaloneRecording { recording: Bytes },
 }
 
 impl Counted for ExpandedReplay {
@@ -273,7 +284,9 @@ impl Counted for ExpandedReplay {
             ExpandedReplay::WebReplay { .. } => {
                 smallvec::smallvec![(DataCategory::Replay, 2)]
             }
-            ExpandedReplay::NativeReplay { .. } => {
+            ExpandedReplay::NativeReplay { .. }
+            | ExpandedReplay::StandaloneEvent { .. }
+            | ExpandedReplay::StandaloneRecording { .. } => {
                 smallvec::smallvec![(DataCategory::Replay, 1)]
             }
         }
@@ -281,17 +294,21 @@ impl Counted for ExpandedReplay {
 }
 
 impl ExpandedReplay {
-    fn get_event(&mut self) -> &mut Annotated<Replay> {
+    fn get_event(&mut self) -> Option<&mut Annotated<Replay>> {
         match self {
-            ExpandedReplay::WebReplay { event, .. } => event,
-            ExpandedReplay::NativeReplay { event, .. } => event,
+            ExpandedReplay::WebReplay { event, .. } => Some(event),
+            ExpandedReplay::NativeReplay { event, .. } => Some(event),
+            ExpandedReplay::StandaloneEvent { event } => Some(event),
+            ExpandedReplay::StandaloneRecording { .. } => None,
         }
     }
 
-    fn get_recording(&mut self) -> &mut Bytes {
+    fn get_recording(&mut self) -> Option<&mut Bytes> {
         match self {
-            ExpandedReplay::WebReplay { recording, .. } => recording,
-            ExpandedReplay::NativeReplay { recording, .. } => recording,
+            ExpandedReplay::WebReplay { recording, .. } => Some(recording),
+            ExpandedReplay::NativeReplay { recording, .. } => Some(recording),
+            ExpandedReplay::StandaloneEvent { .. } => None,
+            ExpandedReplay::StandaloneRecording { recording } => Some(recording),
         }
     }
 }
