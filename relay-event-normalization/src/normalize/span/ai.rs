@@ -94,7 +94,7 @@ pub fn calculate_costs(
     if !tokens.has_usage() {
         relay_statsd::metric!(
             counter(Counters::GenAiCostCalculationResult) += 1,
-            result = "calculation_none",
+            result = "calculation_no_tokens",
             integration = integration,
             platform = platform,
         );
