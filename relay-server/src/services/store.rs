@@ -530,9 +530,6 @@ impl StoreService {
         let now = UnixTimestamp::now();
         let mut delay_stats = ByNamespace::<(u64, u64, u64)>::default();
 
-        // Collect session buckets for EAP if rolled out.
-        let mut session_buckets = Vec::new();
-
         for mut bucket in buckets {
             let namespace = encoder.prepare(&mut bucket);
 
