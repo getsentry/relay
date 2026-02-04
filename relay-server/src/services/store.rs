@@ -21,7 +21,7 @@ use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
-use relay_event_schema::protocol::{EventId, SpanV2, datetime_to_timestamp};
+use relay_event_schema::protocol::{EventId, Replay, SpanV2, datetime_to_timestamp};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
@@ -159,6 +159,71 @@ impl Counted for StoreProfileChunk {
     }
 }
 
+/// A replay recording to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreReplayRecording {
+    /// The replay/event ID.
+    pub replay_id: EventId,
+    /// Number of days to retain.
+    pub retention_days: u16,
+    /// The recording payload (rrweb data).
+    pub payload: Bytes,
+    /// Optional replay event payload (JSON).
+    pub replay_event: Option<Bytes>,
+    /// Optional replay video.
+    pub replay_video: Option<Bytes>,
+    /// Whether Relay should skip publishing to Snuba.
+    pub relay_snuba_publish_disabled: bool,
+    /// Outcome quantities associated with this replay recording.
+    ///
+    /// Always counts as 1 Replay.
+    pub quantities: Quantities,
+}
+
+impl Counted for StoreReplayRecording {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
+/// A replay event to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreReplayEvent {
+    /// The replay/event ID.
+    pub replay_id: EventId,
+    /// Number of days to retain.
+    pub retention_days: u16,
+    /// The event payload (JSON).
+    pub payload: Bytes,
+    /// Whether Relay should skip publishing to Snuba.
+    pub relay_snuba_publish_disabled: bool,
+    /// Outcome quantities associated with this replay event.
+    ///
+    /// Can count as either 0 or 1 Replay, depending on if the event stems from a `replay_video` or not.
+    pub quantities: Quantities,
+}
+
+impl Counted for StoreReplayEvent {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
+#[derive(Debug)]
+enum StoreReplay {
+    Event { event: StoreReplayEvent },
+    Recording { recording: StoreReplayRecording },
+}
+
+impl Counted for StoreReplay {
+    fn quantities(&self) -> Quantities {
+        match self {
+            StoreReplay::Event { event } => event.quantities.clone(),
+            StoreReplay::Recording { recording } => recording.quantities.clone(),
+        }
+    }
+}
+
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
 pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
@@ -181,6 +246,8 @@ pub enum Store {
     Span(Managed<Box<StoreSpanV2>>),
     /// A singular profile chunk.
     ProfileChunk(Managed<StoreProfileChunk>),
+    /// A singular replay item.
+    Replay(Managed<StoreReplay>),
 }
 
 impl Store {
@@ -192,6 +259,7 @@ impl Store {
             Store::TraceItem(_) => "trace_item",
             Store::Span(_) => "span",
             Store::ProfileChunk(_) => "profile_chunk",
+            Store::Replay(_) => "replay",
         }
     }
 }
@@ -238,6 +306,14 @@ impl FromMessage<Managed<StoreProfileChunk>> for Store {
     }
 }
 
+impl FromMessage<Managed<StoreReplay>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreReplay>, _: ()) -> Self {
+        Self::Replay(message)
+    }
+}
+
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     pool: StoreServicePool,
@@ -276,6 +352,7 @@ impl StoreService {
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
                 Store::Span(message) => self.handle_store_span(message),
                 Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
+                Store::Replay(message) => self.handle_store_replay(message),
             }
         })
     }
@@ -697,6 +774,63 @@ impl StoreService {
 
             self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))
         });
+    }
+
+    fn handle_store_replay(&self, message: Managed<StoreReplay>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let _ = message.try_accept(|v| match v {
+            StoreReplay::Event { event } => {
+                self.handle_store_replay_event(scoping, received_at, event)
+            }
+            StoreReplay::Recording { recording } => {
+                self.handle_store_replay_recording(scoping, received_at, recording)
+            }
+        });
+    }
+
+    fn handle_store_replay_recording(
+        &self,
+        scoping: Scoping,
+        received_at: DateTime<Utc>,
+        message: StoreReplayRecording,
+    ) -> Result<(), StoreError> {
+        let kafka_msg =
+            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
+                replay_id: message.replay_id,
+                key_id: scoping.key_id,
+                org_id: scoping.organization_id,
+                project_id: scoping.project_id,
+                received: safe_timestamp(received_at),
+                retention_days: message.retention_days,
+                payload: &message.payload,
+                replay_event: message.replay_event.as_deref(),
+                replay_video: message.replay_video.as_deref(),
+                relay_snuba_publish_disabled: message.relay_snuba_publish_disabled,
+            });
+        self.produce(KafkaTopic::ReplayRecordings, kafka_msg)
+    }
+
+    fn handle_store_replay_event(
+        &self,
+        scoping: Scoping,
+        received_at: DateTime<Utc>,
+        message: StoreReplayEvent,
+    ) -> Result<(), StoreError> {
+        if message.relay_snuba_publish_disabled {
+            return Ok(());
+        }
+
+        let kafka_msg = KafkaMessage::ReplayEvent(ReplayEventKafkaMessage {
+            replay_id: message.replay_id,
+            project_id: scoping.project_id,
+            retention_days: message.retention_days,
+            start_time: safe_timestamp(received_at),
+            payload: &message.payload,
+        });
+
+        self.produce(KafkaTopic::ReplayEvents, kafka_msg)
     }
 
     fn create_metric_message<'a>(

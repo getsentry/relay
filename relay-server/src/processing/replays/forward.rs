@@ -55,11 +55,21 @@ impl Forward for ReplaysOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let envelope = self.serialize_envelope(ctx)?;
-        let envelope = ManagedEnvelope::from(envelope).into_processed();
-
-        s.store(crate::services::store::StoreEnvelope { envelope });
-
+        let Self(replays) = self;
+        for replay in replays.split(|rp| rp.replays) {
+            // FIXME: Call the converting logic to get generate the store message here and handle
+            // any errors.
+            s.store(replay.map(|r, _| match r {
+                ExpandedReplay::WebReplay { event, recording } => todo!(),
+                ExpandedReplay::NativeReplay {
+                    event,
+                    recording,
+                    video,
+                } => todo!(),
+                ExpandedReplay::StandaloneEvent { event } => todo!(),
+                ExpandedReplay::StandaloneRecording { recording } => todo!(),
+            }));
+        }
         Ok(())
     }
 }
