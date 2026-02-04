@@ -41,7 +41,7 @@ where
     let timestamp = item
         .value_mut()
         .as_mut()
-        .and_then(|t| t.reference_timestamp().value().copied());
+        .and_then(|t| t.reference_timestamp_mut().value().copied());
 
     if let Some(timestamp) = timestamp {
         if config
@@ -66,7 +66,7 @@ where
     if processor.is_drifted() {
         let _ = processor::process_value(item, &mut processor, ProcessingState::root());
         if let Some(item) = item.value_mut() {
-            processor.apply_correction_meta(item.reference_timestamp().meta_mut());
+            processor.apply_correction_meta(item.reference_timestamp_mut().meta_mut());
         }
     }
 }
@@ -76,23 +76,23 @@ pub trait TimeNormalize: ProcessValue {
     /// The base, reference timestamp of the item used for time shifts.
     ///
     /// Represents the timestamp when the item was created.
-    fn reference_timestamp(&mut self) -> &mut Annotated<Timestamp>;
+    fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp>;
 }
 
 impl TimeNormalize for OurLog {
-    fn reference_timestamp(&mut self) -> &mut Annotated<Timestamp> {
+    fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
         &mut self.timestamp
     }
 }
 
 impl TimeNormalize for SpanV2 {
-    fn reference_timestamp(&mut self) -> &mut Annotated<Timestamp> {
+    fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
         &mut self.start_timestamp
     }
 }
 
 impl TimeNormalize for TraceMetric {
-    fn reference_timestamp(&mut self) -> &mut Annotated<Timestamp> {
+    fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
         &mut self.timestamp
     }
 }
@@ -111,7 +111,7 @@ mod tests {
     }
 
     impl TimeNormalize for TestItem {
-        fn reference_timestamp(&mut self) -> &mut Annotated<Timestamp> {
+        fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
             &mut self.base
         }
     }
