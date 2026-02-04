@@ -11,6 +11,7 @@
 **Features**:
 
 - Apply clock drift correction to logs and trace metrics. ([#5609](https://github.com/getsentry/relay/pull/5609))
+- Add Culture context to event schema. ([#5615](https://github.com/getsentry/relay/pull/5615))
 
 **Internal**:
 
