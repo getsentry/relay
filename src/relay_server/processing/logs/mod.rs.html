@@ -153,7 +153,7 @@
 <a href=#153 id=153 data-nosnippet>153</a>
 <a href=#154 id=154 data-nosnippet>154</a>        validate::size(<span class="kw-2">&amp;mut </span>logs, ctx);
 <a href=#155 id=155 data-nosnippet>155</a>
-<a href=#156 id=156 data-nosnippet>156</a>        process::normalize(<span class="kw-2">&amp;mut </span>logs);
+<a href=#156 id=156 data-nosnippet>156</a>        process::normalize(<span class="kw-2">&amp;mut </span>logs, ctx);
 <a href=#157 id=157 data-nosnippet>157</a>        filter::filter(<span class="kw-2">&amp;mut </span>logs, ctx);
 <a href=#158 id=158 data-nosnippet>158</a>
 <a href=#159 id=159 data-nosnippet>159</a>        <span class="kw">let </span><span class="kw-2">mut </span>logs = <span class="self">self</span>.limiter.enforce_quotas(logs, ctx).<span class="kw">await</span><span class="question-mark">?</span>;
