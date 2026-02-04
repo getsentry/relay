@@ -39,7 +39,7 @@ fn expand_video(item: &Item) -> Result<ExpandedReplay, Error> {
 
 /// Parses all serialized replays into their [`ExpandedReplays`] representation.
 ///
-/// Does not enforce `replay_event` and `replay_recording` to be send together in the same envelope
+/// Does not enforce `replay_event` and `replay_recording` to be sent together in the same envelope
 /// since some SDKs don't do it and enforcing this would break them.
 pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
     replays.map(|replays, records| {
