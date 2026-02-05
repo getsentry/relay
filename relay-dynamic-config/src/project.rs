@@ -50,6 +50,9 @@ pub struct ProjectConfig {
     /// Retention settings for different products.
     #[serde(default, skip_serializing_if = "RetentionsConfig::is_empty")]
     pub retentions: RetentionsConfig,
+    /// Trimming settings for different products.
+    #[serde(default, skip_serializing_if = "TrimmingConfigs::is_empty")]
+    pub trimming: TrimmingConfigs,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
@@ -159,6 +162,7 @@ impl Default for ProjectConfig {
             event_retention: None,
             downsampled_event_retention: None,
             retentions: Default::default(),
+            trimming: Default::default(),
             quotas: Vec::new(),
             sampling: None,
             measurements: None,
@@ -205,6 +209,8 @@ pub struct LimitedProjectConfig {
     pub filter_settings: ProjectFiltersConfig,
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
+    #[serde(skip_serializing_if = "TrimmingConfigs::is_empty")]
+    pub trimming: TrimmingConfigs,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sampling: Option<ErrorBoundary<SamplingConfig>>,
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
@@ -274,6 +280,29 @@ impl RetentionsConfig {
         } = self;
 
         log.is_none() && span.is_none() && trace_metric.is_none() && trace_attachment.is_none()
+    }
+}
+
+/// Per-category settings for item trimming.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct TrimmingConfig {
+    /// The maximum size in bytes above which an item should be trimmed.
+    pub max_bytes: u32,
+}
+
+/// Settings for item trimming.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TrimmingConfigs {
+    /// Trimming settings for spans.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span: Option<TrimmingConfig>,
+}
+
+impl TrimmingConfigs {
+    fn is_empty(&self) -> bool {
+        let Self { span } = self;
+        span.is_none()
     }
 }
 
