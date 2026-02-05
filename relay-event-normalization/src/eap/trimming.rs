@@ -364,6 +364,12 @@ impl Processor for TrimmingProcessor {
             return Ok(());
         }
 
+        // This counts the lengths of all attribute keys regardless of whether
+        // the attribute itself is valid or invalid. Strictly speaking, this is
+        // inconsistent with the trimming logic, which only counts keys of valid
+        // attributes. However, this value is only used to set the `original_value`
+        // on the attributes collection for documentation purposes, we accept this
+        // discrepancy for now. In any case this is fine to change.
         let original_length = size::attributes_size(attributes);
 
         // Sort attributes by key + value size so small attributes are more likely to be preserved.
