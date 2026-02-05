@@ -217,11 +217,11 @@ class MetricsTrackingKafkaProducer:
         """
         # Create a snapshot of metrics while holding the lock
         # This prevents concurrent modifications during iteration
-        metrics_snapshot = dict(self.__produce_counters)
-        
-        # Immediately clear the original dictionary while still holding the lock
-        # This ensures new metrics go to a fresh dict
-        self.__produce_counters.clear()
+        with self.__lock:
+            metrics_snapshot = dict(self.__produce_counters)
+            # Immediately clear the original dictionary while still holding the lock
+            # This ensures new metrics go to a fresh dict
+            self.__produce_counters.clear()
         
         # Now we can safely iterate over the snapshot without holding the lock
         # Concurrent callbacks will update the cleared __produce_counters dict
