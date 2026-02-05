@@ -198,11 +198,18 @@ def test_spansv2_trimming_basic(
             "retentions": {"span": {"standard": 42, "downsampled": 1337}},
             # This is sufficient for all builtin attributes not
             # to be trimmed.
-            "trimming": {"span": {"max_bytes": 510}},
+            "trimming": {"span": {"max_bytes": 445}},
         }
     )
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    config = {
+        "limits": {
+            "max_removed_attribute_key_bytes": 30,
+        },
+        **TEST_CONFIG,
+    }
+
+    relay = relay(relay_with_processing(options=config), options=config)
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -229,7 +236,9 @@ def test_spansv2_trimming_basic(
                     "type": "array",
                 },
                 "custom.invalid.attribute": {"value": True, "type": "string"},
-                "http.response_content_length": {"value": 17, "type": "integer"},
+                # This attribute will be removed because the `max_removed_attribute_key_bytes` (30B)
+                # is already consumed by the previous invalid attribute
+                "second.custom.invalid.attribute": {"value": None, "type": "integer"},
             },
         },
         trace_info={
@@ -252,14 +261,12 @@ def test_spansv2_trimming_basic(
         "attributes": {
             "custom.array.attribute": {
                 "type": "array",
-                "value": ["A string", "Another longer string", "Yet anot..."],
+                "value": ["A string", "Another longer string", "Yet anothe..."],
             },
             "custom.string.attribute": {
                 "type": "string",
                 "value": "This is actually a pretty long string",
             },
-            "http.response_content_length": {"value": 17, "type": "integer"},
-            "http.response.body.size": {"value": 17, "type": "integer"},
             "custom.invalid.attribute": None,
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
@@ -282,7 +289,7 @@ def test_spansv2_trimming_basic(
         },
         "_meta": {
             "attributes": {
-                "": {"len": 541},
+                "": {"len": 505},
                 "custom.array.attribute": {
                     "value": {
                         "2": {
@@ -292,8 +299,8 @@ def test_spansv2_trimming_basic(
                                     [
                                         "!limit",
                                         "s",
-                                        8,
-                                        11,
+                                        10,
+                                        13,
                                     ],
                                 ],
                             },
