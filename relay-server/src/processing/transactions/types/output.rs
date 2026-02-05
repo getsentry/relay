@@ -5,14 +5,13 @@ use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::envelope::EnvelopeHeaders;
 #[cfg(feature = "processing")]
 use crate::managed::ManagedEnvelope;
 use crate::managed::{Managed, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
 use crate::processing::StoreHandle;
 use crate::processing::spans::Indexed;
-use crate::processing::transactions::types::{ExpandedTransaction, Profile};
+use crate::processing::transactions::types::{ExpandedTransaction, StandaloneProfile};
 use crate::processing::{Forward, ForwardContext};
 use crate::services::outcome::{DiscardReason, Outcome};
 #[cfg(feature = "processing")]
@@ -24,7 +23,7 @@ pub enum TransactionOutput {
     /// The transaction has not been dropped by dynamic sampling.
     Full(Managed<Box<ExpandedTransaction>>),
     /// The transaction has been dropped by dynamic sampling, only an optional profile remains.
-    Profile(Box<EnvelopeHeaders>, Managed<Profile>),
+    Profile(Managed<Box<StandaloneProfile>>),
     /// The transaction has not been dropped by dynamic sampling, and metrics have been extracted.
     ///
     /// This is used in processing relays.
@@ -36,7 +35,7 @@ impl TransactionOutput {
     pub fn event(self) -> Option<Annotated<Event>> {
         match self {
             TransactionOutput::Full(managed) => Some(managed.accept(|x| x).event),
-            TransactionOutput::Profile(_, _) => None,
+            TransactionOutput::Profile(_) => None,
             TransactionOutput::Indexed(managed) => Some(managed.accept(|x| x).event),
         }
     }
@@ -53,11 +52,11 @@ impl Forward for TransactionOutput {
                     .map_err(drop)
                     .with_outcome(Outcome::Invalid(DiscardReason::Internal))
             }),
-            TransactionOutput::Profile(headers, managed) => Ok(managed.map(|Profile(item), _| {
-                Envelope::from_parts(*headers, smallvec::smallvec![*item])
-            })),
+            TransactionOutput::Profile(profile) => {
+                Ok(profile.map(|profile, _| profile.serialize_envelope()))
+            }
             TransactionOutput::Indexed(managed) => managed.try_map(|work, record_keeper| {
-                // TODO: This should raise an error, Indexed output should go straight to kafka
+                // TODO: This should raise an error, Indexed output should go straight to Kafka
                 // instead of an envelope. As long as we have this hack, ignore bookkeeping
                 record_keeper.lenient(DataCategory::Transaction);
                 record_keeper.lenient(DataCategory::Span);

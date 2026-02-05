@@ -12,12 +12,15 @@ use relay_sampling::evaluation::{ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use smallvec::smallvec;
 
-use crate::managed::{Counted, Managed, ManagedResult, Quantities, Rejected};
+use crate::envelope::Items;
+use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::spans;
-use crate::processing::transactions::types::{ExpandedTransaction, Flags, Profile};
+use crate::processing::transactions::types::{
+    ExpandedProfile, ExpandedTransaction, Flags, StandaloneProfile,
+};
 use crate::processing::transactions::{Error, SerializedTransaction, profile};
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
@@ -57,18 +60,7 @@ pub fn expand(
         };
         validate_flags(&flags);
 
-        let mut profiles = profiles.into_iter();
-
-        // Accept at most one profile:
-        let profile = profiles.next();
-        for additional_profile in profiles {
-            record_keeper.reject_err(
-                Outcome::Invalid(DiscardReason::Profiling(relay_profiling::discard_reason(
-                    &ProfileError::TooManyProfiles,
-                ))),
-                additional_profile,
-            );
-        }
+        let profile = expand_profile(profiles, record_keeper);
 
         #[cfg(debug_assertions)]
         {
@@ -101,6 +93,42 @@ fn validate_flags(flags: &Flags) {
     }
 }
 
+fn expand_profile(
+    profiles: Items,
+    record_keeper: &mut RecordKeeper<'_>,
+) -> Option<ExpandedProfile> {
+    let mut profiles = profiles.into_iter();
+
+    // Accept at most one profile:
+    let profile = profiles.next()?;
+    for additional_profile in profiles {
+        record_keeper.reject_err(
+            Outcome::Invalid(DiscardReason::Profiling(relay_profiling::discard_reason(
+                &ProfileError::TooManyProfiles,
+            ))),
+            additional_profile,
+        );
+    }
+
+    let meta = match relay_profiling::parse_metadata(&profile.payload()) {
+        Ok(meta) => meta,
+        Err(err) => {
+            record_keeper.reject_err(
+                Outcome::Invalid(DiscardReason::Profiling(relay_profiling::discard_reason(
+                    &err,
+                ))),
+                profile,
+            );
+            return None;
+        }
+    };
+
+    Some(ExpandedProfile {
+        meta,
+        item: profile,
+    })
+}
+
 /// Validates and massages the data.
 pub fn prepare_data(
     work: &mut Managed<Box<ExpandedTransaction>>,
@@ -109,8 +137,8 @@ pub fn prepare_data(
 ) -> Result<(), Rejected<Error>> {
     let scoping = work.scoping();
     work.try_modify(|work, record_keeper| {
-        let profile_id = profile::filter(work, record_keeper, *ctx, scoping.project_id);
-        profile::transfer_id(&mut work.event, profile_id);
+        profile::filter(work, record_keeper, *ctx);
+        profile::transfer_id(&mut work.event, work.profile.as_ref().map(|p| p.meta.id));
         profile::remove_context_if_rate_limited(&mut work.event, scoping, *ctx);
 
         utils::dsc::validate_and_set_dsc(&mut work.headers, &work.event, ctx);
@@ -187,7 +215,7 @@ pub enum SamplingOutput {
     /// The decision was discard keep only extracted metrics and an optional profile.
     Drop {
         metrics: Managed<ExtractedMetrics>,
-        profile: Option<Managed<Profile>>,
+        profile: Option<Managed<Box<StandaloneProfile>>>,
     },
 }
 
@@ -214,13 +242,14 @@ pub async fn run_dynamic_sampling(
     // At this point the decision is to drop the payload.
     let (payload, metrics) = split_indexed_and_total(payload, ctx, SamplingDecision::Drop)?;
 
-    // Need to process the profile before the event gets dropped:
-    let payload = process_profile(payload, ctx);
     let (payload, profile) = payload.split_once(|mut payload, _| {
-        let mut profile = payload.profile.take();
-        if let Some(profile) = profile.as_mut() {
-            profile.set_sampled(false);
-        }
+        let profile = payload.profile.take().map(|profile| StandaloneProfile {
+            profile,
+            // Actually no need to clone here, since we do drop the remaining transaction after,
+            // for simplicity sake we clone for now.
+            headers: payload.headers.clone(),
+        });
+
         (payload, profile)
     });
 
@@ -229,9 +258,7 @@ pub async fn run_dynamic_sampling(
 
     Ok(SamplingOutput::Drop {
         metrics,
-        profile: profile
-            .transpose()
-            .map(|managed| managed.map(|item, _| Profile(Box::new(item)))),
+        profile: profile.transpose().map(Managed::boxed),
     })
 }
 
@@ -331,34 +358,23 @@ pub fn split_indexed_and_total(
 }
 
 /// Processes the profile attached to the transaction.
-pub fn process_profile<T>(
-    work: Managed<Box<ExpandedTransaction<T>>>,
-    ctx: Context<'_>,
-) -> Managed<Box<ExpandedTransaction<T>>>
-where
-    ExpandedTransaction<T>: Counted,
-{
-    work.map(|mut work, record_keeper| {
-        let mut profile_id = None;
-        if let Some(profile) = work.profile.as_mut() {
-            let result = profile::process(
-                profile,
+pub fn process_profile(work: &mut Managed<Box<ExpandedTransaction>>, ctx: Context<'_>) {
+    work.modify(|work, record_keeper| {
+        if let Some(profile) = work.profile.as_mut()
+            && let Err(outcome) = profile::process(
+                &mut profile.item,
                 work.headers.meta().client_addr(),
                 work.event.value(),
                 &ctx,
-            );
-            match result {
-                Err(outcome) => {
-                    record_keeper.reject_err(outcome, work.profile.take());
-                }
-                Ok(id) => profile_id = Some(id),
-            };
-        }
+            )
+        {
+            record_keeper.reject_err(outcome, work.profile.take());
+        };
+
+        let profile_id = work.profile.as_ref().map(|profile| profile.meta.id);
         profile::transfer_id(&mut work.event, profile_id);
         profile::scrub_profiler_id(&mut work.event);
-
-        work
-    })
+    });
 }
 
 /// Converts the spans embedded in the transaction into top-level span items.

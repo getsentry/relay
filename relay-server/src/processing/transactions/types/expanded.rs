@@ -1,5 +1,6 @@
 use either::Either;
 use relay_event_schema::protocol::Event;
+use relay_profiling::ProfileMetadata;
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::SamplingDecision;
@@ -27,7 +28,7 @@ pub struct ExpandedTransaction<C = TotalAndIndexed> {
     pub event: Annotated<Event>,
     pub flags: Flags,
     pub attachments: Items,
-    pub profile: Option<Item>,
+    pub profile: Option<ExpandedProfile>,
     pub extracted_spans: Vec<Item>,
     #[expect(unused, reason = "marker field, only set never read")]
     pub category: C,
@@ -241,7 +242,9 @@ impl<T> ExpandedTransaction<T> {
         } = self;
 
         items.extend(attachments);
-        items.extend(profile);
+        if let Some(profile) = profile {
+            items.push(profile.serialize_item());
+        }
         items.extend(extracted_spans);
 
         // To be compatible with previous code, add the transaction at the end:
@@ -266,5 +269,30 @@ impl<T> ExpandedTransaction<T> {
         items.push(item);
 
         Ok(Envelope::from_parts(headers, items))
+    }
+}
+
+/// A profile after extracting metadata.
+#[derive(Debug)]
+pub struct ExpandedProfile {
+    /// Parsed metadata from the [`Self::item`].
+    pub meta: ProfileMetadata,
+    /// The raw transaction profile received in an envelope.
+    pub item: Item,
+}
+
+impl ExpandedProfile {
+    pub fn serialize_item(mut self) -> Item {
+        self.item.set_profile_type(self.meta.kind);
+        self.item
+    }
+}
+
+impl Counted for ExpandedProfile {
+    fn quantities(&self) -> Quantities {
+        smallvec![
+            (DataCategory::Profile, 1),
+            (DataCategory::ProfileIndexed, 1),
+        ]
     }
 }

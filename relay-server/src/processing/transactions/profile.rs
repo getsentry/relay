@@ -1,5 +1,4 @@
 //! Profiles related processor code.
-use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_quotas::{DataCategory, Scoping};
 use std::net::IpAddr;
@@ -16,42 +15,19 @@ use crate::managed::RecordKeeper;
 use crate::processing::Context;
 use crate::processing::transactions::types::ExpandedTransaction;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::utils::should_filter;
 
-/// Filters out invalid profiles.
-///
-/// Returns the profile id of the single remaining profile, if there is one.
-pub fn filter(
-    work: &mut ExpandedTransaction,
-    record_keeper: &mut RecordKeeper,
-    ctx: Context,
-    project_id: ProjectId,
-) -> Option<ProfileId> {
-    let profile_item = work.profile.as_ref()?;
+/// Filters out profiles if profiling is not enabled.
+pub fn filter(work: &mut ExpandedTransaction, record_keeper: &mut RecordKeeper, ctx: Context) {
+    if work.profile.is_none() {
+        return;
+    }
 
-    let feature = Feature::Profiling;
-    let mut profile_id = None;
-    if should_filter(ctx.config, ctx.project_info, feature) {
+    if ctx.should_filter(Feature::Profiling) {
         record_keeper.reject_err(
-            Outcome::Invalid(DiscardReason::FeatureDisabled(feature)),
+            Outcome::Invalid(DiscardReason::FeatureDisabled(Feature::Profiling)),
             work.profile.take(),
         );
-    } else {
-        match relay_profiling::parse_metadata(&profile_item.payload(), project_id) {
-            Ok(id) => {
-                profile_id = Some(id);
-            }
-            Err(err) => {
-                record_keeper.reject_err(
-                    Outcome::Invalid(DiscardReason::Profiling(relay_profiling::discard_reason(
-                        &err,
-                    ))),
-                    work.profile.take(),
-                );
-            }
-        }
     }
-    profile_id
 }
 
 /// Transfers the profile ID from the profile item to the transaction item.
