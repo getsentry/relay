@@ -8,6 +8,11 @@
 - Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
 - Fix inconsistencies with Insights' expected attributes. ([#5561](https://github.com/getsentry/relay/pull/5561))
 
+**Features**:
+
+- Add new frame fields for MetricKit flamegraphs. ([#5539](https://github.com/getsentry/relay/pull/5539))
+- Apply clock drift correction to logs and trace metrics. ([#5609](https://github.com/getsentry/relay/pull/5609))
+
 **Internal**:
 
 - Embed AI operation type mappings into Relay. ([#5555](https://github.com/getsentry/relay/pull/5555))

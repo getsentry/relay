@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use relay_event_normalization::{
-    GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
+    GeoIpLookup, RequiredMode, SchemaProcessor, TrimmingProcessor, eap,
 };
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanId, SpanV2};
@@ -13,7 +13,7 @@ use crate::managed::Managed;
 use crate::processing::spans::{
     self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SerializedSpans,
 };
-use crate::processing::{Context, trace_attachments};
+use crate::processing::{Context, trace_attachments, utils};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized spans.
@@ -152,10 +152,14 @@ fn normalize_span(
     geo_lookup: &GeoIpLookup,
     ctx: Context<'_>,
 ) -> Result<()> {
-    process_value(span, &mut TimestampProcessor, ProcessingState::root())?;
+    let meta = headers.meta();
+
+    eap::time::normalize(
+        span,
+        utils::normalize::time_config(headers, |f| f.span.as_ref(), ctx),
+    );
 
     if let Some(span) = span.value_mut() {
-        let meta = headers.meta();
         let dsc = headers.dsc();
         let duration = span_duration(span);
         let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();

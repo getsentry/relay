@@ -440,8 +440,6 @@ def test_buffer_envelopes_without_global_config(
 
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
-        nonlocal include_global
-
         res = original_endpoint().get_json()
         if not include_global:
             res.pop("global")

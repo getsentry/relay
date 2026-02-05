@@ -108,5 +108,12 @@ fn serialize_replay(replay: &ExpandedReplay) -> Result<SmallVec<[Item; 2]>, Seri
             let payload = rmp_serde::to_vec_named(&video_event)?;
             Ok(smallvec![create_replay_video_item(payload.into())])
         }
+        ExpandedReplay::StandaloneEvent { event } => {
+            let event_bytes: Bytes = event.to_json()?.into_bytes().into();
+            Ok(smallvec![create_replay_event_item(event_bytes),])
+        }
+        ExpandedReplay::StandaloneRecording { recording } => {
+            Ok(smallvec![create_replay_recording_item(recording.clone()),])
+        }
     }
 }

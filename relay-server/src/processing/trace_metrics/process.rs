@@ -4,12 +4,11 @@ use relay_event_schema::protocol::TraceMetric;
 use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
 
-use crate::envelope::{ContainerItems, Item, ItemContainer};
-use crate::extractors::RequestMeta;
-use crate::processing::Context;
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
 use crate::processing::Managed;
 use crate::processing::trace_metrics::{Error, Result};
 use crate::processing::trace_metrics::{ExpandedTraceMetrics, SerializedTraceMetrics};
+use crate::processing::{Context, utils};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized trace metrics into their [`ExpandedTraceMetrics`] representation.
@@ -35,11 +34,11 @@ pub fn expand(metrics: Managed<SerializedTraceMetrics>) -> Managed<ExpandedTrace
 ///
 /// Normalization must happen before any filters are applied or other procedures which rely on the
 /// presence and well-formedness of attributes and fields.
-pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, _ctx: Context<'_>) {
+pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
     metrics.retain_with_context(
-        |metrics| (&mut metrics.metrics, metrics.headers.meta()),
-        |metric, meta, _| {
-            normalize_trace_metric(metric, meta).inspect_err(|err| {
+        |metrics| (&mut metrics.metrics, &metrics.headers),
+        |metric, headers, _| {
+            normalize_trace_metric(metric, headers, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize trace metric: {err}");
             })
         },
@@ -99,7 +98,18 @@ fn scrub_trace_metric(metric: &mut Annotated<TraceMetric>, ctx: Context<'_>) -> 
 }
 
 /// Normalizes an individual trace metric entry.
-fn normalize_trace_metric(metric: &mut Annotated<TraceMetric>, meta: &RequestMeta) -> Result<()> {
+fn normalize_trace_metric(
+    metric: &mut Annotated<TraceMetric>,
+    headers: &EnvelopeHeaders,
+    ctx: Context<'_>,
+) -> Result<()> {
+    let meta = headers.meta();
+
+    eap::time::normalize(
+        metric,
+        utils::normalize::time_config(headers, |f| f.trace_metric.as_ref(), ctx),
+    );
+
     if let Some(metric_value) = metric.value_mut() {
         eap::trace_metric::normalize_metric_name(metric_value)?;
         eap::normalize_received(&mut metric_value.attributes, meta.received_at());

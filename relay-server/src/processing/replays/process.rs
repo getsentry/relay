@@ -39,7 +39,8 @@ fn expand_video(item: &Item) -> Result<ExpandedReplay, Error> {
 
 /// Parses all serialized replays into their [`ExpandedReplays`] representation.
 ///
-/// Discards items if they are invalid or there is an invalid combination/amount.
+/// Does not enforce `replay_event` and `replay_recording` to be sent together in the same envelope
+/// since some SDKs don't do it and enforcing this would break them.
 pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
     replays.map(|replays, records| {
         let SerializedReplays {
@@ -50,8 +51,6 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
         } = replays;
         let mut replays = Vec::new();
 
-        // There should be at most one event and recording and if there is one there needs to be
-        // one of the other
         match (events.as_slice(), recordings.as_slice()) {
             // Valid case (no 'web replays') if the envelope contains some replay_videos ('native replays')
             ([], []) => (),
@@ -71,26 +70,36 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
                     }
                 }
             }
-            (a, b) => {
+            // Handle SDKs that send standalone `replay_event` and `replay_recording`.
+            ([event], []) => match Annotated::<Replay>::from_json_bytes(&event.payload()) {
+                Ok(event) => replays.push(ExpandedReplay::StandaloneEvent { event }),
+                Err(err) => drop(records.reject_err(Error::from(err), event)),
+            },
+            ([], [recording]) => {
+                replays.push(ExpandedReplay::StandaloneRecording {
+                    recording: recording.payload(),
+                });
+            }
+            (events, recordings) => {
                 relay_log::error!(
                     sdk = headers.meta().client().unwrap_or("unknown"),
-                    event_count = a.len(),
-                    recording_count = b.len(),
-                    "replay item recording mismatch"
+                    event_count = events.len(),
+                    recording_count = recordings.len(),
+                    "unexpected replay item count"
                 );
 
-                for item in a {
-                    records.reject_err(Error::InvalidItemCount, item);
+                for event in events {
+                    records.reject_err(Error::InvalidItemCount, event);
                 }
-                for item in b {
-                    records.reject_err(Error::InvalidItemCount, item);
+                for recording in recordings {
+                    records.reject_err(Error::InvalidItemCount, recording);
                 }
             }
         }
 
         // From the SDKs it seems like there will only be one video per envelope but that is not
-        // clearly specified anywhere. Also it seems like their will always only be a video or a
-        // (event, recording).
+        // clearly specified anywhere. Also it seems like their will not be native and web replays
+        // in the same envelope.
         // Currently the logic still allows for multiple videos per envelope as well as 'native' and
         // 'web' replays in the same envelope, in the future we could be more strict on this.
         for video in &videos {
@@ -125,12 +134,9 @@ pub fn normalize(replays: &mut Managed<ExpandedReplays>, geoip_lookup: &GeoIpLoo
 
     replays.modify(|replay, _| {
         for replay in replay.replays.iter_mut() {
-            replay::normalize(
-                replay.get_event(),
-                client_addr,
-                &user_agent.as_deref(),
-                geoip_lookup,
-            )
+            if let Some(event) = replay.event_mut() {
+                replay::normalize(event, client_addr, &user_agent.as_deref(), geoip_lookup)
+            }
         }
     })
 }
@@ -168,6 +174,10 @@ fn scrub_recordings(
     replays.retain(
         |replays| &mut replays.replays,
         |replay, _| {
+            let Some(payload) = replay.recording_mut() else {
+                return Ok(());
+            };
+
             // Has some internal state so don't move out of the retain.
             let mut scrubber = RecordingScrubber::new(
                 ctx.config.max_replay_uncompressed_size(),
@@ -179,7 +189,6 @@ fn scrub_recordings(
                 return Ok::<(), Error>(());
             }
 
-            let payload = replay.get_recording();
             *payload = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
                 scrubber.process_recording(payload)
             })
@@ -210,8 +219,12 @@ pub fn scrub(
     replays.retain(
         |replays| &mut replays.replays,
         |replay, _| {
-            scrub_event(replay.get_event(), ctx)
-                .inspect_err(|err| relay_log::debug!("failed to scrub pii from replay: {err}"))
+            if let Some(event) = replay.event_mut() {
+                scrub_event(event, ctx)
+                    .inspect_err(|err| relay_log::debug!("failed to scrub pii from replay: {err}"))
+            } else {
+                Ok(())
+            }
         },
     );
 

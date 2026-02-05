@@ -4,10 +4,10 @@ use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, Item, ItemContainer};
-use crate::extractors::{RequestMeta, RequestTrust};
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
+use crate::extractors::RequestTrust;
 use crate::processing::logs::{self, Error, ExpandedLogs, Result, SerializedLogs};
-use crate::processing::{Context, Managed};
+use crate::processing::{Context, Managed, utils};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized logs into their [`ExpandedLogs`] representation.
@@ -39,11 +39,11 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
 ///
 /// Normalization must happen before any filters are applied or other procedures which rely on the
 /// presence and well-formedness of attributes and fields.
-pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
+pub fn normalize(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     logs.retain_with_context(
-        |logs| (&mut logs.logs, logs.headers.meta()),
-        |log, meta, _| {
-            normalize_log(log, meta).inspect_err(|err| {
+        |logs| (&mut logs.logs, &logs.headers),
+        |log, headers, _| {
+            normalize_log(log, headers, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
             })
         },
@@ -107,7 +107,18 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     Ok(())
 }
 
-fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
+fn normalize_log(
+    log: &mut Annotated<OurLog>,
+    headers: &EnvelopeHeaders,
+    ctx: Context<'_>,
+) -> Result<()> {
+    let meta = headers.meta();
+
+    eap::time::normalize(
+        log,
+        utils::normalize::time_config(headers, |f| f.log.as_ref(), ctx),
+    );
+
     if let Some(log) = log.value_mut() {
         eap::normalize_attribute_types(&mut log.attributes);
         eap::normalize_attribute_names(&mut log.attributes);

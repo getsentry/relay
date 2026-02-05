@@ -909,3 +909,62 @@ def test_filters_are_applied_to_logs(
     ]
 
     assert mini_sentry.captured_envelopes.empty()
+
+
+@pytest.mark.parametrize(
+    "delta,error",
+    [
+        (-timedelta(days=2), "past_timestamp"),
+        (timedelta(days=2), "future_timestamp"),
+    ],
+)
+def test_time_corrections(mini_sentry, relay, delta, error):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 1, "downsampled": 100},
+    }
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": (ts + delta).timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "foo",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    assert item_payload["items"][0] == {
+        "__header": {"byte_size": 3},
+        "_meta": {
+            "timestamp": {
+                "": {
+                    "err": [
+                        [
+                            error,
+                            {
+                                "sdk_time": time_within_delta(ts + delta),
+                                "server_time": time_within_delta(ts),
+                            },
+                        ]
+                    ]
+                }
+            }
+        },
+        "attributes": mock.ANY,
+        "body": "foo",
+        "level": "error",
+        "span_id": "eee19b7ec3c1b175",
+        "timestamp": time_within_delta(ts),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+    }
