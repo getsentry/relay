@@ -167,23 +167,23 @@ impl IntoValue for SpanV2Status {
 #[metastructure(trim = false)]
 pub struct SpanV2Link {
     /// The trace id of the linked span.
-    #[metastructure(required = true, trim = false)]
+    #[metastructure(required = true, trim = false, bytes_size = 0)]
     pub trace_id: Annotated<TraceId>,
 
     /// The span id of the linked span.
-    #[metastructure(required = true, trim = false)]
+    #[metastructure(required = true, trim = false, bytes_size = 0)]
     pub span_id: Annotated<SpanId>,
 
     /// Whether the linked span was positively/negatively sampled.
-    #[metastructure(trim = false)]
+    #[metastructure(trim = false, bytes_size = 0)]
     pub sampled: Annotated<bool>,
 
     /// Span link attributes, similar to span attributes/data.
-    #[metastructure(pii = "maybe", trim = false)]
+    #[metastructure(pii = "maybe", trim = true)]
     pub attributes: Annotated<Attributes>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, pii = "maybe", trim = false)]
+    #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
 }
 
