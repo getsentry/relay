@@ -204,7 +204,7 @@ def test_spansv2_trimming_basic(
 
     config = {
         "limits": {
-            "max_removed_attribute_key_bytes": 30,
+            "max_removed_attribute_key_size": 30,
         },
         **TEST_CONFIG,
     }
