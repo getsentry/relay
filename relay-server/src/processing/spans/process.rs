@@ -201,7 +201,7 @@ fn normalize_span(
 
     process_value(
         span,
-        &mut eap::TrimmingProcessor::new(eap::REMOVED_KEY_BYTE_BUDGET),
+        &mut eap::TrimmingProcessor::new(ctx.config.max_removed_attribute_key_bytes()),
         &trimming_root_state,
     )?;
 

@@ -700,6 +700,16 @@ pub struct Limits {
     ///
     /// Defaults to `1024`, a value [google has been using for a long time](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=19f92a030ca6d772ab44b22ee6a01378a8cb32d4).
     pub tcp_listen_backlog: u32,
+    /// The byte size limit up to which Relay will retain
+    /// keys of invalid/removed attributes.
+    ///
+    /// This is only relevant for EAP items (spans, logs, …).
+    /// In principle, we want to record all deletions of attributes,
+    /// but we have to institute some limit to protect our infrastructure
+    /// against excessive metadata sizes.
+    ///
+    /// Defaults to 10KiB.
+    pub max_removed_attribute_key_bytes: ByteSize,
 }
 
 impl Default for Limits {
@@ -735,6 +745,7 @@ impl Default for Limits {
             idle_timeout: None,
             max_connections: None,
             tcp_listen_backlog: 1024,
+            max_removed_attribute_key_bytes: ByteSize::kibibytes(10),
         }
     }
 }
@@ -2467,6 +2478,14 @@ impl Config {
     /// Returns the maximum number of active queries
     pub fn max_concurrent_queries(&self) -> usize {
         self.values.limits.max_concurrent_queries
+    }
+
+    /// Returns the maximum combined size of keys of invalid attributes.
+    pub fn max_removed_attribute_key_bytes(&self) -> usize {
+        self.values
+            .limits
+            .max_removed_attribute_key_bytes
+            .as_bytes()
     }
 
     /// The maximum number of seconds a query is allowed to take across retries.
