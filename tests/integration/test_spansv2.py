@@ -253,7 +253,6 @@ def test_spansv2_trimming_basic(
     relay.send_envelope(project_id, envelope)
 
     span = spans_consumer.get_span()
-    print(span["attributes"])
 
     assert span == {
         "trace_id": "5b8efff798038103d269b633813fc60c",
