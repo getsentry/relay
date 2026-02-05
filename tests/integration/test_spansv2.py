@@ -198,7 +198,7 @@ def test_spansv2_trimming_basic(
             "retentions": {"span": {"standard": 42, "downsampled": 1337}},
             # This is sufficient for all builtin attributes not
             # to be trimmed.
-            "trimming": {"span": {"max_bytes": 445}},
+            "trimming": {"span": {"max_size": 445}},
         }
     )
 

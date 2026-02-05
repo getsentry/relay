@@ -194,14 +194,14 @@ fn normalize_span(
     let trimming_root_state = {
         let mut attrs = FieldAttrs::default();
         if let Some(span_config) = ctx.project_info.config().trimming.span {
-            attrs = attrs.max_bytes(span_config.max_bytes as usize);
+            attrs = attrs.max_bytes(span_config.max_size as usize);
         }
         ProcessingState::new_root(Some(Cow::Owned(attrs)), [])
     };
 
     process_value(
         span,
-        &mut eap::TrimmingProcessor::new(ctx.config.max_removed_attribute_key_bytes()),
+        &mut eap::TrimmingProcessor::new(ctx.config.max_removed_attribute_key_size()),
         &trimming_root_state,
     )?;
 

@@ -709,7 +709,7 @@ pub struct Limits {
     /// against excessive metadata sizes.
     ///
     /// Defaults to 10KiB.
-    pub max_removed_attribute_key_bytes: ByteSize,
+    pub max_removed_attribute_key_size: ByteSize,
 }
 
 impl Default for Limits {
@@ -745,7 +745,7 @@ impl Default for Limits {
             idle_timeout: None,
             max_connections: None,
             tcp_listen_backlog: 1024,
-            max_removed_attribute_key_bytes: ByteSize::kibibytes(10),
+            max_removed_attribute_key_size: ByteSize::kibibytes(10),
         }
     }
 }
@@ -2481,11 +2481,8 @@ impl Config {
     }
 
     /// Returns the maximum combined size of keys of invalid attributes.
-    pub fn max_removed_attribute_key_bytes(&self) -> usize {
-        self.values
-            .limits
-            .max_removed_attribute_key_bytes
-            .as_bytes()
+    pub fn max_removed_attribute_key_size(&self) -> usize {
+        self.values.limits.max_removed_attribute_key_size.as_bytes()
     }
 
     /// The maximum number of seconds a query is allowed to take across retries.

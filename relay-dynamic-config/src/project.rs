@@ -287,7 +287,7 @@ impl RetentionsConfig {
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct TrimmingConfig {
     /// The maximum size in bytes above which an item should be trimmed.
-    pub max_bytes: u32,
+    pub max_size: u32,
 }
 
 /// Settings for item trimming.
