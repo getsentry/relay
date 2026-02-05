@@ -14,15 +14,17 @@ When upstream services (such as Seer or other GitHub-integrated services) attemp
 
 ## Error Flow
 
+Example flow from an external service (this is illustrative; actual implementation may vary):
+
 ```
-1. Client → Sentry → get_autofix_state()
-2. Sentry → Seer → POST /v1/automation/autofix/state  
-3. Seer → update_repo_access_and_properties()
-4. Seer → GitHub API (check repository access)
+1. Client → Application → API endpoint
+2. Application → Service → API call (e.g., /v1/automation/autofix/state)  
+3. Service → Repository access check function
+4. Service → GitHub API (check repository access)
 5. GitHub → 403 Forbidden (IP not whitelisted)
 6. Unhandled GithubException bubbles up
-7. Seer → 500 Internal Server Error
-8. Sentry ← HTTPError
+7. Service → 500 Internal Server Error
+8. Application ← HTTPError
 ```
 
 ## Recommended Solution
@@ -39,7 +41,7 @@ When upstream services (such as Seer or other GitHub-integrated services) attemp
            if "ip allow list" in e.data.get('message', '').lower():
                raise GitHubIPAllowlistError(
                    f"GitHub organization has IP allowlist enabled. "
-                   f"Please whitelist Seer's IP address or disable IP restrictions."
+                   f"Please whitelist this service's IP address or disable IP restrictions."
                ) from e
        raise
    ```
