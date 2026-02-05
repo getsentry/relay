@@ -1,8 +1,9 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::time::Duration;
 
 use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
-use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
+use relay_event_schema::processor::{FieldAttrs, ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
@@ -188,12 +189,22 @@ fn normalize_span(
         eap::write_legacy_attributes(&mut span.attributes);
     };
 
+    // Set a max_bytes value on the root state if it's defined in the project config.
+    // This causes the whole item to be trimmed down to the limit.
+    let trimming_root_state = {
+        let mut attrs = FieldAttrs::default();
+        if let Some(span_config) = ctx.project_info.config().trimming.span {
+            attrs = attrs.max_bytes(span_config.max_bytes as usize);
+        }
+        ProcessingState::new_root(Some(Cow::Owned(attrs)), [])
+    };
+
     process_value(
         span,
         &mut eap::TrimmingProcessor::new(eap::REMOVED_KEY_BYTE_BUDGET),
-        // TODO: Provide the total item size limit
-        ProcessingState::root(),
+        &trimming_root_state,
     )?;
+
     process_value(
         span,
         &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
