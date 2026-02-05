@@ -11,24 +11,29 @@ pub struct CultureContext {
     /// The calendar system in use.
     ///
     /// For example, `GregorianCalendar`.
+    #[metastructure(pii = "maybe")]
     pub calendar: Annotated<String>,
 
     /// Human-readable name of the culture.
     ///
     /// For example, `English (United States)`.
+    #[metastructure(pii = "maybe")]
     pub display_name: Annotated<String>,
 
     /// The name identifier, usually following the RFC 4646.
     ///
     /// For example, `en-US` or `pt-BR`.
+    #[metastructure(pii = "maybe")]
     pub locale: Annotated<String>,
 
     /// Whether the locale uses 24-hour time format.
+    #[metastructure(pii = "maybe")]
     pub is_24_hour_format: Annotated<bool>,
 
     /// The timezone of the locale.
     ///
     /// For example, `Europe/Vienna`.
+    #[metastructure(pii = "maybe")]
     pub timezone: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
