@@ -20,6 +20,7 @@ use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::Minidump;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
+use crate::middlewares;
 use crate::service::ServiceState;
 use crate::utils::{self, ConstrainedMultipart};
 
@@ -249,7 +250,9 @@ async fn handle(
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     // Set the single-attachment limit that applies only for raw minidumps. Multipart bypasses the
     // limited body and applies its own limits.
-    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
+    post(handle)
+        .route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
+        .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }
 
 #[cfg(test)]

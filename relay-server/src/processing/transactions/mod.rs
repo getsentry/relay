@@ -141,15 +141,17 @@ impl Processor for TransactionProcessor {
         process::prepare_data(&mut work, &mut ctx, &mut metrics)?;
 
         relay_log::trace!("Normalize transaction");
-        let work = process::normalize(work, ctx, &self.geoip_lookup)?;
+        let mut work = process::normalize(work, ctx, &self.geoip_lookup)?;
 
         relay_log::trace!("Filter transaction");
         let filters_status = process::run_inbound_filters(&work, ctx)?;
 
         let quotas_client = self.quotas_client.as_ref();
 
+        relay_log::trace!("Processing profile");
+        process::process_profile(&mut work, ctx);
+
         relay_log::trace!("Sample transaction");
-        let headers = work.headers.clone();
         let (work, server_sample_rate) =
             match process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await? {
                 SamplingOutput::Keep {
@@ -165,14 +167,11 @@ impl Processor for TransactionProcessor {
                         profile = self.limiter.enforce_quotas(p, ctx).await.ok();
                     }
                     return Ok(Output {
-                        main: profile.map(|p| TransactionOutput::Profile(Box::new(headers), p)),
+                        main: profile.map(TransactionOutput::Profile),
                         metrics: Some(metrics),
                     });
                 }
             };
-
-        relay_log::trace!("Processing profiles");
-        let work = process::process_profile(work, ctx);
 
         // Need to scrub the transaction before extracting spans.
         relay_log::trace!("Scrubbing transaction");

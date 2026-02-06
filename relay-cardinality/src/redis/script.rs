@@ -1,6 +1,6 @@
 use relay_redis::{
     AsyncRedisConnection, RedisScripts,
-    redis::{self, FromRedisValue, Script},
+    redis::{self, FromRedisValue, Script, ServerErrorKind},
 };
 
 use crate::Result;
@@ -22,7 +22,7 @@ impl Status {
 }
 
 impl FromRedisValue for Status {
-    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
+    fn from_redis_value(v: redis::Value) -> Result<Self, redis::ParsingError> {
         let accepted = bool::from_redis_value(v)?;
         Ok(if accepted {
             Self::Accepted
@@ -51,7 +51,7 @@ impl CardinalityScriptResult {
         }
 
         Err(relay_redis::RedisError::Redis(redis::RedisError::from((
-            redis::ErrorKind::ResponseError,
+            redis::ErrorKind::Server(ServerErrorKind::ResponseError),
             "Script returned an invalid number of elements",
             format!("Expected {num_hashes} results, got {}", self.statuses.len()),
         )))
@@ -60,25 +60,17 @@ impl CardinalityScriptResult {
 }
 
 impl FromRedisValue for CardinalityScriptResult {
-    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
-        let Some(seq) = v.as_sequence() else {
-            return Err(redis::RedisError::from((
-                redis::ErrorKind::TypeError,
-                "Expected a sequence from the cardinality script",
-                format!("{v:?}"),
-            )));
-        };
+    fn from_redis_value(v: redis::Value) -> Result<Self, redis::ParsingError> {
+        let seq = v.into_sequence().map_err(|v| {
+            format!("Expected a sequence from the cardinality script (value was: {v:?})")
+        })?;
 
-        let mut iter = seq.iter();
+        let mut iter = seq.into_iter();
 
         let cardinality = iter
             .next()
-            .ok_or_else(|| {
-                redis::RedisError::from((
-                    redis::ErrorKind::TypeError,
-                    "Expected cardinality as the first result from the cardinality script",
-                ))
-            })
+            .ok_or("Expected cardinality as the first result from the cardinality script")
+            .map_err(redis::ParsingError::from)
             .and_then(FromRedisValue::from_redis_value)?;
 
         let mut statuses = Vec::with_capacity(iter.len());
@@ -177,7 +169,7 @@ impl CardinalityScriptPipeline<'_> {
     ) -> Result<Vec<CardinalityScriptResult>> {
         match self.pipe.query_async(con).await {
             Ok(result) => Ok(result),
-            Err(err) if err.kind() == redis::ErrorKind::NoScriptError => {
+            Err(err) if err.kind() == redis::ErrorKind::Server(ServerErrorKind::NoScript) => {
                 relay_log::trace!("Redis script no loaded, loading it now");
                 self.script.load_redis(con).await?;
                 self.pipe

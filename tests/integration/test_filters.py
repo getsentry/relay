@@ -122,11 +122,13 @@ def test_error_message_filters_are_applied(
 
 
 @pytest.mark.parametrize(
-    "is_processing_relay", (False, True), ids=["external relay", "processing relay"]
+    "is_processing_relay",
+    [False, True],
+    ids=["external relay", "processing relay"],
 )
 @pytest.mark.parametrize(
     "enable_filters",
-    (False, True),
+    [False, True],
     ids=["events from extensions not filtered", "events from extensions filtered"],
 )
 def test_browser_extension_filters_are_applied(
@@ -155,12 +157,13 @@ def test_browser_extension_filters_are_applied(
         "exception": {
             "values": [
                 {
+                    "value": "test",
                     "stacktrace": {
                         "frames": [
                             {"filename": "a/different.file"},
                             {"filename": "chrome-extension://blablabla"},
                         ]
-                    }
+                    },
                 }
             ]
         }

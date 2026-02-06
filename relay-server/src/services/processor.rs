@@ -50,6 +50,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
+use crate::processing::replays::ReplaysProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_attachments::TraceAttachmentsProcessor;
@@ -618,9 +619,9 @@ impl ProcessingError {
             Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
-            Self::InvalidProcessingGroup(_) => None,
             Self::InvalidReplay(reason) => Some(Outcome::Invalid(*reason)),
             Self::ReplayFiltered(key) => Some(Outcome::Filtered(key.clone())),
+            Self::InvalidProcessingGroup(_) => None,
 
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
             // Outcomes are emitted in the new processing pipeline already.
@@ -1167,6 +1168,7 @@ struct Processing {
     transactions: TransactionProcessor,
     profile_chunks: ProfileChunksProcessor,
     trace_attachments: TraceAttachmentsProcessor,
+    replays: ReplaysProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1256,7 +1258,8 @@ impl EnvelopeProcessorService {
                     quotas.clone(),
                 ),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
-                trace_attachments: TraceAttachmentsProcessor::new(quota_limiter),
+                trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
+                replays: ReplaysProcessor::new(quota_limiter, geoip_lookup.clone()),
             },
             geoip_lookup,
             config,
@@ -1436,20 +1439,13 @@ impl EnvelopeProcessorService {
     async fn process_standalone(
         &self,
         managed_envelope: &mut TypedEnvelope<StandaloneGroup>,
-        project_id: ProjectId,
         ctx: processing::Context<'_>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         standalone::process(managed_envelope);
 
-        profile::filter(
-            managed_envelope,
-            &Annotated::empty(),
-            ctx.config,
-            project_id,
-            ctx.project_info,
-        );
+        profile::filter(managed_envelope, ctx.config, ctx.project_info);
 
         self.enforce_quotas(
             managed_envelope,
@@ -1688,10 +1684,19 @@ impl EnvelopeProcessorService {
                 self.process_with_processor(&self.inner.processing.sessions, managed_envelope, ctx)
                     .await
             }
-            ProcessingGroup::Standalone => run!(process_standalone, project_id, ctx),
+            ProcessingGroup::Standalone => run!(process_standalone, ctx),
             ProcessingGroup::ClientReport => run!(process_client_reports, ctx),
             ProcessingGroup::Replay => {
-                run!(process_replays, ctx)
+                if ctx.project_info.has_feature(Feature::NewReplayProcessing) {
+                    self.process_with_processor(
+                        &self.inner.processing.replays,
+                        managed_envelope,
+                        ctx,
+                    )
+                    .await
+                } else {
+                    run!(process_replays, ctx)
+                }
             }
             ProcessingGroup::CheckIn => {
                 self.process_with_processor(&self.inner.processing.check_ins, managed_envelope, ctx)

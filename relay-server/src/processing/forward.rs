@@ -1,6 +1,5 @@
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
-#[cfg(feature = "processing")]
 use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
 #[cfg(feature = "processing")]
 use relay_system::{Addr, FromMessage};
@@ -78,11 +77,9 @@ pub struct ForwardContext<'a> {
     #[expect(unused, reason = "not yet used")]
     pub global_config: &'a GlobalConfig,
     /// Project configuration associated with the unit of work.
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub project_info: &'a ProjectInfo,
 }
 
-#[cfg(feature = "processing")]
 impl ForwardContext<'_> {
     /// Returns the [`Retention`] for a specific type/product.
     pub fn retention<F>(&self, f: F) -> Retention
@@ -139,15 +136,14 @@ impl From<Nothing> for crate::processing::Outputs {
 
 /// Full retention settings to apply to specific payloads.
 #[derive(Debug, Copy, Clone)]
-#[cfg(feature = "processing")]
 pub struct Retention {
     /// Standard / full fidelity retention policy in days.
     pub standard: u16,
     /// Downsampled retention policy in days.
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub downsampled: u16,
 }
 
-#[cfg(feature = "processing")]
 impl From<RetentionConfig> for Retention {
     fn from(value: RetentionConfig) -> Self {
         Self {

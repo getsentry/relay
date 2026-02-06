@@ -108,7 +108,7 @@ async fn serve(listener: TcpListener, app: App, config: &Config) -> std::io::Res
         .tcp_keepalive(config.keepalive_timeout(), KEEPALIVE_RETRIES)
         .idle_timeout(config.idle_timeout());
 
-    let mut server = axum_server::from_tcp(listener)
+    let mut server = axum_server::from_tcp(listener)?
         .acceptor(acceptor)
         .handle(handle.clone());
 
@@ -224,7 +224,7 @@ impl Service for HttpServer {
     }
 }
 
-async fn emit_active_connections_metric(interval: Option<Duration>, handle: Handle) {
+async fn emit_active_connections_metric(interval: Option<Duration>, handle: Handle<SocketAddr>) {
     let Some(mut ticker) = interval.map(tokio::time::interval) else {
         return;
     };

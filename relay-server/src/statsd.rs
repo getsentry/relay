@@ -341,6 +341,13 @@ pub enum RelayDistributions {
     ///  - `item`: the trace item type.
     ///  - `too_large`: `true` or `false`, whether the item is bigger than the allowed size limit.
     TraceItemCanonicalSize,
+    /// The Content-Length of incoming HTTP requests in bytes.
+    ///
+    /// This metric is tagged with:
+    ///  - `has_content_length`: Whether the Content-Length header was present ("true"/"false").
+    ///  - `route`: The matched route pattern.
+    ///  - `status_code`: The HTTP response status code.
+    ContentLength,
 }
 
 impl DistributionMetric for RelayDistributions {
@@ -370,6 +377,7 @@ impl DistributionMetric for RelayDistributions {
             Self::PartitionKeys => "metrics.buckets.partition_keys",
             Self::PartitionSplits => "partition_splits",
             Self::TraceItemCanonicalSize => "trace_item.canonical_size",
+            Self::ContentLength => "requests.content_length",
         }
     }
 }

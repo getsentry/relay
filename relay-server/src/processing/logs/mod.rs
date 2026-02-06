@@ -153,7 +153,7 @@ impl processing::Processor for LogsProcessor {
 
         validate::size(&mut logs, ctx);
 
-        process::normalize(&mut logs);
+        process::normalize(&mut logs, ctx);
         filter::filter(&mut logs, ctx);
 
         let mut logs = self.limiter.enforce_quotas(logs, ctx).await?;

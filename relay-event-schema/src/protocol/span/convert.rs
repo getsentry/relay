@@ -191,6 +191,7 @@ mod tests {
                 gen_ai_response_finish_reason: ~,
                 gen_ai_response_id: ~,
                 gen_ai_system: ~,
+                gen_ai_system_instructions: ~,
                 gen_ai_tool_name: ~,
                 gen_ai_operation_name: ~,
                 gen_ai_operation_type: ~,

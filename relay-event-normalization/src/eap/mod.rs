@@ -24,6 +24,8 @@ use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
 mod size;
+pub mod time;
+pub mod trace_metric;
 #[allow(unused)]
 mod trimming;
 

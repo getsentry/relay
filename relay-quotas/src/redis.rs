@@ -1,11 +1,12 @@
 use std::fmt::{self, Debug};
 use std::sync::Arc;
 
+use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::organization::OrganizationId;
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
-use relay_redis::redis::{self, FromRedisValue, Script};
+use relay_redis::redis::{self, FromRedisValue, ParsingError, Script};
 use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 use thiserror::Error;
 
@@ -451,26 +452,19 @@ impl RedisRateLimiter {
 struct ScriptResult(Vec<QuotaState>);
 
 impl FromRedisValue for ScriptResult {
-    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
-        let Some(seq) = v.as_sequence() else {
-            return Err(redis::RedisError::from((
-                redis::ErrorKind::TypeError,
-                "Expected a sequence from the rate limiting script",
-                format!("{v:?}"),
-            )));
-        };
+    fn from_redis_value(v: redis::Value) -> Result<Self, ParsingError> {
+        let seq = v.into_sequence().map_err(|v| {
+            format!("Expected a sequence from the rate limiting script (value was: {v:?})")
+        })?;
 
-        let (chunks, rem) = seq.as_chunks();
-        if !rem.is_empty() {
-            return Err(redis::RedisError::from((
-                redis::ErrorKind::TypeError,
-                "Expected an even number of values from the rate limiting script",
-                format!("{v:?}"),
-            )));
+        if !seq.len().is_multiple_of(2) {
+            return Err(format!(
+                "Expected an even number of values from the rate limiting script (value was: {seq:?})"
+            ).into());
         }
 
-        let mut quotas = Vec::with_capacity(chunks.len());
-        for [is_rejected, consumed] in chunks {
+        let mut quotas = Vec::with_capacity(seq.len() / 2);
+        for (is_rejected, consumed) in seq.into_iter().tuples() {
             quotas.push(QuotaState {
                 is_rejected: bool::from_redis_value(is_rejected)?,
                 consumed: i64::from_redis_value(consumed)?,

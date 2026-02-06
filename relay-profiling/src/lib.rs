@@ -45,7 +45,6 @@ use std::time::Duration;
 
 use bytes::Bytes;
 
-use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::GlobalConfig;
 use relay_event_schema::protocol::{Event, EventId};
 use relay_filter::{Filterable, ProjectFiltersConfig};
@@ -139,15 +138,18 @@ fn minimal_profile_from_json(
     serde_path_to_error::deserialize(d)
 }
 
-pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId, ProfileError> {
+/// Parsed profile metadata returned from [`parse_metadata`].
+#[derive(Debug)]
+pub struct ProfileMetadata {
+    pub id: ProfileId,
+    pub kind: ProfileType,
+}
+
+pub fn parse_metadata(payload: &[u8]) -> Result<ProfileMetadata, ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
-            relay_log::debug!(
-                error = &err as &dyn Error,
-                from = "minimal",
-                project_id = project_id.value(),
-            );
+            relay_log::debug!(error = &err as &dyn Error, from = "minimal",);
             return Err(ProfileError::InvalidJson(err));
         }
     };
@@ -161,7 +163,6 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
                         error = &err as &dyn Error,
                         from = "metadata",
                         platform = profile.platform,
-                        project_id = project_id.value(),
                         "invalid profile",
                     );
                     return Err(ProfileError::InvalidJson(err));
@@ -179,7 +180,6 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
                             error = &err as &dyn Error,
                             from = "metadata",
                             platform = "android",
-                            project_id = project_id.value(),
                             "invalid profile",
                         );
                         return Err(ProfileError::InvalidJson(err));
@@ -189,7 +189,11 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
-    Ok(profile.event_id)
+
+    Ok(ProfileMetadata {
+        id: profile.event_id,
+        kind: ProfileType::from_platform(&profile.platform),
+    })
 }
 
 pub fn expand_profile(
