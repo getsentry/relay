@@ -297,6 +297,13 @@ fn extract_ai_data(
             origin,
             platform,
         )
+    } else {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_no_model_cost_available",
+            integration = map_origin_to_integration(origin),
+            platform = platform_tag(platform),
+        );
     }
 }
 
