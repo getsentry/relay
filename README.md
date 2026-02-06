@@ -143,8 +143,8 @@ create a virtualenv, build the Relay binary with processing enabled, and run
 a set of integration tests:
 
 ```bash
-# Make sure that kafka and redis are running
-devservices up kafka redis
+# Make sure that all dependencies are running
+devservices up relay
 
 # Create a new virtualenv, build Relay and run integration tests
 make test-integration
