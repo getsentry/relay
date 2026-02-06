@@ -189,6 +189,7 @@ fn normalize_span(
         eap::write_legacy_attributes(&mut span.attributes);
     };
 
+    // TODO: Clean this up before merging.
     // Set a max_bytes value on the root state if it's defined in the project config.
     // This causes the whole item to be trimmed down to the limit.
     let trimming_root_state = {
