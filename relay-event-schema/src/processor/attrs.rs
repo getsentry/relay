@@ -388,16 +388,16 @@ impl ProcessingStateBuilder {
         self.attrs(|attrs| attrs.pii_dynamic(pii))
     }
 
-    pub fn max_chars(self, max_chars: Option<usize>) -> Self {
-        self.attrs(|attrs| attrs.max_chars(max_chars))
+    pub fn max_chars(self, max_chars: impl Into<Option<usize>>) -> Self {
+        self.attrs(|attrs| attrs.max_chars(max_chars.into()))
     }
 
     pub fn max_chars_dynamic(self, max_chars: fn(&ProcessingState) -> Option<usize>) -> Self {
         self.attrs(|attrs| attrs.max_chars_dynamic(max_chars))
     }
 
-    pub fn max_bytes(self, max_bytes: Option<usize>) -> Self {
-        self.attrs(|attrs| attrs.max_bytes(max_bytes))
+    pub fn max_bytes(self, max_bytes: impl Into<Option<usize>>) -> Self {
+        self.attrs(|attrs| attrs.max_bytes(max_bytes.into()))
     }
 
     pub fn max_bytes_dynamic(self, max_bytes: fn(&ProcessingState) -> Option<usize>) -> Self {

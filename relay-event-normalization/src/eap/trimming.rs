@@ -716,7 +716,7 @@ mod tests {
         // That leaves 9B for the string's value.
         // Note that the `number` field doesn't take up any size.
         // The `"footer"` is removed because it comes after the attributes and there's no space left.
-        let state = ProcessingState::root_builder().max_bytes(Some(50)).build();
+        let state = ProcessingState::root_builder().max_bytes(50).build();
         processor::process_value(&mut value, &mut processor, &state).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
@@ -882,7 +882,7 @@ mod tests {
         });
 
         let mut processor = TrimmingProcessor::new(100);
-        let state = ProcessingState::root_builder().max_bytes(Some(30)).build();
+        let state = ProcessingState::root_builder().max_bytes(30).build();
         processor::process_value(&mut value, &mut processor, &state).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
@@ -935,7 +935,7 @@ mod tests {
 
         let mut attributes = Annotated::new(attributes);
 
-        let state = ProcessingState::root_builder().max_bytes(Some(40)).build();
+        let state = ProcessingState::root_builder().max_bytes(40).build();
         processor::process_value(&mut attributes, &mut TrimmingProcessor::new(20), &state).unwrap();
         let attributes_after_trimming = attributes.clone();
         processor::process_value(&mut attributes, &mut TrimmingProcessor::new(20), &state).unwrap();
