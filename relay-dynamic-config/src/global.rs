@@ -176,6 +176,19 @@ pub struct Options {
     )]
     pub objectstore_attachments_sample_rate: f32,
 
+    /// Rollout rate for the EAP (Event Analytics Platform) double-write for user sessions.
+    ///
+    /// When rolled out, session data is sent both through the legacy metrics pipeline
+    /// and directly to the `snuba-items` topic as `TRACE_ITEM_TYPE_USER_SESSION`.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    #[serde(
+        rename = "relay.sessions-eap.rollout-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub sessions_eap_rollout_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

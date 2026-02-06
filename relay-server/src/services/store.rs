@@ -43,6 +43,8 @@ use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
+mod sessions;
+
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
@@ -518,6 +520,12 @@ impl StoreService {
         let global_config = self.global_config.current();
         let mut encoder = BucketEncoder::new(&global_config);
 
+        let emit_sessions_to_eap = utils::is_rolled_out(
+            scoping.organization_id.value(),
+            global_config.options.sessions_eap_rollout_rate,
+        )
+        .is_keep();
+
         let now = UnixTimestamp::now();
         let mut delay_stats = ByNamespace::<(u64, u64, u64)>::default();
 
@@ -561,6 +569,13 @@ impl StoreService {
 
                 self.metric_outcomes.track(scoping, &[view], outcome);
             }
+
+            if emit_sessions_to_eap
+                && let Some(trace_item) = sessions::to_trace_item(scoping, bucket, retention)
+            {
+                let message = KafkaMessage::for_item(scoping, trace_item);
+                let _ = self.produce(KafkaTopic::Items, message);
+            }
         }
 
         if let Some(error) = error {
@@ -594,16 +609,7 @@ impl StoreService {
         let received_at = message.received_at();
 
         let quantities = message.try_accept(|item| {
-            let item_type = item.trace_item.item_type();
-            let message = KafkaMessage::Item {
-                headers: BTreeMap::from([
-                    ("project_id".to_owned(), scoping.project_id.to_string()),
-                    ("item_type".to_owned(), (item_type as i32).to_string()),
-                ]),
-                message: item.trace_item,
-                item_type,
-            };
-
+            let message = KafkaMessage::for_item(scoping, item.trace_item);
             self.produce(KafkaTopic::Items, message)
                 .map(|()| item.quantities)
         });
@@ -931,8 +937,8 @@ impl StoreService {
             }
             _ => KafkaTopic::MetricsGeneric,
         };
-        let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
 
+        let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
         self.produce(topic, KafkaMessage::Metric { headers, message })?;
         Ok(())
     }
@@ -1559,6 +1565,21 @@ enum KafkaMessage<'a> {
 
     ReplayEvent(ReplayEventKafkaMessage<'a>),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
+}
+
+impl KafkaMessage<'_> {
+    /// Creates a [`KafkaMessage`] for a [`TraceItem`].
+    fn for_item(scoping: Scoping, item: TraceItem) -> KafkaMessage<'static> {
+        let item_type = item.item_type();
+        KafkaMessage::Item {
+            headers: BTreeMap::from([
+                ("project_id".to_owned(), scoping.project_id.to_string()),
+                ("item_type".to_owned(), (item_type as i32).to_string()),
+            ]),
+            message: item,
+            item_type,
+        }
+    }
 }
 
 impl Message for KafkaMessage<'_> {
