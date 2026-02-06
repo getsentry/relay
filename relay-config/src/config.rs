@@ -657,6 +657,16 @@ pub struct Limits {
     max_replay_uncompressed_size: ByteSize,
     /// The maximum size for a replay recording Kafka message.
     pub max_replay_message_size: ByteSize,
+    /// The byte size limit up to which Relay will retain
+    /// keys of invalid/removed attributes.
+    ///
+    /// This is only relevant for EAP items (spans, logs, …).
+    /// In principle, we want to record all deletions of attributes,
+    /// but we have to institute some limit to protect our infrastructure
+    /// against excessive metadata sizes.
+    ///
+    /// Defaults to 10KiB.
+    pub max_removed_attribute_key_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
@@ -700,16 +710,6 @@ pub struct Limits {
     ///
     /// Defaults to `1024`, a value [google has been using for a long time](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=19f92a030ca6d772ab44b22ee6a01378a8cb32d4).
     pub tcp_listen_backlog: u32,
-    /// The byte size limit up to which Relay will retain
-    /// keys of invalid/removed attributes.
-    ///
-    /// This is only relevant for EAP items (spans, logs, …).
-    /// In principle, we want to record all deletions of attributes,
-    /// but we have to institute some limit to protect our infrastructure
-    /// against excessive metadata sizes.
-    ///
-    /// Defaults to 10KiB.
-    pub max_removed_attribute_key_size: ByteSize,
 }
 
 impl Default for Limits {
