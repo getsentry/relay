@@ -11,35 +11,35 @@ use crate::protocol::{Attributes, OperationType, SpanId, Timestamp, TraceId};
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SpanV2 {
     /// The ID of the trace to which this span belongs.
-    #[metastructure(required = true, nonempty = true, trim = false, bytes_size = 0)]
+    #[metastructure(required = true, nonempty = true, trim = false)]
     pub trace_id: Annotated<TraceId>,
 
     /// The ID of the span enclosing this span.
-    #[metastructure(trim = false, bytes_size = 0)]
+    #[metastructure(trim = false)]
     pub parent_span_id: Annotated<SpanId>,
 
     /// The Span ID.
-    #[metastructure(required = true, nonempty = true, trim = false, bytes_size = 0)]
+    #[metastructure(required = true, nonempty = true, trim = false)]
     pub span_id: Annotated<SpanId>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(required = true, bytes_size = 0)]
+    #[metastructure(required = true, trim = false)]
     pub name: Annotated<OperationType>,
 
     /// The span's status.
-    #[metastructure(required = true, bytes_size = 0)]
+    #[metastructure(required = true, trim = false)]
     pub status: Annotated<SpanV2Status>,
 
     /// Whether this span is the root span of a segment.
-    #[metastructure(trim = false, bytes_size = 0)]
+    #[metastructure(trim = false)]
     pub is_segment: Annotated<bool>,
 
     /// Timestamp when the span started.
-    #[metastructure(required = true, trim = false, bytes_size = 0)]
+    #[metastructure(required = true, trim = false)]
     pub start_timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the span was ended.
-    #[metastructure(required = true, trim = false, bytes_size = 0)]
+    #[metastructure(required = true, trim = false)]
     pub end_timestamp: Annotated<Timestamp>,
 
     /// Links from this span to other spans.
@@ -167,15 +167,15 @@ impl IntoValue for SpanV2Status {
 #[metastructure(trim = false)]
 pub struct SpanV2Link {
     /// The trace id of the linked span.
-    #[metastructure(required = true, trim = false, bytes_size = 0)]
+    #[metastructure(required = true, trim = false)]
     pub trace_id: Annotated<TraceId>,
 
     /// The span id of the linked span.
-    #[metastructure(required = true, trim = false, bytes_size = 0)]
+    #[metastructure(required = true, trim = false)]
     pub span_id: Annotated<SpanId>,
 
     /// Whether the linked span was positively/negatively sampled.
-    #[metastructure(trim = false, bytes_size = 0)]
+    #[metastructure(trim = false)]
     pub sampled: Annotated<bool>,
 
     /// Span link attributes, similar to span attributes/data.
