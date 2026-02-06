@@ -211,7 +211,7 @@ impl FieldAttrs {
         self
     }
 
-    /// Sets whether this field can have an empty value.
+    /// Sets whether this field's value must be nonempty.
     ///
     /// This is distinct from `required`. An empty string (`""`) passes the "required" check but not the
     /// "nonempty" one.
@@ -355,64 +355,84 @@ impl<T> Deref for BoxCow<'_, T> {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+/// A builder for root [`ProcessingStates`](ProcessingState).
+///
+/// This is created by [`ProcessingState::root_builder`].
+#[derive(Debug, Clone)]
 pub struct ProcessingStateBuilder {
     attrs: Option<FieldAttrs>,
     value_type: EnumSet<ValueType>,
 }
 
 impl ProcessingStateBuilder {
+    /// Modifies the attributes of the root field.
     pub fn attrs<F: FnOnce(FieldAttrs) -> FieldAttrs>(mut self, f: F) -> Self {
         let attrs = self.attrs.take().unwrap_or_default();
         self.attrs = Some(f(attrs));
         self
     }
 
+    /// Sets whether a value in the root field is required.
     pub fn required(self, required: bool) -> Self {
         self.attrs(|attrs| attrs.required(required))
     }
 
+    /// Sets whether the root field's value must be nonempty.
+    ///
+    /// This is distinct from `required`. An empty string (`""`) passes the "required" check but not the
+    /// "nonempty" one.
     pub fn nonempty(self, nonempty: bool) -> Self {
         self.attrs(|attrs| attrs.nonempty(nonempty))
     }
 
+    /// Sets whether whitespace should be trimmed on the root field before validation.
     pub fn trim_whitespace(self, trim_whitespace: bool) -> Self {
         self.attrs(|attrs| attrs.trim_whitespace(trim_whitespace))
     }
 
+    /// Sets whether the root field contains PII.
     pub fn pii(self, pii: Pii) -> Self {
         self.attrs(|attrs| attrs.pii(pii))
     }
 
+    /// Sets whether the root field contains PII dynamically based on the current state.
     pub fn pii_dynamic(self, pii: fn(&ProcessingState) -> Pii) -> Self {
         self.attrs(|attrs| attrs.pii_dynamic(pii))
     }
 
+    /// Sets the maximum number of chars allowed in the root field.
     pub fn max_chars(self, max_chars: impl Into<Option<usize>>) -> Self {
         self.attrs(|attrs| attrs.max_chars(max_chars.into()))
     }
 
+    /// Sets the maximum number of characters allowed in the root field dynamically based on the current state.
     pub fn max_chars_dynamic(self, max_chars: fn(&ProcessingState) -> Option<usize>) -> Self {
         self.attrs(|attrs| attrs.max_chars_dynamic(max_chars))
     }
 
+    /// Sets the maximum number of bytes allowed in the root field.
     pub fn max_bytes(self, max_bytes: impl Into<Option<usize>>) -> Self {
         self.attrs(|attrs| attrs.max_bytes(max_bytes.into()))
     }
 
+    /// Sets the maximum number of bytes allowed in the root field dynamically based on the current state.
     pub fn max_bytes_dynamic(self, max_bytes: fn(&ProcessingState) -> Option<usize>) -> Self {
         self.attrs(|attrs| attrs.max_bytes_dynamic(max_bytes))
     }
 
+    /// Sets whether additional properties should be retained during normalization.
     pub fn retain(self, retain: bool) -> Self {
         self.attrs(|attrs| attrs.retain(retain))
     }
 
+    /// Sets the value type for the root state.
     pub fn value_type(mut self, value_type: EnumSet<ValueType>) -> Self {
         self.value_type = value_type;
         self
     }
 
+    /// Consumes the builder and returns a root [`ProcessingState`] with
+    /// the configured attributes and value type.
     pub fn build(self) -> ProcessingState<'static> {
         let Self { attrs, value_type } = self;
         ProcessingState {
@@ -475,8 +495,23 @@ impl<'a> ProcessingState<'a> {
         }
     }
 
+    /// Creates a builder that can be used to easily create
+    /// a custom root state.
+    ///
+    /// # Example
+    /// ```
+    /// use relay_event_schema::processor::ProcessingState;
+    ///
+    /// let root = ProcessingState::root_builder()
+    ///   .max_bytes(50)
+    ///   .retain(true)
+    ///   .build();
+    /// ```
     pub fn root_builder() -> ProcessingStateBuilder {
-        ProcessingStateBuilder::default()
+        ProcessingStateBuilder {
+            attrs: None,
+            value_type: EnumSet::empty(),
+        }
     }
 
     /// Derives a processing state by entering a borrowed key.
