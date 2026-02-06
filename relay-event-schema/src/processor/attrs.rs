@@ -239,8 +239,8 @@ impl FieldAttrs {
     }
 
     /// Sets the maximum number of characters allowed in the field.
-    pub const fn max_chars(mut self, max_chars: usize) -> Self {
-        self.max_chars = SizeMode::Static(Some(max_chars));
+    pub const fn max_chars(mut self, max_chars: Option<usize>) -> Self {
+        self.max_chars = SizeMode::Static(max_chars);
         self
     }
 
@@ -254,8 +254,8 @@ impl FieldAttrs {
     }
 
     /// Sets the maximum number of bytes allowed in the field.
-    pub const fn max_bytes(mut self, max_bytes: usize) -> Self {
-        self.max_bytes = SizeMode::Static(Some(max_bytes));
+    pub const fn max_bytes(mut self, max_bytes: Option<usize>) -> Self {
+        self.max_bytes = SizeMode::Static(max_bytes);
         self
     }
 
@@ -355,6 +355,76 @@ impl<T> Deref for BoxCow<'_, T> {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ProcessingStateBuilder {
+    attrs: Option<FieldAttrs>,
+    value_type: EnumSet<ValueType>,
+}
+
+impl ProcessingStateBuilder {
+    pub fn attrs<F: FnOnce(FieldAttrs) -> FieldAttrs>(mut self, f: F) -> Self {
+        let attrs = self.attrs.take().unwrap_or_default();
+        self.attrs = Some(f(attrs));
+        self
+    }
+
+    pub fn required(self, required: bool) -> Self {
+        self.attrs(|attrs| attrs.required(required))
+    }
+
+    pub fn nonempty(self, nonempty: bool) -> Self {
+        self.attrs(|attrs| attrs.nonempty(nonempty))
+    }
+
+    pub fn trim_whitespace(self, trim_whitespace: bool) -> Self {
+        self.attrs(|attrs| attrs.trim_whitespace(trim_whitespace))
+    }
+
+    pub fn pii(self, pii: Pii) -> Self {
+        self.attrs(|attrs| attrs.pii(pii))
+    }
+
+    pub fn pii_dynamic(self, pii: fn(&ProcessingState) -> Pii) -> Self {
+        self.attrs(|attrs| attrs.pii_dynamic(pii))
+    }
+
+    pub fn max_chars(self, max_chars: Option<usize>) -> Self {
+        self.attrs(|attrs| attrs.max_chars(max_chars))
+    }
+
+    pub fn max_chars_dynamic(self, max_chars: fn(&ProcessingState) -> Option<usize>) -> Self {
+        self.attrs(|attrs| attrs.max_chars_dynamic(max_chars))
+    }
+
+    pub fn max_bytes(self, max_bytes: Option<usize>) -> Self {
+        self.attrs(|attrs| attrs.max_bytes(max_bytes))
+    }
+
+    pub fn max_bytes_dynamic(self, max_bytes: fn(&ProcessingState) -> Option<usize>) -> Self {
+        self.attrs(|attrs| attrs.max_bytes_dynamic(max_bytes))
+    }
+
+    pub fn retain(self, retain: bool) -> Self {
+        self.attrs(|attrs| attrs.retain(retain))
+    }
+
+    pub fn value_type(mut self, value_type: EnumSet<ValueType>) -> Self {
+        self.value_type = value_type;
+        self
+    }
+
+    pub fn build(self) -> ProcessingState<'static> {
+        let Self { attrs, value_type } = self;
+        ProcessingState {
+            parent: None,
+            path_item: None,
+            attrs: attrs.map(Cow::Owned),
+            value_type,
+            depth: 0,
+        }
+    }
+}
+
 /// An event's processing state.
 ///
 /// The processing state describes an item in an event which is being processed, an example
@@ -403,6 +473,10 @@ impl<'a> ProcessingState<'a> {
             value_type: value_type.into_iter().collect(),
             depth: 0,
         }
+    }
+
+    pub fn root_builder() -> ProcessingStateBuilder {
+        ProcessingStateBuilder::default()
     }
 
     /// Derives a processing state by entering a borrowed key.
