@@ -12,6 +12,7 @@
 
 - Add new frame fields for MetricKit flamegraphs. ([#5539](https://github.com/getsentry/relay/pull/5539))
 - Apply clock drift correction to logs and trace metrics. ([#5609](https://github.com/getsentry/relay/pull/5609))
+- Trim spans with a new EAP trimming processor. ([#5616](https://github.com/getsentry/relay/pull/5616))
 
 **Internal**:
 
