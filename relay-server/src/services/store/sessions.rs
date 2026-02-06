@@ -4,10 +4,7 @@ use relay_metrics::{Bucket, BucketValue, MetricNamespace};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, ArrayValue, TraceItem, TraceItemType, any_value};
 
-/// UUID namespace used for deterministic item IDs.
-const NAMESPACE: uuid::Uuid = uuid::Uuid::from_bytes([
-    0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90, 0xa1,
-]);
+use crate::processing::utils::store::uuid_to_item_id;
 
 /// Converts a session [`Bucket`] into an EAP [`TraceItem`].
 pub fn to_trace_item(scoping: Scoping, bucket: Bucket, retention: u16) -> Option<TraceItem> {
@@ -49,13 +46,12 @@ pub fn to_trace_item(scoping: Scoping, bucket: Bucket, retention: u16) -> Option
         attributes.insert(name, value);
     }
 
-    let uuid = uuid::Uuid::new_v5(&NAMESPACE, b"TODO");
-
+    let uuid = uuid::Uuid::new_v4();
     Some(TraceItem {
         organization_id: scoping.organization_id.value(),
         project_id: scoping.project_id.value(),
         trace_id: uuid.to_string(),
-        item_id: uuid.as_bytes()[..16].into(),
+        item_id: uuid_to_item_id(uuid),
         item_type: TraceItemType::UserSession.into(),
         timestamp: Some(prost_types::Timestamp {
             seconds: bucket.timestamp.as_secs() as i64,
