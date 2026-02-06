@@ -285,6 +285,7 @@ impl RetentionsConfig {
 
 /// Per-category settings for item trimming.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TrimmingConfig {
     /// The maximum size in bytes above which an item should be trimmed.
     pub max_size: u32,
