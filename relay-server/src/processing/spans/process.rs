@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use relay_event_normalization::{
-    GeoIpLookup, RequiredMode, SchemaProcessor, TrimmingProcessor, eap,
-};
+use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
@@ -190,7 +188,22 @@ fn normalize_span(
         eap::write_legacy_attributes(&mut span.attributes);
     };
 
-    process_value(span, &mut TrimmingProcessor::new(), ProcessingState::root())?;
+    // Set a max_bytes value on the root state if it's defined in the project config.
+    // This causes the whole item to be trimmed down to the limit.
+    let max_bytes = ctx
+        .project_info
+        .config()
+        .trimming
+        .span
+        .map(|cfg| cfg.max_size as usize);
+    let trimming_root = ProcessingState::root_builder().max_bytes(max_bytes).build();
+
+    process_value(
+        span,
+        &mut eap::TrimmingProcessor::new(ctx.config.max_removed_attribute_key_size()),
+        &trimming_root,
+    )?;
+
     process_value(
         span,
         &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
