@@ -48,7 +48,11 @@ def test_session_eap_double_write(
         },
     )
 
-    assert items_consumer.get_items(n=2) == [
+    items = sorted(
+        items_consumer.get_items(n=2),
+        key=lambda x: not x["attributes"].get("session_count"),
+    )
+    assert items == [
         # Converted from: `c:sessions/session@none`
         {
             "organizationId": "1",
