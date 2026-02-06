@@ -4,23 +4,6 @@ from unittest import mock
 from .asserts import time_within_delta
 
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-        "batch_size": 1,
-        "batch_interval": 1,
-        "aggregator": {
-            "bucket_interval": 1,
-            "flush_interval": 1,
-        },
-    },
-    "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
-    },
-}
-
-
 def test_session_eap_double_write(
     mini_sentry,
     relay_with_processing,
@@ -41,7 +24,7 @@ def test_session_eap_double_write(
     # Enable EAP double-write via global config.
     mini_sentry.global_config["options"]["relay.sessions-eap.rollout-rate"] = 1.0
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
@@ -65,58 +48,50 @@ def test_session_eap_double_write(
         },
     )
 
-    items = items_consumer.get_items(n=2, timeout=10)
-
-    # Separate counter and set items by their distinguishing attribute.
-    counter_items = [i for i in items if "session_count" in i.get("attributes", {})]
-    set_items = [i for i in items if "user_id" in i.get("attributes", {})]
-
-    assert len(counter_items) == 1
-    assert len(set_items) == 1
-
-    # Assert counter metric (c:sessions/session@none).
-    assert counter_items[0] == {
-        "organizationId": "1",
-        "projectId": "42",
-        "traceId": mock.ANY,
-        "itemId": mock.ANY,
-        "itemType": "TRACE_ITEM_TYPE_USER_SESSION",
-        "timestamp": time_within_delta(started, delta=timedelta(seconds=2)),
-        "received": time_within_delta(),
-        "retentionDays": mock.ANY,
-        "downsampledRetentionDays": mock.ANY,
-        "clientSampleRate": 1.0,
-        "serverSampleRate": 1.0,
-        "attributes": {
-            "status": {"stringValue": "init"},
-            "release": {"stringValue": "sentry-test@1.0.0"},
-            "environment": {"stringValue": "production"},
-            "sdk": {"stringValue": "raven-node/2.6.3"},
-            "session_count": {"doubleValue": 1.0},
+    assert items_consumer.get_items(n=2) == [
+        # Converted from: `c:sessions/session@none`
+        {
+            "organizationId": "1",
+            "projectId": "42",
+            "traceId": mock.ANY,
+            "itemId": mock.ANY,
+            "itemType": 12,
+            "timestamp": time_within_delta(started, delta=timedelta(seconds=2)),
+            "received": time_within_delta(),
+            "retentionDays": 90,
+            "downsampledRetentionDays": 90,
+            "clientSampleRate": 1.0,
+            "serverSampleRate": 1.0,
+            "attributes": {
+                "status": {"stringValue": "init"},
+                "release": {"stringValue": "sentry-test@1.0.0"},
+                "environment": {"stringValue": "production"},
+                "sdk": {"stringValue": "raven-node/2.6.3"},
+                "session_count": {"doubleValue": 1.0},
+            },
         },
-    }
-
-    # Assert set metric (s:sessions/user@none).
-    # 1617781333 is the CRC32 hash of "foobarbaz".
-    assert set_items[0] == {
-        "organizationId": "1",
-        "projectId": "42",
-        "traceId": mock.ANY,
-        "itemId": mock.ANY,
-        "itemType": "TRACE_ITEM_TYPE_USER_SESSION",
-        "timestamp": time_within_delta(started, delta=timedelta(seconds=2)),
-        "received": time_within_delta(),
-        "retentionDays": mock.ANY,
-        "downsampledRetentionDays": mock.ANY,
-        "clientSampleRate": 1.0,
-        "serverSampleRate": 1.0,
-        "attributes": {
-            "release": {"stringValue": "sentry-test@1.0.0"},
-            "environment": {"stringValue": "production"},
-            "sdk": {"stringValue": "raven-node/2.6.3"},
-            "user_id": {"intValue": "1617781333"},
+        # Converted from `s:sessions/user@none`
+        {
+            "organizationId": "1",
+            "projectId": "42",
+            "traceId": mock.ANY,
+            "itemId": mock.ANY,
+            "itemType": 12,
+            "timestamp": time_within_delta(started, delta=timedelta(seconds=2)),
+            "received": time_within_delta(),
+            "retentionDays": 90,
+            "downsampledRetentionDays": 90,
+            "clientSampleRate": 1.0,
+            "serverSampleRate": 1.0,
+            "attributes": {
+                "release": {"stringValue": "sentry-test@1.0.0"},
+                "environment": {"stringValue": "production"},
+                "sdk": {"stringValue": "raven-node/2.6.3"},
+                # 1617781333 is the CRC32 hash of "foobarbaz".
+                "user_id": {"arrayValue": {"values": [{"intValue": "1617781333"}]}},
+            },
         },
-    }
+    ]
 
 
 def test_session_eap_double_write_disabled(
@@ -136,8 +111,7 @@ def test_session_eap_double_write_disabled(
     project_config["config"]["sessionMetrics"] = {"version": 3}
 
     # Don't set rollout-rate — defaults to 0.0.
-
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
@@ -162,7 +136,7 @@ def test_session_eap_double_write_disabled(
     )
 
     # Wait for legacy metrics to confirm the session was fully processed.
-    metrics_consumer.get_metrics(n=2, timeout=10)
+    assert len(metrics_consumer.get_metrics(n=2)) == 2
 
     # No items should appear on the EAP topic.
     items_consumer.assert_empty()

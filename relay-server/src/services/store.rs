@@ -43,6 +43,8 @@ use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
+mod sessions;
+
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
@@ -521,11 +523,11 @@ impl StoreService {
         let global_config = self.global_config.current();
         let mut encoder = BucketEncoder::new(&global_config);
 
-        // Check if this organization is rolled out for sessions EAP double-write.
-        let sessions_eap_rollout_rate = global_config.options.sessions_eap_rollout_rate;
-        let emit_sessions_to_eap =
-            utils::is_rolled_out(scoping.organization_id.value(), sessions_eap_rollout_rate)
-                .is_keep();
+        let emit_sessions_to_eap = utils::is_rolled_out(
+            scoping.organization_id.value(),
+            global_config.options.sessions_eap_rollout_rate,
+        )
+        .is_keep();
 
         let now = UnixTimestamp::now();
         let mut delay_stats = ByNamespace::<(u64, u64, u64)>::default();
@@ -539,11 +541,6 @@ impl StoreService {
                 *total += delay;
                 *count += 1;
                 *max = (*max).max(delay);
-            }
-
-            // Collect session buckets for EAP double-write.
-            if emit_sessions_to_eap && namespace == MetricNamespace::Sessions {
-                session_buckets.push(bucket.clone());
             }
 
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
@@ -575,11 +572,13 @@ impl StoreService {
 
                 self.metric_outcomes.track(scoping, &[view], outcome);
             }
-        }
 
-        // Also emit session buckets to EAP if rolled out.
-        if !session_buckets.is_empty() {
-            self.emit_session_metrics_to_eap(&session_buckets, scoping, retention);
+            if emit_sessions_to_eap
+                && let Some(trace_item) = sessions::to_trace_item(scoping, bucket, retention)
+            {
+                let message = KafkaMessage::for_item(scoping, trace_item);
+                let _ = self.produce(KafkaTopic::Items, message);
+            }
         }
 
         if let Some(error) = error {
@@ -608,178 +607,12 @@ impl StoreService {
         }
     }
 
-    /// Emits session metric buckets to EAP (snuba-items topic) as TraceItems.
-    ///
-    /// This is called when the organization is rolled out for sessions EAP double-write
-    /// via `sessions_eap_rollout_rate`.
-    fn emit_session_metrics_to_eap(&self, buckets: &[Bucket], scoping: Scoping, retention: u16) {
-        use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
-        use std::collections::HashMap;
-
-        use crate::processing::utils::store::uuid_to_item_id;
-
-        const NAMESPACE: uuid::Uuid = uuid::Uuid::from_bytes([
-            0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78,
-            0x90, 0xa1,
-        ]);
-
-        let now = UnixTimestamp::now();
-        let mut error = None;
-        let mut row_count: u64 = 0;
-
-        let kafka_headers = BTreeMap::from([
-            ("project_id".into(), scoping.project_id.to_string()),
-            (
-                "item_type".into(),
-                i32::from(TraceItemType::UserSession).to_string(),
-            ),
-        ]);
-
-        let received = Some(prost_types::Timestamp {
-            seconds: now.as_secs() as i64,
-            nanos: 0,
-        });
-
-        for bucket in buckets {
-            let tags_str = bucket
-                .tags
-                .iter()
-                .map(|(k, v)| format!("{k}={v}"))
-                .collect::<Vec<_>>()
-                .join(",");
-
-            // Build base attributes from tags.
-            let mut base_attributes: HashMap<String, AnyValue> = HashMap::new();
-            for (tag, attr) in [
-                ("session.status", "status"),
-                ("release", "release"),
-                ("environment", "environment"),
-                ("sdk", "sdk"),
-                ("abnormal_mechanism", "abnormal_mechanism"),
-            ] {
-                if let Some(v) = bucket.tags.get(tag) {
-                    base_attributes.insert(
-                        attr.into(),
-                        AnyValue {
-                            value: Some(any_value::Value::StringValue(v.into())),
-                        },
-                    );
-                }
-            }
-
-            let timestamp = Some(prost_types::Timestamp {
-                seconds: bucket.timestamp.as_secs() as i64,
-                nanos: 0,
-            });
-
-            // Helper to emit a single EAP row.
-            let mut emit_row = |key_suffix: &str, attributes: HashMap<String, AnyValue>| {
-                let item_key = format!(
-                    "{}_{}_{}_{}_{}_{}",
-                    scoping.project_id,
-                    bucket.name,
-                    bucket.timestamp.as_secs(),
-                    tags_str,
-                    key_suffix,
-                    scoping.organization_id,
-                );
-                let uuid = uuid::Uuid::new_v5(&NAMESPACE, item_key.as_bytes());
-
-                let trace_item = TraceItem {
-                    organization_id: scoping.organization_id.value(),
-                    project_id: scoping.project_id.value(),
-                    trace_id: uuid.as_simple().to_string(),
-                    item_id: uuid_to_item_id(uuid),
-                    item_type: i32::from(TraceItemType::UserSession),
-                    timestamp,
-                    received,
-                    retention_days: retention.into(),
-                    downsampled_retention_days: retention.into(),
-                    attributes,
-                    client_sample_rate: 1.0,
-                    server_sample_rate: 1.0,
-                };
-
-                match self.produce(
-                    KafkaTopic::Items,
-                    KafkaMessage::Item {
-                        headers: kafka_headers.clone(),
-                        message: trace_item,
-                        item_type: TraceItemType::UserSession,
-                    },
-                ) {
-                    Ok(()) => row_count += 1,
-                    Err(e) => {
-                        error.get_or_insert(e);
-                    }
-                }
-            };
-
-            // For Counter buckets: emit one row with session_count.
-            // For Set buckets: emit one row per hashed ID for proper unique counting.
-            match &bucket.value {
-                relay_metrics::BucketValue::Counter(c) => {
-                    let mut attributes = base_attributes.clone();
-                    attributes.insert(
-                        "session_count".into(),
-                        AnyValue {
-                            value: Some(any_value::Value::DoubleValue((*c).into())),
-                        },
-                    );
-                    emit_row("", attributes);
-                }
-                relay_metrics::BucketValue::Set(s) => {
-                    let hash_attr = if bucket.name.to_string().contains("/user@") {
-                        "user_id"
-                    } else {
-                        "errored_session_id"
-                    };
-
-                    for hashed_id in s.iter() {
-                        let mut attributes = base_attributes.clone();
-                        attributes.insert(
-                            hash_attr.into(),
-                            AnyValue {
-                                value: Some(any_value::Value::IntValue(*hashed_id as i64)),
-                            },
-                        );
-                        emit_row(&hashed_id.to_string(), attributes);
-                    }
-                }
-                // Distribution and Gauge not used for sessions, skip them.
-                _ => {}
-            }
-        }
-
-        if row_count > 0 {
-            metric!(
-                counter(RelayCounters::SessionsEapProduced) += row_count,
-                session_type = "metric_bucket"
-            );
-        }
-        if let Some(e) = error {
-            relay_log::error!(
-                error = &e as &dyn std::error::Error,
-                "failed to produce session metrics to EAP: {e}"
-            );
-        }
-    }
-
     fn handle_store_trace_item(&self, message: Managed<StoreTraceItem>) {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
         let quantities = message.try_accept(|item| {
-            let item_type = item.trace_item.item_type();
-            let message = KafkaMessage::Item {
-                headers: BTreeMap::from([
-                    ("project_id".to_owned(), scoping.project_id.to_string()),
-                    ("item_type".to_owned(), (item_type as i32).to_string()),
-                ]),
-                message: item.trace_item,
-                item_type,
-            };
-
+            let message = KafkaMessage::for_item(scoping, item.trace_item);
             self.produce(KafkaTopic::Items, message)
                 .map(|()| item.quantities)
         });
@@ -1105,8 +938,8 @@ impl StoreService {
             }
             _ => KafkaTopic::MetricsGeneric,
         };
-        let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
 
+        let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
         self.produce(topic, KafkaMessage::Metric { headers, message })?;
         Ok(())
     }
@@ -1733,6 +1566,21 @@ enum KafkaMessage<'a> {
 
     ReplayEvent(ReplayEventKafkaMessage<'a>),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
+}
+
+impl KafkaMessage<'_> {
+    /// Creates a [`KafkaMessage`] for a [`TraceItem`].
+    fn for_item(scoping: Scoping, item: TraceItem) -> KafkaMessage<'static> {
+        let item_type = item.item_type();
+        KafkaMessage::Item {
+            headers: BTreeMap::from([
+                ("project_id".to_owned(), scoping.project_id.to_string()),
+                ("item_type".to_owned(), (item_type as i32).to_string()),
+            ]),
+            message: item,
+            item_type,
+        }
+    }
 }
 
 impl Message for KafkaMessage<'_> {

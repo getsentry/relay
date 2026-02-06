@@ -179,10 +179,9 @@ pub struct Options {
     /// Rollout rate for the EAP (Event Analytics Platform) double-write for user sessions.
     ///
     /// When rolled out, session data is sent both through the legacy metrics pipeline
-    /// and directly to the snuba-items topic as TRACE_ITEM_TYPE_USER_SESSION.
+    /// and directly to the `snuba-items` topic as `TRACE_ITEM_TYPE_USER_SESSION`.
     ///
     /// Rate needs to be between `0.0` and `1.0`.
-    /// Rollout is determined deterministically per organization ID.
     #[serde(
         rename = "relay.sessions-eap.rollout-rate",
         deserialize_with = "default_on_error",
