@@ -2,6 +2,7 @@ mod app;
 mod browser;
 mod chromium_stability_report;
 mod cloud_resource;
+mod culture;
 mod device;
 mod flags;
 mod gpu;
@@ -26,6 +27,7 @@ pub use app::*;
 pub use browser::*;
 pub use chromium_stability_report::*;
 pub use cloud_resource::*;
+pub use culture::*;
 pub use device::*;
 pub use gpu::*;
 pub use memory_info::*;
@@ -101,6 +103,8 @@ pub enum Context {
     Otel(Box<OtelContext>),
     /// Cloud resource information.
     CloudResource(Box<CloudResourceContext>),
+    /// Culture information.
+    Culture(Box<CultureContext>),
     /// Nel information.
     Nel(Box<NelContext>),
     /// Performance score information.
