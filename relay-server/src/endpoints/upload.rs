@@ -5,12 +5,13 @@
 //!
 //! Reference: <https://tus.io/protocols/resumable-upload#creation-with-upload>
 
+use axum::body::Body;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use bytes::Bytes;
 use data_encoding::BASE64;
+use futures::StreamExt;
 use relay_config::Config;
 
 use crate::endpoints::common::BadStoreRequest;
@@ -48,11 +49,17 @@ pub enum TusUploadError {
     #[error("invalid Upload-Length header: {0}")]
     InvalidUploadLength(String),
 
-    #[error("content length mismatch: expected {expected}, got {actual}")]
-    ContentLengthMismatch { expected: u64, actual: u64 },
+    #[error("content length mismatch: expected {expected_length}, got {actual_length}")]
+    ContentLengthMismatch {
+        expected_length: usize,
+        actual_length: usize,
+    },
 
     #[error("empty request body")]
     EmptyBody,
+
+    #[error("failed to read request body: {0}")]
+    BodyReadError(String),
 
     #[error("upload failed: {0}")]
     UploadFailed(#[from] BadStoreRequest),
@@ -67,6 +74,7 @@ impl IntoResponse for TusUploadError {
             | TusUploadError::InvalidUploadLength(_)
             | TusUploadError::ContentLengthMismatch { .. }
             | TusUploadError::EmptyBody => StatusCode::BAD_REQUEST,
+            TusUploadError::BodyReadError(_) => StatusCode::BAD_REQUEST,
             TusUploadError::UploadFailed(inner) => {
                 // Delegate to inner error for proper status code mapping
                 return inner.to_string().into_response();
@@ -116,7 +124,7 @@ impl UploadMetadata {
 
             match key {
                 "filename" => metadata.filename = value,
-                "contentType" | "content-type" => metadata.content_type = value,
+                "content_type" => metadata.content_type = value,
                 _ => {} // Ignore unknown metadata keys
             }
         }
@@ -126,7 +134,7 @@ impl UploadMetadata {
 }
 
 /// Validates TUS protocol headers and returns the expected upload length.
-fn validate_tus_headers(headers: &HeaderMap) -> Result<u64, TusUploadError> {
+fn parse_upload_length(headers: &HeaderMap) -> Result<usize, TusUploadError> {
     // Validate Tus-Resumable header
     let tus_version = headers
         .get(TUS_RESUMABLE_HEADER)
@@ -144,7 +152,7 @@ fn validate_tus_headers(headers: &HeaderMap) -> Result<u64, TusUploadError> {
         .ok_or(TusUploadError::MissingUploadLength)?
         .to_str()
         .map_err(|_| TusUploadError::InvalidUploadLength("invalid header value".into()))?
-        .parse::<u64>()
+        .parse::<usize>()
         .map_err(|_| TusUploadError::InvalidUploadLength("not a valid number".into()))?;
 
     Ok(upload_length)
@@ -164,34 +172,49 @@ fn extract_metadata(headers: &HeaderMap) -> UploadMetadata {
 /// This endpoint accepts POST requests with a body containing the complete upload data.
 /// Unlike the full TUS protocol, this implementation only supports uploading all data
 /// in a single request - partial uploads and resumption are not supported.
+///
+/// The body is processed as a stream to avoid loading the entire upload into memory.
 async fn handle(
     _state: ServiceState,
     _meta: RequestMeta,
     headers: HeaderMap,
-    body: Bytes,
+    body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     // Validate TUS protocol headers
-    let expected_length = validate_tus_headers(&headers)?;
-
-    // Validate body length matches Upload-Length
-    let actual_length = body.len() as u64;
-    if actual_length != expected_length {
-        return Err(TusUploadError::ContentLengthMismatch {
-            expected: expected_length,
-            actual: actual_length,
-        })?;
-    }
-
-    if body.is_empty() {
-        return Err(TusUploadError::EmptyBody)?;
-    }
+    let expected_length = parse_upload_length(&headers)?;
 
     // Extract optional metadata
     let _metadata = extract_metadata(&headers);
 
+    // Stream the body and count bytes
+    let mut stream = body.into_data_stream();
+    let mut bytes_received: usize = 0;
+
+    while let Some(chunk_result) = stream.next().await {
+        let chunk = chunk_result.map_err(|e| TusUploadError::BodyReadError(e.to_string()))?;
+        bytes_received += chunk.len();
+
+        // TODO: Process each chunk as it arrives
+        // - Write to storage
+        // - Update progress tracking
+        // For now, we just count bytes to validate the upload length
+    }
+
+    // Validate total length matches Upload-Length header
+    if bytes_received != expected_length {
+        return Err(TusUploadError::ContentLengthMismatch {
+            expected_length,
+            actual_length: bytes_received,
+        })?;
+    }
+
+    if bytes_received == 0 {
+        return Err(TusUploadError::EmptyBody)?;
+    }
+
     // TODO: Implement actual upload handling
     // - Generate a unique upload ID
-    // - Store the upload data
+    // - Finalize the stored data
     // - Return the location of the created resource
 
     // Build success response with TUS headers
@@ -199,7 +222,7 @@ async fn handle(
     response_headers.insert(TUS_RESUMABLE_HEADER, HeaderValue::from_static(TUS_VERSION));
     response_headers.insert(
         UPLOAD_OFFSET_HEADER,
-        HeaderValue::from_str(&actual_length.to_string()).unwrap(),
+        HeaderValue::from_str(&bytes_received.to_string()).unwrap(),
     );
     // TODO: Add Location header with the upload URL once we have upload ID generation
 
@@ -235,7 +258,8 @@ mod tests {
     fn test_parse_upload_metadata_multiple() {
         // "test.txt" = "dGVzdC50eHQ="
         // "text/plain" = "dGV4dC9wbGFpbg=="
-        let metadata = UploadMetadata::parse("filename dGVzdC50eHQ=, contentType dGV4dC9wbGFpbg==");
+        let metadata =
+            UploadMetadata::parse("filename dGVzdC50eHQ=, content_type dGV4dC9wbGFpbg==");
         assert_eq!(metadata.filename, Some("test.txt".to_string()));
         assert_eq!(metadata.content_type, Some("text/plain".to_string()));
     }
@@ -249,7 +273,7 @@ mod tests {
     #[test]
     fn test_validate_tus_headers_missing_version() {
         let headers = HeaderMap::new();
-        let result = validate_tus_headers(&headers);
+        let result = parse_upload_length(&headers);
         assert!(matches!(result, Err(TusUploadError::MissingTusVersion)));
     }
 
@@ -257,7 +281,7 @@ mod tests {
     fn test_validate_tus_headers_missing_length() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE_HEADER, HeaderValue::from_static("1.0.0"));
-        let result = validate_tus_headers(&headers);
+        let result = parse_upload_length(&headers);
         assert!(matches!(result, Err(TusUploadError::MissingUploadLength)));
     }
 
@@ -266,7 +290,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE_HEADER, HeaderValue::from_static("1.0.0"));
         headers.insert(UPLOAD_LENGTH_HEADER, HeaderValue::from_static("1024"));
-        let result = validate_tus_headers(&headers);
+        let result = parse_upload_length(&headers);
         assert_eq!(result.unwrap(), 1024);
     }
 
@@ -275,7 +299,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE_HEADER, HeaderValue::from_static("0.2.0"));
         headers.insert(UPLOAD_LENGTH_HEADER, HeaderValue::from_static("1024"));
-        let result = validate_tus_headers(&headers);
+        let result = parse_upload_length(&headers);
         assert!(matches!(
             result,
             Err(TusUploadError::UnsupportedTusVersion(_))
