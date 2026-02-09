@@ -26,6 +26,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install libcurl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
       - name: Install Rust Toolchain
         run: |
           rustup toolchain install ${{ matrix.rust }} --profile minimal --component clippy --no-self-update
