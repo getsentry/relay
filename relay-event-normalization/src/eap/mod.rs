@@ -123,7 +123,11 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
         match (&mut inner.value.ty, &mut inner.value.value) {
             (Annotated(Some(Boolean), _), Annotated(Some(Value::Bool(_)), _)) => (),
             (Annotated(Some(Integer), _), Annotated(Some(Value::I64(_)), _)) => (),
-            (Annotated(Some(Integer), _), Annotated(Some(Value::U64(_)), _)) => (),
+            (Annotated(Some(Integer), _), Annotated(Some(Value::U64(_)), _)) => {
+                attribute.meta_mut().add_error(ErrorKind::InvalidData);
+                let original = attribute.value_mut().take();
+                attribute.meta_mut().set_original_value(original);
+            }
             (Annotated(Some(Double), _), Annotated(Some(Value::I64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::U64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::F64(_)), _)) => (),
@@ -766,6 +770,10 @@ mod tests {
                 "type": "integer",
                 "value": "abc"
             },
+            "invalid_int_i64": {
+                "type": "integer",
+                "value": 9223372036854775808
+            },
             "missing_type": {
                 "value": "value with missing type"
             },
@@ -808,6 +816,7 @@ mod tests {
             "value": -42
           },
           "invalid_int_from_invalid_string": null,
+          "invalid_int_i64": null,
           "missing_type": null,
           "missing_value": null,
           "supported_array_double": {
@@ -875,6 +884,17 @@ mod tests {
                 "val": {
                   "type": "integer",
                   "value": "abc"
+                }
+              }
+            },
+            "invalid_int_i64": {
+              "": {
+                "err": [
+                  "invalid_data"
+                ],
+                "val": {
+                  "type": "integer",
+                  "value": 9223372036854775808
                 }
               }
             },
