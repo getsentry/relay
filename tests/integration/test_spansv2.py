@@ -173,6 +173,195 @@ def test_spansv2_basic(
     ]
 
 
+def test_spansv2_trimming_basic(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+):
+    """
+    An adaptation of `test_spansv2_basic` that has a size limit for spans and attributes large enough
+    to demonstrate that trimming works.
+    """
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].update(
+        {
+            "features": [
+                "organizations:standalone-span-ingestion",
+                "projects:span-v2-experimental-processing",
+            ],
+            "retentions": {"span": {"standard": 42, "downsampled": 1337}},
+            # This is sufficient for all builtin attributes not
+            # to be trimmed. The span fields that aren't trimmed
+            # also still count for the size limit.
+            "trimming": {"span": {"maxSize": 453}},
+        }
+    )
+
+    config = {
+        "limits": {
+            "max_removed_attribute_key_size": 30,
+        },
+        **TEST_CONFIG,
+    }
+
+    relay = relay(relay_with_processing(options=config), options=config)
+
+    ts = datetime.now(timezone.utc)
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "is_segment": True,
+            "name": "some op",
+            "status": "ok",
+            "attributes": {
+                "custom.string.attribute": {
+                    "value": "This is actually a pretty long string",
+                    "type": "string",
+                },
+                # This attribute will get trimmed in the middle of the third string.
+                "custom.array.attribute": {
+                    "value": [
+                        "A string",
+                        "Another longer string",
+                        "Yet another string",
+                    ],
+                    "type": "array",
+                },
+                "custom.invalid.attribute": {"value": True, "type": "string"},
+                # This attribute will be removed because the `max_removed_attribute_key_bytes` (30B)
+                # is already consumed by the previous invalid attribute
+                "second.custom.invalid.attribute": {"value": None, "type": "integer"},
+            },
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "release": "foo@1.0",
+            "environment": "prod",
+            "transaction": "/my/fancy/endpoint",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    span = spans_consumer.get_span()
+
+    assert span == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b175",
+        "attributes": {
+            "custom.array.attribute": {
+                "type": "array",
+                "value": ["A string", "Another longer string", "Yet anothe..."],
+            },
+            "custom.string.attribute": {
+                "type": "string",
+                "value": "This is actually a pretty long string",
+            },
+            "custom.invalid.attribute": None,
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.dsc.environment": {"type": "string", "value": "prod"},
+            "sentry.dsc.public_key": {
+                "type": "string",
+                "value": project_config["publicKeys"][0]["publicKey"],
+            },
+            "sentry.dsc.release": {"type": "string", "value": "foo@1.0"},
+            "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "5b8efff798038103d269b633813fc60c",
+            },
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "sentry.op": {"type": "string", "value": "default"},
+        },
+        "_meta": {
+            "attributes": {
+                "": {"len": 505},
+                "custom.array.attribute": {
+                    "value": {
+                        "2": {
+                            "": {
+                                "len": 18,
+                                "rem": [
+                                    [
+                                        "!limit",
+                                        "s",
+                                        10,
+                                        13,
+                                    ],
+                                ],
+                            },
+                        },
+                    },
+                },
+                "custom.invalid.attribute": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": {"type": "string", "value": True},
+                    }
+                },
+            }
+        },
+        "name": "some op",
+        "received": time_within(ts),
+        "start_timestamp": time_is(ts),
+        "end_timestamp": time_is(ts.timestamp() + 0.5),
+        "is_segment": True,
+        "status": "ok",
+        "retention_days": 42,
+        "downsampled_retention_days": 1337,
+        "key_id": 123,
+        "organization_id": 1,
+        "project_id": 42,
+    }
+
+    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_within(ts, precision="s"),
+            "retention_days": 90,
+            "tags": {
+                "decision": "keep",
+                "is_segment": "true",
+                "target_project_id": "42",
+                "transaction": "/my/fancy/endpoint",
+            },
+            "timestamp": time_within_delta(),
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_within(ts, precision="s"),
+            "retention_days": 90,
+            "tags": {
+                "was_transaction": "false",
+                "is_segment": "true",
+            },
+            "timestamp": time_within_delta(),
+            "type": "c",
+            "value": 1.0,
+        },
+    ]
+
+
 @pytest.mark.parametrize(
     "rule_type",
     ["project", "trace"],
