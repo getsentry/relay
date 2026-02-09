@@ -103,7 +103,7 @@
 <a href=#103 id=103 data-nosnippet>103</a>
 <a href=#104 id=104 data-nosnippet>104</a>        <span class="kw">let </span>sessions = <span class="self">self</span>.limiter.enforce_quotas(sessions, ctx).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#105 id=105 data-nosnippet>105</a>
-<a href=#106 id=106 data-nosnippet>106</a>        <span class="kw">let </span>sessions = process::extract(sessions, ctx);
+<a href=#106 id=106 data-nosnippet>106</a>        <span class="kw">let </span>sessions = process::extract_metrics(sessions, ctx);
 <a href=#107 id=107 data-nosnippet>107</a>        <span class="prelude-val">Ok</span>(Output::metrics(sessions))
 <a href=#108 id=108 data-nosnippet>108</a>    }
 <a href=#109 id=109 data-nosnippet>109</a>}
