@@ -15,14 +15,50 @@ use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
 use relay_config::Config;
 
-use crate::extractors::RequestMeta;
+use crate::endpoints::common::BadStoreRequest;
 use crate::middlewares;
 use crate::service::ServiceState;
 
-use self::tus::{
-    TUS_RESUMABLE, TUS_VERSION, TusUploadError, UPLOAD_OFFSET, extract_metadata,
-    parse_upload_length,
-};
+use self::tus::{TUS_RESUMABLE, TUS_VERSION, UPLOAD_OFFSET, validate_headers};
+
+/// Error type for TUS upload requests.
+#[derive(Debug, thiserror::Error)]
+pub enum UploadError {
+    #[error("TUS protocol violation: {0}")]
+    Tus(#[from] tus::Error),
+
+    #[error("content length mismatch: expected {expected_length}, got {actual_length}")]
+    ContentLengthMismatch {
+        expected_length: usize,
+        actual_length: usize,
+    },
+
+    #[error("failed to read request body: {0}")]
+    BodyReadError(axum::Error),
+
+    #[error("upload failed: {0}")]
+    UploadFailed(#[from] BadStoreRequest),
+}
+
+impl IntoResponse for UploadError {
+    fn into_response(self) -> axum::response::Response {
+        let status = match &self {
+            UploadError::Tus(_)
+            | UploadError::ContentLengthMismatch { .. }
+            | UploadError::BodyReadError(_) => StatusCode::BAD_REQUEST,
+            UploadError::UploadFailed(inner) => {
+                // Delegate to inner error for proper status code mapping
+                return inner.to_string().into_response();
+            }
+        };
+
+        let mut response = (status, self.to_string()).into_response();
+        response
+            .headers_mut()
+            .insert(TUS_RESUMABLE, HeaderValue::from_static(TUS_VERSION));
+        response
+    }
+}
 
 /// Handles TUS upload requests (Creation With Upload).
 ///
@@ -31,42 +67,29 @@ use self::tus::{
 /// in a single request - partial uploads and resumption are not supported.
 ///
 /// The body is processed as a stream to avoid loading the entire upload into memory.
-async fn handle(
-    _state: ServiceState,
-    _meta: RequestMeta,
-    headers: HeaderMap,
-    body: Body,
-) -> axum::response::Result<impl IntoResponse> {
+async fn handle(headers: HeaderMap, body: Body) -> axum::response::Result<impl IntoResponse> {
     // Validate TUS protocol headers
-    let expected_length = parse_upload_length(&headers)?;
-
-    // Extract optional metadata
-    let _metadata = extract_metadata(&headers);
+    let expected_length = validate_headers(&headers).map_err(UploadError::from)?;
 
     // Stream the body and count bytes
     let mut stream = body.into_data_stream();
     let mut bytes_received: usize = 0;
 
     while let Some(chunk_result) = stream.next().await {
-        let chunk = chunk_result.map_err(|e| TusUploadError::BodyReadError(e.to_string()))?;
+        let chunk = chunk_result.map_err(|e| UploadError::BodyReadError(e))?;
         bytes_received += chunk.len();
+
+        if bytes_received > expected_length {
+            return Err(UploadError::ContentLengthMismatch {
+                expected_length,
+                actual_length: bytes_received,
+            })?;
+        }
 
         // TODO: Process each chunk as it arrives
         // - Write to storage
         // - Update progress tracking
         // For now, we just count bytes to validate the upload length
-    }
-
-    // Validate total length matches Upload-Length header
-    if bytes_received != expected_length {
-        return Err(TusUploadError::ContentLengthMismatch {
-            expected_length,
-            actual_length: bytes_received,
-        })?;
-    }
-
-    if bytes_received == 0 {
-        return Err(TusUploadError::EmptyBody)?;
     }
 
     // TODO: Implement actual upload handling
@@ -88,6 +111,7 @@ async fn handle(
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle)
-        .route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
+        // TODO: max_upload_size
+        // .route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
         .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }
