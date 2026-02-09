@@ -1,38 +1,30 @@
-//! TUS protocol upload endpoint for resumable uploads.
+//! TUS protocol types and helpers.
 //!
-//! Implements a subset of the TUS protocol v1.0.0, specifically "Creation With Upload"
-//! which allows creating a resource and uploading data in a single POST request.
+//! Contains constants, error types, and parsing utilities for the TUS resumable upload protocol
+//! v1.0.0.
 //!
-//! Reference: <https://tus.io/protocols/resumable-upload#creation-with-upload>
+//! Reference: <https://tus.io/protocols/resumable-upload>
 
-use axum::body::Body;
-use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
-use axum::routing::{MethodRouter, post};
 use data_encoding::BASE64;
-use futures::StreamExt;
-use relay_config::Config;
 
 use crate::endpoints::common::BadStoreRequest;
-use crate::extractors::RequestMeta;
-use crate::middlewares;
-use crate::service::ServiceState;
 
 /// TUS protocol version supported by this endpoint.
-const TUS_VERSION: &str = "1.0.0";
+pub const TUS_VERSION: &str = "1.0.0";
 
 /// TUS protocol header for the protocol version.
-const TUS_RESUMABLE_HEADER: &str = "Tus-Resumable";
+pub const TUS_RESUMABLE: &str = "Tus-Resumable";
 
 /// TUS protocol header for the total upload length.
-const UPLOAD_LENGTH_HEADER: &str = "Upload-Length";
+pub const UPLOAD_LENGTH: &str = "Upload-Length";
 
 /// TUS protocol header for the current upload offset.
-const UPLOAD_OFFSET_HEADER: &str = "Upload-Offset";
+pub const UPLOAD_OFFSET: &str = "Upload-Offset";
 
 /// TUS protocol header for upload metadata (base64-encoded key-value pairs).
-const UPLOAD_METADATA_HEADER: &str = "Upload-Metadata";
+pub const UPLOAD_METADATA: &str = "Upload-Metadata";
 
 /// Error type for TUS upload requests.
 #[derive(Debug, thiserror::Error)]
@@ -73,8 +65,8 @@ impl IntoResponse for TusUploadError {
             | TusUploadError::MissingUploadLength
             | TusUploadError::InvalidUploadLength(_)
             | TusUploadError::ContentLengthMismatch { .. }
-            | TusUploadError::EmptyBody => StatusCode::BAD_REQUEST,
-            TusUploadError::BodyReadError(_) => StatusCode::BAD_REQUEST,
+            | TusUploadError::EmptyBody
+            | TusUploadError::BodyReadError(_) => StatusCode::BAD_REQUEST,
             TusUploadError::UploadFailed(inner) => {
                 // Delegate to inner error for proper status code mapping
                 return inner.to_string().into_response();
@@ -82,10 +74,9 @@ impl IntoResponse for TusUploadError {
         };
 
         let mut response = (status, self.to_string()).into_response();
-        // Always include TUS version in error responses
         response
             .headers_mut()
-            .insert(TUS_RESUMABLE_HEADER, HeaderValue::from_static(TUS_VERSION));
+            .insert(TUS_RESUMABLE, HeaderValue::from_static(TUS_VERSION));
         response
     }
 }
@@ -134,10 +125,9 @@ impl UploadMetadata {
 }
 
 /// Validates TUS protocol headers and returns the expected upload length.
-fn parse_upload_length(headers: &HeaderMap) -> Result<usize, TusUploadError> {
-    // Validate Tus-Resumable header
+pub fn parse_upload_length(headers: &HeaderMap) -> Result<usize, TusUploadError> {
     let tus_version = headers
-        .get(TUS_RESUMABLE_HEADER)
+        .get(TUS_RESUMABLE)
         .ok_or(TusUploadError::MissingTusVersion)?
         .to_str()
         .map_err(|_| TusUploadError::UnsupportedTusVersion("invalid header value".into()))?;
@@ -146,9 +136,8 @@ fn parse_upload_length(headers: &HeaderMap) -> Result<usize, TusUploadError> {
         return Err(TusUploadError::UnsupportedTusVersion(tus_version.into()));
     }
 
-    // Validate Upload-Length header
     let upload_length = headers
-        .get(UPLOAD_LENGTH_HEADER)
+        .get(UPLOAD_LENGTH)
         .ok_or(TusUploadError::MissingUploadLength)?
         .to_str()
         .map_err(|_| TusUploadError::InvalidUploadLength("invalid header value".into()))?
@@ -159,80 +148,12 @@ fn parse_upload_length(headers: &HeaderMap) -> Result<usize, TusUploadError> {
 }
 
 /// Extracts optional upload metadata from headers.
-fn extract_metadata(headers: &HeaderMap) -> UploadMetadata {
+pub fn extract_metadata(headers: &HeaderMap) -> UploadMetadata {
     headers
-        .get(UPLOAD_METADATA_HEADER)
+        .get(UPLOAD_METADATA)
         .and_then(|v| v.to_str().ok())
         .map(UploadMetadata::parse)
         .unwrap_or_default()
-}
-
-/// Handles TUS upload requests (Creation With Upload).
-///
-/// This endpoint accepts POST requests with a body containing the complete upload data.
-/// Unlike the full TUS protocol, this implementation only supports uploading all data
-/// in a single request - partial uploads and resumption are not supported.
-///
-/// The body is processed as a stream to avoid loading the entire upload into memory.
-async fn handle(
-    _state: ServiceState,
-    _meta: RequestMeta,
-    headers: HeaderMap,
-    body: Body,
-) -> axum::response::Result<impl IntoResponse> {
-    // Validate TUS protocol headers
-    let expected_length = parse_upload_length(&headers)?;
-
-    // Extract optional metadata
-    let _metadata = extract_metadata(&headers);
-
-    // Stream the body and count bytes
-    let mut stream = body.into_data_stream();
-    let mut bytes_received: usize = 0;
-
-    while let Some(chunk_result) = stream.next().await {
-        let chunk = chunk_result.map_err(|e| TusUploadError::BodyReadError(e.to_string()))?;
-        bytes_received += chunk.len();
-
-        // TODO: Process each chunk as it arrives
-        // - Write to storage
-        // - Update progress tracking
-        // For now, we just count bytes to validate the upload length
-    }
-
-    // Validate total length matches Upload-Length header
-    if bytes_received != expected_length {
-        return Err(TusUploadError::ContentLengthMismatch {
-            expected_length,
-            actual_length: bytes_received,
-        })?;
-    }
-
-    if bytes_received == 0 {
-        return Err(TusUploadError::EmptyBody)?;
-    }
-
-    // TODO: Implement actual upload handling
-    // - Generate a unique upload ID
-    // - Finalize the stored data
-    // - Return the location of the created resource
-
-    // Build success response with TUS headers
-    let mut response_headers = HeaderMap::new();
-    response_headers.insert(TUS_RESUMABLE_HEADER, HeaderValue::from_static(TUS_VERSION));
-    response_headers.insert(
-        UPLOAD_OFFSET_HEADER,
-        HeaderValue::from_str(&bytes_received.to_string()).unwrap(),
-    );
-    // TODO: Add Location header with the upload URL once we have upload ID generation
-
-    Ok((StatusCode::CREATED, response_headers, ""))
-}
-
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    post(handle)
-        .route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
-        .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }
 
 #[cfg(test)]
@@ -280,7 +201,7 @@ mod tests {
     #[test]
     fn test_validate_tus_headers_missing_length() {
         let mut headers = HeaderMap::new();
-        headers.insert(TUS_RESUMABLE_HEADER, HeaderValue::from_static("1.0.0"));
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         let result = parse_upload_length(&headers);
         assert!(matches!(result, Err(TusUploadError::MissingUploadLength)));
     }
@@ -288,8 +209,8 @@ mod tests {
     #[test]
     fn test_validate_tus_headers_valid() {
         let mut headers = HeaderMap::new();
-        headers.insert(TUS_RESUMABLE_HEADER, HeaderValue::from_static("1.0.0"));
-        headers.insert(UPLOAD_LENGTH_HEADER, HeaderValue::from_static("1024"));
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = parse_upload_length(&headers);
         assert_eq!(result.unwrap(), 1024);
     }
@@ -297,8 +218,8 @@ mod tests {
     #[test]
     fn test_validate_tus_headers_unsupported_version() {
         let mut headers = HeaderMap::new();
-        headers.insert(TUS_RESUMABLE_HEADER, HeaderValue::from_static("0.2.0"));
-        headers.insert(UPLOAD_LENGTH_HEADER, HeaderValue::from_static("1024"));
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("0.2.0"));
+        headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = parse_upload_length(&headers);
         assert!(matches!(
             result,
