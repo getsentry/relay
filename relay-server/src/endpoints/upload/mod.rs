@@ -8,7 +8,6 @@
 mod tus;
 
 use axum::body::Body;
-use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
@@ -27,11 +26,8 @@ pub enum UploadError {
     #[error("TUS protocol violation: {0}")]
     Tus(#[from] tus::Error),
 
-    #[error("content length mismatch: expected {expected_length}, got {actual_length}")]
-    ContentLengthMismatch {
-        expected_length: usize,
-        actual_length: usize,
-    },
+    #[error("payload too large: received more than {expected_length} bytes")]
+    PayloadTooLarge { expected_length: usize },
 
     #[error("failed to read request body: {0}")]
     BodyReadError(axum::Error),
@@ -43,9 +39,8 @@ pub enum UploadError {
 impl IntoResponse for UploadError {
     fn into_response(self) -> axum::response::Response {
         let status = match &self {
-            UploadError::Tus(_)
-            | UploadError::ContentLengthMismatch { .. }
-            | UploadError::BodyReadError(_) => StatusCode::BAD_REQUEST,
+            UploadError::Tus(_) | UploadError::BodyReadError(_) => StatusCode::BAD_REQUEST,
+            UploadError::PayloadTooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             UploadError::UploadFailed(inner) => {
                 // Delegate to inner error for proper status code mapping
                 return inner.to_string().into_response();
@@ -80,10 +75,7 @@ async fn handle(headers: HeaderMap, body: Body) -> axum::response::Result<impl I
         bytes_received += chunk.len();
 
         if bytes_received > expected_length {
-            return Err(UploadError::ContentLengthMismatch {
-                expected_length,
-                actual_length: bytes_received,
-            })?;
+            return Err(UploadError::PayloadTooLarge { expected_length })?;
         }
 
         // TODO: Process each chunk as it arrives
@@ -109,7 +101,7 @@ async fn handle(headers: HeaderMap, body: Body) -> axum::response::Result<impl I
     Ok((StatusCode::CREATED, response_headers, ""))
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(_config: &Config) -> MethodRouter<ServiceState> {
     post(handle)
         // TODO: max_upload_size
         // .route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
