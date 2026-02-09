@@ -445,12 +445,7 @@ impl Processor for TrimmingProcessor {
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
-
-    use relay_event_schema::{
-        processor::FieldAttrs,
-        protocol::{AttributeType, AttributeValue},
-    };
+    use relay_event_schema::protocol::{AttributeType, AttributeValue};
     use relay_protocol::{Annotated, FromValue, IntoValue, SerializableAnnotated, Value};
 
     use super::*;
