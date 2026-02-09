@@ -8,6 +8,7 @@
 mod tus;
 
 use axum::body::Body;
+use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
@@ -101,9 +102,8 @@ async fn handle(headers: HeaderMap, body: Body) -> axum::response::Result<impl I
     Ok((StatusCode::CREATED, response_headers, ""))
 }
 
-pub fn route(_config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle)
-        // TODO: max_upload_size
-        // .route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
+        .route_layer(DefaultBodyLimit::max(config.max_upload_size()))
         .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }
