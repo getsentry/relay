@@ -71,7 +71,7 @@ def test_session_eap_double_write(
                 "release": {"stringValue": "sentry-test@1.0.0"},
                 "environment": {"stringValue": "production"},
                 "sdk": {"stringValue": "raven-node/2.6.3"},
-                "session_count": {"doubleValue": 1.0},
+                "session_count": {"intValue": "1"},
             },
         },
         # Converted from `s:sessions/user@none`
@@ -92,7 +92,9 @@ def test_session_eap_double_write(
                 "environment": {"stringValue": "production"},
                 "sdk": {"stringValue": "raven-node/2.6.3"},
                 # 1617781333 is the CRC32 hash of "foobarbaz".
-                "user_id": {"arrayValue": {"values": [{"intValue": "1617781333"}]}},
+                "user_id_hash": {
+                    "arrayValue": {"values": [{"intValue": "1617781333"}]}
+                },
             },
         },
     ]

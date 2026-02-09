@@ -20,10 +20,14 @@ pub fn to_trace_item(scoping: Scoping, bucket: Bucket, retention: u16) -> Option
             let BucketValue::Counter(v) = bucket.value else {
                 return None;
             };
+            // The metric counter uses floats to represent a counter, but this value represent an
+            // integer, the total amount of sessions. Restore the original type and store it as
+            // such (an integer).
+            let count = v.to_f64() as i64;
             attributes.insert(
                 "session_count".to_owned(),
                 AnyValue {
-                    value: Some(any_value::Value::DoubleValue(v.into())),
+                    value: Some(any_value::Value::IntValue(count)),
                 },
             );
         }
@@ -31,13 +35,16 @@ pub fn to_trace_item(scoping: Scoping, bucket: Bucket, retention: u16) -> Option
             let BucketValue::Set(set) = &bucket.value else {
                 return None;
             };
-            attributes.insert("user_id".to_owned(), set_to_attribute_value(set));
+            attributes.insert("user_id_hash".to_owned(), set_to_attribute_value(set));
         }
         "error" => {
             let BucketValue::Set(set) = &bucket.value else {
                 return None;
             };
-            attributes.insert("errored_session_id".to_owned(), set_to_attribute_value(set));
+            attributes.insert(
+                "errored_session_id_hash".to_owned(),
+                set_to_attribute_value(set),
+            );
         }
         _ => return None,
     }
