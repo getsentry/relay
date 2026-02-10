@@ -21,6 +21,8 @@ def test_forwarding_content_encoding(
 ):
     data = b"foobar"
 
+    mini_sentry.allow_chunked = True
+
     @mini_sentry.app.route("/api/test/reflect", methods=["POST"])
     def test():
         _data = request.data
