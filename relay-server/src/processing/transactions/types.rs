@@ -1,11 +1,12 @@
 mod expanded;
-pub use expanded::ExpandedTransaction;
-mod serialized;
-pub use serialized::SerializedTransaction;
 mod output;
-pub use output::TransactionOutput;
 mod profile;
-pub use profile::Profile;
+mod serialized;
+
+pub use self::expanded::{ExpandedProfile, ExpandedTransaction};
+pub use self::output::TransactionOutput;
+pub use self::profile::StandaloneProfile;
+pub use self::serialized::SerializedTransaction;
 
 /// Flags extracted from transaction item headers.
 ///

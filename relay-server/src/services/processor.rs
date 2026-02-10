@@ -1439,20 +1439,13 @@ impl EnvelopeProcessorService {
     async fn process_standalone(
         &self,
         managed_envelope: &mut TypedEnvelope<StandaloneGroup>,
-        project_id: ProjectId,
         ctx: processing::Context<'_>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         standalone::process(managed_envelope);
 
-        profile::filter(
-            managed_envelope,
-            &Annotated::empty(),
-            ctx.config,
-            project_id,
-            ctx.project_info,
-        );
+        profile::filter(managed_envelope, ctx.config, ctx.project_info);
 
         self.enforce_quotas(
             managed_envelope,
@@ -1691,7 +1684,7 @@ impl EnvelopeProcessorService {
                 self.process_with_processor(&self.inner.processing.sessions, managed_envelope, ctx)
                     .await
             }
-            ProcessingGroup::Standalone => run!(process_standalone, project_id, ctx),
+            ProcessingGroup::Standalone => run!(process_standalone, ctx),
             ProcessingGroup::ClientReport => run!(process_client_reports, ctx),
             ProcessingGroup::Replay => {
                 if ctx.project_info.has_feature(Feature::NewReplayProcessing) {

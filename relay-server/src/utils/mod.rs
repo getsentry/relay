@@ -12,7 +12,6 @@ mod split_off;
 mod statsd;
 mod thread_pool;
 
-mod feature;
 mod forward;
 mod memory;
 #[cfg(feature = "processing")]
@@ -23,7 +22,6 @@ mod unreal;
 
 pub use self::api::*;
 pub use self::dynamic_sampling::*;
-pub use self::feature::*;
 pub use self::forward::*;
 pub use self::memory::*;
 pub use self::multipart::*;

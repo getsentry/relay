@@ -212,7 +212,10 @@ fn normalize_attributes(attrs: &mut SessionAttributes, ctx: &NormalizeContext<'_
     Ok(())
 }
 
-pub fn extract(sessions: Managed<ExpandedSessions>, ctx: Context<'_>) -> Managed<ExtractedMetrics> {
+pub fn extract_metrics(
+    sessions: Managed<ExpandedSessions>,
+    ctx: Context<'_>,
+) -> Managed<ExtractedMetrics> {
     let should_extract_abnormal_mechanism = ctx
         .project_info
         .config

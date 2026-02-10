@@ -359,6 +359,12 @@ impl Processor for TrimmingProcessor {
             return Ok(());
         }
 
+        // This counts the lengths of all attribute keys regardless of whether
+        // the attribute itself is valid or invalid. Strictly speaking, this is
+        // inconsistent with the trimming logic, which only counts keys of valid
+        // attributes. However, this value is only used to set the `original_value`
+        // on the attributes collection for documentation purposes, we accept this
+        // discrepancy for now. In any case this is fine to change.
         let original_length = size::attributes_size(attributes);
 
         // Sort attributes by key + value size so small attributes are more likely to be preserved.
@@ -439,12 +445,7 @@ impl Processor for TrimmingProcessor {
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
-
-    use relay_event_schema::{
-        processor::FieldAttrs,
-        protocol::{AttributeType, AttributeValue},
-    };
+    use relay_event_schema::protocol::{AttributeType, AttributeValue};
     use relay_protocol::{Annotated, FromValue, IntoValue, SerializableAnnotated, Value};
 
     use super::*;
@@ -716,8 +717,7 @@ mod tests {
         // That leaves 9B for the string's value.
         // Note that the `number` field doesn't take up any size.
         // The `"footer"` is removed because it comes after the attributes and there's no space left.
-        let state =
-            ProcessingState::new_root(Some(Cow::Owned(FieldAttrs::default().max_bytes(50))), []);
+        let state = ProcessingState::root_builder().max_bytes(50).build();
         processor::process_value(&mut value, &mut processor, &state).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
@@ -883,8 +883,7 @@ mod tests {
         });
 
         let mut processor = TrimmingProcessor::new(100);
-        let state =
-            ProcessingState::new_root(Some(Cow::Owned(FieldAttrs::default().max_bytes(30))), []);
+        let state = ProcessingState::root_builder().max_bytes(30).build();
         processor::process_value(&mut value, &mut processor, &state).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&value), @r###"
@@ -937,8 +936,7 @@ mod tests {
 
         let mut attributes = Annotated::new(attributes);
 
-        let state =
-            ProcessingState::new_root(Some(Cow::Owned(FieldAttrs::default().max_bytes(40))), []);
+        let state = ProcessingState::root_builder().max_bytes(40).build();
         processor::process_value(&mut attributes, &mut TrimmingProcessor::new(20), &state).unwrap();
         let attributes_after_trimming = attributes.clone();
         processor::process_value(&mut attributes, &mut TrimmingProcessor::new(20), &state).unwrap();

@@ -15,6 +15,7 @@ pub struct SpanV2 {
     pub trace_id: Annotated<TraceId>,
 
     /// The ID of the span enclosing this span.
+    #[metastructure(trim = false)]
     pub parent_span_id: Annotated<SpanId>,
 
     /// The Span ID.
@@ -22,30 +23,31 @@ pub struct SpanV2 {
     pub span_id: Annotated<SpanId>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(required = true)]
+    #[metastructure(required = true, trim = false)]
     pub name: Annotated<OperationType>,
 
     /// The span's status.
-    #[metastructure(required = true)]
+    #[metastructure(required = true, trim = false)]
     pub status: Annotated<SpanV2Status>,
 
     /// Whether this span is the root span of a segment.
+    #[metastructure(trim = false)]
     pub is_segment: Annotated<bool>,
 
     /// Timestamp when the span started.
-    #[metastructure(required = true)]
+    #[metastructure(required = true, trim = false)]
     pub start_timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the span was ended.
-    #[metastructure(required = true)]
+    #[metastructure(required = true, trim = false)]
     pub end_timestamp: Annotated<Timestamp>,
 
     /// Links from this span to other spans.
-    #[metastructure(pii = "maybe")]
+    #[metastructure(pii = "maybe", trim = true)]
     pub links: Annotated<Array<SpanV2Link>>,
 
     /// Arbitrary attributes on a span.
-    #[metastructure(pii = "true", trim = false)]
+    #[metastructure(pii = "true", trim = true)]
     pub attributes: Annotated<Attributes>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -177,11 +179,11 @@ pub struct SpanV2Link {
     pub sampled: Annotated<bool>,
 
     /// Span link attributes, similar to span attributes/data.
-    #[metastructure(pii = "maybe", trim = false)]
+    #[metastructure(pii = "maybe", trim = true)]
     pub attributes: Annotated<Attributes>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, pii = "maybe", trim = false)]
+    #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
 }
 
