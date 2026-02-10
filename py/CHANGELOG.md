@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.23
 
 - Add `CategoryUnit` enum to expose data category measurement units (count, bytes, milliseconds) for quota validation. ([#5427](https://github.com/getsentry/relay/pull/5427))
 
