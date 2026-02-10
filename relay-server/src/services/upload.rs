@@ -3,10 +3,11 @@ use std::array::TryFromSliceError;
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::body::Body;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, Stream, StreamExt};
 use objectstore_client::{Client, ExpirationPolicy, Session, Usecase};
 use relay_config::UploadServiceConfig;
 use relay_quotas::DataCategory;
@@ -31,6 +32,7 @@ use super::outcome::Outcome;
 pub enum Upload {
     Envelope(StoreEnvelope),
     Attachment(Managed<StoreAttachment>),
+    Stream(axum::body::Body),
 }
 
 impl Upload {
@@ -38,6 +40,7 @@ impl Upload {
         match self {
             Upload::Envelope(_) => "envelope",
             Upload::Attachment(_) => "attachment_v2",
+            Upload::Stream(_) => "stream",
         }
     }
 
@@ -49,6 +52,7 @@ impl Upload {
                 .filter(|item| *item.ty() == ItemType::Attachment)
                 .count(),
             Self::Attachment(_) => 1,
+            Self::Stream(_) => 1,
         }
     }
 }

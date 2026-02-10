@@ -23,6 +23,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
+use crate::services::upload::Upload;
 #[cfg(feature = "processing")]
 use crate::services::upload::UploadService;
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
@@ -74,6 +75,7 @@ pub struct Registry {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
     pub project_cache_handle: ProjectCacheHandle,
     pub autoscaling: Option<Addr<AutoscalingMetrics>>,
+    pub upload: Option<Addr<Upload>>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -351,6 +353,7 @@ impl ServiceState {
             upstream_relay,
             envelope_buffer,
             autoscaling,
+            upload,
         };
 
         let state = StateInner {
@@ -423,6 +426,10 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
+    }
+
+    pub fn upload(&self) -> Option<&Addr<Upload>> {
+        self.inner.registry.upload.as_ref()
     }
 }
 

@@ -12,12 +12,16 @@ use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use futures::StreamExt;
+use bytes::Bytes;
+use futures::{Stream, StreamExt};
 use relay_config::Config;
+use relay_system::Addr;
+use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::BadStoreRequest;
 use crate::middlewares;
 use crate::service::ServiceState;
+use crate::services::upload::Upload;
 
 use self::tus::{TUS_RESUMABLE, TUS_VERSION, UPLOAD_OFFSET, validate_headers};
 
@@ -63,27 +67,32 @@ impl IntoResponse for UploadError {
 /// in a single request - partial uploads and resumption are not supported.
 ///
 /// The body is processed as a stream to avoid loading the entire upload into memory.
-async fn handle(headers: HeaderMap, body: Body) -> axum::response::Result<impl IntoResponse> {
+async fn handle(
+    state: ServiceState,
+    headers: HeaderMap,
+    body: Body,
+) -> axum::response::Result<impl IntoResponse> {
     // Validate TUS protocol headers
     let expected_length = validate_headers(&headers).map_err(UploadError::from)?;
 
     // Stream the body and count bytes
     let mut stream = body.into_data_stream();
-    let mut bytes_received: usize = 0;
 
-    while let Some(chunk_result) = stream.next().await {
-        let chunk = chunk_result.map_err(|e| UploadError::BodyReadError(e))?;
-        bytes_received += chunk.len();
+    Sink::new(&state).upload(stream).await?;
 
-        if bytes_received > expected_length {
-            return Err(UploadError::PayloadTooLarge { expected_length })?;
-        }
+    // while let Some(chunk_result) = stream.next().await {
+    //     let chunk = chunk_result.map_err(|e| UploadError::BodyReadError(e))?;
+    //     bytes_received += chunk.len();
 
-        // TODO: Process each chunk as it arrives
-        // - Write to storage
-        // - Update progress tracking
-        // For now, we just count bytes to validate the upload length
-    }
+    //     if bytes_received > expected_length {
+    //         return Err(UploadError::PayloadTooLarge { expected_length })?;
+    //     }
+
+    //     // TODO: Process each chunk as it arrives
+    //     // - Write to storage
+    //     // - Update progress tracking
+    //     // For now, we just count bytes to validate the upload length
+    // }
 
     // TODO: Implement actual upload handling
     // - Generate a unique upload ID
@@ -95,15 +104,41 @@ async fn handle(headers: HeaderMap, body: Body) -> axum::response::Result<impl I
     response_headers.insert(TUS_RESUMABLE, HeaderValue::from_static(TUS_VERSION));
     response_headers.insert(
         UPLOAD_OFFSET,
-        HeaderValue::from_str(&bytes_received.to_string()).unwrap(),
+        HeaderValue::from_str(&expected_length.to_string()).unwrap(),
     );
     // TODO: Add Location header with the upload URL once we have upload ID generation
 
     Ok((StatusCode::CREATED, response_headers, ""))
 }
 
+enum Sink {
+    Upstream,
+    Upload(Addr<Upload>),
+}
+
+impl Sink {
+    fn new(state: &ServiceState) -> Self {
+        if let Some(addr) = state.upload() {
+            Self::Upload(addr.clone())
+        } else {
+            Self::Upstream
+        }
+    }
+
+    async fn upload(
+        &self,
+        stream: impl Stream<Item = Result<Bytes, axum::Error>>,
+    ) -> Result<(), BadStoreRequest> {
+        match self {
+            Sink::Upstream => {}
+            Sink::Upload(addr) => {
+                todo!();
+            }
+        }
+        Ok(())
+    }
+}
+
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    post(handle)
-        .route_layer(DefaultBodyLimit::max(config.max_upload_size()))
-        .route_layer(axum::middleware::from_fn(middlewares::content_length))
+    post(handle).route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
 }
