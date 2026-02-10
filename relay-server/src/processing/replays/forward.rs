@@ -3,13 +3,15 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::Envelope;
 use crate::envelope::{ContentType, Item, ItemType, Items};
-#[cfg(feature = "processing")]
-use crate::managed::ManagedEnvelope;
 use crate::managed::{Managed, Rejected};
+#[cfg(feature = "processing")]
+use crate::processing::replays::store;
 use crate::processing::replays::{
     Error, ExpandedReplay, ExpandedReplays, ReplayVideoEvent, ReplaysOutput,
 };
 use crate::processing::{self, Forward};
+#[cfg(feature = "processing")]
+use crate::utils;
 
 /// Errors that can occur when serializing an expanded replay into envelope items.
 #[derive(Debug, thiserror::Error)]
@@ -55,11 +57,30 @@ impl Forward for ReplaysOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let envelope = self.serialize_envelope(ctx)?;
-        let envelope = ManagedEnvelope::from(envelope).into_processed();
+        let Self(replays) = self;
 
-        s.store(crate::services::store::StoreEnvelope { envelope });
+        let event_id = replays
+            .headers
+            .event_id()
+            .ok_or_else(|| replays.reject_err(Error::NoEventId).map(|_| ()))?;
 
+        let ctx = store::Context {
+            event_id,
+            retention: replays.headers.retention(),
+            max_replay_message_size: ctx.config.max_replay_message_size(),
+            snuba_publish_disabled: utils::sample(
+                ctx.global_config
+                    .options
+                    .replay_relay_snuba_publish_disabled_sample_rate,
+            )
+            .is_keep(),
+        };
+
+        for replay in replays.split(|replay| replay.replays) {
+            if let Ok(replay) = replay.try_map(|replay, _| store::convert(replay, &ctx)) {
+                s.store(replay);
+            }
+        }
         Ok(())
     }
 }
