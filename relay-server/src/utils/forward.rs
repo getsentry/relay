@@ -2,11 +2,14 @@ use std::borrow::Cow;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
-use axum::body::Body;
+use axum::body::{Body, HttpBody};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use bytes::Bytes;
+use hyper::body::{Frame, SizeHint};
 use relay_config::Config;
 use relay_system::Addr;
 use sync_wrapper::SyncWrapper;
@@ -202,9 +205,9 @@ impl UpstreamRequest for ForwardRequest {
 
         let body = self.body.take().ok_or(HttpError::Misconfigured)?;
 
-        builder.body(reqwest::Body::wrap_stream(
-            body.into_inner().into_data_stream(),
-        ));
+        let new_body = reqwest::Body::wrap(SyncBody::new(body));
+
+        builder.body(new_body);
 
         Ok(())
     }
@@ -217,6 +220,50 @@ impl UpstreamRequest for ForwardRequest {
             let result = result.map(ForwardResponse::from_upstream);
             let _ = self.sender.send(result);
         })
+    }
+}
+
+/// A wrapper around [`SyncWrapper<Body>`] that implements `http_body::Body`.
+struct SyncBody {
+    body: SyncWrapper<Body>,
+    size_hint: SizeHint,
+    is_end_stream: bool,
+}
+
+impl SyncBody {
+    fn new(mut body: SyncWrapper<Body>) -> Self {
+        let size_hint = body.get_mut().size_hint();
+        let is_end_stream = body.get_mut().is_end_stream();
+        Self {
+            body,
+            size_hint,
+            is_end_stream,
+        }
+    }
+}
+
+impl hyper::body::Body for SyncBody {
+    type Data = Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Bytes>, Self::Error>>> {
+        let this = self.get_mut();
+        let poll = Pin::new(this.body.get_mut()).poll_frame(cx);
+        let inner = this.body.get_mut();
+        this.size_hint = inner.size_hint();
+        this.is_end_stream = inner.is_end_stream();
+        poll
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.size_hint.clone()
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.is_end_stream
     }
 }
 
