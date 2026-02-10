@@ -4,9 +4,9 @@ use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
 
+use axum::body::Body;
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use bytes::Bytes;
 use relay_config::Config;
 use relay_system::Addr;
 use tokio::sync::oneshot;
@@ -122,7 +122,7 @@ pub struct ForwardRequest {
     path: Cow<'static, str>,
     headers: HeaderMap<HeaderValue>,
     forwarded_for: Option<ForwardedFor>,
-    body: Bytes,
+    body: Option<Body>,
     sender: oneshot::Sender<Result<ForwardResponse, UpstreamRequestError>>,
 }
 
@@ -137,7 +137,7 @@ impl ForwardRequest {
             path: path.into(),
             headers: Default::default(),
             forwarded_for: None,
-            body: Bytes::new(),
+            body: None,
             sender,
         };
 
@@ -198,7 +198,9 @@ impl UpstreamRequest for ForwardRequest {
             builder.header("X-Forwarded-For", forwarded_for.as_ref());
         }
 
-        builder.body(self.body.clone());
+        if let Some(body) = self.body.take() {
+            builder.body(reqwest::Body::wrap_stream(body.into_data_stream()));
+        }
 
         Ok(())
     }
@@ -253,8 +255,8 @@ impl ForwardRequestBuilder {
     /// Adds the request body.
     ///
     /// The body may be empty for `GET` requests.
-    pub fn with_body(mut self, body: Bytes) -> Self {
-        self.request.body = body;
+    pub fn with_body(mut self, body: impl Into<Body>) -> Self {
+        self.request.body = Some(body.into());
         self
     }
 

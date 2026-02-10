@@ -10,7 +10,6 @@
 //! logic.
 use std::io;
 
-use bytes::Bytes;
 use relay_config::HttpEncoding;
 pub use reqwest::StatusCode;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -93,7 +92,7 @@ impl RequestBuilder {
         self.header_opt("content-encoding", encoding.name())
     }
 
-    pub fn body(&mut self, body: Bytes) -> &mut Self {
+    pub fn body(&mut self, body: impl Into<reqwest::Body>) -> &mut Self {
         self.build(|builder| builder.body(body))
     }
 }
