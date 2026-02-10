@@ -4569,6 +4569,7 @@ dependencies = [
  "sqlx",
  "symbolic-common",
  "symbolic-unreal",
+ "sync_wrapper",
  "sysinfo",
  "tempfile",
  "thiserror 2.0.17",

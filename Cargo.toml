@@ -207,6 +207,7 @@ statsdproxy = { version = "0.4.1", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
 symbolic-unreal = { version = "12.12.3", default-features = false }
 syn = { version = "2.0.106" }
+sync_wrapper = { version = "1.0.2" }
 synstructure = { version = "0.13.2" }
 sysinfo = "0.35.1"
 tempfile = "3.23.0"

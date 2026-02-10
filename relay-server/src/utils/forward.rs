@@ -9,6 +9,7 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use relay_config::Config;
 use relay_system::Addr;
+use sync_wrapper::SyncWrapper;
 use tokio::sync::oneshot;
 
 use crate::extractors::ForwardedFor;
@@ -61,6 +62,7 @@ impl IntoResponse for ForwardError {
                     .into_response(),
                 HttpError::Io(_) => StatusCode::BAD_GATEWAY.into_response(),
                 HttpError::Json(_) => StatusCode::BAD_REQUEST.into_response(),
+                HttpError::Misconfigured => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             Self::Upstream(UpstreamRequestError::SendFailed(e)) => {
                 if e.is_timeout() {
@@ -122,7 +124,7 @@ pub struct ForwardRequest {
     path: Cow<'static, str>,
     headers: HeaderMap<HeaderValue>,
     forwarded_for: Option<ForwardedFor>,
-    body: Option<Body>,
+    body: Option<sync_wrapper::SyncWrapper<Body>>,
     sender: oneshot::Sender<Result<ForwardResponse, UpstreamRequestError>>,
 }
 
@@ -198,9 +200,11 @@ impl UpstreamRequest for ForwardRequest {
             builder.header("X-Forwarded-For", forwarded_for.as_ref());
         }
 
-        if let Some(body) = self.body.take() {
-            builder.body(reqwest::Body::wrap_stream(body.into_data_stream()));
-        }
+        let body = self.body.take().ok_or(HttpError::Misconfigured)?;
+
+        builder.body(reqwest::Body::wrap_stream(
+            body.into_inner().into_data_stream(),
+        ));
 
         Ok(())
     }
@@ -256,7 +260,7 @@ impl ForwardRequestBuilder {
     ///
     /// The body may be empty for `GET` requests.
     pub fn with_body(mut self, body: impl Into<Body>) -> Self {
-        self.request.body = Some(body.into());
+        self.request.body = Some(SyncWrapper::new(body.into()));
         self
     }
 

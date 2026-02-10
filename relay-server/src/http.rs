@@ -25,6 +25,8 @@ pub enum HttpError {
     Io(#[from] io::Error),
     #[error("failed to parse JSON response")]
     Json(#[from] serde_json::Error),
+    #[error("request was misconfigured")]
+    Misconfigured,
 }
 
 impl HttpError {
@@ -36,7 +38,8 @@ impl HttpError {
             // logic is part of upstream service.
             Self::Reqwest(error) => error.is_timeout(),
             Self::Json(_) => false,
-            HttpError::Overflow => false,
+            Self::Overflow => false,
+            Self::Misconfigured => false,
         }
     }
 }
