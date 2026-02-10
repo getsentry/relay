@@ -137,6 +137,7 @@ tower-http = { workspace = true, default-features = false, features = [
   "decompression-deflate",
   "decompression-gzip",
   "decompression-zstd",
+  "limit",
   "set-header",
   "trace",
 ] }
