@@ -16,6 +16,7 @@ use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
 use relay_config::Config;
+use relay_quotas::Scoping;
 use relay_system::Addr;
 use tower_http::limit::RequestBodyLimitLayer;
 
@@ -24,9 +25,9 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
-use crate::services::upload::Upload;
+use crate::services::upload::{Upload, UploadStream};
 use crate::services::upstream::UpstreamRelay;
-use crate::utils::{ForwardRequest, ForwardRequestBuilder};
+use crate::utils::{ForwardError, ForwardRequest, ForwardRequestBuilder, ForwardResponse};
 use crate::{Envelope, middlewares};
 
 use self::tus::{TUS_RESUMABLE, TUS_VERSION, UPLOAD_OFFSET, validate_headers};
@@ -80,8 +81,9 @@ async fn handle(
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    // Validate TUS protocol headers
     let expected_length = validate_headers(&headers).map_err(UploadError::from)?;
+
+    // TODO: something like ExactStream which raises an error if the actual size exceeds the expected one.
 
     let project = state.project_cache_handle().get(meta.public_key());
 
@@ -102,9 +104,10 @@ async fn handle(
             .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
             .into());
     }
+    let scoping = envelope.scoping();
     envelope.accept(|x| x); // We're not really processing an envelope here.
 
-    // Sink::new(&state).upload(project, body).await?;
+    dbg!(Sink::new(&state).upload(uri.path(), body).await);
 
     // while let Some(chunk_result) = stream.next().await {
     //     let chunk = chunk_result.map_err(|e| UploadError::BodyReadError(e))?;
@@ -151,22 +154,24 @@ impl Sink {
         }
     }
 
-    // async fn upload(
-    //     &self,
-    //     uri: Proj
-    //     body: Body,
-    // ) -> Result<(), BadStoreRequest> {
-    //     match self {
-    //         Sink::Upstream(addr) => {
-    //             let request = ForwardRequest::builder(Method::POST, )
-    //             // addr.send(UpstreamRelay::SendRequest(ForwardRequestBuilder))
-    //         }
-    //         Sink::Upload(addr) => {
-    //             todo!();
-    //         }
-    //     }
-    //     Ok(())
-    // }
+    async fn upload(
+        &self,
+        // scoping: Scoping,
+        path: &str,
+        body: Body,
+    ) {
+        match self {
+            Sink::Upstream(addr) => {
+                ForwardRequest::builder(Method::POST, path.to_owned())
+                    .with_body(body)
+                    .send_to(addr)
+                    .await;
+            }
+            Sink::Upload(addr) => {
+                addr.send(UploadStream { body }).await;
+            }
+        }
+    }
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {

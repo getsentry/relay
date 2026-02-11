@@ -8,10 +8,12 @@ use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, Stream, StreamExt};
-use objectstore_client::{Client, ExpirationPolicy, Session, Usecase};
+use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
 use relay_config::UploadServiceConfig;
 use relay_quotas::DataCategory;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+use relay_system::{
+    Addr, AsyncResponse, FromMessage, Interface, NoResponse, Receiver, Sender, Service,
+};
 use sentry_protos::snuba::v1::TraceItem;
 use smallvec::smallvec;
 
@@ -32,7 +34,10 @@ use super::outcome::Outcome;
 pub enum Upload {
     Envelope(StoreEnvelope),
     Attachment(Managed<StoreAttachment>),
-    Stream(axum::body::Body),
+    Stream {
+        message: UploadStream,
+        sender: Sender<()>,
+    }, // TODO: make managed.
 }
 
 impl Upload {
@@ -40,7 +45,7 @@ impl Upload {
         match self {
             Upload::Envelope(_) => "envelope",
             Upload::Attachment(_) => "attachment_v2",
-            Upload::Stream(_) => "stream",
+            Upload::Stream { .. } => "stream",
         }
     }
 
@@ -52,7 +57,7 @@ impl Upload {
                 .filter(|item| *item.ty() == ItemType::Attachment)
                 .count(),
             Self::Attachment(_) => 1,
-            Self::Stream(_) => 1,
+            Self::Stream { .. } => 1,
         }
     }
 }
@@ -75,6 +80,14 @@ impl FromMessage<Managed<StoreAttachment>> for Upload {
     }
 }
 
+impl FromMessage<UploadStream> for Upload {
+    type Response = AsyncResponse<()>;
+
+    fn from_message(message: UploadStream, sender: Sender<()>) -> Self {
+        Self::Stream { message, sender }
+    }
+}
+
 /// An attachment that is ready for upload / EAP storage.
 pub struct StoreAttachment {
     /// The body to be uploaded to objectstore.
@@ -90,6 +103,12 @@ impl Counted for StoreAttachment {
             (DataCategory::Attachment, self.body.len()),
         ]
     }
+}
+
+/// A request body to be uploaded to objectstore.
+pub struct UploadStream {
+    /// The body to be uploaded to objectstore.
+    pub body: axum::body::Body, // TODO: use a simpler type?
 }
 
 /// Errors that can occur when trying to upload an attachment.
@@ -189,7 +208,10 @@ impl UploadService {
                     // TODO: After the experimental phase, implement backpressure instead.
                     let _ = managed.reject_err(Error::LoadShed);
                 }
-                Upload::Stream(_) => todo!(),
+                Upload::Stream { .. } => {
+                    // TODO: should reject here.
+                    relay_log::error!("Dropping streamed data")
+                }
             };
             return;
         }
@@ -240,7 +262,7 @@ impl UploadServiceInner {
                 self.handle_envelope(envelope).await;
             }
             Upload::Attachment(attachment) => self.handle_attachment(attachment).await,
-            Upload::Stream(body) => todo!(),
+            Upload::Stream { message, sender } => self.handle_stream(message, sender).await,
         }
     }
 
@@ -365,6 +387,12 @@ impl UploadServiceInner {
         Ok(())
     }
 
+    async fn handle_stream(&self, stream: UploadStream, sender: Sender<()>) {
+        // TODO: emit metric
+
+        self.really_upload("stream", &session, payload, key)
+    }
+
     async fn upload(
         &self,
         ty: &str,
@@ -377,6 +405,10 @@ impl UploadServiceInner {
         if let Some(key) = key {
             request = request.key(key);
         }
+        self.really_upload(ty, request).await
+    }
+
+    async fn really_upload(&self, ty: &str, request: PutBuilder) -> Result<String, Error> {
         let response = relay_statsd::metric!(
             timer(RelayTimers::AttachmentUploadDuration),
             type = ty,

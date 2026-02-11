@@ -541,8 +541,8 @@ impl<T: Counted> Managed<T> {
     {
         debug_assert!(!self.is_done());
 
-        let (outcome, error) = dbg!(error).consume();
-        self.do_reject(dbg!(outcome));
+        let (outcome, error) = error.consume();
+        self.do_reject(outcome);
         Rejected(error)
     }
 

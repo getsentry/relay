@@ -134,7 +134,6 @@ def test_upload_rate_limited(mini_sentry, relay, data_category):
     # First request goes through:
     assert request().status_code == 201
 
-    mini_sentry.fetched_project_config.wait()
     import time
 
     time.sleep(1)  # TODO: wait for log instead.
