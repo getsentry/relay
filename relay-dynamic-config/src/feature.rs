@@ -120,6 +120,18 @@ pub enum Feature {
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     #[serde(rename = "organizations:span-v2-otlp-processing")]
     SpanV2OtlpProcessing,
+    /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
+    #[serde(rename = "projects:span-v2-attachment-processing")]
+    SpanV2AttachmentProcessing,
+    /// Enable the experimental Trace Attachment pipeline in Relay.
+    #[serde(rename = "projects:trace-attachment-processing")]
+    TraceAttachmentProcessing,
+    /// Enable the new Replay pipeline in Relay.
+    #[serde(rename = "organizations:new-replay-processing")]
+    NewReplayProcessing,
+    /// Enable the new Error processing pipeline in Relay.
+    #[serde(rename = "organizations:relay-new-error-processing")]
+    NewErrorProcessing,
     /// This feature has deprecated and is kept for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction")]
@@ -132,15 +144,6 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:indexed-spans-extraction")]
     DeprecatedExtractSpansFromEvent,
-    /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
-    #[serde(rename = "projects:span-v2-attachment-processing")]
-    SpanV2AttachmentProcessing,
-    /// Enable the experimental Trace Attachment pipeline in Relay.
-    #[serde(rename = "projects:trace-attachment-processing")]
-    TraceAttachmentProcessing,
-    /// Enable the new Replay pipeline in Relay.
-    #[serde(rename = "organizations:new-replay-processing")]
-    NewReplayProcessing,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

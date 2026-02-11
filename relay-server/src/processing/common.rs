@@ -1,9 +1,8 @@
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
 use crate::processing::ForwardContext;
-#[cfg(feature = "processing")]
-use crate::processing::StoreHandle;
 use crate::processing::check_ins::CheckInsProcessor;
+use crate::processing::errors::ErrorsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::replays::ReplaysProcessor;
@@ -37,7 +36,7 @@ macro_rules! outputs {
             #[cfg(feature = "processing")]
             fn forward_store(
                 self,
-                s: StoreHandle<'_>,
+                s: crate::processing::StoreHandle<'_>,
                 ctx: ForwardContext<'_>,
             ) -> Result<(), Rejected<()>> {
                 match self {
@@ -60,6 +59,7 @@ macro_rules! outputs {
 
 outputs!(
     CheckIns => CheckInsProcessor,
+    Errors => ErrorsProcessor,
     Logs => LogsProcessor,
     ProfileChunks => ProfileChunksProcessor,
     Sessions => SessionsProcessor,
