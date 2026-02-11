@@ -16,7 +16,6 @@
 
   // Rust Analyzer
   "rust-analyzer.cargo.features": "all",
-  "rust-analyzer.check.command": "clippy",
   "rust-analyzer.imports.granularity.group": "module",
   "rust-analyzer.imports.prefix": "crate",
 
