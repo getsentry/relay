@@ -287,20 +287,12 @@ impl ProcessingGroup {
 
         let span_v2_items = envelope.take_items_by(|item| {
             let exp_feature = project_info.has_feature(Feature::SpanV2ExperimentalProcessing);
-            let otlp_feature = project_info.has_feature(Feature::SpanV2OtlpProcessing);
-            let is_supported_integration = {
-                matches!(
-                    item.integration(),
-                    Some(Integration::Spans(SpansIntegration::OtelV1 { .. }))
-                )
-            };
-            let is_span = matches!(item.ty(), &ItemType::Span);
-            let is_span_attachment = item.is_span_attachment();
 
             ItemContainer::<SpanV2>::is_container(item)
-                || (exp_feature && is_span)
-                || ((exp_feature || otlp_feature) && is_supported_integration)
-                || (exp_feature && is_span_attachment)
+                || matches!(item.integration(), Some(Integration::Spans(_)))
+                // Process standalone spans (v1) via the v2 pipeline
+                || (exp_feature && matches!(item.ty(), &ItemType::Span))
+                || (exp_feature && item.is_span_attachment())
         });
 
         if !span_v2_items.is_empty() {
@@ -311,11 +303,7 @@ impl ProcessingGroup {
         }
 
         // Extract spans.
-        let span_items = envelope.take_items_by(|item| {
-            matches!(item.ty(), &ItemType::Span)
-                || matches!(item.integration(), Some(Integration::Spans(_)))
-        });
-
+        let span_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Span));
         if !span_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Span,
@@ -1578,7 +1566,6 @@ impl EnvelopeProcessorService {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         span::filter(managed_envelope, ctx.config, ctx.project_info);
-        span::convert_otel_traces_data(managed_envelope);
 
         if_processing!(self.inner.config, {
             span::process(

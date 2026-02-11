@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 
-import pytest
 from opentelemetry.proto.common.v1.common_pb2 import (
     AnyValue,
     InstrumentationScope,
@@ -18,20 +17,12 @@ from opentelemetry.proto.trace.v1.trace_pb2 import (
 from .asserts import time_within_delta, time_within
 
 
-@pytest.mark.parametrize(
-    "span_v2_feature",
-    [
-        "projects:span-v2-experimental-processing",
-        "organizations:span-v2-otlp-processing",
-    ],
-)
 def test_span_ingestion(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
-    span_v2_feature,
 ):
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
@@ -43,7 +34,6 @@ def test_span_ingestion(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "organizations:relay-otlp-traces-endpoint",
-        span_v2_feature,
     ]
 
     ts = datetime.now(timezone.utc)
