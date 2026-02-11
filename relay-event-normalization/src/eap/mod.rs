@@ -123,13 +123,8 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
         match (&mut inner.value.ty, &mut inner.value.value) {
             (Annotated(Some(Boolean), _), Annotated(Some(Value::Bool(_)), _)) => (),
             (Annotated(Some(Integer), _), Annotated(Some(Value::I64(_)), _)) => (),
-            (Annotated(Some(Integer), _), Annotated(Some(Value::U64(u)), _)) => {
-                if *u > i64::MAX as u64 {
-                    let original = attribute.value_mut().take();
-                    attribute.meta_mut().add_error(ErrorKind::InvalidData);
-                    attribute.meta_mut().set_original_value(original);
-                }
-            }
+            (Annotated(Some(Integer), _), Annotated(Some(Value::U64(u)), _))
+                if i64::try_from(*u).is_ok() => {}
             (Annotated(Some(Double), _), Annotated(Some(Value::I64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::U64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::F64(_)), _)) => (),

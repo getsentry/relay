@@ -7,7 +7,7 @@
 - Emit outcomes for spans trimmed from a transaction. ([#5410](https://github.com/getsentry/relay/pull/5410))
 - Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
 - Fix inconsistencies with Insights' expected attributes. ([#5561](https://github.com/getsentry/relay/pull/5561))
-- Remove EAP integer attributes larger than I64::MAX. ([#5621](https://github.com/getsentry/relay/pull/5621))
+- Remove EAP integer attributes larger than `I64::MAX`. ([#5621](https://github.com/getsentry/relay/pull/5621))
 
 **Features**:
 
