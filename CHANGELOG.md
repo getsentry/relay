@@ -28,6 +28,7 @@
 - Add `gen_ai.cost_calculation.result` metric to track AI cost calculation outcomes by integration and platform. ([#5560](https://github.com/getsentry/relay/pull/5560))
 - Normalizes and validates trace metric names. ([#5589](https://github.com/getsentry/relay/pull/5589))
 - Add manual category to cost calculation metric origin tag ([#5603](https://github.com/getsentry/relay/pull/5603))
+- Remove the `ReplayEvents` Kafka topic and the `replay.relay-snuba-publishing-disabled.sample-rate` option. ([#5629](https://github.com/getsentry/relay/pull/5629))
 
 ## 26.1.0
 
