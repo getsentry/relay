@@ -14,6 +14,7 @@
 - Apply clock drift correction to logs and trace metrics. ([#5609](https://github.com/getsentry/relay/pull/5609))
 - Add Culture context to event schema. ([#5615](https://github.com/getsentry/relay/pull/5615))
 - Trim spans with a new EAP trimming processor. ([#5616](https://github.com/getsentry/relay/pull/5616))
+- Forwarded requests are now streamed instead of buffered in-memory. ([#5624](https://github.com/getsentry/relay/pull/5624))
 
 **Internal**:
 

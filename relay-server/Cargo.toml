@@ -120,6 +120,7 @@ symbolic-common = { workspace = true, optional = true, default-features = false 
 symbolic-unreal = { workspace = true, optional = true, default-features = false, features = [
   "serde",
 ] }
+sync_wrapper = { workspace = true }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time"] }
@@ -136,6 +137,7 @@ tower-http = { workspace = true, default-features = false, features = [
   "decompression-deflate",
   "decompression-gzip",
   "decompression-zstd",
+  "limit",
   "set-header",
   "trace",
 ] }
