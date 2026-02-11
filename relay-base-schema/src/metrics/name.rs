@@ -94,6 +94,29 @@ impl MetricName {
             .into_iter()
             .find(|namespace| maybe_namespace == namespace.as_str())
     }
+
+    /// Extracts the metric name from a well formed MRI.
+    ///
+    /// If the contained metric name is not a well formed MRI this function returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_base_schema::metrics::{MetricName, MetricNamespace};
+    ///
+    /// let name = MetricName::from("foo");
+    /// assert!(name.try_name().is_none());
+    ///
+    /// let name = MetricName::from("c:custom/foo@none");
+    /// assert_eq!(name.try_name(), Some("foo"));
+    /// let name = MetricName::from("c:custom/foo");
+    /// assert_eq!(name.try_name(), Some("foo"));
+    /// ```
+    pub fn try_name(&self) -> Option<&str> {
+        // A well formed MRI is always in the format `<type>:<namespace>/<name>[@<unit>]`.
+        let after_slash = self.0.get(2..)?.split('/').nth(1)?;
+        after_slash.split('@').next()
+    }
 }
 
 impl PartialEq<str> for MetricName {

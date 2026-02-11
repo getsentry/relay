@@ -193,6 +193,7 @@ impl UpstreamRequestError {
             UpstreamRequestError::Http(HttpError::Json(_)) => "invalid_json",
             UpstreamRequestError::Http(HttpError::Reqwest(_)) => "reqwest_error",
             UpstreamRequestError::Http(HttpError::Overflow) => "overflow",
+            UpstreamRequestError::Http(HttpError::Misconfigured) => "misconfigured",
             UpstreamRequestError::RateLimited(_) => "rate_limited",
             UpstreamRequestError::ResponseError(_, _) => "response_error",
             UpstreamRequestError::ChannelClosed => "channel_closed",

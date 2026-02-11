@@ -49,6 +49,7 @@ class Sentry(SentryLike):
         self.request_log = []
         self.project_config_simulate_pending = False
         self.project_config_ignore_revision = False
+        self.allow_chunked = False
 
         self.timeout = 10
 
@@ -307,7 +308,7 @@ def mini_sentry(request):  # noqa
 
         # Store endpoints theoretically support chunked transfer encoding,
         # but for now, we're conservative and don't allow that anywhere.
-        if flask_request.headers.get("transfer-encoding"):
+        if not sentry.allow_chunked and flask_request.headers.get("transfer-encoding"):
             abort(400, "transfer encoding not supported")
 
         sentry.request_log.append((flask_request.headers, flask_request.url))

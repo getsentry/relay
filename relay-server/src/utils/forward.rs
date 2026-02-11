@@ -2,13 +2,17 @@ use std::borrow::Cow;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
+use axum::body::{Body, HttpBody};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
+use hyper::body::{Frame, SizeHint};
 use relay_config::Config;
 use relay_system::Addr;
+use sync_wrapper::SyncWrapper;
 use tokio::sync::oneshot;
 
 use crate::extractors::ForwardedFor;
@@ -61,6 +65,7 @@ impl IntoResponse for ForwardError {
                     .into_response(),
                 HttpError::Io(_) => StatusCode::BAD_GATEWAY.into_response(),
                 HttpError::Json(_) => StatusCode::BAD_REQUEST.into_response(),
+                HttpError::Misconfigured => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             Self::Upstream(UpstreamRequestError::SendFailed(e)) => {
                 if e.is_timeout() {
@@ -122,7 +127,7 @@ pub struct ForwardRequest {
     path: Cow<'static, str>,
     headers: HeaderMap<HeaderValue>,
     forwarded_for: Option<ForwardedFor>,
-    body: Bytes,
+    body: Option<sync_wrapper::SyncWrapper<Body>>,
     sender: oneshot::Sender<Result<ForwardResponse, UpstreamRequestError>>,
 }
 
@@ -137,7 +142,7 @@ impl ForwardRequest {
             path: path.into(),
             headers: Default::default(),
             forwarded_for: None,
-            body: Bytes::new(),
+            body: None,
             sender,
         };
 
@@ -198,7 +203,13 @@ impl UpstreamRequest for ForwardRequest {
             builder.header("X-Forwarded-For", forwarded_for.as_ref());
         }
 
-        builder.body(self.body.clone());
+        let Some(body) = self.body.take() else {
+            relay_log::error!("forward request was retried or never initialized");
+            return Err(HttpError::Misconfigured);
+        };
+
+        let body = reqwest::Body::wrap(SyncBody::new(body));
+        builder.body(body);
 
         Ok(())
     }
@@ -211,6 +222,50 @@ impl UpstreamRequest for ForwardRequest {
             let result = result.map(ForwardResponse::from_upstream);
             let _ = self.sender.send(result);
         })
+    }
+}
+
+/// A wrapper around [`SyncWrapper<Body>`] that implements `http_body::Body`.
+struct SyncBody {
+    body: SyncWrapper<Body>,
+    size_hint: SizeHint,
+    is_end_stream: bool,
+}
+
+impl SyncBody {
+    fn new(mut body: SyncWrapper<Body>) -> Self {
+        let size_hint = body.get_mut().size_hint();
+        let is_end_stream = body.get_mut().is_end_stream();
+        Self {
+            body,
+            size_hint,
+            is_end_stream,
+        }
+    }
+}
+
+impl hyper::body::Body for SyncBody {
+    type Data = Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Bytes>, Self::Error>>> {
+        let this = self.get_mut();
+        let poll = Pin::new(this.body.get_mut()).poll_frame(cx);
+        let inner = this.body.get_mut();
+        this.size_hint = inner.size_hint();
+        this.is_end_stream = inner.is_end_stream();
+        poll
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.size_hint.clone()
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.is_end_stream
     }
 }
 
@@ -253,8 +308,8 @@ impl ForwardRequestBuilder {
     /// Adds the request body.
     ///
     /// The body may be empty for `GET` requests.
-    pub fn with_body(mut self, body: Bytes) -> Self {
-        self.request.body = body;
+    pub fn with_body(mut self, body: impl Into<Body>) -> Self {
+        self.request.body = Some(SyncWrapper::new(body.into()));
         self
     }
 

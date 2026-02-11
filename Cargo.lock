@@ -3937,7 +3937,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.22"
+version = "0.9.23"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4569,6 +4569,7 @@ dependencies = [
  "sqlx",
  "symbolic-common",
  "symbolic-unreal",
+ "sync_wrapper",
  "sysinfo",
  "tempfile",
  "thiserror 2.0.17",

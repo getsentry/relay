@@ -10,7 +10,6 @@
 //! logic.
 use std::io;
 
-use bytes::Bytes;
 use relay_config::HttpEncoding;
 pub use reqwest::StatusCode;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -26,6 +25,8 @@ pub enum HttpError {
     Io(#[from] io::Error),
     #[error("failed to parse JSON response")]
     Json(#[from] serde_json::Error),
+    #[error("request was retried or not initialized")]
+    Misconfigured,
 }
 
 impl HttpError {
@@ -37,7 +38,8 @@ impl HttpError {
             // logic is part of upstream service.
             Self::Reqwest(error) => error.is_timeout(),
             Self::Json(_) => false,
-            HttpError::Overflow => false,
+            Self::Overflow => false,
+            Self::Misconfigured => false,
         }
     }
 }
@@ -93,7 +95,7 @@ impl RequestBuilder {
         self.header_opt("content-encoding", encoding.name())
     }
 
-    pub fn body(&mut self, body: Bytes) -> &mut Self {
+    pub fn body(&mut self, body: impl Into<reqwest::Body>) -> &mut Self {
         self.build(|builder| builder.body(body))
     }
 }
