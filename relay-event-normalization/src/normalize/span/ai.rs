@@ -329,6 +329,13 @@ fn enrich_ai_span_data(
 
     if let Some(model_costs) = model_costs {
         extract_ai_data(data, duration, model_costs, origin, platform);
+    } else {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_no_model_cost_available",
+            integration = map_origin_to_integration(origin),
+            platform = platform_tag(platform),
+        );
     }
 
     let ai_op_type = data

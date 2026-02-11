@@ -114,16 +114,24 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
     let origin = extract_string_value(attributes, ORIGIN);
     let platform = extract_string_value(attributes, PLATFORM);
 
-    let model_cost = attributes
-        .get_value(GEN_AI_REQUEST_MODEL)
-        .or_else(|| attributes.get_value(GEN_AI_RESPONSE_MODEL))
-        .and_then(|v| v.as_str())
-        .and_then(|model| model_costs?.cost_per_token(model));
-
     let integration = map_origin_to_integration(origin);
     let platform_tag = platform_tag(platform);
 
-    let Some(model_cost) = model_cost else {
+    let Some(model_id) = attributes
+        .get_value(GEN_AI_REQUEST_MODEL)
+        .or_else(|| attributes.get_value(GEN_AI_RESPONSE_MODEL))
+        .and_then(|v| v.as_str())
+    else {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_no_model_id_available",
+            integration = integration,
+            platform = platform_tag,
+        );
+        return;
+    };
+
+    let Some(model_cost) = model_costs.and_then(|c| c.cost_per_token(model_id)) else {
         relay_statsd::metric!(
             counter(Counters::GenAiCostCalculationResult) += 1,
             result = "calculation_no_model_cost_available",
