@@ -12,7 +12,6 @@ use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use relay_config::Config;
-use relay_quotas::Scoping;
 use relay_system::Addr;
 use tower_http::limit::RequestBodyLimitLayer;
 
@@ -118,9 +117,15 @@ async fn handle(
             .into());
     }
     let scoping = envelope.scoping();
-    envelope.accept(|x| x); // We're not really processing an envelope here.
+    let upload_stream = UploadStream {
+        scoping,
+        body,
+        expected_length,
+    };
+    let managed_stream = envelope.wrap(upload_stream);
+    envelope.accept(|_| ()); // We're not really processing an envelope here.
 
-    let result = Sink::new(&state).upload(scoping, uri.path(), body).await?;
+    let result = Sink::new(&state).upload(uri.path(), managed_stream).await?;
 
     match result {
         SinkResult::Forwarded(response) => Ok(response.into_response()),
@@ -159,12 +164,12 @@ impl Sink {
 
     async fn upload(
         &self,
-        scoping: Scoping,
         path: &str,
-        body: Body,
+        managed_stream: Managed<UploadStream>,
     ) -> Result<SinkResult, UploadError> {
         match self {
             Sink::Upstream(addr) => {
+                let body = managed_stream.accept(|stream| stream.body);
                 let response = ForwardRequest::builder(Method::POST, path.to_owned())
                     .with_body(body)
                     .send_to(addr)
@@ -172,7 +177,7 @@ impl Sink {
                 Ok(SinkResult::Forwarded(response))
             }
             Sink::Upload(addr) => {
-                addr.send(UploadStream { scoping, body })
+                addr.send(managed_stream)
                     .await
                     .map_err(|_| UploadError::ServiceUnavailable)?
                     .map_err(UploadError::UploadService)?;

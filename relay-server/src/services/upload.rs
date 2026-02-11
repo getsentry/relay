@@ -35,9 +35,9 @@ pub enum Upload {
     Envelope(StoreEnvelope),
     Attachment(Managed<StoreAttachment>),
     Stream {
-        message: UploadStream,
+        message: Managed<UploadStream>,
         sender: Sender<Result<(), Error>>,
-    }, // TODO: make managed.
+    },
 }
 
 impl Upload {
@@ -80,10 +80,10 @@ impl FromMessage<Managed<StoreAttachment>> for Upload {
     }
 }
 
-impl FromMessage<UploadStream> for Upload {
+impl FromMessage<Managed<UploadStream>> for Upload {
     type Response = AsyncResponse<Result<(), Error>>;
 
-    fn from_message(message: UploadStream, sender: Sender<Result<(), Error>>) -> Self {
+    fn from_message(message: Managed<UploadStream>, sender: Sender<Result<(), Error>>) -> Self {
         Self::Stream { message, sender }
     }
 }
@@ -111,6 +111,14 @@ pub struct UploadStream {
     pub scoping: Scoping,
     /// The body to be uploaded to objectstore.
     pub body: axum::body::Body, // TODO: use a simpler type?
+    /// The expected length of the body in bytes.
+    pub expected_length: u64,
+}
+
+impl Counted for UploadStream {
+    fn quantities(&self) -> Quantities {
+        smallvec![(DataCategory::Attachment, self.expected_length as usize)]
+    }
 }
 
 /// Errors that can occur when trying to upload an attachment.
@@ -210,7 +218,8 @@ impl UploadService {
                     // TODO: After the experimental phase, implement backpressure instead.
                     let _ = managed.reject_err(Error::LoadShed);
                 }
-                Upload::Stream { sender, .. } => {
+                Upload::Stream { message, sender } => {
+                    let _ = message.reject_err(Error::LoadShed);
                     sender.send(Err(Error::LoadShed));
                 }
             };
@@ -263,7 +272,10 @@ impl UploadServiceInner {
                 self.handle_envelope(envelope).await;
             }
             Upload::Attachment(attachment) => self.handle_attachment(attachment).await,
-            Upload::Stream { message, sender } => self.handle_stream(message, sender).await,
+            Upload::Stream {
+                message: managed,
+                sender,
+            } => self.handle_stream(managed, sender).await,
         }
     }
 
@@ -388,8 +400,12 @@ impl UploadServiceInner {
         Ok(())
     }
 
-    async fn handle_stream(&self, stream: UploadStream, sender: Sender<Result<(), Error>>) {
-        let scoping = stream.scoping;
+    async fn handle_stream(
+        &self,
+        managed: Managed<UploadStream>,
+        sender: Sender<Result<(), Error>>,
+    ) {
+        let scoping = managed.scoping();
         let session = match self
             .event_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
@@ -402,10 +418,13 @@ impl UploadServiceInner {
                     result = error.to_string().as_str(),
                     type = "stream",
                 );
-                sender.send(Err(Error::UploadFailed(error)));
+                let rejected = managed.reject_err(Error::UploadFailed(error));
+                sender.send(Err(rejected.into_inner()));
                 return;
             }
         };
+
+        let stream = managed.accept(|stream| stream);
 
         let client_stream = stream
             .body
