@@ -25,7 +25,7 @@ pub enum HttpError {
     Io(#[from] io::Error),
     #[error("failed to parse JSON response")]
     Json(#[from] serde_json::Error),
-    #[error("request was misconfigured")]
+    #[error("request was retried or not initialized")]
     Misconfigured,
 }
 

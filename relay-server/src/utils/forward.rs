@@ -203,11 +203,13 @@ impl UpstreamRequest for ForwardRequest {
             builder.header("X-Forwarded-For", forwarded_for.as_ref());
         }
 
-        let body = self.body.take().ok_or(HttpError::Misconfigured)?;
+        let Some(body) = self.body.take() else {
+            relay_log::error!("forward request was retried or never initialized");
+            return Err(HttpError::Misconfigured);
+        };
 
-        let new_body = reqwest::Body::wrap(SyncBody::new(body));
-
-        builder.body(new_body);
+        let body = reqwest::Body::wrap(SyncBody::new(body));
+        builder.body(body);
 
         Ok(())
     }
