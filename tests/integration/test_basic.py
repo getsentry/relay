@@ -254,6 +254,7 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
 def test_zipbomb_content_encoding(mini_sentry, relay, route):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
+    mini_sentry.allow_chunked = True
     relay = relay(
         mini_sentry,
         options={
