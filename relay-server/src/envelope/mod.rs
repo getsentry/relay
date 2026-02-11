@@ -210,11 +210,6 @@ impl<M> EnvelopeHeaders<M> {
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.sent_at
     }
-
-    /// Returns the data retention in days for items in this envelope.
-    pub fn retention(&self) -> u16 {
-        self.retention.unwrap_or(DEFAULT_EVENT_RETENTION)
-    }
 }
 
 #[doc(hidden)]

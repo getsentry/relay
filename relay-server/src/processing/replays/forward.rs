@@ -66,7 +66,7 @@ impl Forward for ReplaysOutput {
 
         let ctx = store::Context {
             event_id,
-            retention: replays.headers.retention(),
+            retention: ctx.event_retention().standard,
             max_replay_message_size: ctx.config.max_replay_message_size(),
             snuba_publish_disabled: utils::sample(
                 ctx.global_config
