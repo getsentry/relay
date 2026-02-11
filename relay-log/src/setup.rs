@@ -329,6 +329,10 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
 
     tracing_subscriber::registry()
         .with(format.with_filter(config.level_filter()))
+        .with(match env::var(EnvFilter::DEFAULT_ENV) {
+            Ok(value) => EnvFilter::new(value),
+            Err(_) => get_default_filters(),
+        })
         .with(
             // Same as the default filter, except it converts warnings into events
             // and also sends everything at or above INFO as logs instead of breadcrumbs.
@@ -336,14 +340,9 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
                 tracing::Level::ERROR | tracing::Level::WARN => {
                     EventFilter::Event | EventFilter::Log
                 }
-                tracing::Level::INFO => EventFilter::Log,
-                tracing::Level::DEBUG | tracing::Level::TRACE => EventFilter::Ignore,
+                _ => EventFilter::Log,
             }),
         )
-        .with(match env::var(EnvFilter::DEFAULT_ENV) {
-            Ok(value) => EnvFilter::new(value),
-            Err(_) => get_default_filters(),
-        })
         .init();
 
     if let Some(dsn) = sentry.enabled_dsn() {
