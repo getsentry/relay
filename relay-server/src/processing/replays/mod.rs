@@ -14,8 +14,6 @@ use serde::{Deserialize, Serialize};
 use crate::envelope::{EnvelopeHeaders, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Output, QuotaRateLimiter};
-#[cfg(feature = "processing")]
-use crate::services::outcome::DiscardItemType;
 use crate::services::outcome::{DiscardReason, Outcome};
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -122,7 +120,7 @@ impl OutcomeError for Error {
             Self::FailedToSerializeReplay => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
             Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
-                DiscardItemType::ReplayRecording,
+                crate::services::outcome::DiscardItemType::ReplayRecording,
             ))),
             #[cfg(feature = "processing")]
             Self::NoEventId => Some(Outcome::Invalid(DiscardReason::Internal)),
