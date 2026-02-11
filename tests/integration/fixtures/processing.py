@@ -62,7 +62,6 @@ def processing_config(get_topic_name):
                 "outcomes_billing": outcomes_topic,
                 "metrics_sessions": metrics_topic,
                 "metrics_generic": metrics_topic,
-                "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
                 "spans": get_topic_name("spans"),
@@ -406,11 +405,6 @@ def metrics_consumer(consumer_fixture):
 @pytest.fixture
 def replay_recordings_consumer(consumer_fixture):
     yield from consumer_fixture(ReplayRecordingsConsumer, "replay_recordings")
-
-
-@pytest.fixture
-def replay_events_consumer(consumer_fixture):
-    yield from consumer_fixture(ReplayEventsConsumer, "replay_events")
 
 
 @pytest.fixture
