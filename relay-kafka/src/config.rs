@@ -35,8 +35,6 @@ pub enum KafkaTopic {
     MetricsGeneric,
     /// Profiles
     Profiles,
-    /// ReplayEvents, breadcrumb + session updates for replays
-    ReplayEvents,
     /// ReplayRecordings, large blobs sent by the replay sdk
     ReplayRecordings,
     /// Monitor check-ins.
@@ -54,7 +52,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 14] = [
+        static TOPICS: [KafkaTopic; 13] = [
             Events,
             Attachments,
             Transactions,
@@ -63,7 +61,6 @@ impl KafkaTopic {
             MetricsSessions,
             MetricsGeneric,
             Profiles,
-            ReplayEvents,
             ReplayRecordings,
             Monitors,
             Spans,
@@ -139,7 +136,6 @@ define_topic_assignments! {
     metrics_sessions: (KafkaTopic::MetricsSessions, "ingest-metrics", "Topic name for metrics extracted from sessions, aka release health."),
     metrics_generic: (KafkaTopic::MetricsGeneric, "ingest-performance-metrics", "Topic name for all other kinds of metrics."),
     profiles: (KafkaTopic::Profiles, "profiles", "Stacktrace topic name"),
-    replay_events: (KafkaTopic::ReplayEvents, "ingest-replay-events", "Replay Events topic name."),
     replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
     monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
     spans: (KafkaTopic::Spans, "ingest-spans", "Standalone spans without a transaction."),
@@ -348,7 +344,7 @@ transactions: "ingest-transactions-kafka-topic"
         );
 
         let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
-        insta::assert_debug_snapshot!(topics, @r###"
+        insta::assert_debug_snapshot!(topics, @r#"
         TopicAssignments {
             events: TopicAssignment(
                 [
@@ -424,15 +420,6 @@ transactions: "ingest-transactions-kafka-topic"
                     },
                 ],
             ),
-            replay_events: TopicAssignment(
-                [
-                    TopicConfig {
-                        topic_name: "ingest-replay-events",
-                        kafka_config_name: None,
-                        key_rate_limit: None,
-                    },
-                ],
-            ),
             replay_recordings: TopicAssignment(
                 [
                     TopicConfig {
@@ -482,7 +469,7 @@ transactions: "ingest-transactions-kafka-topic"
                 [],
             ),
         }
-        "###);
+        "#);
     }
 
     #[test]
