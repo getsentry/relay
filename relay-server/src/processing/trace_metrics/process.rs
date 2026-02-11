@@ -124,7 +124,9 @@ fn normalize_trace_metric(
 
     process_value(
         metric,
-        &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+        &mut SchemaProcessor::new()
+            .with_required(RequiredMode::DeleteParent)
+            .with_verbose_errors(relay_log::enabled!(relay_log::Level::DEBUG)),
         ProcessingState::root(),
     )?;
 
