@@ -301,7 +301,11 @@ def mini_sentry(request):  # noqa
     def count_hits():
         # Consume POST body even if we don't like this request
         # to no clobber the socket and buffers
-        _ = flask_request.data
+        try:
+            _ = flask_request.data
+        except Exception:
+            # stream might be invalid
+            pass
 
         if flask_request.url_rule:
             sentry.hit(flask_request.url_rule.rule)
