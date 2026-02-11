@@ -7,6 +7,8 @@ resolver = "2"
 # Debug information slows down the build and increases caches in the
 # target folder, but we don't require stack traces in most cases.
 debug = false
+
+[profile.dev.package."*"]
 opt-level = 1
 
 [profile.dev-debug]
@@ -14,7 +16,6 @@ opt-level = 1
 # debugging.
 inherits = "dev"
 debug = true
-opt-level = 0
 
 [profile.release]
 # In release, however, we do want full debug information to report
