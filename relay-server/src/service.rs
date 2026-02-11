@@ -353,7 +353,10 @@ impl ServiceState {
             upstream_relay,
             envelope_buffer,
             autoscaling,
+            #[cfg(feature = "processing")]
             upload,
+            #[cfg(not(feature = "processing"))]
+            upload: None,
         };
 
         let state = StateInner {

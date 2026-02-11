@@ -8,18 +8,15 @@
 mod tus;
 
 use axum::body::Body;
-
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
-use axum::http::{Method, Uri};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use bytes::Bytes;
-use futures::{Stream, StreamExt};
 use relay_config::Config;
 use relay_quotas::Scoping;
 use relay_system::Addr;
 use tower_http::limit::RequestBodyLimitLayer;
 
+use crate::Envelope;
 use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
@@ -27,8 +24,7 @@ use crate::managed::Managed;
 use crate::service::ServiceState;
 use crate::services::upload::{Upload, UploadStream};
 use crate::services::upstream::UpstreamRelay;
-use crate::utils::{ForwardError, ForwardRequest, ForwardRequestBuilder, ForwardResponse};
-use crate::{Envelope, middlewares};
+use crate::utils::{ForwardError, ForwardRequest, ForwardResponse};
 
 use self::tus::{TUS_RESUMABLE, TUS_VERSION, UPLOAD_OFFSET, validate_headers};
 
@@ -46,17 +42,36 @@ pub enum UploadError {
 
     #[error("upload failed: {0}")]
     UploadFailed(#[from] BadStoreRequest),
+
+    #[error("upstream error: {0}")]
+    Forward(#[from] ForwardError),
+
+    #[error("upload service error: {0}")]
+    UploadService(#[from] crate::services::upload::Error),
+
+    #[error("service unavailable")]
+    ServiceUnavailable,
 }
 
 impl IntoResponse for UploadError {
     fn into_response(self) -> axum::response::Response {
+        // Delegate to inner error types that have their own status code mapping.
+        match self {
+            UploadError::UploadFailed(inner) => return inner.into_response(),
+            UploadError::Forward(inner) => return inner.into_response(),
+            _ => {}
+        }
+
         let status = match &self {
             UploadError::Tus(_) | UploadError::BodyReadError(_) => StatusCode::BAD_REQUEST,
             UploadError::PayloadTooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
-            UploadError::UploadFailed(inner) => {
-                // Delegate to inner error for proper status code mapping
-                return inner.to_string().into_response();
+            UploadError::UploadService(crate::services::upload::Error::LoadShed)
+            | UploadError::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+            UploadError::UploadService(crate::services::upload::Error::Timeout) => {
+                StatusCode::GATEWAY_TIMEOUT
             }
+            UploadError::UploadService(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            UploadError::UploadFailed(_) | UploadError::Forward(_) => unreachable!(),
         };
 
         let mut response = (status, self.to_string()).into_response();
@@ -83,15 +98,13 @@ async fn handle(
 ) -> axum::response::Result<impl IntoResponse> {
     let expected_length = validate_headers(&headers).map_err(UploadError::from)?;
 
-    // TODO: something like ExactStream which raises an error if the actual size exceeds the expected one.
-
     let project = state.project_cache_handle().get(meta.public_key());
 
     // Create pseudo-envelope.
     // This is currently the easiest way to ensure that fast-path checks are applied for non-envelopes.
     let mut envelope = Envelope::from_request(None, meta);
     let mut item = Item::new(ItemType::Attachment);
-    item.set_original_length(expected_length as u64);
+    item.set_original_length(expected_length);
     item.set_payload(ContentType::AttachmentRef, vec![]);
     envelope.add_item(item);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
@@ -107,37 +120,27 @@ async fn handle(
     let scoping = envelope.scoping();
     envelope.accept(|x| x); // We're not really processing an envelope here.
 
-    dbg!(Sink::new(&state).upload(uri.path(), body).await);
+    let result = Sink::new(&state).upload(scoping, uri.path(), body).await?;
 
-    // while let Some(chunk_result) = stream.next().await {
-    //     let chunk = chunk_result.map_err(|e| UploadError::BodyReadError(e))?;
-    //     bytes_received += chunk.len();
+    match result {
+        SinkResult::Forwarded(response) => Ok(response.into_response()),
+        SinkResult::Uploaded => {
+            let mut response_headers = HeaderMap::new();
+            response_headers.insert(TUS_RESUMABLE, HeaderValue::from_static(TUS_VERSION));
+            response_headers.insert(
+                UPLOAD_OFFSET,
+                HeaderValue::from_str(&expected_length.to_string()).unwrap(),
+            );
+            Ok((StatusCode::CREATED, response_headers, "").into_response())
+        }
+    }
+}
 
-    //     if bytes_received > expected_length {
-    //         return Err(UploadError::PayloadTooLarge { expected_length })?;
-    //     }
-
-    //     // TODO: Process each chunk as it arrives
-    //     // - Write to storage
-    //     // - Update progress tracking
-    //     // For now, we just count bytes to validate the upload length
-    // }
-
-    // TODO: Implement actual upload handling
-    // - Generate a unique upload ID
-    // - Finalize the stored data
-    // - Return the location of the created resource
-
-    // Build success response with TUS headers
-    let mut response_headers = HeaderMap::new();
-    response_headers.insert(TUS_RESUMABLE, HeaderValue::from_static(TUS_VERSION));
-    response_headers.insert(
-        UPLOAD_OFFSET,
-        HeaderValue::from_str(&expected_length.to_string()).unwrap(),
-    );
-    // TODO: Add Location header with the upload URL once we have upload ID generation
-
-    Ok((StatusCode::CREATED, response_headers, ""))
+enum SinkResult {
+    /// The response from forwarding to upstream relay.
+    Forwarded(ForwardResponse),
+    /// The upload was handled locally by the upload service.
+    Uploaded,
 }
 
 enum Sink {
@@ -156,19 +159,24 @@ impl Sink {
 
     async fn upload(
         &self,
-        // scoping: Scoping,
+        scoping: Scoping,
         path: &str,
         body: Body,
-    ) {
+    ) -> Result<SinkResult, UploadError> {
         match self {
             Sink::Upstream(addr) => {
-                ForwardRequest::builder(Method::POST, path.to_owned())
+                let response = ForwardRequest::builder(Method::POST, path.to_owned())
                     .with_body(body)
                     .send_to(addr)
-                    .await;
+                    .await?;
+                Ok(SinkResult::Forwarded(response))
             }
             Sink::Upload(addr) => {
-                addr.send(UploadStream { body }).await;
+                addr.send(UploadStream { scoping, body })
+                    .await
+                    .map_err(|_| UploadError::ServiceUnavailable)?
+                    .map_err(UploadError::UploadService)?;
+                Ok(SinkResult::Uploaded)
             }
         }
     }

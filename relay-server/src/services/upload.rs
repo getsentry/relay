@@ -1,16 +1,16 @@
 //! Service that uploads attachments.
 use std::array::TryFromSliceError;
+use std::io;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::body::Body;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
-use futures::{FutureExt, Stream, StreamExt};
+use futures::{FutureExt, StreamExt};
 use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
 use relay_config::UploadServiceConfig;
-use relay_quotas::DataCategory;
+use relay_quotas::{DataCategory, Scoping};
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, NoResponse, Receiver, Sender, Service,
 };
@@ -36,7 +36,7 @@ pub enum Upload {
     Attachment(Managed<StoreAttachment>),
     Stream {
         message: UploadStream,
-        sender: Sender<()>,
+        sender: Sender<Result<(), Error>>,
     }, // TODO: make managed.
 }
 
@@ -81,9 +81,9 @@ impl FromMessage<Managed<StoreAttachment>> for Upload {
 }
 
 impl FromMessage<UploadStream> for Upload {
-    type Response = AsyncResponse<()>;
+    type Response = AsyncResponse<Result<(), Error>>;
 
-    fn from_message(message: UploadStream, sender: Sender<()>) -> Self {
+    fn from_message(message: UploadStream, sender: Sender<Result<(), Error>>) -> Self {
         Self::Stream { message, sender }
     }
 }
@@ -107,6 +107,8 @@ impl Counted for StoreAttachment {
 
 /// A request body to be uploaded to objectstore.
 pub struct UploadStream {
+    /// Scoping information for the objectstore upload path.
+    pub scoping: Scoping,
     /// The body to be uploaded to objectstore.
     pub body: axum::body::Body, // TODO: use a simpler type?
 }
@@ -208,9 +210,8 @@ impl UploadService {
                     // TODO: After the experimental phase, implement backpressure instead.
                     let _ = managed.reject_err(Error::LoadShed);
                 }
-                Upload::Stream { .. } => {
-                    // TODO: should reject here.
-                    relay_log::error!("Dropping streamed data")
+                Upload::Stream { sender, .. } => {
+                    sender.send(Err(Error::LoadShed));
                 }
             };
             return;
@@ -387,10 +388,44 @@ impl UploadServiceInner {
         Ok(())
     }
 
-    async fn handle_stream(&self, stream: UploadStream, sender: Sender<()>) {
-        // TODO: emit metric
+    async fn handle_stream(&self, stream: UploadStream, sender: Sender<Result<(), Error>>) {
+        let scoping = stream.scoping;
+        let session = match self
+            .event_attachments
+            .for_project(scoping.organization_id.value(), scoping.project_id.value())
+            .session(&self.objectstore_client)
+        {
+            Ok(session) => session,
+            Err(error) => {
+                relay_statsd::metric!(
+                    counter(RelayCounters::AttachmentUpload) += 1,
+                    result = error.to_string().as_str(),
+                    type = "stream",
+                );
+                sender.send(Err(Error::UploadFailed(error)));
+                return;
+            }
+        };
 
-        self.really_upload("stream", &session, payload, key)
+        let client_stream = stream
+            .body
+            .into_data_stream()
+            .map(|result| result.map_err(|e| io::Error::other(e)))
+            .boxed();
+        let put_builder = session.put_stream(client_stream);
+
+        let result = self.really_upload("stream", put_builder).await;
+
+        relay_statsd::metric!(
+            counter(RelayCounters::AttachmentUpload) += 1,
+            result = match &result {
+                Ok(_) => "success",
+                Err(e) => e.as_str(),
+            },
+            type = "stream",
+        );
+
+        sender.send(result.map(|_key| ()));
     }
 
     async fn upload(
