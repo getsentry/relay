@@ -346,7 +346,7 @@ pub enum FiltersStatus {
 pub fn filter(
     headers: &EnvelopeHeaders,
     event: &Annotated<Event>,
-    ctx: &Context,
+    ctx: Context,
 ) -> Result<FiltersStatus, FilterStatKey> {
     let event = match event.value() {
         Some(event) => event,
