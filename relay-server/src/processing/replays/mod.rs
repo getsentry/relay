@@ -266,11 +266,6 @@ enum ExpandedReplay {
         recording: Bytes,
         video: Bytes,
     },
-    /// A standalone replay event.
-    ///
-    /// Although a `replay_event` and `replay_recording` should always be send together in an
-    /// envelope, this is not the case for some SDKs. As such, support this to not break them.
-    StandaloneEvent { event: Annotated<Replay> },
     /// A standalone replay recording.
     ///
     /// Although a `replay_event` and `replay_recording` should always be send together in an
@@ -284,9 +279,7 @@ impl Counted for ExpandedReplay {
             ExpandedReplay::WebReplay { .. } => {
                 smallvec::smallvec![(DataCategory::Replay, 2)]
             }
-            ExpandedReplay::NativeReplay { .. }
-            | ExpandedReplay::StandaloneEvent { .. }
-            | ExpandedReplay::StandaloneRecording { .. } => {
+            ExpandedReplay::NativeReplay { .. } | ExpandedReplay::StandaloneRecording { .. } => {
                 smallvec::smallvec![(DataCategory::Replay, 1)]
             }
         }
@@ -298,17 +291,15 @@ impl ExpandedReplay {
         match self {
             ExpandedReplay::WebReplay { event, .. } => Some(event),
             ExpandedReplay::NativeReplay { event, .. } => Some(event),
-            ExpandedReplay::StandaloneEvent { event } => Some(event),
             ExpandedReplay::StandaloneRecording { .. } => None,
         }
     }
 
-    fn recording_mut(&mut self) -> Option<&mut Bytes> {
+    fn recording_mut(&mut self) -> &mut Bytes {
         match self {
-            ExpandedReplay::WebReplay { recording, .. } => Some(recording),
-            ExpandedReplay::NativeReplay { recording, .. } => Some(recording),
-            ExpandedReplay::StandaloneEvent { .. } => None,
-            ExpandedReplay::StandaloneRecording { recording } => Some(recording),
+            ExpandedReplay::WebReplay { recording, .. } => recording,
+            ExpandedReplay::NativeReplay { recording, .. } => recording,
+            ExpandedReplay::StandaloneRecording { recording } => recording,
         }
     }
 }
