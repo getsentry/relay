@@ -21,7 +21,7 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
-use crate::services::upload::{Upload, UploadStream};
+use crate::services::upload::{ExactStream, Upload, UploadStream};
 use crate::services::upstream::UpstreamRelay;
 use crate::utils::{ForwardError, ForwardRequest, ForwardResponse};
 
@@ -118,9 +118,7 @@ async fn handle(
     }
     let scoping = envelope.scoping();
     let upload_stream = UploadStream {
-        scoping,
-        body,
-        expected_length,
+        body: ExactStream::new(body, expected_length),
     };
     let managed_stream = envelope.wrap(upload_stream);
     envelope.accept(|_| ()); // We're not really processing an envelope here.
@@ -169,9 +167,9 @@ impl Sink {
     ) -> Result<SinkResult, UploadError> {
         match self {
             Sink::Upstream(addr) => {
-                let body = managed_stream.accept(|stream| stream.body);
+                let exact_stream = managed_stream.accept(|stream| stream.body);
                 let response = ForwardRequest::builder(Method::POST, path.to_owned())
-                    .with_body(body)
+                    .with_body(Body::from_stream(exact_stream))
                     .send_to(addr)
                     .await?;
                 Ok(SinkResult::Forwarded(response))

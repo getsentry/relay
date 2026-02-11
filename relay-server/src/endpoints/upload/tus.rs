@@ -77,9 +77,22 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_tus_headers_missing_content_type() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
+        let result = validate_headers(&headers);
+        assert!(matches!(result, Err(Error::ContentType)));
+    }
+
+    #[test]
     fn test_validate_tus_headers_missing_length() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(
+            hyper::header::CONTENT_TYPE,
+            HeaderValue::from_static(EXPECTED_CONTENT_TYPE),
+        );
         let result = validate_headers(&headers);
         assert!(matches!(result, Err(Error::UploadLength)));
     }
@@ -88,6 +101,10 @@ mod tests {
     fn test_validate_tus_headers_valid() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(
+            hyper::header::CONTENT_TYPE,
+            HeaderValue::from_static(EXPECTED_CONTENT_TYPE),
+        );
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_headers(&headers);
         assert_eq!(result.unwrap(), 1024);
