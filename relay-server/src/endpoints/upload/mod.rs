@@ -8,8 +8,9 @@
 mod tus;
 
 use axum::body::Body;
-use axum::extract::DefaultBodyLimit;
+
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::http::{Method, Uri};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
@@ -19,9 +20,14 @@ use relay_system::Addr;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::BadStoreRequest;
-use crate::middlewares;
+use crate::envelope::{ContentType, Item, ItemType};
+use crate::extractors::RequestMeta;
+use crate::managed::Managed;
 use crate::service::ServiceState;
 use crate::services::upload::Upload;
+use crate::services::upstream::UpstreamRelay;
+use crate::utils::{ForwardRequest, ForwardRequestBuilder};
+use crate::{Envelope, middlewares};
 
 use self::tus::{TUS_RESUMABLE, TUS_VERSION, UPLOAD_OFFSET, validate_headers};
 
@@ -69,16 +75,36 @@ impl IntoResponse for UploadError {
 /// The body is processed as a stream to avoid loading the entire upload into memory.
 async fn handle(
     state: ServiceState,
+    meta: RequestMeta,
+    uri: Uri,
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     // Validate TUS protocol headers
     let expected_length = validate_headers(&headers).map_err(UploadError::from)?;
 
-    // Stream the body and count bytes
-    let mut stream = body.into_data_stream();
+    let project = state.project_cache_handle().get(meta.public_key());
 
-    Sink::new(&state).upload(stream).await?;
+    // Create pseudo-envelope.
+    // This is currently the easiest way to ensure that fast-path checks are applied for non-envelopes.
+    let mut envelope = Envelope::from_request(None, meta);
+    let mut item = Item::new(ItemType::Attachment);
+    item.set_original_length(expected_length as u64);
+    item.set_payload(ContentType::AttachmentRef, vec![]);
+    envelope.add_item(item);
+    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
+    let rate_limits = project
+        .check_envelope(&mut envelope)
+        .await
+        .map_err(|err| err.map(BadStoreRequest::EventRejected))?;
+    if envelope.is_empty() {
+        return Err(envelope
+            .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
+            .into());
+    }
+    envelope.accept(|x| x); // We're not really processing an envelope here.
+
+    // Sink::new(&state).upload(project, body).await?;
 
     // while let Some(chunk_result) = stream.next().await {
     //     let chunk = chunk_result.map_err(|e| UploadError::BodyReadError(e))?;
@@ -112,7 +138,7 @@ async fn handle(
 }
 
 enum Sink {
-    Upstream,
+    Upstream(Addr<UpstreamRelay>),
     Upload(Addr<Upload>),
 }
 
@@ -121,22 +147,26 @@ impl Sink {
         if let Some(addr) = state.upload() {
             Self::Upload(addr.clone())
         } else {
-            Self::Upstream
+            Self::Upstream(state.upstream_relay().clone())
         }
     }
 
-    async fn upload(
-        &self,
-        stream: impl Stream<Item = Result<Bytes, axum::Error>>,
-    ) -> Result<(), BadStoreRequest> {
-        match self {
-            Sink::Upstream => {}
-            Sink::Upload(addr) => {
-                todo!();
-            }
-        }
-        Ok(())
-    }
+    // async fn upload(
+    //     &self,
+    //     uri: Proj
+    //     body: Body,
+    // ) -> Result<(), BadStoreRequest> {
+    //     match self {
+    //         Sink::Upstream(addr) => {
+    //             let request = ForwardRequest::builder(Method::POST, )
+    //             // addr.send(UpstreamRelay::SendRequest(ForwardRequestBuilder))
+    //         }
+    //         Sink::Upload(addr) => {
+    //             todo!();
+    //         }
+    //     }
+    //     Ok(())
+    // }
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {

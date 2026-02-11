@@ -13,6 +13,7 @@ use crate::services::projects::project::ProjectState;
 use crate::utils::{CheckLimits, EnvelopeLimiter};
 
 /// A loaded project.
+#[derive(Debug)]
 pub struct Project<'a> {
     shared: SharedProject,
     config: &'a Config,

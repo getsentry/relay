@@ -293,7 +293,7 @@ impl ServiceState {
                             outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
                             #[cfg(feature = "processing")]
-                            upload,
+                            upload: upload.clone(),
                             #[cfg(feature = "processing")]
                             store_forwarder: store,
                             aggregator: aggregator.clone(),

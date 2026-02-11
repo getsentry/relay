@@ -15,6 +15,9 @@ pub enum Error {
     /// The `Upload-Length` header is missing or cannot be parsed.
     #[error("Invalid Upload-Length")]
     UploadLength,
+    /// The `Content-Type` header is not what TUS expects.
+    #[error("Invalid Content-Type")]
+    ContentType,
 }
 
 /// TUS protocol version supported by this endpoint.
@@ -29,8 +32,11 @@ pub const UPLOAD_LENGTH: &str = "Upload-Length";
 /// TUS protocol header for the current upload offset.
 pub const UPLOAD_OFFSET: &str = "Upload-Offset";
 
+/// Expected value of the content-type header.
+pub const EXPECTED_CONTENT_TYPE: &str = "application/offset+octet-stream";
+
 /// Validates TUS protocol headers and returns the expected upload length.
-pub fn validate_headers(headers: &HeaderMap) -> Result<usize, Error> {
+pub fn validate_headers(headers: &HeaderMap) -> Result<u64, Error> {
     let tus_version = headers
         .get(TUS_RESUMABLE)
         .ok_or_else(|| Error::Version("None".to_owned()))?
@@ -41,12 +47,17 @@ pub fn validate_headers(headers: &HeaderMap) -> Result<usize, Error> {
         return Err(Error::Version(tus_version.into()));
     }
 
+    let content_type = headers.get(hyper::header::CONTENT_TYPE);
+    if content_type.is_none_or(|ct| ct != EXPECTED_CONTENT_TYPE) {
+        return Err(Error::ContentType);
+    }
+
     let upload_length = headers
         .get(UPLOAD_LENGTH)
         .ok_or(Error::UploadLength)?
         .to_str()
         .map_err(|_| Error::UploadLength)?
-        .parse::<usize>()
+        .parse()
         .map_err(|_| Error::UploadLength)?;
 
     Ok(upload_length)

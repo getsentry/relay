@@ -189,6 +189,7 @@ impl UploadService {
                     // TODO: After the experimental phase, implement backpressure instead.
                     let _ = managed.reject_err(Error::LoadShed);
                 }
+                Upload::Stream(_) => todo!(),
             };
             return;
         }
@@ -239,6 +240,7 @@ impl UploadServiceInner {
                 self.handle_envelope(envelope).await;
             }
             Upload::Attachment(attachment) => self.handle_attachment(attachment).await,
+            Upload::Stream(body) => todo!(),
         }
     }
 

@@ -47,6 +47,7 @@ impl Item {
                 platform: None,
                 parent_id: None,
                 meta_length: None,
+                original_length: None,
             },
             payload: Bytes::new(),
         }
@@ -448,6 +449,13 @@ impl Item {
         self.headers.meta_length = Some(meta_length);
     }
 
+    /// Sets the length of the attachment referenced by this item.
+    ///
+    /// Only applicable if the item is an attachment with [`ContentType::AttachmentRef`].
+    pub fn set_original_length(&mut self, original_length: u64) {
+        self.headers.original_length = Some(original_length);
+    }
+
     /// Returns the parent entity that this item is associated with, if any.
     ///
     /// Only applicable if the item is an attachment.
@@ -474,6 +482,12 @@ impl Item {
     /// Returns `true` if this item is a V2 attachment without any span/log/etc. association.
     pub fn is_trace_attachment(&self) -> bool {
         self.is_attachment_v2() && self.parent_id().is_none()
+    }
+
+    /// Returns `true` if this item is an attachment placeholder.
+    fn is_attachment_ref(&self) -> bool {
+        self.ty() == &ItemType::Attachment
+            && self.content_type() == Some(&ContentType::AttachmentRef)
     }
 
     /// Returns the [`AttachmentParentType`] of an attachment.
@@ -508,6 +522,8 @@ impl Item {
         if self.is_attachment_v2() {
             self.len()
                 .saturating_sub(self.meta_length().unwrap_or(0) as usize)
+        } else if self.is_attachment_ref() {
+            self.headers.original_length.unwrap_or(0) as usize
         } else {
             self.len()
         }
@@ -1038,6 +1054,13 @@ pub struct ItemHeaders {
     /// For the time being only applicable if the item is a trace attachment.
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     parent_id: Option<ParentId>,
+
+    /// Size of the attachment this reference rate limits.
+    ///
+    /// Only valid in combination with [`ContentType::AttachmentRef`]. This untrusted header is used
+    /// to emit negative outcomes, but must not be used for consistent rate limiting.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    original_length: Option<u64>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
