@@ -247,7 +247,7 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
     [
         "/api/42/store/",
         "/api/42/envelope/",
-        "/api/666/envelope/",
+        "/api/42/attachment/",
         "/api/42/minidump/",
     ],
 )
