@@ -68,6 +68,9 @@ impl IntoResponse for ForwardError {
                 HttpError::Misconfigured => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             Self::Upstream(UpstreamRequestError::SendFailed(e)) => {
+                if has_source::<http_body_util::LengthLimitError>(&e) {
+                    return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+                }
                 if e.is_timeout() {
                     StatusCode::GATEWAY_TIMEOUT.into_response()
                 } else {
@@ -82,6 +85,7 @@ impl IntoResponse for ForwardError {
 }
 
 /// A http response of a successfully forwarded request.
+#[derive(Debug)]
 pub struct ForwardResponse {
     status: StatusCode,
     headers: HeaderMap,
@@ -330,4 +334,16 @@ impl ForwardRequestBuilder {
 
         Ok(tokio::time::timeout(self.timeout, self.receiver).await???)
     }
+}
+
+/// Returns `true` if any of the error's sources matches the given type.
+fn has_source<T: std::error::Error + 'static>(error: &dyn std::error::Error) -> bool {
+    let mut source = error.source();
+    while let Some(s) = source {
+        if s.downcast_ref::<T>().is_some() {
+            return true;
+        }
+        source = s.source();
+    }
+    false
 }
