@@ -3,6 +3,7 @@ name: Beta CI
 on:
   schedule:
     - cron: "11 7 * * 1,4" # At 07:11 AM, only on Monday and Thursday
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
