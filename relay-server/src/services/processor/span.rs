@@ -24,10 +24,10 @@ pub fn filter(
     }
 
     managed_envelope.retain_items(|item| match item.ty() {
-       ItemType::Span => {
+        ItemType::Span => {
             relay_log::debug!("dropping span because feature is disabled");
             ItemAction::DropSilently
-       }
-       _ => ItemAction::Keep,
+        }
+        _ => ItemAction::Keep,
     });
 }

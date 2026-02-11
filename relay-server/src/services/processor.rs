@@ -42,7 +42,7 @@ use crate::envelope::{
     self, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType,
 };
 use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
-use crate::integrations::{Integration, SpansIntegration};
+use crate::integrations::Integration;
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
