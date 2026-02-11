@@ -124,15 +124,17 @@
 <a href=#124 id=124 data-nosnippet>124</a>
 <a href=#125 id=125 data-nosnippet>125</a>    process_value(
 <a href=#126 id=126 data-nosnippet>126</a>        metric,
-<a href=#127 id=127 data-nosnippet>127</a>        <span class="kw-2">&amp;mut </span>SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
-<a href=#128 id=128 data-nosnippet>128</a>        ProcessingState::root(),
-<a href=#129 id=129 data-nosnippet>129</a>    )<span class="question-mark">?</span>;
-<a href=#130 id=130 data-nosnippet>130</a>
-<a href=#131 id=131 data-nosnippet>131</a>    <span class="kw">if let </span>Annotated(<span class="prelude-val">None</span>, meta) = metric {
-<a href=#132 id=132 data-nosnippet>132</a>        <span class="macro">relay_log::debug!</span>(<span class="string">"empty metric: {meta:?}"</span>);
-<a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Invalid(DiscardReason::NoData));
-<a href=#134 id=134 data-nosnippet>134</a>    }
-<a href=#135 id=135 data-nosnippet>135</a>
-<a href=#136 id=136 data-nosnippet>136</a>    <span class="prelude-val">Ok</span>(())
-<a href=#137 id=137 data-nosnippet>137</a>}
+<a href=#127 id=127 data-nosnippet>127</a>        <span class="kw-2">&amp;mut </span>SchemaProcessor::new()
+<a href=#128 id=128 data-nosnippet>128</a>            .with_required(RequiredMode::DeleteParent)
+<a href=#129 id=129 data-nosnippet>129</a>            .with_verbose_errors(<span class="macro">relay_log::enabled!</span>(relay_log::Level::DEBUG)),
+<a href=#130 id=130 data-nosnippet>130</a>        ProcessingState::root(),
+<a href=#131 id=131 data-nosnippet>131</a>    )<span class="question-mark">?</span>;
+<a href=#132 id=132 data-nosnippet>132</a>
+<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">if let </span>Annotated(<span class="prelude-val">None</span>, meta) = metric {
+<a href=#134 id=134 data-nosnippet>134</a>        <span class="macro">relay_log::debug!</span>(<span class="string">"empty metric: {meta:?}"</span>);
+<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Invalid(DiscardReason::NoData));
+<a href=#136 id=136 data-nosnippet>136</a>    }
+<a href=#137 id=137 data-nosnippet>137</a>
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="prelude-val">Ok</span>(())
+<a href=#139 id=139 data-nosnippet>139</a>}
 </code></pre></div></section></main></body></html>
