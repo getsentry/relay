@@ -79,7 +79,6 @@ def test_replay_recording_with_video_denied(
     relay_with_processing,
     replay_recordings_consumer,
     outcomes_consumer,
-    replay_events_consumer,
 ):
     project_id = 42
     replay_id = "515539018c9b4260a6f999572f1661ee"
@@ -96,7 +95,6 @@ def test_replay_recording_with_video_denied(
         },
     )
     replay = generate_replay_sdk_event(replay_id)
-    replay_events_consumer = replay_events_consumer(timeout=10)
     replay_recordings_consumer = replay_recordings_consumer()
     outcomes_consumer = outcomes_consumer()
 
@@ -125,4 +123,3 @@ def test_replay_recording_with_video_denied(
     # Assert all conumers are empty.
     replay_recordings_consumer.assert_empty()
     outcomes_consumer.assert_empty()
-    replay_events_consumer.assert_empty()

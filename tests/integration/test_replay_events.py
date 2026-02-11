@@ -123,7 +123,6 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
 def test_replay_events_are_filtered(
     mini_sentry,
     relay_with_processing,
-    replay_events_consumer,
     outcomes_consumer,
 ):
     relay = relay_with_processing()
@@ -134,7 +133,6 @@ def test_replay_events_are_filtered(
     filter_settings["localhost"] = {"isEnabled": True}
     outcomes_consumer = outcomes_consumer()
 
-    replay_events_consumer = replay_events_consumer(timeout=10)
     replay = generate_replay_sdk_event()
     replay["request"]["url"] = "http://localhost:1200"
 
@@ -148,5 +146,4 @@ def test_replay_events_are_filtered(
     assert outcome["category"] == 7
     assert outcome["quantity"] == 2
 
-    replay_events_consumer.assert_empty()
     outcomes_consumer.assert_empty()

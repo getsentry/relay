@@ -60,7 +60,6 @@ def test_replay_combined_with_processing(
 def test_standalone_recording_from_faulty_sdk(
     mini_sentry,
     relay_with_processing,
-    replay_events_consumer,
     replay_recordings_consumer,
     use_new_processing,
 ):
@@ -77,7 +76,6 @@ def test_standalone_recording_from_faulty_sdk(
         extra={"config": {"features": features}},
     )
 
-    replay_events_consumer = replay_events_consumer(timeout=10)
     replay_recordings_consumer = replay_recordings_consumer()
 
     envelope = Envelope(headers=[["event_id", replay_id]])
