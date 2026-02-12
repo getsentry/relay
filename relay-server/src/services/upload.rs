@@ -1,16 +1,13 @@
 //! Service that uploads attachments.
 use std::array::TryFromSliceError;
 use std::io;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 use std::time::Duration;
 
-use axum::body::Body;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
-use futures::{FutureExt, Stream, StreamExt};
+use futures::{FutureExt, StreamExt};
 use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
 use relay_config::UploadServiceConfig;
 use relay_quotas::DataCategory;
@@ -19,7 +16,6 @@ use relay_system::{
 };
 use sentry_protos::snuba::v1::TraceItem;
 use smallvec::smallvec;
-use sync_wrapper::SyncWrapper;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::ItemType;
@@ -31,6 +27,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
+use crate::utils::ExactStream;
 
 use super::outcome::Outcome;
 
@@ -112,7 +109,7 @@ impl Counted for StoreAttachment {
 /// A request body to be uploaded to objectstore.
 pub struct UploadStream {
     /// The body to be uploaded to objectstore, with length validation.
-    pub body: ExactStream,
+    pub body: ExactStream<futures::stream::BoxStream<'static, io::Result<Bytes>>>,
 }
 
 impl Counted for UploadStream {
@@ -121,76 +118,6 @@ impl Counted for UploadStream {
             DataCategory::Attachment,
             self.body.expected_length() as usize
         )]
-    }
-}
-
-/// A streaming body that validates the total byte count against the announced length.
-///
-/// Returns an error if the stream provides more bytes than `expected_length` (checked per chunk)
-/// or fewer bytes than `expected_length` (checked when the stream ends).
-///
-/// This type is `Sync` via [`SyncWrapper`].
-pub struct ExactStream {
-    inner: SyncWrapper<Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>>,
-    expected_length: u64,
-    bytes_received: u64,
-}
-
-impl ExactStream {
-    /// Creates a new `ExactStream` from an axum [`Body`] and the expected total length.
-    pub fn new(body: Body, expected_length: u64) -> Self {
-        let stream = Box::pin(body.into_data_stream());
-        Self {
-            inner: SyncWrapper::new(stream),
-            expected_length,
-            bytes_received: 0,
-        }
-    }
-
-    /// Returns the expected total length of the stream.
-    pub fn expected_length(&self) -> u64 {
-        self.expected_length
-    }
-}
-
-impl Stream for ExactStream {
-    type Item = io::Result<Bytes>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.get_mut();
-        let inner = this.inner.get_mut();
-
-        match inner.as_mut().poll_next(cx) {
-            Poll::Ready(Some(Ok(bytes))) => {
-                this.bytes_received += bytes.len() as u64;
-                if this.bytes_received > this.expected_length {
-                    Poll::Ready(Some(Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!(
-                            "stream exceeded expected length: received {} > {}",
-                            this.bytes_received, this.expected_length
-                        ),
-                    ))))
-                } else {
-                    Poll::Ready(Some(Ok(bytes)))
-                }
-            }
-            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(io::Error::other(e)))),
-            Poll::Ready(None) => {
-                if this.bytes_received < this.expected_length {
-                    Poll::Ready(Some(Err(io::Error::new(
-                        io::ErrorKind::UnexpectedEof,
-                        format!(
-                            "stream shorter than expected length: received {} < {}",
-                            this.bytes_received, this.expected_length
-                        ),
-                    ))))
-                } else {
-                    Poll::Ready(None)
-                }
-            }
-            Poll::Pending => Poll::Pending,
-        }
     }
 }
 

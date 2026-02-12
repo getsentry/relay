@@ -7,10 +7,13 @@
 
 mod tus;
 
+use std::io;
+
 use axum::body::Body;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
+use futures::StreamExt;
 use relay_config::Config;
 use relay_system::Addr;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -21,9 +24,9 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
-use crate::services::upload::{Error as UploadError, ExactStream, Upload, UploadStream};
+use crate::services::upload::{Error as UploadError, Upload, UploadStream};
 use crate::services::upstream::UpstreamRelay;
-use crate::utils::{ForwardError, ForwardRequest, ForwardResponse};
+use crate::utils::{ExactStream, ForwardError, ForwardRequest, ForwardResponse};
 
 use self::tus::{TUS_RESUMABLE, TUS_VERSION, UPLOAD_OFFSET, validate_headers};
 
@@ -100,8 +103,12 @@ async fn handle(
             .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
             .into());
     }
+    let stream = body
+        .into_data_stream()
+        .map(|result| result.map_err(io::Error::other))
+        .boxed();
     let upload_stream = UploadStream {
-        body: ExactStream::new(body, expected_length),
+        body: ExactStream::new(stream, expected_length),
     };
     let managed_stream = envelope.map(|_, _| upload_stream);
 
