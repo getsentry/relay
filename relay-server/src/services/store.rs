@@ -170,17 +170,17 @@ pub struct StoreReplay {
     /// Number of days to retain.
     pub retention_days: u16,
     /// The recording payload (rrweb data).
-    pub payload: Bytes,
+    pub recording: Bytes,
     /// Optional replay event payload (JSON).
-    pub replay_event: Option<Bytes>,
+    pub event: Option<Bytes>,
     /// Optional replay video.
-    pub replay_video: Option<Bytes>,
+    pub video: Option<Bytes>,
 }
 
 impl Counted for StoreReplay {
     fn quantities(&self) -> Quantities {
         // Web replays currently count as 2 since they are 2 items in the envelop (event + recording).
-        if self.replay_event.is_some() && self.replay_video.is_none() {
+        if self.event.is_some() && self.video.is_none() {
             smallvec![(DataCategory::Replay, 2)]
         } else {
             smallvec![(DataCategory::Replay, 1)]
@@ -741,9 +741,9 @@ impl StoreService {
                     project_id: scoping.project_id,
                     received: safe_timestamp(received_at),
                     retention_days: replay.retention_days,
-                    payload: &replay.payload,
-                    replay_event: replay.replay_event.as_deref(),
-                    replay_video: replay.replay_video.as_deref(),
+                    payload: &replay.recording,
+                    replay_event: replay.event.as_deref(),
+                    replay_video: replay.video.as_deref(),
                     // Hardcoded to `true` to indicate to the consumer that it should always publish the
                     // replay_event as relay no longer does it.
                     relay_snuba_publish_disabled: true,

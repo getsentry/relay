@@ -24,44 +24,23 @@ pub struct Context {
 ///
 /// Fails if the event can not be serialized or the created message is too large for the consumer.
 pub fn convert(replay: ExpandedReplay, ctx: &Context) -> Result<StoreReplay, Error> {
-    match replay {
-        ExpandedReplay::StandaloneRecording { recording } => {
-            Ok(into_store_replay(ctx, recording, None, None)?)
-        }
-        ExpandedReplay::WebReplay { event, recording } => {
-            let event = serialize_event(event)?;
-            Ok(into_store_replay(ctx, recording, Some(event), None)?)
-        }
+    let (recording, event, video) = match replay {
+        ExpandedReplay::StandaloneRecording { recording } => (recording, None, None),
+        ExpandedReplay::WebReplay { event, recording } => (recording, Some(event), None),
         ExpandedReplay::NativeReplay {
             event,
             recording,
             video,
-        } => {
-            let event = serialize_event(event)?;
-            Ok(into_store_replay(ctx, recording, Some(event), Some(video))?)
-        }
-    }
-}
+        } => (recording, Some(event), Some(video)),
+    };
+    let event = event.map(serialize_event).transpose()?;
 
-fn serialize_event(replay: Annotated<Replay>) -> Result<Bytes, Error> {
-    replay
-        .to_json()
-        .map_err(|_| Error::FailedToSerializeReplay)
-        .map(|json| json.into_bytes().into())
-}
-
-fn into_store_replay(
-    ctx: &Context,
-    payload: Bytes,
-    replay_event: Option<Bytes>,
-    replay_video: Option<Bytes>,
-) -> Result<StoreReplay, Error> {
     // Size of the consumer message. We can be reasonably sure this won't overflow because
     // of the request size validation provided by Nginx and Relay.
     let mut payload_size = MESSAGE_METADATA_OVERHEAD;
-    payload_size += replay_event.as_ref().map_or(0, |b| b.len());
-    payload_size += replay_video.as_ref().map_or(0, |b| b.len());
-    payload_size += payload.len();
+    payload_size += event.as_ref().map_or(0, |b| b.len());
+    payload_size += video.as_ref().map_or(0, |b| b.len());
+    payload_size += recording.len();
 
     if payload_size >= ctx.max_replay_message_size {
         relay_log::debug!("replay_recording over maximum size.");
@@ -71,8 +50,15 @@ fn into_store_replay(
     Ok(StoreReplay {
         event_id: ctx.event_id,
         retention_days: ctx.retention,
-        payload,
-        replay_event,
-        replay_video,
+        recording,
+        event,
+        video,
     })
+}
+
+fn serialize_event(replay: Annotated<Replay>) -> Result<Bytes, Error> {
+    replay
+        .to_json()
+        .map_err(|_| Error::FailedToSerializeReplay)
+        .map(|json| json.into_bytes().into())
 }
