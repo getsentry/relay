@@ -139,12 +139,20 @@ impl UploadService {
             objectstore_url,
             max_concurrent_requests,
             timeout,
+            objectstore_connect_timeout,
+            objectstore_read_timeout,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
             return Ok(None);
         };
 
-        let objectstore_client = Client::builder(objectstore_url).build()?;
+        let objectstore_client = Client::builder(objectstore_url)
+            .configure_reqwest(|builder| {
+                builder
+                    .connect_timeout(Duration::from_secs(*objectstore_connect_timeout))
+                    .timeout(Duration::from_secs(*objectstore_read_timeout))
+            })
+            .build()?;
         let event_attachments = Usecase::new("attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")

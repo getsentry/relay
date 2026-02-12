@@ -1303,6 +1303,18 @@ pub struct UploadServiceConfig {
 
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
     pub timeout: u64,
+
+    /// Timeout for establishing connections with objectstore in seconds.
+    ///
+    /// This includes TCP connection and SSL handshakes.
+    /// Defaults to 3 seconds.
+    pub objectstore_connect_timeout: u64,
+
+    /// Timeout for reading responses from objectstore in seconds.
+    ///
+    /// This covers the time to receive the full HTTP response after the request is sent.
+    /// Defaults to 30 seconds to allow for slower objectstore operations.
+    pub objectstore_read_timeout: u64,
 }
 
 impl Default for UploadServiceConfig {
@@ -1311,6 +1323,8 @@ impl Default for UploadServiceConfig {
             objectstore_url: None,
             max_concurrent_requests: 10,
             timeout: 60,
+            objectstore_connect_timeout: 3,
+            objectstore_read_timeout: 30,
         }
     }
 }
