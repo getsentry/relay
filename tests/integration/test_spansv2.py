@@ -73,6 +73,8 @@ def test_spansv2_basic(
             "attributes": {
                 "foo": {"value": "bar", "type": "string"},
                 "array": {"value": ["foo", "bar"], "type": "array"},
+                "valid_int": {"value": 9223372036854775807, "type": "integer"},
+                "invalid_int": {"value": 9223372036854775808, "type": "integer"},
                 "invalid": {"value": True, "type": "string"},
                 "http.response_content_length": {"value": 17, "type": "integer"},
             },
@@ -96,6 +98,8 @@ def test_spansv2_basic(
             "foo": {"type": "string", "value": "bar"},
             "http.response_content_length": {"value": 17, "type": "integer"},
             "http.response.body.size": {"value": 17, "type": "integer"},
+            "valid_int": {"value": 9223372036854775807, "type": "integer"},
+            "invalid_int": None,
             "invalid": None,
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
@@ -118,12 +122,18 @@ def test_spansv2_basic(
         },
         "_meta": {
             "attributes": {
+                "invalid_int": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": {"type": "integer", "value": 9223372036854775808},
+                    }
+                },
                 "invalid": {
                     "": {
                         "err": ["invalid_data"],
                         "val": {"type": "string", "value": True},
                     }
-                }
+                },
             }
         },
         "name": "some op",
