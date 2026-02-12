@@ -37,7 +37,7 @@ pub enum Upload {
     Attachment(Managed<StoreAttachment>),
     Stream {
         message: Managed<UploadStream>,
-        sender: Sender<Result<(), Error>>,
+        sender: Sender<Result<UploadKey, Error>>,
     },
 }
 
@@ -82,9 +82,12 @@ impl FromMessage<Managed<StoreAttachment>> for Upload {
 }
 
 impl FromMessage<Managed<UploadStream>> for Upload {
-    type Response = AsyncResponse<Result<(), Error>>;
+    type Response = AsyncResponse<Result<UploadKey, Error>>;
 
-    fn from_message(message: Managed<UploadStream>, sender: Sender<Result<(), Error>>) -> Self {
+    fn from_message(
+        message: Managed<UploadStream>,
+        sender: Sender<Result<UploadKey, Error>>,
+    ) -> Self {
         Self::Stream { message, sender }
     }
 }
@@ -114,10 +117,13 @@ pub struct UploadStream {
 
 impl Counted for UploadStream {
     fn quantities(&self) -> Quantities {
-        smallvec![(
-            DataCategory::Attachment,
-            self.body.expected_length() as usize
-        )]
+        smallvec![
+            (
+                DataCategory::Attachment,
+                self.body.expected_length() as usize
+            ),
+            (DataCategory::AttachmentItem, 1)
+        ]
     }
 }
 
@@ -150,6 +156,16 @@ impl OutcomeError for Error {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         (Some(Outcome::Invalid(DiscardReason::Internal)), self)
+    }
+}
+
+/// The objectstore key that identifies a successfull upload.
+#[derive(Debug, PartialEq)]
+pub struct UploadKey(String);
+
+impl UploadKey {
+    fn into_inner(self) -> String {
+        self.0
     }
 }
 
@@ -310,7 +326,7 @@ impl UploadServiceInner {
                         continue;
                     }
                     let result = self
-                        .upload("envelope", &session, attachment.payload(), None)
+                        .upload_bytes("envelope", &session, attachment.payload(), None)
                         .await;
 
                     relay_statsd::metric!(
@@ -322,7 +338,7 @@ impl UploadServiceInner {
                         type = "envelope",
                     );
                     if let Ok(stored_key) = result {
-                        attachment.set_stored_key(stored_key);
+                        attachment.set_stored_key(stored_key.into_inner());
                     }
                 }
             }
@@ -385,12 +401,12 @@ impl UploadServiceInner {
             let original_key = key.clone();
 
             let _stored_key = self
-                .upload("attachment_v2", &session, body, Some(key))
+                .upload_bytes("attachment_v2", &session, body, Some(key))
                 .await
                 .reject(&trace_item)?;
 
             #[cfg(debug_assertions)]
-            debug_assert_eq!(_stored_key, original_key);
+            debug_assert_eq!(_stored_key.into_inner(), original_key);
             relay_log::trace!("Finished attachment upload");
         }
 
@@ -403,7 +419,7 @@ impl UploadServiceInner {
     async fn handle_stream(
         &self,
         managed: Managed<UploadStream>,
-        sender: Sender<Result<(), Error>>,
+        sender: Sender<Result<UploadKey, Error>>,
     ) {
         let scoping = managed.scoping();
         let session = match self
@@ -425,11 +441,8 @@ impl UploadServiceInner {
         };
 
         let stream = managed.accept(|stream| stream);
-
-        let client_stream = stream.body.boxed();
-        let put_builder = session.put_stream(client_stream);
-
-        let result = self.really_upload("stream", put_builder).await;
+        let request = session.put_stream(stream.body.boxed());
+        let result = self.upload("stream", request).await;
 
         relay_statsd::metric!(
             counter(RelayCounters::AttachmentUpload) += 1,
@@ -440,25 +453,25 @@ impl UploadServiceInner {
             type = "stream",
         );
 
-        sender.send(result.map(|_key| ()));
+        sender.send(result);
     }
 
-    async fn upload(
+    async fn upload_bytes(
         &self,
         ty: &str,
         session: &Session,
         payload: Bytes,
         key: Option<String>,
-    ) -> Result<String, Error> {
-        relay_log::trace!("Starting attachment upload");
+    ) -> Result<UploadKey, Error> {
         let mut request = session.put(payload);
         if let Some(key) = key {
             request = request.key(key);
         }
-        self.really_upload(ty, request).await
+        self.upload(ty, request).await
     }
 
-    async fn really_upload(&self, ty: &str, request: PutBuilder) -> Result<String, Error> {
+    async fn upload(&self, ty: &str, request: PutBuilder) -> Result<UploadKey, Error> {
+        relay_log::trace!("Starting attachment upload");
         let response = relay_statsd::metric!(
             timer(RelayTimers::AttachmentUploadDuration),
             type = ty,
@@ -472,6 +485,6 @@ impl UploadServiceInner {
 
         relay_log::trace!("Finished attachment upload");
 
-        Ok(response.key)
+        Ok(UploadKey(response.key))
     }
 }

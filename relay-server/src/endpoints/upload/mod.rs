@@ -110,9 +110,9 @@ async fn handle(
     let upload_stream = UploadStream {
         body: ExactStream::new(stream, expected_length),
     };
-    let managed_stream = envelope.map(|_, _| upload_stream);
+    let stream = envelope.map(|_, _| upload_stream);
 
-    let result = Sink::new(&state).upload(uri.path(), managed_stream).await?;
+    let result = Sink::new(&state).upload(uri.path(), stream).await?;
 
     match result {
         UploadResult::Forwarded(response) => Ok(response.into_response()),
@@ -153,19 +153,21 @@ impl Sink {
     async fn upload(
         &self,
         path: &str,
-        managed_stream: Managed<UploadStream>,
+        stream: Managed<UploadStream>,
     ) -> Result<UploadResult, Error> {
         match self {
             Sink::Upstream(addr) => {
-                let exact_stream = managed_stream.accept(|stream| stream.body);
-                let response = ForwardRequest::builder(Method::POST, path.to_owned())
-                    .with_body(Body::from_stream(exact_stream))
-                    .send_to(addr)
-                    .await?;
+                let stream = stream.accept(|stream| stream.body); // WRONG
+                let response = dbg!(
+                    ForwardRequest::builder(Method::POST, dbg!(path).to_owned())
+                        .with_body(Body::from_stream(stream))
+                        .send_to(addr)
+                        .await
+                )?;
                 Ok(UploadResult::Forwarded(response))
             }
             Sink::Upload(addr) => {
-                addr.send(managed_stream)
+                addr.send(stream)
                     .await
                     .map_err(|_send_error| Error::ServiceUnavailable)?
                     .map_err(Error::UploadService)?;

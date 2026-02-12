@@ -2,12 +2,23 @@
 Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
+import time
 import uuid
 
 import pytest
+from sentry_relay.consts import DataCategory
 
 
-def test_upload_success(mini_sentry, relay):
+@pytest.fixture
+def dummy_upload(mini_sentry):
+    mini_sentry.allow_chunked = True
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def dummy_upload(**opts):
+        return "", 201
+
+
+def test_forward_success(mini_sentry, relay, dummy_upload):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
@@ -25,11 +36,10 @@ def test_upload_success(mini_sentry, relay):
     )
 
     assert response.status_code == 201
-    assert response.headers["Tus-Resumable"] == "1.0.0"
-    assert response.headers["Upload-Offset"] == str(len(data))
 
 
-def test_upload_missing_tus_version(mini_sentry, relay):
+def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload):
+
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
@@ -47,7 +57,8 @@ def test_upload_missing_tus_version(mini_sentry, relay):
     assert response.status_code == 400
 
 
-def test_upload_unsupported_tus_version(mini_sentry, relay):
+def test_upload_unsupported_tus_version(mini_sentry, relay, dummy_upload):
+
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
@@ -66,7 +77,8 @@ def test_upload_unsupported_tus_version(mini_sentry, relay):
     assert response.status_code == 400
 
 
-def test_upload_missing_upload_length(mini_sentry, relay):
+def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload):
+
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
@@ -84,7 +96,8 @@ def test_upload_missing_upload_length(mini_sentry, relay):
     assert response.status_code == 400
 
 
-def test_upload_body_too_large(mini_sentry, relay):
+def test_upload_body_too_large(mini_sentry, relay, dummy_upload):
+
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
@@ -105,8 +118,9 @@ def test_upload_body_too_large(mini_sentry, relay):
 
 
 @pytest.mark.parametrize("data_category", ["error", "attachment", "attachment_item"])
-def test_upload_rate_limited(mini_sentry, relay, data_category):
+def test_upload_rate_limited(mini_sentry, relay, data_category, dummy_upload):
     """Request is rate limited on the fast path"""
+
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
@@ -134,8 +148,64 @@ def test_upload_rate_limited(mini_sentry, relay, data_category):
     # First request goes through:
     assert request().status_code == 201
 
-    import time
-
     time.sleep(1)  # TODO: wait for log instead.
 
     assert request().status_code == 429
+
+
+PROCESSING_OPTIONS = {
+    "processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}
+}
+
+
+def test_upload_processing(mini_sentry, relay_with_processing):
+    """Upload via processing relay stores the blob in objectstore."""
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay_with_processing(PROCESSING_OPTIONS)
+
+    data = b"hello world"
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+        },
+        data=data,
+    )
+
+    assert response.status_code == 201
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert response.headers["Upload-Offset"] == str(len(data))
+
+
+def test_upload_processing_outcomes(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    """Successful upload emits an Attachment outcome with the correct byte count."""
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay_with_processing(PROCESSING_OPTIONS)
+
+    data = b"hello world"
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+        },
+        data=data,
+    )
+    assert response.status_code == 201
+
+    outcomes = outcomes_consumer.get_outcomes(n=1, timeout=10)
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    assert outcome["category"] == DataCategory.ATTACHMENT.value
+    assert outcome["quantity"] == len(data)
