@@ -163,6 +163,7 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
         | "create_agent" => "agent",
         "gen_ai.execute_tool" | "execute_tool" => "tool",
         "gen_ai.handoff" | "handoff" => "handoff",
+        "ai.processor" | "processor_run" => "other",
         // Prefix matches:
         op if op.starts_with("ai.streamText.doStream") => "ai_client",
         op if op.starts_with("ai.streamText") => "agent",

@@ -333,12 +333,6 @@ impl StoreService {
         let mut replay_event = None;
         let mut replay_recording = None;
 
-        let options = &self.global_config.current().options;
-
-        // Whether Relay will submit the replay-event to snuba or not.
-        let replay_relay_snuba_publish_disabled =
-            utils::sample(options.replay_relay_snuba_publish_disabled_sample_rate).is_keep();
-
         for item in envelope.items() {
             let content_type = item.content_type();
             match item.ty() {
@@ -386,7 +380,6 @@ impl StoreService {
                         item.payload(),
                         received_at,
                         retention,
-                        replay_relay_snuba_publish_disabled,
                     )?;
                 }
                 ItemType::ReplayRecording => {
@@ -394,14 +387,6 @@ impl StoreService {
                 }
                 ItemType::ReplayEvent => {
                     replay_event = Some(item);
-                    self.produce_replay_event(
-                        event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.project_id,
-                        received_at,
-                        retention,
-                        &item.payload(),
-                        replay_relay_snuba_publish_disabled,
-                    )?;
                 }
                 ItemType::CheckIn => {
                     let client = envelope.meta().client();
@@ -480,7 +465,6 @@ impl StoreService {
                 None,
                 received_at,
                 retention,
-                replay_relay_snuba_publish_disabled,
             )?;
         }
 
@@ -971,30 +955,6 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_replay_event(
-        &self,
-        replay_id: EventId,
-        project_id: ProjectId,
-        received_at: DateTime<Utc>,
-        retention_days: u16,
-        payload: &[u8],
-        relay_snuba_publish_disabled: bool,
-    ) -> Result<(), StoreError> {
-        if relay_snuba_publish_disabled {
-            return Ok(());
-        }
-
-        let message = ReplayEventKafkaMessage {
-            replay_id,
-            project_id,
-            retention_days,
-            start_time: safe_timestamp(received_at),
-            payload,
-        };
-        self.produce(KafkaTopic::ReplayEvents, KafkaMessage::ReplayEvent(message))?;
-        Ok(())
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn produce_replay_recording(
         &self,
@@ -1005,7 +965,6 @@ impl StoreService {
         replay_video: Option<&[u8]>,
         received_at: DateTime<Utc>,
         retention: u16,
-        relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
         // Maximum number of bytes accepted by the consumer.
         let max_payload_size = self.config.max_replay_message_size();
@@ -1045,7 +1004,9 @@ impl StoreService {
                 payload,
                 replay_event,
                 replay_video,
-                relay_snuba_publish_disabled,
+                // Hardcoded to `true` to indicate to the consumer that it should always publish the
+                // replay_event as relay no longer does it.
+                relay_snuba_publish_disabled: true,
             });
 
         self.produce(KafkaTopic::ReplayRecordings, message)?;
@@ -1060,7 +1021,6 @@ impl StoreService {
         payload: Bytes,
         received_at: DateTime<Utc>,
         retention: u16,
-        relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
         #[derive(Deserialize)]
         struct VideoEvent<'a> {
@@ -1087,15 +1047,6 @@ impl StoreService {
             return Ok(());
         };
 
-        self.produce_replay_event(
-            event_id.ok_or(StoreError::NoEventId)?,
-            scoping.project_id,
-            received_at,
-            retention,
-            replay_event,
-            relay_snuba_publish_disabled,
-        )?;
-
         self.produce_replay_recording(
             event_id,
             scoping,
@@ -1104,7 +1055,6 @@ impl StoreService {
             Some(replay_video),
             received_at,
             retention,
-            relay_snuba_publish_disabled,
         )
     }
 
@@ -1305,20 +1255,6 @@ struct EventKafkaMessage {
     remote_addr: Option<String>,
     /// Attachments that are potentially relevant for processing.
     attachments: Vec<ChunkedAttachment>,
-}
-
-#[derive(Debug, Serialize)]
-struct ReplayEventKafkaMessage<'a> {
-    /// Raw event payload.
-    payload: &'a [u8],
-    /// Time at which the event was received by Relay.
-    start_time: u64,
-    /// The event id.
-    replay_id: EventId,
-    /// The project id for the current event.
-    project_id: ProjectId,
-    // Number of days to retain.
-    retention_days: u16,
 }
 
 /// Container payload for chunks of attachments.
@@ -1563,7 +1499,6 @@ enum KafkaMessage<'a> {
     Profile(ProfileKafkaMessage),
     ProfileChunk(ProfileChunkKafkaMessage),
 
-    ReplayEvent(ReplayEventKafkaMessage<'a>),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
 }
 
@@ -1604,7 +1539,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Profile(_) => "profile",
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
 
-            KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
         }
     }
@@ -1624,7 +1558,6 @@ impl Message for KafkaMessage<'_> {
 
             Self::Attachment(message) => Some(message.event_id.0),
             Self::AttachmentChunk(message) => Some(message.event_id.0),
-            Self::ReplayEvent(message) => Some(message.replay_id.0),
 
             // Random partitioning
             Self::Metric { .. }
@@ -1651,7 +1584,6 @@ impl Message for KafkaMessage<'_> {
             | KafkaMessage::CheckIn(_)
             | KafkaMessage::Attachment(_)
             | KafkaMessage::AttachmentChunk(_)
-            | KafkaMessage::ReplayEvent(_)
             | KafkaMessage::ReplayRecordingNotChunked(_) => None,
         }
     }
@@ -1659,7 +1591,6 @@ impl Message for KafkaMessage<'_> {
     fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
         match self {
             KafkaMessage::Metric { message, .. } => serialize_as_json(message),
-            KafkaMessage::ReplayEvent(message) => serialize_as_json(message),
             KafkaMessage::SpanRaw { message, .. } => serialize_as_json(message),
             KafkaMessage::SpanV2 { message, .. } => serialize_as_json(message),
             KafkaMessage::Item { message, .. } => {

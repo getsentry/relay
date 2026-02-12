@@ -101,24 +101,6 @@ def assert_replay_payload_matches(produced, consumed):
     }
 
 
-def test_replay_event_with_processing(
-    mini_sentry, relay_with_processing, replay_events_consumer
-):
-    relay = relay_with_processing()
-    mini_sentry.add_basic_project_config(
-        42, extra={"config": {"features": ["organizations:session-replay"]}}
-    )
-
-    replay_events_consumer = replay_events_consumer(timeout=10)
-    replay = generate_replay_sdk_event()
-
-    relay.send_replay_event(42, replay)
-
-    replay_event, replay_event_message = replay_events_consumer.get_replay_event()
-    assert replay_event_message["retention_days"] == 90
-    assert_replay_payload_matches(replay, replay_event)
-
-
 def test_replay_events_without_processing(mini_sentry, relay_chain):
     relay = relay_chain(min_relay_version="latest")
 
@@ -141,7 +123,6 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
 def test_replay_events_are_filtered(
     mini_sentry,
     relay_with_processing,
-    replay_events_consumer,
     outcomes_consumer,
 ):
     relay = relay_with_processing()
@@ -152,7 +133,6 @@ def test_replay_events_are_filtered(
     filter_settings["localhost"] = {"isEnabled": True}
     outcomes_consumer = outcomes_consumer()
 
-    replay_events_consumer = replay_events_consumer(timeout=10)
     replay = generate_replay_sdk_event()
     replay["request"]["url"] = "http://localhost:1200"
 
@@ -166,5 +146,4 @@ def test_replay_events_are_filtered(
     assert outcome["category"] == 7
     assert outcome["quantity"] == 2
 
-    replay_events_consumer.assert_empty()
     outcomes_consumer.assert_empty()

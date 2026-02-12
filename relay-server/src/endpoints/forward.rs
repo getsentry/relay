@@ -6,13 +6,14 @@
 use std::future::Future;
 use std::sync::LazyLock;
 
-use axum::extract::{DefaultBodyLimit, Request};
+use axum::body::Body;
+use axum::extract::Request;
 use axum::handler::Handler;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
-use bytes::Bytes;
 use relay_common::glob2::GlobMatcher;
 use relay_config::Config;
+use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::extractors::ForwardedFor;
 use crate::service::ServiceState;
@@ -29,7 +30,7 @@ async fn handle(
     method: Method,
     uri: Uri,
     headers: HeaderMap<HeaderValue>,
-    data: Bytes,
+    data: Body,
 ) -> impl IntoResponse {
     if !state.config().http_forward() {
         return StatusCode::NOT_FOUND.into_response();
@@ -102,5 +103,8 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
 /// - Call this manually from other request handlers to conditionally forward from other endpoints.
 pub fn forward(state: ServiceState, req: Request) -> impl Future<Output = Response> {
     let limit = get_limit_for_path(req.uri().path(), state.config());
-    handle.layer(DefaultBodyLimit::max(limit)).call(req, state)
+    handle
+        // `RequestBodyLimitLayer` checks the stream, DefaultBodyLimit does not.
+        .layer(RequestBodyLimitLayer::new(limit))
+        .call(req, state)
 }

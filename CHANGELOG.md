@@ -7,6 +7,7 @@
 - Emit outcomes for spans trimmed from a transaction. ([#5410](https://github.com/getsentry/relay/pull/5410))
 - Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
 - Fix inconsistencies with Insights' expected attributes. ([#5561](https://github.com/getsentry/relay/pull/5561))
+- Validate that EAP integer attributes fit into `i64`. ([#5621](https://github.com/getsentry/relay/pull/5621))
 
 **Features**:
 
@@ -14,10 +15,12 @@
 - Apply clock drift correction to logs and trace metrics. ([#5609](https://github.com/getsentry/relay/pull/5609))
 - Add Culture context to event schema. ([#5615](https://github.com/getsentry/relay/pull/5615))
 - Trim spans with a new EAP trimming processor. ([#5616](https://github.com/getsentry/relay/pull/5616))
+- Forwarded requests are now streamed instead of buffered in-memory. ([#5624](https://github.com/getsentry/relay/pull/5624))
 
 **Internal**:
 
 - Add EAP double-write for session data. ([#5588](https://github.com/getsentry/relay/pull/5588))
+- Always process OTLP spans with the span streaming pipeline. ([#5631](https://github.com/getsentry/relay/pull/5631))
 - Embed AI operation type mappings into Relay. ([#5555](https://github.com/getsentry/relay/pull/5555))
 - Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
 - Add `gen_ai_response_time_to_first_token` as a `SpanData` attribute. ([#5575](https://github.com/getsentry/relay/pull/5575))
@@ -26,6 +29,7 @@
 - Add `gen_ai.cost_calculation.result` metric to track AI cost calculation outcomes by integration and platform. ([#5560](https://github.com/getsentry/relay/pull/5560))
 - Normalizes and validates trace metric names. ([#5589](https://github.com/getsentry/relay/pull/5589))
 - Add manual category to cost calculation metric origin tag ([#5603](https://github.com/getsentry/relay/pull/5603))
+- Remove the `ReplayEvents` Kafka topic and the `replay.relay-snuba-publishing-disabled.sample-rate` option. ([#5629](https://github.com/getsentry/relay/pull/5629))
 
 ## 26.1.0
 
