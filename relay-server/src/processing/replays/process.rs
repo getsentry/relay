@@ -71,10 +71,11 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
                 }
             }
             // Handle SDKs that send standalone `replay_event` and `replay_recording`.
-            ([event], []) => match Annotated::<Replay>::from_json_bytes(&event.payload()) {
-                Ok(event) => replays.push(ExpandedReplay::StandaloneEvent { event }),
-                Err(err) => drop(records.reject_err(Error::from(err), event)),
-            },
+            ([event], []) => {
+                // Since standalone events previously already got dropped in the store we can drop
+                // them here without breaking any SDKs.
+                records.reject_err(Error::EventWithoutRecording, event);
+            }
             ([], [recording]) => {
                 replays.push(ExpandedReplay::StandaloneRecording {
                     recording: recording.payload(),
@@ -174,10 +175,6 @@ fn scrub_recordings(
     replays.retain(
         |replays| &mut replays.replays,
         |replay, _| {
-            let Some(payload) = replay.recording_mut() else {
-                return Ok(());
-            };
-
             // Has some internal state so don't move out of the retain.
             let mut scrubber = RecordingScrubber::new(
                 ctx.config.max_replay_uncompressed_size(),
@@ -189,6 +186,7 @@ fn scrub_recordings(
                 return Ok::<(), Error>(());
             }
 
+            let payload = replay.recording_mut();
             *payload = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
                 scrubber.process_recording(payload)
             })
