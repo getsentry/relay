@@ -129,8 +129,7 @@ impl Counted for UploadStream {
 /// Returns an error if the stream provides more bytes than `expected_length` (checked per chunk)
 /// or fewer bytes than `expected_length` (checked when the stream ends).
 ///
-/// This type is `Sync` via [`SyncWrapper`], allowing it to be sent across thread boundaries
-/// as required by the upload service.
+/// This type is `Sync` via [`SyncWrapper`].
 pub struct ExactStream {
     inner: SyncWrapper<Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>>,
     expected_length: u64,

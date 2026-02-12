@@ -21,7 +21,7 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
-use crate::services::upload::{ExactStream, Upload, UploadStream};
+use crate::services::upload::{Error as UploadError, ExactStream, Upload, UploadStream};
 use crate::services::upstream::UpstreamRelay;
 use crate::utils::{ForwardError, ForwardRequest, ForwardResponse};
 
@@ -29,54 +29,38 @@ use self::tus::{TUS_RESUMABLE, TUS_VERSION, UPLOAD_OFFSET, validate_headers};
 
 /// Error type for TUS upload requests.
 #[derive(Debug, thiserror::Error)]
-pub enum UploadError {
+pub enum Error {
     #[error("TUS protocol violation: {0}")]
     Tus(#[from] tus::Error),
-
-    #[error("payload too large: received more than {expected_length} bytes")]
-    PayloadTooLarge { expected_length: usize },
-
-    #[error("failed to read request body: {0}")]
-    BodyReadError(axum::Error),
-
-    #[error("upload failed: {0}")]
-    UploadFailed(#[from] BadStoreRequest),
 
     #[error("upstream error: {0}")]
     Forward(#[from] ForwardError),
 
     #[error("upload service error: {0}")]
-    UploadService(#[from] crate::services::upload::Error),
+    UploadService(#[from] UploadError),
 
     #[error("service unavailable")]
     ServiceUnavailable,
 }
 
-impl IntoResponse for UploadError {
+impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         // Delegate to inner error types that have their own status code mapping.
-        match self {
-            UploadError::UploadFailed(inner) => return inner.into_response(),
-            UploadError::Forward(inner) => return inner.into_response(),
-            _ => {}
-        }
-
-        let status = match &self {
-            UploadError::Tus(_) | UploadError::BodyReadError(_) => StatusCode::BAD_REQUEST,
-            UploadError::PayloadTooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
-            UploadError::UploadService(crate::services::upload::Error::LoadShed)
-            | UploadError::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
-            UploadError::UploadService(crate::services::upload::Error::Timeout) => {
-                StatusCode::GATEWAY_TIMEOUT
+        let status = match self {
+            Error::Forward(inner) => return inner.into_response(),
+            Error::Tus(_) => StatusCode::BAD_REQUEST,
+            Error::UploadService(UploadError::LoadShed) | Error::ServiceUnavailable => {
+                StatusCode::SERVICE_UNAVAILABLE
             }
-            UploadError::UploadService(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            UploadError::UploadFailed(_) | UploadError::Forward(_) => unreachable!(),
+            Error::UploadService(UploadError::Timeout) => StatusCode::GATEWAY_TIMEOUT,
+            Error::UploadService(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        let mut response = (status, self.to_string()).into_response();
+        let mut response = status.into_response();
         response
             .headers_mut()
             .insert(TUS_RESUMABLE, HeaderValue::from_static(TUS_VERSION));
+
         response
     }
 }
@@ -95,7 +79,7 @@ async fn handle(
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    let expected_length = validate_headers(&headers).map_err(UploadError::from)?;
+    let expected_length = validate_headers(&headers).map_err(Error::from)?;
 
     let project = state.project_cache_handle().get(meta.public_key());
 
@@ -116,34 +100,33 @@ async fn handle(
             .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
             .into());
     }
-    let scoping = envelope.scoping();
     let upload_stream = UploadStream {
         body: ExactStream::new(body, expected_length),
     };
-    let managed_stream = envelope.wrap(upload_stream);
-    envelope.accept(|_| ()); // We're not really processing an envelope here.
+    let managed_stream = envelope.map(|_, _| upload_stream);
 
     let result = Sink::new(&state).upload(uri.path(), managed_stream).await?;
 
     match result {
-        SinkResult::Forwarded(response) => Ok(response.into_response()),
-        SinkResult::Uploaded => {
+        UploadResult::Forwarded(response) => Ok(response.into_response()),
+        UploadResult::Success => {
             let mut response_headers = HeaderMap::new();
             response_headers.insert(TUS_RESUMABLE, HeaderValue::from_static(TUS_VERSION));
             response_headers.insert(
                 UPLOAD_OFFSET,
-                HeaderValue::from_str(&expected_length.to_string()).unwrap(),
+                HeaderValue::from_str(&expected_length.to_string())
+                    .expect("integer should always be a valid header"),
             );
             Ok((StatusCode::CREATED, response_headers, "").into_response())
         }
     }
 }
 
-enum SinkResult {
+enum UploadResult {
     /// The response from forwarding to upstream relay.
     Forwarded(ForwardResponse),
     /// The upload was handled locally by the upload service.
-    Uploaded,
+    Success,
 }
 
 enum Sink {
@@ -164,7 +147,7 @@ impl Sink {
         &self,
         path: &str,
         managed_stream: Managed<UploadStream>,
-    ) -> Result<SinkResult, UploadError> {
+    ) -> Result<UploadResult, Error> {
         match self {
             Sink::Upstream(addr) => {
                 let exact_stream = managed_stream.accept(|stream| stream.body);
@@ -172,14 +155,14 @@ impl Sink {
                     .with_body(Body::from_stream(exact_stream))
                     .send_to(addr)
                     .await?;
-                Ok(SinkResult::Forwarded(response))
+                Ok(UploadResult::Forwarded(response))
             }
             Sink::Upload(addr) => {
                 addr.send(managed_stream)
                     .await
-                    .map_err(|_| UploadError::ServiceUnavailable)?
-                    .map_err(UploadError::UploadService)?;
-                Ok(SinkResult::Uploaded)
+                    .map_err(|_send_error| Error::ServiceUnavailable)?
+                    .map_err(Error::UploadService)?;
+                Ok(UploadResult::Success)
             }
         }
     }
