@@ -2,19 +2,11 @@ local utils = import '../libs/utils.libsonnet';
 local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
 local canary_region_pops = {
-  us: [
-    'us-pop-1',
-    'us-pop-2',
-    'us-pop-3',
-  ],
+  us: [],
 };
 
 local region_pops = {
-  us: [
-    'us-pop-1',
-    'us-pop-2',
-    'us-pop-3',
-  ],
+  us: [],
   s4s: [],
 };
 
