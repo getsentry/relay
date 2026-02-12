@@ -144,7 +144,9 @@ impl UploadService {
             return Ok(None);
         };
 
-        let objectstore_client = Client::builder(objectstore_url).build()?;
+        let objectstore_client = Client::builder(objectstore_url)
+            .timeout(Duration::from_secs(*timeout))
+            .build()?;
         let event_attachments = Usecase::new("attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")
