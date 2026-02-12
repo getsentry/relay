@@ -10,8 +10,6 @@ use crate::processing::replays::{
     Error, ExpandedReplay, ExpandedReplays, ReplayVideoEvent, ReplaysOutput,
 };
 use crate::processing::{self, Forward};
-#[cfg(feature = "processing")]
-use crate::utils;
 
 /// Errors that can occur when serializing an expanded replay into envelope items.
 #[derive(Debug, thiserror::Error)]
@@ -68,12 +66,6 @@ impl Forward for ReplaysOutput {
             event_id,
             retention: ctx.event_retention().standard,
             max_replay_message_size: ctx.config.max_replay_message_size(),
-            snuba_publish_disabled: utils::sample(
-                ctx.global_config
-                    .options
-                    .replay_relay_snuba_publish_disabled_sample_rate,
-            )
-            .is_keep(),
         };
 
         for replay in replays.split(|replay| replay.replays) {

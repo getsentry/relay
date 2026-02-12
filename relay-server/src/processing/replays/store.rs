@@ -4,7 +4,7 @@ use relay_event_schema::protocol::{EventId, Replay};
 use relay_protocol::Annotated;
 
 use crate::processing::replays::{Error, ExpandedReplay};
-use crate::services::store::{StoreReplay, StoreReplayEvent, StoreReplayRecording};
+use crate::services::store::StoreReplay;
 
 /// Reserved bytes for message metadata.
 const MESSAGE_METADATA_OVERHEAD: usize = 2000;
@@ -18,8 +18,6 @@ pub struct Context {
     pub retention: u16,
     /// Maximum allowed size for a replay recording Kafka message.
     pub max_replay_message_size: usize,
-    /// Whether Relay should skip publishing the replay event to Snuba.
-    pub snuba_publish_disabled: bool,
 }
 
 /// Converts an [`ExpandedReplay`] into a storable [`StoreReplay`].
@@ -27,20 +25,12 @@ pub struct Context {
 /// Fails if the event can not be serialized or the created message is too large for the consumer.
 pub fn convert(replay: ExpandedReplay, ctx: &Context) -> Result<StoreReplay, Error> {
     match replay {
-        ExpandedReplay::StandaloneEvent { event } => {
-            let event = serialize_event(event)?;
-            let store_event = convert_event(ctx, event);
-            Ok(StoreReplay::Event(store_event))
-        }
         ExpandedReplay::StandaloneRecording { recording } => {
-            let store_replay = convert_recording(ctx, recording, None, None)?;
-            Ok(StoreReplay::Recording(store_replay))
+            Ok(into_store_replay(ctx, recording, None, None)?)
         }
         ExpandedReplay::WebReplay { event, recording } => {
             let event = serialize_event(event)?;
-            let store_event = convert_event(ctx, event.clone());
-            let store_replay = convert_recording(ctx, recording, Some(event), None)?;
-            Ok(StoreReplay::WebReplay(store_event, store_replay))
+            Ok(into_store_replay(ctx, recording, Some(event), None)?)
         }
         ExpandedReplay::NativeReplay {
             event,
@@ -48,9 +38,7 @@ pub fn convert(replay: ExpandedReplay, ctx: &Context) -> Result<StoreReplay, Err
             video,
         } => {
             let event = serialize_event(event)?;
-            let store_event = convert_event(ctx, event.clone());
-            let store_replay = convert_recording(ctx, recording, Some(event), Some(video))?;
-            Ok(StoreReplay::NativeReplay(store_event, store_replay))
+            Ok(into_store_replay(ctx, recording, Some(event), Some(video))?)
         }
     }
 }
@@ -62,21 +50,12 @@ fn serialize_event(replay: Annotated<Replay>) -> Result<Bytes, Error> {
         .map(|json| json.into_bytes().into())
 }
 
-fn convert_event(ctx: &Context, payload: Bytes) -> StoreReplayEvent {
-    StoreReplayEvent {
-        event_id: ctx.event_id,
-        retention_days: ctx.retention,
-        payload,
-        relay_snuba_publish_disabled: ctx.snuba_publish_disabled,
-    }
-}
-
-fn convert_recording(
+fn into_store_replay(
     ctx: &Context,
     payload: Bytes,
     replay_event: Option<Bytes>,
     replay_video: Option<Bytes>,
-) -> Result<StoreReplayRecording, Error> {
+) -> Result<StoreReplay, Error> {
     // Size of the consumer message. We can be reasonably sure this won't overflow because
     // of the request size validation provided by Nginx and Relay.
     let mut payload_size = MESSAGE_METADATA_OVERHEAD;
@@ -89,12 +68,11 @@ fn convert_recording(
         return Err(Error::TooLarge);
     }
 
-    Ok(StoreReplayRecording {
+    Ok(StoreReplay {
         event_id: ctx.event_id,
         retention_days: ctx.retention,
         payload,
         replay_event,
         replay_video,
-        relay_snuba_publish_disabled: ctx.snuba_publish_disabled,
     })
 }

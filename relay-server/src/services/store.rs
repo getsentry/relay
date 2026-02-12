@@ -162,9 +162,9 @@ impl Counted for StoreProfileChunk {
     }
 }
 
-/// A replay recording to be stored to Kafka.
+/// A replay to be stored to Kafka.
 #[derive(Debug)]
-pub struct StoreReplayRecording {
+pub struct StoreReplay {
     /// The event ID.
     pub event_id: EventId,
     /// Number of days to retain.
@@ -175,45 +175,15 @@ pub struct StoreReplayRecording {
     pub replay_event: Option<Bytes>,
     /// Optional replay video.
     pub replay_video: Option<Bytes>,
-    /// Whether Relay should skip publishing to Snuba.
-    pub relay_snuba_publish_disabled: bool,
-}
-
-/// A replay event to be stored to Kafka.
-#[derive(Debug)]
-pub struct StoreReplayEvent {
-    /// The event ID.
-    pub event_id: EventId,
-    /// Number of days to retain.
-    pub retention_days: u16,
-    /// The event payload (JSON).
-    pub payload: Bytes,
-    /// Whether Relay should skip publishing to Snuba.
-    pub relay_snuba_publish_disabled: bool,
-}
-
-/// A replay to be stored to Kafka.
-///
-/// A replay can consist of a replay event, a replay recording, or both.
-#[derive(Debug)]
-pub enum StoreReplay {
-    /// A standalone replay event without an associated recording.
-    Event(StoreReplayEvent),
-    /// A standalone replay recording without an associated event.
-    Recording(StoreReplayRecording),
-    /// A web replay event paired with its recording.
-    WebReplay(StoreReplayEvent, StoreReplayRecording),
-    /// A native replay event paired with its recording and video.
-    NativeReplay(StoreReplayEvent, StoreReplayRecording),
 }
 
 impl Counted for StoreReplay {
     fn quantities(&self) -> Quantities {
-        match self {
-            StoreReplay::Event(_) | StoreReplay::Recording(_) | StoreReplay::NativeReplay(..) => {
-                smallvec![(DataCategory::Replay, 1)]
-            }
-            StoreReplay::WebReplay(..) => smallvec![(DataCategory::Replay, 2)],
+        // Web replays currently count as 2 since they are 2 items in the envelop (event + recording).
+        if self.replay_event.is_some() && self.replay_video.is_none() {
+            smallvec![(DataCategory::Replay, 2)]
+        } else {
+            smallvec![(DataCategory::Replay, 1)]
         }
     }
 }
@@ -240,7 +210,7 @@ pub enum Store {
     Span(Managed<Box<StoreSpanV2>>),
     /// A singular profile chunk.
     ProfileChunk(Managed<StoreProfileChunk>),
-    /// A replay.
+    /// A singular replay.
     Replay(Managed<StoreReplay>),
 }
 
@@ -762,62 +732,24 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
-        let _ = message.try_accept(|replay| match replay {
-            StoreReplay::Event(event) => {
-                self.handle_store_replay_event(scoping, received_at, event)
-            }
-            StoreReplay::Recording(recording) => {
-                self.handle_store_replay_recording(scoping, received_at, recording)
-            }
-            StoreReplay::WebReplay(event, recording)
-            | StoreReplay::NativeReplay(event, recording) => {
-                self.handle_store_replay_event(scoping, received_at, event)?;
-                self.handle_store_replay_recording(scoping, received_at, recording)
-            }
+        let _ = message.try_accept(|replay| {
+            let kafka_msg =
+                KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
+                    replay_id: replay.event_id,
+                    key_id: scoping.key_id,
+                    org_id: scoping.organization_id,
+                    project_id: scoping.project_id,
+                    received: safe_timestamp(received_at),
+                    retention_days: replay.retention_days,
+                    payload: &replay.payload,
+                    replay_event: replay.replay_event.as_deref(),
+                    replay_video: replay.replay_video.as_deref(),
+                    // Hardcoded to `true` to indicate to the consumer that it should always publish the
+                    // replay_event as relay no longer does it.
+                    relay_snuba_publish_disabled: true,
+                });
+            self.produce(KafkaTopic::ReplayRecordings, kafka_msg)
         });
-    }
-
-    fn handle_store_replay_recording(
-        &self,
-        scoping: Scoping,
-        received_at: DateTime<Utc>,
-        message: StoreReplayRecording,
-    ) -> Result<(), StoreError> {
-        let kafka_msg =
-            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
-                replay_id: message.event_id,
-                key_id: scoping.key_id,
-                org_id: scoping.organization_id,
-                project_id: scoping.project_id,
-                received: safe_timestamp(received_at),
-                retention_days: message.retention_days,
-                payload: &message.payload,
-                replay_event: message.replay_event.as_deref(),
-                replay_video: message.replay_video.as_deref(),
-                relay_snuba_publish_disabled: message.relay_snuba_publish_disabled,
-            });
-        self.produce(KafkaTopic::ReplayRecordings, kafka_msg)
-    }
-
-    fn handle_store_replay_event(
-        &self,
-        scoping: Scoping,
-        received_at: DateTime<Utc>,
-        message: StoreReplayEvent,
-    ) -> Result<(), StoreError> {
-        if message.relay_snuba_publish_disabled {
-            return Ok(());
-        }
-
-        let kafka_msg = KafkaMessage::ReplayEvent(ReplayEventKafkaMessage {
-            replay_id: message.event_id,
-            project_id: scoping.project_id,
-            retention_days: message.retention_days,
-            start_time: safe_timestamp(received_at),
-            payload: &message.payload,
-        });
-
-        self.produce(KafkaTopic::ReplayEvents, kafka_msg)
     }
 
     fn create_metric_message<'a>(
