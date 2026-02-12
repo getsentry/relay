@@ -179,6 +179,7 @@ def test_upload_processing(mini_sentry, relay_with_processing):
     assert response.status_code == 201
     assert response.headers["Tus-Resumable"] == "1.0.0"
     assert response.headers["Upload-Offset"] == str(len(data))
+    assert response.headers["Location"] == "TODO"
 
 
 def test_upload_processing_outcomes(

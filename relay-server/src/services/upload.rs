@@ -1,8 +1,8 @@
 //! Service that uploads attachments.
 use std::array::TryFromSliceError;
-use std::io;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt, io};
 
 use bytes::Bytes;
 use futures::future::BoxFuture;
@@ -166,6 +166,12 @@ pub struct UploadKey(String);
 impl UploadKey {
     fn into_inner(self) -> String {
         self.0
+    }
+}
+
+impl fmt::Display for UploadKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -407,7 +413,6 @@ impl UploadServiceInner {
 
             #[cfg(debug_assertions)]
             debug_assert_eq!(_stored_key.into_inner(), original_key);
-            relay_log::trace!("Finished attachment upload");
         }
 
         // Only after successful upload forward the attachment to the store.
@@ -485,6 +490,6 @@ impl UploadServiceInner {
 
         relay_log::trace!("Finished attachment upload");
 
-        Ok(UploadKey(response.key))
+        Ok(UploadKey(dbg!(response.key)))
     }
 }

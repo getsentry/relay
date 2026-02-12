@@ -8,6 +8,7 @@
 mod tus;
 
 use std::io;
+use std::str::FromStr;
 
 use axum::body::Body;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
@@ -24,7 +25,7 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
-use crate::services::upload::{Error as UploadError, Upload, UploadStream};
+use crate::services::upload::{Error as UploadError, Upload, UploadKey, UploadStream};
 use crate::services::upstream::UpstreamRelay;
 use crate::utils::{ExactStream, ForwardError, ForwardRequest, ForwardResponse};
 
@@ -82,7 +83,7 @@ async fn handle(
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    let expected_length = validate_headers(&headers).map_err(Error::from)?;
+    let upload_length = validate_headers(&headers).map_err(Error::from)?;
 
     let project = state.project_cache_handle().get(meta.public_key());
 
@@ -90,7 +91,7 @@ async fn handle(
     // This is currently the easiest way to ensure that fast-path checks are applied for non-envelopes.
     let mut envelope = Envelope::from_request(None, meta);
     let mut item = Item::new(ItemType::Attachment);
-    item.set_original_length(expected_length);
+    item.set_original_length(upload_length);
     item.set_payload(ContentType::AttachmentRef, vec![]);
     envelope.add_item(item);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
@@ -108,32 +109,57 @@ async fn handle(
         .map(|result| result.map_err(io::Error::other))
         .boxed();
     let upload_stream = UploadStream {
-        body: ExactStream::new(stream, expected_length),
+        body: ExactStream::new(stream, upload_length),
     };
     let stream = envelope.map(|_, _| upload_stream);
 
-    let result = Sink::new(&state).upload(uri.path(), stream).await?;
+    let path = uri.path();
+    let result = Sink::new(&state).upload(path, stream).await?;
 
     match result {
         UploadResult::Forwarded(response) => Ok(response.into_response()),
-        UploadResult::Success => {
+        UploadResult::Success(key) => {
+            relay_log::trace!("Successfully uploaded to objectstore");
             let mut response_headers = HeaderMap::new();
             response_headers.insert(TUS_RESUMABLE, HeaderValue::from_static(TUS_VERSION));
             response_headers.insert(
                 UPLOAD_OFFSET,
-                HeaderValue::from_str(&expected_length.to_string())
+                HeaderValue::from_str(&upload_length.to_string())
                     .expect("integer should always be a valid header"),
+            );
+
+            relay_log::trace!("Signing URL...");
+            let location = signed(state.config(), &uri, key, upload_length)
+                .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+            response_headers.insert(
+                hyper::header::LOCATION,
+                HeaderValue::from_str(&location).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
             );
             Ok((StatusCode::CREATED, response_headers, "").into_response())
         }
     }
 }
 
+fn signed(config: &Config, uri: &Uri, key: UploadKey, length: u64) -> Option<String> {
+    dbg!(uri);
+    let scheme = uri.scheme_str()?;
+    let authority = uri.authority()?;
+    let path = uri.path();
+    let mut location = format!("{scheme}://{authority}{path}{key}/?length={length}");
+    dbg!(&location);
+    let signature = dbg!(config.credentials())?
+        .secret_key
+        .sign(location.as_bytes());
+    location.push_str("&signature=");
+    location.push_str(dbg!(&signature.to_string()));
+    Some(location)
+}
+
 enum UploadResult {
     /// The response from forwarding to upstream relay.
     Forwarded(ForwardResponse),
     /// The upload was handled locally by the upload service.
-    Success,
+    Success(UploadKey),
 }
 
 enum Sink {
@@ -167,11 +193,12 @@ impl Sink {
                 Ok(UploadResult::Forwarded(response))
             }
             Sink::Upload(addr) => {
-                addr.send(stream)
+                let key = addr
+                    .send(stream)
                     .await
                     .map_err(|_send_error| Error::ServiceUnavailable)?
                     .map_err(Error::UploadService)?;
-                Ok(UploadResult::Success)
+                Ok(UploadResult::Success(key))
             }
         }
     }

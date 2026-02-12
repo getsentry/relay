@@ -32,6 +32,9 @@ pub const UPLOAD_LENGTH: &str = "Upload-Length";
 /// TUS protocol header for the current upload offset.
 pub const UPLOAD_OFFSET: &str = "Upload-Offset";
 
+/// HTTP Location header.
+pub const LOCATION: &str = "Location";
+
 /// Expected value of the content-type header.
 pub const EXPECTED_CONTENT_TYPE: &str = "application/offset+octet-stream";
 
