@@ -1,7 +1,7 @@
 use relay_event_normalization::GeoIpLookup;
 
 use crate::managed::{Managed, RecordKeeper, Rejected};
-use crate::processing::errors::types::GenericError;
+use crate::processing::errors::errors::{ErrorKind, Flags, Generic, SentryError as _};
 use crate::processing::errors::{Error, ExpandedError, Result, SerializedError};
 use crate::processing::utils::event::EventFullyNormalized;
 use crate::processing::{self, Context};
@@ -25,21 +25,17 @@ fn do_expand(mut error: SerializedError, _: &mut RecordKeeper<'_>) -> Result<Exp
     //         records.reject_err(None, item);
     //     }
     // }
+    let is_trusted = error.headers.meta().request_trust().is_trusted();
 
-    let mut kind;
-
-    if let Some(error) = GenericError::try_parse(&mut error.items)? {
-        kind = error.into();
-    } else {
-        todo!()
-    }
+    let parsed = ErrorKind::try_parse(&mut error.items).unwrap().unwrap();
 
     Ok(ExpandedError {
         headers: error.headers,
-        // TODO: grab this from the event item header and check against meta is_from_trusted()
-        fully_normalized: EventFullyNormalized(false),
+        flags: Flags {
+            fully_normalized: EventFullyNormalized(is_trusted && parsed.fully_normalized),
+        },
         metrics: Default::default(),
-        kind,
+        error: parsed.error,
     })
 }
 
@@ -50,7 +46,7 @@ pub fn finalize(
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, _| {
-        let e = error.kind.as_ref_mut();
+        let e = error.error.as_ref_mut();
 
         processing::utils::event::finalize(
             &error.headers,
@@ -72,12 +68,12 @@ pub fn normalize(
     let scoping = error.scoping();
 
     error.try_modify(|error, _| {
-        let e = error.kind.as_ref_mut();
+        let e = error.error.as_ref_mut();
 
-        error.fully_normalized = processing::utils::event::normalize(
+        error.flags.fully_normalized = processing::utils::event::normalize(
             &error.headers,
             e.event,
-            error.fully_normalized,
+            error.flags.fully_normalized,
             scoping.project_id,
             ctx,
             geoip_lookup,
@@ -89,7 +85,7 @@ pub fn normalize(
 
 pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, _| {
-        let e = error.kind.as_ref_mut();
+        let e = error.error.as_ref_mut();
 
         processing::utils::event::scrub(e.event, ctx.project_info)?;
         processing::utils::attachments::scrub(e.attachments.iter_mut(), ctx.project_info);

@@ -384,7 +384,7 @@ pub fn filter(
 }
 
 /// New type representing the normalization state of the event.
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct EventFullyNormalized(pub bool);
 
 impl EventFullyNormalized {
