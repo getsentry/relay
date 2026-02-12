@@ -8,13 +8,14 @@
 mod tus;
 
 use std::io;
-use std::str::FromStr;
 
 use axum::body::Body;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
+use relay_auth::PublicKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::Addr;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -25,6 +26,7 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
+use crate::services::projects::cache::Project;
 use crate::services::upload::{Error as UploadError, Upload, UploadKey, UploadStream};
 use crate::services::upstream::UpstreamRelay;
 use crate::utils::{ExactStream, ForwardError, ForwardRequest, ForwardResponse};
@@ -85,7 +87,7 @@ async fn handle(
 ) -> axum::response::Result<impl IntoResponse> {
     let upload_length = validate_headers(&headers).map_err(Error::from)?;
 
-    let project = state.project_cache_handle().get(meta.public_key());
+    let project = wait_for_project(&state, meta.public_key()).await;
 
     // Create pseudo-envelope.
     // This is currently the easiest way to ensure that fast-path checks are applied for non-envelopes.
@@ -129,7 +131,7 @@ async fn handle(
             );
 
             relay_log::trace!("Signing URL...");
-            let location = signed(state.config(), &uri, key, upload_length)
+            let location = signed(state.config(), path, key, upload_length)
                 .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
             response_headers.insert(
                 hyper::header::LOCATION,
@@ -140,18 +142,25 @@ async fn handle(
     }
 }
 
-fn signed(config: &Config, uri: &Uri, key: UploadKey, length: u64) -> Option<String> {
-    dbg!(uri);
-    let scheme = uri.scheme_str()?;
-    let authority = uri.authority()?;
-    let path = uri.path();
-    let mut location = format!("{scheme}://{authority}{path}{key}/?length={length}");
-    dbg!(&location);
-    let signature = dbg!(config.credentials())?
-        .secret_key
-        .sign(location.as_bytes());
+async fn wait_for_project(state: &ServiceState, public_key: ProjectKey) -> Project<'_> {
+    let mut project = state.project_cache_handle().get(public_key);
+    if project.state().is_pending() {
+        state.project_cache_handle().fetch(public_key);
+        while project.state().is_pending() {
+            relay_log::trace!("Waiting for project state");
+            let _ = state.project_cache_handle().changes().recv().await;
+            project = state.project_cache_handle().get(public_key);
+        }
+    }
+    debug_assert!(!project.state().is_pending());
+    project
+}
+
+fn signed(config: &Config, path: &str, key: UploadKey, length: u64) -> Option<String> {
+    let mut location = format!("{path}{key}/?length={length}");
+    let signature = config.credentials()?.secret_key.sign(location.as_bytes());
     location.push_str("&signature=");
-    location.push_str(dbg!(&signature.to_string()));
+    location.push_str(&signature.to_string());
     Some(location)
 }
 
@@ -184,12 +193,10 @@ impl Sink {
         match self {
             Sink::Upstream(addr) => {
                 let stream = stream.accept(|stream| stream.body); // WRONG
-                let response = dbg!(
-                    ForwardRequest::builder(Method::POST, dbg!(path).to_owned())
-                        .with_body(Body::from_stream(stream))
-                        .send_to(addr)
-                        .await
-                )?;
+                let response = ForwardRequest::builder(Method::POST, path.to_owned())
+                    .with_body(Body::from_stream(stream))
+                    .send_to(addr)
+                    .await?;
                 Ok(UploadResult::Forwarded(response))
             }
             Sink::Upload(addr) => {

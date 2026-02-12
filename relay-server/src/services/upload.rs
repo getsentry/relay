@@ -16,6 +16,7 @@ use relay_system::{
 };
 use sentry_protos::snuba::v1::TraceItem;
 use smallvec::smallvec;
+use uuid::Uuid;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::ItemType;
@@ -429,7 +430,10 @@ impl UploadServiceInner {
         let scoping = managed.scoping();
         let session = match self
             .event_attachments
-            .for_project(scoping.organization_id.value(), scoping.project_id.value())
+            .for_project(
+                dbg!(scoping.organization_id.value()),
+                scoping.project_id.value(),
+            )
             .session(&self.objectstore_client)
         {
             Ok(session) => session,
@@ -446,7 +450,11 @@ impl UploadServiceInner {
         };
 
         let stream = managed.accept(|stream| stream);
-        let request = session.put_stream(stream.body.boxed());
+        let request = session
+            .put_stream(stream.body.boxed())
+            // generate ID here to drop the hyphens and be consistent with other attachment uploads.
+            .key(Uuid::now_v7().as_simple().to_string());
+
         let result = self.upload("stream", request).await;
 
         relay_statsd::metric!(
@@ -490,6 +498,6 @@ impl UploadServiceInner {
 
         relay_log::trace!("Finished attachment upload");
 
-        Ok(UploadKey(dbg!(response.key)))
+        Ok(UploadKey(response.key))
     }
 }

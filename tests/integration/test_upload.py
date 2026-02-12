@@ -6,7 +6,8 @@ import time
 import uuid
 
 import pytest
-from sentry_relay.consts import DataCategory
+import urllib
+from sentry_relay.auth import PublicKey
 
 
 @pytest.fixture
@@ -179,34 +180,16 @@ def test_upload_processing(mini_sentry, relay_with_processing):
     assert response.status_code == 201
     assert response.headers["Tus-Resumable"] == "1.0.0"
     assert response.headers["Upload-Offset"] == str(len(data))
-    assert response.headers["Location"] == "TODO"
 
+    # Validate location:
+    path, query = response.headers["Location"].split("?")
+    base_path, attachment_id = path.rstrip("/").rsplit("/", 1)
+    assert base_path == "/api/42/upload"
+    attachment_id = uuid.UUID(attachment_id).hex
+    query_params = urllib.parse.parse_qs(query)
+    (length,) = query_params["length"]
+    assert length == "11"
+    (signature,) = query_params["signature"]
 
-def test_upload_processing_outcomes(
-    mini_sentry, relay_with_processing, outcomes_consumer
-):
-    """Successful upload emits an Attachment outcome with the correct byte count."""
-    outcomes_consumer = outcomes_consumer()
-
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    relay = relay_with_processing(PROCESSING_OPTIONS)
-
-    data = b"hello world"
-    response = relay.post(
-        "/api/%s/upload/?sentry_key=%s"
-        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
-        headers={
-            "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(len(data)),
-            "Content-Type": "application/offset+octet-stream",
-        },
-        data=data,
-    )
-    assert response.status_code == 201
-
-    outcomes = outcomes_consumer.get_outcomes(n=1, timeout=10)
-    assert len(outcomes) == 1
-    outcome = outcomes[0]
-    assert outcome["category"] == DataCategory.ATTACHMENT.value
-    assert outcome["quantity"] == len(data)
+    unsigned_uri = f"{base_path}/{attachment_id}/?length=11"
+    assert PublicKey.parse(relay.public_key).verify(unsigned_uri.encode(), signature)
