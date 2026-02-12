@@ -472,6 +472,7 @@ pub enum DiscardReason {
     InvalidReplayEventPii,
     InvalidReplayRecordingEvent,
     InvalidReplayVideoEvent,
+    InvalidReplayMissingRecording,
 
     /// (Relay) Profiling related discard reasons
     Profiling(&'static str),
@@ -554,6 +555,7 @@ impl DiscardReason {
             DiscardReason::InvalidReplayEventPii => "invalid_replay_pii_scrubber_failed",
             DiscardReason::InvalidReplayRecordingEvent => "invalid_replay_recording",
             DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
+            DiscardReason::InvalidReplayMissingRecording => "invalid_replay_missing_recording",
             DiscardReason::Profiling(reason) => reason,
             DiscardReason::InvalidLog => "invalid_log",
             DiscardReason::InvalidTraceMetric => "invalid_trace_metric",

@@ -31,10 +31,14 @@ pub enum Error {
 
     /// There is an invalid amount of `replay_event` and `replay_recording` items in the envelope.
     ///
-    /// Valid quantity combinations: (0, 0), (1, 1), (1, 0), or (0, 1).
+    /// Valid quantity combinations: (0, 0), (1, 1) or (0, 1).
     /// Standalone events and recordings are supported for SDK compatibility.
     #[error("invalid item count")]
     InvalidItemCount,
+
+    /// Relay event without a recording.
+    #[error("replay event without recording")]
+    EventWithoutRecording,
 
     /// The Replay event could not be parsed from JSON.
     #[error("invalid json: {0}")]
@@ -84,6 +88,9 @@ impl OutcomeError for Error {
         let outcome = match &self {
             Self::FilterFeatureFlag => None,
             Self::InvalidItemCount => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::EventWithoutRecording => Some(Outcome::Invalid(
+                DiscardReason::InvalidReplayMissingRecording,
+            )),
             Self::CouldNotParseEvent(_) => {
                 Some(Outcome::Invalid(DiscardReason::InvalidReplayEvent))
             }

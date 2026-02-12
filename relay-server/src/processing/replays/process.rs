@@ -70,7 +70,12 @@ pub fn expand(replays: Managed<SerializedReplays>) -> Managed<ExpandedReplays> {
                     }
                 }
             }
-            // Handle SDKs that send standalone `replay_recording`.
+            // Handle SDKs that send standalone `replay_event` and `replay_recording`.
+            ([event], []) => {
+                // Since standalone events previously already got dropped in the store we can drop
+                // them here without breaking any SDKs.
+                records.reject_err(Error::EventWithoutRecording, event);
+            }
             ([], [recording]) => {
                 replays.push(ExpandedReplay::StandaloneRecording {
                     recording: recording.payload(),
