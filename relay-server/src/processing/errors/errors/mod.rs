@@ -1,95 +1,200 @@
-use relay_base_schema::events::EventType;
-use relay_event_schema::protocol::{Event, Metrics};
-use relay_protocol::Annotated;
+use relay_event_schema::protocol::Event;
+use relay_protocol::{Annotated, Empty};
+use relay_quotas::DataCategory;
 
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
-use crate::managed::{Counted, Managed, Quantities, Rejected};
-use crate::processing;
-use crate::processing::errors::{Error, Result};
-use crate::processing::utils::event::EventFullyNormalized;
+use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
+use crate::managed::{Counted, Quantities};
+use crate::processing::errors::Result;
+use crate::processing::{self, ForwardContext};
+use crate::services::processor::ProcessingError;
+use crate::statsd::RelayTimers;
 
+mod apple_crash_report;
+mod attachments;
+mod form_data;
 mod generic;
+mod minidump;
 mod nnswitch;
+mod playstation;
+mod raw_security;
+mod security;
+mod unreal;
+mod user_report_v2;
 mod utils;
 
+pub use self::apple_crash_report::*;
+pub use self::attachments::*;
+pub use self::form_data::*;
 pub use self::generic::*;
+pub use self::minidump::*;
 pub use self::nnswitch::*;
+pub use self::playstation::*;
+pub use self::raw_security::*;
+pub use self::security::*;
+pub use self::unreal::*;
+pub use self::user_report_v2::*;
 
 #[derive(Debug, Copy, Clone)]
 pub struct ErrorRef<'a> {
     pub event: &'a Annotated<Event>,
-    pub attachments: &'a Items,
+    pub attachments: &'a [Item],
+    pub user_reports: &'a [Item],
+}
+
+impl ErrorRef<'_> {
+    fn to_quantities(self) -> Quantities {
+        let mut quantities = self.attachments.quantities();
+        quantities.extend(self.user_reports.quantities());
+        quantities.push((DataCategory::Error, 1));
+        quantities
+    }
 }
 
 #[derive(Debug)]
 pub struct ErrorRefMut<'a> {
     pub event: &'a mut Annotated<Event>,
     pub attachments: &'a mut Items,
+    pub user_reports: Option<&'a mut Items>,
 }
 
 #[derive(Debug)]
-pub struct Flags {
-    pub fully_normalized: EventFullyNormalized,
+pub struct ErrorItems {
+    pub event: Option<Item>,
+    pub attachments: Items,
+    pub user_reports: Items,
+    pub other: Items,
 }
 
-#[derive(Debug)]
-pub struct ExpandedError {
-    pub headers: EnvelopeHeaders,
-    pub flags: Flags,
-    pub metrics: Metrics,
+impl From<ErrorItems> for Items {
+    fn from(value: ErrorItems) -> Self {
+        let ErrorItems {
+            event,
+            attachments,
+            user_reports,
+            other,
+        } = value;
 
-    pub error: ErrorKind,
-}
+        let mut items = attachments;
+        items.reserve_exact(event.is_some() as usize + user_reports.len() + other.len());
+        items.extend(user_reports);
+        items.extend(other);
+        if let Some(event) = event {
+            items.push(event);
+        }
 
-impl Counted for ExpandedError {
-    fn quantities(&self) -> Quantities {
-        todo!()
+        items
     }
 }
 
-impl processing::RateLimited for Managed<ExpandedError> {
-    type Output = Self;
-    type Error = Error;
+#[derive(Debug, Clone, Copy)]
+pub struct Context<'a> {
+    pub envelope: &'a EnvelopeHeaders,
+    pub processing: processing::Context<'a>,
+}
 
-    async fn enforce<R>(
-        self,
-        rate_limiter: R,
-        ctx: processing::Context<'_>,
-    ) -> Result<Self::Output, Rejected<Self::Error>>
-    where
-        R: processing::RateLimiter,
-    {
-        todo!()
+#[cfg(test)]
+impl Context<'static> {
+    /// Returns a [`Context`] with default values for testing.
+    pub fn for_test() -> Self {
+        use std::sync::LazyLock;
+
+        static ENVELOPE: LazyLock<Box<crate::envelope::Envelope>> =
+            LazyLock::new(|| crate::testutils::new_envelope(false, ""));
+
+        Self {
+            envelope: ENVELOPE.headers(),
+            processing: processing::Context::for_test(),
+        }
     }
 }
 
-pub trait SentryError {
-    fn try_parse(items: &mut Items) -> Result<Option<ParsedError<Self>>>
+/// A shape of error Sentry supports.
+pub trait SentryError: Counted {
+    /// Attempts to parse this error from the passed [`items`].
+    ///
+    /// If parsing modifies the parsed `items` it must either return an error, indicating the
+    /// passed items are invalid, or it must return a fully constructed [`Self`].
+    ///
+    /// The parser may return `Ok(None)` when none of the passed items match this shape of error.
+    fn try_expand(items: &mut Items, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>>
     where
         Self: Sized;
 
+    /// Post expansion processing phase for the error.
+    ///
+    /// Most error events do not need a specific post processing phase and should prefer doing
+    /// processing and validation during [expansion](Self::try_expand).
+    fn process(&mut self, ctx: Context<'_>) -> Result<()> {
+        let _ = ctx;
+        Ok(())
+    }
+
+    /// Serializes the error back into [`Items`], ready to be attached to an envelope.
+    ///
+    /// The default implementation serializes all items exposed through [`Self::as_ref_mut`].
+    /// Errors which handle with more items must override this implementation.
+    fn serialize(mut self, _ctx: ForwardContext<'_>) -> Result<ErrorItems>
+    where
+        Self: Sized,
+    {
+        let ErrorRefMut {
+            event,
+            attachments,
+            user_reports,
+        } = self.as_ref_mut();
+
+        let event = std::mem::take(event);
+        let event = if !event.is_empty() {
+            let data = relay_statsd::metric!(timer(RelayTimers::EventProcessingSerialization), {
+                event.to_json().map_err(ProcessingError::SerializeFailed)?
+            });
+
+            let event_type = event
+                .value()
+                .and_then(|event| event.ty.value().copied())
+                .unwrap_or_default();
+
+            let mut item = Item::new(ItemType::from_event_type(event_type));
+            item.set_payload(ContentType::Json, data);
+            Some(item)
+        } else {
+            None
+        };
+
+        Ok(ErrorItems {
+            event,
+            attachments: std::mem::take(attachments),
+            user_reports: user_reports.map(std::mem::take).unwrap_or_default(),
+            other: Items::new(),
+        })
+    }
+
+    /// A reference to the contained error data.
     fn as_ref(&self) -> ErrorRef<'_>;
+    /// A mutable reference to the contained error data.
     fn as_ref_mut(&mut self) -> ErrorRefMut<'_>;
 
+    /// A shorthand to access the contained error event.
     fn event(&self) -> &Annotated<Event> {
         self.as_ref().event
     }
+    /// A shorthand to access the contained error event mutably.
     fn event_mut(&mut self) -> &mut Annotated<Event> {
         self.as_ref_mut().event
     }
 }
 
 macro_rules! gen_error_kind {
-    ($($variant:ident => $ty:ty,)*) => {
+    ($($name:ident,)*) => {
         #[derive(Debug)]
         pub enum ErrorKind {
-            $($variant($ty),)*
+            $($name($name),)*
         }
 
         impl SentryError for ErrorKind {
-            fn try_parse(items: &mut Items) -> Result<Option<ParsedError<Self>>> {
+            fn try_expand(items: &mut Items, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
                 $(
-                    if let Some(p) = <$ty as SentryError>::try_parse(items)? {
+                    if let Some(p) = <$name as SentryError>::try_expand(items, ctx)? {
                         return Ok(Some(ParsedError {
                             error: p.error.into(),
                             fully_normalized: p.fully_normalized,
@@ -100,71 +205,70 @@ macro_rules! gen_error_kind {
                 Ok(None)
             }
 
+            fn process(&mut self, ctx: Context<'_>) -> Result<()> {
+                match self {
+                    $(Self::$name(error) => error.process(ctx),)*
+                }
+            }
+
+            fn serialize(self, ctx: ForwardContext<'_>) -> Result<ErrorItems> {
+                match self {
+                    $(Self::$name(error) => error.serialize(ctx),)*
+                }
+            }
+
             fn as_ref(&self) -> ErrorRef<'_> {
                 match self {
-                    $(Self::$variant(error) => error.as_ref(),)*
+                    $(Self::$name(error) => error.as_ref(),)*
                 }
             }
 
             fn as_ref_mut(&mut self) -> ErrorRefMut<'_> {
                 match self {
-                    $(Self::$variant(error) => error.as_ref_mut(),)*
+                    $(Self::$name(error) => error.as_ref_mut(),)*
                 }
             }
         }
 
         $(
-            impl From<$ty> for ErrorKind {
-                fn from(value: $ty) -> Self {
-                    Self::$variant(value)
+            impl From<$name> for ErrorKind {
+                fn from(value: $name) -> Self {
+                    Self::$name(value)
                 }
             }
         )*
+
+        impl Counted for ErrorKind {
+            fn quantities(&self) -> Quantities {
+                match self {
+                    $(Self::$name(error) => error.quantities(),)*
+                }
+            }
+        }
     };
 }
 
-gen_error_kind!(
-    Nnswitch => Nnswitch,
-    Generic => Generic,
+// Order of these types is important, from most specific to least specific.
+//
+// For example a Minidump crash may contain an error, which would also be picked up by the generic
+// error.
+gen_error_kind![
+    Nnswitch,
+    Unreal,
+    Minidump,
+    AppleCrashReport,
+    Playstation,
+    Security,
+    RawSecurity,
+    UserReportV2,
+    FormData,
+    Attachments,
+    Generic,
+];
 
-);
-
+// TODO: this may need a better name
 #[derive(Debug)]
 pub struct ParsedError<T> {
     pub error: T,
     pub fully_normalized: bool,
 }
-
-pub struct UserFeedback {
-    // Maybe this is generic
-    // event
-    // ???
-}
-
-pub struct MinidumpError {
-    // event
-    // minidump
-    // other attachments?
-}
-
-pub struct AppleCrashReportError {
-    // event
-    // apple crash report
-    // other attachments?
-}
-
-pub struct UnrealError {}
-
-pub struct PlaystationError {}
-
-pub struct MaybeSomethingWithOutEventJustToForward {
-    // Playstation/prospero only converts in processing
-    // Or allow Annotated::empty for events
-}
-// impl TryFrom<SerializedError> for ExpandedEvent {
-//     type Error = Error;
-//
-//     fn try_from(value: SerializedError) -> Result<Self> {
-//         todo!()
-//     }
-// }

@@ -1,3 +1,4 @@
+use relay_base_schema::events::EventType;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 
@@ -7,30 +8,32 @@ use crate::processing::errors::Result;
 use crate::processing::errors::errors::{
     Context, ErrorRef, ErrorRefMut, ParsedError, SentryError, utils,
 };
+use crate::statsd::RelayCounters;
 
 #[derive(Debug)]
-pub struct Generic {
+pub struct UserReportV2 {
     pub event: Annotated<Event>,
     pub attachments: Items,
-    pub user_reports: Items,
 }
 
-impl SentryError for Generic {
+impl SentryError for UserReportV2 {
     fn try_expand(items: &mut Items, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
-        let Some(ev) = utils::take_item_of_type(items, ItemType::Event) else {
+        let Some(ev) = utils::take_item_of_type(items, ItemType::UserReportV2) else {
             return Ok(None);
         };
 
-        let fully_normalized = ev.fully_normalized();
         let error = Self {
-            event: utils::event_from_json_payload(ev, None)?,
+            event: utils::event_from_json_payload(ev, EventType::UserReportV2)?,
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
-            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
         };
+
+        relay_statsd::metric!(
+            counter(RelayCounters::FeedbackAttachments) += error.attachments.len() as u64
+        );
 
         Ok(Some(ParsedError {
             error,
-            fully_normalized,
+            fully_normalized: false,
         }))
     }
 
@@ -38,7 +41,7 @@ impl SentryError for Generic {
         ErrorRef {
             event: &self.event,
             attachments: &self.attachments,
-            user_reports: &self.user_reports,
+            user_reports: &[],
         }
     }
 
@@ -46,12 +49,12 @@ impl SentryError for Generic {
         ErrorRefMut {
             event: &mut self.event,
             attachments: &mut self.attachments,
-            user_reports: Some(&mut self.user_reports),
+            user_reports: None,
         }
     }
 }
 
-impl Counted for Generic {
+impl Counted for UserReportV2 {
     fn quantities(&self) -> Quantities {
         self.as_ref().to_quantities()
     }

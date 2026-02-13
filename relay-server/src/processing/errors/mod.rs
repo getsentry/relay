@@ -5,17 +5,24 @@ use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities, Rejected,
 };
+use crate::processing::errors::errors::SentryError as _;
+use crate::processing::utils::event::EventFullyNormalized;
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter};
-use crate::services::outcome::Outcome;
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::ProcessingError;
 
 mod dynamic_sampling;
+#[allow(
+    clippy::module_inception,
+    reason = "all error types of the errors processor"
+)]
 mod errors;
 mod filter;
 mod process;
 
-pub use errors::ExpandedError;
+pub use errors::SwitchProcessingError;
 use relay_event_normalization::GeoIpLookup;
+use relay_event_schema::protocol::Metrics;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -31,7 +38,11 @@ impl OutcomeError for Error {
     type Error = Error;
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
-        todo!()
+        let outcome = match &self {
+            Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
+            Self::ProcessingFailed(e) => e.to_outcome(),
+        };
+        (outcome, self)
     }
 }
 
@@ -71,17 +82,6 @@ impl processing::Processor for ErrorsProcessor {
             return None;
         }
 
-        // let em = envelope.envelope_mut();
-        // // Currently these are processed by the error pipeline, but in the future, when we
-        // // introduce a proper concept of intermediate products, it's thinkable that we have a
-        // // dedicated processor pre-processing security reports.
-        // let security_reports = em.take_items_by(|i| matches!(i.ty(), &ItemType::RawSecurity));
-        // let require_event_items = em.take_items_by(Item::requires_event);
-        //
-        // if security_reports.is_empty() && require_event_items.is_empty() {
-        //     return None;
-        // }
-
         let items = envelope.envelope_mut().take_items_by(Item::requires_event);
 
         let errors = SerializedError {
@@ -95,21 +95,11 @@ impl processing::Processor for ErrorsProcessor {
     async fn process(
         &self,
         error: Managed<Self::UnitOfWork>,
-        mut ctx: Context<'_>,
+        ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        // Expand:
-        //  - user reports (process_user_reports?)
-        //  - unreal (processing)
-        //  - playstation (processing)
-        //  - nnswitch (processing)
-        //  - event::extract (horror)
-        let mut error = process::expand(error);
+        let mut error = process::expand(error, ctx);
 
-        // Process::
-        //  - unreal
-        //  - playstation
-        //  - attachment create placeholders
-        process::process(&mut error);
+        process::process(&mut error, ctx)?;
 
         process::finalize(&mut error, ctx)?;
         process::normalize(&mut error, &self.geoip_lookup, ctx)?;
@@ -122,9 +112,6 @@ impl processing::Processor for ErrorsProcessor {
 
         process::scrub(&mut error, ctx)?;
 
-        // serialize
-        // emit feedback metrics (needed but can be moved into expand)
-
         Ok(Output::just(ErrorOutput(error)))
     }
 }
@@ -133,15 +120,52 @@ impl processing::Processor for ErrorsProcessor {
 pub struct SerializedError {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
-    // /// List of [`ItemType::RawSecurity`] items.
-    // security_reports: Items,
-    // require_event_items: Items,
+    /// List of items which can be processed as an error.
+    ///
+    /// This is a mixture of items all of which return `true` for [`Item::requires_event`].
     items: Items,
 }
 
 impl Counted for SerializedError {
     fn quantities(&self) -> Quantities {
         self.items.quantities()
+    }
+}
+
+#[derive(Debug)]
+struct Flags {
+    pub fully_normalized: EventFullyNormalized,
+}
+
+#[derive(Debug)]
+struct ExpandedError {
+    // TODO: event_id is a very important header, maybe pull it out to a field
+    pub headers: EnvelopeHeaders,
+    pub flags: Flags,
+    pub metrics: Metrics,
+
+    pub error: errors::ErrorKind,
+}
+
+impl Counted for ExpandedError {
+    fn quantities(&self) -> Quantities {
+        self.error.quantities()
+    }
+}
+
+impl processing::RateLimited for Managed<ExpandedError> {
+    type Output = Self;
+    type Error = Error;
+
+    async fn enforce<R>(
+        self,
+        _rate_limiter: R,
+        _ctx: processing::Context<'_>,
+    ) -> Result<Self::Output, Rejected<Self::Error>>
+    where
+        R: processing::RateLimiter,
+    {
+        Ok(self)
     }
 }
 
@@ -153,7 +177,19 @@ impl Forward for ErrorOutput {
         self,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        todo!()
+        self.0
+            .try_map(|errors, _| {
+                let mut items = errors.error.serialize(ctx)?;
+
+                if let Some(event) = items.event.as_mut() {
+                    event.set_fully_normalized(errors.flags.fully_normalized.0);
+                }
+
+                // TODO: size limits?
+
+                Ok::<_, Error>(Envelope::from_parts(errors.headers, items.into()))
+            })
+            .map_err(|err| err.map(|_| ()))
     }
 
     #[cfg(feature = "processing")]
@@ -162,6 +198,11 @@ impl Forward for ErrorOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        todo!()
+        let envelope = self.serialize_envelope(ctx)?;
+        let envelope = ManagedEnvelope::from(envelope).into_processed();
+
+        s.store(crate::services::store::StoreEnvelope { envelope });
+
+        Ok(())
     }
 }
