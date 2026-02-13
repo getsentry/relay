@@ -336,7 +336,8 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
                 tracing::Level::ERROR | tracing::Level::WARN => {
                     EventFilter::Event | EventFilter::Log
                 }
-                _ => EventFilter::Log,
+                tracing::Level::INFO => EventFilter::Log,
+                tracing::Level::DEBUG | tracing::Level::TRACE => EventFilter::Ignore,
             }),
         )
         .with(match env::var(EnvFilter::DEFAULT_ENV) {
