@@ -14,9 +14,9 @@ use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
-use relay_auth::PublicKey;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
+use relay_quotas::Scoping;
 use relay_system::Addr;
 use tower_http::limit::RequestBodyLimitLayer;
 
@@ -87,12 +87,19 @@ async fn handle(
 ) -> axum::response::Result<impl IntoResponse> {
     let upload_length = validate_headers(&headers).map_err(Error::from)?;
 
-    let project = wait_for_project(&state, meta.public_key()).await;
+    let project = get_project(&state, meta.public_key()).await;
 
-    let stream = check_request(&state, meta, body, upload_length, project).await?;
+    let scoping = check_request(&state, meta, upload_length, project).await?;
+    let stream = body
+        .into_data_stream()
+        .map(|result| result.map_err(io::Error::other))
+        .boxed();
+    let stream = ExactStream::new(stream, upload_length);
 
     let path = uri.path();
-    let result = Sink::new(&state).upload(path, stream).await?;
+    let result = Sink::new(&state)
+        .upload(path, UploadStream { scoping, stream })
+        .await?;
 
     match result {
         UploadResult::Forwarded(response) => Ok(response.into_response()),
@@ -125,10 +132,9 @@ async fn handle(
 async fn check_request(
     state: &ServiceState,
     meta: RequestMeta,
-    body: Body,
     upload_length: u64,
     project: Project<'_>,
-) -> Result<Managed<UploadStream>, axum::response::ErrorResponse> {
+) -> Result<Scoping, axum::response::ErrorResponse> {
     let mut envelope = Envelope::from_request(None, meta);
     let mut item = Item::new(ItemType::Attachment);
     item.set_original_length(upload_length);
@@ -144,19 +150,22 @@ async fn check_request(
             .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
             .into());
     }
-    let stream = body
-        .into_data_stream()
-        .map(|result| result.map_err(io::Error::other))
-        .boxed();
-    let upload_stream = UploadStream {
-        body: ExactStream::new(stream, upload_length),
-    };
-    let stream = envelope.map(|_, _| upload_stream);
-    Ok(stream)
+
+    // We are not really processing an envelope here, only keep the updated scoping:
+    let scoping = envelope.scoping();
+    envelope.accept(|x| x);
+    Ok(scoping)
 }
 
-async fn wait_for_project(state: &ServiceState, public_key: ProjectKey) -> Project<'_> {
+async fn get_project(state: &ServiceState, public_key: ProjectKey) -> Project<'_> {
     let mut project = state.project_cache_handle().get(public_key);
+
+    // In non-procesing relays, it's OK to forward the request without waiting.
+    if !state.config().processing_enabled() {
+        return project;
+    }
+
+    // TODO: There should be a better way to await a project config.
     if project.state().is_pending() {
         state.project_cache_handle().fetch(public_key);
         while project.state().is_pending() {
@@ -198,22 +207,15 @@ impl Sink {
         }
     }
 
-    async fn upload(
-        &self,
-        path: &str,
-        stream: Managed<UploadStream>,
-    ) -> Result<UploadResult, Error> {
+    async fn upload(&self, path: &str, stream: UploadStream) -> Result<UploadResult, Error> {
         match self {
-            Sink::Upstream(addr) => stream
-                .try_accept_async(async |stream| {
-                    let response = ForwardRequest::builder(Method::POST, path.to_owned())
-                        .with_body(Body::from_stream(stream.body))
-                        .send_to(addr)
-                        .await?;
-                    Ok::<_, ForwardError>(UploadResult::Forwarded(response))
-                })
-                .await
-                .map_err(|e| e.into_inner()),
+            Sink::Upstream(addr) => {
+                let response = ForwardRequest::builder(Method::POST, path.to_owned())
+                    .with_body(Body::from_stream(stream.stream))
+                    .send_to(addr)
+                    .await?;
+                Ok(UploadResult::Forwarded(response))
+            }
             Sink::Upload(addr) => {
                 let send_result = addr.send(stream).await;
                 let key = send_result

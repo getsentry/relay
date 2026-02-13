@@ -7,10 +7,10 @@ use std::{fmt, io};
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::stream::{BoxStream, FuturesUnordered};
-use futures::{FutureExt, Stream, StreamExt};
+use futures::{FutureExt, StreamExt};
 use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
 use relay_config::UploadServiceConfig;
-use relay_quotas::DataCategory;
+use relay_quotas::{DataCategory, Scoping};
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, NoResponse, Receiver, Sender, Service,
 };
@@ -37,7 +37,7 @@ pub enum Upload {
     Envelope(StoreEnvelope),
     Attachment(Managed<StoreAttachment>),
     Stream {
-        message: Managed<UploadStream>,
+        message: UploadStream,
         sender: Sender<Result<UploadKey, Error>>,
     },
 }
@@ -82,13 +82,10 @@ impl FromMessage<Managed<StoreAttachment>> for Upload {
     }
 }
 
-impl FromMessage<Managed<UploadStream>> for Upload {
+impl FromMessage<UploadStream> for Upload {
     type Response = AsyncResponse<Result<UploadKey, Error>>;
 
-    fn from_message(
-        message: Managed<UploadStream>,
-        sender: Sender<Result<UploadKey, Error>>,
-    ) -> Self {
+    fn from_message(message: UploadStream, sender: Sender<Result<UploadKey, Error>>) -> Self {
         Self::Stream { message, sender }
     }
 }
@@ -110,22 +107,12 @@ impl Counted for StoreAttachment {
     }
 }
 
-/// A request body to be uploaded to objectstore.
+/// A stream of bytes to be uploaded to objectstore.
 pub struct UploadStream {
+    /// The organization and project the stream belongs to.
+    pub scoping: Scoping,
     /// The body to be uploaded to objectstore, with length validation.
-    pub body: ExactStream<BoxStream<'static, io::Result<Bytes>>>,
-}
-
-impl Counted for UploadStream {
-    fn quantities(&self) -> Quantities {
-        smallvec![
-            (
-                DataCategory::Attachment,
-                self.body.expected_length() as usize
-            ),
-            (DataCategory::AttachmentItem, 1)
-        ]
-    }
+    pub stream: ExactStream<BoxStream<'static, io::Result<Bytes>>>,
 }
 
 /// Errors that can occur when trying to upload an attachment.
@@ -237,12 +224,9 @@ impl UploadService {
                     self.inner.store.send(envelope);
                 }
                 Upload::Attachment(managed) => {
-                    // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
-                    // TODO: After the experimental phase, implement backpressure instead.
                     let _ = managed.reject_err(Error::LoadShed);
                 }
-                Upload::Stream { message, sender } => {
-                    let _ = message.reject_err(Error::LoadShed);
+                Upload::Stream { message: _, sender } => {
                     sender.send(Err(Error::LoadShed));
                 }
             };
@@ -424,10 +408,9 @@ impl UploadServiceInner {
 
     async fn handle_stream(
         &self,
-        managed: Managed<UploadStream>,
+        UploadStream { scoping, stream }: UploadStream,
         sender: Sender<Result<UploadKey, Error>>,
     ) {
-        let scoping = managed.scoping();
         let session = match self
             .event_attachments
             .for_project(
@@ -443,15 +426,13 @@ impl UploadServiceInner {
                     result = error.to_string().as_str(),
                     type = "stream",
                 );
-                let rejected = managed.reject_err(Error::UploadFailed(error));
-                sender.send(Err(rejected.into_inner()));
+                sender.send(Err(Error::UploadFailed(error)));
                 return;
             }
         };
 
-        let stream = managed.accept(|stream| stream);
         let request = session
-            .put_stream(stream.body.boxed())
+            .put_stream(stream.boxed())
             // generate ID here to drop the hyphens and be consistent with other attachment uploads.
             .key(Uuid::now_v7().as_simple().to_string());
 
