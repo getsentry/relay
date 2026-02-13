@@ -73,6 +73,14 @@ class Relay(SentryLike):
             self.process.kill()
             raise
 
+    def wait_for_log(self, needle):
+        """Wait for a substring to appear in the logs. This function may block forever."""
+        while True:
+            line = self.process.stderr.readline()
+            print(line, end="", file=sys.stderr)
+            if line is None or needle in line:
+                break
+
     def send_signal(self, signal):
         self.process.send_signal(signal)
 
@@ -139,6 +147,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         static_credentials=None,
         credentials=None,
         version="latest",
+        capture_logs=False,
     ):
         relay_bin = get_relay_binary(version)
         host = "127.0.0.1"
@@ -219,9 +228,13 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "version": version,
         }
 
-        process = background_process(
-            relay_bin + ["-c", str(dir), "run"],
-        )
+        kwargs = {}
+        if capture_logs:
+            kwargs.update(
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        process = background_process(relay_bin + ["-c", str(dir), "run"], **kwargs)
 
         relay = Relay(
             (host, port),
