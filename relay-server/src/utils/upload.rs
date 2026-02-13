@@ -3,7 +3,7 @@
 use axum::response::IntoResponse;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use hyper::http::{Method, StatusCode};
+use http::{HeaderValue, Method, StatusCode};
 use relay_auth::Signature;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
@@ -52,7 +52,8 @@ pub enum Sink {
 }
 
 impl Sink {
-    fn new(state: &ServiceState) -> Self {
+    /// Creates a new upload dispatcher.
+    pub fn new(state: &ServiceState) -> Self {
         if let Some(addr) = state.upload() {
             Self::Upload(addr.clone())
         } else {
@@ -60,7 +61,8 @@ impl Sink {
         }
     }
 
-    async fn upload(&self, config: &Config, stream: Stream) -> Result<SignedLocation, Error> {
+    /// Uploads a given stream and returns the upload's identifier upon success.
+    pub async fn upload(&self, config: &Config, stream: Stream) -> Result<SignedLocation, Error> {
         match self {
             Sink::Upstream(addr) => {
                 let Stream { scoping, stream } = stream;
@@ -124,8 +126,9 @@ impl Location {
     }
 }
 
+/// A verifiable [`Location`] signed by this Relay or an upstream Relay.
 pub enum SignedLocation {
-    FromUpstream(String),
+    FromUpstream(HeaderValue),
     Local {
         location: Location,
         signature: Signature,
@@ -133,22 +136,8 @@ pub enum SignedLocation {
 }
 
 impl SignedLocation {
-    fn try_from_response(response: ForwardResponse) -> Result<Self, Error> {
-        let response = response.into_response();
-        match response.status() {
-            status if status.is_success() => {
-                let location = response
-                    .headers()
-                    .get(hyper::header::LOCATION)
-                    .ok_or(Error::InvalidLocation)?;
-                let location = location.to_str().map_err(|_| Error::InvalidLocation)?;
-                Ok(Self::FromUpstream(location.to_owned()))
-            }
-            status => Err(Error::Upstream(status)),
-        }
-    }
-
-    fn into_string(self) -> String {
+    /// Converts the location into an URI for future reference.
+    pub fn into_header_value(self) -> HeaderValue {
         match self {
             SignedLocation::FromUpstream(value) => value,
             SignedLocation::Local {
@@ -158,8 +147,22 @@ impl SignedLocation {
                 let mut uri = location.as_uri();
                 uri.push_str("&signature=");
                 uri.push_str(&signature.to_string());
-                uri
+                HeaderValue::from_str(&uri).expect("failed to construct header value")
             }
+        }
+    }
+
+    fn try_from_response(response: ForwardResponse) -> Result<Self, Error> {
+        let response = response.into_response();
+        match response.status() {
+            status if status.is_success() => {
+                let location = response
+                    .headers()
+                    .get(hyper::header::LOCATION)
+                    .ok_or(Error::InvalidLocation)?;
+                Ok(Self::FromUpstream(location.clone()))
+            }
+            status => Err(Error::Upstream(status)),
         }
     }
 }

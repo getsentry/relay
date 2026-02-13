@@ -20,23 +20,41 @@ pub enum Error {
     ContentType,
 }
 
+/// TUS protocol header for the protocol version.
+///
+/// See <https://tus.io/protocols/resumable-upload#tus-version>.
+pub const TUS_RESUMABLE: &str = "Tus-Resumable";
+
+/// TUS protocol header for supported extensions.
+///
+/// See <https://tus.io/protocols/resumable-upload#tus-extension>.
+const TUS_EXTENSION: &str = "Tus-Extension";
+
+const SUPPORTED_EXTENSIONS: &str = "creation-with-upload";
+
+/// TUS protocol header for the maximum upload size.
+///
+/// See <https://tus.io/protocols/resumable-upload#tus-max-size>.
+const TUS_MAX_SIZE: &str = "Tus-Max-Size";
+
 /// TUS protocol version supported by this endpoint.
 pub const TUS_VERSION: &str = "1.0.0";
 
-/// TUS protocol header for the protocol version.
-pub const TUS_RESUMABLE: &str = "Tus-Resumable";
-
 /// TUS protocol header for the total upload length.
+///
+/// See <https://tus.io/protocols/resumable-upload#upload-length>.
 pub const UPLOAD_LENGTH: &str = "Upload-Length";
 
 /// TUS protocol header for the current upload offset.
+///
+/// See <https://tus.io/protocols/resumable-upload#upload-offset>.
 pub const UPLOAD_OFFSET: &str = "Upload-Offset";
 
 /// Expected value of the content-type header.
 pub const EXPECTED_CONTENT_TYPE: &str = "application/offset+octet-stream";
 
 /// Validates TUS protocol headers and returns the expected upload length.
-pub fn validate_headers(headers: &HeaderMap) -> Result<u64, Error> {
+pub fn validate_headers(headers: &HeaderMap) -> Result<usize, Error> {
     let tus_version = headers
         .get(TUS_RESUMABLE)
         .ok_or_else(|| Error::Version("None".to_owned()))?
@@ -61,6 +79,13 @@ pub fn validate_headers(headers: &HeaderMap) -> Result<u64, Error> {
         .map_err(|_| Error::UploadLength)?;
 
     Ok(upload_length)
+}
+
+/// Prepares a response with the required TUS headers.
+pub fn response() -> http::response::Builder {
+    axum::response::Response::builder()
+        .header(TUS_RESUMABLE, TUS_VERSION)
+        .header(TUS_EXTENSION, SUPPORTED_EXTENSIONS)
 }
 
 #[cfg(test)]

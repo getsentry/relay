@@ -3896,6 +3896,7 @@ dependencies = [
  "clap_complete",
  "dialoguer",
  "hostname 0.4.1",
+ "http",
  "mimalloc",
  "relay-config",
  "relay-kafka",

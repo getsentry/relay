@@ -10,14 +10,14 @@ mod tus;
 use std::io;
 
 use axum::body::Body;
-use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
-use axum::response::IntoResponse;
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
+use http::header;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_quotas::Scoping;
-use relay_system::Addr;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
@@ -27,48 +27,48 @@ use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
 use crate::services::projects::cache::Project;
-use crate::services::upload::{Error as UploadError, Upload, UploadKey, UploadStream};
-use crate::services::upstream::UpstreamRelay;
-use crate::utils::{ExactStream, ForwardError, ForwardRequest, ForwardResponse};
+use crate::utils::upload::SignedLocation;
+use crate::utils::{ExactStream, upload};
 
-use self::tus::{TUS_RESUMABLE, TUS_VERSION, UPLOAD_OFFSET, validate_headers};
+use self::tus::validate_headers;
 
-/// Error type for TUS upload requests.
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("TUS protocol violation: {0}")]
+enum Error {
+    #[error("TUS protocol error: {0}")]
     Tus(#[from] tus::Error),
 
-    #[error("upstream error: {0}")]
-    Forward(#[from] ForwardError),
+    #[error("request error: {0}")]
+    Request(#[from] BadStoreRequest),
 
-    #[error("upload service error: {0}")]
-    UploadService(#[from] UploadError),
-
-    #[error("service unavailable")]
-    ServiceUnavailable,
+    #[error("upload error: {0}")]
+    Upload(#[from] upload::Error),
 }
 
 impl IntoResponse for Error {
-    fn into_response(self) -> axum::response::Response {
-        // Delegate to inner error types that have their own status code mapping.
-        let status = match self {
-            Error::Forward(inner) => return inner.into_response(),
-            Error::Tus(_) => StatusCode::BAD_REQUEST,
-            Error::UploadService(UploadError::LoadShed) | Error::ServiceUnavailable => {
-                StatusCode::SERVICE_UNAVAILABLE
-            }
-            Error::UploadService(UploadError::Timeout) => StatusCode::GATEWAY_TIMEOUT,
-            Error::UploadService(_) => StatusCode::INTERNAL_SERVER_ERROR,
-        };
-
-        let mut response = status.into_response();
-        response
-            .headers_mut()
-            .insert(TUS_RESUMABLE, HeaderValue::from_static(TUS_VERSION));
-
-        response
+    fn into_response(self) -> Response {
+        todo!()
     }
+}
+
+impl IntoResponse for SignedLocation {
+    fn into_response(self) -> Response {
+        tus::response()
+            .header(header::LOCATION, self.into_header_value())
+            .status(StatusCode::CREATED)
+            .body(axum::body::Body::empty())
+            .expect("failed to create body")
+    }
+}
+
+async fn handle(
+    state: ServiceState,
+    meta: RequestMeta,
+    headers: HeaderMap,
+    body: Body,
+) -> axum::response::Result<impl IntoResponse> {
+    Ok(handle_upload(state, meta, headers, body)
+        .await
+        .into_response())
 }
 
 /// Handles TUS upload requests (Creation With Upload).
@@ -78,14 +78,13 @@ impl IntoResponse for Error {
 /// in a single request - partial uploads and resumption are not supported.
 ///
 /// The body is processed as a stream to avoid loading the entire upload into memory.
-async fn handle(
+async fn handle_upload(
     state: ServiceState,
     meta: RequestMeta,
-    uri: Uri,
     headers: HeaderMap,
     body: Body,
-) -> axum::response::Result<impl IntoResponse> {
-    let upload_length = validate_headers(&headers).map_err(Error::from)?;
+) -> Result<SignedLocation, Error> {
+    let upload_length = validate_headers(&headers)?;
 
     let project = get_project(&state, meta.public_key()).await;
 
@@ -96,33 +95,11 @@ async fn handle(
         .boxed();
     let stream = ExactStream::new(stream, upload_length);
 
-    let path = uri.path();
-    let result = Sink::new(&state)
-        .upload(path, UploadStream { scoping, stream })
+    let location = upload::Sink::new(&state)
+        .upload(state.config(), upload::Stream { scoping, stream })
         .await?;
 
-    match result {
-        UploadResult::Forwarded(response) => Ok(response.into_response()),
-        UploadResult::Success(key) => {
-            relay_log::trace!("Successfully uploaded to objectstore");
-            let mut response_headers = HeaderMap::new();
-            response_headers.insert(TUS_RESUMABLE, HeaderValue::from_static(TUS_VERSION));
-            response_headers.insert(
-                UPLOAD_OFFSET,
-                HeaderValue::from_str(&upload_length.to_string())
-                    .expect("integer should always be a valid header"),
-            );
-
-            relay_log::trace!("Signing URL...");
-            let location = signed(state.config(), path, key, upload_length)
-                .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-            response_headers.insert(
-                hyper::header::LOCATION,
-                HeaderValue::from_str(&location).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
-            );
-            Ok((StatusCode::CREATED, response_headers, "").into_response())
-        }
-    }
+    Ok(location)
 }
 
 /// Check request by converting it into a pseudo-envelope.
@@ -132,23 +109,23 @@ async fn handle(
 async fn check_request(
     state: &ServiceState,
     meta: RequestMeta,
-    upload_length: u64,
+    upload_length: usize,
     project: Project<'_>,
-) -> Result<Scoping, axum::response::ErrorResponse> {
+) -> Result<Scoping, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     let mut item = Item::new(ItemType::Attachment);
-    item.set_original_length(upload_length);
+    item.set_original_length(upload_length as u64);
     item.set_payload(ContentType::AttachmentRef, vec![]);
     envelope.add_item(item);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
     let rate_limits = project
         .check_envelope(&mut envelope)
         .await
-        .map_err(|err| err.map(BadStoreRequest::EventRejected))?;
+        .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?;
     if envelope.is_empty() {
         return Err(envelope
             .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
-            .into());
+            .into_inner());
     }
 
     // We are not really processing an envelope here, only keep the updated scoping:
