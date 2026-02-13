@@ -644,7 +644,7 @@ impl Enforcement {
                     AttachmentParentType::Span => !self.attachments_limits.span.is_active(),
                     AttachmentParentType::Trace => !self.attachments_limits.trace.is_active(),
                     AttachmentParentType::Event => {
-                        if !(&self.attachments_limits).event.is_active() {
+                        if !self.attachments_limits.event.is_active() {
                             return true;
                         }
                         if item.creates_event() {

@@ -5,7 +5,7 @@ use bytes::Bytes;
 use chrono::Utc;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method, StatusCode};
-use relay_auth::{Signature, SignatureAlgorithm, SignatureHeader};
+use relay_auth::{Signature, SignatureHeader};
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_quotas::Scoping;
@@ -79,7 +79,7 @@ impl Sink {
                     .send(stream)
                     .await
                     .map_err(|_send_error| Error::ServiceUnavailable)?
-                    .map_err(|e| Error::UploadService(e))?;
+                    .map_err(Error::UploadService)?;
 
                 Location {
                     project_id,
