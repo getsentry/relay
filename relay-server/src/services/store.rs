@@ -179,7 +179,7 @@ pub struct StoreReplay {
 
 impl Counted for StoreReplay {
     fn quantities(&self) -> Quantities {
-        // Web replays currently count as 2 since they are 2 items in the envelop (event + recording).
+        // Web replays currently count as 2 since they are 2 items in the envelope (event + recording).
         if self.event.is_some() && self.video.is_none() {
             smallvec![(DataCategory::Replay, 2)]
         } else {
