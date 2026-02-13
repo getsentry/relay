@@ -89,31 +89,7 @@ async fn handle(
 
     let project = wait_for_project(&state, meta.public_key()).await;
 
-    // Create pseudo-envelope.
-    // This is currently the easiest way to ensure that fast-path checks are applied for non-envelopes.
-    let mut envelope = Envelope::from_request(None, meta);
-    let mut item = Item::new(ItemType::Attachment);
-    item.set_original_length(upload_length);
-    item.set_payload(ContentType::AttachmentRef, vec![]);
-    envelope.add_item(item);
-    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
-    let rate_limits = project
-        .check_envelope(&mut envelope)
-        .await
-        .map_err(|err| err.map(BadStoreRequest::EventRejected))?;
-    if envelope.is_empty() {
-        return Err(envelope
-            .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
-            .into());
-    }
-    let stream = body
-        .into_data_stream()
-        .map(|result| result.map_err(io::Error::other))
-        .boxed();
-    let upload_stream = UploadStream {
-        body: ExactStream::new(stream, upload_length),
-    };
-    let stream = envelope.map(|_, _| upload_stream);
+    let stream = check_request(&state, meta, body, upload_length, project).await?;
 
     let path = uri.path();
     let result = Sink::new(&state).upload(path, stream).await?;
@@ -140,6 +116,43 @@ async fn handle(
             Ok((StatusCode::CREATED, response_headers, "").into_response())
         }
     }
+}
+
+/// Check request by converting it into a pseudo-envelope.
+///
+/// This is currently the easiest way to guarantee that the upload gets checked the same way as
+/// the envelope.
+async fn check_request(
+    state: &ServiceState,
+    meta: RequestMeta,
+    body: Body,
+    upload_length: u64,
+    project: Project<'_>,
+) -> Result<Managed<UploadStream>, axum::response::ErrorResponse> {
+    let mut envelope = Envelope::from_request(None, meta);
+    let mut item = Item::new(ItemType::Attachment);
+    item.set_original_length(upload_length);
+    item.set_payload(ContentType::AttachmentRef, vec![]);
+    envelope.add_item(item);
+    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
+    let rate_limits = project
+        .check_envelope(&mut envelope)
+        .await
+        .map_err(|err| err.map(BadStoreRequest::EventRejected))?;
+    if envelope.is_empty() {
+        return Err(envelope
+            .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
+            .into());
+    }
+    let stream = body
+        .into_data_stream()
+        .map(|result| result.map_err(io::Error::other))
+        .boxed();
+    let upload_stream = UploadStream {
+        body: ExactStream::new(stream, upload_length),
+    };
+    let stream = envelope.map(|_, _| upload_stream);
+    Ok(stream)
 }
 
 async fn wait_for_project(state: &ServiceState, public_key: ProjectKey) -> Project<'_> {
@@ -191,18 +204,19 @@ impl Sink {
         stream: Managed<UploadStream>,
     ) -> Result<UploadResult, Error> {
         match self {
-            Sink::Upstream(addr) => {
-                let stream = stream.accept(|stream| stream.body); // WRONG
-                let response = ForwardRequest::builder(Method::POST, path.to_owned())
-                    .with_body(Body::from_stream(stream))
-                    .send_to(addr)
-                    .await?;
-                Ok(UploadResult::Forwarded(response))
-            }
+            Sink::Upstream(addr) => stream
+                .try_accept_async(async |stream| {
+                    let response = ForwardRequest::builder(Method::POST, path.to_owned())
+                        .with_body(Body::from_stream(stream.body))
+                        .send_to(addr)
+                        .await?;
+                    Ok::<_, ForwardError>(UploadResult::Forwarded(response))
+                })
+                .await
+                .map_err(|e| e.into_inner()),
             Sink::Upload(addr) => {
-                let key = addr
-                    .send(stream)
-                    .await
+                let send_result = addr.send(stream).await;
+                let key = send_result
                     .map_err(|_send_error| Error::ServiceUnavailable)?
                     .map_err(Error::UploadService)?;
                 Ok(UploadResult::Success(key))

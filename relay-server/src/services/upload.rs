@@ -6,8 +6,8 @@ use std::{fmt, io};
 
 use bytes::Bytes;
 use futures::future::BoxFuture;
-use futures::stream::FuturesUnordered;
-use futures::{FutureExt, StreamExt};
+use futures::stream::{BoxStream, FuturesUnordered};
+use futures::{FutureExt, Stream, StreamExt};
 use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
 use relay_config::UploadServiceConfig;
 use relay_quotas::DataCategory;
@@ -113,7 +113,7 @@ impl Counted for StoreAttachment {
 /// A request body to be uploaded to objectstore.
 pub struct UploadStream {
     /// The body to be uploaded to objectstore, with length validation.
-    pub body: ExactStream<futures::stream::BoxStream<'static, io::Result<Bytes>>>,
+    pub body: ExactStream<BoxStream<'static, io::Result<Bytes>>>,
 }
 
 impl Counted for UploadStream {
