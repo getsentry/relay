@@ -2,9 +2,10 @@
 
 use axum::response::IntoResponse;
 use bytes::Bytes;
+use chrono::Utc;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method, StatusCode};
-use relay_auth::Signature;
+use relay_auth::{Signature, SignatureAlgorithm, SignatureHeader};
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_quotas::Scoping;
@@ -114,7 +115,13 @@ impl Location {
             .credentials()
             .ok_or(Error::SigningFailed)?
             .secret_key
-            .sign(uri.as_bytes());
+            .sign_with_header(
+                uri.as_bytes(),
+                &SignatureHeader {
+                    timestamp: Some(Utc::now()),
+                    signature_algorithm: None, //Some(SignatureAlgorithm::Prehashed),
+                },
+            );
 
         Ok(SignedLocation::Local {
             location: self,

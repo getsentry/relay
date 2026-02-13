@@ -2,7 +2,6 @@
 Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
-import time
 import uuid
 
 from flask import Response
@@ -137,7 +136,7 @@ def test_upload_rate_limited(mini_sentry, relay, data_category, dummy_upload):
             "reasonCode": "cached_rate_limit",
         }
     ]
-    relay = relay(mini_sentry)
+    relay = relay(mini_sentry, capture_logs=True)
 
     def request():
         return relay.post(
@@ -154,7 +153,7 @@ def test_upload_rate_limited(mini_sentry, relay, data_category, dummy_upload):
     # First request goes through:
     assert request().status_code == 201
 
-    time.sleep(1)  # TODO: wait for log instead.
+    relay.wait_for_log("project state fetch completed with non-pending config")
 
     assert request().status_code == 429
 
@@ -195,6 +194,7 @@ def test_upload_processing(mini_sentry, relay_with_processing):
     (length,) = query_params["length"]
     assert length == "11"
     (signature,) = query_params["signature"]
+    print(signature)
 
     unsigned_uri = f"{base_path}/{attachment_id}/?length=11"
     assert PublicKey.parse(relay.public_key).verify(unsigned_uri.encode(), signature)

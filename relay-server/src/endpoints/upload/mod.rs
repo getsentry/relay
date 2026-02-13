@@ -32,8 +32,6 @@ use crate::services::upload::Error as ServiceError;
 use crate::utils::upload::SignedLocation;
 use crate::utils::{ExactStream, upload};
 
-use self::tus::validate_headers;
-
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("TUS protocol error: {0}")]
@@ -98,7 +96,7 @@ async fn handle(
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    let upload_length = validate_headers(&headers).map_err(Error::from)?;
+    let upload_length = tus::validate_headers(&headers).map_err(Error::from)?;
 
     let project = get_project(&state, meta.public_key()).await;
 
