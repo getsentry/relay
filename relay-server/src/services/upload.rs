@@ -1,16 +1,16 @@
 //! Service that uploads attachments.
 use std::array::TryFromSliceError;
+use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{fmt, io};
 
 use bytes::Bytes;
 use futures::future::BoxFuture;
-use futures::stream::{BoxStream, FuturesUnordered};
+use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
 use relay_config::UploadServiceConfig;
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::DataCategory;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, NoResponse, Receiver, Sender, Service,
 };

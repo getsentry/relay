@@ -14,7 +14,8 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
-use http::header;
+use http::{HeaderValue, header};
+use objectstore_client as objectstore;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_quotas::Scoping;
@@ -27,6 +28,7 @@ use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
 use crate::services::projects::cache::Project;
+use crate::services::upload::Error as ServiceError;
 use crate::utils::upload::SignedLocation;
 use crate::utils::{ExactStream, upload};
 
@@ -46,29 +48,41 @@ enum Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        todo!()
+        match self {
+            Error::Tus(_) => StatusCode::BAD_REQUEST,
+            Error::Request(error) => return error.into_response(),
+            Error::Upload(error) => match error {
+                upload::Error::Forward(error) => return error.into_response(),
+                upload::Error::Upstream(status) => status,
+                upload::Error::InvalidLocation | upload::Error::SigningFailed => {
+                    StatusCode::INTERNAL_SERVER_ERROR
+                }
+                upload::Error::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::UploadService(service_error) => match service_error {
+                    ServiceError::Timeout => StatusCode::GATEWAY_TIMEOUT,
+                    ServiceError::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
+                    ServiceError::UploadFailed(error) => match error {
+                        objectstore::Error::Reqwest(error) => match error.status() {
+                            Some(status) => status,
+                            None => StatusCode::INTERNAL_SERVER_ERROR,
+                        },
+                        _ => StatusCode::INTERNAL_SERVER_ERROR,
+                    },
+                    ServiceError::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                },
+            },
+        }
+        .into_response()
     }
 }
 
 impl IntoResponse for SignedLocation {
     fn into_response(self) -> Response {
-        tus::response()
-            .header(header::LOCATION, self.into_header_value())
-            .status(StatusCode::CREATED)
-            .body(axum::body::Body::empty())
-            .expect("failed to create body")
-    }
-}
+        let mut headers = tus::response_headers();
+        headers.insert(header::LOCATION, self.into_header_value());
 
-async fn handle(
-    state: ServiceState,
-    meta: RequestMeta,
-    headers: HeaderMap,
-    body: Body,
-) -> axum::response::Result<impl IntoResponse> {
-    Ok(handle_upload(state, meta, headers, body)
-        .await
-        .into_response())
+        (StatusCode::CREATED, headers, ()).into_response()
+    }
 }
 
 /// Handles TUS upload requests (Creation With Upload).
@@ -78,13 +92,13 @@ async fn handle(
 /// in a single request - partial uploads and resumption are not supported.
 ///
 /// The body is processed as a stream to avoid loading the entire upload into memory.
-async fn handle_upload(
+async fn handle(
     state: ServiceState,
     meta: RequestMeta,
     headers: HeaderMap,
     body: Body,
-) -> Result<SignedLocation, Error> {
-    let upload_length = validate_headers(&headers)?;
+) -> axum::response::Result<impl IntoResponse> {
+    let upload_length = validate_headers(&headers).map_err(Error::from)?;
 
     let project = get_project(&state, meta.public_key()).await;
 
@@ -97,9 +111,17 @@ async fn handle_upload(
 
     let location = upload::Sink::new(&state)
         .upload(state.config(), upload::Stream { scoping, stream })
-        .await?;
+        .await
+        .map_err(Error::from)?;
 
-    Ok(location)
+    let mut response = location.into_response();
+    response.headers_mut().insert(
+        tus::UPLOAD_OFFSET,
+        HeaderValue::from_str(&upload_length.to_string())
+            .expect("integer should always be a valid header"),
+    );
+
+    Ok(response)
 }
 
 /// Check request by converting it into a pseudo-envelope.

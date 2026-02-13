@@ -11,7 +11,7 @@ use relay_quotas::Scoping;
 use relay_system::Addr;
 
 use crate::service::ServiceState;
-use crate::services::upload::{Upload, UploadKey};
+use crate::services::upload::{Error as ServiceError, Upload, UploadKey};
 use crate::services::upstream::UpstreamRelay;
 use crate::utils::{ExactStream, ForwardError, ForwardRequest, ForwardResponse};
 
@@ -26,13 +26,10 @@ pub enum Error {
     InvalidLocation,
     #[error("failed to sign location")]
     SigningFailed,
-    #[error("internal server error")]
-    Internal,
-
     #[error("service unavailable")]
     ServiceUnavailable,
-    #[error("upload service")]
-    UploadService,
+    #[error("upload service: {0}")]
+    UploadService(ServiceError),
 }
 
 /// A stream of bytes to be uploaded to objectstore or the upstream.
@@ -81,7 +78,7 @@ impl Sink {
                     .send(stream)
                     .await
                     .map_err(|_send_error| Error::ServiceUnavailable)?
-                    .map_err(|_| Error::UploadService)?;
+                    .map_err(|e| Error::UploadService(e))?;
 
                 Location {
                     project_id,
@@ -96,9 +93,9 @@ impl Sink {
 
 /// An identifier for the upload.
 pub struct Location {
-    project_id: ProjectId,
-    key: UploadKey,
-    length: usize,
+    pub project_id: ProjectId,
+    pub key: UploadKey,
+    pub length: usize,
 }
 
 impl Location {

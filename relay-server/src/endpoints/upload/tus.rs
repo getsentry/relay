@@ -6,12 +6,13 @@
 //! Reference: <https://tus.io/protocols/resumable-upload>
 
 use axum::http::HeaderMap;
+use http::HeaderValue;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The TUS version is missing or does not match the server's version.
-    #[error("Version Mismatch: {0}")]
-    Version(String),
+    #[error("Version Mismatch")]
+    Version,
     /// The `Upload-Length` header is missing or cannot be parsed.
     #[error("Invalid Upload-Length")]
     UploadLength,
@@ -30,15 +31,10 @@ pub const TUS_RESUMABLE: &str = "Tus-Resumable";
 /// See <https://tus.io/protocols/resumable-upload#tus-extension>.
 const TUS_EXTENSION: &str = "Tus-Extension";
 
-const SUPPORTED_EXTENSIONS: &str = "creation-with-upload";
-
-/// TUS protocol header for the maximum upload size.
-///
-/// See <https://tus.io/protocols/resumable-upload#tus-max-size>.
-const TUS_MAX_SIZE: &str = "Tus-Max-Size";
+const SUPPORTED_EXTENSIONS: HeaderValue = HeaderValue::from_static("creation-with-upload");
 
 /// TUS protocol version supported by this endpoint.
-pub const TUS_VERSION: &str = "1.0.0";
+pub const TUS_VERSION: HeaderValue = HeaderValue::from_static("1.0.0");
 
 /// TUS protocol header for the total upload length.
 ///
@@ -55,14 +51,9 @@ pub const EXPECTED_CONTENT_TYPE: &str = "application/offset+octet-stream";
 
 /// Validates TUS protocol headers and returns the expected upload length.
 pub fn validate_headers(headers: &HeaderMap) -> Result<usize, Error> {
-    let tus_version = headers
-        .get(TUS_RESUMABLE)
-        .ok_or_else(|| Error::Version("None".to_owned()))?
-        .to_str()
-        .map_err(|_| Error::Version("invalid header value".to_owned()))?;
-
-    if tus_version != TUS_VERSION {
-        return Err(Error::Version(tus_version.into()));
+    let tus_version = headers.get(TUS_RESUMABLE);
+    if tus_version != Some(&TUS_VERSION) {
+        return Err(Error::Version);
     }
 
     let content_type = headers.get(hyper::header::CONTENT_TYPE);
@@ -81,11 +72,12 @@ pub fn validate_headers(headers: &HeaderMap) -> Result<usize, Error> {
     Ok(upload_length)
 }
 
-/// Prepares a response with the required TUS headers.
-pub fn response() -> http::response::Builder {
-    axum::response::Response::builder()
-        .header(TUS_RESUMABLE, TUS_VERSION)
-        .header(TUS_EXTENSION, SUPPORTED_EXTENSIONS)
+/// Prepares the required TUS response headers.
+pub fn response_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(TUS_RESUMABLE, TUS_VERSION);
+    headers.insert(TUS_EXTENSION, SUPPORTED_EXTENSIONS);
+    headers
 }
 
 #[cfg(test)]
@@ -98,7 +90,7 @@ mod tests {
     fn test_validate_tus_headers_missing_version() {
         let headers = HeaderMap::new();
         let result = validate_headers(&headers);
-        assert!(matches!(result, Err(Error::Version(_))));
+        assert!(matches!(result, Err(Error::Version)));
     }
 
     #[test]
@@ -141,6 +133,6 @@ mod tests {
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("0.2.0"));
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_headers(&headers);
-        assert!(matches!(result, Err(Error::Version(_))));
+        assert!(matches!(result, Err(Error::Version)));
     }
 }
