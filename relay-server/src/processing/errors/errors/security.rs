@@ -9,19 +9,18 @@ use crate::processing::errors::errors::{
 };
 
 #[derive(Debug)]
-pub struct Generic {
+pub struct Security {
     pub event: Annotated<Event>,
     pub attachments: Items,
     pub user_reports: Items,
 }
 
-impl SentryError for Generic {
+impl SentryError for Security {
     fn try_expand(items: &mut Items, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
-        let Some(ev) = utils::take_item_of_type(items, ItemType::Event) else {
+        let Some(ev) = utils::take_item_of_type(items, ItemType::Security) else {
             return Ok(None);
         };
 
-        let fully_normalized = ev.fully_normalized();
         let error = Self {
             event: utils::event_from_json_payload(ev, None)?,
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
@@ -30,7 +29,7 @@ impl SentryError for Generic {
 
         Ok(Some(ParsedError {
             error,
-            fully_normalized,
+            fully_normalized: false,
         }))
     }
 
@@ -51,7 +50,7 @@ impl SentryError for Generic {
     }
 }
 
-impl Counted for Generic {
+impl Counted for Security {
     fn quantities(&self) -> Quantities {
         self.as_ref().to_quantities()
     }

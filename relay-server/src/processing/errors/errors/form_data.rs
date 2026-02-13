@@ -7,30 +7,36 @@ use crate::processing::errors::Result;
 use crate::processing::errors::errors::{
     Context, ErrorRef, ErrorRefMut, ParsedError, SentryError, utils,
 };
+use crate::services::processor::ProcessingError;
 
 #[derive(Debug)]
-pub struct Generic {
+pub struct FormData {
     pub event: Annotated<Event>,
     pub attachments: Items,
     pub user_reports: Items,
 }
 
-impl SentryError for Generic {
+impl SentryError for FormData {
     fn try_expand(items: &mut Items, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
-        let Some(ev) = utils::take_item_of_type(items, ItemType::Event) else {
+        let Some(form_data) = utils::take_item_of_type(items, ItemType::FormData) else {
             return Ok(None);
         };
 
-        let fully_normalized = ev.fully_normalized();
+        let event = {
+            let mut value = serde_json::Value::Object(Default::default());
+            crate::services::processor::event::merge_formdata(&mut value, form_data);
+            Annotated::deserialize_with_meta(value).map_err(ProcessingError::InvalidJson)
+        }?;
+
         let error = Self {
-            event: utils::event_from_json_payload(ev, None)?,
+            event,
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
         };
 
         Ok(Some(ParsedError {
             error,
-            fully_normalized,
+            fully_normalized: false,
         }))
     }
 
@@ -51,7 +57,7 @@ impl SentryError for Generic {
     }
 }
 
-impl Counted for Generic {
+impl Counted for FormData {
     fn quantities(&self) -> Quantities {
         self.as_ref().to_quantities()
     }

@@ -95,7 +95,7 @@ use {
 
 mod attachment;
 mod dynamic_sampling;
-mod event;
+pub mod event;
 mod metrics;
 mod nel;
 mod profile;
@@ -103,7 +103,7 @@ mod report;
 mod span;
 
 #[cfg(all(sentry, feature = "processing"))]
-mod playstation;
+pub mod playstation;
 mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;

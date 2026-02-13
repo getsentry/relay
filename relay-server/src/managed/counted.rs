@@ -237,7 +237,7 @@ where
     }
 }
 
-impl<T: Counted> Counted for Vec<T> {
+impl<T: Counted> Counted for [T] {
     fn quantities(&self) -> Quantities {
         let mut quantities = BTreeMap::new();
         for element in self {
@@ -249,14 +249,14 @@ impl<T: Counted> Counted for Vec<T> {
     }
 }
 
+impl<T: Counted> Counted for Vec<T> {
+    fn quantities(&self) -> Quantities {
+        self.as_slice().quantities()
+    }
+}
+
 impl<T: Counted, const N: usize> Counted for SmallVec<[T; N]> {
     fn quantities(&self) -> Quantities {
-        let mut quantities = BTreeMap::new();
-        for element in self {
-            for (category, size) in element.quantities() {
-                *quantities.entry(category).or_default() += size;
-            }
-        }
-        quantities.into_iter().collect()
+        self.as_slice().quantities()
     }
 }

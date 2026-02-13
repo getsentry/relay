@@ -2,14 +2,17 @@
 //!
 //! These functions are included only in the processing mode.
 
-use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeError, Item, ItemType};
-use crate::managed::TypedEnvelope;
-use crate::services::processor::{ErrorGroup, ProcessingError};
-use crate::utils;
 use bytes::{Buf, Bytes};
 use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
+
+use crate::Envelope;
+use crate::envelope::{ContentType, Item, ItemType};
+use crate::managed::TypedEnvelope;
+use crate::services::processor::{ErrorGroup, ProcessingError};
+use crate::utils;
+
+pub use crate::processing::errors::SwitchProcessingError;
 
 /// Magic number indicating the dying message file is encoded by sentry-switch SDK.
 const SENTRY_MAGIC: &[u8] = "sntr".as_bytes();
@@ -21,21 +24,6 @@ const DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
 const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
 
 type Result<T> = std::result::Result<T, SwitchProcessingError>;
-
-/// An error returned when parsing the dying message attachment.
-#[derive(Debug, thiserror::Error)]
-pub enum SwitchProcessingError {
-    #[error("invalid json")]
-    InvalidJson(#[source] serde_json::Error),
-    #[error("envelope parsing failed")]
-    EnvelopeParsing(#[from] EnvelopeError),
-    #[error("unexpected EOF, expected {expected:?}")]
-    UnexpectedEof { expected: String },
-    #[error("invalid {0:?} ({1:?})")]
-    InvalidValue(String, usize),
-    #[error("Zstandard error")]
-    Zstandard(#[source] std::io::Error),
-}
 
 /// Expands Nintendo Switch crash-reports.
 ///
@@ -81,12 +69,12 @@ fn expand_dying_message(mut payload: Bytes, envelope: &mut Envelope) -> Result<(
     let version = payload
         .try_get_u8()
         .map_err(|_| SwitchProcessingError::UnexpectedEof {
-            expected: "version".into(),
+            expected: "version",
         })?;
     match version {
         0 => expand_dying_message_v0(payload, envelope),
         _ => Err(SwitchProcessingError::InvalidValue(
-            "version".into(),
+            "version",
             version as usize,
         )),
     }
@@ -97,7 +85,7 @@ fn expand_dying_message_v0(mut payload: Bytes, envelope: &mut Envelope) -> Resul
     let encoding_byte = payload
         .try_get_u8()
         .map_err(|_| SwitchProcessingError::UnexpectedEof {
-            expected: "encoding".into(),
+            expected: "encoding",
         })?;
     let format = (encoding_byte >> 6) & 0b0000_0011;
     let compression = (encoding_byte >> 4) & 0b0000_0011;
@@ -107,7 +95,7 @@ fn expand_dying_message_v0(mut payload: Bytes, envelope: &mut Envelope) -> Resul
         payload
             .try_get_u16()
             .map_err(|_| SwitchProcessingError::UnexpectedEof {
-                expected: "compressed data length".into(),
+                expected: "compressed data length",
             })?;
     let data = decompress_data(
         payload,
@@ -119,7 +107,7 @@ fn expand_dying_message_v0(mut payload: Bytes, envelope: &mut Envelope) -> Resul
     match format {
         0 => expand_dying_message_from_envelope_items(data, envelope),
         _ => Err(SwitchProcessingError::InvalidValue(
-            "payload format".into(),
+            "payload format",
             format as usize,
         )),
     }
@@ -160,7 +148,7 @@ fn decompress_data(
 ) -> Result<Bytes> {
     if payload.len() < compressed_length {
         return Err(SwitchProcessingError::InvalidValue(
-            "compressed data length".into(),
+            "compressed data length",
             compressed_length,
         ));
     }
@@ -174,7 +162,7 @@ fn decompress_data(
             .map(Bytes::from)
             .map_err(SwitchProcessingError::Zstandard),
         _ => Err(SwitchProcessingError::InvalidValue(
-            "compression format".into(),
+            "compression format",
             compression as usize,
         )),
     }

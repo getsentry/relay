@@ -1,7 +1,7 @@
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 
-use crate::envelope::{ItemType, Items};
+use crate::envelope::{AttachmentType, ItemType, Items};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{
@@ -9,28 +9,44 @@ use crate::processing::errors::errors::{
 };
 
 #[derive(Debug)]
-pub struct Generic {
+pub struct Attachments {
     pub event: Annotated<Event>,
     pub attachments: Items,
     pub user_reports: Items,
 }
 
-impl SentryError for Generic {
-    fn try_expand(items: &mut Items, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
-        let Some(ev) = utils::take_item_of_type(items, ItemType::Event) else {
-            return Ok(None);
-        };
+impl SentryError for Attachments {
+    fn try_expand(items: &mut Items, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+        let ev = utils::take_item_by(items, |item| {
+            item.attachment_type() == Some(&AttachmentType::EventPayload)
+        });
+        let b1 = utils::take_item_by(items, |item| {
+            item.attachment_type() == Some(&AttachmentType::Breadcrumbs)
+        });
+        let b2 = utils::take_item_by(items, |item| {
+            item.attachment_type() == Some(&AttachmentType::Breadcrumbs)
+        });
 
-        let fully_normalized = ev.fully_normalized();
+        if ev.is_none() && b1.is_none() || b2.is_none() {
+            return Ok(None);
+        }
+
+        let (event, _) = crate::services::processor::event::event_from_attachments(
+            ctx.processing.config,
+            ev,
+            b1,
+            b2,
+        )?;
+
         let error = Self {
-            event: utils::event_from_json_payload(ev, None)?,
+            event,
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
         };
 
         Ok(Some(ParsedError {
             error,
-            fully_normalized,
+            fully_normalized: false,
         }))
     }
 
@@ -51,7 +67,7 @@ impl SentryError for Generic {
     }
 }
 
-impl Counted for Generic {
+impl Counted for Attachments {
     fn quantities(&self) -> Quantities {
         self.as_ref().to_quantities()
     }

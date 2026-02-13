@@ -1,7 +1,7 @@
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 
-use crate::envelope::{ItemType, Items};
+use crate::envelope::{AttachmentType, ItemType, Items};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{
@@ -9,28 +9,45 @@ use crate::processing::errors::errors::{
 };
 
 #[derive(Debug)]
-pub struct Generic {
+pub struct Minidump {
     pub event: Annotated<Event>,
     pub attachments: Items,
     pub user_reports: Items,
 }
 
-impl SentryError for Generic {
+impl SentryError for Minidump {
     fn try_expand(items: &mut Items, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
-        let Some(ev) = utils::take_item_of_type(items, ItemType::Event) else {
+        let Some(minidump) = utils::take_item_by(items, |item| {
+            item.attachment_type() == Some(&AttachmentType::Minidump)
+        }) else {
             return Ok(None);
         };
 
-        let fully_normalized = ev.fully_normalized();
+        let mut event = match utils::take_item_of_type(items, ItemType::Event) {
+            Some(event) => utils::event_from_json_payload(event, None)?,
+            None => Annotated::empty(),
+        };
+
+        // TODO: write metrics
+        crate::utils::process_minidump(
+            event.get_or_insert_with(Event::default),
+            &minidump.payload(),
+        );
+
+        let mut attachments = items
+            .drain_filter(|item| *item.ty() == ItemType::Attachment)
+            .collect::<Items>();
+        attachments.push(minidump);
+
         let error = Self {
-            event: utils::event_from_json_payload(ev, None)?,
-            attachments: utils::take_items_of_type(items, ItemType::Attachment),
+            event,
+            attachments,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
         };
 
         Ok(Some(ParsedError {
             error,
-            fully_normalized,
+            fully_normalized: false,
         }))
     }
 
@@ -51,7 +68,7 @@ impl SentryError for Generic {
     }
 }
 
-impl Counted for Generic {
+impl Counted for Minidump {
     fn quantities(&self) -> Quantities {
         self.as_ref().to_quantities()
     }
