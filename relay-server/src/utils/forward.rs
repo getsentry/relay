@@ -12,6 +12,7 @@ use bytes::Bytes;
 use hyper::body::{Frame, SizeHint};
 use relay_config::Config;
 use relay_system::Addr;
+use std::io;
 use sync_wrapper::SyncWrapper;
 use tokio::sync::oneshot;
 
@@ -68,7 +69,14 @@ impl IntoResponse for ForwardError {
                 HttpError::Misconfigured => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             Self::Upstream(UpstreamRequestError::SendFailed(e)) => {
-                if has_source::<http_body_util::LengthLimitError>(&e) {
+                if has_source(&e, |source| {
+                    source
+                        .downcast_ref::<http_body_util::LengthLimitError>()
+                        .is_some()
+                        || source
+                            .downcast_ref::<io::Error>()
+                            .is_some_and(|e| e.kind() == io::ErrorKind::FileTooLarge)
+                }) {
                     return StatusCode::PAYLOAD_TOO_LARGE.into_response();
                 }
                 if e.is_timeout() {
@@ -337,10 +345,14 @@ impl ForwardRequestBuilder {
 }
 
 /// Returns `true` if any of the error's sources matches the given type.
-fn has_source<T: std::error::Error + 'static>(error: &dyn std::error::Error) -> bool {
+fn has_source<E, P>(error: &E, predicate: P) -> bool
+where
+    E: std::error::Error,
+    P: Fn(&(dyn std::error::Error + 'static)) -> bool,
+{
     let mut source = error.source();
     while let Some(s) = source {
-        if s.downcast_ref::<T>().is_some() {
+        if predicate(s) {
             return true;
         }
         source = s.source();

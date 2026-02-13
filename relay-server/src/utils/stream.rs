@@ -51,7 +51,7 @@ where
                 this.bytes_received += bytes.len();
                 if this.bytes_received > this.expected_length {
                     Poll::Ready(Some(Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
+                        io::ErrorKind::FileTooLarge,
                         format!(
                             "stream exceeded expected length: received {} > {}",
                             this.bytes_received, this.expected_length
