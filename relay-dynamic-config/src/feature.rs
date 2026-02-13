@@ -140,9 +140,6 @@ pub enum Feature {
     /// Enable the experimental Trace Attachment pipeline in Relay.
     #[serde(rename = "projects:trace-attachment-processing")]
     TraceAttachmentProcessing,
-    /// Enable the new Replay pipeline in Relay.
-    #[serde(rename = "organizations:new-replay-processing")]
-    NewReplayProcessing,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
