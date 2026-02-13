@@ -3,9 +3,9 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::Envelope;
 use crate::envelope::{ContentType, Item, ItemType, Items};
-#[cfg(feature = "processing")]
-use crate::managed::ManagedEnvelope;
 use crate::managed::{Managed, Rejected};
+#[cfg(feature = "processing")]
+use crate::processing::replays::store;
 use crate::processing::replays::{
     Error, ExpandedReplay, ExpandedReplays, ReplayVideoEvent, ReplaysOutput,
 };
@@ -55,11 +55,24 @@ impl Forward for ReplaysOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let envelope = self.serialize_envelope(ctx)?;
-        let envelope = ManagedEnvelope::from(envelope).into_processed();
+        let Self(replays) = self;
 
-        s.store(crate::services::store::StoreEnvelope { envelope });
+        let event_id = replays
+            .headers
+            .event_id()
+            .ok_or_else(|| replays.reject_err(Error::NoEventId).map(|_| ()))?;
 
+        let ctx = store::Context {
+            event_id,
+            retention: ctx.event_retention().standard,
+            max_replay_message_size: ctx.config.max_replay_message_size(),
+        };
+
+        for replay in replays.split(|replay| replay.replays) {
+            if let Ok(replay) = replay.try_map(|replay, _| store::convert(replay, &ctx)) {
+                s.store(replay);
+            }
+        }
         Ok(())
     }
 }

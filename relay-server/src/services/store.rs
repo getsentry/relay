@@ -14,6 +14,7 @@ use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
+use smallvec::smallvec;
 use uuid::Uuid;
 
 use relay_base_schema::data_category::DataCategory;
@@ -161,6 +162,32 @@ impl Counted for StoreProfileChunk {
     }
 }
 
+/// A replay to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreReplay {
+    /// The event ID.
+    pub event_id: EventId,
+    /// Number of days to retain.
+    pub retention_days: u16,
+    /// The recording payload (rrweb data).
+    pub recording: Bytes,
+    /// Optional replay event payload (JSON).
+    pub event: Option<Bytes>,
+    /// Optional replay video.
+    pub video: Option<Bytes>,
+}
+
+impl Counted for StoreReplay {
+    fn quantities(&self) -> Quantities {
+        // Web replays currently count as 2 since they are 2 items in the envelope (event + recording).
+        if self.event.is_some() && self.video.is_none() {
+            smallvec![(DataCategory::Replay, 2)]
+        } else {
+            smallvec![(DataCategory::Replay, 1)]
+        }
+    }
+}
+
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
 pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
@@ -183,6 +210,8 @@ pub enum Store {
     Span(Managed<Box<StoreSpanV2>>),
     /// A singular profile chunk.
     ProfileChunk(Managed<StoreProfileChunk>),
+    /// A singular replay.
+    Replay(Managed<StoreReplay>),
 }
 
 impl Store {
@@ -194,6 +223,7 @@ impl Store {
             Store::TraceItem(_) => "trace_item",
             Store::Span(_) => "span",
             Store::ProfileChunk(_) => "profile_chunk",
+            Store::Replay(_) => "replay",
         }
     }
 }
@@ -240,6 +270,14 @@ impl FromMessage<Managed<StoreProfileChunk>> for Store {
     }
 }
 
+impl FromMessage<Managed<StoreReplay>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreReplay>, _: ()) -> Self {
+        Self::Replay(message)
+    }
+}
+
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     pool: StoreServicePool,
@@ -278,6 +316,7 @@ impl StoreService {
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
                 Store::Span(message) => self.handle_store_span(message),
                 Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
+                Store::Replay(message) => self.handle_store_replay(message),
             }
         })
     }
@@ -686,6 +725,30 @@ impl StoreService {
             };
 
             self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))
+        });
+    }
+
+    fn handle_store_replay(&self, message: Managed<StoreReplay>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let _ = message.try_accept(|replay| {
+            let kafka_msg =
+                KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
+                    replay_id: replay.event_id,
+                    key_id: scoping.key_id,
+                    org_id: scoping.organization_id,
+                    project_id: scoping.project_id,
+                    received: safe_timestamp(received_at),
+                    retention_days: replay.retention_days,
+                    payload: &replay.recording,
+                    replay_event: replay.event.as_deref(),
+                    replay_video: replay.video.as_deref(),
+                    // Hardcoded to `true` to indicate to the consumer that it should always publish the
+                    // replay_event as relay no longer does it.
+                    relay_snuba_publish_disabled: true,
+                });
+            self.produce(KafkaTopic::ReplayRecordings, kafka_msg)
         });
     }
 

@@ -21,6 +21,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 mod filter;
 mod forward;
 mod process;
+#[cfg(feature = "processing")]
+mod store;
 mod validate;
 
 #[derive(Debug, thiserror::Error)]
@@ -79,6 +81,16 @@ pub enum Error {
     /// Failed to re-serialize the replay.
     #[error("failed to serialize replay")]
     FailedToSerializeReplay,
+
+    /// Replay recording too large for the consumer.
+    #[cfg(feature = "processing")]
+    #[error("replay recording too large")]
+    TooLarge,
+
+    /// The envelope did not contain an event ID.
+    #[cfg(feature = "processing")]
+    #[error("missing replay ID")]
+    NoEventId,
 }
 
 impl OutcomeError for Error {
@@ -113,6 +125,12 @@ impl OutcomeError for Error {
             }
             Self::Filtered(key) => Some(Outcome::Filtered(key.clone())),
             Self::FailedToSerializeReplay => Some(Outcome::Invalid(DiscardReason::Internal)),
+            #[cfg(feature = "processing")]
+            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
+                crate::services::outcome::DiscardItemType::ReplayRecording,
+            ))),
+            #[cfg(feature = "processing")]
+            Self::NoEventId => Some(Outcome::Invalid(DiscardReason::Internal)),
         };
         (outcome, self)
     }
