@@ -405,10 +405,7 @@ impl UploadServiceInner {
     ) {
         let session = match self
             .event_attachments
-            .for_project(
-                dbg!(scoping.organization_id.value()),
-                scoping.project_id.value(),
-            )
+            .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client)
         {
             Ok(session) => session,

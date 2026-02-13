@@ -5,6 +5,7 @@ Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 import time
 import uuid
 
+from flask import Response
 import pytest
 import urllib
 from sentry_relay.auth import PublicKey
@@ -16,7 +17,7 @@ def dummy_upload(mini_sentry):
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
     def dummy_upload(**opts):
-        return "", 201
+        return Response("", status=201, headers={"Location": "dummy"})
 
 
 def test_forward_success(mini_sentry, relay, dummy_upload):
@@ -118,10 +119,14 @@ def test_upload_body_too_large(mini_sentry, relay, dummy_upload):
     assert response.status_code == 413
 
 
-@pytest.mark.parametrize("data_category", ["error", "attachment", "attachment_item"])
+@pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
 def test_upload_rate_limited(mini_sentry, relay, data_category, dummy_upload):
-    """Request is rate limited on the fast path"""
+    """Request is rate limited on the fast path
 
+    NOTE: It would be nice if this also worked for the "error" data category,
+    but the `EnvelopeLimiter` does not check the event rate limit when there's only attachments,
+    because for classic envelopes it cannot distinguish between event and transaction attachments.
+    """
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
