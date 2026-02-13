@@ -3,9 +3,9 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::Envelope;
 use crate::envelope::{ContentType, Item, ItemType, Items};
-#[cfg(feature = "processing")]
-use crate::managed::ManagedEnvelope;
 use crate::managed::{Managed, Rejected};
+#[cfg(feature = "processing")]
+use crate::processing::replays::store;
 use crate::processing::replays::{
     Error, ExpandedReplay, ExpandedReplays, ReplayVideoEvent, ReplaysOutput,
 };
@@ -55,11 +55,24 @@ impl Forward for ReplaysOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let envelope = self.serialize_envelope(ctx)?;
-        let envelope = ManagedEnvelope::from(envelope).into_processed();
+        let Self(replays) = self;
 
-        s.store(crate::services::store::StoreEnvelope { envelope });
+        let event_id = replays
+            .headers
+            .event_id()
+            .ok_or_else(|| replays.reject_err(Error::NoEventId).map(|_| ()))?;
 
+        let ctx = store::Context {
+            event_id,
+            retention: ctx.event_retention().standard,
+            max_replay_message_size: ctx.config.max_replay_message_size(),
+        };
+
+        for replay in replays.split(|replay| replay.replays) {
+            if let Ok(replay) = replay.try_map(|replay, _| store::convert(replay, &ctx)) {
+                s.store(replay);
+            }
+        }
         Ok(())
     }
 }
@@ -107,10 +120,6 @@ fn serialize_replay(replay: &ExpandedReplay) -> Result<SmallVec<[Item; 2]>, Seri
 
             let payload = rmp_serde::to_vec_named(&video_event)?;
             Ok(smallvec![create_replay_video_item(payload.into())])
-        }
-        ExpandedReplay::StandaloneEvent { event } => {
-            let event_bytes: Bytes = event.to_json()?.into_bytes().into();
-            Ok(smallvec![create_replay_event_item(event_bytes),])
         }
         ExpandedReplay::StandaloneRecording { recording } => {
             Ok(smallvec![create_replay_recording_item(recording.clone()),])

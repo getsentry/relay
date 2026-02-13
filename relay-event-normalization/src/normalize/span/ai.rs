@@ -94,7 +94,7 @@ pub fn calculate_costs(
     if !tokens.has_usage() {
         relay_statsd::metric!(
             counter(Counters::GenAiCostCalculationResult) += 1,
-            result = "calculation_none",
+            result = "calculation_no_tokens",
             integration = integration,
             platform = platform,
         );
@@ -163,6 +163,7 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
         | "create_agent" => "agent",
         "gen_ai.execute_tool" | "execute_tool" => "tool",
         "gen_ai.handoff" | "handoff" => "handoff",
+        "ai.processor" | "processor_run" => "other",
         // Prefix matches:
         op if op.starts_with("ai.streamText.doStream") => "ai_client",
         op if op.starts_with("ai.streamText") => "agent",
@@ -189,11 +190,20 @@ fn extract_ai_model_cost_data(
     origin: Option<&str>,
     platform: Option<&str>,
 ) {
-    let Some(model_cost) = model_cost else { return };
-
-    let used_tokens = UsedTokens::from_span_data(&*data);
     let integration = map_origin_to_integration(origin);
     let platform = platform_tag(platform);
+
+    let Some(model_cost) = model_cost else {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_no_model_cost_available",
+            integration = integration,
+            platform = platform,
+        );
+        return;
+    };
+
+    let used_tokens = UsedTokens::from_span_data(&*data);
     let Some(costs) = calculate_costs(model_cost, used_tokens, integration, platform) else {
         return;
     };
@@ -288,6 +298,13 @@ fn extract_ai_data(
             origin,
             platform,
         )
+    } else {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_no_model_id_available",
+            integration = map_origin_to_integration(origin),
+            platform = platform_tag(platform),
+        );
     }
 }
 
@@ -313,6 +330,13 @@ fn enrich_ai_span_data(
 
     if let Some(model_costs) = model_costs {
         extract_ai_data(data, duration, model_costs, origin, platform);
+    } else {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_no_model_cost_available",
+            integration = map_origin_to_integration(origin),
+            platform = platform_tag(platform),
+        );
     }
 
     let ai_op_type = data

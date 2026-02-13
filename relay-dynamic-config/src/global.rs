@@ -157,14 +157,6 @@ pub struct Options {
     )]
     pub http_span_allowed_hosts: Vec<String>,
 
-    /// Disables Relay from sending replay-events to Snuba.
-    #[serde(
-        rename = "replay.relay-snuba-publishing-disabled.sample-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub replay_relay_snuba_publish_disabled_sample_rate: f32,
-
     /// Instructs relay to store attachments in objectstore instead of sending chunks via kafka.
     ///
     /// Rate needs to be between `0.0` and `1.0`.
