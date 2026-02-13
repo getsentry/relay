@@ -3,9 +3,9 @@
 <a href=#3 id=3 data-nosnippet>3</a>
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::Envelope;
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType, Items};
-<a href=#6 id=6 data-nosnippet>6</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#7 id=7 data-nosnippet>7</a></span><span class="kw">use </span><span class="kw">crate</span>::managed::ManagedEnvelope;
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::managed::{Managed, Rejected};
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::managed::{Managed, Rejected};
+<a href=#7 id=7 data-nosnippet>7</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#8 id=8 data-nosnippet>8</a></span><span class="kw">use </span><span class="kw">crate</span>::processing::replays::store;
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::processing::replays::{
 <a href=#10 id=10 data-nosnippet>10</a>    Error, ExpandedReplay, ExpandedReplays, ReplayVideoEvent, ReplaysOutput,
 <a href=#11 id=11 data-nosnippet>11</a>};
@@ -55,62 +55,75 @@
 <a href=#55 id=55 data-nosnippet>55</a>        s: processing::StoreHandle&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#56 id=56 data-nosnippet>56</a>        ctx: processing::ForwardContext&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#57 id=57 data-nosnippet>57</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;()&gt;&gt; {
-<a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">let </span>envelope = <span class="self">self</span>.serialize_envelope(ctx)<span class="question-mark">?</span>;
-<a href=#59 id=59 data-nosnippet>59</a>        <span class="kw">let </span>envelope = ManagedEnvelope::from(envelope).into_processed();
-<a href=#60 id=60 data-nosnippet>60</a>
-<a href=#61 id=61 data-nosnippet>61</a>        s.store(<span class="kw">crate</span>::services::store::StoreEnvelope { envelope });
-<a href=#62 id=62 data-nosnippet>62</a>
-<a href=#63 id=63 data-nosnippet>63</a>        <span class="prelude-val">Ok</span>(())
-<a href=#64 id=64 data-nosnippet>64</a>    }
-<a href=#65 id=65 data-nosnippet>65</a>}
-<a href=#66 id=66 data-nosnippet>66</a>
-<a href=#67 id=67 data-nosnippet>67</a><span class="kw">fn </span>create_replay_event_item(payload: Bytes) -&gt; Item {
-<a href=#68 id=68 data-nosnippet>68</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayEvent);
-<a href=#69 id=69 data-nosnippet>69</a>    item.set_payload(ContentType::Json, payload);
-<a href=#70 id=70 data-nosnippet>70</a>    item
-<a href=#71 id=71 data-nosnippet>71</a>}
-<a href=#72 id=72 data-nosnippet>72</a>
-<a href=#73 id=73 data-nosnippet>73</a><span class="kw">fn </span>create_replay_recording_item(payload: Bytes) -&gt; Item {
-<a href=#74 id=74 data-nosnippet>74</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayRecording);
-<a href=#75 id=75 data-nosnippet>75</a>    item.set_payload(ContentType::OctetStream, payload);
-<a href=#76 id=76 data-nosnippet>76</a>    item
-<a href=#77 id=77 data-nosnippet>77</a>}
-<a href=#78 id=78 data-nosnippet>78</a>
-<a href=#79 id=79 data-nosnippet>79</a><span class="kw">fn </span>create_replay_video_item(payload: Bytes) -&gt; Item {
-<a href=#80 id=80 data-nosnippet>80</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayVideo);
-<a href=#81 id=81 data-nosnippet>81</a>    item.set_payload(ContentType::OctetStream, payload);
-<a href=#82 id=82 data-nosnippet>82</a>    item
-<a href=#83 id=83 data-nosnippet>83</a>}
-<a href=#84 id=84 data-nosnippet>84</a>
-<a href=#85 id=85 data-nosnippet>85</a><span class="kw">fn </span>serialize_replay(replay: <span class="kw-2">&amp;</span>ExpandedReplay) -&gt; <span class="prelude-ty">Result</span>&lt;SmallVec&lt;[Item; <span class="number">2</span>]&gt;, SerializeReplayError&gt; {
-<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">match </span>replay {
-<a href=#87 id=87 data-nosnippet>87</a>        ExpandedReplay::WebReplay { event, recording } =&gt; {
-<a href=#88 id=88 data-nosnippet>88</a>            <span class="kw">let </span>event_bytes: Bytes = event.to_json()<span class="question-mark">?</span>.into_bytes().into();
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[
-<a href=#91 id=91 data-nosnippet>91</a>                create_replay_event_item(event_bytes),
-<a href=#92 id=92 data-nosnippet>92</a>                create_replay_recording_item(recording.clone()),
-<a href=#93 id=93 data-nosnippet>93</a>            ])
-<a href=#94 id=94 data-nosnippet>94</a>        }
-<a href=#95 id=95 data-nosnippet>95</a>        ExpandedReplay::NativeReplay {
-<a href=#96 id=96 data-nosnippet>96</a>            event,
-<a href=#97 id=97 data-nosnippet>97</a>            recording,
-<a href=#98 id=98 data-nosnippet>98</a>            video,
-<a href=#99 id=99 data-nosnippet>99</a>        } =&gt; {
-<a href=#100 id=100 data-nosnippet>100</a>            <span class="kw">let </span>event_bytes: Bytes = event.to_json()<span class="question-mark">?</span>.into_bytes().into();
-<a href=#101 id=101 data-nosnippet>101</a>
-<a href=#102 id=102 data-nosnippet>102</a>            <span class="kw">let </span>video_event = ReplayVideoEvent {
-<a href=#103 id=103 data-nosnippet>103</a>                replay_event: event_bytes,
-<a href=#104 id=104 data-nosnippet>104</a>                replay_recording: recording.clone(),
-<a href=#105 id=105 data-nosnippet>105</a>                replay_video: video.clone(),
-<a href=#106 id=106 data-nosnippet>106</a>            };
-<a href=#107 id=107 data-nosnippet>107</a>
-<a href=#108 id=108 data-nosnippet>108</a>            <span class="kw">let </span>payload = rmp_serde::to_vec_named(<span class="kw-2">&amp;</span>video_event)<span class="question-mark">?</span>;
-<a href=#109 id=109 data-nosnippet>109</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[create_replay_video_item(payload.into())])
-<a href=#110 id=110 data-nosnippet>110</a>        }
-<a href=#111 id=111 data-nosnippet>111</a>        ExpandedReplay::StandaloneRecording { recording } =&gt; {
-<a href=#112 id=112 data-nosnippet>112</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[create_replay_recording_item(recording.clone()),])
-<a href=#113 id=113 data-nosnippet>113</a>        }
-<a href=#114 id=114 data-nosnippet>114</a>    }
-<a href=#115 id=115 data-nosnippet>115</a>}
+<a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">let </span><span class="self">Self</span>(replays) = <span class="self">self</span>;
+<a href=#59 id=59 data-nosnippet>59</a>
+<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">let </span>event_id = replays
+<a href=#61 id=61 data-nosnippet>61</a>            .headers
+<a href=#62 id=62 data-nosnippet>62</a>            .event_id()
+<a href=#63 id=63 data-nosnippet>63</a>            .ok_or_else(|| replays.reject_err(Error::NoEventId).map(|<span class="kw">_</span>| ()))<span class="question-mark">?</span>;
+<a href=#64 id=64 data-nosnippet>64</a>
+<a href=#65 id=65 data-nosnippet>65</a>        <span class="kw">let </span>ctx = store::Context {
+<a href=#66 id=66 data-nosnippet>66</a>            event_id,
+<a href=#67 id=67 data-nosnippet>67</a>            retention: ctx.event_retention().standard,
+<a href=#68 id=68 data-nosnippet>68</a>            max_replay_message_size: ctx.config.max_replay_message_size(),
+<a href=#69 id=69 data-nosnippet>69</a>        };
+<a href=#70 id=70 data-nosnippet>70</a>
+<a href=#71 id=71 data-nosnippet>71</a>        <span class="kw">for </span>replay <span class="kw">in </span>replays.split(|replay| replay.replays) {
+<a href=#72 id=72 data-nosnippet>72</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(replay) = replay.try_map(|replay, <span class="kw">_</span>| store::convert(replay, <span class="kw-2">&amp;</span>ctx)) {
+<a href=#73 id=73 data-nosnippet>73</a>                s.store(replay);
+<a href=#74 id=74 data-nosnippet>74</a>            }
+<a href=#75 id=75 data-nosnippet>75</a>        }
+<a href=#76 id=76 data-nosnippet>76</a>        <span class="prelude-val">Ok</span>(())
+<a href=#77 id=77 data-nosnippet>77</a>    }
+<a href=#78 id=78 data-nosnippet>78</a>}
+<a href=#79 id=79 data-nosnippet>79</a>
+<a href=#80 id=80 data-nosnippet>80</a><span class="kw">fn </span>create_replay_event_item(payload: Bytes) -&gt; Item {
+<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayEvent);
+<a href=#82 id=82 data-nosnippet>82</a>    item.set_payload(ContentType::Json, payload);
+<a href=#83 id=83 data-nosnippet>83</a>    item
+<a href=#84 id=84 data-nosnippet>84</a>}
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a><span class="kw">fn </span>create_replay_recording_item(payload: Bytes) -&gt; Item {
+<a href=#87 id=87 data-nosnippet>87</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayRecording);
+<a href=#88 id=88 data-nosnippet>88</a>    item.set_payload(ContentType::OctetStream, payload);
+<a href=#89 id=89 data-nosnippet>89</a>    item
+<a href=#90 id=90 data-nosnippet>90</a>}
+<a href=#91 id=91 data-nosnippet>91</a>
+<a href=#92 id=92 data-nosnippet>92</a><span class="kw">fn </span>create_replay_video_item(payload: Bytes) -&gt; Item {
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayVideo);
+<a href=#94 id=94 data-nosnippet>94</a>    item.set_payload(ContentType::OctetStream, payload);
+<a href=#95 id=95 data-nosnippet>95</a>    item
+<a href=#96 id=96 data-nosnippet>96</a>}
+<a href=#97 id=97 data-nosnippet>97</a>
+<a href=#98 id=98 data-nosnippet>98</a><span class="kw">fn </span>serialize_replay(replay: <span class="kw-2">&amp;</span>ExpandedReplay) -&gt; <span class="prelude-ty">Result</span>&lt;SmallVec&lt;[Item; <span class="number">2</span>]&gt;, SerializeReplayError&gt; {
+<a href=#99 id=99 data-nosnippet>99</a>    <span class="kw">match </span>replay {
+<a href=#100 id=100 data-nosnippet>100</a>        ExpandedReplay::WebReplay { event, recording } =&gt; {
+<a href=#101 id=101 data-nosnippet>101</a>            <span class="kw">let </span>event_bytes: Bytes = event.to_json()<span class="question-mark">?</span>.into_bytes().into();
+<a href=#102 id=102 data-nosnippet>102</a>
+<a href=#103 id=103 data-nosnippet>103</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[
+<a href=#104 id=104 data-nosnippet>104</a>                create_replay_event_item(event_bytes),
+<a href=#105 id=105 data-nosnippet>105</a>                create_replay_recording_item(recording.clone()),
+<a href=#106 id=106 data-nosnippet>106</a>            ])
+<a href=#107 id=107 data-nosnippet>107</a>        }
+<a href=#108 id=108 data-nosnippet>108</a>        ExpandedReplay::NativeReplay {
+<a href=#109 id=109 data-nosnippet>109</a>            event,
+<a href=#110 id=110 data-nosnippet>110</a>            recording,
+<a href=#111 id=111 data-nosnippet>111</a>            video,
+<a href=#112 id=112 data-nosnippet>112</a>        } =&gt; {
+<a href=#113 id=113 data-nosnippet>113</a>            <span class="kw">let </span>event_bytes: Bytes = event.to_json()<span class="question-mark">?</span>.into_bytes().into();
+<a href=#114 id=114 data-nosnippet>114</a>
+<a href=#115 id=115 data-nosnippet>115</a>            <span class="kw">let </span>video_event = ReplayVideoEvent {
+<a href=#116 id=116 data-nosnippet>116</a>                replay_event: event_bytes,
+<a href=#117 id=117 data-nosnippet>117</a>                replay_recording: recording.clone(),
+<a href=#118 id=118 data-nosnippet>118</a>                replay_video: video.clone(),
+<a href=#119 id=119 data-nosnippet>119</a>            };
+<a href=#120 id=120 data-nosnippet>120</a>
+<a href=#121 id=121 data-nosnippet>121</a>            <span class="kw">let </span>payload = rmp_serde::to_vec_named(<span class="kw-2">&amp;</span>video_event)<span class="question-mark">?</span>;
+<a href=#122 id=122 data-nosnippet>122</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[create_replay_video_item(payload.into())])
+<a href=#123 id=123 data-nosnippet>123</a>        }
+<a href=#124 id=124 data-nosnippet>124</a>        ExpandedReplay::StandaloneRecording { recording } =&gt; {
+<a href=#125 id=125 data-nosnippet>125</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[create_replay_recording_item(recording.clone()),])
+<a href=#126 id=126 data-nosnippet>126</a>        }
+<a href=#127 id=127 data-nosnippet>127</a>    }
+<a href=#128 id=128 data-nosnippet>128</a>}
 </code></pre></div></section></main></body></html>
