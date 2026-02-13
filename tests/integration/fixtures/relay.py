@@ -1,7 +1,5 @@
 import json
 import os
-import select
-import time
 from queue import Queue
 import sys
 import uuid
@@ -75,22 +73,13 @@ class Relay(SentryLike):
             self.process.kill()
             raise
 
-    def wait_for_log(self, needle, timeout=10):
-        deadline = time.time() + timeout
+    def wait_for_log(self, needle):
+        """Wait for a substring to appear in the logs. This function may block forever."""
         while True:
-            remaining = deadline - time.time()
-            if remaining <= 0:
-                raise TimeoutError(
-                    f"Timed out waiting for log line containing: {needle}"
-                )
-            ready, _, _ = select.select([self.process.stderr], [], [], remaining)
-            if ready:
-                line = self.process.stderr.readline()
-                if not line:
-                    break
-                if needle in line:
-                    return line
-        raise TimeoutError(f"Timed out waiting for log line containing: {needle}")
+            line = self.process.stderr.readline()
+            print(line, end="", file=sys.stderr)
+            if line is None or needle in line:
+                break
 
     def send_signal(self, signal):
         self.process.send_signal(signal)
@@ -158,6 +147,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         static_credentials=None,
         credentials=None,
         version="latest",
+        capture_logs=False,
     ):
         relay_bin = get_relay_binary(version)
         host = "127.0.0.1"
@@ -238,11 +228,13 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "version": version,
         }
 
-        process = background_process(
-            relay_bin + ["-c", str(dir), "run"],
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        kwargs = {}
+        if capture_logs:
+            kwargs.update(
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        process = background_process(relay_bin + ["-c", str(dir), "run"], **kwargs)
 
         relay = Relay(
             (host, port),
