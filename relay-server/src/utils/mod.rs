@@ -12,6 +12,7 @@ mod split_off;
 mod statsd;
 mod stream;
 mod thread_pool;
+pub mod upload;
 
 mod forward;
 mod memory;

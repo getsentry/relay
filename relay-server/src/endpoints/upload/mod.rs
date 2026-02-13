@@ -178,55 +178,6 @@ async fn get_project(state: &ServiceState, public_key: ProjectKey) -> Project<'_
     project
 }
 
-fn signed(config: &Config, path: &str, key: UploadKey, length: u64) -> Option<String> {
-    let mut location = format!("{path}{key}/?length={length}");
-    let signature = config.credentials()?.secret_key.sign(location.as_bytes());
-    location.push_str("&signature=");
-    location.push_str(&signature.to_string());
-    Some(location)
-}
-
-enum UploadResult {
-    /// The response from forwarding to upstream relay.
-    Forwarded(ForwardResponse),
-    /// The upload was handled locally by the upload service.
-    Success(UploadKey),
-}
-
-enum Sink {
-    Upstream(Addr<UpstreamRelay>),
-    Upload(Addr<Upload>),
-}
-
-impl Sink {
-    fn new(state: &ServiceState) -> Self {
-        if let Some(addr) = state.upload() {
-            Self::Upload(addr.clone())
-        } else {
-            Self::Upstream(state.upstream_relay().clone())
-        }
-    }
-
-    async fn upload(&self, path: &str, stream: UploadStream) -> Result<UploadResult, Error> {
-        match self {
-            Sink::Upstream(addr) => {
-                let response = ForwardRequest::builder(Method::POST, path.to_owned())
-                    .with_body(Body::from_stream(stream.stream))
-                    .send_to(addr)
-                    .await?;
-                Ok(UploadResult::Forwarded(response))
-            }
-            Sink::Upload(addr) => {
-                let send_result = addr.send(stream).await;
-                let key = send_result
-                    .map_err(|_send_error| Error::ServiceUnavailable)?
-                    .map_err(Error::UploadService)?;
-                Ok(UploadResult::Success(key))
-            }
-        }
-    }
-}
-
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle).route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
 }

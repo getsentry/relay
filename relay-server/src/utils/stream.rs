@@ -15,13 +15,13 @@ use sync_wrapper::SyncWrapper;
 /// as required by the upload service.
 pub struct ExactStream<S> {
     inner: SyncWrapper<S>,
-    expected_length: u64,
-    bytes_received: u64,
+    expected_length: usize,
+    bytes_received: usize,
 }
 
 impl<S> ExactStream<S> {
     /// Creates a new `ExactStream` wrapping the given stream with the expected total length.
-    pub fn new(stream: S, expected_length: u64) -> Self {
+    pub fn new(stream: S, expected_length: usize) -> Self {
         Self {
             inner: SyncWrapper::new(stream),
             expected_length,
@@ -30,7 +30,7 @@ impl<S> ExactStream<S> {
     }
 
     /// Returns the expected total length of the stream.
-    pub fn expected_length(&self) -> u64 {
+    pub fn expected_length(&self) -> usize {
         self.expected_length
     }
 }
@@ -48,7 +48,7 @@ where
 
         match inner.poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
-                this.bytes_received += bytes.len() as u64;
+                this.bytes_received += bytes.len();
                 if this.bytes_received > this.expected_length {
                     Poll::Ready(Some(Err(io::Error::new(
                         io::ErrorKind::InvalidData,

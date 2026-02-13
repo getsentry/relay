@@ -28,7 +28,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::ExactStream;
+use crate::utils::upload;
 
 use super::outcome::Outcome;
 
@@ -37,7 +37,7 @@ pub enum Upload {
     Envelope(StoreEnvelope),
     Attachment(Managed<StoreAttachment>),
     Stream {
-        message: UploadStream,
+        message: upload::Stream,
         sender: Sender<Result<UploadKey, Error>>,
     },
 }
@@ -82,10 +82,10 @@ impl FromMessage<Managed<StoreAttachment>> for Upload {
     }
 }
 
-impl FromMessage<UploadStream> for Upload {
+impl FromMessage<upload::Stream> for Upload {
     type Response = AsyncResponse<Result<UploadKey, Error>>;
 
-    fn from_message(message: UploadStream, sender: Sender<Result<UploadKey, Error>>) -> Self {
+    fn from_message(message: upload::Stream, sender: Sender<Result<UploadKey, Error>>) -> Self {
         Self::Stream { message, sender }
     }
 }
@@ -105,14 +105,6 @@ impl Counted for StoreAttachment {
             (DataCategory::Attachment, self.body.len()),
         ]
     }
-}
-
-/// A stream of bytes to be uploaded to objectstore.
-pub struct UploadStream {
-    /// The organization and project the stream belongs to.
-    pub scoping: Scoping,
-    /// The body to be uploaded to objectstore, with length validation.
-    pub stream: ExactStream<BoxStream<'static, io::Result<Bytes>>>,
 }
 
 /// Errors that can occur when trying to upload an attachment.
@@ -408,7 +400,7 @@ impl UploadServiceInner {
 
     async fn handle_stream(
         &self,
-        UploadStream { scoping, stream }: UploadStream,
+        upload::Stream { scoping, stream }: upload::Stream,
         sender: Sender<Result<UploadKey, Error>>,
     ) {
         let session = match self
