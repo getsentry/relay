@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use futures::StreamExt as _;
@@ -5,7 +6,7 @@ use futures::future::BoxFuture;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_statsd::metric;
-use relay_system::{Service, ServiceSpawn, ServiceSpawnExt as _};
+use relay_system::{Sender, Service, ServiceSpawn, ServiceSpawnExt as _};
 use tokio::sync::broadcast;
 
 use crate::services::projects::cache::handle::ProjectCacheHandle;
@@ -27,6 +28,8 @@ use crate::utils::FuturesScheduled;
 /// do not deal with lags in the channel gracefully.
 const PROJECT_EVENTS_CHANNEL_SIZE: usize = 512_000;
 
+pub struct FetchRequest(pub ProjectKey);
+
 /// A cache for projects, which allows concurrent access to the cached projects.
 #[derive(Debug)]
 pub enum ProjectCache {
@@ -35,24 +38,27 @@ pub enum ProjectCache {
     /// A project which is not fetched will eventually expire and be evicted
     /// from the cache. Fetches for an already cached project ensure the project
     /// is always up to date and not evicted.
-    Fetch(ProjectKey),
+    Fetch(ProjectKey, relay_system::Sender<()>),
 }
 
 impl ProjectCache {
     fn variant(&self) -> &'static str {
         match self {
-            Self::Fetch(_) => "fetch",
+            Self::Fetch(_, _) => "fetch",
         }
     }
 }
 
 impl relay_system::Interface for ProjectCache {}
 
-impl relay_system::FromMessage<Self> for ProjectCache {
-    type Response = relay_system::NoResponse;
+impl relay_system::FromMessage<FetchRequest> for ProjectCache {
+    type Response = relay_system::AsyncResponse<()>;
 
-    fn from_message(message: Self, _: ()) -> Self {
-        message
+    fn from_message(
+        FetchRequest(project_key): FetchRequest,
+        sender: relay_system::Sender<()>,
+    ) -> Self {
+        Self::Fetch(project_key, sender)
     }
 }
 
@@ -72,21 +78,18 @@ pub struct ProjectCacheService {
     config: Arc<Config>,
 
     scheduled_fetches: FuturesScheduled<BoxFuture<'static, CompletedFetch>>,
-
-    project_events_tx: broadcast::Sender<ProjectChange>,
+    observers: Observers,
 }
 
 impl ProjectCacheService {
     /// Creates a new [`ProjectCacheService`].
     pub fn new(config: Arc<Config>, source: ProjectSource) -> Self {
-        let project_events_tx = broadcast::channel(PROJECT_EVENTS_CHANNEL_SIZE).0;
-
         Self {
             store: ProjectStore::new(&config),
             source,
             config,
             scheduled_fetches: FuturesScheduled::default(),
-            project_events_tx,
+            observers: Observers::new(),
         }
     }
 
@@ -100,7 +103,7 @@ impl ProjectCacheService {
             shared: self.store.shared(),
             config: Arc::clone(&self.config),
             service: addr,
-            project_changes: self.project_events_tx.clone(),
+            project_changes: self.observers.broadcast(),
         };
 
         services.start_with(self, addr_rx);
@@ -150,7 +153,12 @@ impl ProjectCacheService {
 
 /// All [`ProjectCacheService`] message handlers.
 impl ProjectCacheService {
-    fn handle_fetch(&mut self, project_key: ProjectKey) {
+    fn handle_fetch(&mut self, project_key: ProjectKey, sender: relay_system::Sender<()>) {
+        self.observers
+            .oneshot
+            .entry(project_key)
+            .or_default()
+            .push(sender);
         if let Some(fetch) = self.store.try_begin_fetch(project_key) {
             self.schedule_fetch(fetch);
         }
@@ -168,13 +176,14 @@ impl ProjectCacheService {
             return;
         }
 
-        let _ = self
-            .project_events_tx
-            .send(ProjectChange::Ready(project_key));
+        self.observers.notify(ProjectChange::Ready(project_key));
 
         metric!(
-            gauge(RelayGauges::ProjectCacheNotificationChannel) =
-                self.project_events_tx.len() as u64
+            gauge(RelayGauges::ProjectCacheObserversBroadcast) =
+                self.observers.broadcast.len() as u64
+        );
+        metric!(
+            gauge(RelayGauges::ProjectCacheObserversOneshot) = self.observers.oneshot.len() as u64
         );
     }
 
@@ -183,9 +192,7 @@ impl ProjectCacheService {
 
         self.store.evict(eviction);
 
-        let _ = self
-            .project_events_tx
-            .send(ProjectChange::Evicted(project_key));
+        self.observers.notify(ProjectChange::Evicted(project_key));
 
         relay_log::trace!(tags.project_key = project_key.as_str(), "project evicted");
         metric!(counter(RelayCounters::EvictingStaleProjectCaches) += 1);
@@ -204,7 +211,7 @@ impl ProjectCacheService {
 
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
-            ProjectCache::Fetch(project_key) => self.handle_fetch(project_key),
+            ProjectCache::Fetch(project_key, sender) => self.handle_fetch(project_key, sender),
         }
     }
 }
@@ -246,6 +253,36 @@ impl relay_system::Service for ProjectCacheService {
                         self.handle_refresh(refresh)
                     ),
                 }
+            }
+        }
+    }
+}
+
+struct Observers {
+    broadcast: broadcast::Sender<ProjectChange>,
+    oneshot: HashMap<ProjectKey, Vec<Sender<()>>>,
+}
+
+impl Observers {
+    fn new() -> Self {
+        Self {
+            broadcast: broadcast::channel(PROJECT_EVENTS_CHANNEL_SIZE).0,
+            oneshot: HashMap::new(),
+        }
+    }
+
+    fn broadcast(&self) -> broadcast::Sender<ProjectChange> {
+        self.broadcast.clone()
+    }
+
+    fn notify(&mut self, change: ProjectChange) {
+        let Self { broadcast, oneshot } = self;
+
+        let _ = broadcast.send(change);
+
+        if let ProjectChange::Ready(key) = change {
+            for channel in oneshot.remove(&key).unwrap_or_default() {
+                let _ = channel.send(());
             }
         }
     }

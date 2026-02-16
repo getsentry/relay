@@ -62,7 +62,12 @@ pub enum RelayGauges {
     #[cfg(feature = "processing")]
     RedisPoolWaitingForConnection,
     /// The number of notifications in the broadcast channel of the project cache.
-    ProjectCacheNotificationChannel,
+    ProjectCacheObserversBroadcast,
+    /// The number of projects with oneshot channels waiting.
+    ///
+    /// This metric exists mainly to check that cleanup through eviction works,
+    /// and that this list does not grow indefinitely.
+    ProjectCacheObserversOneshot,
     /// The number of scheduled and in progress fetches in the project cache.
     ProjectCacheScheduledFetches,
     /// Exposes the amount of currently open and handled connections by the server.
@@ -107,7 +112,10 @@ impl GaugeMetric for RelayGauges {
             Self::RedisPoolMaxConnections => "redis.pool.max_connections",
             #[cfg(feature = "processing")]
             Self::RedisPoolWaitingForConnection => "redis.pool.waiting_for_connection",
-            Self::ProjectCacheNotificationChannel => "project_cache.notification_channel.size",
+            Self::ProjectCacheObserversBroadcast => "project_cache.notification_channel.size",
+            Self::ProjectCacheObserversOneshot => {
+                "project_cache.notification_channel.oneshot.projects"
+            }
             Self::ProjectCacheScheduledFetches => "project_cache.fetches.size",
             Self::ServerActiveConnections => "server.http.connections",
             #[cfg(feature = "processing")]
