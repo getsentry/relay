@@ -5,8 +5,6 @@
 //!
 //! Reference: <https://tus.io/protocols/resumable-upload#creation-with-upload>
 
-mod tus;
-
 use std::io;
 
 use axum::body::Body;
@@ -30,7 +28,7 @@ use crate::service::ServiceState;
 use crate::services::projects::cache::Project;
 use crate::services::upload::Error as ServiceError;
 use crate::utils::upload::SignedLocation;
-use crate::utils::{ExactStream, upload};
+use crate::utils::{ExactStream, tus, upload};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {

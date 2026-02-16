@@ -13,6 +13,7 @@ use sync_wrapper::SyncWrapper;
 ///
 /// This type is `Sync` via [`SyncWrapper`], allowing it to be sent across thread boundaries
 /// as required by the upload service.
+#[derive(Debug)]
 pub struct ExactStream<S> {
     inner: SyncWrapper<S>,
     expected_length: usize,

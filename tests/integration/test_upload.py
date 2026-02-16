@@ -178,7 +178,9 @@ PROCESSING_OPTIONS = {
 }
 
 
-@pytest.mark.parametrize("chain", [False, True])
+@pytest.mark.parametrize(
+    "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
+)
 def test_upload_processing(mini_sentry, relay, relay_with_processing, chain):
     """Upload via processing relay stores the blob in objectstore."""
     project_id = 42

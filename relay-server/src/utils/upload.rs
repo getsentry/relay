@@ -14,7 +14,7 @@ use relay_system::Addr;
 use crate::service::ServiceState;
 use crate::services::upload::{Error as ServiceError, Upload, UploadKey};
 use crate::services::upstream::UpstreamRelay;
-use crate::utils::{ExactStream, ForwardError, ForwardRequest, ForwardResponse};
+use crate::utils::{ExactStream, ForwardError, ForwardRequest, ForwardResponse, tus};
 
 /// An error that occurs during upload.
 #[derive(Debug, thiserror::Error)]
@@ -67,6 +67,8 @@ impl Sink {
                 let project_id = scoping.project_id;
                 let path = format!("/api/{project_id}/upload/");
                 let response = ForwardRequest::builder(Method::POST, path)
+                    .with_config(config)
+                    .with_headers(tus::request_headers(stream.expected_length()))
                     .with_body(axum::body::Body::from_stream(stream))
                     .send_to(addr)
                     .await?;

@@ -47,7 +47,8 @@ pub const UPLOAD_LENGTH: &str = "Upload-Length";
 pub const UPLOAD_OFFSET: &str = "Upload-Offset";
 
 /// Expected value of the content-type header.
-pub const EXPECTED_CONTENT_TYPE: &str = "application/offset+octet-stream";
+pub const EXPECTED_CONTENT_TYPE: HeaderValue =
+    HeaderValue::from_static("application/offset+octet-stream");
 
 /// Validates TUS protocol headers and returns the expected upload length.
 pub fn validate_headers(headers: &HeaderMap) -> Result<usize, Error> {
@@ -56,7 +57,7 @@ pub fn validate_headers(headers: &HeaderMap) -> Result<usize, Error> {
         return Err(Error::Version);
     }
 
-    let content_type = headers.get(hyper::header::CONTENT_TYPE);
+    let content_type = headers.get(http::header::CONTENT_TYPE);
     if content_type.is_none_or(|ct| ct != EXPECTED_CONTENT_TYPE) {
         return Err(Error::ContentType);
     }
@@ -70,6 +71,19 @@ pub fn validate_headers(headers: &HeaderMap) -> Result<usize, Error> {
         .map_err(|_| Error::UploadLength)?;
 
     Ok(upload_length)
+}
+
+/// Prepares the required TUS request headers for upstream requests.
+pub fn request_headers(upload_length: usize) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(TUS_RESUMABLE, TUS_VERSION);
+    headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+    headers.insert(
+        UPLOAD_LENGTH,
+        HeaderValue::from_str(&upload_length.to_string())
+            .expect("string from usize should always be a valid header"),
+    );
+    headers
 }
 
 /// Prepares the required TUS response headers.
@@ -106,10 +120,7 @@ mod tests {
     fn test_validate_tus_headers_missing_length() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(
-            hyper::header::CONTENT_TYPE,
-            HeaderValue::from_static(EXPECTED_CONTENT_TYPE),
-        );
+        headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         let result = validate_headers(&headers);
         assert!(matches!(result, Err(Error::UploadLength)));
     }
@@ -118,10 +129,7 @@ mod tests {
     fn test_validate_tus_headers_valid() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(
-            hyper::header::CONTENT_TYPE,
-            HeaderValue::from_static(EXPECTED_CONTENT_TYPE),
-        );
+        headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_headers(&headers);
         assert_eq!(result.unwrap(), 1024);
