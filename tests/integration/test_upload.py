@@ -218,6 +218,8 @@ def test_upload_processing(mini_sentry, relay, relay_with_processing, chain):
     (signature,) = query_params["signature"]
     print(signature)
 
+    # TODO: verify timestamp of signature, add test of outdated signature
+    # TODO: unit tests for signature validation
     unsigned_uri = f"{base_path}/{attachment_id}/?length=11"
     assert PublicKey.parse(processing_relay.public_key).verify(
         unsigned_uri.encode(), signature
