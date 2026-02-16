@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -12,7 +13,6 @@ use bytes::Bytes;
 use hyper::body::{Frame, SizeHint};
 use relay_config::Config;
 use relay_system::Addr;
-use std::io;
 use sync_wrapper::SyncWrapper;
 use tokio::sync::oneshot;
 
@@ -69,17 +69,13 @@ impl IntoResponse for ForwardError {
                 HttpError::Misconfigured => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             Self::Upstream(UpstreamRequestError::SendFailed(e)) => {
-                if has_source(&e, |source| {
-                    source
-                        .downcast_ref::<http_body_util::LengthLimitError>()
-                        .is_some()
-                        || source
-                            .downcast_ref::<io::Error>()
-                            .is_some_and(|e| e.kind() == io::ErrorKind::FileTooLarge)
-                }) {
-                    return StatusCode::PAYLOAD_TOO_LARGE.into_response();
-                }
-                if e.is_timeout() {
+                if let Some(source) = find_source(&e, is_hyper_user_error) {
+                    if find_source(source, is_length_limit_error).is_some() {
+                        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+                    } else {
+                        return StatusCode::BAD_REQUEST.into_response();
+                    }
+                } else if e.is_timeout() {
                     StatusCode::GATEWAY_TIMEOUT.into_response()
                 } else {
                     StatusCode::BAD_GATEWAY.into_response()
@@ -344,18 +340,29 @@ impl ForwardRequestBuilder {
     }
 }
 
-/// Returns `true` if any of the error's sources matches the given type.
-fn has_source<E, P>(error: &E, predicate: P) -> bool
+fn find_source<E, P>(error: &E, predicate: P) -> Option<&dyn Error>
 where
-    E: std::error::Error,
-    P: Fn(&(dyn std::error::Error + 'static)) -> bool,
+    E: std::error::Error + ?Sized,
+    P: Fn(&(dyn Error + 'static)) -> bool,
 {
     let mut source = error.source();
     while let Some(s) = source {
         if predicate(s) {
-            return true;
+            return Some(s);
         }
         source = s.source();
     }
-    false
+    None
+}
+
+fn is_hyper_user_error(error: &(dyn Error + 'static)) -> bool {
+    error
+        .downcast_ref::<hyper::Error>()
+        .is_some_and(hyper::Error::is_user)
+}
+
+fn is_length_limit_error(error: &(dyn Error + 'static)) -> bool {
+    error
+        .downcast_ref::<http_body_util::LengthLimitError>()
+        .is_some()
 }
