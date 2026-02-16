@@ -97,13 +97,28 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload):
     assert response.status_code == 400
 
 
-def test_upload_body_too_large(mini_sentry, relay, dummy_upload):
+@pytest.mark.parametrize(
+    "size,expected_status_code",
+    [
+        (9, 400),  # smaller than announced
+        (11, 400),  # larger than announced
+        (101, 413),  # larger than allowed
+    ],
+)
+def test_upload_body_size(mini_sentry, relay, size, expected_status_code, dummy_upload):
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    relay = relay(mini_sentry)
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {
+                "max_upload_size": 100,
+            }
+        },
+    )
 
-    data = b"this is way more data than declared"
+    data = "x" * size
     response = relay.post(
         "/api/%s/upload/?sentry_key=%s"
         % (project_id, mini_sentry.get_dsn_public_key(project_id)),
@@ -115,7 +130,7 @@ def test_upload_body_too_large(mini_sentry, relay, dummy_upload):
         data=data,
     )
 
-    assert response.status_code == 413
+    assert response.status_code == expected_status_code
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
@@ -163,11 +178,16 @@ PROCESSING_OPTIONS = {
 }
 
 
-def test_upload_processing(mini_sentry, relay_with_processing):
+@pytest.mark.parametrize("chain", [False, True])
+def test_upload_processing(mini_sentry, relay, relay_with_processing, chain):
     """Upload via processing relay stores the blob in objectstore."""
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    relay = relay_with_processing(PROCESSING_OPTIONS)
+    processing_relay = relay_with_processing(PROCESSING_OPTIONS)
+    if chain:
+        relay = relay(processing_relay)
+    else:
+        relay = processing_relay
 
     data = b"hello world"
     response = relay.post(
