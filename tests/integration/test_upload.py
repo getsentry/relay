@@ -124,7 +124,7 @@ def test_upload_body_size(mini_sentry, relay, size, expected_status_code, dummy_
         % (project_id, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
-            "Upload-Length": "5",
+            "Upload-Length": "10",
             "Content-Type": "application/offset+octet-stream",
         },
         data=data,

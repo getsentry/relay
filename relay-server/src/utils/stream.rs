@@ -15,7 +15,7 @@ use sync_wrapper::SyncWrapper;
 /// as required by the upload service.
 #[derive(Debug)]
 pub struct ExactStream<S> {
-    inner: SyncWrapper<S>,
+    inner: Option<SyncWrapper<S>>,
     expected_length: usize,
     bytes_received: usize,
 }
@@ -24,7 +24,7 @@ impl<S> ExactStream<S> {
     /// Creates a new `ExactStream` wrapping the given stream with the expected total length.
     pub fn new(stream: S, expected_length: usize) -> Self {
         Self {
-            inner: SyncWrapper::new(stream),
+            inner: Some(SyncWrapper::new(stream)),
             expected_length,
             bytes_received: 0,
         }
@@ -45,12 +45,16 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
-        let inner = Pin::new(this.inner.get_mut());
+        let Some(inner) = &mut this.inner else {
+            return Poll::Ready(None);
+        };
+        let inner = Pin::new(inner.get_mut());
 
         match inner.poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
                 this.bytes_received += bytes.len();
                 if this.bytes_received > this.expected_length {
+                    this.inner = None;
                     Poll::Ready(Some(Err(io::Error::new(
                         io::ErrorKind::FileTooLarge,
                         format!(
@@ -65,6 +69,7 @@ where
             Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e.into()))),
             Poll::Ready(None) => {
                 if this.bytes_received < this.expected_length {
+                    this.inner = None;
                     Poll::Ready(Some(Err(io::Error::new(
                         io::ErrorKind::UnexpectedEof,
                         format!(
