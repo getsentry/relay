@@ -64,11 +64,21 @@ impl Sink {
         match self {
             Sink::Upstream(addr) => {
                 let Stream { scoping, stream } = stream;
+                let project_key = scoping.project_key;
                 let project_id = scoping.project_id;
                 let path = format!("/api/{project_id}/upload/");
                 let response = ForwardRequest::builder(Method::POST, path)
                     .with_config(config)
-                    .with_headers(tus::request_headers(stream.expected_length()))
+                    .with_headers({
+                        let mut headers = tus::request_headers(stream.expected_length());
+                        // TODO: maybe we should implement `UpstreamRequest` directly.
+                        headers.insert(
+                            "X-Sentry-Auth",
+                            HeaderValue::try_from(format!("Sentry sentry_key={project_key}"))
+                                .expect("project key should aways be valid header"),
+                        );
+                        headers
+                    })
                     .with_body(axum::body::Body::from_stream(stream))
                     .send_to(addr)
                     .await?;

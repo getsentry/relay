@@ -219,4 +219,6 @@ def test_upload_processing(mini_sentry, relay, relay_with_processing, chain):
     print(signature)
 
     unsigned_uri = f"{base_path}/{attachment_id}/?length=11"
-    assert PublicKey.parse(relay.public_key).verify(unsigned_uri.encode(), signature)
+    assert PublicKey.parse(processing_relay.public_key).verify(
+        unsigned_uri.encode(), signature
+    )
