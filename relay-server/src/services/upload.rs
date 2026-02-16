@@ -9,10 +9,8 @@ use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 use objectstore_client::{Client, ExpirationPolicy, Session, Usecase};
 use relay_config::UploadServiceConfig;
-use relay_quotas::DataCategory;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use sentry_protos::snuba::v1::TraceItem;
-use smallvec::smallvec;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::ItemType;
@@ -81,10 +79,7 @@ pub struct StoreAttachment {
 
 impl Counted for StoreAttachment {
     fn quantities(&self) -> Quantities {
-        smallvec![
-            (DataCategory::AttachmentItem, 1),
-            (DataCategory::Attachment, self.body.len()),
-        ]
+        self.trace_item.quantities()
     }
 }
 
@@ -316,7 +311,6 @@ impl UploadServiceInner {
             .map_err(Error::UploadFailed)
             .reject(&managed)?;
 
-        let quantities = managed.quantities();
         let body = Bytes::clone(&managed.body);
 
         // Make sure that the attachment can be converted into a trace item:
@@ -325,10 +319,7 @@ impl UploadServiceInner {
                 trace_item,
                 body: _,
             } = attachment;
-            Ok::<_, Error>(StoreTraceItem {
-                trace_item,
-                quantities,
-            })
+            Ok::<_, Error>(StoreTraceItem { trace_item })
         })?;
 
         // Upload the attachment:

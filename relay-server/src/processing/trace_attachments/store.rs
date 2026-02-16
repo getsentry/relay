@@ -6,12 +6,12 @@ use relay_protocol::{Annotated, IntoValue, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 
-use crate::managed::{Managed, Rejected};
+use crate::managed::{Counted, Managed, Quantities, Rejected};
 use crate::processing::Retention;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
 use crate::processing::utils::store::{
     AttributeMeta, extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
-    uuid_to_item_id,
+    quantities_to_trace_item_outcomes, uuid_to_item_id,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::upload::StoreAttachment;
@@ -25,6 +25,8 @@ pub fn convert(
     let scoping = attachment.scoping();
     let received_at = attachment.received_at();
     attachment.try_map(|attachment, _record_keeper| {
+        let quantities = attachment.quantities();
+
         let ExpandedAttachment {
             parent_id,
             meta,
@@ -37,7 +39,7 @@ pub fn convert(
             retention,
             server_sample_rate,
         };
-        let trace_item = attachment_to_trace_item(meta, ctx)
+        let trace_item = attachment_to_trace_item(meta, quantities, ctx)
             .ok_or(Outcome::Invalid(DiscardReason::InvalidTraceAttachment))?;
 
         Ok::<_, Outcome>(StoreAttachment { trace_item, body })
@@ -62,6 +64,7 @@ struct Context {
 
 fn attachment_to_trace_item(
     meta: Annotated<TraceAttachmentMeta>,
+    quantities: Quantities,
     ctx: Context,
 ) -> Option<TraceItem> {
     let meta = meta.into_value()?;
@@ -99,6 +102,7 @@ fn attachment_to_trace_item(
         retention_days: ctx.retention.standard as u32,
         received: Some(proto_timestamp(ctx.received_at)),
         downsampled_retention_days: ctx.retention.downsampled as u32,
+        outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
     };
     Some(trace_item)
 }
