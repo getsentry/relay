@@ -165,11 +165,6 @@ def test_upload_rate_limited(mini_sentry, relay, data_category, dummy_upload):
             data=b"hello",
         )
 
-    # First request goes through:
-    assert request().status_code == 201
-
-    # asf
-
     assert request().status_code == 429
 
 
@@ -216,7 +211,6 @@ def test_upload_processing(mini_sentry, relay, relay_with_processing, chain):
     (length,) = query_params["length"]
     assert length == "11"
     (signature,) = query_params["signature"]
-    print(signature)
 
     # TODO: verify timestamp of signature, add test of outdated signature
     # TODO: unit tests for signature validation
