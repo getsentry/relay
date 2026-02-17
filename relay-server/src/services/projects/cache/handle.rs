@@ -33,6 +33,9 @@ impl ProjectCacheHandle {
         Project::new(project, &self.config)
     }
 
+    /// Awaits until the given project state becomes ready (enabled or disabled).
+    ///
+    /// Returns an empty [`Err`] if the project config cannot be resolved in the given time.
     pub async fn get_ready(
         &self,
         project_key: ProjectKey,
