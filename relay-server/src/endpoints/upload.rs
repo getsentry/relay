@@ -6,6 +6,7 @@
 //! Reference: <https://tus.io/protocols/resumable-upload#creation-with-upload>
 
 use std::io;
+use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{HeaderMap, StatusCode};
@@ -14,7 +15,6 @@ use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
 use http::{HeaderValue, header};
 use objectstore_client as objectstore;
-use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_quotas::Scoping;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -96,7 +96,11 @@ async fn handle(
 ) -> axum::response::Result<impl IntoResponse> {
     let upload_length = tus::validate_headers(&headers).map_err(Error::from)?;
 
-    let project = get_project(&state, meta.public_key()).await;
+    let project = state
+        .project_cache_handle()
+        .get_ready(meta.public_key(), Duration::from_secs(60)) // TODO: configurable?
+        .await
+        .map_err(|()| StatusCode::SERVICE_UNAVAILABLE)?;
 
     let scoping = check_request(&state, meta, upload_length, project).await?;
     let stream = body
@@ -150,27 +154,6 @@ async fn check_request(
     let scoping = envelope.scoping();
     envelope.accept(|x| x);
     Ok(scoping)
-}
-
-async fn get_project(state: &ServiceState, public_key: ProjectKey) -> Project<'_> {
-    let mut project = state.project_cache_handle().get(public_key);
-
-    // In non-procesing relays, it's OK to forward the request without waiting.
-    if !state.config().processing_enabled() {
-        return project;
-    }
-
-    // TODO: There should be a better way to await a project config.
-    if project.state().is_pending() {
-        state.project_cache_handle().fetch(public_key);
-        while project.state().is_pending() {
-            relay_log::trace!("Waiting for project state");
-            let _ = state.project_cache_handle().changes().recv().await;
-            project = state.project_cache_handle().get(public_key);
-        }
-    }
-    debug_assert!(!project.state().is_pending());
-    project
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
