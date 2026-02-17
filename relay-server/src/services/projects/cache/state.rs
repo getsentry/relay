@@ -1366,6 +1366,7 @@ mod tests {
         let shared = SharedProjectState::default();
         let shared1 = shared.clone();
 
+        #[allow(clippy::disallowed_methods)]
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(10)).await;
             shared1.set_project_state(ProjectState::Disabled);
@@ -1373,7 +1374,7 @@ mod tests {
 
         // After five seconds, project state is still pending:
         let result = shared.ready_project(Duration::from_secs(5)).await;
-        assert!(matches!(result, Err(_)));
+        assert!(result.is_err());
 
         // After another 10 seconds, the state will have been updated:
         let result = shared.ready_project(Duration::from_secs(10)).await;
