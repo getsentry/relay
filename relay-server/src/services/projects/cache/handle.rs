@@ -1,5 +1,6 @@
 use std::fmt;
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
@@ -7,7 +8,7 @@ use relay_system::Addr;
 use tokio::sync::broadcast;
 
 use super::state::Shared;
-use crate::services::projects::cache::service::{FetchRequest, ProjectChange};
+use crate::services::projects::cache::service::ProjectChange;
 use crate::services::projects::cache::{Project, ProjectCache};
 
 /// A synchronous handle to the [`ProjectCache`].
@@ -32,9 +33,23 @@ impl ProjectCacheHandle {
         Project::new(project, &self.config)
     }
 
+    /// Awaits until the given project state becomes ready (enabled or disabled).
+    ///
+    /// Returns an empty [`Err`] if the project config cannot be resolved in the given time.
+    pub async fn get_ready(
+        &self,
+        project_key: ProjectKey,
+        timeout: Duration,
+    ) -> Result<Project<'_>, ()> {
+        Ok(Project::new(
+            self.shared.get_ready(project_key, timeout).await?,
+            &self.config,
+        ))
+    }
+
     /// Triggers a fetch/update check in the project cache for the supplied project.
     pub fn fetch(&self, project_key: ProjectKey) {
-        self.service.send(FetchRequest(project_key));
+        self.service.send(ProjectCache::Fetch(project_key));
     }
 
     /// Returns a subscription to all [`ProjectChange`]'s.

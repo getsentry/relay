@@ -2,6 +2,7 @@ use futures::StreamExt;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Notify;
 use tokio::time::Instant;
 
 use arc_swap::ArcSwap;
@@ -298,16 +299,32 @@ impl Shared {
     /// The caller must ensure that the project cache is instructed to
     /// [`super::ProjectCache::Fetch`] the retrieved project.
     pub fn get_or_create(&self, project_key: ProjectKey) -> SharedProject {
+        self.get_or_create_inner(project_key).to_shared_project()
+    }
+
+    /// Awaits until the contained project state becomes ready (enabled or disabled).
+    ///
+    /// Returns an empty [`Err`] if the project config cannot be resolved in the given time.
+    pub async fn get_ready(
+        &self,
+        project_key: ProjectKey,
+        timeout: Duration,
+    ) -> Result<SharedProject, ()> {
+        let shared = self.get_or_create_inner(project_key);
+        shared.ready_project(timeout).await
+    }
+
+    fn get_or_create_inner(&self, project_key: ProjectKey) -> SharedProjectState {
         // The fast path, we expect the project to exist.
         let projects = self.projects.pin();
         if let Some(project) = projects.get(&project_key) {
-            return project.to_shared_project();
+            return project.clone();
         }
 
         // The slow path, try to attempt to insert, somebody else may have been faster, but that's okay.
         match projects.try_insert(project_key, Default::default()) {
-            Ok(inserted) => inserted.to_shared_project(),
-            Err(occupied) => occupied.current.to_shared_project(),
+            Ok(inserted) => inserted.clone(),
+            Err(occupied) => occupied.current.clone(),
         }
     }
 }
@@ -604,6 +621,7 @@ impl SharedProjectState {
             state: state.clone(),
             rate_limits: Arc::clone(&stored.rate_limits),
             reservoir_counters: Arc::clone(&stored.reservoir_counters),
+            notify: Arc::clone(&stored.notify),
         });
 
         // Try clean expired reservoir counters.
@@ -620,6 +638,30 @@ impl SharedProjectState {
                     counters.retain(|key, _| config.rules.iter().any(|rule| rule.id == *key));
                 }
             }
+        }
+
+        // Finally, notify listeners:
+        prev.notify.notify_waiters();
+    }
+
+    /// Awaits until the contained project state becomes ready (enabled or disabled).
+    ///
+    /// Returns an empty [`Err`] if the project config cannot be resolved in the given time.
+    pub async fn ready_project(&self, timeout: Duration) -> Result<SharedProject, ()> {
+        tokio::time::timeout(timeout, self.ready_project_inner())
+            .await
+            .map_err(|_| ())
+    }
+
+    async fn ready_project_inner(&self) -> SharedProject {
+        loop {
+            let guard = self.0.load();
+            if !guard.state.is_pending() {
+                return self.to_shared_project();
+            }
+            let notify = Arc::clone(&guard.notify);
+            drop(guard); // don't hold the guard across await points
+            notify.notified().await;
         }
     }
 
@@ -643,6 +685,7 @@ struct SharedProjectStateInner {
     state: ProjectState,
     rate_limits: Arc<CachedRateLimits>,
     reservoir_counters: ReservoirCounters,
+    notify: Arc<Notify>,
 }
 
 /// Current fetch state for a project.
@@ -1317,5 +1360,28 @@ mod tests {
         store.evict(eviction);
 
         assert!(store.refresh(refresh).is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_ready_state() {
+        let shared = SharedProjectState::default();
+        let shared1 = shared.clone();
+
+        #[allow(clippy::disallowed_methods)]
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(10)).await;
+            shared1.set_project_state(ProjectState::Disabled);
+        });
+
+        // After five seconds, project state is still pending:
+        let result = shared.ready_project(Duration::from_secs(5)).await;
+        assert!(result.is_err());
+
+        // After another 10 seconds, the state will have been updated:
+        let result = shared.ready_project(Duration::from_secs(10)).await;
+        assert!(matches!(
+            result.unwrap().project_state(),
+            &ProjectState::Disabled
+        ));
     }
 }
