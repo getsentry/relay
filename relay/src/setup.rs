@@ -118,6 +118,7 @@ pub fn init_metrics(config: &Config) -> Result<()> {
         sample_rate: config.metrics_sample_rate().into(),
         aggregate: config.metrics_aggregate(),
         allow_high_cardinality_tags: config.metrics_allow_high_cardinality_tags(),
+        trace_sample_rate: config.metrics_trace_sample_rate().into(),
     });
 
     Ok(())

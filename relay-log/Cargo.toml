@@ -20,7 +20,8 @@ relay-crash = { workspace = true, optional = true }
 sentry = { workspace = true, features = [
     "debug-images",
     "tracing",
-    "logs"
+    "logs",
+    "metrics",
 ], optional = true }
 sentry-core = { workspace = true }
 serde = { workspace = true, optional = true }
