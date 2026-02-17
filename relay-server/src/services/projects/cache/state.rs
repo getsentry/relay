@@ -655,13 +655,12 @@ impl SharedProjectState {
 
     async fn ready_project_inner(&self) -> SharedProject {
         loop {
-            let guard = self.0.load();
-            if !guard.state.is_pending() {
-                return self.to_shared_project();
+            let inner = self.0.load_full();
+            let notified = inner.notify.notified();
+            if !inner.state.is_pending() {
+                return SharedProject(inner);
             }
-            let notify = Arc::clone(&guard.notify);
-            drop(guard); // don't hold the guard across await points
-            notify.notified().await;
+            notified.await;
         }
     }
 
