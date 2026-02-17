@@ -7,7 +7,7 @@ use relay_system::Addr;
 use tokio::sync::broadcast;
 
 use super::state::Shared;
-use crate::services::projects::cache::service::{FetchRequest, ProjectChange};
+use crate::services::projects::cache::service::ProjectChange;
 use crate::services::projects::cache::{Project, ProjectCache};
 
 /// A synchronous handle to the [`ProjectCache`].
@@ -34,7 +34,7 @@ impl ProjectCacheHandle {
 
     /// Triggers a fetch/update check in the project cache for the supplied project.
     pub fn fetch(&self, project_key: ProjectKey) {
-        self.service.send(FetchRequest(project_key));
+        self.service.send(ProjectCache::Fetch(project_key));
     }
 
     /// Returns a subscription to all [`ProjectChange`]'s.
