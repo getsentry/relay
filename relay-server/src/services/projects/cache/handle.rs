@@ -1,5 +1,6 @@
 use std::fmt;
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
@@ -30,6 +31,17 @@ impl ProjectCacheHandle {
         self.fetch(project_key);
 
         Project::new(project, &self.config)
+    }
+
+    pub async fn get_ready(
+        &self,
+        project_key: ProjectKey,
+        timeout: Duration,
+    ) -> Result<Project<'_>, ()> {
+        Ok(Project::new(
+            self.shared.get_ready(project_key, timeout).await?,
+            &self.config,
+        ))
     }
 
     /// Triggers a fetch/update check in the project cache for the supplied project.
