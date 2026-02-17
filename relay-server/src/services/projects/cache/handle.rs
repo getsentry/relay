@@ -41,6 +41,9 @@ impl ProjectCacheHandle {
         project_key: ProjectKey,
         timeout: Duration,
     ) -> Result<Project<'_>, ()> {
+        // Always trigger a fetch after retrieving the project to make sure the state is up to date.
+        self.fetch(project_key);
+
         Ok(Project::new(
             self.shared.get_ready(project_key, timeout).await?,
             &self.config,
