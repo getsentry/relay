@@ -151,7 +151,7 @@ def test_upload_rate_limited(mini_sentry, relay, data_category, dummy_upload):
             "reasonCode": "cached_rate_limit",
         }
     ]
-    relay = relay(mini_sentry, capture_logs=True)
+    relay = relay(mini_sentry)
 
     def request():
         return relay.post(
@@ -168,7 +168,7 @@ def test_upload_rate_limited(mini_sentry, relay, data_category, dummy_upload):
     # First request goes through:
     assert request().status_code == 201
 
-    relay.wait_for_log("project state fetch completed with non-pending config")
+    # asf
 
     assert request().status_code == 429
 

@@ -476,7 +476,6 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
                 "source": "relay",
             }
         },
-        capture_logs=True,
     )
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -503,8 +502,6 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
         }
         for category in [DataCategory.SPAN, DataCategory.SPAN_INDEXED]
     ]
-
-    relay.wait_for_log("project state fetch completed with non-pending config")
 
     # Second attempt will cause a 403 response:
     with pytest.raises(HTTPError) as exc_info:
