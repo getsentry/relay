@@ -17,6 +17,7 @@
 - Add Culture context to event schema. ([#5615](https://github.com/getsentry/relay/pull/5615))
 - Trim spans with a new EAP trimming processor. ([#5616](https://github.com/getsentry/relay/pull/5616))
 - Forwarded requests are now streamed instead of buffered in-memory. ([#5624](https://github.com/getsentry/relay/pull/5624))
+- Scrub `_vercel_jwt` cookie by default as part of PII scrubbing. ([#5643](https://github.com/getsentry/relay/pull/5643))
 
 **Internal**:
 
