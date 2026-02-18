@@ -106,12 +106,17 @@ async fn handle(
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     let upload_length = tus::validate_headers(&headers).map_err(Error::from)?;
+    let config = state.config();
 
-    // There is no "fast path" for streaming uploads. Always wait for the project config
+    if upload_length > config.max_upload_size() {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE.into());
+    }
+
+    // There is no real "fast path" for streaming uploads. Always wait for the project config
     // to be loaded:
     let project = state
         .project_cache_handle()
-        .get_ready(meta.public_key(), state.config().query_timeout()) // uses same timeout as `Upstream`
+        .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
         .await
         .map_err(|()| StatusCode::SERVICE_UNAVAILABLE)?;
 
@@ -123,7 +128,7 @@ async fn handle(
     let stream = ExactStream::new(stream, upload_length);
 
     let location = upload::Sink::new(&state)
-        .upload(state.config(), upload::Stream { scoping, stream })
+        .upload(config, upload::Stream { scoping, stream })
         .await
         .map_err(Error::from)?;
 

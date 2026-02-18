@@ -149,7 +149,7 @@ impl Location {
                 uri.as_bytes(),
                 &SignatureHeader {
                     timestamp: Some(Utc::now()),
-                    signature_algorithm: None, //Some(SignatureAlgorithm::Prehashed),
+                    signature_algorithm: None,
                 },
             );
 
