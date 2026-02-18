@@ -3,6 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Notify;
+use tokio::sync::futures::Notified;
 use tokio::time::Instant;
 
 use arc_swap::ArcSwap;
@@ -371,8 +372,8 @@ impl SharedProject {
     /// Waits for the event of a changed project state, triggered by [`SharedProjectState::set_project_state`].
     ///
     /// Note that the content of this instance does not change when the event is triggered.
-    pub async fn outdated(&self) {
-        self.0.notify.notified().await
+    pub fn outdated(&self) -> Notified<'_> {
+        self.0.notify.notified()
     }
 }
 

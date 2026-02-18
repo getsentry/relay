@@ -52,10 +52,18 @@ impl ProjectCacheHandle {
     async fn ready_inner(&self, project_key: ProjectKey) -> Project<'_> {
         loop {
             let project = self.shared.get_or_create(project_key);
+            // Create the `Notified` before checking the project_state, to prevent missing
+            // an update between the check and the registration of the listener.
+            //
+            // From https://docs.rs/tokio/latest/tokio/sync/futures/struct.Notified.html#method.enable:
+            // > notifications sent using notify_waiters [...] are received
+            // > as long as they happen after the creation of the Notified
+            let change_listener = project.outdated();
             if !project.project_state().is_pending() {
+                drop(change_listener);
                 return Project::new(project, &self.config);
             }
-            project.outdated().await;
+            change_listener.await;
         }
     }
 
