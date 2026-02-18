@@ -18,10 +18,9 @@ crossbeam-channel = { workspace = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 relay-log = { workspace = true }
-sentry-core = { workspace = true, features = ["metrics"], optional = true }
+sentry-core = { workspace = true, features = ["metrics"] }
 statsdproxy = { workspace = true, features = ["cadence"] }
 
 [features]
 default = []
 test = []
-sentry-metrics = ["dep:sentry-core"]
