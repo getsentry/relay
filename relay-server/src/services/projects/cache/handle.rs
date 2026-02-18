@@ -44,10 +44,19 @@ impl ProjectCacheHandle {
         // Always trigger a fetch after retrieving the project to make sure the state is up to date.
         self.fetch(project_key);
 
-        Ok(Project::new(
-            self.shared.get_ready(project_key, timeout).await?,
-            &self.config,
-        ))
+        tokio::time::timeout(timeout, self.ready_inner(project_key))
+            .await
+            .map_err(|_| ())
+    }
+
+    async fn ready_inner(&self, project_key: ProjectKey) -> Project<'_> {
+        loop {
+            let project = self.shared.get_or_create(project_key);
+            if !project.project_state().is_pending() {
+                return Project::new(project, &self.config);
+            }
+            project.outdated().await;
+        }
     }
 
     /// Triggers a fetch/update check in the project cache for the supplied project.

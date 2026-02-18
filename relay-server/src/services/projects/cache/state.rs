@@ -302,18 +302,6 @@ impl Shared {
         self.get_or_create_inner(project_key).to_shared_project()
     }
 
-    /// Awaits until the contained project state becomes ready (enabled or disabled).
-    ///
-    /// Returns an empty [`Err`] if the project config cannot be resolved in the given time.
-    pub async fn get_ready(
-        &self,
-        project_key: ProjectKey,
-        timeout: Duration,
-    ) -> Result<SharedProject, ()> {
-        let shared = self.get_or_create_inner(project_key);
-        shared.ready_project(timeout).await
-    }
-
     fn get_or_create_inner(&self, project_key: ProjectKey) -> SharedProjectState {
         // The fast path, we expect the project to exist.
         let projects = self.projects.pin();
@@ -378,6 +366,13 @@ impl SharedProject {
     /// Returns a reference to the contained [`ReservoirCounters`].
     pub fn reservoir_counters(&self) -> &ReservoirCounters {
         &self.0.reservoir_counters
+    }
+
+    /// Waits for the event of a changed project state, triggered by [`SharedProjectState::set_project_state`].
+    ///
+    /// Note that the content of this instance does not change when the event is triggered.
+    pub async fn outdated(&self) {
+        self.0.notify.notified().await
     }
 }
 
@@ -641,27 +636,6 @@ impl SharedProjectState {
 
         // Finally, notify listeners:
         prev.notify.notify_waiters();
-    }
-
-    /// Awaits until the contained project state becomes ready (enabled or disabled).
-    ///
-    /// Returns an empty [`Err`] if the project config cannot be resolved in the given time.
-    pub async fn ready_project(&self, timeout: Duration) -> Result<SharedProject, ()> {
-        tokio::time::timeout(timeout, self.ready_project_inner())
-            .await
-            .map_err(|_| ())
-    }
-
-    async fn ready_project_inner(&self) -> SharedProject {
-        loop {
-            let inner = self.0.load_full();
-            // Register the listener _before_ checking the state to prevent a race.
-            let notified = inner.notify.notified();
-            if !inner.state.is_pending() {
-                return SharedProject(Arc::clone(&inner));
-            }
-            notified.await;
-        }
     }
 
     /// Extracts and clones the revision from the contained project state.
@@ -1373,13 +1347,23 @@ mod tests {
         });
 
         // After five seconds, project state is still pending:
-        let result = shared.ready_project(Duration::from_secs(5)).await;
-        assert!(result.is_err());
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            shared.to_shared_project().outdated(),
+        )
+        .await;
+        assert!(result.is_err()); // timed out before notify
+        assert!(shared.to_shared_project().project_state().is_pending());
 
         // After another 10 seconds, the state will have been updated:
-        let result = shared.ready_project(Duration::from_secs(10)).await;
+        let result = tokio::time::timeout(
+            Duration::from_secs(10),
+            shared.to_shared_project().outdated(),
+        )
+        .await;
+        assert!(result.is_ok()); // notified before timeout
         assert!(matches!(
-            result.unwrap().project_state(),
+            shared.to_shared_project().project_state(),
             &ProjectState::Disabled
         ));
     }
