@@ -300,20 +300,16 @@ impl Shared {
     /// The caller must ensure that the project cache is instructed to
     /// [`super::ProjectCache::Fetch`] the retrieved project.
     pub fn get_or_create(&self, project_key: ProjectKey) -> SharedProject {
-        self.get_or_create_inner(project_key).to_shared_project()
-    }
-
-    fn get_or_create_inner(&self, project_key: ProjectKey) -> SharedProjectState {
         // The fast path, we expect the project to exist.
         let projects = self.projects.pin();
         if let Some(project) = projects.get(&project_key) {
-            return project.clone();
+            return project.to_shared_project();
         }
 
         // The slow path, try to attempt to insert, somebody else may have been faster, but that's okay.
         match projects.try_insert(project_key, Default::default()) {
-            Ok(inserted) => inserted.clone(),
-            Err(occupied) => occupied.current.clone(),
+            Ok(inserted) => inserted.to_shared_project(),
+            Err(occupied) => occupied.current.to_shared_project(),
         }
     }
 }
@@ -1341,8 +1337,7 @@ mod tests {
         let shared = SharedProjectState::default();
         let shared1 = shared.clone();
 
-        #[allow(clippy::disallowed_methods)]
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             tokio::time::sleep(Duration::from_secs(10)).await;
             shared1.set_project_state(ProjectState::Disabled);
         });
