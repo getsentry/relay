@@ -19,9 +19,30 @@ def dummy_upload(mini_sentry):
         return Response("", status=201, headers={"Location": "dummy"})
 
 
-def test_forward_success(mini_sentry, relay, dummy_upload):
+@pytest.fixture
+def project_config(mini_sentry):
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    config.setdefault("features", []).append("projects:relay-upload-endpoint")
+    return config
+
+
+@pytest.mark.parametrize(
+    "feature_enabled,expected_status_code",
+    [
+        pytest.param(True, 201, id="feature enabled"),
+        pytest.param(False, 403, id="feature disabled"),
+    ],
+)
+def test_forward(
+    mini_sentry, relay, dummy_upload, feature_enabled, expected_status_code
+):
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)
+    if feature_enabled:
+        config["config"].setdefault("features", []).append(
+            "projects:relay-upload-endpoint"
+        )
     relay = relay(mini_sentry)
 
     data = b"hello world"
@@ -36,13 +57,12 @@ def test_forward_success(mini_sentry, relay, dummy_upload):
         data=data,
     )
 
-    assert response.status_code == 201
+    assert response.status_code == expected_status_code, response.text
 
 
-def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload):
+def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_config):
 
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
 
     response = relay.post(
@@ -58,10 +78,11 @@ def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload):
     assert response.status_code == 400
 
 
-def test_upload_unsupported_tus_version(mini_sentry, relay, dummy_upload):
+def test_upload_unsupported_tus_version(
+    mini_sentry, relay, dummy_upload, project_config
+):
 
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
 
     response = relay.post(
@@ -78,10 +99,9 @@ def test_upload_unsupported_tus_version(mini_sentry, relay, dummy_upload):
     assert response.status_code == 400
 
 
-def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload):
+def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_config):
 
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
 
     response = relay.post(
@@ -105,10 +125,11 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload):
         (101, 413),  # larger than allowed
     ],
 )
-def test_upload_body_size(mini_sentry, relay, size, expected_status_code, dummy_upload):
+def test_upload_body_size(
+    mini_sentry, relay, size, expected_status_code, dummy_upload, project_config
+):
 
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
     relay = relay(
         mini_sentry,
         {
@@ -134,7 +155,9 @@ def test_upload_body_size(mini_sentry, relay, size, expected_status_code, dummy_
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
-def test_upload_rate_limited(mini_sentry, relay, data_category, dummy_upload):
+def test_upload_rate_limited(
+    mini_sentry, relay, data_category, dummy_upload, project_config
+):
     """Request is rate limited on the fast path
 
     NOTE: It would be nice if this also worked for the "error" data category,
@@ -142,8 +165,7 @@ def test_upload_rate_limited(mini_sentry, relay, data_category, dummy_upload):
     because for classic envelopes it cannot distinguish between event and transaction attachments.
     """
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["quotas"] = [
+    project_config["quotas"] = [
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "categories": [data_category],
@@ -176,10 +198,11 @@ PROCESSING_OPTIONS = {
 @pytest.mark.parametrize(
     "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
 )
-def test_upload_processing(mini_sentry, relay, relay_with_processing, chain):
+def test_upload_processing(
+    mini_sentry, relay, relay_with_processing, chain, project_config
+):
     """Upload via processing relay stores the blob in objectstore."""
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
     processing_relay = relay_with_processing(PROCESSING_OPTIONS)
     if chain:
         relay = relay(processing_relay)

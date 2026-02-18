@@ -16,6 +16,7 @@ use futures::StreamExt;
 use http::{HeaderValue, header};
 use objectstore_client as objectstore;
 use relay_config::Config;
+use relay_dynamic_config::Feature;
 use relay_quotas::Scoping;
 use tower_http::limit::RequestBodyLimitLayer;
 
@@ -96,6 +97,8 @@ async fn handle(
 ) -> axum::response::Result<impl IntoResponse> {
     let upload_length = tus::validate_headers(&headers).map_err(Error::from)?;
 
+    // There is no "fast path" for streaming uploads. Always wait for the project config
+    // to be loaded:
     let project = state
         .project_cache_handle()
         .get_ready(meta.public_key(), Duration::from_secs(60)) // TODO: configurable?
@@ -135,6 +138,7 @@ async fn check_request(
     project: Project<'_>,
 ) -> Result<Scoping, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
+    envelope.require_feature(Feature::UploadEndpoint);
     let mut item = Item::new(ItemType::Attachment);
     item.set_original_length(upload_length as u64);
     item.set_payload(ContentType::AttachmentRef, vec![]);
