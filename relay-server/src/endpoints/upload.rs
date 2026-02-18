@@ -13,6 +13,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
 use http::header;
+#[cfg(feature = "processing")]
 use objectstore_client as objectstore;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -26,6 +27,7 @@ use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
 use crate::services::projects::cache::Project;
+#[cfg(feature = "processing")]
 use crate::services::upload::Error as ServiceError;
 use crate::utils::upload::SignedLocation;
 use crate::utils::{ExactStream, tus, upload};
@@ -54,6 +56,7 @@ impl IntoResponse for Error {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
                 upload::Error::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+                #[cfg(feature = "processing")]
                 upload::Error::UploadService(service_error) => match service_error {
                     ServiceError::Timeout => StatusCode::GATEWAY_TIMEOUT,
                     ServiceError::LoadShed => StatusCode::SERVICE_UNAVAILABLE,

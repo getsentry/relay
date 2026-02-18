@@ -71,9 +71,9 @@ impl IntoResponse for ForwardError {
             Self::Upstream(UpstreamRequestError::SendFailed(e)) => {
                 if let Some(source) = find_source(&e, is_hyper_user_error) {
                     if find_source(source, is_length_limit_error).is_some() {
-                        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+                        StatusCode::PAYLOAD_TOO_LARGE.into_response()
                     } else {
-                        return StatusCode::BAD_REQUEST.into_response();
+                        StatusCode::BAD_REQUEST.into_response()
                     }
                 } else if e.is_timeout() {
                     StatusCode::GATEWAY_TIMEOUT.into_response()

@@ -23,6 +23,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
+#[cfg(feature = "processing")]
 use crate::services::upload::Upload;
 #[cfg(feature = "processing")]
 use crate::services::upload::UploadService;
@@ -75,6 +76,7 @@ pub struct Registry {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
     pub project_cache_handle: ProjectCacheHandle,
     pub autoscaling: Option<Addr<AutoscalingMetrics>>,
+    #[cfg(feature = "processing")]
     pub upload: Option<Addr<Upload>>,
 }
 
@@ -355,8 +357,6 @@ impl ServiceState {
             autoscaling,
             #[cfg(feature = "processing")]
             upload,
-            #[cfg(not(feature = "processing"))]
-            upload: None,
         };
 
         let state = StateInner {
@@ -431,6 +431,7 @@ impl ServiceState {
         &self.inner.registry.outcome_aggregator
     }
 
+    #[cfg(feature = "processing")]
     pub fn upload(&self) -> Option<&Addr<Upload>> {
         self.inner.registry.upload.as_ref()
     }

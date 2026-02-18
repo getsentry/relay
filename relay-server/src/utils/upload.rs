@@ -2,17 +2,21 @@
 
 use axum::response::IntoResponse;
 use bytes::Bytes;
+#[cfg(feature = "processing")]
 use chrono::Utc;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method, StatusCode};
-use relay_auth::{Signature, SignatureHeader};
+use relay_auth::Signature;
+#[cfg(feature = "processing")]
+use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_quotas::Scoping;
 use relay_system::Addr;
 
 use crate::service::ServiceState;
-use crate::services::upload::{Error as ServiceError, Upload, UploadKey};
+#[cfg(feature = "processing")]
+use crate::services::upload::{Error as ServiceError, Upload};
 use crate::services::upstream::UpstreamRelay;
 use crate::utils::{ExactStream, ForwardError, ForwardRequest, ForwardResponse, tus};
 
@@ -25,10 +29,13 @@ pub enum Error {
     Upstream(StatusCode),
     #[error("upstream provided invalid location")]
     InvalidLocation,
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     #[error("failed to sign location")]
     SigningFailed,
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     #[error("service unavailable")]
     ServiceUnavailable,
+    #[cfg(feature = "processing")]
     #[error("upload service: {0}")]
     UploadService(ServiceError),
     #[error("internal error")]
@@ -48,17 +55,18 @@ pub struct Stream {
 /// Uploads go to either the upstream relay or objectstore.
 pub enum Sink {
     Upstream(Addr<UpstreamRelay>),
+    #[cfg(feature = "processing")]
     Upload(Addr<Upload>),
 }
 
 impl Sink {
     /// Creates a new upload dispatcher.
     pub fn new(state: &ServiceState) -> Self {
+        #[cfg(feature = "processing")]
         if let Some(addr) = state.upload() {
-            Self::Upload(addr.clone())
-        } else {
-            Self::Upstream(state.upstream_relay().clone())
+            return Self::Upload(addr.clone());
         }
+        Self::Upstream(state.upstream_relay().clone())
     }
 
     /// Uploads a given stream and returns the upload's identifier upon success.
@@ -86,6 +94,7 @@ impl Sink {
                     .await?;
                 SignedLocation::try_from_response(response)
             }
+            #[cfg(feature = "processing")]
             Sink::Upload(addr) => {
                 let project_id = stream.scoping.project_id;
                 let length = stream.stream.expected_length();
@@ -115,7 +124,7 @@ impl Sink {
 /// to validate whether the URI (especially the length) has been tempered with.
 pub struct Location {
     pub project_id: ProjectId,
-    pub key: UploadKey,
+    pub key: String,
     pub length: usize,
 }
 
@@ -129,6 +138,7 @@ impl Location {
         format!("/api/{project_id}/upload/{key}/?length={length}")
     }
 
+    #[cfg(feature = "processing")]
     fn try_sign(self, config: &Config) -> Result<SignedLocation, Error> {
         let uri = self.as_uri();
         let signature = config
@@ -153,6 +163,7 @@ impl Location {
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
 pub enum SignedLocation {
     FromUpstream(HeaderValue),
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     Local {
         location: Location,
         signature: Signature,
