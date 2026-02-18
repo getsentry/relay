@@ -656,9 +656,10 @@ impl SharedProjectState {
     async fn ready_project_inner(&self) -> SharedProject {
         loop {
             let inner = self.0.load_full();
+            // Register the listener _before_ checking the state to prevent a race.
             let notified = inner.notify.notified();
             if !inner.state.is_pending() {
-                return SharedProject(inner);
+                return SharedProject(Arc::clone(&inner));
             }
             notified.await;
         }
