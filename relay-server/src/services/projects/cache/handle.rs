@@ -36,7 +36,7 @@ impl ProjectCacheHandle {
     /// Awaits until the given project state becomes ready (enabled or disabled).
     ///
     /// Returns an empty [`Err`] if the project config cannot be resolved in the given time.
-    pub async fn get_ready(
+    pub async fn ready(
         &self,
         project_key: ProjectKey,
         timeout: Duration,
