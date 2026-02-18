@@ -1339,30 +1339,27 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_ready_state() {
         let shared = SharedProjectState::default();
-        let shared1 = shared.clone();
 
-        #[allow(clippy::disallowed_methods)]
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(10)).await;
-            shared1.set_project_state(ProjectState::Disabled);
-        });
+        let shared_project = shared.to_shared_project();
+        assert!(shared_project.project_state().is_pending());
+        let mut listener = std::pin::pin!(shared_project.outdated());
 
         // After five seconds, project state is still pending:
-        let result = tokio::time::timeout(
-            Duration::from_secs(5),
-            shared.to_shared_project().outdated(),
-        )
-        .await;
+        let result = tokio::time::timeout(Duration::from_secs(5), listener.as_mut()).await;
         assert!(result.is_err()); // timed out before notify
         assert!(shared.to_shared_project().project_state().is_pending());
 
-        // After another 10 seconds, the state will have been updated:
-        let result = tokio::time::timeout(
-            Duration::from_secs(10),
-            shared.to_shared_project().outdated(),
-        )
-        .await;
+        // Change the state:
+        shared.set_project_state(ProjectState::Disabled);
+
+        // The listener gets notified immediately:
+        let result = tokio::time::timeout(Duration::from_secs(1), listener).await;
         assert!(result.is_ok()); // notified before timeout
+
+        // The old snapshot is still pending:
+        assert!(shared_project.project_state().is_pending());
+
+        // The up-to-date snapshot is Disabled:
         assert!(matches!(
             shared.to_shared_project().project_state(),
             &ProjectState::Disabled

@@ -35,18 +35,16 @@ impl ProjectCacheHandle {
 
     /// Awaits until the given project state becomes ready (enabled or disabled).
     ///
-    /// Returns an empty [`Err`] if the project config cannot be resolved in the given time.
-    pub async fn ready(
-        &self,
-        project_key: ProjectKey,
-        timeout: Duration,
-    ) -> Result<Project<'_>, ()> {
-        // Always trigger a fetch after retrieving the project to make sure the state is up to date.
-        self.fetch(project_key);
+    /// Returns [`None`] if the project config cannot be resolved in the given time.
+    pub async fn ready(&self, project_key: ProjectKey, timeout: Duration) -> Option<Project<'_>> {
+        let project = self.get(project_key);
+        if !project.state().is_pending() {
+            return Some(project);
+        }
 
         tokio::time::timeout(timeout, self.ready_inner(project_key))
             .await
-            .map_err(|_| ())
+            .ok()
     }
 
     async fn ready_inner(&self, project_key: ProjectKey) -> Project<'_> {
@@ -55,7 +53,7 @@ impl ProjectCacheHandle {
             // Create the `Notified` before checking the project_state, to prevent missing
             // an update between the check and the registration of the listener.
             //
-            // From https://docs.rs/tokio/latest/tokio/sync/futures/struct.Notified.html#method.enable:
+            // From [`tokio::sync::futures::Notified::enabled`]:
             // > notifications sent using notify_waiters [...] are received
             // > as long as they happen after the creation of the Notified
             let change_listener = project.outdated();
