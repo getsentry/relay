@@ -6,14 +6,13 @@
 //! Reference: <https://tus.io/protocols/resumable-upload#creation-with-upload>
 
 use std::io;
-use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
-use http::{HeaderValue, header};
+use http::header;
 use objectstore_client as objectstore;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -67,6 +66,11 @@ impl IntoResponse for Error {
                     },
                     ServiceError::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 },
+                upload::Error::Internal => {
+                    debug_assert!(false);
+                    relay_log::error!(error = &error as &dyn std::error::Error);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                }
             },
         }
         .into_response()
@@ -76,7 +80,10 @@ impl IntoResponse for Error {
 impl IntoResponse for SignedLocation {
     fn into_response(self) -> Response {
         let mut headers = tus::response_headers();
-        headers.insert(header::LOCATION, self.into_header_value());
+        match self.into_header_value() {
+            Ok(uri) => headers.insert(header::LOCATION, uri),
+            Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        };
 
         (StatusCode::CREATED, headers, ()).into_response()
     }
@@ -118,11 +125,9 @@ async fn handle(
         .map_err(Error::from)?;
 
     let mut response = location.into_response();
-    response.headers_mut().insert(
-        tus::UPLOAD_OFFSET,
-        HeaderValue::from_str(&upload_length.to_string())
-            .expect("integer should always be a valid header"),
-    );
+    response
+        .headers_mut()
+        .insert(tus::UPLOAD_OFFSET, upload_length.into());
 
     Ok(response)
 }

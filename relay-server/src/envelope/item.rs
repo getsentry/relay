@@ -513,8 +513,9 @@ impl Item {
 
     /// Returns the attachment payload size.
     ///
-    /// For AttachmentV2, returns only the size of the actual payload, excluding the attachment meta.
-    /// For Attachment, returns the size of entire payload.
+    /// - For trace attachments, returns only the size of the actual payload, excluding the attachment meta.
+    /// - For attachment placeholders, returns the size represented by the placeholder.
+    /// - For Attachment, returns the size of entire payload.
     ///
     /// **Note:** This relies on the `meta_length` header which might not be correct as such this
     /// is best effort.
@@ -1055,7 +1056,7 @@ pub struct ItemHeaders {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     parent_id: Option<ParentId>,
 
-    /// Size of the attachment this reference rate limits.
+    /// Size of the attachment that an attachment placeholder represents.
     ///
     /// Only valid in combination with [`ContentType::AttachmentRef`]. This untrusted header is used
     /// to emit negative outcomes, but must not be used for consistent rate limiting.

@@ -58,7 +58,7 @@ pub fn validate_headers(headers: &HeaderMap) -> Result<usize, Error> {
     }
 
     let content_type = headers.get(http::header::CONTENT_TYPE);
-    if content_type.is_none_or(|ct| ct != EXPECTED_CONTENT_TYPE) {
+    if content_type != Some(&EXPECTED_CONTENT_TYPE) {
         return Err(Error::ContentType);
     }
 

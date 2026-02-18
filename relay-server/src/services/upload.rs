@@ -139,7 +139,7 @@ impl OutcomeError for Error {
     }
 }
 
-/// The objectstore key that identifies a successfull upload.
+/// The objectstore key that identifies a successful upload.
 #[derive(Debug, PartialEq)]
 pub struct UploadKey(String);
 

@@ -357,7 +357,6 @@ impl fmt::Debug for Shared {
 }
 
 /// A single project from the [`Shared`] project cache.
-#[derive(Debug)]
 pub struct SharedProject(Arc<SharedProjectStateInner>);
 
 impl SharedProject {

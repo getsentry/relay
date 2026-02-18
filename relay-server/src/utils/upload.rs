@@ -31,6 +31,8 @@ pub enum Error {
     ServiceUnavailable,
     #[error("upload service: {0}")]
     UploadService(ServiceError),
+    #[error("internal error")]
+    Internal,
 }
 
 /// A stream of bytes to be uploaded to objectstore or the upstream.
@@ -41,7 +43,7 @@ pub struct Stream {
     pub stream: ExactStream<BoxStream<'static, std::io::Result<Bytes>>>,
 }
 
-/// An dispatcher for uploading large files.
+/// A dispatcher for uploading large files.
 ///
 /// Uploads go to either the upstream relay or objectstore.
 pub enum Sink {
@@ -75,7 +77,7 @@ impl Sink {
                         headers.insert(
                             "X-Sentry-Auth",
                             HeaderValue::try_from(format!("Sentry sentry_key={project_key}"))
-                                .expect("project key should aways be valid header"),
+                                .map_err(|_| Error::Internal)?,
                         );
                         headers
                     })
@@ -105,6 +107,12 @@ impl Sink {
 }
 
 /// An identifier for the upload.
+///
+/// The location can be converted into a URI to be put in the `Location` HTTP header
+/// used by the TUS protocol.
+///
+/// Calling [`Self::try_sign`] appends a `&signature=` query parameter that can later be used
+/// to validate whether the URI (especially the length) has been tempered with.
 pub struct Location {
     pub project_id: ProjectId,
     pub key: UploadKey,
@@ -153,8 +161,8 @@ pub enum SignedLocation {
 
 impl SignedLocation {
     /// Converts the location into an URI for future reference.
-    pub fn into_header_value(self) -> HeaderValue {
-        match self {
+    pub fn into_header_value(self) -> Result<HeaderValue, Error> {
+        let header = match self {
             SignedLocation::FromUpstream(value) => value,
             SignedLocation::Local {
                 location,
@@ -163,9 +171,10 @@ impl SignedLocation {
                 let mut uri = location.as_uri();
                 uri.push_str("&signature=");
                 uri.push_str(&signature.to_string());
-                HeaderValue::from_str(&uri).expect("failed to construct header value")
+                HeaderValue::from_str(&uri).map_err(|_| Error::Internal)?
             }
-        }
+        };
+        Ok(header)
     }
 
     fn try_from_response(response: ForwardResponse) -> Result<Self, Error> {
