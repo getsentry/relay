@@ -126,8 +126,8 @@ def test_ourlog_multiple_containers_not_allowed(
 @pytest.mark.parametrize(
     "external_mode,expected_byte_size_1,expected_byte_size_2",
     [
-        # 296 here is a billing relevant metric, do not arbitrarily change it,
-        # this value is supposed to be static and purely based on data received,
+        # The values here are billing relevant metrics, do not arbitrarily change it,
+        # these values are supposed to be static and purely based on data received,
         # independent of any normalization.
         (None, 18, 359),
         # Same applies as above, a proxy Relay does not need to run normalization.
