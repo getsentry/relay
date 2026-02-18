@@ -101,7 +101,7 @@ async fn handle(
     // to be loaded:
     let project = state
         .project_cache_handle()
-        .get_ready(meta.public_key(), Duration::from_secs(60)) // TODO: configurable?
+        .get_ready(meta.public_key(), state.config().query_timeout()) // uses same timeout as `Upstream`
         .await
         .map_err(|()| StatusCode::SERVICE_UNAVAILABLE)?;
 
