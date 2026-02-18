@@ -37,13 +37,10 @@ impl ProjectCacheHandle {
     ///
     /// Returns [`None`] if the project config cannot be resolved in the given time.
     pub async fn ready(&self, project_key: ProjectKey, timeout: Duration) -> Option<Project<'_>> {
-        let project = self.shared.get_or_create(project_key);
-        if !project.project_state().is_pending() {
-            return Some(Project::new(project, &self.config));
+        let project = self.get(project_key);
+        if !project.state().is_pending() {
+            return Some(project);
         }
-
-        // We don't have a valid project config, trigger a fetch:
-        self.fetch(project_key);
 
         tokio::time::timeout(timeout, self.ready_inner(project_key))
             .await
