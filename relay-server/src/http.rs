@@ -100,6 +100,7 @@ impl RequestBuilder {
     }
 }
 
+#[derive(Debug)]
 pub struct Response(pub reqwest::Response);
 
 impl Response {

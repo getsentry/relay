@@ -136,7 +136,7 @@ impl UpstreamRequestError {
     /// with the status code. If the request could not be made or the error originates elsewhere,
     /// this returns `None`.
     fn status_code(&self) -> Option<StatusCode> {
-        match self {
+        match dbg!(self) {
             UpstreamRequestError::ResponseError(code, _) => Some(*code),
             UpstreamRequestError::Http(HttpError::Reqwest(e)) => e.status(),
             _ => None,

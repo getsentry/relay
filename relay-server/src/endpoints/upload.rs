@@ -106,7 +106,7 @@ async fn handle(
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    let upload_length = tus::validate_headers(&headers).map_err(Error::from)?;
+    let upload_length = dbg!(tus::validate_headers(&headers).map_err(Error::from)?);
     let config = state.config();
 
     if upload_length > config.max_upload_size() {
@@ -121,19 +121,21 @@ async fn handle(
         .await
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
-    let scoping = check_request(&state, meta, upload_length, project).await?;
+    let scoping = dbg!(check_request(&state, meta, upload_length, project).await?);
     let stream = body
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
     let stream = ExactStream::new(stream, upload_length);
 
-    let location = upload::Sink::new(&state)
-        .upload(config, upload::Stream { scoping, stream })
-        .await
-        .map_err(Error::from)?;
+    let location = dbg!(
+        upload::Sink::new(&state)
+            .upload(config, upload::Stream { scoping, stream })
+            .await
+            .map_err(Error::from)
+    )?;
 
-    let mut response = location.into_response();
+    let mut response = dbg!(location.into_response());
     response
         .headers_mut()
         .insert(tus::UPLOAD_OFFSET, upload_length.into());

@@ -114,6 +114,7 @@ impl Sink {
 ///
 /// Calling [`Self::try_sign`] appends a `&signature=` query parameter that can later be used
 /// to validate whether the URI (especially the length) has been tempered with.
+#[derive(Debug)]
 pub struct Location {
     pub project_id: ProjectId,
     pub key: String,
@@ -153,6 +154,7 @@ impl Location {
 }
 
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
+#[derive(Debug)]
 pub enum SignedLocation {
     FromUpstream(HeaderValue),
     #[cfg_attr(not(feature = "processing"), expect(unused))]
@@ -181,7 +183,7 @@ impl SignedLocation {
     }
 
     fn try_from_response(response: Response) -> Result<Self, Error> {
-        match response.status() {
+        match dbg!(&response).status() {
             status if status.is_success() => {
                 let location = response
                     .headers()
@@ -236,7 +238,7 @@ impl UpstreamRequest for UploadRequest {
 
     fn path(&self) -> std::borrow::Cow<'_, str> {
         let project_id = self.scoping.project_id;
-        format!("/api/upload/{project_id}/").into()
+        format!("/api/{project_id}/upload/").into()
     }
 
     fn route(&self) -> &'static str {
@@ -276,6 +278,8 @@ impl UpstreamRequest for UploadRequest {
             let Some(key) = key else { continue };
             builder.header(key, value);
         }
+
+        builder.body(reqwest::Body::wrap_stream(body));
 
         Ok(())
     }
