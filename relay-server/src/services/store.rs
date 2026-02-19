@@ -175,16 +175,15 @@ pub struct StoreReplay {
     pub event: Option<Bytes>,
     /// Optional replay video.
     pub video: Option<Bytes>,
+    /// Outcome quantities associated with this replay.
+    ///
+    /// Quantities are different for web and native replays.
+    pub quantities: Quantities,
 }
 
 impl Counted for StoreReplay {
     fn quantities(&self) -> Quantities {
-        // Web replays currently count as 2 since they are 2 items in the envelope (event + recording).
-        if self.event.is_some() && self.video.is_none() {
-            smallvec![(DataCategory::Replay, 2)]
-        } else {
-            smallvec![(DataCategory::Replay, 1)]
-        }
+        self.quantities.clone()
     }
 }
 
