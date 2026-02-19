@@ -30,7 +30,8 @@
 //!     default_tags: BTreeMap::new(),
 //!     sample_rate: 1.0.into(),
 //!     aggregate: true,
-//!     allow_high_cardinality_tags: false
+//!     allow_high_cardinality_tags: false,
+//!     trace_sample_rate: 0.0.into(),
 //! });
 //! ```
 //!
@@ -67,6 +68,8 @@
 use rand::Rng;
 pub use statsdproxy::config::DenyTagConfig;
 
+use cadence::ext::{ToCounterValue, ToDistributionValue, ToGaugeValue};
+use cadence::prelude::*;
 use cadence::{Metric, MetricBuilder, StatsdClient};
 use parking_lot::RwLock;
 use rand::distr::StandardUniform;
@@ -97,6 +100,43 @@ impl From<SampleRate> for f64 {
     }
 }
 
+/// Helper trait for converting metric values to f64 for trace metrics.
+#[doc(hidden)]
+pub trait IntoF64: Copy {
+    fn into_f64(self) -> f64;
+}
+
+impl IntoF64 for i32 {
+    fn into_f64(self) -> f64 {
+        self as f64
+    }
+}
+impl IntoF64 for i64 {
+    fn into_f64(self) -> f64 {
+        self as f64
+    }
+}
+impl IntoF64 for u32 {
+    fn into_f64(self) -> f64 {
+        self as f64
+    }
+}
+impl IntoF64 for u64 {
+    fn into_f64(self) -> f64 {
+        self as f64
+    }
+}
+impl IntoF64 for f64 {
+    fn into_f64(self) -> f64 {
+        self
+    }
+}
+impl IntoF64 for usize {
+    fn into_f64(self) -> f64 {
+        self as f64
+    }
+}
+
 /// Client configuration object to store globally.
 #[derive(Debug)]
 pub struct MetricsClient {
@@ -106,6 +146,8 @@ pub struct MetricsClient {
     pub default_tags: BTreeMap<String, String>,
     /// Global sample rate.
     pub default_sample_rate: SampleRate,
+    /// Sample rate for double-writing metrics as Sentry trace metrics.
+    pub trace_sample_rate: SampleRate,
     /// Receiver for external listeners.
     ///
     /// Only available when the client was initialized with `init_basic`.
@@ -127,6 +169,9 @@ pub struct MetricsClientConfig<'a, A> {
     pub aggregate: bool,
     /// If high cardinality tags should be removed from metrics.
     pub allow_high_cardinality_tags: bool,
+    /// Sample rate for double-writing metrics as Sentry trace metrics.
+    /// 0.0 means disabled, 1.0 means all metrics are double-written.
+    pub trace_sample_rate: SampleRate,
 }
 
 impl Deref for MetricsClient {
@@ -150,16 +195,20 @@ impl MetricsClient {
     where
         T: Metric + From<String>,
     {
-        self.send_metric_with_sample_rate(metric, None)
+        self.send_metric_with_sample_rate(metric, None, None)
     }
 
     /// Send a metric with an explicit sample rate that overrides the global sample rate.
+    ///
+    /// Optionally double-writes the metric as a Sentry trace metric if `trace_meta` is provided
+    /// and the trace sample rate allows it.
     #[doc(hidden)]
     #[inline(always)]
     pub fn send_metric_with_sample_rate<'a, T>(
         &'a self,
         mut metric: MetricBuilder<'a, '_, T>,
         sample_rate: Option<SampleRate>,
+        trace_meta: Option<(TraceMetricType, &str, f64)>,
     ) where
         T: Metric + From<String>,
     {
@@ -167,6 +216,11 @@ impl MetricsClient {
             Some(sample_rate) => sample_rate.0.min(self.default_sample_rate.0),
             None => self.default_sample_rate.0,
         };
+
+        if let Some((ty, name, value)) = trace_meta {
+            self.send_trace_metric(ty, name, value, effective_sample_rate);
+        }
+
         if !Self::should_send(effective_sample_rate) {
             return;
         }
@@ -185,6 +239,80 @@ impl MetricsClient {
                 maximum_capacity = METRICS_MAX_QUEUE_SIZE,
                 "Error sending a metric",
             );
+        }
+    }
+
+    /// Build a counter metric that will double-write as a Sentry trace metric.
+    #[doc(hidden)]
+    #[inline(always)]
+    pub fn build_counter<'a, V: ToCounterValue + IntoF64>(
+        &'a self,
+        name: &'a str,
+        value: V,
+    ) -> TracedMetricBuilder<'a, 'a, impl Metric + From<String>> {
+        let trace_value = value.into_f64();
+        TracedMetricBuilder {
+            client: self,
+            builder: self.count_with_tags(name, value),
+            trace_type: TraceMetricType::Counter,
+            name,
+            value: trace_value,
+        }
+    }
+
+    /// Build a gauge metric that will double-write as a Sentry trace metric.
+    #[doc(hidden)]
+    #[inline(always)]
+    pub fn build_gauge<'a, V: ToGaugeValue + IntoF64>(
+        &'a self,
+        name: &'a str,
+        value: V,
+    ) -> TracedMetricBuilder<'a, 'a, impl Metric + From<String>> {
+        let trace_value = value.into_f64();
+        TracedMetricBuilder {
+            client: self,
+            builder: self.gauge_with_tags(name, value),
+            trace_type: TraceMetricType::Gauge,
+            name,
+            value: trace_value,
+        }
+    }
+
+    /// Build a distribution metric that will double-write as a Sentry trace metric.
+    ///
+    /// Also used for timer metrics (which are distributions measured in milliseconds).
+    #[doc(hidden)]
+    #[inline(always)]
+    pub fn build_distribution<'a, V: ToDistributionValue + IntoF64>(
+        &'a self,
+        name: &'a str,
+        value: V,
+    ) -> TracedMetricBuilder<'a, 'a, impl Metric + From<String>> {
+        let trace_value = value.into_f64();
+        TracedMetricBuilder {
+            client: self,
+            builder: self.distribution_with_tags(name, value),
+            trace_type: TraceMetricType::Distribution,
+            name,
+            value: trace_value,
+        }
+    }
+
+    fn send_trace_metric(
+        &self,
+        ty: TraceMetricType,
+        name: &str,
+        value: f64,
+        effective_sample_rate: f64,
+    ) {
+        let rate = effective_sample_rate * self.trace_sample_rate.0;
+        if rate <= 0.0 || !Self::should_send(rate) {
+            return;
+        }
+        match ty {
+            TraceMetricType::Counter => sentry_core::metrics_count(name, value, None),
+            TraceMetricType::Gauge => sentry_core::metrics_gauge(name, value, None),
+            TraceMetricType::Distribution => sentry_core::metrics_distribution(name, value, None),
         }
     }
 
@@ -242,6 +370,7 @@ pub fn with_capturing_test_client_sample_rate(sample_rate: f64, f: impl FnOnce()
         statsd_client: StatsdClient::from_sink("", sink),
         default_tags: Default::default(),
         default_sample_rate: sample_rate.into(),
+        trace_sample_rate: 0.0.into(),
         rx: None,
     };
 
@@ -266,6 +395,7 @@ pub fn init_basic() -> Option<crossbeam_channel::Receiver<Vec<u8>>> {
                 statsd_client: StatsdClient::from_sink("", sink),
                 default_tags: Default::default(),
                 default_sample_rate: 1.0.into(),
+                trace_sample_rate: 0.0.into(),
                 rx: Some(receiver.clone()),
             };
             cell.replace(Some(Arc::new(test_client)));
@@ -350,6 +480,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
         statsd_client,
         default_tags: config.default_tags,
         default_sample_rate: config.sample_rate,
+        trace_sample_rate: config.trace_sample_rate,
         rx: None,
     });
 }
@@ -371,6 +502,55 @@ where
             R::default()
         }
     })
+}
+
+/// Trace metric type used for double-writing metrics as Sentry trace metrics.
+#[doc(hidden)]
+#[derive(Clone, Copy)]
+pub enum TraceMetricType {
+    Counter,
+    Gauge,
+    Distribution,
+}
+
+/// Builder that wraps a cadence [`MetricBuilder`] with trace metric metadata.
+///
+/// Created by [`MetricsClient::build_counter`], [`MetricsClient::build_gauge`],
+/// and [`MetricsClient::build_distribution`]. Sends both the StatsD metric and
+/// an optional Sentry trace metric when [`send`](Self::send) is called.
+#[doc(hidden)]
+pub struct TracedMetricBuilder<'a, 'b, T: Metric + From<String>> {
+    client: &'a MetricsClient,
+    builder: MetricBuilder<'a, 'b, T>,
+    trace_type: TraceMetricType,
+    name: &'a str,
+    value: f64,
+}
+
+impl<'a, 'b, T: Metric + From<String>> TracedMetricBuilder<'a, 'b, T> {
+    #[inline(always)]
+    pub fn with_tag(mut self, key: &'a str, value: &'a str) -> Self {
+        self.builder = self.builder.with_tag(key, value);
+        self
+    }
+
+    #[inline(always)]
+    pub fn send(self) {
+        self.client.send_metric_with_sample_rate(
+            self.builder,
+            None,
+            Some((self.trace_type, self.name, self.value)),
+        );
+    }
+
+    #[inline(always)]
+    pub fn send_with_sample_rate(self, sample_rate: SampleRate) {
+        self.client.send_metric_with_sample_rate(
+            self.builder,
+            Some(sample_rate),
+            Some((self.trace_type, self.name, self.value)),
+        );
+    }
 }
 
 /// A metric for capturing timings.
@@ -628,11 +808,10 @@ macro_rules! metric {
         match $value {
             value if value != 0 => {
                 $crate::with_client(|client| {
-                    use $crate::_pred::*;
-                    client.send_metric(
-                        client.count_with_tags(&$crate::CounterMetric::name(&$id), value)
+                    let name = $crate::CounterMetric::name(&$id);
+                    client.build_counter(&name, value)
                         $(.with_tag(stringify!($($k).*), $v))*
-                    )
+                        .send();
                 })
             },
             _ => {},
@@ -644,11 +823,10 @@ macro_rules! metric {
         match $value {
             value if value != 0 => {
                 $crate::with_client(|client| {
-                    use $crate::_pred::*;
-                    client.send_metric(
-                        client.count_with_tags(&$crate::CounterMetric::name(&$id), -value)
-                            $(.with_tag(stringify!($($k).*), $v))*
-                    )
+                    let name = $crate::CounterMetric::name(&$id);
+                    client.build_counter(&name, -value)
+                        $(.with_tag(stringify!($($k).*), $v))*
+                        .send();
                 })
             },
             _ => {},
@@ -658,34 +836,30 @@ macro_rules! metric {
     // gauge set
     (gauge($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.gauge_with_tags(&$crate::GaugeMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($($k).*), $v))*
-            )
+            let name = $crate::GaugeMetric::name(&$id);
+            client.build_gauge(&name, $value)
+                $(.with_tag(stringify!($($k).*), $v))*
+                .send();
         })
     };
 
     // distribution with explicit sample rate (overrides global sample rate)
     (distribution($id:expr, sample = $sample:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric_with_sample_rate(
-                client.distribution_with_tags(&$crate::DistributionMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($($k).*), $v))*,
-                Some($sample.into())
-            )
+            let name = $crate::DistributionMetric::name(&$id);
+            client.build_distribution(&name, $value)
+                $(.with_tag(stringify!($($k).*), $v))*
+                .send_with_sample_rate($sample.into());
         })
     };
 
     // distribution (uses global sample rate)
     (distribution($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.distribution_with_tags(&$crate::DistributionMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($($k).*), $v))*
-            )
+            let name = $crate::DistributionMetric::name(&$id);
+            client.build_distribution(&name, $value)
+                $(.with_tag(stringify!($($k).*), $v))*
+                .send();
         })
     };
 
@@ -703,27 +877,24 @@ macro_rules! metric {
     // timer value with explicit sample rate (overrides global sample rate)
     (timer($id:expr, sample = $sample:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric_with_sample_rate(
-                // NOTE: cadence distribution support Duration out of the box and converts it to nanos,
-                // but we want milliseconds for historical reasons.
-                client.distribution_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
-                    $(.with_tag(stringify!($($k).*), $v))*,
-                Some($sample.into())
-            )
+            let name = $crate::TimerMetric::name(&$id);
+            // NOTE: cadence distribution support Duration out of the box and converts it to nanos,
+            // but we want milliseconds for historical reasons.
+            client.build_distribution(&name, $value.as_nanos() as f64 / 1e6)
+                $(.with_tag(stringify!($($k).*), $v))*
+                .send_with_sample_rate($sample.into());
         })
     };
 
     // timer value (uses global sample rate)
     (timer($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                // NOTE: cadence distribution support Duration out of the box and converts it to nanos,
-                // but we want milliseconds for historical reasons.
-                client.distribution_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
-                    $(.with_tag(stringify!($($k).*), $v))*
-            )
+            let name = $crate::TimerMetric::name(&$id);
+            // NOTE: cadence distribution support Duration out of the box and converts it to nanos,
+            // but we want milliseconds for historical reasons.
+            client.build_distribution(&name, $value.as_nanos() as f64 / 1e6)
+                $(.with_tag(stringify!($($k).*), $v))*
+                .send();
         })
     };
 
@@ -833,6 +1004,7 @@ mod tests {
             statsd_client: StatsdClient::from_sink("", NopMetricSink),
             default_tags: Default::default(),
             default_sample_rate: 1.0.into(),
+            trace_sample_rate: 0.0.into(),
             rx: None,
         });
         let client2 = with_client(|c| format!("{c:?}"));

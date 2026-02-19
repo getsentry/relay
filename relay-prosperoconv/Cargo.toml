@@ -18,13 +18,13 @@ mime_guess = "2.0.4"
 minidump-writer = "0.11.0"
 object = "0.36.0"
 rmpv = "1.3.0"
-sentry = { version = "0.41.0", default-features = false, features = [
-    # default features, except `release-health` is disabled and `reqwest` is explicitly selected as the transport
+sentry = { git = "https://github.com/getsentry/sentry-rust", branch = "feat/trace-metrics", default-features = false, features = [
+    # default features, except `release-health` is disabled
     "backtrace",
     "contexts",
     "debug-images",
     "panic",
-    "reqwest",
+    "transport",
 ]}
 tracing = "0.1.40"
 watto = "0.1.0"
