@@ -50,7 +50,8 @@ impl IntoResponse for Error {
             Error::Tus(_) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::Upload(error) => match error {
-                upload::Error::Forward(error) => return error.into_response(),
+                upload::Error::Send(_) => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::UpstreamRequest(e) => return e.into_response(),
                 upload::Error::Upstream(status) => status,
                 upload::Error::InvalidLocation | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR

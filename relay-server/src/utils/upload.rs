@@ -1,6 +1,7 @@
 //! Utilities for uploading large files.
 
-use axum::response::IntoResponse;
+use std::fmt;
+
 use bytes::Bytes;
 #[cfg(feature = "processing")]
 use chrono::Utc;
@@ -13,18 +14,25 @@ use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_quotas::Scoping;
 use relay_system::Addr;
+use tokio::sync::oneshot;
+use tokio::sync::oneshot::error::RecvError;
 
+use crate::http::{HttpError, RequestBuilder, Response};
 use crate::service::ServiceState;
 #[cfg(feature = "processing")]
 use crate::services::upload::{Error as ServiceError, Upload};
-use crate::services::upstream::UpstreamRelay;
-use crate::utils::{ExactStream, ForwardError, ForwardRequest, ForwardResponse, tus};
+use crate::services::upstream::{
+    SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+};
+use crate::utils::{ExactStream, tus};
 
 /// An error that occurs during upload.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("forwarding failed: {0}")]
-    Forward(#[from] ForwardError),
+    #[error("send failed: {0}")]
+    Send(#[from] RecvError),
+    #[error("request failed: {0}")]
+    UpstreamRequest(#[from] UpstreamRequestError),
     #[error("upstream response: {0}")]
     Upstream(StatusCode),
     #[error("upstream provided invalid location")]
@@ -73,26 +81,9 @@ impl Sink {
     pub async fn upload(&self, config: &Config, stream: Stream) -> Result<SignedLocation, Error> {
         match self {
             Sink::Upstream(addr) => {
-                let Stream { scoping, stream } = stream;
-                let project_key = scoping.project_key;
-                let project_id = scoping.project_id;
-                let path = format!("/api/{project_id}/upload/");
-                let response = ForwardRequest::builder(Method::POST, path)
-                    .with_config(config)
-                    .with_headers({
-                        let mut headers = tus::request_headers(stream.expected_length());
-                        // TODO: maybe we should implement `UpstreamRequest` directly.
-                        headers.insert(
-                            "X-Sentry-Auth",
-                            HeaderValue::try_from(format!("Sentry sentry_key={project_key}"))
-                                .map_err(|_| Error::Internal)?,
-                        );
-                        headers
-                    })
-                    .with_body(axum::body::Body::from_stream(stream))
-                    .send_to(addr)
-                    .await?;
-                SignedLocation::try_from_response(response)
+                let (request, response_channel) = UploadRequest::create(stream);
+                addr.send(SendRequest(request));
+                SignedLocation::try_from_response(response_channel.await??)
             }
             #[cfg(feature = "processing")]
             Sink::Upload(addr) => {
@@ -189,8 +180,7 @@ impl SignedLocation {
         Ok(header)
     }
 
-    fn try_from_response(response: ForwardResponse) -> Result<Self, Error> {
-        let response = response.into_response();
+    fn try_from_response(response: Response) -> Result<Self, Error> {
         match response.status() {
             status if status.is_success() => {
                 let location = response
@@ -201,5 +191,92 @@ impl SignedLocation {
             }
             status => Err(Error::Upstream(status)),
         }
+    }
+}
+
+struct UploadRequest {
+    scoping: Scoping,
+    body: Option<ExactStream<BoxStream<'static, std::io::Result<Bytes>>>>,
+    sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
+}
+
+impl UploadRequest {
+    fn create(
+        stream: Stream,
+    ) -> (
+        Self,
+        oneshot::Receiver<Result<Response, UpstreamRequestError>>,
+    ) {
+        let (sender, rx) = oneshot::channel();
+        let Stream { scoping, stream } = stream;
+
+        (
+            Self {
+                scoping,
+                body: Some(stream),
+                sender,
+            },
+            rx,
+        )
+    }
+}
+
+impl fmt::Debug for UploadRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UploadRequest")
+            .field("scoping", &self.scoping)
+            .finish()
+    }
+}
+
+impl UpstreamRequest for UploadRequest {
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> std::borrow::Cow<'_, str> {
+        let project_id = self.scoping.project_id;
+        format!("/api/upload/{project_id}/").into()
+    }
+
+    fn route(&self) -> &'static str {
+        "upload"
+    }
+
+    fn respond(
+        self: Box<Self>,
+        result: Result<Response, UpstreamRequestError>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+        Box::pin(async move {
+            let _ = self.sender.send(result);
+        })
+    }
+
+    fn retry(&self) -> bool {
+        false
+    }
+
+    fn intercept_status_errors(&self) -> bool {
+        false // same as ForwardRequest
+    }
+
+    fn set_relay_id(&self) -> bool {
+        false // same as ForwardRequest
+    }
+
+    fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
+        let Some(body) = self.body.take() else {
+            relay_log::error!("upload request was retried or never initialized");
+            return Err(HttpError::Misconfigured);
+        };
+
+        let project_key = self.scoping.project_key;
+        builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
+        for (key, value) in tus::request_headers(body.expected_length()) {
+            let Some(key) = key else { continue };
+            builder.header(key, value);
+        }
+
+        Ok(())
     }
 }
