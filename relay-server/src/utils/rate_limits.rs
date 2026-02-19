@@ -1140,6 +1140,32 @@ where
             );
 
             if profile_limits.is_empty() {
+                let limit = self
+                    .check
+                    .apply(
+                        scoping.item(DataCategory::ProfileIndexed),
+                        summary.profile_quantity.total(),
+                    )
+                    .await?;
+
+                if !limit.is_empty() {
+                    enforcement.profiles_indexed = CategoryLimit::new(
+                        DataCategory::ProfileIndexed,
+                        summary.profile_quantity.total(),
+                        limit.longest(),
+                    );
+
+                    profile_limits.merge(limit);
+                }
+            } else {
+                enforcement.profiles_indexed = CategoryLimit::new(
+                    DataCategory::ProfileIndexed,
+                    summary.profile_quantity.total(),
+                    profile_limits.longest(),
+                );
+            }
+
+            if profile_limits.is_empty() {
                 if summary.profile_quantity.backend > 0 {
                     let limit = self
                         .check
@@ -1178,24 +1204,6 @@ where
 
                     profile_limits.merge(limit);
                 }
-
-                let limit = self
-                    .check
-                    .apply(
-                        scoping.item(DataCategory::ProfileIndexed),
-                        summary.profile_quantity.total(),
-                    )
-                    .await?;
-
-                if !limit.is_empty() {
-                    enforcement.profiles_indexed = CategoryLimit::new(
-                        DataCategory::ProfileIndexed,
-                        summary.profile_quantity.total(),
-                        limit.longest(),
-                    );
-
-                    profile_limits.merge(limit);
-                }
             } else {
                 enforcement.profiles_backend = CategoryLimit::new(
                     DataCategory::ProfileBackend,
@@ -1205,11 +1213,6 @@ where
                 enforcement.profiles_ui = CategoryLimit::new(
                     DataCategory::ProfileUi,
                     summary.profile_quantity.ui,
-                    profile_limits.longest(),
-                );
-                enforcement.profiles_indexed = CategoryLimit::new(
-                    DataCategory::ProfileIndexed,
-                    summary.profile_quantity.total(),
                     profile_limits.longest(),
                 );
             }
