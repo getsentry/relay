@@ -118,7 +118,7 @@ async fn handle(
         .project_cache_handle()
         .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
         .await
-        .map_err(|()| StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     let scoping = check_request(&state, meta, upload_length, project).await?;
     let stream = body
