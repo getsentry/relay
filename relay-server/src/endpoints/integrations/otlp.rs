@@ -47,7 +47,7 @@ mod traces {
             .await?
             .check_rate_limits()?;
 
-        Ok(StatusCode::ACCEPTED)
+        Ok(StatusCode::OK)
     }
 
     pub fn route(config: &Config) -> MethodRouter<ServiceState> {
@@ -78,7 +78,7 @@ mod logs {
             .await?
             .ignore_rate_limits();
 
-        Ok(StatusCode::ACCEPTED)
+        Ok(StatusCode::OK)
     }
 
     pub fn route(config: &Config) -> MethodRouter<ServiceState> {

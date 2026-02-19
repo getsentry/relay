@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Return status code 200 instead of 202 for OTLP endpoints. ([#5645](https://github.com/getsentry/relay/pull/5645))
+
 ## 26.2.0
 
 **Bug Fixes**:
