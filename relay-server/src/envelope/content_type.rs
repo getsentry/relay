@@ -37,6 +37,8 @@ pub enum ContentType {
     TraceMetricContainer,
     /// `application/vnd.sentry.trace-attachment`
     TraceAttachment,
+    /// `application/vnd.sentry.attachment-ref`
+    AttachmentRef,
     /// All integration content types.
     Integration(Integration),
     /// Any arbitrary content type not listed explicitly.
@@ -60,6 +62,7 @@ impl ContentType {
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
             Self::TraceMetricContainer => "application/vnd.sentry.items.trace-metric+json",
             Self::TraceAttachment => "application/vnd.sentry.trace-attachment",
+            Self::AttachmentRef => "application/vnd.sentry.attachment-ref",
             Self::Integration(integration) => integration.as_content_type(),
             Self::Other(other) => other,
         }
@@ -106,6 +109,8 @@ impl ContentType {
             || ct.eq_ignore_ascii_case("application/vnd.sentry.attachment.v2")
         {
             Some(Self::TraceAttachment)
+        } else if ct.eq_ignore_ascii_case(Self::AttachmentRef.as_str()) {
+            Some(Self::AttachmentRef)
         } else {
             Integration::from_content_type(ct).map(Self::Integration)
         }

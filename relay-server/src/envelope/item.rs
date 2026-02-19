@@ -47,6 +47,7 @@ impl Item {
                 platform: None,
                 parent_id: None,
                 meta_length: None,
+                attachment_length: None,
             },
             payload: Bytes::new(),
         }
@@ -465,6 +466,14 @@ impl Item {
         self.headers.meta_length = Some(meta_length);
     }
 
+    /// Sets the length of the attachment referenced by this item.
+    ///
+    /// Only applicable if the item is an attachment with [`ContentType::AttachmentRef`].
+    pub fn set_attachment_length(&mut self, original_length: u64) {
+        debug_assert!(self.is_attachment_ref());
+        self.headers.attachment_length = Some(original_length);
+    }
+
     /// Returns the parent entity that this item is associated with, if any.
     ///
     /// Only applicable if the item is an attachment.
@@ -493,6 +502,12 @@ impl Item {
         self.is_attachment_v2() && self.parent_id().is_none()
     }
 
+    /// Returns `true` if this item is an attachment placeholder.
+    fn is_attachment_ref(&self) -> bool {
+        self.ty() == &ItemType::Attachment
+            && self.content_type() == Some(&ContentType::AttachmentRef)
+    }
+
     /// Returns the [`AttachmentParentType`] of an attachment.
     ///
     /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
@@ -516,8 +531,9 @@ impl Item {
 
     /// Returns the attachment payload size.
     ///
-    /// For AttachmentV2, returns only the size of the actual payload, excluding the attachment meta.
-    /// For Attachment, returns the size of entire payload.
+    /// - For trace attachments, returns only the size of the actual payload, excluding the attachment meta.
+    /// - For attachment placeholders, returns the size represented by the placeholder.
+    /// - For Attachment, returns the size of entire payload.
     ///
     /// **Note:** This relies on the `meta_length` header which might not be correct as such this
     /// is best effort.
@@ -525,6 +541,8 @@ impl Item {
         if self.is_attachment_v2() {
             self.len()
                 .saturating_sub(self.meta_length().unwrap_or(0) as usize)
+        } else if self.is_attachment_ref() {
+            self.headers.attachment_length.unwrap_or(0) as usize
         } else {
             self.len()
         }
@@ -1055,6 +1073,13 @@ pub struct ItemHeaders {
     /// For the time being only applicable if the item is a trace attachment.
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     parent_id: Option<ParentId>,
+
+    /// Size of the attachment that an attachment placeholder represents.
+    ///
+    /// Only valid in combination with [`ContentType::AttachmentRef`]. This untrusted header is used
+    /// to emit negative outcomes, but must not be used for consistent rate limiting.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    attachment_length: Option<u64>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
