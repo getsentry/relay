@@ -7,6 +7,7 @@ use relay_quotas::{
     DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
     Scoping,
 };
+use smallvec::SmallVec;
 
 use crate::envelope::{AttachmentParentType, Envelope, Item, ItemType};
 use crate::integrations::Integration;
@@ -384,6 +385,8 @@ impl EnvelopeSummary {
 pub struct CategoryLimit {
     /// The limited data category.
     category: Option<DataCategory>,
+    /// Additional and optional data categories in which outcomes will be produced.
+    extra_outcome_categories: SmallVec<[DataCategory; 1]>,
     /// The total rate limited quantity across all items.
     ///
     /// This will be `0` if nothing was rate limited.
@@ -403,10 +406,17 @@ impl CategoryLimit {
             Some(limit) => Self {
                 category: Some(category),
                 quantity,
+                extra_outcome_categories: Default::default(),
                 reason_code: limit.reason_code.clone(),
             },
             None => Self::default(),
         }
+    }
+
+    /// Adds an additional outcome in the specified category to the limit.
+    pub fn add_outcome_category(mut self, category: DataCategory) -> Self {
+        self.extra_outcome_categories.push(category);
+        self
     }
 
     /// Recreates the category limit, if active, for a new category with the same reason.
@@ -417,6 +427,7 @@ impl CategoryLimit {
 
         Self {
             category: Some(category),
+            extra_outcome_categories: Default::default(),
             quantity,
             reason_code: self.reason_code.clone(),
         }
@@ -427,6 +438,29 @@ impl CategoryLimit {
     /// Inactive limits are placeholders with no category set.
     pub fn is_active(&self) -> bool {
         self.category.is_some()
+    }
+
+    fn outcomes(self) -> impl Iterator<Item = (Outcome, DataCategory, usize)> {
+        let Self {
+            category,
+            extra_outcome_categories,
+            quantity,
+            reason_code,
+        } = self;
+
+        if category.is_none() || quantity == 0 {
+            return either::Either::Left(std::iter::empty());
+        }
+
+        let outcomes = std::iter::chain(category, extra_outcome_categories).map(move |category| {
+            (
+                Outcome::RateLimited(reason_code.clone()),
+                category,
+                quantity,
+            )
+        });
+
+        either::Either::Right(outcomes)
     }
 }
 
@@ -589,16 +623,7 @@ impl Enforcement {
             trace_metrics,
         ];
 
-        limits
-            .into_iter()
-            .filter(|limit| limit.quantity > 0)
-            .filter_map(move |limit| {
-                Some((
-                    Outcome::RateLimited(limit.reason_code),
-                    limit.category?,
-                    limit.quantity,
-                ))
-            })
+        limits.into_iter().flat_map(|limit| limit.outcomes())
     }
 
     /// Applies the [`Enforcement`] on the [`Envelope`] by removing all items that were rate limited
@@ -1115,8 +1140,6 @@ where
             );
 
             if profile_limits.is_empty() {
-                let mut total_profiles_ratelimited = 0;
-
                 if summary.profile_quantity.backend > 0 {
                     let limit = self
                         .check
@@ -1126,15 +1149,13 @@ where
                         )
                         .await?;
 
-                    if !limit.is_empty() {
-                        total_profiles_ratelimited += summary.profile_quantity.backend;
-                    }
-
                     enforcement.profiles_backend = CategoryLimit::new(
                         DataCategory::ProfileBackend,
                         summary.profile_quantity.backend,
                         limit.longest(),
-                    );
+                    )
+                    .add_outcome_category(DataCategory::Profile)
+                    .add_outcome_category(DataCategory::ProfileIndexed);
 
                     profile_limits.merge(limit);
                 }
@@ -1147,36 +1168,15 @@ where
                         )
                         .await?;
 
-                    if !limit.is_empty() {
-                        total_profiles_ratelimited += summary.profile_quantity.ui;
-                    }
-
                     enforcement.profiles_ui = CategoryLimit::new(
                         DataCategory::ProfileUi,
                         summary.profile_quantity.ui,
                         limit.longest(),
-                    );
+                    )
+                    .add_outcome_category(DataCategory::Profile)
+                    .add_outcome_category(DataCategory::ProfileIndexed);
 
                     profile_limits.merge(limit);
-                }
-
-                // Since backend and ui profiles count also in the profile category, we need to
-                // sync the total rate limited count back into the profile category.
-                //
-                // But we cannot merge the limits into `profile_limits` as a rate limit, because
-                // there isn't actually a rate limit in that category, but for the enforcement,
-                // which determines what is dropped and the outcomes, this is necessary.
-                if total_profiles_ratelimited > 0 {
-                    enforcement.profiles = CategoryLimit::new(
-                        DataCategory::Profile,
-                        total_profiles_ratelimited,
-                        profile_limits.longest(),
-                    );
-                    enforcement.profiles_indexed = CategoryLimit::new(
-                        DataCategory::ProfileIndexed,
-                        total_profiles_ratelimited,
-                        profile_limits.longest(),
-                    );
                 }
 
                 let limit = self
