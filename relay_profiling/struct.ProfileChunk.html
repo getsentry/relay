@@ -5,7 +5,7 @@
 </div></details><details class="toggle method-toggle" open><summary><section id="method.filter" class="method"><a class="src rightside" href="../src/relay_profiling/lib.rs.html#308-321">Source</a><h4 class="code-header">pub fn <a href="#method.filter" class="fn">filter</a>(
     &amp;self,
     client_ip: <a class="enum" href="https://doc.rust-lang.org/1.93.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.93.1/core/net/ip_addr/enum.IpAddr.html" title="enum core::net::ip_addr::IpAddr">IpAddr</a>&gt;,
-    filter_settings: &amp;<a class="struct" href="../relay_filter/config/struct.ProjectFiltersConfig.html" title="struct relay_filter::config::ProjectFiltersConfig">ProjectFiltersConfig</a>,
+    filter_settings: &amp;ProjectFiltersConfig,
     global_config: &amp;GlobalConfig,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.93.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.unit.html">()</a>, <a class="enum" href="enum.ProfileError.html" title="enum relay_profiling::ProfileError">ProfileError</a>&gt;</h4></section></summary><div class="docblock"><p>Applies inbound filters to the profile chunk.</p>
 <p>The profile needs to be filtered (rejected) when this returns an error.</p>
