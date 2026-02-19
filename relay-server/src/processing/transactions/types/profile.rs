@@ -1,9 +1,9 @@
 use crate::Envelope;
 use crate::envelope::EnvelopeHeaders;
-use crate::managed::{Counted, Managed, Quantities, Rejected};
+use crate::managed::{Counted, Managed, Quantities};
+use crate::processing::CountRateLimited;
 use crate::processing::transactions::Error;
 use crate::processing::transactions::types::ExpandedProfile;
-use crate::processing::{Context, RateLimited, RateLimiter};
 
 /// A standalone profile, which is no longer attached to a transaction as the transaction was
 /// dropped by dynamic sampling.
@@ -29,30 +29,6 @@ impl Counted for StandaloneProfile {
     }
 }
 
-impl RateLimited for Managed<Box<StandaloneProfile>> {
-    type Output = Self;
+impl CountRateLimited for Managed<Box<StandaloneProfile>> {
     type Error = Error;
-
-    async fn enforce<R>(
-        self,
-        mut rate_limiter: R,
-        _ctx: Context<'_>,
-    ) -> Result<Self::Output, Rejected<Self::Error>>
-    where
-        R: RateLimiter,
-    {
-        let scoping = self.scoping();
-
-        for (category, quantity) in self.profile.rate_limiting_quantities() {
-            let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
-                .await;
-
-            if !limits.is_empty() {
-                return Err(self.reject_err(Error::from(limits)));
-            }
-        }
-
-        Ok(self)
-    }
 }

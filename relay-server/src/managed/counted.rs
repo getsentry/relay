@@ -95,8 +95,10 @@ impl Counted for EnvelopeSummary {
                 DataCategory::AttachmentItem,
                 self.attachment_quantities.count(),
             ),
-            (DataCategory::Profile, self.profile_quantity),
-            (DataCategory::ProfileIndexed, self.profile_quantity),
+            (DataCategory::Profile, self.profile_quantity.total()),
+            (DataCategory::ProfileBackend, self.profile_quantity.backend),
+            (DataCategory::ProfileUi, self.profile_quantity.ui),
+            (DataCategory::ProfileIndexed, self.profile_quantity.total()),
             (DataCategory::Span, self.span_quantity),
             (DataCategory::SpanIndexed, self.span_quantity),
             (

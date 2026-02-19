@@ -175,11 +175,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
         let attachment_quantities = self.attachments.quantities();
 
         // Check profile limits:
-        let profile_quantities = self
-            .profile
-            .as_ref()
-            .map_or(Default::default(), |p| p.rate_limiting_quantities());
-        for (category, quantity) in profile_quantities {
+        for (category, quantity) in self.profile.quantities() {
             let limits = rate_limiter
                 .try_consume(scoping.item(category), quantity)
                 .await;
@@ -290,30 +286,6 @@ impl ExpandedProfile {
         self.item.set_profile_type(self.meta.kind);
         self.item
     }
-
-    /// Returns the data categories and quantities in which this profile should be rate limited.
-    ///
-    /// This is a remnant of the introduction of continuous profiling. Transaction profiles are
-    /// essentially deprecated, but for backwards compatibility reasons they still are being sent
-    /// and exist and we want to still support them.
-    ///
-    /// Continuous profiling is split into two separate categories, backend and ui, based on the
-    /// platform being profiled. Customers can now assign different quota for each category,
-    /// and we want these limits to also apply to transaction profiles.
-    ///
-    /// But these transaction profiles, are still visible as separate items in the UI and stats
-    /// pages, this is why we only rate limit against the respective category instead of also
-    /// counting them/adding outcomes for them in the continuous profiling categories.
-    ///
-    /// It's basically a big pile of legacy reasons.
-    pub fn rate_limiting_quantities(&self) -> Quantities {
-        let mut quantities = self.quantities();
-        quantities.push(match self.meta.kind {
-            ProfileType::Backend => (DataCategory::ProfileChunk, 1),
-            ProfileType::Ui => (DataCategory::ProfileChunkUi, 1),
-        });
-        quantities
-    }
 }
 
 impl Counted for ExpandedProfile {
@@ -321,6 +293,13 @@ impl Counted for ExpandedProfile {
         smallvec![
             (DataCategory::Profile, 1),
             (DataCategory::ProfileIndexed, 1),
+            (
+                match self.meta.kind {
+                    ProfileType::Backend => DataCategory::ProfileBackend,
+                    ProfileType::Ui => DataCategory::ProfileUi,
+                },
+                1
+            ),
         ]
     }
 }

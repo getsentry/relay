@@ -50,6 +50,8 @@ class DataCategory(IntEnum):
     INSTALLABLE_BUILD = 32
     TRACE_METRIC = 33
     SEER_USER = 34
+    PROFILE_BACKEND = 35
+    PROFILE_UI = 36
     UNKNOWN = -1
     # end generated
 

@@ -188,6 +188,30 @@ impl AttachmentQuantities {
     }
 }
 
+/// Collection of all transaction profile quantities.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ProfileQuantities {
+    /// All transaction profiles in the backend category.
+    pub backend: usize,
+    /// All transaction profiles in the ui category.
+    pub ui: usize,
+    /// All transaction profiles which are neither in the ui nor backend category.
+    pub unknown: usize,
+}
+
+impl ProfileQuantities {
+    /// Returns the total count of all profile quantities.
+    pub fn total(&self) -> usize {
+        let Self {
+            backend,
+            ui,
+            unknown,
+        } = self;
+
+        backend + ui + unknown
+    }
+}
+
 /// A summary of `Envelope` contents.
 ///
 /// Summarizes the contained event, size of attachments, session updates, and whether there are
@@ -205,7 +229,7 @@ pub struct EnvelopeSummary {
     pub session_quantity: usize,
 
     /// The number of profiles.
-    pub profile_quantity: usize,
+    pub profile_quantity: ProfileQuantities,
 
     /// The number of replays.
     pub replay_quantity: usize,
@@ -310,7 +334,13 @@ impl EnvelopeSummary {
                     AttachmentParentType::Event => &mut self.attachment_quantities.event.count,
                 },
                 DataCategory::Session => &mut self.session_quantity,
-                DataCategory::Profile => &mut self.profile_quantity,
+                DataCategory::Profile => match item.profile_type() {
+                    Some(ProfileType::Backend) => &mut self.profile_quantity.backend,
+                    Some(ProfileType::Ui) => &mut self.profile_quantity.ui,
+                    None => &mut self.profile_quantity.unknown,
+                },
+                DataCategory::ProfileBackend => continue, // Handled with `Profile`
+                DataCategory::ProfileUi => continue,      // Handled with `Profile`
                 DataCategory::Replay => &mut self.replay_quantity,
                 DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
                 DataCategory::Monitor => &mut self.monitor_quantity,
@@ -442,8 +472,15 @@ pub struct Enforcement {
     pub attachments_limits: AttachmentsLimits,
     /// The combined session item rate limit.
     pub sessions: CategoryLimit,
-    /// The combined profile item rate limit.
+    /// The combined transaction profile item rate limits, for all transaction profiles.
+    ///
+    /// This is at least the sum of [`Self::profiles_backend`] and [`Self::profiles_ui`],
+    /// potentially more if there are profiles without a known platform.
     pub profiles: CategoryLimit,
+    /// The combined backend transaction profile item rate limit.
+    pub profiles_backend: CategoryLimit,
+    /// The combined ui transaction profile item rate limit.
+    pub profiles_ui: CategoryLimit,
     /// The rate limit for the indexed profiles category.
     pub profiles_indexed: CategoryLimit,
     /// The combined replay item rate limit.
@@ -512,6 +549,8 @@ impl Enforcement {
                 },
             sessions: _, // Do not report outcomes for sessions.
             profiles,
+            profiles_backend,
+            profiles_ui,
             profiles_indexed,
             replays,
             check_ins,
@@ -535,6 +574,8 @@ impl Enforcement {
             span_attachment_bytes,
             span_attachment_item,
             profiles,
+            profiles_backend,
+            profiles_ui,
             profiles_indexed,
             replays,
             check_ins,
@@ -657,7 +698,18 @@ impl Enforcement {
                 }
             }
             ItemType::Session => !self.sessions.is_active(),
-            ItemType::Profile => !self.profiles_indexed.is_active(),
+            ItemType::Profile => {
+                if self.profiles_indexed.is_active() {
+                    false
+                } else if let Some(platform) = item.profile_type() {
+                    match platform {
+                        ProfileType::Backend => !self.profiles_backend.is_active(),
+                        ProfileType::Ui => !self.profiles_ui.is_active(),
+                    }
+                } else {
+                    true
+                }
+            }
             ItemType::ReplayEvent => !self.replays.is_active(),
             ItemType::ReplayVideo => !self.replays.is_active(),
             ItemType::ReplayRecording => !self.replays.is_active(),
@@ -1025,17 +1077,25 @@ where
         if enforcement.is_event_active() {
             enforcement.profiles = enforcement
                 .event
-                .clone_for(DataCategory::Profile, summary.profile_quantity);
+                .clone_for(DataCategory::Profile, summary.profile_quantity.total());
+            enforcement.profiles_indexed = enforcement.event_indexed.clone_for(
+                DataCategory::ProfileIndexed,
+                summary.profile_quantity.total(),
+            );
 
-            enforcement.profiles_indexed = enforcement
-                .event_indexed
-                .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity)
-        } else if summary.profile_quantity > 0 {
+            enforcement.profiles_backend = enforcement.event.clone_for(
+                DataCategory::ProfileBackend,
+                summary.profile_quantity.backend,
+            );
+            enforcement.profiles_ui = enforcement
+                .event
+                .clone_for(DataCategory::ProfileUi, summary.profile_quantity.ui);
+        } else if summary.profile_quantity.total() > 0 {
             let mut profile_limits = self
                 .check
                 .apply(
                     scoping.item(DataCategory::Profile),
-                    summary.profile_quantity,
+                    summary.profile_quantity.total(),
                 )
                 .await?;
 
@@ -1050,26 +1110,109 @@ where
 
             enforcement.profiles = CategoryLimit::new(
                 DataCategory::Profile,
-                summary.profile_quantity,
+                summary.profile_quantity.total(),
                 profile_limits.longest(),
             );
 
             if profile_limits.is_empty() {
-                profile_limits.merge(
-                    self.check
+                let mut total_profiles_ratelimited = 0;
+
+                if summary.profile_quantity.backend > 0 {
+                    let limit = self
+                        .check
                         .apply(
-                            scoping.item(DataCategory::ProfileIndexed),
-                            summary.profile_quantity,
+                            scoping.item(DataCategory::ProfileBackend),
+                            summary.profile_quantity.backend,
                         )
-                        .await?,
+                        .await?;
+
+                    if !limit.is_empty() {
+                        total_profiles_ratelimited += summary.profile_quantity.backend;
+                    }
+
+                    enforcement.profiles_backend = CategoryLimit::new(
+                        DataCategory::ProfileBackend,
+                        summary.profile_quantity.backend,
+                        limit.longest(),
+                    );
+
+                    profile_limits.merge(limit);
+                }
+                if summary.profile_quantity.ui > 0 {
+                    let limit = self
+                        .check
+                        .apply(
+                            scoping.item(DataCategory::ProfileUi),
+                            summary.profile_quantity.ui,
+                        )
+                        .await?;
+
+                    if !limit.is_empty() {
+                        total_profiles_ratelimited += summary.profile_quantity.ui;
+                    }
+
+                    enforcement.profiles_ui = CategoryLimit::new(
+                        DataCategory::ProfileUi,
+                        summary.profile_quantity.ui,
+                        limit.longest(),
+                    );
+
+                    profile_limits.merge(limit);
+                }
+
+                // Since backend and ui profiles count also in the profile category, we need to
+                // sync the total rate limited count back into the profile category.
+                //
+                // But we cannot merge the limits into `profile_limits` as a rate limit, because
+                // there isn't actually a rate limit in that category, but for the enforcement,
+                // which determines what is dropped and the outcomes, this is necessary.
+                if total_profiles_ratelimited > 0 {
+                    enforcement.profiles = CategoryLimit::new(
+                        DataCategory::Profile,
+                        total_profiles_ratelimited,
+                        profile_limits.longest(),
+                    );
+                    enforcement.profiles_indexed = CategoryLimit::new(
+                        DataCategory::ProfileIndexed,
+                        total_profiles_ratelimited,
+                        profile_limits.longest(),
+                    );
+                }
+
+                let limit = self
+                    .check
+                    .apply(
+                        scoping.item(DataCategory::ProfileIndexed),
+                        summary.profile_quantity.total(),
+                    )
+                    .await?;
+
+                if !limit.is_empty() {
+                    enforcement.profiles_indexed = CategoryLimit::new(
+                        DataCategory::ProfileIndexed,
+                        summary.profile_quantity.total(),
+                        limit.longest(),
+                    );
+
+                    profile_limits.merge(limit);
+                }
+            } else {
+                enforcement.profiles_backend = CategoryLimit::new(
+                    DataCategory::ProfileBackend,
+                    summary.profile_quantity.backend,
+                    profile_limits.longest(),
+                );
+                enforcement.profiles_ui = CategoryLimit::new(
+                    DataCategory::ProfileUi,
+                    summary.profile_quantity.ui,
+                    profile_limits.longest(),
+                );
+                enforcement.profiles_indexed = CategoryLimit::new(
+                    DataCategory::ProfileIndexed,
+                    summary.profile_quantity.total(),
+                    profile_limits.longest(),
                 );
             }
-
-            enforcement.profiles_indexed = CategoryLimit::new(
-                DataCategory::ProfileIndexed,
-                summary.profile_quantity,
-                profile_limits.longest(),
-            );
 
             rate_limits.merge(profile_limits);
         }
