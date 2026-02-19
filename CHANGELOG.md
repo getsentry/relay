@@ -6,6 +6,10 @@
 
 - Return status code 200 instead of 202 for OTLP endpoints. ([#5645](https://github.com/getsentry/relay/pull/5645))
 
+**Features**:
+
+- Add experimental `/upload` endpoint for large file uploads. ([#5638](https://github.com/getsentry/relay/pull/5638))
+
 ## 26.2.0
 
 **Bug Fixes**:

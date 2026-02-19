@@ -24,6 +24,8 @@ use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
 #[cfg(feature = "processing")]
+use crate::services::upload::Upload;
+#[cfg(feature = "processing")]
 use crate::services::upload::UploadService;
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
@@ -74,6 +76,8 @@ pub struct Registry {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
     pub project_cache_handle: ProjectCacheHandle,
     pub autoscaling: Option<Addr<AutoscalingMetrics>>,
+    #[cfg(feature = "processing")]
+    pub upload: Option<Addr<Upload>>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -291,7 +295,7 @@ impl ServiceState {
                             outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
                             #[cfg(feature = "processing")]
-                            upload,
+                            upload: upload.clone(),
                             #[cfg(feature = "processing")]
                             store_forwarder: store,
                             aggregator: aggregator.clone(),
@@ -351,6 +355,8 @@ impl ServiceState {
             upstream_relay,
             envelope_buffer,
             autoscaling,
+            #[cfg(feature = "processing")]
+            upload,
         };
 
         let state = StateInner {
@@ -423,6 +429,11 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
+    }
+
+    #[cfg(feature = "processing")]
+    pub fn upload(&self) -> Option<&Addr<Upload>> {
+        self.inner.registry.upload.as_ref()
     }
 }
 

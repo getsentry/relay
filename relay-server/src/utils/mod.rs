@@ -10,7 +10,10 @@ mod sizes;
 mod sleep_handle;
 mod split_off;
 mod statsd;
+mod stream;
 mod thread_pool;
+pub mod tus;
+pub mod upload;
 
 mod forward;
 mod memory;
@@ -38,6 +41,7 @@ pub use self::sizes::*;
 pub use self::sleep_handle::*;
 pub use self::split_off::*;
 pub use self::statsd::*;
+pub use self::stream::*;
 pub use self::thread_pool::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;
