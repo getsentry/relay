@@ -38,7 +38,7 @@ pub enum Upload {
     Attachment(Managed<StoreAttachment>),
     Stream {
         message: upload::Stream,
-        sender: Sender<Result<String, Error>>,
+        sender: Sender<Result<UploadKey, Error>>,
     },
 }
 
@@ -83,9 +83,9 @@ impl FromMessage<Managed<StoreAttachment>> for Upload {
 }
 
 impl FromMessage<upload::Stream> for Upload {
-    type Response = AsyncResponse<Result<String, Error>>;
+    type Response = AsyncResponse<Result<UploadKey, Error>>;
 
-    fn from_message(message: upload::Stream, sender: Sender<Result<String, Error>>) -> Self {
+    fn from_message(message: upload::Stream, sender: Sender<Result<UploadKey, Error>>) -> Self {
         Self::Stream { message, sender }
     }
 }
@@ -141,10 +141,11 @@ impl OutcomeError for Error {
 
 /// The objectstore key that identifies a successful upload.
 #[derive(Debug, PartialEq)]
-struct UploadKey(String);
+pub struct UploadKey(String);
 
 impl UploadKey {
-    fn into_inner(self) -> String {
+    /// Returns the underlying [`String`].
+    pub fn into_inner(self) -> String {
         self.0
     }
 }
@@ -401,7 +402,7 @@ impl UploadServiceInner {
     async fn handle_stream(
         &self,
         upload::Stream { scoping, stream }: upload::Stream,
-        sender: Sender<Result<String, Error>>,
+        sender: Sender<Result<UploadKey, Error>>,
     ) {
         let session = match self
             .event_attachments
@@ -436,7 +437,7 @@ impl UploadServiceInner {
             type = "stream",
         );
 
-        sender.send(result.map(UploadKey::into_inner));
+        sender.send(result);
     }
 
     async fn upload_bytes(

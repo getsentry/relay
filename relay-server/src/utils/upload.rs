@@ -102,7 +102,8 @@ impl Sink {
                     .send(stream)
                     .await
                     .map_err(|_send_error| Error::ServiceUnavailable)?
-                    .map_err(Error::UploadService)?;
+                    .map_err(Error::UploadService)?
+                    .into_inner();
 
                 Location {
                     project_id,

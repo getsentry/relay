@@ -47,7 +47,7 @@ impl Item {
                 platform: None,
                 parent_id: None,
                 meta_length: None,
-                original_length: None,
+                attachment_length: None,
             },
             payload: Bytes::new(),
         }
@@ -452,8 +452,9 @@ impl Item {
     /// Sets the length of the attachment referenced by this item.
     ///
     /// Only applicable if the item is an attachment with [`ContentType::AttachmentRef`].
-    pub fn set_original_length(&mut self, original_length: u64) {
-        self.headers.original_length = Some(original_length);
+    pub fn set_attachment_length(&mut self, original_length: u64) {
+        debug_assert!(self.is_attachment_ref());
+        self.headers.attachment_length = Some(original_length);
     }
 
     /// Returns the parent entity that this item is associated with, if any.
@@ -524,7 +525,7 @@ impl Item {
             self.len()
                 .saturating_sub(self.meta_length().unwrap_or(0) as usize)
         } else if self.is_attachment_ref() {
-            self.headers.original_length.unwrap_or(0) as usize
+            self.headers.attachment_length.unwrap_or(0) as usize
         } else {
             self.len()
         }
@@ -1061,7 +1062,7 @@ pub struct ItemHeaders {
     /// Only valid in combination with [`ContentType::AttachmentRef`]. This untrusted header is used
     /// to emit negative outcomes, but must not be used for consistent rate limiting.
     #[serde(skip_serializing_if = "Option::is_none")]
-    original_length: Option<u64>,
+    attachment_length: Option<u64>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
