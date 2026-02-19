@@ -6,6 +6,10 @@
 
 - Return status code 200 instead of 202 for OTLP endpoints. ([#5645](https://github.com/getsentry/relay/pull/5645))
 
+**Internal**:
+
+- Introduce additional and separate data categories for backend and ui transaction profiles. ([#5648](https://github.com/getsentry/relay/pull/5648))
+
 ## 26.2.0
 
 **Bug Fixes**:
