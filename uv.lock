@@ -572,7 +572,7 @@ dev = [
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "redis", specifier = ">=5.0.1" },
     { name = "requests", specifier = ">=2.32.5" },
-    { name = "sentry-protos", specifier = ">=0.4.14" },
+    { name = "sentry-protos", specifier = ">=0.7.0" },
     { name = "sentry-sdk", specifier = ">=2.50.0" },
     { name = "setuptools", specifier = "==80.9.0" },
     { name = "types-protobuf", specifier = ">=6.30.2.20250703" },
@@ -613,7 +613,7 @@ wheels = [
 
 [[package]]
 name = "sentry-protos"
-version = "0.4.14"
+version = "0.7.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
     { name = "grpc-stubs", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -621,7 +621,7 @@ dependencies = [
     { name = "protobuf", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/sentry_protos-0.4.14-py3-none-any.whl", hash = "sha256:b6e6802c49abc69427f947f5a4a8d6ade5dcf64862e34fc9325d4182a1b6f5c6" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/sentry_protos-0.7.0-py3-none-any.whl", hash = "sha256:08fd8c88b50c14c2b95b6f23ea0ea2b4afec1e82b49484a95c914d8daf94a2d5" },
 ]
 
 [[package]]

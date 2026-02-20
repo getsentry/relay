@@ -14,7 +14,6 @@ use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::Serialize;
 use serde_json::value::RawValue;
-use smallvec::smallvec;
 use uuid::Uuid;
 
 use relay_base_schema::data_category::DataCategory;
@@ -111,16 +110,11 @@ pub struct StoreMetrics {
 pub struct StoreTraceItem {
     /// The final trace item which will be produced to Kafka.
     pub trace_item: TraceItem,
-    /// Outcomes to be emitted when successfully producing the item to Kafka.
-    ///
-    /// Note: this is only a temporary measure, long term these outcomes will be part of the trace
-    /// item and emitted by Snuba to guarantee a delivery to storage.
-    pub quantities: Quantities,
 }
 
 impl Counted for StoreTraceItem {
     fn quantities(&self) -> Quantities {
-        self.quantities.clone()
+        self.trace_item.quantities()
     }
 }
 
@@ -175,16 +169,15 @@ pub struct StoreReplay {
     pub event: Option<Bytes>,
     /// Optional replay video.
     pub video: Option<Bytes>,
+    /// Outcome quantities associated with this replay.
+    ///
+    /// Quantities are different for web and native replays.
+    pub quantities: Quantities,
 }
 
 impl Counted for StoreReplay {
     fn quantities(&self) -> Quantities {
-        // Web replays currently count as 2 since they are 2 items in the envelope (event + recording).
-        if self.event.is_some() && self.video.is_none() {
-            smallvec![(DataCategory::Replay, 2)]
-        } else {
-            smallvec![(DataCategory::Replay, 1)]
-        }
+        self.quantities.clone()
     }
 }
 
@@ -596,18 +589,31 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
-        let quantities = message.try_accept(|item| {
+        let eap_emits_outcomes = utils::is_rolled_out(
+            scoping.organization_id.value(),
+            self.global_config
+                .current()
+                .options
+                .eap_outcomes_rollout_rate,
+        )
+        .is_keep();
+
+        let outcomes = message.try_accept(|mut item| {
+            let outcomes = match eap_emits_outcomes {
+                true => None,
+                false => item.trace_item.outcomes.take(),
+            };
+
             let message = KafkaMessage::for_item(scoping, item.trace_item);
-            self.produce(KafkaTopic::Items, message)
-                .map(|()| item.quantities)
+            self.produce(KafkaTopic::Items, message).map(|()| outcomes)
         });
 
         // Accepted outcomes when items have been successfully produced to rdkafka.
         //
         // This is only a temporary measure, long term these outcomes will be part of the trace
         // item and emitted by Snuba to guarantee a delivery to storage.
-        if let Ok(quantities) = quantities {
-            for (category, quantity) in quantities {
+        if let Ok(Some(outcomes)) = outcomes {
+            for (category, quantity) in outcomes.quantities() {
                 self.outcome_aggregator.send(TrackOutcome {
                     category,
                     event_id: None,
