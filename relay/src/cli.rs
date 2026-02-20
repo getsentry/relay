@@ -56,10 +56,8 @@ pub fn execute() -> Result<()> {
 
     // SAFETY: The function cannot be called from a multi threaded environment,
     // this is the main entry point where no other threads have been spawned yet.
-    let mut sentry_config = config.sentry().clone();
-    sentry_config.enable_metrics = config.metrics_send_to_sentry() > 0.0;
     unsafe {
-        relay_log::init(config.logging(), &sentry_config);
+        relay_log::init(config.logging(), config.sentry());
     }
 
     if let Some(matches) = matches.subcommand_matches("config") {
