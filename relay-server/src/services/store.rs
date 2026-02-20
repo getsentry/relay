@@ -14,7 +14,6 @@ use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
-use smallvec::smallvec;
 use uuid::Uuid;
 
 use relay_base_schema::data_category::DataCategory;
@@ -175,16 +174,15 @@ pub struct StoreReplay {
     pub event: Option<Bytes>,
     /// Optional replay video.
     pub video: Option<Bytes>,
+    /// Outcome quantities associated with this replay.
+    ///
+    /// Quantities are different for web and native replays.
+    pub quantities: Quantities,
 }
 
 impl Counted for StoreReplay {
     fn quantities(&self) -> Quantities {
-        // Web replays currently count as 2 since they are 2 items in the envelope (event + recording).
-        if self.event.is_some() && self.video.is_none() {
-            smallvec![(DataCategory::Replay, 2)]
-        } else {
-            smallvec![(DataCategory::Replay, 1)]
-        }
+        self.quantities.clone()
     }
 }
 
