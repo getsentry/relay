@@ -1122,7 +1122,7 @@ where
                 profile_limits.longest(),
             );
 
-            if profile_limits.is_empty() {
+            if enforcement.profiles.quantity == 0 {
                 if summary.profile_quantity.backend > 0 {
                     let limit = self
                         .check
@@ -1172,7 +1172,7 @@ where
                 );
             }
 
-            if enforcement.profiles.is_active() {
+            if enforcement.profiles.quantity > 0 {
                 enforcement.profiles_indexed = enforcement
                     .profiles
                     .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity.total);

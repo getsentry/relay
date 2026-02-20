@@ -225,21 +225,21 @@ pub enum DataCategory {
     SeerUser = 34,
     /// Transaction profiles for backend platforms.
     ///
-    /// This is an extension of [`Self::Profile`], but additional discriminates on the profile
+    /// This is an extension of [`Self::Profile`], but additionally discriminates on the profile
     /// platform, see also [`Self::ProfileUi`].
     ///
     /// Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
     ///
-    /// SDK rate limiting behavior: optional, apply to transaction profiles on "backend platforms'.
+    /// SDK rate limiting behavior: optional, apply to transaction profiles on "backend platforms".
     ProfileBackend = 35,
     /// Transaction profiles for ui platforms.
     ///
-    /// This is an extension of [`Self::Profile`], but additional discriminates on the profile
+    /// This is an extension of [`Self::Profile`], but additionally discriminates on the profile
     /// platform, see also [`Self::ProfileBackend`].
     ///
     /// Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
     ///
-    /// SDK rate limiting behavior: optional, apply to transaction profiles on "ui platforms'.
+    /// SDK rate limiting behavior: optional, apply to transaction profiles on "ui platforms".
     ProfileUi = 36,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
