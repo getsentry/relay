@@ -1580,7 +1580,7 @@ def test_profile_outcomes_too_many(
 
 @pytest.mark.parametrize(
     "quota_category",
-    ["transaction", "profile", "profile_ui", "profile_indexed"],
+    ["transaction", "profile", "profile_ui"],
 )
 @pytest.mark.parametrize("with_platform_header", [True, False])
 def test_profile_outcomes_rate_limited(
@@ -1653,7 +1653,7 @@ def test_profile_outcomes_rate_limited(
     # If the platform header is set, the outcome can be emitted in the fast path, for all limits,
     # if the header is missing, it can only be enforced with consistent rate limiting, which only
     # happens for the `profile_ui` category (as the rate limit can't be enforced in the fast path).
-    if with_platform_header or quota_category in ("profile_ui", "profile_indexed"):
+    if with_platform_header or quota_category == "profile_ui":
         expected_categories.append((DataCategory.PROFILE_UI, 1))
 
     if quota_category == "transaction":

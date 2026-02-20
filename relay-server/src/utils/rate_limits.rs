@@ -1123,32 +1123,6 @@ where
             );
 
             if profile_limits.is_empty() {
-                let limit = self
-                    .check
-                    .apply(
-                        scoping.item(DataCategory::ProfileIndexed),
-                        summary.profile_quantity.total,
-                    )
-                    .await?;
-
-                if !limit.is_empty() {
-                    enforcement.profiles_indexed = CategoryLimit::new(
-                        DataCategory::ProfileIndexed,
-                        summary.profile_quantity.total,
-                        limit.longest(),
-                    );
-
-                    profile_limits.merge(limit);
-                }
-            } else {
-                enforcement.profiles_indexed = CategoryLimit::new(
-                    DataCategory::ProfileIndexed,
-                    summary.profile_quantity.total,
-                    profile_limits.longest(),
-                );
-            }
-
-            if profile_limits.is_empty() {
                 if summary.profile_quantity.backend > 0 {
                     let limit = self
                         .check
@@ -1163,8 +1137,7 @@ where
                         summary.profile_quantity.backend,
                         limit.longest(),
                     )
-                    .add_outcome_category(DataCategory::Profile)
-                    .add_outcome_category(DataCategory::ProfileIndexed);
+                    .add_outcome_category(DataCategory::Profile);
 
                     profile_limits.merge(limit);
                 }
@@ -1182,8 +1155,7 @@ where
                         summary.profile_quantity.ui,
                         limit.longest(),
                     )
-                    .add_outcome_category(DataCategory::Profile)
-                    .add_outcome_category(DataCategory::ProfileIndexed);
+                    .add_outcome_category(DataCategory::Profile);
 
                     profile_limits.merge(limit);
                 }
@@ -1198,6 +1170,37 @@ where
                     summary.profile_quantity.ui,
                     profile_limits.longest(),
                 );
+            }
+
+            if enforcement.profiles.is_active() {
+                enforcement.profiles_indexed = enforcement
+                    .profiles
+                    .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity.total);
+            } else {
+                let limit = self
+                    .check
+                    .apply(
+                        scoping.item(DataCategory::ProfileIndexed),
+                        summary.profile_quantity.total,
+                    )
+                    .await?;
+
+                if !limit.is_empty() {
+                    enforcement.profiles_indexed = CategoryLimit::new(
+                        DataCategory::ProfileIndexed,
+                        summary.profile_quantity.total,
+                        limit.longest(),
+                    );
+
+                    profile_limits.merge(limit);
+                } else {
+                    enforcement.profiles_backend = enforcement
+                        .profiles_backend
+                        .add_outcome_category(DataCategory::ProfileIndexed);
+                    enforcement.profiles_ui = enforcement
+                        .profiles_ui
+                        .add_outcome_category(DataCategory::ProfileIndexed);
+                }
             }
 
             rate_limits.merge(profile_limits);
