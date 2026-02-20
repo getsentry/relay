@@ -6,9 +6,12 @@ use relay_conventions::CLIENT_SAMPLE_RATE;
 use relay_event_schema::protocol::Attributes;
 use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 
-use sentry_protos::snuba::v1::{AnyValue, ArrayValue, any_value};
+use relay_quotas::Scoping;
+use sentry_protos::snuba::v1::{AnyValue, ArrayValue, CategoryCount, Outcomes, any_value};
 use serde::Serialize;
 use uuid::Uuid;
+
+use crate::managed::Quantities;
 
 /// Represents metadata extracted from Relay's annotated model.
 ///
@@ -220,4 +223,20 @@ pub fn item_id_to_uuid(item_id: &[u8]) -> Result<Uuid, TryFromSliceError> {
     let item_id: [u8; 16] = item_id.try_into()?;
     let item_id = u128::from_le_bytes(item_id);
     Ok(Uuid::from_u128(item_id))
+}
+
+/// Converts [`Quantities`] and [`Scoping`] into Trace Item [`Outcomes`].
+pub fn quantities_to_trace_item_outcomes(q: Quantities, scoping: Scoping) -> Outcomes {
+    let category_count = q
+        .into_iter()
+        .map(|(category, quantity)| CategoryCount {
+            data_category: category as u32,
+            quantity: quantity as u64,
+        })
+        .collect();
+
+    Outcomes {
+        category_count,
+        key_id: scoping.key_id.unwrap_or(0),
+    }
 }

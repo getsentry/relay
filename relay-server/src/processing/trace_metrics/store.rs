@@ -12,7 +12,8 @@ use uuid::Uuid;
 use crate::envelope::WithHeader;
 use crate::processing::trace_metrics::{Error, Result};
 use crate::processing::utils::store::{
-    extract_client_sample_rate, extract_meta_attributes, uuid_to_item_id,
+    extract_client_sample_rate, extract_meta_attributes, quantities_to_trace_item_outcomes,
+    uuid_to_item_id,
 };
 use crate::processing::{self, Counted, Retention};
 use crate::services::outcome::DiscardReason;
@@ -75,12 +76,10 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         attributes: attributes(meta, attrs, fields),
         client_sample_rate,
         server_sample_rate: 1.0,
+        outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
     };
 
-    Ok(StoreTraceItem {
-        trace_item,
-        quantities,
-    })
+    Ok(StoreTraceItem { trace_item })
 }
 
 fn ts(dt: DateTime<Utc>) -> Timestamp {

@@ -195,6 +195,32 @@ impl Counted for SessionAggregateItem {
     }
 }
 
+#[cfg(feature = "processing")]
+impl Counted for sentry_protos::snuba::v1::Outcomes {
+    fn quantities(&self) -> Quantities {
+        self.category_count
+            .iter()
+            .inspect(|cc| {
+                debug_assert!(DataCategory::try_from(cc.data_category).is_ok());
+                debug_assert!(usize::try_from(cc.quantity).is_ok());
+            })
+            .filter_map(|cc| {
+                Some((
+                    DataCategory::try_from(cc.data_category).ok()?,
+                    usize::try_from(cc.quantity).ok()?,
+                ))
+            })
+            .collect()
+    }
+}
+
+#[cfg(feature = "processing")]
+impl Counted for sentry_protos::snuba::v1::TraceItem {
+    fn quantities(&self) -> Quantities {
+        self.outcomes.quantities()
+    }
+}
+
 impl<T> Counted for &T
 where
     T: Counted,

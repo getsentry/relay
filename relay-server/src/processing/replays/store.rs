@@ -3,6 +3,7 @@ use relay_event_schema::protocol::{EventId, Replay};
 
 use relay_protocol::Annotated;
 
+use crate::managed::Counted;
 use crate::processing::replays::{Error, ExpandedReplay};
 use crate::services::store::StoreReplay;
 
@@ -24,6 +25,7 @@ pub struct Context {
 ///
 /// Fails if the event can not be serialized or the created message is too large for the consumer.
 pub fn convert(replay: ExpandedReplay, ctx: &Context) -> Result<StoreReplay, Error> {
+    let quantities = replay.quantities();
     let (recording, event, video) = match replay {
         ExpandedReplay::StandaloneRecording { recording } => (recording, None, None),
         ExpandedReplay::WebReplay { event, recording } => (recording, Some(event), None),
@@ -53,6 +55,7 @@ pub fn convert(replay: ExpandedReplay, ctx: &Context) -> Result<StoreReplay, Err
         recording,
         event,
         video,
+        quantities,
     })
 }
 

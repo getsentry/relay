@@ -122,19 +122,20 @@ def test_ourlog_multiple_containers_not_allowed(
     ]
 
 
+@pytest.mark.parametrize("eap_emits_outcomes", [True, False])
 @pytest.mark.parametrize(
-    "external_mode,expected_byte_size",
+    "external_mode,expected_byte_size_1,expected_byte_size_2",
     [
-        # 296 here is a billing relevant metric, do not arbitrarily change it,
-        # this value is supposed to be static and purely based on data received,
+        # The values here are billing relevant metrics, do not arbitrarily change it,
+        # these values are supposed to be static and purely based on data received,
         # independent of any normalization.
-        (None, 377),
+        (None, 18, 359),
         # Same applies as above, a proxy Relay does not need to run normalization.
-        ("proxy", 377),
+        ("proxy", 18, 359),
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 587),
+        ("managed", 128, 459),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -145,12 +146,17 @@ def test_ourlog_extraction_with_sentry_logs(
     items_consumer,
     outcomes_consumer,
     external_mode,
-    expected_byte_size,
+    expected_byte_size_1,
+    expected_byte_size_2,
+    eap_emits_outcomes,
 ):
     relay_fn = relay
 
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
+
+    if eap_emits_outcomes:
+        mini_sentry.global_config["options"]["relay.eap-outcomes.rollout-rate"] = 1.0
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -241,6 +247,25 @@ def test_ourlog_extraction_with_sentry_logs(
                 ts, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
+            **(
+                {
+                    "outcomes": {
+                        "categoryCount": [
+                            {
+                                "dataCategory": DataCategory.LOG_ITEM.value,
+                                "quantity": "1",
+                            },
+                            {
+                                "dataCategory": DataCategory.LOG_BYTE.value,
+                                "quantity": f"{expected_byte_size_1}",
+                            },
+                        ],
+                        "keyId": "123",
+                    }
+                }
+                if eap_emits_outcomes
+                else {}
+            ),
         },
         {
             "attributes": {
@@ -307,28 +332,48 @@ def test_ourlog_extraction_with_sentry_logs(
                 ts, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
+            **(
+                {
+                    "outcomes": {
+                        "categoryCount": [
+                            {
+                                "dataCategory": DataCategory.LOG_ITEM.value,
+                                "quantity": "1",
+                            },
+                            {
+                                "dataCategory": DataCategory.LOG_BYTE.value,
+                                "quantity": f"{expected_byte_size_2}",
+                            },
+                        ],
+                        "keyId": "123",
+                    }
+                }
+                if eap_emits_outcomes
+                else {}
+            ),
         },
     ]
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.LOG_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-        },
-        {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": expected_byte_size,
-        },
-    ]
+    if not eap_emits_outcomes:
+        outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+        assert outcomes == [
+            {
+                "category": DataCategory.LOG_ITEM.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 2,
+            },
+            {
+                "category": DataCategory.LOG_BYTE.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": expected_byte_size_1 + expected_byte_size_2,
+            },
+        ]
 
 
 def test_ourlog_extraction_with_string_pii_scrubbing(
