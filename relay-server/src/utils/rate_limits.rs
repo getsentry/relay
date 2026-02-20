@@ -196,21 +196,9 @@ pub struct ProfileQuantities {
     pub backend: usize,
     /// All transaction profiles in the ui category.
     pub ui: usize,
-    /// All transaction profiles which are neither in the ui nor backend category.
-    pub unknown: usize,
-}
-
-impl ProfileQuantities {
-    /// Returns the total count of all profile quantities.
-    pub fn total(&self) -> usize {
-        let Self {
-            backend,
-            ui,
-            unknown,
-        } = self;
-
-        backend + ui + unknown
-    }
+    /// All transaction profiles, includes profiles in the backend and ui categories as well as
+    /// profiles which are in neither category.
+    pub total: usize,
 }
 
 /// A summary of `Envelope` contents.
@@ -335,13 +323,9 @@ impl EnvelopeSummary {
                     AttachmentParentType::Event => &mut self.attachment_quantities.event.count,
                 },
                 DataCategory::Session => &mut self.session_quantity,
-                DataCategory::Profile => match item.profile_type() {
-                    Some(ProfileType::Backend) => &mut self.profile_quantity.backend,
-                    Some(ProfileType::Ui) => &mut self.profile_quantity.ui,
-                    None => &mut self.profile_quantity.unknown,
-                },
-                DataCategory::ProfileBackend => continue, // Handled with `Profile`
-                DataCategory::ProfileUi => continue,      // Handled with `Profile`
+                DataCategory::Profile => &mut self.profile_quantity.total,
+                DataCategory::ProfileBackend => &mut self.profile_quantity.backend,
+                DataCategory::ProfileUi => &mut self.profile_quantity.ui,
                 DataCategory::Replay => &mut self.replay_quantity,
                 DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
                 DataCategory::Monitor => &mut self.monitor_quantity,
@@ -1102,11 +1086,10 @@ where
         if enforcement.is_event_active() {
             enforcement.profiles = enforcement
                 .event
-                .clone_for(DataCategory::Profile, summary.profile_quantity.total());
-            enforcement.profiles_indexed = enforcement.event_indexed.clone_for(
-                DataCategory::ProfileIndexed,
-                summary.profile_quantity.total(),
-            );
+                .clone_for(DataCategory::Profile, summary.profile_quantity.total);
+            enforcement.profiles_indexed = enforcement
+                .event_indexed
+                .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity.total);
 
             enforcement.profiles_backend = enforcement.event.clone_for(
                 DataCategory::ProfileBackend,
@@ -1115,12 +1098,12 @@ where
             enforcement.profiles_ui = enforcement
                 .event
                 .clone_for(DataCategory::ProfileUi, summary.profile_quantity.ui);
-        } else if summary.profile_quantity.total() > 0 {
+        } else if summary.profile_quantity.total > 0 {
             let mut profile_limits = self
                 .check
                 .apply(
                     scoping.item(DataCategory::Profile),
-                    summary.profile_quantity.total(),
+                    summary.profile_quantity.total,
                 )
                 .await?;
 
@@ -1135,7 +1118,7 @@ where
 
             enforcement.profiles = CategoryLimit::new(
                 DataCategory::Profile,
-                summary.profile_quantity.total(),
+                summary.profile_quantity.total,
                 profile_limits.longest(),
             );
 
@@ -1144,14 +1127,14 @@ where
                     .check
                     .apply(
                         scoping.item(DataCategory::ProfileIndexed),
-                        summary.profile_quantity.total(),
+                        summary.profile_quantity.total,
                     )
                     .await?;
 
                 if !limit.is_empty() {
                     enforcement.profiles_indexed = CategoryLimit::new(
                         DataCategory::ProfileIndexed,
-                        summary.profile_quantity.total(),
+                        summary.profile_quantity.total,
                         limit.longest(),
                     );
 
@@ -1160,7 +1143,7 @@ where
             } else {
                 enforcement.profiles_indexed = CategoryLimit::new(
                     DataCategory::ProfileIndexed,
-                    summary.profile_quantity.total(),
+                    summary.profile_quantity.total,
                     profile_limits.longest(),
                 );
             }

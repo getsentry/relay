@@ -123,8 +123,7 @@ fn expand_profile(
         }
     };
 
-    // If there the profile type is new information, we now count the profile in an additional data
-    // category.
+    // If the profile type is new information, we now count the profile in an additional data category.
     if profile.profile_type().is_none() {
         record_keeper.modify_by(
             match meta.kind {
