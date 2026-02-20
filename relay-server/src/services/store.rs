@@ -14,7 +14,6 @@ use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
-use smallvec::smallvec;
 use uuid::Uuid;
 
 use relay_base_schema::data_category::DataCategory;
