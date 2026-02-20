@@ -5075,9 +5075,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "2.1.21"
+version = "2.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18d151a1fd11abf859f75d199a49ae16c4e0460d4461171ae2c6a477599ca6d7"
+checksum = "e9e5223681aafffe1d97fe54ce0808e2ea642bea0ef1ce568ed966a03e3193ff"
 dependencies = [
  "jsonschema",
  "prost 0.14.3",
@@ -5167,9 +5167,9 @@ dependencies = [
 
 [[package]]
 name = "sentry_protos"
-version = "0.5.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4544fc955b4587df17166521e836334c337c994d839f07e906d2838274d0d90a"
+checksum = "dcca2ce7135d2721bd635ff5a55ce8f3b124f854a643a1f8dfc82410b04487df"
 dependencies = [
  "prost 0.14.3",
  "prost-types",

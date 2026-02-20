@@ -76,6 +76,7 @@ pub fn to_trace_item(scoping: Scoping, bucket: Bucket, retention: u16) -> Option
         attributes,
         client_sample_rate: 1.0,
         server_sample_rate: 1.0,
+        outcomes: None,
     })
 }
 

@@ -10,7 +10,7 @@ use crate::events::EventType;
 /// An error that occurs if a number cannot be converted into a [`DataCategory`].
 #[derive(Debug, PartialEq, thiserror::Error)]
 #[error("Unknown numeric data category {0} can not be converted into a DataCategory.")]
-pub struct UnknownDataCategory(pub u8);
+pub struct UnknownDataCategory(pub u32);
 
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -420,8 +420,17 @@ impl TryFrom<u8> for DataCategory {
             32 => Ok(Self::InstallableBuild),
             33 => Ok(Self::TraceMetric),
             34 => Ok(Self::SeerUser),
-            other => Err(UnknownDataCategory(other)),
+            other => Err(UnknownDataCategory(other as u32)),
         }
+    }
+}
+
+impl TryFrom<u32> for DataCategory {
+    type Error = UnknownDataCategory;
+
+    fn try_from(value: u32) -> Result<Self, UnknownDataCategory> {
+        let value = u8::try_from(value).map_err(|_| UnknownDataCategory(value))?;
+        value.try_into()
     }
 }
 
@@ -543,8 +552,8 @@ mod tests {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
-        assert_eq!(DataCategory::try_from(34), Ok(DataCategory::SeerUser));
-        assert_eq!(DataCategory::try_from(35), Err(UnknownDataCategory(35)));
+        assert_eq!(DataCategory::try_from(34u8), Ok(DataCategory::SeerUser));
+        assert_eq!(DataCategory::try_from(35u8), Err(UnknownDataCategory(35)));
     }
 
     #[test]
