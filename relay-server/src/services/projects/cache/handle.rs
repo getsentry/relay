@@ -1,5 +1,6 @@
 use std::fmt;
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
@@ -30,6 +31,38 @@ impl ProjectCacheHandle {
         self.fetch(project_key);
 
         Project::new(project, &self.config)
+    }
+
+    /// Awaits until the given project state becomes ready (enabled or disabled).
+    ///
+    /// Returns [`None`] if the project config cannot be resolved in the given time.
+    pub async fn ready(&self, project_key: ProjectKey, timeout: Duration) -> Option<Project<'_>> {
+        let project = self.get(project_key);
+        if !project.state().is_pending() {
+            return Some(project);
+        }
+
+        tokio::time::timeout(timeout, self.ready_inner(project_key))
+            .await
+            .ok()
+    }
+
+    async fn ready_inner(&self, project_key: ProjectKey) -> Project<'_> {
+        loop {
+            let project = self.shared.get_or_create(project_key);
+            // Create the `Notified` before checking the project_state, to prevent missing
+            // an update between the check and the registration of the listener.
+            //
+            // From [`tokio::sync::futures::Notified::enabled`]:
+            // > notifications sent using notify_waiters [...] are received
+            // > as long as they happen after the creation of the Notified
+            let change_listener = project.outdated();
+            if !project.project_state().is_pending() {
+                drop(change_listener);
+                return Project::new(project, &self.config);
+            }
+            change_listener.await;
+        }
     }
 
     /// Triggers a fetch/update check in the project cache for the supplied project.
