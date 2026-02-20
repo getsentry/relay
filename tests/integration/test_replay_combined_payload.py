@@ -4,7 +4,6 @@ from .test_replay_recordings import recording_payload
 from .test_replay_events import generate_replay_sdk_event
 
 import json
-import pytest
 
 
 def test_replay_combined_with_processing(
@@ -52,28 +51,18 @@ def test_replay_combined_with_processing(
     assert replay_event["replay_id"] == replay_id
 
 
-@pytest.mark.parametrize(
-    "use_new_processing",
-    [False, True],
-    ids=["old_processing_path", "new_processing_path"],
-)
 def test_standalone_recording_from_faulty_sdk(
     mini_sentry,
     relay_with_processing,
     replay_recordings_consumer,
-    use_new_processing,
 ):
     project_id = 42
     replay_id = "515539018c9b4260a6f999572f1661ee"
     relay = relay_with_processing()
 
-    features = ["organizations:session-replay"]
-    if use_new_processing:
-        features.append("organizations:new-replay-processing")
-
     mini_sentry.add_basic_project_config(
         project_id,
-        extra={"config": {"features": features}},
+        extra={"config": {"features": ["organizations:session-replay"]}},
     )
 
     replay_recordings_consumer = replay_recordings_consumer()

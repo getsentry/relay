@@ -12,7 +12,7 @@ use futures::FutureExt;
 use futures::future::BoxFuture;
 use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::value::RawValue;
 use uuid::Uuid;
 
@@ -38,7 +38,7 @@ use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
@@ -362,8 +362,6 @@ impl StoreService {
         let send_individual_attachments = matches!(event_type, None | Some(&ItemType::Transaction));
 
         let mut attachments = Vec::new();
-        let mut replay_event = None;
-        let mut replay_recording = None;
 
         for item in envelope.items() {
             let content_type = item.content_type();
@@ -405,21 +403,6 @@ impl StoreService {
                     retention,
                     item,
                 )?,
-                ItemType::ReplayVideo => {
-                    self.produce_replay_video(
-                        event_id,
-                        scoping,
-                        item.payload(),
-                        received_at,
-                        retention,
-                    )?;
-                }
-                ItemType::ReplayRecording => {
-                    replay_recording = Some(item);
-                }
-                ItemType::ReplayEvent => {
-                    replay_event = Some(item);
-                }
                 ItemType::CheckIn => {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
@@ -480,24 +463,6 @@ impl StoreService {
                     )
                 }
             }
-        }
-
-        if let Some(recording) = replay_recording {
-            // If a recording item type was seen we produce it to Kafka with the replay-event
-            // payload (should it have been provided).
-            //
-            // The replay_video value is always specified as `None`. We do not allow separate
-            // item types for `ReplayVideo` events.
-            let replay_event = replay_event.map(|rv| rv.payload());
-            self.produce_replay_recording(
-                event_id,
-                scoping,
-                &recording.payload(),
-                replay_event.as_deref(),
-                None,
-                received_at,
-                retention,
-            )?;
         }
 
         if let Some(event_item) = event_item {
@@ -1022,109 +987,6 @@ impl StoreService {
         };
         self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
         Ok(())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn produce_replay_recording(
-        &self,
-        event_id: Option<EventId>,
-        scoping: Scoping,
-        payload: &[u8],
-        replay_event: Option<&[u8]>,
-        replay_video: Option<&[u8]>,
-        received_at: DateTime<Utc>,
-        retention: u16,
-    ) -> Result<(), StoreError> {
-        // Maximum number of bytes accepted by the consumer.
-        let max_payload_size = self.config.max_replay_message_size();
-
-        // Size of the consumer message. We can be reasonably sure this won't overflow because
-        // of the request size validation provided by Nginx and Relay.
-        let mut payload_size = 2000; // Reserve 2KB for the message metadata.
-        payload_size += replay_event.as_ref().map_or(0, |b| b.len());
-        payload_size += replay_video.as_ref().map_or(0, |b| b.len());
-        payload_size += payload.len();
-
-        // If the recording payload can not fit in to the message do not produce and quit early.
-        if payload_size >= max_payload_size {
-            relay_log::debug!("replay_recording over maximum size.");
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::Replay,
-                event_id,
-                outcome: Outcome::Invalid(DiscardReason::TooLarge(
-                    DiscardItemType::ReplayRecording,
-                )),
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
-            return Ok(());
-        }
-
-        let message =
-            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
-                replay_id: event_id.ok_or(StoreError::NoEventId)?,
-                project_id: scoping.project_id,
-                key_id: scoping.key_id,
-                org_id: scoping.organization_id,
-                received: safe_timestamp(received_at),
-                retention_days: retention,
-                payload,
-                replay_event,
-                replay_video,
-                // Hardcoded to `true` to indicate to the consumer that it should always publish the
-                // replay_event as relay no longer does it.
-                relay_snuba_publish_disabled: true,
-            });
-
-        self.produce(KafkaTopic::ReplayRecordings, message)?;
-
-        Ok(())
-    }
-
-    fn produce_replay_video(
-        &self,
-        event_id: Option<EventId>,
-        scoping: Scoping,
-        payload: Bytes,
-        received_at: DateTime<Utc>,
-        retention: u16,
-    ) -> Result<(), StoreError> {
-        #[derive(Deserialize)]
-        struct VideoEvent<'a> {
-            replay_event: &'a [u8],
-            replay_recording: &'a [u8],
-            replay_video: &'a [u8],
-        }
-
-        let Ok(VideoEvent {
-            replay_video,
-            replay_event,
-            replay_recording,
-        }) = rmp_serde::from_slice::<VideoEvent>(&payload)
-        else {
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::Replay,
-                event_id,
-                outcome: Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
-            return Ok(());
-        };
-
-        self.produce_replay_recording(
-            event_id,
-            scoping,
-            replay_recording,
-            Some(replay_event),
-            Some(replay_video),
-            received_at,
-            retention,
-        )
     }
 
     fn produce_check_in(
