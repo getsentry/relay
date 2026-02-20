@@ -9,77 +9,77 @@
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::envelope::WithHeader;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::processing::logs::{Error, <span class="prelude-ty">Result</span>};
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::processing::utils::store::{extract_meta_attributes, proto_timestamp, uuid_to_item_id};
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::processing::{<span class="self">self</span>, Counted, Retention};
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreTraceItem;
-<a href=#16 id=16 data-nosnippet>16</a>
-<a href=#17 id=17 data-nosnippet>17</a><span class="macro">macro_rules!</span> required {
-<a href=#18 id=18 data-nosnippet>18</a>    (<span class="macro-nonterminal">$value</span>:expr) =&gt; {{
-<a href=#19 id=19 data-nosnippet>19</a>        <span class="kw">match </span><span class="macro-nonterminal">$value </span>{
-<a href=#20 id=20 data-nosnippet>20</a>            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw">_</span>) =&gt; value,
-<a href=#21 id=21 data-nosnippet>21</a>            Annotated(<span class="prelude-val">None</span>, meta) =&gt; {
-<a href=#22 id=22 data-nosnippet>22</a>                <span class="macro">relay_log::debug!</span>(
-<a href=#23 id=23 data-nosnippet>23</a>                    <span class="string">"dropping log because of missing required field {} with meta {meta:?}"</span>,
-<a href=#24 id=24 data-nosnippet>24</a>                    <span class="macro">stringify!</span>(<span class="macro-nonterminal">$value</span>),
-<a href=#25 id=25 data-nosnippet>25</a>                );
-<a href=#26 id=26 data-nosnippet>26</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Invalid(DiscardReason::InvalidLog));
-<a href=#27 id=27 data-nosnippet>27</a>            }
-<a href=#28 id=28 data-nosnippet>28</a>        }
-<a href=#29 id=29 data-nosnippet>29</a>    }};
-<a href=#30 id=30 data-nosnippet>30</a>}
-<a href=#31 id=31 data-nosnippet>31</a>
-<a href=#32 id=32 data-nosnippet>32</a><span class="doccomment">/// Context parameters for [`convert`].
-<a href=#33 id=33 data-nosnippet>33</a></span><span class="attr">#[derive(Debug, Clone, Copy)]
-<a href=#34 id=34 data-nosnippet>34</a></span><span class="kw">pub struct </span>Context {
-<a href=#35 id=35 data-nosnippet>35</a>    <span class="doccomment">/// Received time.
-<a href=#36 id=36 data-nosnippet>36</a>    </span><span class="kw">pub </span>received_at: DateTime&lt;Utc&gt;,
-<a href=#37 id=37 data-nosnippet>37</a>    <span class="doccomment">/// Item scoping.
-<a href=#38 id=38 data-nosnippet>38</a>    </span><span class="kw">pub </span>scoping: Scoping,
-<a href=#39 id=39 data-nosnippet>39</a>    <span class="doccomment">/// Item retention.
-<a href=#40 id=40 data-nosnippet>40</a>    </span><span class="kw">pub </span>retention: Retention,
-<a href=#41 id=41 data-nosnippet>41</a>}
-<a href=#42 id=42 data-nosnippet>42</a>
-<a href=#43 id=43 data-nosnippet>43</a><span class="kw">pub fn </span>convert(log: WithHeader&lt;OurLog&gt;, ctx: <span class="kw-2">&amp;</span>Context) -&gt; <span class="prelude-ty">Result</span>&lt;StoreTraceItem&gt; {
-<a href=#44 id=44 data-nosnippet>44</a>    <span class="kw">let </span>quantities = log.quantities();
-<a href=#45 id=45 data-nosnippet>45</a>    <span class="kw">let </span>payload_size_bytes = log
-<a href=#46 id=46 data-nosnippet>46</a>        .header
-<a href=#47 id=47 data-nosnippet>47</a>        .as_ref()
-<a href=#48 id=48 data-nosnippet>48</a>        .and_then(|h| h.byte_size)
-<a href=#49 id=49 data-nosnippet>49</a>        .unwrap_or_default();
-<a href=#50 id=50 data-nosnippet>50</a>
-<a href=#51 id=51 data-nosnippet>51</a>    <span class="kw">let </span>log = <span class="macro">required!</span>(log.value);
-<a href=#52 id=52 data-nosnippet>52</a>    <span class="kw">let </span>timestamp = <span class="macro">required!</span>(log.timestamp);
-<a href=#53 id=53 data-nosnippet>53</a>
-<a href=#54 id=54 data-nosnippet>54</a>    <span class="kw">let </span>meta = extract_meta_attributes(<span class="kw-2">&amp;</span>log, <span class="kw-2">&amp;</span>log.attributes);
-<a href=#55 id=55 data-nosnippet>55</a>    <span class="kw">let </span>attrs = log.attributes.<span class="number">0</span>.unwrap_or_default();
-<a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">let </span>fields = FieldAttributes {
-<a href=#57 id=57 data-nosnippet>57</a>        level: <span class="macro">required!</span>(log.level),
-<a href=#58 id=58 data-nosnippet>58</a>        timestamp,
-<a href=#59 id=59 data-nosnippet>59</a>        body: <span class="macro">required!</span>(log.body),
-<a href=#60 id=60 data-nosnippet>60</a>        span_id: log.span_id.into_value(),
-<a href=#61 id=61 data-nosnippet>61</a>        payload_size_bytes,
-<a href=#62 id=62 data-nosnippet>62</a>    };
-<a href=#63 id=63 data-nosnippet>63</a>
-<a href=#64 id=64 data-nosnippet>64</a>    <span class="kw">let </span>trace_item = TraceItem {
-<a href=#65 id=65 data-nosnippet>65</a>        item_type: TraceItemType::Log.into(),
-<a href=#66 id=66 data-nosnippet>66</a>        organization_id: ctx.scoping.organization_id.value(),
-<a href=#67 id=67 data-nosnippet>67</a>        project_id: ctx.scoping.project_id.value(),
-<a href=#68 id=68 data-nosnippet>68</a>        received: <span class="prelude-val">Some</span>(proto_timestamp(ctx.received_at)),
-<a href=#69 id=69 data-nosnippet>69</a>        retention_days: ctx.retention.standard.into(),
-<a href=#70 id=70 data-nosnippet>70</a>        downsampled_retention_days: ctx.retention.downsampled.into(),
-<a href=#71 id=71 data-nosnippet>71</a>        timestamp: <span class="prelude-val">Some</span>(proto_timestamp(timestamp.<span class="number">0</span>)),
-<a href=#72 id=72 data-nosnippet>72</a>        trace_id: <span class="macro">required!</span>(log.trace_id).to_string(),
-<a href=#73 id=73 data-nosnippet>73</a>        item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
-<a href=#74 id=74 data-nosnippet>74</a>        attributes: attributes(meta, attrs, fields),
-<a href=#75 id=75 data-nosnippet>75</a>        client_sample_rate: <span class="number">1.0</span>,
-<a href=#76 id=76 data-nosnippet>76</a>        server_sample_rate: <span class="number">1.0</span>,
-<a href=#77 id=77 data-nosnippet>77</a>    };
-<a href=#78 id=78 data-nosnippet>78</a>
-<a href=#79 id=79 data-nosnippet>79</a>    <span class="prelude-val">Ok</span>(StoreTraceItem {
-<a href=#80 id=80 data-nosnippet>80</a>        trace_item,
-<a href=#81 id=81 data-nosnippet>81</a>        quantities,
-<a href=#82 id=82 data-nosnippet>82</a>    })
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::processing::utils::store::{
+<a href=#13 id=13 data-nosnippet>13</a>    extract_meta_attributes, proto_timestamp, quantities_to_trace_item_outcomes, uuid_to_item_id,
+<a href=#14 id=14 data-nosnippet>14</a>};
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::processing::{<span class="self">self</span>, Counted, Retention};
+<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreTraceItem;
+<a href=#18 id=18 data-nosnippet>18</a>
+<a href=#19 id=19 data-nosnippet>19</a><span class="macro">macro_rules!</span> required {
+<a href=#20 id=20 data-nosnippet>20</a>    (<span class="macro-nonterminal">$value</span>:expr) =&gt; {{
+<a href=#21 id=21 data-nosnippet>21</a>        <span class="kw">match </span><span class="macro-nonterminal">$value </span>{
+<a href=#22 id=22 data-nosnippet>22</a>            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw">_</span>) =&gt; value,
+<a href=#23 id=23 data-nosnippet>23</a>            Annotated(<span class="prelude-val">None</span>, meta) =&gt; {
+<a href=#24 id=24 data-nosnippet>24</a>                <span class="macro">relay_log::debug!</span>(
+<a href=#25 id=25 data-nosnippet>25</a>                    <span class="string">"dropping log because of missing required field {} with meta {meta:?}"</span>,
+<a href=#26 id=26 data-nosnippet>26</a>                    <span class="macro">stringify!</span>(<span class="macro-nonterminal">$value</span>),
+<a href=#27 id=27 data-nosnippet>27</a>                );
+<a href=#28 id=28 data-nosnippet>28</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Invalid(DiscardReason::InvalidLog));
+<a href=#29 id=29 data-nosnippet>29</a>            }
+<a href=#30 id=30 data-nosnippet>30</a>        }
+<a href=#31 id=31 data-nosnippet>31</a>    }};
+<a href=#32 id=32 data-nosnippet>32</a>}
+<a href=#33 id=33 data-nosnippet>33</a>
+<a href=#34 id=34 data-nosnippet>34</a><span class="doccomment">/// Context parameters for [`convert`].
+<a href=#35 id=35 data-nosnippet>35</a></span><span class="attr">#[derive(Debug, Clone, Copy)]
+<a href=#36 id=36 data-nosnippet>36</a></span><span class="kw">pub struct </span>Context {
+<a href=#37 id=37 data-nosnippet>37</a>    <span class="doccomment">/// Received time.
+<a href=#38 id=38 data-nosnippet>38</a>    </span><span class="kw">pub </span>received_at: DateTime&lt;Utc&gt;,
+<a href=#39 id=39 data-nosnippet>39</a>    <span class="doccomment">/// Item scoping.
+<a href=#40 id=40 data-nosnippet>40</a>    </span><span class="kw">pub </span>scoping: Scoping,
+<a href=#41 id=41 data-nosnippet>41</a>    <span class="doccomment">/// Item retention.
+<a href=#42 id=42 data-nosnippet>42</a>    </span><span class="kw">pub </span>retention: Retention,
+<a href=#43 id=43 data-nosnippet>43</a>}
+<a href=#44 id=44 data-nosnippet>44</a>
+<a href=#45 id=45 data-nosnippet>45</a><span class="kw">pub fn </span>convert(log: WithHeader&lt;OurLog&gt;, ctx: <span class="kw-2">&amp;</span>Context) -&gt; <span class="prelude-ty">Result</span>&lt;StoreTraceItem&gt; {
+<a href=#46 id=46 data-nosnippet>46</a>    <span class="kw">let </span>quantities = log.quantities();
+<a href=#47 id=47 data-nosnippet>47</a>    <span class="kw">let </span>payload_size_bytes = log
+<a href=#48 id=48 data-nosnippet>48</a>        .header
+<a href=#49 id=49 data-nosnippet>49</a>        .as_ref()
+<a href=#50 id=50 data-nosnippet>50</a>        .and_then(|h| h.byte_size)
+<a href=#51 id=51 data-nosnippet>51</a>        .unwrap_or_default();
+<a href=#52 id=52 data-nosnippet>52</a>
+<a href=#53 id=53 data-nosnippet>53</a>    <span class="kw">let </span>log = <span class="macro">required!</span>(log.value);
+<a href=#54 id=54 data-nosnippet>54</a>    <span class="kw">let </span>timestamp = <span class="macro">required!</span>(log.timestamp);
+<a href=#55 id=55 data-nosnippet>55</a>
+<a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">let </span>meta = extract_meta_attributes(<span class="kw-2">&amp;</span>log, <span class="kw-2">&amp;</span>log.attributes);
+<a href=#57 id=57 data-nosnippet>57</a>    <span class="kw">let </span>attrs = log.attributes.<span class="number">0</span>.unwrap_or_default();
+<a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">let </span>fields = FieldAttributes {
+<a href=#59 id=59 data-nosnippet>59</a>        level: <span class="macro">required!</span>(log.level),
+<a href=#60 id=60 data-nosnippet>60</a>        timestamp,
+<a href=#61 id=61 data-nosnippet>61</a>        body: <span class="macro">required!</span>(log.body),
+<a href=#62 id=62 data-nosnippet>62</a>        span_id: log.span_id.into_value(),
+<a href=#63 id=63 data-nosnippet>63</a>        payload_size_bytes,
+<a href=#64 id=64 data-nosnippet>64</a>    };
+<a href=#65 id=65 data-nosnippet>65</a>
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">let </span>trace_item = TraceItem {
+<a href=#67 id=67 data-nosnippet>67</a>        item_type: TraceItemType::Log.into(),
+<a href=#68 id=68 data-nosnippet>68</a>        organization_id: ctx.scoping.organization_id.value(),
+<a href=#69 id=69 data-nosnippet>69</a>        project_id: ctx.scoping.project_id.value(),
+<a href=#70 id=70 data-nosnippet>70</a>        received: <span class="prelude-val">Some</span>(proto_timestamp(ctx.received_at)),
+<a href=#71 id=71 data-nosnippet>71</a>        retention_days: ctx.retention.standard.into(),
+<a href=#72 id=72 data-nosnippet>72</a>        downsampled_retention_days: ctx.retention.downsampled.into(),
+<a href=#73 id=73 data-nosnippet>73</a>        timestamp: <span class="prelude-val">Some</span>(proto_timestamp(timestamp.<span class="number">0</span>)),
+<a href=#74 id=74 data-nosnippet>74</a>        trace_id: <span class="macro">required!</span>(log.trace_id).to_string(),
+<a href=#75 id=75 data-nosnippet>75</a>        item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
+<a href=#76 id=76 data-nosnippet>76</a>        attributes: attributes(meta, attrs, fields),
+<a href=#77 id=77 data-nosnippet>77</a>        client_sample_rate: <span class="number">1.0</span>,
+<a href=#78 id=78 data-nosnippet>78</a>        server_sample_rate: <span class="number">1.0</span>,
+<a href=#79 id=79 data-nosnippet>79</a>        outcomes: <span class="prelude-val">Some</span>(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
+<a href=#80 id=80 data-nosnippet>80</a>    };
+<a href=#81 id=81 data-nosnippet>81</a>
+<a href=#82 id=82 data-nosnippet>82</a>    <span class="prelude-val">Ok</span>(StoreTraceItem { trace_item })
 <a href=#83 id=83 data-nosnippet>83</a>}
 <a href=#84 id=84 data-nosnippet>84</a>
 <a href=#85 id=85 data-nosnippet>85</a><span class="doccomment">/// Fields on the log message which are stored as fields.
