@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.1.0"
+version = "26.2.0"
 edition = "2024"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -48,6 +48,7 @@ either = { workspace = true }
 flate2 = { workspace = true }
 futures = { workspace = true, features = ["async-await"] }
 hashbrown = { workspace = true }
+http = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true }
 hyper-util = { workspace = true }
@@ -146,9 +147,9 @@ url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { workspace = true }
 
+
 [dev-dependencies]
 criterion = { workspace = true }
-http = { workspace = true }
 insta = { workspace = true }
 relay-protocol = { workspace = true, features = ["test"] }
 relay-system = { workspace = true, features = ["test"] }
