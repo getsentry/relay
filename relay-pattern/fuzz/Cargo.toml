@@ -1,6 +1,6 @@
 [package]
 name = "relay-pattern-fuzz"
-version = "26.2.0"
+version = "26.2.1"
 publish = false
 edition = "2024"
 

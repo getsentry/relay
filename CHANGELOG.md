@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 26.2.1
 
 **Bug Fixes**:
 
