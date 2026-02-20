@@ -217,6 +217,12 @@ pub struct SentryConfig {
     /// Add defaults tags to the events emitted by Relay
     pub default_tags: Option<BTreeMap<String, String>>,
 
+    /// Enables sending trace metrics to Sentry.
+    ///
+    /// Defaults to `false`. Set to `true` when `metrics.send_to_sentry` is greater than `0.0`.
+    #[serde(default)]
+    pub enable_metrics: bool,
+
     /// Internal. Enables crash handling and sets the absolute path to where minidumps should be
     /// cached on disk. The path is created if it doesn't exist. Path must be UTF-8.
     pub _crash_db: Option<PathBuf>,
@@ -239,6 +245,7 @@ impl Default for SentryConfig {
             environment: None,
             server_name: None,
             default_tags: None,
+            enable_metrics: false,
             _crash_db: None,
         }
     }
@@ -366,6 +373,7 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
             server_name: sentry.server_name.clone(),
             traces_sampler,
             enable_logs: true,
+            enable_metrics: sentry.enable_metrics,
             ..Default::default()
         };
 

@@ -587,11 +587,11 @@ pub struct Metrics {
     ///
     /// Defaults to `false`.
     pub allow_high_cardinality_tags: bool,
-    /// Sample rate for double-writing internal metrics as Sentry trace metrics.
+    /// Sample rate for sending internal metrics to Sentry as trace metrics.
     ///
     /// A value between `0.0` and `1.0`. `0.0` disables trace metrics entirely (default).
-    /// `1.0` means all metrics are double-written to Sentry.
-    pub trace_sample_rate: f64,
+    /// `1.0` means all metrics are sent to Sentry.
+    pub send_to_sentry: f64,
 }
 
 impl Default for Metrics {
@@ -605,7 +605,7 @@ impl Default for Metrics {
             periodic_secs: 5,
             aggregate: true,
             allow_high_cardinality_tags: false,
-            trace_sample_rate: 0.0,
+            send_to_sentry: 0.0,
         }
     }
 }
@@ -2210,9 +2210,9 @@ impl Config {
         self.values.metrics.allow_high_cardinality_tags
     }
 
-    /// Returns the sample rate for double-writing metrics as Sentry trace metrics.
-    pub fn metrics_trace_sample_rate(&self) -> f64 {
-        self.values.metrics.trace_sample_rate
+    /// Returns the sample rate for sending internal metrics to Sentry as trace metrics.
+    pub fn metrics_send_to_sentry(&self) -> f64 {
+        self.values.metrics.send_to_sentry
     }
 
     /// Returns the interval for periodic metrics emitted from Relay.

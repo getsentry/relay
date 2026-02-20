@@ -31,7 +31,7 @@
 //!     sample_rate: 1.0.into(),
 //!     aggregate: true,
 //!     allow_high_cardinality_tags: false,
-//!     trace_sample_rate: 0.0.into(),
+//!     send_to_sentry: 0.0.into(),
 //! });
 //! ```
 //!
@@ -146,8 +146,8 @@ pub struct MetricsClient {
     pub default_tags: BTreeMap<String, String>,
     /// Global sample rate.
     pub default_sample_rate: SampleRate,
-    /// Sample rate for double-writing metrics as Sentry trace metrics.
-    pub trace_sample_rate: SampleRate,
+    /// Sample rate for sending metrics to Sentry as trace metrics.
+    pub send_to_sentry: SampleRate,
     /// Receiver for external listeners.
     ///
     /// Only available when the client was initialized with `init_basic`.
@@ -169,9 +169,9 @@ pub struct MetricsClientConfig<'a, A> {
     pub aggregate: bool,
     /// If high cardinality tags should be removed from metrics.
     pub allow_high_cardinality_tags: bool,
-    /// Sample rate for double-writing metrics as Sentry trace metrics.
-    /// 0.0 means disabled, 1.0 means all metrics are double-written.
-    pub trace_sample_rate: SampleRate,
+    /// Sample rate for sending metrics to Sentry as trace metrics.
+    /// 0.0 means disabled, 1.0 means all metrics are sent to Sentry.
+    pub send_to_sentry: SampleRate,
 }
 
 impl Deref for MetricsClient {
@@ -305,14 +305,20 @@ impl MetricsClient {
         value: f64,
         effective_sample_rate: f64,
     ) {
-        let rate = effective_sample_rate * self.trace_sample_rate.0;
+        let rate = effective_sample_rate * self.send_to_sentry.0;
         if rate <= 0.0 || !Self::should_send(rate) {
             return;
         }
         match ty {
-            TraceMetricType::Counter => sentry_core::metrics_count(name, value, None),
-            TraceMetricType::Gauge => sentry_core::metrics_gauge(name, value, None),
-            TraceMetricType::Distribution => sentry_core::metrics_distribution(name, value, None),
+            TraceMetricType::Counter => {
+                sentry_core::metric_count!(name, value, "sentry.client_sample_rate" = rate)
+            }
+            TraceMetricType::Gauge => {
+                sentry_core::metric_gauge!(name, value, "sentry.client_sample_rate" = rate)
+            }
+            TraceMetricType::Distribution => {
+                sentry_core::metric_distribution!(name, value, "sentry.client_sample_rate" = rate)
+            }
         }
     }
 
@@ -370,7 +376,7 @@ pub fn with_capturing_test_client_sample_rate(sample_rate: f64, f: impl FnOnce()
         statsd_client: StatsdClient::from_sink("", sink),
         default_tags: Default::default(),
         default_sample_rate: sample_rate.into(),
-        trace_sample_rate: 0.0.into(),
+        send_to_sentry: 0.0.into(),
         rx: None,
     };
 
@@ -395,7 +401,7 @@ pub fn init_basic() -> Option<crossbeam_channel::Receiver<Vec<u8>>> {
                 statsd_client: StatsdClient::from_sink("", sink),
                 default_tags: Default::default(),
                 default_sample_rate: 1.0.into(),
-                trace_sample_rate: 0.0.into(),
+                send_to_sentry: 0.0.into(),
                 rx: Some(receiver.clone()),
             };
             cell.replace(Some(Arc::new(test_client)));
@@ -480,7 +486,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
         statsd_client,
         default_tags: config.default_tags,
         default_sample_rate: config.sample_rate,
-        trace_sample_rate: config.trace_sample_rate,
+        send_to_sentry: config.send_to_sentry,
         rx: None,
     });
 }
@@ -1004,7 +1010,7 @@ mod tests {
             statsd_client: StatsdClient::from_sink("", NopMetricSink),
             default_tags: Default::default(),
             default_sample_rate: 1.0.into(),
-            trace_sample_rate: 0.0.into(),
+            send_to_sentry: 0.0.into(),
             rx: None,
         });
         let client2 = with_client(|c| format!("{c:?}"));
