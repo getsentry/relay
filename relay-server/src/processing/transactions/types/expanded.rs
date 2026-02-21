@@ -1,6 +1,6 @@
 use either::Either;
 use relay_event_schema::protocol::Event;
-use relay_profiling::ProfileMetadata;
+use relay_profiling::{ProfileMetadata, ProfileType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::SamplingDecision;
@@ -293,6 +293,13 @@ impl Counted for ExpandedProfile {
         smallvec![
             (DataCategory::Profile, 1),
             (DataCategory::ProfileIndexed, 1),
+            (
+                match self.meta.kind {
+                    ProfileType::Backend => DataCategory::ProfileBackend,
+                    ProfileType::Ui => DataCategory::ProfileUi,
+                },
+                1
+            ),
         ]
     }
 }
