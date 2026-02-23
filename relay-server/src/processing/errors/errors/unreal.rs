@@ -9,6 +9,7 @@ use crate::processing::errors::errors::{
 };
 use crate::services::processor::ProcessingError;
 
+// TODO: this should maybe be an enum, forward vs processing
 #[derive(Debug)]
 pub struct Unreal {
     pub event: Annotated<Event>,
@@ -21,6 +22,20 @@ impl SentryError for Unreal {
         let Some(report) = utils::take_item_of_type(items, ItemType::UnrealReport) else {
             return Ok(None);
         };
+
+        if !ctx.processing.is_processing() {
+            let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
+            attachments.push(report);
+
+            return Ok(Some(ParsedError {
+                error: Self {
+                    event: Annotated::empty(),
+                    attachments,
+                    user_reports: Vec::new(),
+                },
+                fully_normalized: false,
+            }));
+        }
 
         let expansion = crate::utils::expand_unreal(report, ctx.processing.config)?;
         let event = expansion.event;
@@ -105,6 +120,20 @@ impl SentryError for Unreal {
             attachments: &mut self.attachments,
             user_reports: Some(&mut self.user_reports),
         }
+    }
+
+    fn serialize(mut self, _ctx: crate::processing::ForwardContext<'_>) -> Result<super::ErrorItems>
+    where
+        Self: Sized,
+    {
+    }
+
+    fn event(&self) -> &Annotated<Event> {
+        self.as_ref().event
+    }
+
+    fn event_mut(&mut self) -> &mut Annotated<Event> {
+        self.as_ref_mut().event
     }
 }
 

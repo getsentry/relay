@@ -46,7 +46,9 @@ impl ErrorRef<'_> {
     fn to_quantities(self) -> Quantities {
         let mut quantities = self.attachments.quantities();
         quantities.extend(self.user_reports.quantities());
-        quantities.push((event_category(self.event).unwrap_or(DataCategory::Error), 1));
+        if !self.event.is_empty() {
+            quantities.push((event_category(self.event).unwrap_or(DataCategory::Error), 1));
+        }
         quantities
     }
 }
