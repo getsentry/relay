@@ -5,6 +5,7 @@ use relay_quotas::DataCategory;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
+use crate::processing::utils::event::event_category;
 use crate::processing::{self, ForwardContext};
 use crate::services::processor::ProcessingError;
 use crate::statsd::RelayTimers;
@@ -45,7 +46,7 @@ impl ErrorRef<'_> {
     fn to_quantities(self) -> Quantities {
         let mut quantities = self.attachments.quantities();
         quantities.extend(self.user_reports.quantities());
-        quantities.push((DataCategory::Error, 1));
+        quantities.push((event_category(self.event).unwrap_or(DataCategory::Error), 1));
         quantities
     }
 }

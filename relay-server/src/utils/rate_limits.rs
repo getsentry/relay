@@ -261,9 +261,13 @@ impl EnvelopeSummary {
 
     /// Creates an envelope summary and aggregates the given envelope.
     pub fn compute(envelope: &Envelope) -> Self {
+        Self::compute_items(envelope.items())
+    }
+
+    pub fn compute_items<'a>(items: impl IntoIterator<Item = &'a Item>) -> Self {
         let mut summary = Self::empty();
 
-        for item in envelope.items() {
+        for item in items {
             if item.creates_event() {
                 summary.infer_category(item);
             } else if item.ty() == &ItemType::Attachment {

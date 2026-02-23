@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::UserReport;
+use relay_quotas::DataCategory;
 
 use crate::envelope::{ContentType, Items};
 use crate::managed::{Managed, RecordKeeper, Rejected};
@@ -17,7 +18,7 @@ pub fn expand(error: Managed<SerializedError>, ctx: Context<'_>) -> Managed<Expa
 fn do_expand(
     mut error: SerializedError,
     ctx: Context<'_>,
-    _: &mut RecordKeeper<'_>,
+    records: &mut RecordKeeper<'_>,
 ) -> Result<ExpandedError> {
     let is_trusted = error.headers.meta().request_trust().is_trusted();
 
@@ -25,6 +26,10 @@ fn do_expand(
         envelope: &error.headers,
         processing: ctx,
     };
+
+    records.lenient(DataCategory::Attachment);
+    records.lenient(DataCategory::AttachmentItem);
+    records.lenient(DataCategory::UserReportV2);
 
     // TODO: support the "only expand errors in processing" usecase
     let parsed = ErrorKind::try_expand(&mut error.items, ctx)
@@ -49,6 +54,10 @@ pub fn process(
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, records| {
+        records.lenient(DataCategory::Attachment);
+        records.lenient(DataCategory::AttachmentItem);
+        records.lenient(DataCategory::UserReportV2);
+
         error.error.process(errors::Context {
             envelope: &error.headers,
             processing: ctx,

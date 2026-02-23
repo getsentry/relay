@@ -1626,7 +1626,7 @@ impl EnvelopeProcessorService {
 
         match group {
             ProcessingGroup::Error => {
-                if ctx.project_info.has_feature(Feature::NewErrorProcessing) {
+                if ctx.project_info.has_feature(Feature::NewErrorProcessing) || true {
                     self.process_with_processor(
                         &self.inner.processing.errors,
                         managed_envelope,

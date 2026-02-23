@@ -10,6 +10,7 @@ use crate::processing::utils::event::EventFullyNormalized;
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::ProcessingError;
+use crate::utils::EnvelopeSummary;
 
 mod dynamic_sampling;
 #[allow(
@@ -128,7 +129,7 @@ pub struct SerializedError {
 
 impl Counted for SerializedError {
     fn quantities(&self) -> Quantities {
-        self.items.quantities()
+        EnvelopeSummary::compute_items(self.items.iter()).quantities()
     }
 }
 
