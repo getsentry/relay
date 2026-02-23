@@ -283,14 +283,9 @@ fn extract_ai_data(
 
     // Extracts the total cost of the AI model used
     if let Some(model_id) = data
-        .gen_ai_request_model
+        .gen_ai_response_model
         .value()
         .and_then(|val| val.as_str())
-        .or_else(|| {
-            data.gen_ai_response_model
-                .value()
-                .and_then(|val| val.as_str())
-        })
     {
         extract_ai_model_cost_data(
             ai_model_costs.cost_per_token(model_id),
@@ -327,6 +322,13 @@ fn enrich_ai_span_data(
     map_ai_measurements_to_data(data, measurements.value());
 
     set_total_tokens(data);
+
+    // Default response model to request model if not set.
+    if data.gen_ai_response_model.value().is_none() {
+        if let Some(request_model) = data.gen_ai_request_model.value().cloned() {
+            data.gen_ai_response_model.set_value(Some(request_model));
+        }
+    }
 
     if let Some(model_costs) = model_costs {
         extract_ai_data(data, duration, model_costs, origin, platform);

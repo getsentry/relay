@@ -34,6 +34,7 @@ pub fn normalize_ai(
         return;
     }
 
+    normalize_model(attributes);
     normalize_ai_type(attributes);
     normalize_total_tokens(attributes);
     normalize_tokens_per_second(attributes, duration);
@@ -59,6 +60,18 @@ fn is_ai_item(attributes: &mut Attributes) -> bool {
     }
 
     false
+}
+
+/// Normalizes the [`GEN_AI_RESPONSE_MODEL`] attribute by defaulting to the [`GEN_AI_REQUEST_MODEL`] if it is missing.
+fn normalize_model(attributes: &mut Attributes) {
+    let Some(model) = attributes
+        .get_value(GEN_AI_REQUEST_MODEL)
+        .and_then(|v| v.as_str())
+    else {
+        return;
+    };
+    let model = model.to_owned();
+    attributes.insert_if_missing(GEN_AI_RESPONSE_MODEL, || model);
 }
 
 /// Normalizes the [`GEN_AI_OPERATION_TYPE`] and infers it from the AI operation if it is missing.
@@ -118,8 +131,7 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
     let platform_tag = platform_tag(platform);
 
     let Some(model_id) = attributes
-        .get_value(GEN_AI_REQUEST_MODEL)
-        .or_else(|| attributes.get_value(GEN_AI_RESPONSE_MODEL))
+        .get_value(GEN_AI_RESPONSE_MODEL)
         .and_then(|v| v.as_str())
     else {
         relay_statsd::metric!(
@@ -256,6 +268,10 @@ mod tests {
             "type": "string",
             "value": "claude-2.1"
           },
+          "gen_ai.response.model": {
+            "type": "string",
+            "value": "claude-2.1"
+          },
           "gen_ai.response.tokens_per_second": {
             "type": "double",
             "value": 2000.0
@@ -321,6 +337,10 @@ mod tests {
             "type": "string",
             "value": "gpt4-21-04"
           },
+          "gen_ai.response.model": {
+            "type": "string",
+            "value": "gpt4-21-04"
+          },
           "gen_ai.response.tokens_per_second": {
             "type": "double",
             "value": 4000.0
@@ -359,6 +379,10 @@ mod tests {
             "value": "ai_client"
           },
           "gen_ai.request.model": {
+            "type": "string",
+            "value": "unknown"
+          },
+          "gen_ai.response.model": {
             "type": "string",
             "value": "unknown"
           },
@@ -414,6 +438,10 @@ mod tests {
             "value": "ai_client"
           },
           "gen_ai.request.model": {
+            "type": "string",
+            "value": "gpt4-21-04"
+          },
+          "gen_ai.response.model": {
             "type": "string",
             "value": "gpt4-21-04"
           },
@@ -479,6 +507,10 @@ mod tests {
             "value": "ai_client"
           },
           "gen_ai.request.model": {
+            "type": "string",
+            "value": "gpt4-21-04"
+          },
+          "gen_ai.response.model": {
             "type": "string",
             "value": "gpt4-21-04"
           },
