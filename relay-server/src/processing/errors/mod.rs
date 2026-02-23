@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{EnvelopeHeaders, Item, ItemType};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities, Rejected,
 };
@@ -83,7 +83,10 @@ impl processing::Processor for ErrorsProcessor {
             return None;
         }
 
-        let items = envelope.envelope_mut().take_items_by(Item::requires_event);
+        let items = envelope
+            .envelope_mut()
+            .take_items_by(Item::requires_event)
+            .into_vec();
 
         let errors = SerializedError {
             headers: envelope.envelope().headers().clone(),
@@ -124,7 +127,7 @@ pub struct SerializedError {
     /// List of items which can be processed as an error.
     ///
     /// This is a mixture of items all of which return `true` for [`Item::requires_event`].
-    items: Items,
+    items: Vec<Item>,
 }
 
 impl Counted for SerializedError {
@@ -188,6 +191,7 @@ impl Forward for ErrorOutput {
 
                 // TODO: size limits?
 
+                let items: Vec<Item> = items.into();
                 Ok::<_, Error>(Envelope::from_parts(errors.headers, items.into()))
             })
             .map_err(|err| err.map(|_| ()))

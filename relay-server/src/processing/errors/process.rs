@@ -3,7 +3,7 @@ use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::UserReport;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContentType, Items};
+use crate::envelope::{ContentType, Item};
 use crate::managed::{Managed, RecordKeeper, Rejected};
 use crate::processing::errors::errors::{self, ErrorKind, SentryError as _};
 use crate::processing::errors::{Error, ExpandedError, Flags, Result, SerializedError};
@@ -129,7 +129,7 @@ pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(),
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-fn process_user_reports(user_reports: &mut Items, records: &mut RecordKeeper<'_>) {
+fn process_user_reports(user_reports: &mut Vec<Item>, records: &mut RecordKeeper<'_>) {
     for mut user_report in std::mem::take(user_reports) {
         let data = match process_user_report(user_report.payload()) {
             Ok(data) => data,

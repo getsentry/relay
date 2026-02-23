@@ -2,10 +2,10 @@ use relay_base_schema::events::EventType;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 
-use crate::envelope::{Item, ItemType, Items};
+use crate::envelope::{Item, ItemType};
 use crate::processing::errors::{Error, Result};
 
-pub fn take_item_by<F>(items: &mut Items, f: F) -> Option<Item>
+pub fn take_item_by<F>(items: &mut Vec<Item>, f: F) -> Option<Item>
 where
     F: FnMut(&Item) -> bool,
 {
@@ -13,18 +13,22 @@ where
     index.map(|index| items.swap_remove(index))
 }
 
-pub fn take_item_of_type(items: &mut Items, ty: ItemType) -> Option<Item> {
+pub fn take_item_of_type(items: &mut Vec<Item>, ty: ItemType) -> Option<Item> {
     take_item_by(items, |item| item.ty() == &ty)
 }
 
-pub fn take_items_by<F>(items: &mut Items, mut f: F) -> Items
+pub fn take_items_by<T, F>(items: &mut Vec<Item>, mut f: F) -> T
 where
     F: FnMut(&Item) -> bool,
+    T: FromIterator<Item>,
 {
-    items.drain_filter(|item| f(item)).collect()
+    items.extract_if(.., |item| f(item)).collect()
 }
 
-pub fn take_items_of_type(items: &mut Items, ty: ItemType) -> Items {
+pub fn take_items_of_type<T>(items: &mut Vec<Item>, ty: ItemType) -> T
+where
+    T: FromIterator<Item>,
+{
     take_items_by(items, |item| item.ty() == &ty)
 }
 

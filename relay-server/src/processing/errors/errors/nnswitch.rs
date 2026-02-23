@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeError, Item, ItemType, Items};
+use crate::envelope::{EnvelopeError, Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{
@@ -29,12 +29,12 @@ const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
 #[derive(Debug)]
 pub struct Nnswitch {
     pub event: Annotated<Event>,
-    pub attachments: Items,
-    pub user_reports: Items,
+    pub attachments: Vec<Item>,
+    pub user_reports: Vec<Item>,
 }
 
 impl SentryError for Nnswitch {
-    fn try_expand(items: &mut Items, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(items: &mut Vec<Item>, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         let Some(dying_message) = utils::take_item_by(items, is_dying_message) else {
             return Ok(None);
         };
@@ -42,8 +42,8 @@ impl SentryError for Nnswitch {
         let event = utils::take_item_of_type(items, ItemType::Event);
 
         let mut attachments = items
-            .drain_filter(|item| *item.ty() == ItemType::Attachment)
-            .collect::<Items>();
+            .extract_if(.., |item| *item.ty() == ItemType::Attachment)
+            .collect::<Vec<_>>();
 
         let dying_message = expand_dying_message(dying_message.payload())
             .map_err(ProcessingError::InvalidNintendoDyingMessage)?;
@@ -131,7 +131,7 @@ fn is_dying_message(item: &crate::envelope::Item) -> bool {
 #[derive(Debug, Default)]
 struct ExpandedDyingMessage {
     event: Option<Item>,
-    attachments: Items,
+    attachments: Vec<Item>,
 }
 
 /// Parses DyingMessage contents and updates the envelope.
@@ -192,12 +192,13 @@ fn expand_dying_message_v0(
 fn expand_dying_message_from_envelope_items(
     data: Bytes,
 ) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
-    let mut items =
-        Envelope::parse_items_bytes(data).map_err(SwitchProcessingError::EnvelopeParsing)?;
+    let mut items = Envelope::parse_items_bytes(data)
+        .map_err(SwitchProcessingError::EnvelopeParsing)?
+        .into_vec();
 
     let event = utils::take_item_of_type(&mut items, ItemType::Event);
     let attachments = items
-        .drain_filter(|item| *item.ty() == ItemType::Attachment)
+        .extract_if(.., |item| *item.ty() == ItemType::Attachment)
         .collect();
 
     if !items.is_empty() {
@@ -291,7 +292,7 @@ mod tests {
         assert!(!is_dying_message(&item));
     }
 
-    fn create_envelope_items(dying_message: Bytes) -> Items {
+    fn create_envelope_items(dying_message: Bytes) -> Vec<Item> {
         // Note: the attachment length specified in the "outer" envelope attachment is very important.
         //       Otherwise parsing would fail because the inner one can contain line-breaks.
         let envelope =
@@ -304,7 +305,7 @@ mod tests {
         let mut envelope =
             Envelope::parse_bytes([Bytes::from(envelope), dying_message].concat().into()).unwrap();
 
-        envelope.take_items_by(|_| true)
+        envelope.take_items_by(|_| true).into_vec()
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 
-use crate::envelope::{AttachmentType, ItemType, Items};
+use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{
@@ -11,12 +11,12 @@ use crate::processing::errors::errors::{
 #[derive(Debug)]
 pub struct AppleCrashReport {
     pub event: Annotated<Event>,
-    pub attachments: Items,
-    pub user_reports: Items,
+    pub attachments: Vec<Item>,
+    pub user_reports: Vec<Item>,
 }
 
 impl SentryError for AppleCrashReport {
-    fn try_expand(items: &mut Items, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(items: &mut Vec<Item>, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         let Some(apple_crash_report) = utils::take_item_by(items, |item| {
             item.attachment_type() == Some(&AttachmentType::AppleCrashReport)
         }) else {
@@ -35,8 +35,8 @@ impl SentryError for AppleCrashReport {
         );
 
         let mut attachments = items
-            .drain_filter(|item| *item.ty() == ItemType::Attachment)
-            .collect::<Items>();
+            .extract_if(.., |item| *item.ty() == ItemType::Attachment)
+            .collect::<Vec<_>>();
         attachments.push(apple_crash_report);
 
         let error = Self {

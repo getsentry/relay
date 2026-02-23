@@ -2,7 +2,7 @@ use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 
-use crate::envelope::{AttachmentType, Item, ItemType, Items};
+use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{
@@ -12,18 +12,18 @@ use crate::processing::errors::errors::{
 #[derive(Debug)]
 pub struct Playstation {
     pub event: Annotated<Event>,
-    pub attachments: Items,
-    pub user_reports: Items,
+    pub attachments: Vec<Item>,
+    pub user_reports: Vec<Item>,
 }
 
 impl SentryError for Playstation {
     #[cfg(not(sentry))]
-    fn try_expand(_items: &mut Items, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(_items: &mut Vec<Item>, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         Ok(None)
     }
 
     #[cfg(sentry)]
-    fn try_expand(items: &mut Items, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         use crate::constants::SENTRY_CRASH_PAYLOAD_KEY;
         use crate::services::processor::ProcessingError;
         use crate::statsd::RelayCounters;
@@ -76,8 +76,8 @@ impl SentryError for Playstation {
         );
 
         let mut attachments = items
-            .drain_filter(|item| *item.ty() == ItemType::Attachment)
-            .collect::<Items>();
+            .extract_if(.., |item| *item.ty() == ItemType::Attachment)
+            .collect::<Vec<_>>();
 
         attachments.push({
             let mut item = Item::new(ItemType::Attachment);

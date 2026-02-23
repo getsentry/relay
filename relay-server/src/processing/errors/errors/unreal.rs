@@ -1,32 +1,30 @@
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 
-use crate::envelope::{ItemType, Items};
+use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{
     Context, ErrorRef, ErrorRefMut, ParsedError, SentryError, utils,
 };
 use crate::services::processor::ProcessingError;
-use crate::utils::UnrealExpansion;
 
 #[derive(Debug)]
 pub struct Unreal {
     pub event: Annotated<Event>,
-    pub attachments: Items,
-    pub user_reports: Items,
+    pub attachments: Vec<Item>,
+    pub user_reports: Vec<Item>,
 }
 
 impl SentryError for Unreal {
-    fn try_expand(items: &mut Items, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         let Some(report) = utils::take_item_of_type(items, ItemType::UnrealReport) else {
             return Ok(None);
         };
 
-        let UnrealExpansion {
-            event,
-            mut attachments,
-        } = crate::utils::expand_unreal(report, ctx.processing.config)?;
+        let expansion = crate::utils::expand_unreal(report, ctx.processing.config)?;
+        let event = expansion.event;
+        let mut attachments = expansion.attachments.into_vec();
 
         let event = match utils::take_item_of_type(items, ItemType::Event).or(event) {
             Some(event) => utils::event_from_json_payload(event, None)?,
@@ -36,7 +34,7 @@ impl SentryError for Unreal {
             None => Annotated::empty(),
         };
 
-        attachments.extend(items.drain_filter(|item| *item.ty() == ItemType::Attachment));
+        attachments.extend(items.extract_if(.., |item| *item.ty() == ItemType::Attachment));
 
         let error = Self {
             event,
@@ -64,6 +62,30 @@ impl SentryError for Unreal {
                 .map_err(ProcessingError::InvalidUnrealReport)?
         {
             self.user_reports.extend(result.user_reports);
+        }
+
+        // TODO: so this overlaps with `Minidump` and `AppleCrashReport`.
+
+        if let Some(acr) = self
+            .attachments
+            .iter()
+            .find(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport))
+        {
+            crate::utils::process_apple_crash_report(
+                self.event.get_or_insert_with(Event::default),
+                &acr.payload(),
+            );
+        }
+
+        if let Some(minidump) = self
+            .attachments
+            .iter()
+            .find(|item| item.attachment_type() == Some(&AttachmentType::Minidump))
+        {
+            crate::utils::process_minidump(
+                self.event.get_or_insert_with(Event::default),
+                &minidump.payload(),
+            );
         }
 
         Ok(())

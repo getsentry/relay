@@ -2,7 +2,7 @@ use relay_event_schema::protocol::Event;
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
 use crate::processing::utils::event::event_category;
@@ -54,19 +54,19 @@ impl ErrorRef<'_> {
 #[derive(Debug)]
 pub struct ErrorRefMut<'a> {
     pub event: &'a mut Annotated<Event>,
-    pub attachments: &'a mut Items,
-    pub user_reports: Option<&'a mut Items>,
+    pub attachments: &'a mut Vec<Item>,
+    pub user_reports: Option<&'a mut Vec<Item>>,
 }
 
 #[derive(Debug)]
 pub struct ErrorItems {
     pub event: Option<Item>,
-    pub attachments: Items,
-    pub user_reports: Items,
-    pub other: Items,
+    pub attachments: Vec<Item>,
+    pub user_reports: Vec<Item>,
+    pub other: Vec<Item>,
 }
 
-impl From<ErrorItems> for Items {
+impl From<ErrorItems> for Vec<Item> {
     fn from(value: ErrorItems) -> Self {
         let ErrorItems {
             event,
@@ -117,7 +117,7 @@ pub trait SentryError: Counted {
     /// passed items are invalid, or it must return a fully constructed [`Self`].
     ///
     /// The parser may return `Ok(None)` when none of the passed items match this shape of error.
-    fn try_expand(items: &mut Items, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>>
+    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>>
     where
         Self: Sized;
 
@@ -130,7 +130,7 @@ pub trait SentryError: Counted {
         Ok(())
     }
 
-    /// Serializes the error back into [`Items`], ready to be attached to an envelope.
+    /// Serializes the error back into items, ready to be attached to an envelope.
     ///
     /// The default implementation serializes all items exposed through [`Self::as_ref_mut`].
     /// Errors which handle with more items must override this implementation.
@@ -166,7 +166,7 @@ pub trait SentryError: Counted {
             event,
             attachments: std::mem::take(attachments),
             user_reports: user_reports.map(std::mem::take).unwrap_or_default(),
-            other: Items::new(),
+            other: Vec::new(),
         })
     }
 
@@ -193,9 +193,10 @@ macro_rules! gen_error_kind {
         }
 
         impl SentryError for ErrorKind {
-            fn try_expand(items: &mut Items, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+            fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
                 $(
                     if let Some(p) = <$name as SentryError>::try_expand(items, ctx)? {
+                        relay_log::debug!("expanded item using: {name}", name = stringify!($name));
                         return Ok(Some(ParsedError {
                             error: p.error.into(),
                             fully_normalized: p.fully_normalized,
