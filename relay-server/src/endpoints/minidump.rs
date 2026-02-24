@@ -375,7 +375,7 @@ mod tests {
 
         // With a limit smaller than the decompressed size, decoding should fail with Overflow
         let result = decode_minidump(compressed, 50);
-        assert!(matches!(dbg!(result), Err(BadStoreRequest::Overflow(_))));
+        assert!(matches!(result, Err(BadStoreRequest::Overflow(_))));
 
         Ok(())
     }
