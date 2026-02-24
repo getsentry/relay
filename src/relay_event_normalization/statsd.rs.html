@@ -60,32 +60,33 @@
 <a href=#60 id=60 data-nosnippet>60</a>        <span class="prelude-val">Some</span>(o) <span class="kw">if </span>o.starts_with(<span class="string">"auto.ai.mcp_server"</span>) =&gt; <span class="string">"mcp_server"</span>,
 <a href=#61 id=61 data-nosnippet>61</a>        <span class="prelude-val">Some</span>(o) <span class="kw">if </span>o.starts_with(<span class="string">"auto.ai.mcp"</span>) =&gt; <span class="string">"mcp"</span>,
 <a href=#62 id=62 data-nosnippet>62</a>        <span class="prelude-val">Some</span>(o) <span class="kw">if </span>o.starts_with(<span class="string">"auto.ai.claude_agent_sdk"</span>) =&gt; <span class="string">"claude_agent_sdk"</span>,
-<a href=#63 id=63 data-nosnippet>63</a>        <span class="prelude-val">Some</span>(o) <span class="kw">if </span>o.starts_with(<span class="string">"auto.ai."</span>) =&gt; <span class="string">"other_ai"</span>,
-<a href=#64 id=64 data-nosnippet>64</a>        <span class="prelude-val">Some</span>(o) <span class="kw">if </span>o.starts_with(<span class="string">"manual"</span>) =&gt; <span class="string">"manual"</span>,
-<a href=#65 id=65 data-nosnippet>65</a>        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="string">"other"</span>,
-<a href=#66 id=66 data-nosnippet>66</a>        <span class="prelude-val">None </span>=&gt; <span class="string">"unknown"</span>,
-<a href=#67 id=67 data-nosnippet>67</a>    }
-<a href=#68 id=68 data-nosnippet>68</a>}
-<a href=#69 id=69 data-nosnippet>69</a>
-<a href=#70 id=70 data-nosnippet>70</a><span class="kw">pub fn </span>platform_tag(platform: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#71 id=71 data-nosnippet>71</a>    <span class="kw">match </span>platform {
-<a href=#72 id=72 data-nosnippet>72</a>        <span class="prelude-val">Some</span>(<span class="string">"cocoa"</span>) =&gt; <span class="string">"cocoa"</span>,
-<a href=#73 id=73 data-nosnippet>73</a>        <span class="prelude-val">Some</span>(<span class="string">"csharp"</span>) =&gt; <span class="string">"csharp"</span>,
-<a href=#74 id=74 data-nosnippet>74</a>        <span class="prelude-val">Some</span>(<span class="string">"edge"</span>) =&gt; <span class="string">"edge"</span>,
-<a href=#75 id=75 data-nosnippet>75</a>        <span class="prelude-val">Some</span>(<span class="string">"go"</span>) =&gt; <span class="string">"go"</span>,
-<a href=#76 id=76 data-nosnippet>76</a>        <span class="prelude-val">Some</span>(<span class="string">"java"</span>) =&gt; <span class="string">"java"</span>,
-<a href=#77 id=77 data-nosnippet>77</a>        <span class="prelude-val">Some</span>(<span class="string">"javascript"</span>) =&gt; <span class="string">"javascript"</span>,
-<a href=#78 id=78 data-nosnippet>78</a>        <span class="prelude-val">Some</span>(<span class="string">"julia"</span>) =&gt; <span class="string">"julia"</span>,
-<a href=#79 id=79 data-nosnippet>79</a>        <span class="prelude-val">Some</span>(<span class="string">"native"</span>) =&gt; <span class="string">"native"</span>,
-<a href=#80 id=80 data-nosnippet>80</a>        <span class="prelude-val">Some</span>(<span class="string">"node"</span>) =&gt; <span class="string">"node"</span>,
-<a href=#81 id=81 data-nosnippet>81</a>        <span class="prelude-val">Some</span>(<span class="string">"objc"</span>) =&gt; <span class="string">"objc"</span>,
-<a href=#82 id=82 data-nosnippet>82</a>        <span class="prelude-val">Some</span>(<span class="string">"perl"</span>) =&gt; <span class="string">"perl"</span>,
-<a href=#83 id=83 data-nosnippet>83</a>        <span class="prelude-val">Some</span>(<span class="string">"php"</span>) =&gt; <span class="string">"php"</span>,
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="prelude-val">Some</span>(<span class="string">"python"</span>) =&gt; <span class="string">"python"</span>,
-<a href=#85 id=85 data-nosnippet>85</a>        <span class="prelude-val">Some</span>(<span class="string">"ruby"</span>) =&gt; <span class="string">"ruby"</span>,
-<a href=#86 id=86 data-nosnippet>86</a>        <span class="prelude-val">Some</span>(<span class="string">"swift"</span>) =&gt; <span class="string">"swift"</span>,
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="string">"other"</span>,
-<a href=#88 id=88 data-nosnippet>88</a>        <span class="prelude-val">None </span>=&gt; <span class="string">"unknown"</span>,
-<a href=#89 id=89 data-nosnippet>89</a>    }
-<a href=#90 id=90 data-nosnippet>90</a>}
+<a href=#63 id=63 data-nosnippet>63</a>        <span class="prelude-val">Some</span>(o) <span class="kw">if </span>o.starts_with(<span class="string">"auto.ai.laravel"</span>) =&gt; <span class="string">"laravel"</span>,
+<a href=#64 id=64 data-nosnippet>64</a>        <span class="prelude-val">Some</span>(o) <span class="kw">if </span>o.starts_with(<span class="string">"auto.ai."</span>) =&gt; <span class="string">"other_ai"</span>,
+<a href=#65 id=65 data-nosnippet>65</a>        <span class="prelude-val">Some</span>(o) <span class="kw">if </span>o.starts_with(<span class="string">"manual"</span>) =&gt; <span class="string">"manual"</span>,
+<a href=#66 id=66 data-nosnippet>66</a>        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="string">"other"</span>,
+<a href=#67 id=67 data-nosnippet>67</a>        <span class="prelude-val">None </span>=&gt; <span class="string">"unknown"</span>,
+<a href=#68 id=68 data-nosnippet>68</a>    }
+<a href=#69 id=69 data-nosnippet>69</a>}
+<a href=#70 id=70 data-nosnippet>70</a>
+<a href=#71 id=71 data-nosnippet>71</a><span class="kw">pub fn </span>platform_tag(platform: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#72 id=72 data-nosnippet>72</a>    <span class="kw">match </span>platform {
+<a href=#73 id=73 data-nosnippet>73</a>        <span class="prelude-val">Some</span>(<span class="string">"cocoa"</span>) =&gt; <span class="string">"cocoa"</span>,
+<a href=#74 id=74 data-nosnippet>74</a>        <span class="prelude-val">Some</span>(<span class="string">"csharp"</span>) =&gt; <span class="string">"csharp"</span>,
+<a href=#75 id=75 data-nosnippet>75</a>        <span class="prelude-val">Some</span>(<span class="string">"edge"</span>) =&gt; <span class="string">"edge"</span>,
+<a href=#76 id=76 data-nosnippet>76</a>        <span class="prelude-val">Some</span>(<span class="string">"go"</span>) =&gt; <span class="string">"go"</span>,
+<a href=#77 id=77 data-nosnippet>77</a>        <span class="prelude-val">Some</span>(<span class="string">"java"</span>) =&gt; <span class="string">"java"</span>,
+<a href=#78 id=78 data-nosnippet>78</a>        <span class="prelude-val">Some</span>(<span class="string">"javascript"</span>) =&gt; <span class="string">"javascript"</span>,
+<a href=#79 id=79 data-nosnippet>79</a>        <span class="prelude-val">Some</span>(<span class="string">"julia"</span>) =&gt; <span class="string">"julia"</span>,
+<a href=#80 id=80 data-nosnippet>80</a>        <span class="prelude-val">Some</span>(<span class="string">"native"</span>) =&gt; <span class="string">"native"</span>,
+<a href=#81 id=81 data-nosnippet>81</a>        <span class="prelude-val">Some</span>(<span class="string">"node"</span>) =&gt; <span class="string">"node"</span>,
+<a href=#82 id=82 data-nosnippet>82</a>        <span class="prelude-val">Some</span>(<span class="string">"objc"</span>) =&gt; <span class="string">"objc"</span>,
+<a href=#83 id=83 data-nosnippet>83</a>        <span class="prelude-val">Some</span>(<span class="string">"perl"</span>) =&gt; <span class="string">"perl"</span>,
+<a href=#84 id=84 data-nosnippet>84</a>        <span class="prelude-val">Some</span>(<span class="string">"php"</span>) =&gt; <span class="string">"php"</span>,
+<a href=#85 id=85 data-nosnippet>85</a>        <span class="prelude-val">Some</span>(<span class="string">"python"</span>) =&gt; <span class="string">"python"</span>,
+<a href=#86 id=86 data-nosnippet>86</a>        <span class="prelude-val">Some</span>(<span class="string">"ruby"</span>) =&gt; <span class="string">"ruby"</span>,
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="prelude-val">Some</span>(<span class="string">"swift"</span>) =&gt; <span class="string">"swift"</span>,
+<a href=#88 id=88 data-nosnippet>88</a>        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="string">"other"</span>,
+<a href=#89 id=89 data-nosnippet>89</a>        <span class="prelude-val">None </span>=&gt; <span class="string">"unknown"</span>,
+<a href=#90 id=90 data-nosnippet>90</a>    }
+<a href=#91 id=91 data-nosnippet>91</a>}
 </code></pre></div></section></main></body></html>
