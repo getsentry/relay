@@ -324,10 +324,10 @@ fn enrich_ai_span_data(
     set_total_tokens(data);
 
     // Default response model to request model if not set.
-    if data.gen_ai_response_model.value().is_none() {
-        if let Some(request_model) = data.gen_ai_request_model.value().cloned() {
-            data.gen_ai_response_model.set_value(Some(request_model));
-        }
+    if data.gen_ai_response_model.value().is_none()
+        && let Some(request_model) = data.gen_ai_request_model.value().cloned()
+    {
+        data.gen_ai_response_model.set_value(Some(request_model));
     }
 
     if let Some(model_costs) = model_costs {
