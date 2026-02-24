@@ -30,7 +30,7 @@ use crate::services::projects::cache::Project;
 #[cfg(feature = "processing")]
 use crate::services::upload::Error as ServiceError;
 use crate::utils::upload::SignedLocation;
-use crate::utils::{ExactStream, tus, upload};
+use crate::utils::{CountingStream, tus, upload};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -105,10 +105,11 @@ async fn handle(
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    let upload_length = tus::validate_headers(&headers).map_err(Error::from)?;
+    let upload_length =
+        tus::validate_headers(&headers, meta.request_trust().is_trusted()).map_err(Error::from)?;
     let config = state.config();
 
-    if upload_length > config.max_upload_size() {
+    if upload_length.is_some_and(|len| len > config.max_upload_size()) {
         return Err(StatusCode::PAYLOAD_TOO_LARGE.into());
     }
 
@@ -120,12 +121,13 @@ async fn handle(
         .await
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
-    let scoping = check_request(&state, meta, upload_length, project).await?;
+    let scoping = check_request(&state, meta, upload_length.unwrap_or(1), project).await?;
     let stream = body
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
-    let stream = ExactStream::new(stream, upload_length);
+    let stream = CountingStream::new(stream, upload_length);
+    let byte_counter = stream.byte_counter();
 
     let location = upload::Sink::new(&state)
         .upload(config, upload::Stream { scoping, stream })
@@ -135,7 +137,7 @@ async fn handle(
     let mut response = location.into_response();
     response
         .headers_mut()
-        .insert(tus::UPLOAD_OFFSET, upload_length.into());
+        .insert(tus::UPLOAD_OFFSET, byte_counter.get().into());
 
     Ok(response)
 }

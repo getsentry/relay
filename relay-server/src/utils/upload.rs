@@ -18,7 +18,7 @@ use crate::service::ServiceState;
 #[cfg(feature = "processing")]
 use crate::services::upload::{Error as ServiceError, Upload};
 use crate::services::upstream::UpstreamRelay;
-use crate::utils::{ExactStream, ForwardError, ForwardRequest, ForwardResponse, tus};
+use crate::utils::{CountingStream, ForwardError, ForwardRequest, ForwardResponse, tus};
 
 /// An error that occurs during upload.
 #[derive(Debug, thiserror::Error)]
@@ -47,7 +47,7 @@ pub struct Stream {
     /// The organization and project the stream belongs to.
     pub scoping: Scoping,
     /// The body to be uploaded to objectstore, with length validation.
-    pub stream: ExactStream<BoxStream<'static, std::io::Result<Bytes>>>,
+    pub stream: CountingStream<BoxStream<'static, std::io::Result<Bytes>>>,
 }
 
 /// A dispatcher for uploading large files.
@@ -97,13 +97,14 @@ impl Sink {
             #[cfg(feature = "processing")]
             Sink::Upload(addr) => {
                 let project_id = stream.scoping.project_id;
-                let length = stream.stream.expected_length();
+                let byte_counter = stream.stream.byte_counter();
                 let key = addr
                     .send(stream)
                     .await
                     .map_err(|_send_error| Error::ServiceUnavailable)?
                     .map_err(Error::UploadService)?
                     .into_inner();
+                let length = byte_counter.get();
 
                 Location {
                     project_id,
