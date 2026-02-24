@@ -6,6 +6,10 @@
 
 - Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
 
+**Features**:
+
+- Populate gen_ai.response.model from gen_ai.request.model if not already set. ([#5654](https://github.com/getsentry/relay/pull/5654))
+
 ## 26.2.1
 
 **Bug Fixes**:
