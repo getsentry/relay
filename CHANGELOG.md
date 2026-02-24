@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
+
 ## 26.2.1
 
 **Bug Fixes**:

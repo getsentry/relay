@@ -119,13 +119,6 @@ fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadSt
             }
             Ok(Bytes::from(decoded))
         }
-        Err(err) if err.kind() == std::io::ErrorKind::Other => {
-            // Size limit exceeded during decompression
-            relay_log::trace!("decompressed minidump exceeds size limit");
-            Err(BadStoreRequest::Overflow(DiscardItemType::Attachment(
-                DiscardAttachmentType::Minidump,
-            )))
-        }
         Err(err) => {
             // we detected a compression container but failed to decode it
             relay_log::trace!("invalid compression container");
