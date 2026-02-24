@@ -108,7 +108,7 @@ fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadSt
         return Ok(minidump_data);
     };
 
-    let decoder = decoder.take(max_size as u64 + 1);
+    let decoder = decoder.take(max_size.saturating_add(1) as u64);
 
     match run_decoder(decoder) {
         Ok(decoded) => {
