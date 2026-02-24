@@ -183,7 +183,7 @@ sentry = { version = "0.41.0", default-features = false, features = [
   "transport",
 ] }
 sentry-core = "0.41.0"
-sentry-kafka-schemas = { version = "2.1.23", default-features = false }
+sentry-kafka-schemas = { version = "2.1.24", default-features = false }
 sentry-release-parser = { version = "1.4.0", default-features = false, features = [
   "semver-1",
 ] }
