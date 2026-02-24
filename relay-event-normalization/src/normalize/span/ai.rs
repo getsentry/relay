@@ -678,6 +678,43 @@ mod tests {
         "#);
     }
 
+    /// Test that the response model is defaulted to the request model if not set.
+    #[test]
+    fn test_default_response_model_from_request_model() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.request.model": "gpt-4",
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.response.model": "gpt-4",
+          "gen_ai.request.model": "gpt-4",
+          "gen_ai.operation.type": "ai_client"
+        }
+        "#);
+    }
+
+    /// Test that the response model is defaulted to the request model if not set.
+    #[test]
+    fn test_default_response_model_not_overridden() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.request.model": "gpt-4",
+            "gen_ai.response.model": "gpt-4-abcd",
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.response.model": "gpt-4-abcd",
+          "gen_ai.request.model": "gpt-4",
+          "gen_ai.operation.type": "ai_client"
+        }
+        "#);
+    }
+
     /// Test that an AI span is detected from a gen_ai.operation.name attribute.
     #[test]
     fn test_is_ai_span_from_gen_ai_operation_name() {
