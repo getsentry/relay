@@ -408,8 +408,8 @@ mod tests {
             "gen_ai.operation.type" => "ai_client".to_owned(),
             "gen_ai.usage.input_tokens" => 1000,
             "gen_ai.usage.output_tokens" => 2000,
-            "gen_ai.request.model" => "gpt4-21-04".to_owned(),
-            "gen_ai.response.model" => "gpt4-21-04-abcd".to_owned(),
+            "gen_ai.request.model" => "gpt4".to_owned(),
+            "gen_ai.response.model" => "gpt4-21-04".to_owned(),
 
             "gen_ai.cost.input_tokens" => 999.0,
         });
@@ -440,11 +440,11 @@ mod tests {
           },
           "gen_ai.request.model": {
             "type": "string",
-            "value": "gpt4-21-04"
+            "value": "gpt4"
           },
           "gen_ai.response.model": {
             "type": "string",
-            "value": "gpt4-21-04-abcd"
+            "value": "gpt4-21-04"
           },
           "gen_ai.response.tokens_per_second": {
             "type": "double",
