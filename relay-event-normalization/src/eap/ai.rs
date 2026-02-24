@@ -64,14 +64,16 @@ fn is_ai_item(attributes: &mut Attributes) -> bool {
 
 /// Normalizes the [`GEN_AI_RESPONSE_MODEL`] attribute by defaulting to the [`GEN_AI_REQUEST_MODEL`] if it is missing.
 fn normalize_model(attributes: &mut Attributes) {
+    if attributes.contains_key(GEN_AI_RESPONSE_MODEL) {
+        return;
+    }
     let Some(model) = attributes
         .get_value(GEN_AI_REQUEST_MODEL)
         .and_then(|v| v.as_str())
     else {
         return;
     };
-    let model = model.to_owned();
-    attributes.insert_if_missing(GEN_AI_RESPONSE_MODEL, || model);
+    attributes.insert(GEN_AI_RESPONSE_MODEL, model.to_owned());
 }
 
 /// Normalizes the [`GEN_AI_OPERATION_TYPE`] and infers it from the AI operation if it is missing.
