@@ -70,18 +70,9 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
 ///
 /// Stops reading once `max_size` is exceeded and returns an error. This prevents
 /// decompression bombs from exhausting memory.
-fn run_decoder(decoder: Box<dyn Read>, max_size: usize) -> std::io::Result<Vec<u8>> {
+fn run_decoder(mut decoder: impl Read) -> std::io::Result<Vec<u8>> {
     let mut buffer = Vec::new();
-    // Read up to max_size + 1 bytes to detect if the limit is exceeded
-    decoder
-        .take((max_size + 1) as u64)
-        .read_to_end(&mut buffer)?;
-    if buffer.len() > max_size {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "decompressed content exceeds maximum attachment size",
-        ));
-    }
+    decoder.read_to_end(&mut buffer)?;
     Ok(buffer)
 }
 
@@ -111,26 +102,34 @@ fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
 ///
 /// Returns an `Overflow` error if the decompressed size exceeds `max_size`.
 fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadStoreRequest> {
-    match decoder_from(minidump_data.clone()) {
-        Some(decoder) => match run_decoder(decoder, max_size) {
-            Ok(decoded) => Ok(Bytes::from(decoded)),
-            Err(err) if err.kind() == std::io::ErrorKind::Other => {
-                // Size limit exceeded during decompression
-                relay_log::trace!("decompressed minidump exceeds size limit");
-                Err(BadStoreRequest::Overflow(DiscardItemType::Attachment(
+    let Some(decoder) = decoder_from(minidump_data.clone()) else {
+        // this means we haven't detected any compression container
+        // proceed to process the payload untouched (as a plain minidump).
+        return Ok(minidump_data);
+    };
+
+    let decoder = decoder.take(max_size as u64 + 1);
+
+    match run_decoder(decoder) {
+        Ok(decoded) => {
+            if decoded.len() > max_size {
+                return Err(BadStoreRequest::Overflow(DiscardItemType::Attachment(
                     DiscardAttachmentType::Minidump,
-                )))
+                )));
             }
-            Err(err) => {
-                // we detected a compression container but failed to decode it
-                relay_log::trace!("invalid compression container");
-                Err(BadStoreRequest::InvalidCompressionContainer(err))
-            }
-        },
-        None => {
-            // this means we haven't detected any compression container
-            // proceed to process the payload untouched (as a plain minidump).
-            Ok(minidump_data)
+            Ok(Bytes::from(decoded))
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::Other => {
+            // Size limit exceeded during decompression
+            relay_log::trace!("decompressed minidump exceeds size limit");
+            Err(BadStoreRequest::Overflow(DiscardItemType::Attachment(
+                DiscardAttachmentType::Minidump,
+            )))
+        }
+        Err(err) => {
+            // we detected a compression container but failed to decode it
+            relay_log::trace!("invalid compression container");
+            Err(BadStoreRequest::InvalidCompressionContainer(err))
         }
     }
 }
@@ -341,23 +340,21 @@ mod tests {
     #[test]
     fn test_validate_encoded_minidump() -> Result<(), Box<dyn std::error::Error>> {
         let encoders: Vec<EncodeFunction> = vec![encode_gzip, encode_zst, encode_bzip, encode_xz];
-        let max_size = 1024 * 1024; // 1 MB, large enough for test data
-
         for encoder in &encoders {
             let be_minidump = b"PMDMxxxxxx";
             let compressed = encoder(be_minidump)?;
             let decoder = decoder_from(compressed).unwrap();
-            assert!(run_decoder(decoder, max_size).is_ok());
+            assert!(run_decoder(decoder).is_ok());
 
             let le_minidump = b"MDMPxxxxxx";
             let compressed = encoder(le_minidump)?;
             let decoder = decoder_from(compressed).unwrap();
-            assert!(run_decoder(decoder, max_size).is_ok());
+            assert!(run_decoder(decoder).is_ok());
 
             let garbage = b"xxxxxx";
             let compressed = encoder(garbage)?;
             let decoder = decoder_from(compressed).unwrap();
-            let decoded = run_decoder(decoder, max_size);
+            let decoded = run_decoder(decoder);
             assert!(decoded.is_ok());
             assert!(validate_minidump(&decoded.unwrap()).is_err());
         }
@@ -378,7 +375,7 @@ mod tests {
 
         // With a limit smaller than the decompressed size, decoding should fail with Overflow
         let result = decode_minidump(compressed, 50);
-        assert!(matches!(result, Err(BadStoreRequest::Overflow(_))));
+        assert!(matches!(dbg!(result), Err(BadStoreRequest::Overflow(_))));
 
         Ok(())
     }
