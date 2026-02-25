@@ -339,7 +339,7 @@ impl ProfileChunk {
 
 /// Expands a binary Perfetto trace into a Sample v2 profile chunk.
 ///
-/// Decodes the protobuf trace, converts it into the internal [`sample::v2`] format,
+/// Decodes the protobuf trace, converts it into the internal Sample v2 format,
 /// merges the provided JSON `metadata_json` (containing platform, environment, etc.),
 /// and returns the serialized JSON profile chunk ready for ingestion.
 pub fn expand_perfetto(
