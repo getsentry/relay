@@ -263,7 +263,7 @@ impl UpstreamRequest for UploadRequest {
     }
 
     fn set_relay_id(&self) -> bool {
-        false // same as ForwardRequest
+        true // needed for trusted requests with `Upload-Defer-Length: 1`
     }
 
     fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
