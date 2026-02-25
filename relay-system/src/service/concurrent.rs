@@ -7,26 +7,29 @@ use futures::{FutureExt, StreamExt};
 use crate::Service;
 use crate::service::simple::SimpleService;
 
-/// Represents whether the [`ConcurrentService`] should load-shed or apply
-/// backpressure when it's maximum concurrency has been reached.
-#[derive(Debug, Clone, Copy)]
-pub enum CongestionControl {
-    /// Leave incoming messages in the queue.
-    Backpressure,
-    /// Drop incoming messages if there is no capacity.
-    LoadShed,
-}
-
-impl CongestionControl {
-    fn is_loadshed(&self) -> bool {
-        matches!(self, Self::LoadShed)
-    }
-}
-
 /// A service that handles messages concurrently.
 ///
 /// When the service reaches its maximum concurrency, it either drops messages
 /// or keeps them in the input queue.
+///
+/// ```rust
+/// struct MyService;
+///
+/// struct MyMessage;
+/// impl Interface for MyMessage;
+///
+/// impl SimpleService for MyService {
+///     type Interface = MyMessage;
+///     async fn handle_message(message: MyMessage) {
+///         // do your thing
+///     }
+/// }
+///
+/// // `Loadshed` implementation is required but can be empty.
+/// impl LoadShed for MyService {}
+///
+/// let concurrent_service = ConcurrentService::new(MyService).with_concurrency_limit(5);
+/// ```
 pub struct ConcurrentService<S>
 where
     S: SimpleService + Clone + Send + Sync,
@@ -55,7 +58,7 @@ where
 
     /// Sets the maximum number of messages that can be handled concurrently.
     pub fn with_concurrency_limit(mut self, limit: usize) -> Self {
-        self.self.max_concurrency = limit;
+        self.max_concurrency = limit;
         self
     }
 
@@ -70,7 +73,7 @@ where
 
 impl<S> Service for ConcurrentService<S>
 where
-    S: SimpleService + Clone + Send + Sync + 'static,
+    S: SimpleService + LoadShed<S::Interface> + Clone + Send + Sync + 'static,
 {
     type Interface = S::Interface;
 
@@ -92,16 +95,37 @@ where
                         self.pending
                             .push(async move { inner.handle_message(message).await }.boxed());
                     } else {
-                        // TODO: emit a metric
-                        relay_log::error!(
-                            name = Self::name(),
-                            "Concurrent service dropped a message",
-                        );
+                        self.inner.handle_loadshed(message);
                     }
                 },
                 else => break,
             }
         }
+    }
+}
+
+/// A trait describing what to do with a message that was load-shed.
+///
+/// The default implementation is to do nothing, so implementations may be empty,
+/// especially when the congestion control mechanism is backpressure.
+pub trait LoadShed<T> {
+    /// Gets called for every message that gets dropped by loadshedding.
+    fn handle_loadshed(&self, _message: T) {}
+}
+
+/// Represents whether the [`ConcurrentService`] should load-shed or apply
+/// backpressure when it's maximum concurrency has been reached.
+#[derive(Debug, Clone, Copy)]
+pub enum CongestionControl {
+    /// Leave incoming messages in the queue.
+    Backpressure,
+    /// Drop incoming messages if there is no capacity.
+    LoadShed,
+}
+
+impl CongestionControl {
+    fn is_loadshed(&self) -> bool {
+        matches!(self, Self::LoadShed)
     }
 }
 
@@ -133,6 +157,8 @@ mod tests {
             self.0.fetch_add(1, Ordering::Relaxed);
         }
     }
+
+    impl LoadShed<Incr> for CountingService {}
 
     #[tokio::test(start_paused = true)]
     async fn loadshed() {
