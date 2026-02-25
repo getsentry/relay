@@ -20,8 +20,10 @@ mod registry;
 mod simple;
 mod status;
 
+pub use self::concurrent::{ConcurrentService, CongestionControl};
 pub(crate) use self::registry::Registry as ServiceRegistry;
 pub use self::registry::{ServiceId, ServiceMetrics, ServicesMetrics};
+pub use self::simple::SimpleService;
 pub use self::status::{
     ServiceError, ServiceJoinHandle, ServiceStatusError, ServiceStatusJoinHandle,
 };

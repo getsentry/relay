@@ -5,24 +5,32 @@ use futures::{FutureExt, StreamExt};
 use crate::Service;
 use crate::service::simple::SimpleService;
 
+/// Represents whether the [`ConcurrentService`] should load-shed or apply
+/// backpressure when it's maximum concurrency has been reached.
 #[derive(Debug, Clone, Copy)]
-enum CongestionStrategy {
+pub enum CongestionControl {
+    /// Leave incoming messages in the queue.
     Backpressure,
+    /// Drop incoming messages if there is no capacity.
     LoadShed,
 }
 
-impl CongestionStrategy {
+impl CongestionControl {
     fn is_loadshed(&self) -> bool {
         matches!(self, Self::LoadShed)
     }
 }
 
-struct ConcurrentService<S>
+/// A service that handles messages concurrently.
+///
+/// When the service reaches its maximum concurrency, it either drops messages
+/// or keeps them in the input queue.
+pub struct ConcurrentService<S>
 where
     S: SimpleService + Clone + Send + Sync,
 {
     inner: S,
-    congestion_strategy: CongestionStrategy,
+    congestion_control: CongestionControl,
     max_concurrency: usize,
     pending: FuturesUnordered<BoxFuture<'static, ()>>,
 }
@@ -31,10 +39,11 @@ impl<S> ConcurrentService<S>
 where
     S: SimpleService + Clone + Send + Sync,
 {
-    fn new(inner: S, congestion_strategy: CongestionStrategy, max_concurrency: usize) -> Self {
+    /// Creates a new concurrent service from a [`SimpleService`].
+    pub fn new(inner: S, congestion_control: CongestionControl, max_concurrency: usize) -> Self {
         Self {
             inner,
-            congestion_strategy,
+            congestion_control,
             max_concurrency,
             pending: FuturesUnordered::new(),
         }
@@ -49,23 +58,10 @@ where
 
     async fn run(mut self, mut rx: super::Receiver<Self::Interface>) {
         loop {
-            // if self.pending.len() >= self.max_concurrency {
-            //     match self.congestion_strategy {
-            //         CongestionStrategy::Backpressure => {
-            //             // just wait for capacity.
-            //         }
-            //         CongestionStrategy::LoadShed => {
-            //             while let Some(x) = rx.recv()
-            //         },
-            //     }
-            //     // Wait for capacity:
-            //     let _ = self.pending.next().await;
-            // }
-            // TODO: self.name()
             relay_log::trace!("Concurrent service loop iteration");
 
             let has_capacity = self.pending.len() < self.max_concurrency;
-            let should_consume = has_capacity || self.congestion_strategy.is_loadshed();
+            let should_consume = has_capacity || self.congestion_control.is_loadshed();
 
             tokio::select! {
                 // Bias towards handling responses so that there's space for new incoming requests.
@@ -78,10 +74,13 @@ where
                         self.pending
                             .push(async move { inner.handle_message(message).await }.boxed());
                     } else {
-                        relay_log::error!("Dropping");
+                        // TODO: emit a metric
+                        relay_log::error!(
+                            name = Self::name(),
+                            "Concurrent service dropped a message",
+                        );
                     }
                 },
-            //     // TODO: what if pending.next returns None?
                 else => break,
             }
         }
@@ -120,7 +119,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn loadshed() {
         let inner = CountingService(Arc::new(AtomicUsize::new(0)));
-        let service = ConcurrentService::new(inner.clone(), CongestionStrategy::LoadShed, 5);
+        let service = ConcurrentService::new(inner.clone(), CongestionControl::LoadShed, 5);
         let addr = service.start_detached();
 
         for _ in 0..10 {
@@ -136,7 +135,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn backpressure() {
         let inner = CountingService(Arc::new(AtomicUsize::new(0)));
-        let service = ConcurrentService::new(inner.clone(), CongestionStrategy::Backpressure, 5);
+        let service = ConcurrentService::new(inner.clone(), CongestionControl::Backpressure, 5);
         let addr = service.start_detached();
 
         for _ in 0..10 {
