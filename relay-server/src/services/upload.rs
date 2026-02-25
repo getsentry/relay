@@ -204,6 +204,11 @@ impl SimpleService for UploadService {
 
 impl LoadShed<Upload> for UploadService {
     fn handle_loadshed(&self, message: Upload) {
+        relay_statsd::metric!(
+            counter(RelayCounters::AttachmentUpload) += message.attachment_count() as u64,
+            result = "load_shed",
+            type = message.ty(),
+        );
         match message {
             Upload::Envelope(envelope) => {
                 // Event attachments can still go the old route.

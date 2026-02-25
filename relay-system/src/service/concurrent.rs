@@ -6,6 +6,7 @@ use futures::{FutureExt, StreamExt};
 
 use crate::Service;
 use crate::service::simple::SimpleService;
+use crate::statsd::SystemGauges;
 
 /// A service that handles messages concurrently.
 ///
@@ -100,6 +101,11 @@ where
                 },
                 else => break,
             }
+
+            relay_statsd::metric!(
+                gauge(SystemGauges::ServiceConcurrency) = self.pending.len() as u64,
+                service = Self::name()
+            );
         }
     }
 }
