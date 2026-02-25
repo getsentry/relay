@@ -1280,7 +1280,10 @@ mod tests {
         let t0 = data.samples[0].timestamp.to_f64();
         let t1 = data.samples[1].timestamp.to_f64();
         let t2 = data.samples[2].timestamp.to_f64();
-        assert!(t0 < t1 && t1 < t2, "expected sorted timestamps: {t0}, {t1}, {t2}");
+        assert!(
+            t0 < t1 && t1 < t2,
+            "expected sorted timestamps: {t0}, {t1}, {t2}"
+        );
         // The gap between t1 and t2 should be ~5ms (the -5ms sample comes before the +20ms one).
         let gap = t2 - t1;
         assert!((gap - 0.005).abs() < 0.001, "expected ~5ms gap, got {gap}");
