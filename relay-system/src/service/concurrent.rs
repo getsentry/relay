@@ -1,5 +1,3 @@
-use std::usize;
-
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
@@ -13,21 +11,24 @@ use crate::statsd::SystemGauges;
 /// When the service reaches its maximum concurrency, it either drops messages
 /// or keeps them in the input queue.
 ///
-/// ```rust
+/// ```
+/// use relay_system::{Interface, SimpleService, LoadShed, ConcurrentService};
+///
+/// #[derive(Clone)]
 /// struct MyService;
 ///
 /// struct MyMessage;
-/// impl Interface for MyMessage;
+/// impl Interface for MyMessage {}
 ///
 /// impl SimpleService for MyService {
 ///     type Interface = MyMessage;
-///     async fn handle_message(message: MyMessage) {
+///     async fn handle_message(&self, message: MyMessage) {
 ///         // do your thing
 ///     }
 /// }
 ///
 /// // `Loadshed` implementation is required but can be empty.
-/// impl LoadShed for MyService {}
+/// impl LoadShed<MyMessage> for MyService {}
 ///
 /// let concurrent_service = ConcurrentService::new(MyService).with_concurrency_limit(5);
 /// ```
