@@ -1,3 +1,5 @@
+use std::usize;
+
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
@@ -40,13 +42,29 @@ where
     S: SimpleService + Clone + Send + Sync,
 {
     /// Creates a new concurrent service from a [`SimpleService`].
-    pub fn new(inner: S, congestion_control: CongestionControl, max_concurrency: usize) -> Self {
+    ///
+    /// The default strategy for congestion control is to keep messages in the input queue.
+    pub fn new(inner: S) -> Self {
         Self {
             inner,
-            congestion_control,
-            max_concurrency,
+            congestion_control: CongestionControl::Backpressure,
+            max_concurrency: usize::MAX,
             pending: FuturesUnordered::new(),
         }
+    }
+
+    /// Sets the maximum number of messages that can be handled concurrently.
+    pub fn with_concurrency_limit(mut self, limit: usize) -> Self {
+        self.self.max_concurrency = limit;
+        self
+    }
+
+    /// Changes the congestion control strategy to load-shedding.
+    ///
+    /// This will drop messages.
+    pub fn with_loadshedding(mut self) -> Self {
+        self.congestion_control = CongestionControl::LoadShed;
+        self
     }
 }
 
@@ -119,7 +137,9 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn loadshed() {
         let inner = CountingService(Arc::new(AtomicUsize::new(0)));
-        let service = ConcurrentService::new(inner.clone(), CongestionControl::LoadShed, 5);
+        let service = ConcurrentService::new(inner.clone())
+            .with_concurrency_limit(5)
+            .with_loadshedding();
         let addr = service.start_detached();
 
         for _ in 0..10 {
@@ -135,7 +155,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn backpressure() {
         let inner = CountingService(Arc::new(AtomicUsize::new(0)));
-        let service = ConcurrentService::new(inner.clone(), CongestionControl::Backpressure, 5);
+        let service = ConcurrentService::new(inner.clone()).with_concurrency_limit(5);
         let addr = service.start_detached();
 
         for _ in 0..10 {
