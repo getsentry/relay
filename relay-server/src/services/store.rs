@@ -154,6 +154,11 @@ pub struct StoreProfileChunk {
     ///
     /// Quantities are different for backend and ui profile chunks.
     pub quantities: Quantities,
+    /// Raw binary profile blob. The `platform` field describes the format, e.g. Perfetto.
+    ///
+    /// Sent alongside the expanded JSON payload because the expansion only extracts a
+    /// minimum of information; the raw profile is preserved for further processing downstream.
+    pub raw_profile: Option<Bytes>,
 }
 
 impl Counted for StoreProfileChunk {
@@ -722,6 +727,7 @@ impl StoreService {
                     scoping.project_id.to_string(),
                 )]),
                 payload: message.payload,
+                raw_profile: message.raw_profile,
             };
 
             self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))
@@ -1515,6 +1521,8 @@ struct ProfileChunkKafkaMessage {
     #[serde(skip)]
     headers: BTreeMap<String, String>,
     payload: Bytes,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    raw_profile: Option<Bytes>,
 }
 
 /// An enum over all possible ingest messages.

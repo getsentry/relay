@@ -39,6 +39,7 @@
 //!
 //! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka.
 
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::net::IpAddr;
 use std::time::Duration;
@@ -63,6 +64,7 @@ mod error;
 mod extract_from_transaction;
 mod measurements;
 mod outcomes;
+mod perfetto;
 mod sample;
 mod transaction_metadata;
 mod types;
@@ -99,7 +101,7 @@ impl ProfileType {
     /// <https://github.com/getsentry/sentry/blob/ed2e1c8bcd0d633e6f828fcfbeefbbdd98ef3dba/src/sentry/profiles/task.py#L995>
     pub fn from_platform(platform: &str) -> Self {
         match platform {
-            "cocoa" | "android" | "javascript" => Self::Ui,
+            "cocoa" | "android" | "javascript" | "perfetto" => Self::Ui,
             _ => Self::Backend,
         }
     }
@@ -335,6 +337,31 @@ impl ProfileChunk {
     }
 }
 
+/// Expands a binary Perfetto trace into a Sample v2 profile chunk.
+///
+/// Decodes the protobuf trace, converts it into the internal [`sample::v2`] format,
+/// merges the provided JSON `metadata_json` (containing platform, environment, etc.),
+/// and returns the serialized JSON profile chunk ready for ingestion.
+pub fn expand_perfetto(
+    perfetto_bytes: &[u8],
+    metadata_json: &[u8],
+) -> Result<Vec<u8>, ProfileError> {
+    let d = &mut Deserializer::from_slice(metadata_json);
+    let metadata: sample::v2::ProfileMetadata =
+        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
+
+    let (profile_data, debug_images) = perfetto::convert(perfetto_bytes)?;
+    let mut chunk = sample::v2::ProfileChunk {
+        measurements: BTreeMap::new(),
+        metadata,
+        profile: profile_data,
+    };
+    chunk.metadata.debug_meta.images.extend(debug_images);
+    chunk.normalize()?;
+
+    serde_json::to_vec(&chunk).map_err(|_| ProfileError::CannotSerializePayload)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -398,5 +425,37 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn test_expand_perfetto() {
+        let perfetto_bytes = include_bytes!("../tests/fixtures/android/perfetto/android.pftrace");
+
+        let metadata_json = serde_json::json!({
+            "version": "2",
+            "chunk_id": "0432a0a4c25f4697bf9f0a2fcbe6a814",
+            "profiler_id": "4d229f1d3807421ba62a5f8bc295d836",
+            "platform": "perfetto",
+            "client_sdk": {"name": "sentry-android", "version": "1.0"},
+        });
+        let metadata_bytes = serde_json::to_vec(&metadata_json).unwrap();
+
+        let result = expand_perfetto(perfetto_bytes, &metadata_bytes);
+        assert!(result.is_ok(), "expand_perfetto failed: {result:?}");
+
+        let output: sample::v2::ProfileChunk = serde_json::from_slice(&result.unwrap()).unwrap();
+        assert_eq!(output.metadata.platform, "perfetto");
+        assert!(!output.profile.samples.is_empty());
+        assert!(!output.profile.frames.is_empty());
+        assert!(
+            !output.metadata.debug_meta.images.is_empty(),
+            "expected debug images from native mappings in the fixture"
+        );
+    }
+
+    #[test]
+    fn test_expand_perfetto_invalid_metadata() {
+        let result = expand_perfetto(b"", b"not json");
+        assert!(result.is_err());
     }
 }

@@ -81,6 +81,7 @@ pub fn check_envelope_size_limits(
                 None => NO_LIMIT,
             },
             ItemType::ProfileChunk => config.max_profile_size(),
+            ItemType::ProfileChunkData => config.max_profile_size(),
             ItemType::Unknown(_) => NO_LIMIT,
         };
 

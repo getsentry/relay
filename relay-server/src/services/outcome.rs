@@ -716,6 +716,7 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::Span => Self::Span,
             ItemType::UserReportV2 => Self::UserReportV2,
             ItemType::ProfileChunk => Self::ProfileChunk,
+            ItemType::ProfileChunkData => Self::ProfileChunk,
             ItemType::Integration => Self::Integration,
             ItemType::Unknown(_) => Self::Unknown,
         }

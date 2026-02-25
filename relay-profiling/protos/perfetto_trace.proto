@@ -1,0 +1,120 @@
+// Minimal subset of the Perfetto trace proto definitions needed to decode
+// profiling data. Field numbers match the upstream definitions at
+// https://github.com/google/perfetto/tree/master/protos/perfetto/trace
+
+syntax = "proto2";
+package perfetto.protos;
+
+message Trace {
+  repeated TracePacket packet = 1;
+}
+
+message TracePacket {
+  optional uint64 timestamp = 8;
+
+  oneof optional_trusted_packet_sequence_id {
+    uint32 trusted_packet_sequence_id = 10;
+  }
+
+  optional InternedData interned_data = 12;
+  optional uint32 sequence_flags = 13;
+
+  // Only the oneof variants we care about; prost will skip the rest.
+  oneof data {
+    ProcessTree process_tree = 2;
+    ClockSnapshot clock_snapshot = 6;
+    StreamingProfilePacket streaming_profile_packet = 54;
+    TrackDescriptor track_descriptor = 60;
+    PerfSample perf_sample = 66;
+  }
+}
+
+// --- process tree ------------------------------------------------------------
+
+message ProcessTree {
+  message Thread {
+    optional int32 tid = 1;
+    optional string name = 2;
+    optional int32 tgid = 3;
+  }
+  repeated ProcessTree.Thread threads = 2;
+}
+
+// --- clock sync ---------------------------------------------------------------
+
+message ClockSnapshot {
+  message Clock {
+    optional uint32 clock_id = 1;
+    optional uint64 timestamp = 2;
+  }
+  repeated Clock clocks = 1;
+  optional uint32 primary_trace_clock = 2;
+}
+
+// --- interned data -----------------------------------------------------------
+
+message InternedData {
+  repeated InternedString function_names = 5;
+  repeated Frame frames = 6;
+  repeated Callstack callstacks = 7;
+  repeated InternedString build_ids = 16;
+  repeated InternedString mapping_paths = 17;
+  repeated Mapping mappings = 19;
+}
+
+message InternedString {
+  optional uint64 iid = 1;
+  optional bytes str = 2;
+}
+
+// --- profiling common --------------------------------------------------------
+
+message Frame {
+  optional uint64 iid = 1;
+  optional uint64 function_name_id = 2;
+  optional uint64 mapping_id = 3;
+  optional uint64 rel_pc = 4;
+}
+
+message Mapping {
+  optional uint64 iid = 1;
+  optional uint64 build_id = 2;
+  optional uint64 start_offset = 3;
+  optional uint64 start = 4;
+  optional uint64 end = 5;
+  optional uint64 load_bias = 6;
+  repeated uint64 path_string_ids = 7;
+  optional uint64 exact_offset = 8;
+}
+
+message Callstack {
+  optional uint64 iid = 1;
+  repeated uint64 frame_ids = 2;
+}
+
+// --- profiling packets -------------------------------------------------------
+
+message PerfSample {
+  optional uint32 cpu = 1;
+  optional uint32 pid = 2;
+  optional uint32 tid = 3;
+  optional uint64 callstack_iid = 4;
+}
+
+message StreamingProfilePacket {
+  repeated uint64 callstack_iid = 1;
+  repeated int64 timestamp_delta_us = 2;
+}
+
+// --- track descriptors -------------------------------------------------------
+
+message TrackDescriptor {
+  optional uint64 uuid = 1;
+  optional ThreadDescriptor thread = 4;
+}
+
+message ThreadDescriptor {
+  optional int32 pid = 1;
+  optional int32 tid = 2;
+  optional string thread_name = 5;
+}
