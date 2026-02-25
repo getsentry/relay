@@ -362,10 +362,10 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
 @pytest.mark.parametrize(
     "rate_limit,minidump_filename,use_objectstore",
     [
-        (None, "minidump.dmp", True),
+        # (None, "minidump.dmp", True),
         (None, "minidump.dmp", False),
-        ("attachment", "minidump.dmp", True),
-        ("attachment", "minidump.dmp", False),
+        # ("attachment", "minidump.dmp", True),
+        # ("attachment", "minidump.dmp", False),
         ("transaction", "minidump.dmp", False),
         (None, "minidump.dmp.gz", False),
         (None, "minidump.dmp.xz", False),

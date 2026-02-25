@@ -5,16 +5,17 @@
 use bytes::{Buf, Bytes};
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
+use relay_quotas::DataCategory;
 use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
 
 use crate::Envelope;
 use crate::envelope::{EnvelopeError, Item, ItemType};
 use crate::managed::{Counted, Quantities};
+use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
-use crate::processing::errors::errors::{
-    Context, ErrorRef, ErrorRefMut, ParsedError, SentryError, utils,
-};
+use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
 
 /// Magic number indicating the dying message file is encoded by sentry-switch SDK.
@@ -27,17 +28,31 @@ const DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
 const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
 
 #[derive(Debug)]
-pub struct Nnswitch {
-    pub event: Annotated<Event>,
-    pub attachments: Vec<Item>,
-    pub user_reports: Vec<Item>,
+pub enum Nnswitch {
+    Forward { dying_message: Box<Item> },
+    Process,
 }
 
 impl SentryError for Nnswitch {
-    fn try_expand(items: &mut Vec<Item>, _ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         let Some(dying_message) = utils::take_item_by(items, is_dying_message) else {
             return Ok(None);
         };
+
+        let mut metrics = Default::default();
+
+        if !ctx.processing.is_processing() {
+            return Ok(Some(ParsedError {
+                event: utils::try_take_parsed_event(items, &mut metrics, ctx)?,
+                attachments: utils::take_items_of_type(items, ItemType::Attachment),
+                user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+                error: Self::Forward {
+                    dying_message: Box::new(dying_message),
+                },
+                metrics,
+                fully_normalized: false,
+            }));
+        }
 
         let event = utils::take_item_of_type(items, ItemType::Event);
 
@@ -51,46 +66,45 @@ impl SentryError for Nnswitch {
         attachments.extend(dying_message.attachments);
 
         let event = match (event, dying_message.event) {
-            (Some(event), Some(dying_message)) => merge_events(event, dying_message)
-                .map_err(SwitchProcessingError::InvalidJson)
-                .map_err(ProcessingError::InvalidNintendoDyingMessage)?,
-            (Some(event), None) => utils::event_from_json_payload(event, None)?,
-            (None, Some(event)) => utils::event_from_json_payload(event, None)?,
+            (Some(event), Some(dying_message)) => {
+                metrics.bytes_ingested_event =
+                    Annotated::new((event.len() + dying_message.len()) as u64);
+                merge_events(event, dying_message, ctx)?
+            }
+            (Some(event), None) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
+            (None, Some(event)) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
             (None, None) => return Err(ProcessingError::NoEventPayload.into()),
         };
 
-        let error = Self {
+        Ok(Some(ParsedError {
             event,
             attachments,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-        };
-
-        Ok(Some(ParsedError {
-            error,
+            error: Self::Process {},
+            metrics: Default::default(),
             fully_normalized: false,
         }))
     }
 
-    fn as_ref(&self) -> ErrorRef<'_> {
-        ErrorRef {
-            event: &self.event,
-            attachments: &self.attachments,
-            user_reports: &self.user_reports,
+    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
+        match self {
+            Self::Forward { dying_message } => items.push(*dying_message),
+            Self::Process => {}
         }
-    }
 
-    fn as_ref_mut(&mut self) -> ErrorRefMut<'_> {
-        ErrorRefMut {
-            event: &mut self.event,
-            attachments: &mut self.attachments,
-            user_reports: Some(&mut self.user_reports),
-        }
+        Ok(())
     }
 }
 
 impl Counted for Nnswitch {
     fn quantities(&self) -> Quantities {
-        self.as_ref().to_quantities()
+        match self {
+            Self::Forward { dying_message } => smallvec::smallvec![
+                (DataCategory::AttachmentItem, 1),
+                (DataCategory::Attachment, dying_message.len()),
+            ],
+            Self::Process => Default::default(),
+        }
     }
 }
 
@@ -110,6 +124,20 @@ pub enum SwitchProcessingError {
 }
 
 fn merge_events(
+    from_envelope: Item,
+    from_dying_messages: Item,
+    ctx: Context<'_>,
+) -> Result<Annotated<Event>> {
+    if from_envelope.len().max(from_dying_messages.len()) > ctx.processing.config.max_event_size() {
+        return Err(ProcessingError::PayloadTooLarge(DiscardItemType::Event).into());
+    }
+
+    merge_events_inner(from_envelope, from_dying_messages)
+        .map_err(ProcessingError::InvalidJson)
+        .map_err(Into::into)
+}
+
+fn merge_events_inner(
     from_envelope: Item,
     from_dying_messages: Item,
 ) -> Result<Annotated<Event>, serde_json::Error> {
@@ -332,7 +360,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_annotated_snapshot!(parsed.error.event, @r#"
+        assert_annotated_snapshot!(parsed.event, @r#"
         {
           "level": "info",
           "logentry": {
@@ -345,10 +373,10 @@ mod tests {
           }
         }
         "#);
-        assert_eq!(parsed.error.attachments.len(), 1);
-        assert_eq!(parsed.error.attachments[0].ty(), &ItemType::Attachment);
-        assert_eq!(parsed.error.attachments[0].filename(), None);
-        assert_eq!(parsed.error.attachments[0].payload(), "Hi".as_bytes());
+        assert_eq!(parsed.attachments.len(), 1);
+        assert_eq!(parsed.attachments[0].ty(), &ItemType::Attachment);
+        assert_eq!(parsed.attachments[0].filename(), None);
+        assert_eq!(parsed.attachments[0].payload(), "Hi".as_bytes());
     }
 
     #[test]
@@ -361,7 +389,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_annotated_snapshot!(parsed.error.event, @r#"
+        assert_annotated_snapshot!(parsed.event, @r#"
         {
           "level": "info",
           "logentry": {
@@ -374,10 +402,10 @@ mod tests {
           }
         }
         "#);
-        assert_eq!(parsed.error.attachments.len(), 1);
-        assert_eq!(parsed.error.attachments[0].ty(), &ItemType::Attachment);
-        assert_eq!(parsed.error.attachments[0].filename(), None);
-        assert_eq!(parsed.error.attachments[0].payload(), "Hi".as_bytes());
+        assert_eq!(parsed.attachments.len(), 1);
+        assert_eq!(parsed.attachments[0].ty(), &ItemType::Attachment);
+        assert_eq!(parsed.attachments[0].filename(), None);
+        assert_eq!(parsed.attachments[0].payload(), "Hi".as_bytes());
     }
 
     fn create_compressed_dying_message(encoding: u8) -> Vec<u8> {

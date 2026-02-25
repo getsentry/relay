@@ -7,7 +7,6 @@ use relay_sampling::evaluation::SamplingEvaluator;
 use crate::managed::Managed;
 use crate::processing::Context;
 use crate::processing::errors::ExpandedError;
-use crate::processing::errors::errors::SentryError as _;
 use crate::utils::SamplingResult;
 
 /// Applies a dynamic sampling decision onto the error.
@@ -34,7 +33,7 @@ pub async fn apply(error: &mut Managed<ExpandedError>, ctx: Context<'_>) {
 }
 
 fn tag_error_with_sampling_decision(error: &mut ExpandedError, sampled: bool) {
-    let Some(event) = error.error.event_mut().value_mut() else {
+    let Some(event) = error.event.value_mut() else {
         return;
     };
 

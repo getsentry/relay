@@ -1,19 +1,13 @@
-use relay_event_schema::protocol::Event;
+use relay_event_schema::protocol::Metrics;
 use relay_protocol::Annotated;
 
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
-use crate::processing::errors::errors::{
-    Context, ErrorRef, ErrorRefMut, ParsedError, SentryError, utils,
-};
+use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
 
 #[derive(Debug)]
-pub struct Attachments {
-    pub event: Annotated<Event>,
-    pub attachments: Vec<Item>,
-    pub user_reports: Vec<Item>,
-}
+pub struct Attachments {}
 
 impl SentryError for Attachments {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
@@ -31,44 +25,29 @@ impl SentryError for Attachments {
             return Ok(None);
         }
 
-        let (event, _) = crate::services::processor::event::event_from_attachments(
+        let mut metrics = Metrics::default();
+
+        let (event, len) = crate::services::processor::event::event_from_attachments(
             ctx.processing.config,
             ev,
             b1,
             b2,
         )?;
+        metrics.bytes_ingested_event = Annotated::new(len as u64);
 
-        let error = Self {
+        Ok(Some(ParsedError {
             event,
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-        };
-
-        Ok(Some(ParsedError {
-            error,
+            error: Self {},
+            metrics,
             fully_normalized: false,
         }))
-    }
-
-    fn as_ref(&self) -> ErrorRef<'_> {
-        ErrorRef {
-            event: &self.event,
-            attachments: &self.attachments,
-            user_reports: &self.user_reports,
-        }
-    }
-
-    fn as_ref_mut(&mut self) -> ErrorRefMut<'_> {
-        ErrorRefMut {
-            event: &mut self.event,
-            attachments: &mut self.attachments,
-            user_reports: Some(&mut self.user_reports),
-        }
     }
 }
 
 impl Counted for Attachments {
     fn quantities(&self) -> Quantities {
-        self.as_ref().to_quantities()
+        Default::default()
     }
 }

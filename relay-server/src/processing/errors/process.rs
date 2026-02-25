@@ -39,33 +39,24 @@ fn do_expand(
     // TODO: think about forward compatibility with the remaining `items`.
     // TODO: event size limit(s), maybe in serialize?
 
+    // TODO: this is getting close to just passing the entire Managed instance to the ErrorKind
+    // thingy
     Ok(ExpandedError {
         headers: error.headers,
         flags: Flags {
             fully_normalized: EventFullyNormalized(is_trusted && parsed.fully_normalized),
         },
-        metrics: Default::default(),
-        error: parsed.error,
+        metrics: parsed.metrics,
+        event: parsed.event,
+        attachments: parsed.attachments,
+        user_reports: parsed.user_reports,
+        data: parsed.error,
     })
 }
 
-pub fn process(
-    error: &mut Managed<ExpandedError>,
-    ctx: Context<'_>,
-) -> Result<(), Rejected<Error>> {
+pub fn process(error: &mut Managed<ExpandedError>) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, records| {
-        records.lenient(DataCategory::Attachment);
-        records.lenient(DataCategory::AttachmentItem);
-        records.lenient(DataCategory::UserReportV2);
-
-        error.error.process(errors::Context {
-            envelope: &error.headers,
-            processing: ctx,
-        })?;
-
-        if let Some(user_reports) = error.error.as_ref_mut().user_reports {
-            process_user_reports(user_reports, records);
-        }
+        process_user_reports(&mut error.user_reports, records);
 
         Ok::<_, Error>(())
     })
@@ -76,12 +67,10 @@ pub fn finalize(
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, _| {
-        let e = error.error.as_ref_mut();
-
         processing::utils::event::finalize(
             &error.headers,
-            e.event,
-            e.attachments.iter(),
+            &mut error.event,
+            error.attachments.iter(),
             &mut error.metrics,
             ctx.config,
         )?;
@@ -98,11 +87,9 @@ pub fn normalize(
     let scoping = error.scoping();
 
     error.try_modify(|error, _| {
-        let e = error.error.as_ref_mut();
-
         error.flags.fully_normalized = processing::utils::event::normalize(
             &error.headers,
-            e.event,
+            &mut error.event,
             error.flags.fully_normalized,
             scoping.project_id,
             ctx,
@@ -115,10 +102,8 @@ pub fn normalize(
 
 pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, _| {
-        let e = error.error.as_ref_mut();
-
-        processing::utils::event::scrub(e.event, ctx.project_info)?;
-        processing::utils::attachments::scrub(e.attachments.iter_mut(), ctx.project_info);
+        processing::utils::event::scrub(&mut error.event, ctx.project_info)?;
+        processing::utils::attachments::scrub(error.attachments.iter_mut(), ctx.project_info);
 
         Ok::<_, Error>(())
     })

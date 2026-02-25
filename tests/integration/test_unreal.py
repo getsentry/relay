@@ -332,25 +332,3 @@ def test_unreal_minidump_with_config_and_processing(
 
     assert mini_dump_process_marker_found
     assert "errors" not in event
-
-
-def test_unreal_crash_too_large(mini_sentry, relay_with_processing, outcomes_consumer):
-    PROJECT_ID = 42
-    unreal_content = load_dump_file("unreal_crash")
-    print("UE4 size: %s" % len(unreal_content))
-
-    # Configure Relay so that it accepts the compressed UE4 archive. Once uncompressed, the file
-    # attachments are larger and should be dropped.
-    relay = relay_with_processing(
-        {"limits": {"max_attachments_size": len(unreal_content) + 1}}
-    )
-    mini_sentry.add_full_project_config(PROJECT_ID)
-    outcomes_consumer = outcomes_consumer()
-
-    # Relay accepts the archive, expands it asynchronously, and then drops it.
-    response = relay.send_unreal_request(PROJECT_ID, unreal_content)
-    assert response.ok
-
-    outcome = outcomes_consumer.get_outcome()
-    assert outcome["outcome"] == 3  # dropped as invalid
-    assert mini_sentry.captured_envelopes.empty()

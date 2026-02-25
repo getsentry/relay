@@ -600,7 +600,7 @@ impl ProcessingError {
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::MissingProjectId => None,
-            Self::EventFiltered(_) => None,
+            Self::EventFiltered(key) => Some(Outcome::Filtered(key.clone())),
             Self::InvalidProcessingGroup(_) => None,
 
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),

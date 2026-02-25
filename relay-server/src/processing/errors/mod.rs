@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::errors::errors::SentryError as _;
-use crate::processing::utils::event::EventFullyNormalized;
+use crate::processing::utils::event::{EventFullyNormalized, event_category};
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::ProcessingError;
+use crate::statsd::RelayTimers;
 use crate::utils::EnvelopeSummary;
 
 mod dynamic_sampling;
@@ -23,14 +24,14 @@ mod process;
 
 pub use errors::SwitchProcessingError;
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::Metrics;
+use relay_event_schema::protocol::{Event, Metrics};
+use relay_protocol::{Annotated, Empty};
+use relay_quotas::DataCategory;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("TODO")]
-    InvalidJson(serde_json::Error),
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingError),
 }
@@ -40,7 +41,6 @@ impl OutcomeError for Error {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
-            Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::ProcessingFailed(e) => e.to_outcome(),
         };
         (outcome, self)
@@ -103,7 +103,7 @@ impl processing::Processor for ErrorsProcessor {
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let mut error = process::expand(error, ctx);
 
-        process::process(&mut error, ctx)?;
+        process::process(&mut error)?;
 
         process::finalize(&mut error, ctx)?;
         process::normalize(&mut error, &self.geoip_lookup, ctx)?;
@@ -148,12 +148,40 @@ struct ExpandedError {
     pub flags: Flags,
     pub metrics: Metrics,
 
-    pub error: errors::ErrorKind,
+    /// The associated event.
+    ///
+    /// The event may be [`Annotated::empty`], if expansion of the event is delayed to a later
+    /// Relay.
+    ///
+    /// Having no event in a processing Relay must result in an error and the entire event must be
+    /// discarded.
+    pub event: Annotated<Event>,
+    /// Optional list of attachments sent with the event.
+    pub attachments: Vec<Item>,
+    /// Optional list of user reports sent with the event.
+    pub user_reports: Vec<Item>,
+    /// Custom event data.
+    ///
+    /// This may contain elements which are custom to the specific event shape being handled.
+    pub data: errors::ErrorKind,
 }
 
 impl Counted for ExpandedError {
     fn quantities(&self) -> Quantities {
-        self.error.quantities()
+        let mut quantities = Quantities::default();
+
+        // TODO: should this always count in the error category if empty?
+        // TODO: how relevant is this for rate limits?
+        //if !self.event.is_empty() {
+        let category = event_category(&self.event).unwrap_or(DataCategory::Error);
+        quantities.push((category, 1));
+        //}
+
+        quantities.extend(self.attachments.quantities());
+        quantities.extend(self.user_reports.quantities());
+        quantities.extend(self.data.quantities());
+
+        quantities
     }
 }
 
@@ -182,17 +210,49 @@ impl Forward for ErrorOutput {
         ctx: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         self.0
-            .try_map(|errors, _| {
-                let mut items = errors.error.serialize(ctx)?;
+            .try_map(|errors, _records| {
+                let ExpandedError {
+                    headers,
+                    flags,
+                    metrics: _,
+                    event,
+                    attachments,
+                    user_reports,
+                    data: error,
+                } = errors;
 
-                if let Some(event) = items.event.as_mut() {
-                    event.set_fully_normalized(errors.flags.fully_normalized.0);
+                let mut items = Vec::with_capacity(1 + attachments.len() + user_reports.len());
+
+                if let Some(ev) = event.value() {
+                    let event_type = ev.ty.value().copied().unwrap_or_default();
+
+                    let mut item = Item::new(ItemType::from_event_type(event_type));
+                    item.set_payload(
+                        ContentType::Json,
+                        relay_statsd::metric!(timer(RelayTimers::EventProcessingSerialization), {
+                            event.to_json().map_err(ProcessingError::SerializeFailed)?
+                        }),
+                    );
+
+                    if flags.fully_normalized.0 {
+                        item.set_fully_normalized(true);
+                    }
+
+                    items.push(item);
                 }
 
-                // TODO: size limits?
+                // The switch dying message counts as an error but also doesn't.
+                // records.lenient(DataCategory::Error);
 
-                let items: Vec<Item> = items.into();
-                Ok::<_, Error>(Envelope::from_parts(errors.headers, items.into()))
+                error.serialize_into(&mut items, ctx)?;
+
+                items.extend(attachments);
+                items.extend(user_reports);
+
+                // TODO: size limits?
+                // TODO: metrics?
+
+                Ok::<_, Error>(Envelope::from_parts(headers, items.into()))
             })
             .map_err(|err| err.map(|_| ()))
     }

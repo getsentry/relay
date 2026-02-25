@@ -5,16 +5,11 @@ use relay_protocol::Annotated;
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
-use crate::processing::errors::errors::{
-    Context, ErrorRef, ErrorRefMut, ParsedError, SentryError, utils,
-};
+use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
 
+// TODO: compare with nnswitch and decide whether we should use enums
 #[derive(Debug)]
-pub struct Playstation {
-    pub event: Annotated<Event>,
-    pub attachments: Vec<Item>,
-    pub user_reports: Vec<Item>,
-}
+pub struct Playstation {}
 
 impl SentryError for Playstation {
     #[cfg(not(sentry))]
@@ -32,11 +27,27 @@ impl SentryError for Playstation {
             return Ok(None);
         }
 
+        let mut metrics = Default::default();
+
         let Some(prosperodump) = utils::take_item_by(items, |item| {
             item.attachment_type() == Some(&AttachmentType::Prosperodump)
         }) else {
             return Ok(None);
         };
+
+        if !ctx.processing.is_processing() {
+            let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
+            attachments.push(prosperodump);
+
+            return Ok(Some(ParsedError {
+                event: utils::try_take_parsed_event(items, &mut metrics, ctx)?,
+                attachments,
+                user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+                error: Self {},
+                metrics,
+                fully_normalized: false,
+            }));
+        }
 
         relay_statsd::metric!(counter(RelayCounters::PlaystationProcessing) += 1);
 
@@ -55,10 +66,14 @@ impl SentryError for Playstation {
 
         let mut event = match (event, prospero_event) {
             (Some(event), Some(prospero)) => {
-                merge_events(&event, prospero.as_bytes()).map_err(ProcessingError::InvalidJson)?
+                metrics.bytes_ingested_event =
+                    Annotated::new((event.len() + prospero.len()) as u64);
+                merge_events(&event, prospero.as_bytes(), ctx)?
             }
-            (Some(event), None) => utils::event_from_json_payload(event, None)?,
-            (None, Some(prospero)) => utils::event_from_json(prospero.as_bytes(), None)?,
+            (Some(event), None) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
+            (None, Some(prospero)) => {
+                utils::event_from_json(prospero.as_bytes(), None, &mut metrics, ctx)?
+            }
             (None, None) => Annotated::empty(),
         };
 
@@ -75,10 +90,14 @@ impl SentryError for Playstation {
             &prospero_dump,
         );
 
+        crate::utils::process_minidump(event.get_or_insert_with(Event::default), &minidump_buffer);
+        metrics.bytes_ingested_event_minidump = Annotated::new(minidump_buffer.len() as u64);
+
         let mut attachments = items
             .extract_if(.., |item| *item.ty() == ItemType::Attachment)
             .collect::<Vec<_>>();
 
+        attachments.push(prosperodump);
         attachments.push({
             let mut item = Item::new(ItemType::Attachment);
             item.set_filename("generated_minidump.dmp");
@@ -113,43 +132,42 @@ impl SentryError for Playstation {
             })
         }
 
-        let error = Self {
+        Ok(Some(ParsedError {
             event,
             attachments,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-        };
-
-        Ok(Some(ParsedError {
-            error,
+            error: Self {},
+            metrics,
             fully_normalized: false,
         }))
-    }
-
-    fn as_ref(&self) -> ErrorRef<'_> {
-        ErrorRef {
-            event: &self.event,
-            attachments: &self.attachments,
-            user_reports: &self.user_reports,
-        }
-    }
-
-    fn as_ref_mut(&mut self) -> ErrorRefMut<'_> {
-        ErrorRefMut {
-            event: &mut self.event,
-            attachments: &mut self.attachments,
-            user_reports: Some(&mut self.user_reports),
-        }
     }
 }
 
 impl Counted for Playstation {
     fn quantities(&self) -> Quantities {
-        self.as_ref().to_quantities()
+        Default::default()
     }
 }
 
 #[cfg(sentry)]
 fn merge_events(
+    from_envelope: &Item,
+    from_prospero: &[u8],
+    ctx: Context<'_>,
+) -> Result<Annotated<Event>> {
+    use crate::services::{outcome::DiscardItemType, processor::ProcessingError};
+
+    if from_envelope.len().max(from_prospero.len()) > ctx.processing.config.max_event_size() {
+        return Err(ProcessingError::PayloadTooLarge(DiscardItemType::Event).into());
+    }
+
+    merge_events_inner(from_envelope, from_prospero)
+        .map_err(ProcessingError::InvalidJson)
+        .map_err(Into::into)
+}
+
+#[cfg(sentry)]
+fn merge_events_inner(
     from_envelope: &Item,
     from_prospero: &[u8],
 ) -> Result<Annotated<Event>, serde_json::Error> {

@@ -1,19 +1,13 @@
-use relay_event_schema::protocol::Event;
+use relay_event_schema::protocol::Metrics;
 use relay_protocol::Annotated;
 
 use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
-use crate::processing::errors::errors::{
-    Context, ErrorRef, ErrorRefMut, ParsedError, SentryError, utils,
-};
+use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
 
 #[derive(Debug)]
-pub struct RawSecurity {
-    pub event: Annotated<Event>,
-    pub attachments: Vec<Item>,
-    pub user_reports: Vec<Item>,
-}
+pub struct RawSecurity {}
 
 impl SentryError for RawSecurity {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
@@ -21,42 +15,28 @@ impl SentryError for RawSecurity {
             return Ok(None);
         };
 
-        let (event, _) = crate::services::processor::event::event_from_security_report(
+        let mut metrics = Metrics::default();
+
+        let (event, len) = crate::services::processor::event::event_from_security_report(
             item,
             ctx.envelope.meta(),
         )?;
 
-        let error = Self {
+        metrics.bytes_ingested_event = Annotated::new(len as u64);
+
+        Ok(Some(ParsedError {
             event,
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-        };
-
-        Ok(Some(ParsedError {
-            error,
+            error: Self {},
+            metrics,
             fully_normalized: false,
         }))
-    }
-
-    fn as_ref(&self) -> ErrorRef<'_> {
-        ErrorRef {
-            event: &self.event,
-            attachments: &self.attachments,
-            user_reports: &self.user_reports,
-        }
-    }
-
-    fn as_ref_mut(&mut self) -> ErrorRefMut<'_> {
-        ErrorRefMut {
-            event: &mut self.event,
-            attachments: &mut self.attachments,
-            user_reports: Some(&mut self.user_reports),
-        }
     }
 }
 
 impl Counted for RawSecurity {
     fn quantities(&self) -> Quantities {
-        self.as_ref().to_quantities()
+        Default::default()
     }
 }

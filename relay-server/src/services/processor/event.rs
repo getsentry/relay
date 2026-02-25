@@ -97,7 +97,7 @@ pub fn extract<Group: EventProcessing>(
         let len = item.len();
 
         let mut value = SerdeValue::Object(Default::default());
-        merge_formdata(&mut value, item);
+        merge_formdata(&mut value, &item);
         let event = Annotated::deserialize_with_meta(value).unwrap_or_default();
 
         (event, len)
@@ -393,7 +393,7 @@ pub fn event_from_attachments(
     Ok((event, len))
 }
 
-pub fn merge_formdata(target: &mut SerdeValue, item: Item) {
+pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
     let payload = item.payload();
     let mut aggregator = ChunkedFormDataAggregator::new();
 

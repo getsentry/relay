@@ -496,7 +496,10 @@ def test_playstation_attachment_no_feature_flag(
             "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
             "id": "legacy:2019-03-12",
         },
-        "_metrics": {"bytes.ingested.event": 137},
+        "_metrics": {
+            "bytes.ingested.event": 137,
+            "bytes.ingested.event.attachment": 209385,
+        },
     }
 
     assert event["attachments"] == (
@@ -661,9 +664,9 @@ def test_event_merging(
             "id": "legacy:2019-03-12",
         },
         "_metrics": {
-            "bytes.ingested.event": 725,
+            "bytes.ingested.event": 836,
             "bytes.ingested.event.minidump": 60446,
-            "bytes.ingested.event.attachment": 158008,
+            "bytes.ingested.event.attachment": 428628,
         },
     }
 

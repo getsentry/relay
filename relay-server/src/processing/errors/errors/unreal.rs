@@ -1,20 +1,18 @@
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
+use relay_quotas::DataCategory;
 
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities};
+use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
-use crate::processing::errors::errors::{
-    Context, ErrorRef, ErrorRefMut, ParsedError, SentryError, utils,
-};
+use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
 use crate::services::processor::ProcessingError;
 
-// TODO: this should maybe be an enum, forward vs processing
 #[derive(Debug)]
-pub struct Unreal {
-    pub event: Annotated<Event>,
-    pub attachments: Vec<Item>,
-    pub user_reports: Vec<Item>,
+pub enum Unreal {
+    Forward { report: Box<Item> },
+    Process,
 }
 
 impl SentryError for Unreal {
@@ -23,16 +21,17 @@ impl SentryError for Unreal {
             return Ok(None);
         };
 
-        if !ctx.processing.is_processing() {
-            let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
-            attachments.push(report);
+        let mut metrics = Default::default();
 
+        if !ctx.processing.is_processing() {
             return Ok(Some(ParsedError {
-                error: Self {
-                    event: Annotated::empty(),
-                    attachments,
-                    user_reports: Vec::new(),
+                event: Annotated::empty(),
+                attachments: utils::take_items_of_type(items, ItemType::Attachment),
+                user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+                error: Self::Forward {
+                    report: Box::new(report),
                 },
+                metrics,
                 fully_normalized: false,
             }));
         }
@@ -41,8 +40,8 @@ impl SentryError for Unreal {
         let event = expansion.event;
         let mut attachments = expansion.attachments.into_vec();
 
-        let event = match utils::take_item_of_type(items, ItemType::Event).or(event) {
-            Some(event) => utils::event_from_json_payload(event, None)?,
+        let mut event = match utils::take_item_of_type(items, ItemType::Event).or(event) {
+            Some(event) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
             // `process` later fills this event in, ideally the event is already filled in here,
             // during the expansion, it is split into two phases now, to keep compatibility with
             // the existing unreal code.
@@ -51,19 +50,8 @@ impl SentryError for Unreal {
 
         attachments.extend(items.extract_if(.., |item| *item.ty() == ItemType::Attachment));
 
-        let error = Self {
-            event,
-            attachments,
-            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-        };
+        let mut user_reports: Vec<Item> = utils::take_items_of_type(items, ItemType::UserReport);
 
-        Ok(Some(ParsedError {
-            error,
-            fully_normalized: false,
-        }))
-    }
-
-    fn process(&mut self, ctx: Context<'_>) -> Result<()> {
         let event_id = ctx.envelope.event_id().unwrap_or_default();
         debug_assert_ne!(event_id, Default::default(), "event id must always be set");
 
@@ -72,73 +60,66 @@ impl SentryError for Unreal {
             .get_header(crate::constants::UNREAL_USER_HEADER)
             .and_then(|v| v.as_str());
 
+        // After the removal of the old error/event processing pipeline, the `expand_unreal` and
+        // `process_unreal` functions can be significantly reworked to no longer parse the Unreal
+        // context multiple times by merging the functions into one.
+        //
+        // This is currently still split to avoid too many changes and code duplication at once.
         if let Some(result) =
-            crate::utils::process_unreal(event_id, &mut self.event, &self.attachments, user_header)
+            crate::utils::process_unreal(event_id, &mut event, &attachments, user_header)
                 .map_err(ProcessingError::InvalidUnrealReport)?
         {
-            self.user_reports.extend(result.user_reports);
+            user_reports.extend(result.user_reports);
         }
 
         // TODO: so this overlaps with `Minidump` and `AppleCrashReport`.
-
-        if let Some(acr) = self
-            .attachments
+        if let Some(acr) = attachments
             .iter()
             .find(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport))
         {
             crate::utils::process_apple_crash_report(
-                self.event.get_or_insert_with(Event::default),
+                event.get_or_insert_with(Event::default),
                 &acr.payload(),
             );
+            metrics.bytes_ingested_event_applecrashreport = Annotated::new(acr.len() as u64);
         }
-
-        if let Some(minidump) = self
-            .attachments
+        if let Some(minidump) = attachments
             .iter()
             .find(|item| item.attachment_type() == Some(&AttachmentType::Minidump))
         {
             crate::utils::process_minidump(
-                self.event.get_or_insert_with(Event::default),
+                event.get_or_insert_with(Event::default),
                 &minidump.payload(),
             );
+            metrics.bytes_ingested_event_minidump = Annotated::new(minidump.len() as u64);
+        }
+
+        Ok(Some(ParsedError {
+            event,
+            attachments,
+            user_reports,
+            error: Self::Process,
+            metrics,
+            fully_normalized: false,
+        }))
+    }
+
+    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
+        match self {
+            Unreal::Forward { report } => items.push(*report),
+            Unreal::Process => {}
         }
 
         Ok(())
-    }
-
-    fn as_ref(&self) -> ErrorRef<'_> {
-        ErrorRef {
-            event: &self.event,
-            attachments: &self.attachments,
-            user_reports: &self.user_reports,
-        }
-    }
-
-    fn as_ref_mut(&mut self) -> ErrorRefMut<'_> {
-        ErrorRefMut {
-            event: &mut self.event,
-            attachments: &mut self.attachments,
-            user_reports: Some(&mut self.user_reports),
-        }
-    }
-
-    fn serialize(mut self, _ctx: crate::processing::ForwardContext<'_>) -> Result<super::ErrorItems>
-    where
-        Self: Sized,
-    {
-    }
-
-    fn event(&self) -> &Annotated<Event> {
-        self.as_ref().event
-    }
-
-    fn event_mut(&mut self) -> &mut Annotated<Event> {
-        self.as_ref_mut().event
     }
 }
 
 impl Counted for Unreal {
     fn quantities(&self) -> Quantities {
-        self.as_ref().to_quantities()
+        // match self {
+        //     Unreal::Forward { .. } => smallvec::smallvec![(DataCategory::Error, 1)],
+        //     Unreal::Process => Default::default(),
+        // }
+        Default::default()
     }
 }

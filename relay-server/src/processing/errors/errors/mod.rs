@@ -1,14 +1,10 @@
-use relay_event_schema::protocol::Event;
-use relay_protocol::{Annotated, Empty};
-use relay_quotas::DataCategory;
+use relay_event_schema::protocol::{Event, Metrics};
+use relay_protocol::Annotated;
 
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{EnvelopeHeaders, Item};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
-use crate::processing::utils::event::event_category;
 use crate::processing::{self, ForwardContext};
-use crate::services::processor::ProcessingError;
-use crate::statsd::RelayTimers;
 
 mod apple_crash_report;
 mod attachments;
@@ -35,34 +31,8 @@ pub use self::security::*;
 pub use self::unreal::*;
 pub use self::user_report_v2::*;
 
-#[derive(Debug, Copy, Clone)]
-pub struct ErrorRef<'a> {
-    pub event: &'a Annotated<Event>,
-    pub attachments: &'a [Item],
-    pub user_reports: &'a [Item],
-}
-
-impl ErrorRef<'_> {
-    fn to_quantities(self) -> Quantities {
-        let mut quantities = self.attachments.quantities();
-        quantities.extend(self.user_reports.quantities());
-        if !self.event.is_empty() {
-            quantities.push((event_category(self.event).unwrap_or(DataCategory::Error), 1));
-        }
-        quantities
-    }
-}
-
-#[derive(Debug)]
-pub struct ErrorRefMut<'a> {
-    pub event: &'a mut Annotated<Event>,
-    pub attachments: &'a mut Vec<Item>,
-    pub user_reports: Option<&'a mut Vec<Item>>,
-}
-
 #[derive(Debug)]
 pub struct ErrorItems {
-    pub event: Option<Item>,
     pub attachments: Vec<Item>,
     pub user_reports: Vec<Item>,
     pub other: Vec<Item>,
@@ -71,19 +41,15 @@ pub struct ErrorItems {
 impl From<ErrorItems> for Vec<Item> {
     fn from(value: ErrorItems) -> Self {
         let ErrorItems {
-            event,
             attachments,
             user_reports,
             other,
         } = value;
 
         let mut items = attachments;
-        items.reserve_exact(event.is_some() as usize + user_reports.len() + other.len());
+        items.reserve_exact(user_reports.len() + other.len());
         items.extend(user_reports);
         items.extend(other);
-        if let Some(event) = event {
-            items.push(event);
-        }
 
         items
     }
@@ -123,67 +89,22 @@ pub trait SentryError: Counted {
     where
         Self: Sized;
 
-    /// Post expansion processing phase for the error.
-    ///
-    /// Most error events do not need a specific post processing phase and should prefer doing
-    /// processing and validation during [expansion](Self::try_expand).
-    fn process(&mut self, ctx: Context<'_>) -> Result<()> {
-        let _ = ctx;
-        Ok(())
-    }
-
     /// Serializes the error back into items, ready to be attached to an envelope.
     ///
     /// The default implementation serializes all items exposed through [`Self::as_ref_mut`].
     /// Errors which handle with more items must override this implementation.
-    fn serialize(mut self, _ctx: ForwardContext<'_>) -> Result<ErrorItems>
+    fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()>
     where
         Self: Sized,
     {
-        let ErrorRefMut {
-            event,
-            attachments,
-            user_reports,
-        } = self.as_ref_mut();
-
-        let event = std::mem::take(event);
-        let event = if !event.is_empty() {
-            let data = relay_statsd::metric!(timer(RelayTimers::EventProcessingSerialization), {
-                event.to_json().map_err(ProcessingError::SerializeFailed)?
-            });
-
-            let event_type = event
-                .value()
-                .and_then(|event| event.ty.value().copied())
-                .unwrap_or_default();
-
-            let mut item = Item::new(ItemType::from_event_type(event_type));
-            item.set_payload(ContentType::Json, data);
-            Some(item)
-        } else {
-            None
-        };
-
-        Ok(ErrorItems {
-            event,
-            attachments: std::mem::take(attachments),
-            user_reports: user_reports.map(std::mem::take).unwrap_or_default(),
-            other: Vec::new(),
-        })
-    }
-
-    /// A reference to the contained error data.
-    fn as_ref(&self) -> ErrorRef<'_>;
-    /// A mutable reference to the contained error data.
-    fn as_ref_mut(&mut self) -> ErrorRefMut<'_>;
-
-    /// A shorthand to access the contained error event.
-    fn event(&self) -> &Annotated<Event> {
-        self.as_ref().event
-    }
-    /// A shorthand to access the contained error event mutably.
-    fn event_mut(&mut self) -> &mut Annotated<Event> {
-        self.as_ref_mut().event
+        debug_assert!(
+            self.quantities().is_empty(),
+            "{} has quantities but does not implement `serialize_into`",
+            std::any::type_name_of_val(&self),
+        );
+        let _ = items;
+        let _ = ctx;
+        Ok(())
     }
 }
 
@@ -198,9 +119,13 @@ macro_rules! gen_error_kind {
             fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
                 $(
                     if let Some(p) = <$name as SentryError>::try_expand(items, ctx)? {
-                        relay_log::debug!("expanded item using: {name}", name = stringify!($name));
+                        relay_log::debug!("expanded event using: {name}", name = stringify!($name));
                         return Ok(Some(ParsedError {
+                            event: p.event,
+                            attachments: p.attachments,
+                            user_reports: p.user_reports,
                             error: p.error.into(),
+                            metrics: p.metrics,
                             fully_normalized: p.fully_normalized,
                         }))
                     };
@@ -209,29 +134,29 @@ macro_rules! gen_error_kind {
                 Ok(None)
             }
 
-            fn process(&mut self, ctx: Context<'_>) -> Result<()> {
-                match self {
-                    $(Self::$name(error) => error.process(ctx),)*
-                }
-            }
+            // fn process(&mut self, ctx: Context<'_>) -> Result<()> {
+            //     match self {
+            //         $(Self::$name(error) => error.process(ctx),)*
+            //     }
+            // }
 
-            fn serialize(self, ctx: ForwardContext<'_>) -> Result<ErrorItems> {
+            fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()> {
                 match self {
-                    $(Self::$name(error) => error.serialize(ctx),)*
+                    $(Self::$name(error) => error.serialize_into(items, ctx),)*
                 }
             }
-
-            fn as_ref(&self) -> ErrorRef<'_> {
-                match self {
-                    $(Self::$name(error) => error.as_ref(),)*
-                }
-            }
-
-            fn as_ref_mut(&mut self) -> ErrorRefMut<'_> {
-                match self {
-                    $(Self::$name(error) => error.as_ref_mut(),)*
-                }
-            }
+            //
+            // fn as_ref(&self) -> ErrorRef<'_> {
+            //     match self {
+            //         $(Self::$name(error) => error.as_ref(),)*
+            //     }
+            // }
+            //
+            // fn as_ref_mut(&mut self) -> ErrorRefMut<'_> {
+            //     match self {
+            //         $(Self::$name(error) => error.as_ref_mut(),)*
+            //     }
+            // }
         }
 
         $(
@@ -273,6 +198,10 @@ gen_error_kind![
 // TODO: this may need a better name
 #[derive(Debug)]
 pub struct ParsedError<T> {
+    pub event: Annotated<Event>,
+    pub attachments: Vec<Item>,
+    pub user_reports: Vec<Item>,
     pub error: T,
+    pub metrics: Metrics,
     pub fully_normalized: bool,
 }
