@@ -37,7 +37,7 @@ use tokio::time::Instant;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::statsd::{RelayDistributions, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
+use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff, find_error_source};
 
 /// Rate limits returned by the upstream.
 ///
@@ -136,7 +136,7 @@ impl UpstreamRequestError {
     /// with the status code. If the request could not be made or the error originates elsewhere,
     /// this returns `None`.
     fn status_code(&self) -> Option<StatusCode> {
-        match dbg!(self) {
+        match self {
             UpstreamRequestError::ResponseError(code, _) => Some(*code),
             UpstreamRequestError::Http(HttpError::Reqwest(e)) => e.status(),
             _ => None,
@@ -218,7 +218,7 @@ impl IntoResponse for UpstreamRequestError {
                 HttpError::Misconfigured => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             Self::SendFailed(e) => {
-                if find_source(&e, is_length_limit_error).is_some() {
+                if find_error_source(&e, is_length_limit_error).is_some() {
                     StatusCode::PAYLOAD_TOO_LARGE.into_response()
                 } else if e.is_timeout() {
                     StatusCode::GATEWAY_TIMEOUT.into_response()
@@ -229,21 +229,6 @@ impl IntoResponse for UpstreamRequestError {
             _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
-}
-
-fn find_source<E, P>(error: &E, predicate: P) -> Option<&dyn Error>
-where
-    E: std::error::Error + ?Sized,
-    P: Fn(&(dyn Error + 'static)) -> bool,
-{
-    let mut source = error.source();
-    while let Some(s) = source {
-        if predicate(s) {
-            return Some(s);
-        }
-        source = s.source();
-    }
-    None
 }
 
 fn is_length_limit_error(error: &(dyn Error + 'static)) -> bool {

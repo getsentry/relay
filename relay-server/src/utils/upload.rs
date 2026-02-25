@@ -183,7 +183,7 @@ impl SignedLocation {
     }
 
     fn try_from_response(response: Response) -> Result<Self, Error> {
-        match dbg!(&response).status() {
+        match response.status() {
             status if status.is_success() => {
                 let location = response
                     .headers()

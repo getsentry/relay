@@ -29,8 +29,9 @@ use crate::service::ServiceState;
 use crate::services::projects::cache::Project;
 #[cfg(feature = "processing")]
 use crate::services::upload::Error as ServiceError;
+use crate::services::upstream::UpstreamRequestError;
 use crate::utils::upload::SignedLocation;
-use crate::utils::{ExactStream, tus, upload};
+use crate::utils::{ExactStream, find_error_source, tus, upload};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -51,7 +52,14 @@ impl IntoResponse for Error {
             Error::Request(error) => return error.into_response(),
             Error::Upload(error) => match error {
                 upload::Error::Send(_) => StatusCode::SERVICE_UNAVAILABLE,
-                upload::Error::UpstreamRequest(e) => return e.into_response(),
+                upload::Error::UpstreamRequest(e) => match e {
+                    UpstreamRequestError::SendFailed(e)
+                        if find_error_source(&e, is_hyper_user_error).is_some() =>
+                    {
+                        return StatusCode::BAD_REQUEST.into_response();
+                    }
+                    _ => return e.into_response(),
+                },
                 upload::Error::Upstream(status) => status,
                 upload::Error::InvalidLocation | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
@@ -106,7 +114,7 @@ async fn handle(
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    let upload_length = dbg!(tus::validate_headers(&headers).map_err(Error::from)?);
+    let upload_length = tus::validate_headers(&headers).map_err(Error::from)?;
     let config = state.config();
 
     if upload_length > config.max_upload_size() {
@@ -121,21 +129,19 @@ async fn handle(
         .await
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
-    let scoping = dbg!(check_request(&state, meta, upload_length, project).await?);
+    let scoping = check_request(&state, meta, upload_length, project).await?;
     let stream = body
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
     let stream = ExactStream::new(stream, upload_length);
 
-    let location = dbg!(
-        upload::Sink::new(&state)
-            .upload(config, upload::Stream { scoping, stream })
-            .await
-            .map_err(Error::from)
-    )?;
+    let location = upload::Sink::new(&state)
+        .upload(config, upload::Stream { scoping, stream })
+        .await
+        .map_err(Error::from)?;
 
-    let mut response = dbg!(location.into_response());
+    let mut response = location.into_response();
     response
         .headers_mut()
         .insert(tus::UPLOAD_OFFSET, upload_length.into());
@@ -178,4 +184,10 @@ async fn check_request(
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle).route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
+}
+
+fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    error
+        .downcast_ref::<hyper::Error>()
+        .is_some_and(hyper::Error::is_user)
 }
