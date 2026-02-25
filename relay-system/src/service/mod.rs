@@ -15,7 +15,9 @@ use tokio::time::MissedTickBehavior;
 use crate::statsd::SystemGauges;
 use crate::{TaskId, spawn};
 
+mod concurrent;
 mod registry;
+mod simple;
 mod status;
 
 pub(crate) use self::registry::Registry as ServiceRegistry;
