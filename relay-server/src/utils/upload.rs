@@ -196,6 +196,7 @@ impl SignedLocation {
     }
 }
 
+/// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
     scoping: Scoping,
     body: Option<ExactStream<BoxStream<'static, std::io::Result<Bytes>>>>,
