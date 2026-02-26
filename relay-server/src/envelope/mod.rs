@@ -1144,9 +1144,9 @@ mod tests {
         let stringified = String::from_utf8_lossy(&buffer);
         insta::assert_snapshot!(stringified, @r#"
         {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
-        {"content_type":"application/json","length":41,"type":"event"}
+        {"type":"event","content_type":"application/json","length":41}
         {"message":"hello world","level":"error"}
-        {"content_type":"text/plain","filename":"application.log","length":7,"type":"attachment"}
+        {"type":"attachment","content_type":"text/plain","filename":"application.log","length":7}
         Hello
         "#);
     }

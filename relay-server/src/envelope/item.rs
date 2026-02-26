@@ -1,12 +1,14 @@
 use relay_profiling::ProfileType;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::AddAssign;
 use uuid::Uuid;
 
 use bytes::Bytes;
 use relay_event_schema::protocol::{EventType, SpanId};
+use relay_protocol::Value;
 use relay_quotas::DataCategory;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
@@ -523,17 +525,13 @@ impl Item {
     }
 
     /// Returns the specified header value, if present.
-    pub fn get_header(&self, name: &str) -> Option<&serde_json::Value> {
+    pub fn get_header(&self, name: &str) -> Option<&Value> {
         self.headers.get(name)
     }
 
     /// Sets the specified header value, returning the previous one if present.
-    pub fn set_header(
-        &mut self,
-        name: &str,
-        value: impl Into<serde_json::Value>,
-    ) -> Option<serde_json::Value> {
-        self.headers.set(name, value)
+    pub fn set_header(&mut self, name: &str, value: impl Into<Value>) -> Option<Value> {
+        self.headers.set(name, Some(value))
     }
 
     /// Determines whether the given item creates an event.
@@ -896,25 +894,35 @@ impl std::str::FromStr for ItemType {
 
 relay_common::impl_str_serde!(ItemType, "an envelope item type (see sentry develop docs)");
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ItemHeaders {
-    /// All serializable header fields stored as a JSON object.
-    inner: serde_json::Value,
+    #[serde(rename = "type")]
+    ty: ItemType,
 
-    // Internal-only fields (never serialized to the wire format).
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    parent_id: Option<ParentId>,
+
+    #[serde(flatten)]
+    other: BTreeMap<String, Value>,
+
+    #[serde(default, skip)]
     stored_key: Option<String>,
+    #[serde(default, skip)]
     rate_limited: bool,
+    #[serde(default, skip)]
     source_quantities: Option<SourceQuantities>,
+    #[serde(default, skip)]
     profile_type: Option<ProfileType>,
 }
 
 impl ItemHeaders {
     fn new(ty: ItemType) -> Self {
+        let mut other = BTreeMap::new();
+        other.insert("length".into(), Value::U64(0));
         Self {
-            inner: serde_json::json!({
-                "type": ty.as_str(),
-                "length": 0,
-            }),
+            ty,
+            parent_id: None,
+            other,
             stored_key: None,
             rate_limited: false,
             source_quantities: None,
@@ -924,11 +932,7 @@ impl ItemHeaders {
 
     /// Returns the type of the item.
     pub fn ty(&self) -> ItemType {
-        self.inner
-            .get("type")
-            .and_then(|v| v.as_str())
-            .map(|s| s.parse().unwrap())
-            .unwrap_or_else(|| ItemType::Unknown(String::new()))
+        self.ty.clone()
     }
 
     /// Returns the content length of the item payload.
@@ -936,21 +940,18 @@ impl ItemHeaders {
     /// Can be `None` if the item does not contain new lines, in which case the payload is
     /// parsed until the first newline.
     pub fn length(&self) -> Option<u32> {
-        self.inner
-            .get("length")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u32)
+        match self.other.get("length") {
+            Some(Value::U64(n)) => Some(*n as u32),
+            Some(Value::I64(n)) => Some(*n as u32),
+            _ => None,
+        }
     }
 
     /// Sets the content length of the item payload.
     ///
     /// See [`Self::length`].
     pub fn set_length(&mut self, length: Option<u32>) {
-        if let Some(v) = length {
-            self.set("length", v);
-        } else {
-            self.remove("length");
-        }
+        self.set("length", length.map(|v| v as u64));
     }
 
     /// Returns the number of contained items in an [`super::ItemContainer`].
@@ -958,28 +959,25 @@ impl ItemHeaders {
     /// The amount specified must match the amount of items contained in the container exactly.
     /// Failing to specify the count or a mismatching count will be treated as an invalid envelope.
     pub fn item_count(&self) -> Option<u32> {
-        self.inner
-            .get("item_count")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u32)
+        match self.other.get("item_count") {
+            Some(Value::U64(n)) => Some(*n as u32),
+            Some(Value::I64(n)) => Some(*n as u32),
+            _ => None,
+        }
     }
 
     /// Sets the number of contained items.
     ///
     /// See [`Self::item_count`].
     pub fn set_item_count(&mut self, item_count: Option<u32>) {
-        if let Some(v) = item_count {
-            self.set("item_count", v);
-        } else {
-            self.remove("item_count");
-        }
+        self.set("item_count", item_count.map(|v| v as u64));
     }
 
     /// Returns the content type of this item's payload.
     pub fn content_type(&self) -> Option<ContentType> {
-        self.inner
+        self.other
             .get("content_type")
-            .and_then(|v| v.as_str())
+            .and_then(Value::as_str)
             .map(|s| s.parse().unwrap())
     }
 
@@ -987,14 +985,14 @@ impl ItemHeaders {
     ///
     /// See [`Self::content_type`].
     pub fn set_content_type(&mut self, content_type: ContentType) {
-        self.set("content_type", content_type.as_str());
+        self.set("content_type", Some(content_type.as_str()));
     }
 
     /// Returns the attachment type if this is an attachment item.
     pub fn attachment_type(&self) -> Option<AttachmentType> {
-        self.inner
+        self.other
             .get("attachment_type")
-            .and_then(|v| v.as_str())
+            .and_then(Value::as_str)
             .map(|s| s.parse().unwrap())
     }
 
@@ -1002,35 +1000,35 @@ impl ItemHeaders {
     ///
     /// See [`Self::attachment_type`].
     pub fn set_attachment_type(&mut self, attachment_type: AttachmentType) {
-        self.set("attachment_type", attachment_type.to_string());
+        self.set("attachment_type", Some(attachment_type.to_string()));
     }
 
     /// Returns the original file name if this is an attachment item.
     pub fn filename(&self) -> Option<&str> {
-        self.inner.get("filename").and_then(|v| v.as_str())
+        self.other.get("filename").and_then(Value::as_str)
     }
 
     /// Sets the original file name.
     ///
     /// See [`Self::filename`].
     pub fn set_filename(&mut self, filename: String) {
-        self.set("filename", filename);
+        self.set("filename", Some(filename));
     }
 
     /// Returns the platform this item was produced for.
     ///
     /// Currently only used for [`ItemType::ProfileChunk`] to determine the correct data category.
     pub fn platform(&self) -> Option<&str> {
-        self.inner.get("platform").and_then(|v| v.as_str())
+        self.other.get("platform").and_then(Value::as_str)
     }
 
     /// Returns the routing hint for publishing to kafka.
     ///
     /// Currently only used for [`ItemType::CheckIn`].
     pub fn routing_hint(&self) -> Option<Uuid> {
-        self.inner
+        self.other
             .get("routing_hint")
-            .and_then(|v| v.as_str())
+            .and_then(Value::as_str)
             .and_then(|s| s.parse().ok())
     }
 
@@ -1038,7 +1036,7 @@ impl ItemHeaders {
     ///
     /// See [`Self::routing_hint`].
     pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
-        self.set("routing_hint", routing_hint.to_string());
+        self.set("routing_hint", Some(routing_hint.to_string()));
     }
 
     /// Returns whether metrics have already been extracted from the item.
@@ -1046,34 +1044,34 @@ impl ItemHeaders {
     /// The first Relay that extracts metrics sets this to `true` so upstream Relays
     /// do not extract the metric again causing double counting.
     pub fn metrics_extracted(&self) -> bool {
-        self.inner
-            .get("metrics_extracted")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
+        match self.other.get("metrics_extracted") {
+            Some(Value::Bool(b)) => *b,
+            _ => false,
+        }
     }
 
     /// Sets the metrics extracted flag.
     ///
     /// See [`Self::metrics_extracted`].
     pub fn set_metrics_extracted(&mut self, val: bool) {
-        self.set("metrics_extracted", val);
+        self.set("metrics_extracted", Some(val));
     }
 
     /// Returns whether spans and span metrics have been extracted from a transaction.
     ///
     /// Also set to `true` for transactions extracted from spans, to prevent going in circles.
     pub fn spans_extracted(&self) -> bool {
-        self.inner
-            .get("spans_extracted")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
+        match self.other.get("spans_extracted") {
+            Some(Value::Bool(b)) => *b,
+            _ => false,
+        }
     }
 
     /// Sets the spans extracted flag.
     ///
     /// See [`Self::spans_extracted`].
     pub fn set_spans_extracted(&mut self, val: bool) {
-        self.set("spans_extracted", val);
+        self.set("spans_extracted", Some(val));
     }
 
     /// Returns the number of spans in the `event.spans` array.
@@ -1081,104 +1079,84 @@ impl ItemHeaders {
     /// Should never be set except for transaction items. This number does *not* count the
     /// transaction itself.
     pub fn span_count(&self) -> Option<usize> {
-        self.inner
-            .get("span_count")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as usize)
+        match self.other.get("span_count") {
+            Some(Value::U64(n)) => Some(*n as usize),
+            Some(Value::I64(n)) => Some(*n as usize),
+            _ => None,
+        }
     }
 
     /// Sets the span count.
     ///
     /// See [`Self::span_count`].
     pub fn set_span_count(&mut self, count: Option<usize>) {
-        if let Some(v) = count {
-            self.set("span_count", v);
-        } else {
-            self.remove("span_count");
-        }
+        self.set("span_count", count.map(|v| v as u64));
     }
 
     /// Returns whether the event has been fully normalized.
     ///
     /// If the event has been partially normalized, this returns `false`.
     pub fn fully_normalized(&self) -> bool {
-        self.inner
-            .get("fully_normalized")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
+        match self.other.get("fully_normalized") {
+            Some(Value::Bool(b)) => *b,
+            _ => false,
+        }
     }
 
     /// Sets the fully normalized flag.
     ///
     /// See [`Self::fully_normalized`].
     pub fn set_fully_normalized(&mut self, val: bool) {
-        self.set("fully_normalized", val);
+        self.set("fully_normalized", Some(val));
     }
 
     /// Returns `false` if the sampling decision is "drop".
     ///
     /// For profiles with the feature enabled, dropped items are kept but marked `sampled: false`.
     pub fn sampled(&self) -> bool {
-        self.inner
-            .get("sampled")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true)
+        match self.other.get("sampled") {
+            Some(Value::Bool(b)) => *b,
+            _ => true,
+        }
     }
 
     /// Sets the sampled flag.
     ///
     /// See [`Self::sampled`].
     pub fn set_sampled(&mut self, val: bool) {
-        self.set("sampled", val);
+        self.set("sampled", Some(val));
     }
 
     /// Returns the content length of an optional meta segment contained in the item.
     ///
     /// Currently only present for trace attachments.
     pub fn meta_length(&self) -> Option<u32> {
-        self.inner
-            .get("meta_length")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u32)
+        match self.other.get("meta_length") {
+            Some(Value::U64(n)) => Some(*n as u32),
+            Some(Value::I64(n)) => Some(*n as u32),
+            _ => None,
+        }
     }
 
     /// Sets the meta segment length.
     ///
     /// See [`Self::meta_length`].
     pub fn set_meta_length(&mut self, meta_length: u32) {
-        self.set("meta_length", meta_length);
+        self.set("meta_length", Some(meta_length as u64));
     }
 
     /// Returns the parent entity that this item is associated with.
     ///
     /// Currently only applicable for trace attachments.
     pub fn parent_id(&self) -> Option<ParentId> {
-        // ParentId was #[serde(flatten)], so "span_id" appears as a direct key.
-        let val = self.inner.get("span_id")?;
-        if val.is_null() {
-            Some(ParentId::SpanId(None))
-        } else {
-            let span_id = serde_json::from_value::<SpanId>(val.clone()).ok();
-            Some(ParentId::SpanId(span_id))
-        }
+        self.parent_id.clone()
     }
 
     /// Sets the parent entity association.
     ///
     /// See [`Self::parent_id`].
     pub fn set_parent_id(&mut self, parent_id: Option<ParentId>) {
-        match parent_id {
-            Some(ParentId::SpanId(span_id)) => {
-                let val = match span_id {
-                    Some(id) => serde_json::to_value(id).unwrap(),
-                    None => serde_json::Value::Null,
-                };
-                self.set("span_id", val);
-            }
-            None => {
-                self.remove("span_id");
-            }
-        }
+        self.parent_id = parent_id;
     }
 
     /// Returns the size of the attachment that an attachment placeholder represents.
@@ -1186,60 +1164,33 @@ impl ItemHeaders {
     /// Only valid in combination with [`ContentType::AttachmentRef`]. This untrusted header
     /// is used to emit negative outcomes, but must not be used for consistent rate limiting.
     pub fn attachment_length(&self) -> Option<u64> {
-        self.inner.get("attachment_length").and_then(|v| v.as_u64())
+        match self.other.get("attachment_length") {
+            Some(Value::U64(n)) => Some(*n),
+            Some(Value::I64(n)) => Some(*n as u64),
+            _ => None,
+        }
     }
 
     /// Sets the attachment placeholder size.
     ///
     /// See [`Self::attachment_length`].
     pub fn set_attachment_length(&mut self, length: u64) {
-        self.set("attachment_length", length);
+        self.set("attachment_length", Some(length));
     }
 
     /// Returns a header value by key name.
-    pub fn get(&self, name: &str) -> Option<&serde_json::Value> {
-        self.inner.get(name)
+    pub fn get(&self, name: &str) -> Option<&Value> {
+        self.other.get(name)
     }
 
-    /// Sets a header value by key name, returning the previous value if present.
-    pub fn set(
-        &mut self,
-        key: &str,
-        value: impl Into<serde_json::Value>,
-    ) -> Option<serde_json::Value> {
-        self.inner
-            .as_object_mut()
-            .unwrap()
-            .insert(key.to_owned(), value.into())
-    }
-
-    fn remove(&mut self, key: &str) -> Option<serde_json::Value> {
-        self.inner.as_object_mut().unwrap().remove(key)
-    }
-}
-
-impl Serialize for ItemHeaders {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.inner.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for ItemHeaders {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let inner = serde_json::Value::deserialize(deserializer)?;
-        Ok(Self {
-            inner,
-            stored_key: None,
-            rate_limited: false,
-            source_quantities: None,
-            profile_type: None,
-        })
+    /// Sets or removes a header value by key name, returning the previous value if present.
+    ///
+    /// If `value` is `None`, the key is removed.
+    pub fn set(&mut self, key: &str, value: Option<impl Into<Value>>) -> Option<Value> {
+        match value {
+            Some(v) => self.other.insert(key.to_owned(), v.into()),
+            None => self.other.remove(key),
+        }
     }
 }
 
@@ -1345,7 +1296,7 @@ mod tests {
         let mut item = Item::new(ItemType::Event);
         item.set_header("custom", 42u64);
 
-        let expected = serde_json::Value::from(42u64);
+        let expected = Value::U64(42);
         assert_eq!(item.get_header("custom"), Some(&expected));
         assert_eq!(item.get_header("anything"), None);
     }
