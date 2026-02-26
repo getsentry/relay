@@ -60,6 +60,7 @@ impl IntoResponse for Error {
                     }
                     _ => return e.into_response(),
                 },
+                upload::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                 upload::Error::Upstream(status) => status,
                 upload::Error::InvalidLocation | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR

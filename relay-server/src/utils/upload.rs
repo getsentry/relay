@@ -33,6 +33,8 @@ pub enum Error {
     Send(#[from] RecvError),
     #[error("request failed: {0}")]
     UpstreamRequest(#[from] UpstreamRequestError),
+    #[error("request timeout: {0}")]
+    Timeout(#[from] tokio::time::error::Elapsed),
     #[error("upstream response: {0}")]
     Upstream(StatusCode),
     #[error("upstream provided invalid location")]
@@ -83,7 +85,9 @@ impl Sink {
             Sink::Upstream(addr) => {
                 let (request, response_channel) = UploadRequest::create(stream);
                 addr.send(SendRequest(request));
-                SignedLocation::try_from_response(response_channel.await??)
+                let response =
+                    tokio::time::timeout(config.http_timeout(), response_channel).await???;
+                SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
             Sink::Upload(addr) => {
