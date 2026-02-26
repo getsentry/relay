@@ -12,23 +12,24 @@ use symbolic_unreal::{
 };
 
 use crate::constants::{
-    ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, UNREAL_USER_HEADER,
+    ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, SENTRY_CRASH_PAYLOAD_KEY,
+    UNREAL_USER_HEADER,
 };
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 use crate::services::processor::ProcessingError;
 
 /// Maximum number of unreal logs to parse for breadcrumbs.
 const MAX_NUM_UNREAL_LOGS: usize = 40;
-
-/// Name of the custom XML tag in Unreal GameData for Sentry event payloads.
-const SENTRY_PAYLOAD_KEY: &str = "__sentry";
 
 /// Client SDK name used for the event payload to identify the UE4 crash reporter.
 const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
 
 fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
     let mut context = Unreal4Context::parse(data)?;
-    let json = match context.game_data.remove(SENTRY_PAYLOAD_KEY) {
+    let json = match context
+        .game_data
+        .remove(crate::constants::SENTRY_CRASH_PAYLOAD_KEY)
+    {
         Some(json) if !json.is_empty() => json,
         _ => return Ok(None),
     };
@@ -52,12 +53,37 @@ pub fn expand_unreal_envelope(
     envelope: &mut Envelope,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let payload = unreal_item.payload();
-    let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
-
-    let mut has_event = envelope
+    let has_event = envelope
         .get_item_by(|item| item.ty() == &ItemType::Event)
         .is_some();
+
+    let expansion = expand_unreal(unreal_item, config)?;
+
+    if !has_event && let Some(event) = expansion.event {
+        envelope.add_item(event);
+    }
+
+    for attachment in expansion.attachments {
+        envelope.add_item(attachment);
+    }
+
+    if let Err(offender) = super::check_envelope_size_limits(config, envelope) {
+        return Err(ProcessingError::PayloadTooLarge(offender));
+    }
+
+    Ok(())
+}
+
+/// Expands an Unreal 4 item and returns the expanded items.
+pub fn expand_unreal(
+    unreal_item: Item,
+    config: &Config,
+) -> Result<UnrealExpansion, ProcessingError> {
+    let mut event = None;
+    let mut attachments = Items::new();
+
+    let payload = unreal_item.payload();
+    let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
     for file in crash.files() {
         let (content_type, attachment_type) = match file.ty() {
@@ -76,27 +102,29 @@ pub fn expand_unreal_envelope(
             },
         };
 
-        if !has_event
-            && attachment_type == AttachmentType::UnrealContext
-            && let Some(event_item) = get_event_item(file.data())?
-        {
-            envelope.add_item(event_item);
-            has_event = true;
+        if event.is_none() && attachment_type == AttachmentType::UnrealContext {
+            event = get_event_item(file.data())?;
         }
 
         let mut item = Item::new(ItemType::Attachment);
         item.set_filename(file.name());
         // TODO: This clones data. Update symbolic to allow moving the bytes out.
+        //
+        // See: <https://github.com/getsentry/symbolic/issues/959>.
         item.set_payload(content_type, file.data().to_owned());
         item.set_attachment_type(attachment_type);
-        envelope.add_item(item);
+        attachments.push(item);
     }
 
-    if let Err(offender) = super::check_envelope_size_limits(config, envelope) {
-        return Err(ProcessingError::PayloadTooLarge(offender));
-    }
+    Ok(UnrealExpansion { event, attachments })
+}
 
-    Ok(())
+/// Expansion from an Unreal 4 report.
+pub struct UnrealExpansion {
+    /// The error event if the crash contained one.
+    pub event: Option<Item>,
+    /// Files of the report as attachments.
+    pub attachments: Items,
 }
 
 fn merge_unreal_user_info(event: &mut Event, user_info: &str) {
@@ -311,7 +339,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
             let filtered_keys = context
                 .game_data
                 .into_iter()
-                .filter(|(key, _)| key != SENTRY_PAYLOAD_KEY)
+                .filter(|(key, _)| key != SENTRY_CRASH_PAYLOAD_KEY)
                 .map(|(key, value)| (key, Annotated::new(Value::String(value))));
 
             game_context.extend(filtered_keys);
@@ -350,17 +378,47 @@ pub fn process_unreal_envelope(
     let user_header = envelope
         .get_header(UNREAL_USER_HEADER)
         .and_then(Value::as_str);
-    let context_item =
-        envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::UnrealContext));
-    let mut logs_items = envelope
-        .items()
+
+    // the `unwrap_or_default` here can produce an invalid user report if the envelope id
+    // is indeed missing. This should not happen under normal circumstances since the EventId is
+    // created statically.
+    let event_id = envelope.event_id().unwrap_or_default();
+    debug_assert!(!event_id.is_nil());
+
+    match process_unreal(event_id, event, envelope.items(), user_header)? {
+        Some(r) => {
+            for item in r.user_reports {
+                envelope.add_item(item);
+            }
+            Ok(true)
+        }
+        None => Ok(false),
+    }
+}
+
+/// Processes an unreal crash report.
+///
+/// The `user_header` should be extracted from the [`UNREAL_USER_HEADER`] envelope header.
+pub fn process_unreal<'a>(
+    event_id: EventId,
+    event: &mut Annotated<Event>,
+    attachments: impl IntoIterator<Item = &'a Item> + Clone,
+    user_header: Option<&str>,
+) -> Result<Option<ProcessedUnrealReport>, Unreal4Error> {
+    let context_item = attachments
+        .clone()
+        .into_iter()
+        .find(|item| item.attachment_type() == Some(&AttachmentType::UnrealContext));
+
+    let mut logs_items = attachments
+        .into_iter()
         .filter(|item| item.attachment_type() == Some(&AttachmentType::UnrealLogs))
         .map(|item| item.payload())
         .peekable();
 
     // Early exit if there is no information.
     if user_header.is_none() && context_item.is_none() && logs_items.peek().is_none() {
-        return Ok(false);
+        return Ok(None);
     }
 
     // If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal
@@ -373,23 +431,30 @@ pub fn process_unreal_envelope(
 
     merge_unreal_logs(event, logs_items)?;
 
+    let mut user_reports = Items::new();
     if let Some(context_item) = context_item {
         let mut context = Unreal4Context::parse(&context_item.payload())?;
 
         // the `unwrap_or_default` here can produce an invalid user report if the envelope id
         // is indeed missing. This should not happen under normal circumstances since the EventId is
         // created statically.
-        let event_id = envelope.event_id().unwrap_or_default();
-        debug_assert!(!event_id.is_nil());
+        // let event_id = envelope.event_id().unwrap_or_default();
+        // debug_assert!(!event_id.is_nil());
 
         if let Some(report) = get_unreal_user_report(event_id, &mut context) {
-            envelope.add_item(report);
+            user_reports.push(report);
         }
 
         merge_unreal_context(event, context);
     }
 
-    Ok(true)
+    Ok(Some(ProcessedUnrealReport { user_reports }))
+}
+
+/// Result when processing an unreal report.
+pub struct ProcessedUnrealReport {
+    /// User reports contained in the report.
+    pub user_reports: Items,
 }
 
 #[cfg(test)]

@@ -210,6 +210,15 @@ impl<M> EnvelopeHeaders<M> {
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.sent_at
     }
+
+    /// Returns the specified header value, if present.
+    pub fn get_header<K>(&self, name: &K) -> Option<&Value>
+    where
+        String: Borrow<K>,
+        K: Ord + ?Sized,
+    {
+        self.other.get(name)
+    }
 }
 
 #[doc(hidden)]
@@ -476,7 +485,7 @@ impl Envelope {
         String: Borrow<K>,
         K: Ord + ?Sized,
     {
-        self.headers.other.get(name)
+        self.headers.get_header(name)
     }
 
     /// Sets the specified header value, returning the previous one if present.

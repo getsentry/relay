@@ -210,7 +210,7 @@ pub fn run_inbound_filters(
     work: &Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
 ) -> Result<FiltersStatus, Rejected<Error>> {
-    utils::event::filter(&work.headers, &work.event, &ctx)
+    utils::event::filter(&work.headers, &work.event, ctx)
         .map_err(ProcessingError::EventFiltered)
         .map_err(Error::from)
         .reject(work)

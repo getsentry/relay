@@ -97,7 +97,7 @@ pub fn extract<Group: EventProcessing>(
         let len = item.len();
 
         let mut value = SerdeValue::Object(Default::default());
-        merge_formdata(&mut value, item);
+        merge_formdata(&mut value, &item);
         let event = Annotated::deserialize_with_meta(value).unwrap_or_default();
 
         (event, len)
@@ -219,7 +219,7 @@ fn event_from_json_payload(
     Ok((event, item.len()))
 }
 
-fn event_from_security_report(
+pub fn event_from_security_report(
     item: Item,
     meta: &RequestMeta,
 ) -> Result<ExtractedEvent, ProcessingError> {
@@ -341,7 +341,7 @@ fn parse_msgpack_breadcrumbs(
     Ok(breadcrumbs)
 }
 
-fn event_from_attachments(
+pub fn event_from_attachments(
     config: &Config,
     event_item: Option<Item>,
     breadcrumbs_item1: Option<Item>,
@@ -393,7 +393,7 @@ fn event_from_attachments(
     Ok((event, len))
 }
 
-fn merge_formdata(target: &mut SerdeValue, item: Item) {
+pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
     let payload = item.payload();
     let mut aggregator = ChunkedFormDataAggregator::new();
 
