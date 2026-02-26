@@ -68,12 +68,12 @@ impl processing::Processor for SessionsProcessor {
 
         let updates = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Session))
+            .take_items_by(|item| matches!(item.ty(), ItemType::Session))
             .into_vec();
 
         let aggregates = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Sessions))
+            .take_items_by(|item| matches!(item.ty(), ItemType::Sessions))
             .into_vec();
 
         let work = SerializedSessions {

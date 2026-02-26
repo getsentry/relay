@@ -351,7 +351,7 @@ impl StoreService {
         // Some error events like minidumps need all attachment chunks to be processed _before_
         // the event payload on the consumer side. Transaction attachments do not require this ordering
         // guarantee, so they do not have to go to the same topic as their event payload.
-        let event_topic = if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
+        let event_topic = if event_item.as_ref().map(|x| x.ty()) == Some(ItemType::Transaction) {
             KafkaTopic::Transactions
         } else if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
@@ -359,7 +359,7 @@ impl StoreService {
             KafkaTopic::Events
         };
 
-        let send_individual_attachments = matches!(event_type, None | Some(&ItemType::Transaction));
+        let send_individual_attachments = matches!(event_type, None | Some(ItemType::Transaction));
 
         let mut attachments = Vec::new();
 
@@ -407,7 +407,7 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
+                ItemType::Span if content_type == Some(ContentType::Json) => self.produce_span(
                     scoping,
                     received_at,
                     event_id,
@@ -427,10 +427,10 @@ impl StoreService {
                     );
                 }
                 other => {
-                    let event_type = event_item.as_ref().map(|item| item.ty().as_str());
+                    let event_type = event_item.as_ref().map(|item| item.ty().to_string());
                     let item_types = envelope
                         .items()
-                        .map(|item| item.ty().as_str())
+                        .map(|item| item.ty().to_string())
                         .collect::<Vec<_>>();
                     let attachment_types = envelope
                         .items()
@@ -445,7 +445,7 @@ impl StoreService {
                         |scope| {
                             scope.set_extra("item_types", item_types.into());
                             scope.set_extra("attachment_types", attachment_types.into());
-                            if other == &ItemType::FormData {
+                            if other == ItemType::FormData {
                                 let payload = item.payload();
                                 let form_data_keys = FormDataIter::new(&payload)
                                     .map(|entry| entry.key())
@@ -456,7 +456,7 @@ impl StoreService {
                         || {
                             relay_log::error!(
                                 tags.project_key = %scoping.project_key,
-                                tags.event_type = event_type.unwrap_or("none"),
+                                tags.event_type = event_type.as_deref().unwrap_or("none"),
                                 "StoreService received unexpected item type: {other}"
                             )
                         },
@@ -897,7 +897,7 @@ impl StoreService {
             content_type: item
                 .content_type()
                 .map(|content_type| content_type.as_str().to_owned()),
-            attachment_type: item.attachment_type().cloned().unwrap_or_default(),
+            attachment_type: item.attachment_type().unwrap_or_default(),
             size,
             payload,
         };
@@ -1033,8 +1033,8 @@ impl StoreService {
         downsampled_retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        debug_assert_eq!(item.ty(), &ItemType::Span);
-        debug_assert_eq!(item.content_type(), Some(&ContentType::Json));
+        debug_assert_eq!(item.ty(), ItemType::Span);
+        debug_assert_eq!(item.content_type(), Some(ContentType::Json));
 
         let Scoping {
             organization_id,
@@ -1585,7 +1585,7 @@ fn serialize_as_json<T: serde::Serialize>(
 ///
 /// Slow items must be routed to the `Attachments` topic.
 fn is_slow_item(item: &Item) -> bool {
-    item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
+    item.ty() == ItemType::Attachment || item.ty() == ItemType::UserReport
 }
 
 fn bool_to_str(value: bool) -> &'static str {

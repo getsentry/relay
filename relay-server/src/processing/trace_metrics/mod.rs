@@ -119,7 +119,7 @@ impl processing::Processor for TraceMetricsProcessor {
 
         let metrics = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::TraceMetric))
+            .take_items_by(|item| matches!(item.ty(), ItemType::TraceMetric))
             .into_vec();
 
         if metrics.is_empty() {

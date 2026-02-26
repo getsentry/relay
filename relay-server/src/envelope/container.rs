@@ -199,17 +199,17 @@ impl<T: ContainerItem> ItemContainer<T> {
     /// This function also validates metadata of the container, specifically the content type
     /// and amount of contained items.
     pub fn parse(item: &Item) -> Result<Self, ContainerParseError> {
-        if item.content_type() != Some(&T::CONTENT_TYPE) {
+        if item.content_type() != Some(T::CONTENT_TYPE) {
             return Err(ContainerParseError::MismatchedContentType {
                 expected: T::CONTENT_TYPE,
-                actual: item.content_type().cloned(),
+                actual: item.content_type(),
             });
         }
 
-        if item.ty() != &T::ITEM_TYPE {
+        if item.ty() != T::ITEM_TYPE {
             return Err(ContainerParseError::MismatchedItemType {
                 expected: T::ITEM_TYPE,
-                actual: item.ty().clone(),
+                actual: item.ty(),
             });
         }
 
@@ -249,7 +249,7 @@ impl<T: ContainerItem> ItemContainer<T> {
 
     /// Checks whether a given item is a container of `T`s, according to its item and content types.
     pub fn is_container(item: &Item) -> bool {
-        item.ty() == &T::ITEM_TYPE && item.content_type() == Some(&T::CONTENT_TYPE)
+        item.ty() == T::ITEM_TYPE && item.content_type() == Some(T::CONTENT_TYPE)
     }
 
     fn deserialize<'de, D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -357,7 +357,7 @@ mod tests {
         let mut item = Item::new(ItemType::Log);
         container.write_to(&mut item).unwrap();
 
-        assert_eq!(item.content_type(), Some(&ContentType::LogContainer));
+        assert_eq!(item.content_type(), Some(ContentType::LogContainer));
         assert_eq!(item.item_count(), Some(2));
 
         let payload = item.payload();

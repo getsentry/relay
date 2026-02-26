@@ -711,7 +711,7 @@ mod tests {
 
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items.len(), 1);
-        assert_eq!(items[0].ty(), &ItemType::Attachment);
+        assert_eq!(items[0].ty(), ItemType::Attachment);
     }
 
     #[test]
@@ -728,14 +728,14 @@ mod tests {
         envelope.add_item(item2);
 
         let taken = envelope
-            .take_item_by(|item| item.ty() == &ItemType::Attachment)
+            .take_item_by(|item| item.ty() == ItemType::Attachment)
             .expect("should return some item");
 
         assert_eq!(taken.filename(), Some("item1"));
 
         assert!(
             envelope
-                .take_item_by(|item| item.ty() == &ItemType::Event)
+                .take_item_by(|item| item.ty() == ItemType::Event)
                 .is_none()
         );
     }
@@ -898,21 +898,21 @@ mod tests {
         assert_eq!(envelope.len(), 2);
         let items: Vec<_> = envelope.items().collect();
 
-        assert_eq!(items[0].ty(), &ItemType::Attachment);
+        assert_eq!(items[0].ty(), ItemType::Attachment);
         assert_eq!(items[0].len(), 10);
         assert_eq!(
             items[0].payload(),
             Bytes::from(&b"\xef\xbb\xbfHello\r\n"[..])
         );
-        assert_eq!(items[0].content_type(), Some(&ContentType::Text));
+        assert_eq!(items[0].content_type(), Some(ContentType::Text));
 
-        assert_eq!(items[1].ty(), &ItemType::Event);
+        assert_eq!(items[1].ty(), ItemType::Event);
         assert_eq!(items[1].len(), 41);
         assert_eq!(
             items[1].payload(),
             Bytes::from("{\"message\":\"hello world\",\"level\":\"error\"}")
         );
-        assert_eq!(items[1].content_type(), Some(&ContentType::Json));
+        assert_eq!(items[1].content_type(), Some(ContentType::Json));
         assert_eq!(items[1].filename(), Some("application.log"));
     }
 
@@ -947,7 +947,7 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].ty(), &ItemType::ReplayRecording);
+        assert_eq!(items[0].ty(), ItemType::ReplayRecording);
     }
 
     #[test]
@@ -963,7 +963,7 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].ty(), &ItemType::ReplayVideo);
+        assert_eq!(items[0].ty(), ItemType::ReplayVideo);
     }
 
     #[test]
@@ -979,10 +979,10 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].ty(), &ItemType::Attachment);
+        assert_eq!(items[0].ty(), ItemType::Attachment);
         assert_eq!(
             items[0].attachment_type(),
-            Some(&AttachmentType::ViewHierarchy)
+            Some(AttachmentType::ViewHierarchy)
         );
     }
 
@@ -1008,9 +1008,9 @@ mod tests {
         let items = Envelope::parse_items_bytes(bytes).unwrap();
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].len(), 10);
-        assert_eq!(items[0].ty(), &ItemType::Attachment);
+        assert_eq!(items[0].ty(), ItemType::Attachment);
         assert_eq!(items[1].len(), 10);
-        assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
+        assert_eq!(items[1].ty(), ItemType::ReplayRecording);
     }
 
     #[test]
@@ -1142,13 +1142,13 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"
+        insta::assert_snapshot!(stringified, @r#"
         {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
-        {"type":"event","length":41,"content_type":"application/json"}
+        {"content_type":"application/json","length":41,"type":"event"}
         {"message":"hello world","level":"error"}
-        {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
+        {"content_type":"text/plain","filename":"application.log","length":7,"type":"attachment"}
         Hello
-        "###);
+        "#);
     }
 
     #[test]
@@ -1158,7 +1158,7 @@ mod tests {
         envelope.add_item(Item::new(ItemType::Attachment));
 
         // Does not split when no item matches.
-        let split_opt = envelope.split_by(|item| item.ty() == &ItemType::Session);
+        let split_opt = envelope.split_by(|item| item.ty() == ItemType::Session);
         assert!(split_opt.is_none());
     }
 
@@ -1169,7 +1169,7 @@ mod tests {
         envelope.add_item(Item::new(ItemType::Session));
 
         // Does not split when all items match.
-        let split_opt = envelope.split_by(|item| item.ty() == &ItemType::Session);
+        let split_opt = envelope.split_by(|item| item.ty() == ItemType::Session);
         assert!(split_opt.is_none());
     }
 
@@ -1179,7 +1179,7 @@ mod tests {
         envelope.add_item(Item::new(ItemType::Session));
         envelope.add_item(Item::new(ItemType::Attachment));
 
-        let split_opt = envelope.split_by(|item| item.ty() == &ItemType::Session);
+        let split_opt = envelope.split_by(|item| item.ty() == ItemType::Session);
         let split_envelope = split_opt.expect("split_by returns an Envelope");
 
         assert_eq!(split_envelope.len(), 1);
@@ -1187,11 +1187,11 @@ mod tests {
 
         // Matching items have moved into the split envelope.
         for item in split_envelope.items() {
-            assert_eq!(item.ty(), &ItemType::Session);
+            assert_eq!(item.ty(), ItemType::Session);
         }
 
         for item in envelope.items() {
-            assert_eq!(item.ty(), &ItemType::Attachment);
+            assert_eq!(item.ty(), ItemType::Attachment);
         }
     }
 

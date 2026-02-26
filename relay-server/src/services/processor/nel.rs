@@ -10,7 +10,7 @@ use crate::services::processor::ProcessingError;
 pub fn convert_to_logs(envelope: &mut ManagedEnvelope) {
     let items = envelope
         .envelope_mut()
-        .take_items_by(|item| item.ty() == &ItemType::Nel);
+        .take_items_by(|item| item.ty() == ItemType::Nel);
     let mut logs = ContainerItems::new();
 
     for item in items {

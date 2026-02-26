@@ -264,7 +264,7 @@ impl ProcessingGroup {
         let replay_items = envelope.take_items_by(|item| {
             matches!(
                 item.ty(),
-                &ItemType::ReplayEvent | &ItemType::ReplayRecording | &ItemType::ReplayVideo
+                ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo
             )
         });
         if !replay_items.is_empty() {
@@ -276,7 +276,7 @@ impl ProcessingGroup {
 
         // Keep all the sessions together in one envelope.
         let session_items = envelope
-            .take_items_by(|item| matches!(item.ty(), &ItemType::Session | &ItemType::Sessions));
+            .take_items_by(|item| matches!(item.ty(), ItemType::Session | ItemType::Sessions));
         if !session_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Session,
@@ -290,7 +290,7 @@ impl ProcessingGroup {
             ItemContainer::<SpanV2>::is_container(item)
                 || matches!(item.integration(), Some(Integration::Spans(_)))
                 // Process standalone spans (v1) via the v2 pipeline
-                || (exp_feature && matches!(item.ty(), &ItemType::Span))
+                || (exp_feature && matches!(item.ty(), ItemType::Span))
                 || (exp_feature && item.is_span_attachment())
         });
 
@@ -302,7 +302,7 @@ impl ProcessingGroup {
         }
 
         // Extract spans.
-        let span_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Span));
+        let span_items = envelope.take_items_by(|item| matches!(item.ty(), ItemType::Span));
         if !span_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Span,
@@ -312,7 +312,7 @@ impl ProcessingGroup {
 
         // Extract logs.
         let logs_items = envelope.take_items_by(|item| {
-            matches!(item.ty(), &ItemType::Log)
+            matches!(item.ty(), ItemType::Log)
                 || matches!(item.integration(), Some(Integration::Logs(_)))
         });
         if !logs_items.is_empty() {
@@ -324,7 +324,7 @@ impl ProcessingGroup {
 
         // Extract trace metrics.
         let trace_metric_items =
-            envelope.take_items_by(|item| matches!(item.ty(), &ItemType::TraceMetric));
+            envelope.take_items_by(|item| matches!(item.ty(), ItemType::TraceMetric));
         if !trace_metric_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::TraceMetric,
@@ -333,7 +333,7 @@ impl ProcessingGroup {
         }
 
         // NEL items are transformed into logs in their own processing step.
-        let nel_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Nel));
+        let nel_items = envelope.take_items_by(|item| matches!(item.ty(), ItemType::Nel));
         if !nel_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Nel,
@@ -355,7 +355,7 @@ impl ProcessingGroup {
 
         // Extract profile chunks.
         let profile_chunk_items =
-            envelope.take_items_by(|item| matches!(item.ty(), &ItemType::ProfileChunk));
+            envelope.take_items_by(|item| matches!(item.ty(), ItemType::ProfileChunk));
         if !profile_chunk_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::ProfileChunk,
@@ -387,7 +387,7 @@ impl ProcessingGroup {
 
         // Make sure we create separate envelopes for each `RawSecurity` report.
         let security_reports_items = envelope
-            .take_items_by(|i| matches!(i.ty(), &ItemType::RawSecurity))
+            .take_items_by(|i| matches!(i.ty(), ItemType::RawSecurity))
             .into_iter()
             .map(|item| {
                 let headers = headers.clone();
@@ -403,7 +403,7 @@ impl ProcessingGroup {
         if !require_event_items.is_empty() {
             let group = if require_event_items
                 .iter()
-                .any(|item| matches!(item.ty(), &ItemType::Transaction | &ItemType::Profile))
+                .any(|item| matches!(item.ty(), ItemType::Transaction | ItemType::Profile))
             {
                 ProcessingGroup::Transaction
             } else {
@@ -422,11 +422,11 @@ impl ProcessingGroup {
             let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
             let envelope = Envelope::from_parts(headers, items);
             let item_type = item.ty();
-            let group = if matches!(item_type, &ItemType::CheckIn) {
+            let group = if matches!(item_type, ItemType::CheckIn) {
                 ProcessingGroup::CheckIn
-            } else if matches!(item.ty(), &ItemType::ClientReport) {
+            } else if matches!(item.ty(), ItemType::ClientReport) {
                 ProcessingGroup::ClientReport
-            } else if matches!(item_type, &ItemType::Unknown(_)) {
+            } else if matches!(item_type, ItemType::Unknown(_)) {
                 ProcessingGroup::ForwardUnknown
             } else {
                 // Cannot group this item type.
@@ -935,7 +935,7 @@ impl MetricData {
         let mut buckets = Vec::new();
         for item in items {
             let payload = item.payload();
-            if item.ty() == &ItemType::Statsd {
+            if item.ty() == ItemType::Statsd {
                 for bucket_result in Bucket::parse_all(&payload, timestamp) {
                     match bucket_result {
                         Ok(bucket) => buckets.push(bucket),
@@ -945,7 +945,7 @@ impl MetricData {
                         ),
                     }
                 }
-            } else if item.ty() == &ItemType::MetricBuckets {
+            } else if item.ty() == ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(parsed_buckets) => {
                         // Re-use the allocation of `b` if possible.
@@ -1348,7 +1348,7 @@ impl EnvelopeProcessorService {
         let attachments = managed_envelope
             .envelope()
             .items()
-            .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment));
+            .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment));
         processing::utils::event::finalize(
             managed_envelope.envelope().headers(),
             &mut event,
@@ -1400,7 +1400,7 @@ impl EnvelopeProcessorService {
         let attachments = managed_envelope
             .envelope_mut()
             .items_mut()
-            .filter(|i| i.ty() == &ItemType::Attachment);
+            .filter(|i| i.ty() == ItemType::Attachment);
         processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
@@ -1438,7 +1438,7 @@ impl EnvelopeProcessorService {
         let attachments = managed_envelope
             .envelope_mut()
             .items_mut()
-            .filter(|i| i.ty() == &ItemType::Attachment);
+            .filter(|i| i.ty() == ItemType::Attachment);
         processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         Ok(Some(extracted_metrics))
@@ -2008,7 +2008,7 @@ impl EnvelopeProcessorService {
                     let envelope_has_attachments = envelope
                         .envelope()
                         .items()
-                        .any(|item| *item.ty() == ItemType::Attachment);
+                        .any(|item| item.ty() == ItemType::Attachment);
                     // Whether Relay will store this attachment in objectstore or use kafka like before.
                     let use_objectstore = || {
                         let options = &self.inner.global_config.current().options;
@@ -3469,7 +3469,7 @@ mod tests {
         };
         let event = envelope
             .envelope()
-            .get_item_by(|item| item.ty() == &ItemType::Event)
+            .get_item_by(|item| item.ty() == ItemType::Event)
             .unwrap();
 
         let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();

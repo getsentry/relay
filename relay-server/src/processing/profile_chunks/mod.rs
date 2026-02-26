@@ -82,7 +82,7 @@ impl processing::Processor for ProfileChunksProcessor {
     ) -> Option<Managed<Self::UnitOfWork>> {
         let profile_chunks = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::ProfileChunk))
+            .take_items_by(|item| matches!(item.ty(), ItemType::ProfileChunk))
             .into_vec();
 
         if profile_chunks.is_empty() {

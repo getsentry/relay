@@ -29,7 +29,7 @@ pub fn expand(
 ) -> Result<(), ProcessingError> {
     let envelope = &mut managed_envelope.envelope_mut();
 
-    if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
+    if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
         utils::expand_unreal_envelope(item, envelope, config)?;
     }
 

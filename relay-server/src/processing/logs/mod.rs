@@ -117,7 +117,7 @@ impl processing::Processor for LogsProcessor {
 
         let logs = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Log))
+            .take_items_by(|item| matches!(item.ty(), ItemType::Log))
             .into_vec();
 
         // TODO: there might be a better way to extract an item and its integration type type safe.

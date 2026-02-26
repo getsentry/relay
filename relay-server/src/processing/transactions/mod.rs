@@ -101,7 +101,7 @@ impl Processor for TransactionProcessor {
 
         let mut event = envelope
             .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::Transaction))?;
+            .take_item_by(|item| matches!(item.ty(), ItemType::Transaction))?;
 
         // Count number of spans by shallow-parsing the event.
         // Needed for accounting but not in prod, because the event is immediately parsed afterwards.
@@ -110,11 +110,11 @@ impl Processor for TransactionProcessor {
 
         let attachments = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Attachment));
+            .take_items_by(|item| matches!(item.ty(), ItemType::Attachment));
 
         let profiles = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Profile));
+            .take_items_by(|item| matches!(item.ty(), ItemType::Profile));
 
         let work = SerializedTransaction {
             headers,

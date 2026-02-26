@@ -279,7 +279,7 @@ impl EnvelopeSummary {
         for item in envelope.items() {
             if item.creates_event() {
                 summary.infer_category(item);
-            } else if item.ty() == &ItemType::Attachment {
+            } else if item.ty() == ItemType::Attachment {
                 // Plain attachments do not create events.
                 summary.has_plain_attachments = true;
             }
@@ -301,7 +301,7 @@ impl EnvelopeSummary {
 
             // Special case since v1 and v2 share a data category.
             // Adding this in add_quantity would include v2 in the count.
-            if item.ty() == &ItemType::UserReport {
+            if item.ty() == ItemType::UserReport {
                 summary.user_report_quantity += 1;
             }
         }
@@ -1566,7 +1566,7 @@ mod tests {
 
     fn set_extracted(envelope: &mut Envelope, ty: ItemType) {
         envelope
-            .get_item_by_mut(|item| *item.ty() == ty)
+            .get_item_by_mut(|item| item.ty() == ty)
             .unwrap()
             .set_metrics_extracted(true);
     }

@@ -71,7 +71,7 @@ impl processing::Processor for CheckInsProcessor {
 
         let check_ins = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::CheckIn))
+            .take_items_by(|item| matches!(item.ty(), ItemType::CheckIn))
             .into_vec();
 
         let work = SerializedCheckIns { headers, check_ins };

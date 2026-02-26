@@ -56,7 +56,7 @@ pub fn expand_unreal_envelope(
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
     let mut has_event = envelope
-        .get_item_by(|item| item.ty() == &ItemType::Event)
+        .get_item_by(|item| item.ty() == ItemType::Event)
         .is_some();
 
     for file in crash.files() {
@@ -351,10 +351,10 @@ pub fn process_unreal_envelope(
         .get_header(UNREAL_USER_HEADER)
         .and_then(Value::as_str);
     let context_item =
-        envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::UnrealContext));
+        envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealContext));
     let mut logs_items = envelope
         .items()
-        .filter(|item| item.attachment_type() == Some(&AttachmentType::UnrealLogs))
+        .filter(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs))
         .map(|item| item.payload())
         .peekable();
 

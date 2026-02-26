@@ -35,8 +35,8 @@ pub fn expand(
 
     // Get instead of take as we want to keep the dump as an attachment
     if let Some(item) = envelope.get_item_by(|item| {
-        item.ty() == &ItemType::Attachment
-            && item.attachment_type() == Some(&AttachmentType::Prosperodump)
+        item.ty() == ItemType::Attachment
+            && item.attachment_type() == Some(AttachmentType::Prosperodump)
     }) {
         let data = relay_prosperoconv::extract_data(&item.payload()).map_err(|err| {
             ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
@@ -49,7 +49,7 @@ pub fn expand(
         })?;
 
         if let Some(json) = prospero_dump.userdata.get(SENTRY_PAYLOAD_KEY) {
-            let event = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
+            let event = envelope.take_item_by(|item| item.ty() == ItemType::Event);
             let event_item = merge_or_create_event_item(json, event);
             envelope.add_item(event_item);
         }
@@ -74,8 +74,8 @@ pub fn process(
     let envelope = &mut managed_envelope.envelope_mut();
 
     if let Some(item) = envelope.get_item_by(|item| {
-        item.ty() == &ItemType::Attachment
-            && item.attachment_type() == Some(&AttachmentType::Prosperodump)
+        item.ty() == ItemType::Attachment
+            && item.attachment_type() == Some(AttachmentType::Prosperodump)
     }) {
         metric!(counter(RelayCounters::PlaystationProcessing) += 1);
         let event = event.get_or_insert_with(Event::default);
