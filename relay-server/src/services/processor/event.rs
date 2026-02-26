@@ -196,6 +196,7 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::TraceMetric => false,
         ItemType::Span => false,
         ItemType::ProfileChunk => false,
+        ItemType::ProfileChunkData => false,
         ItemType::Integration => false,
 
         // Without knowing more, `Unknown` items are allowed to be repeated

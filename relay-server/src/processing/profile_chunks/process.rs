@@ -21,7 +21,49 @@ pub fn process(profile_chunks: &mut Managed<SerializedProfileChunks>, ctx: Conte
 
     profile_chunks.retain(
         |pc| &mut pc.profile_chunks,
-        |item, records| -> Result<()> {
+        |ppc, records| -> Result<()> {
+            let item = &mut ppc.item;
+
+            if let Some(ref raw_profile) = ppc.raw_profile {
+                let expanded = relay_profiling::expand_perfetto(raw_profile, &item.payload())?;
+                if expanded.len() > ctx.config.max_profile_size() {
+                    return Err(relay_profiling::ProfileError::ExceedSizeLimit.into());
+                }
+
+                let expanded = bytes::Bytes::from(expanded);
+                let pc = relay_profiling::ProfileChunk::new(expanded.clone())?;
+
+                if item
+                    .profile_type()
+                    .is_some_and(|pt| pt != pc.profile_type())
+                {
+                    return Err(relay_profiling::ProfileError::InvalidProfileType.into());
+                }
+
+                if item.profile_type().is_none() {
+                    relay_statsd::metric!(
+                        counter(RelayCounters::ProfileChunksWithoutPlatform) += 1,
+                        sdk = sdk
+                    );
+                    item.set_profile_type(pc.profile_type());
+                    match pc.profile_type() {
+                        ProfileType::Ui => records.modify_by(DataCategory::ProfileChunkUi, 1),
+                        ProfileType::Backend => records.modify_by(DataCategory::ProfileChunk, 1),
+                    }
+                }
+
+                pc.filter(client_ip, filter_settings, ctx.global_config)?;
+
+                *item = {
+                    let mut new_item = Item::new(ItemType::ProfileChunk);
+                    new_item.set_profile_type(pc.profile_type());
+                    new_item.set_payload(ContentType::Json, expanded);
+                    new_item
+                };
+
+                return Ok(());
+            }
+
             let pc = relay_profiling::ProfileChunk::new(item.payload())?;
 
             // Validate the item inferred profile type with the one from the payload,
@@ -64,10 +106,10 @@ pub fn process(profile_chunks: &mut Managed<SerializedProfileChunks>, ctx: Conte
             }
 
             *item = {
-                let mut item = Item::new(ItemType::ProfileChunk);
-                item.set_profile_type(pc.profile_type());
-                item.set_payload(ContentType::Json, expanded);
-                item
+                let mut new_item = Item::new(ItemType::ProfileChunk);
+                new_item.set_profile_type(pc.profile_type());
+                new_item.set_payload(ContentType::Json, expanded);
+                new_item
             };
 
             Ok(())

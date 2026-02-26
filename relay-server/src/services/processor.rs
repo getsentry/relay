@@ -354,8 +354,12 @@ impl ProcessingGroup {
         }
 
         // Extract profile chunks.
-        let profile_chunk_items =
-            envelope.take_items_by(|item| matches!(item.ty(), &ItemType::ProfileChunk));
+        let profile_chunk_items = envelope.take_items_by(|item| {
+            matches!(
+                item.ty(),
+                &ItemType::ProfileChunk | &ItemType::ProfileChunkData
+            )
+        });
         if !profile_chunk_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::ProfileChunk,
