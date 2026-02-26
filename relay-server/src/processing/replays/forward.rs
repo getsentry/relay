@@ -1,15 +1,14 @@
 use bytes::Bytes;
-use smallvec::{SmallVec, smallvec};
+use smallvec::smallvec;
 
 use crate::Envelope;
 use crate::envelope::{ContentType, Item, ItemType, Items};
-use crate::managed::{Managed, Rejected};
+use crate::managed::{Managed, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
 use crate::processing::replays::store;
-use crate::processing::replays::{
-    Error, ExpandedReplay, ExpandedReplays, ReplayVideoEvent, ReplaysOutput,
-};
+use crate::processing::replays::{ExpandedReplay, ReplayPayload, ReplayVideoEvent, ReplaysOutput};
 use crate::processing::{self, Forward};
+use crate::services::outcome::{DiscardReason, Outcome};
 
 /// Errors that can occur when serializing an expanded replay into envelope items.
 #[derive(Debug, thiserror::Error)]
@@ -27,26 +26,20 @@ impl Forward for ReplaysOutput {
         self,
         _ctx: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        Ok(self.0.map(|replays, records| {
-            let ExpandedReplays { headers, replays } = replays;
-            let mut items = Items::new();
+        self.0.try_map(|replay, _| {
+            let ExpandedReplay { headers, payload } = replay;
 
-            for replay in replays {
-                match serialize_replay(&replay) {
-                    Ok(replay_items) => items.extend(replay_items),
-                    Err(error) => {
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            event_id = ?headers.event_id(),
-                            "failed to serialize replay"
-                        );
-                        records.reject_err(Error::FailedToSerializeReplay, replay);
-                    }
-                }
-            }
-
-            Envelope::from_parts(headers, items)
-        }))
+            serialize_replay(&payload)
+                .map_err(|error| {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        event_id = ?headers.event_id(),
+                        "failed to serialize replay"
+                    );
+                })
+                .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+                .map(|items| Envelope::from_parts(headers, items))
+        })
     }
 
     #[cfg(feature = "processing")]
@@ -55,12 +48,13 @@ impl Forward for ReplaysOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let Self(replays) = self;
+        let Self(replay) = self;
 
-        let event_id = replays
-            .headers
-            .event_id()
-            .ok_or_else(|| replays.reject_err(Error::NoEventId).map(|_| ()))?;
+        let event_id = replay.headers.event_id().ok_or_else(|| {
+            replay
+                .reject_err(crate::processing::replays::Error::NoEventId)
+                .map(drop)
+        })?;
 
         let ctx = store::Context {
             event_id,
@@ -68,10 +62,8 @@ impl Forward for ReplaysOutput {
             max_replay_message_size: ctx.config.max_replay_message_size(),
         };
 
-        for replay in replays.split(|replay| replay.replays) {
-            if let Ok(replay) = replay.try_map(|replay, _| store::convert(replay, &ctx)) {
-                s.store(replay);
-            }
+        if let Ok(replay) = replay.try_map(|replay, _| store::convert(replay.payload, &ctx)) {
+            s.store(replay);
         }
         Ok(())
     }
@@ -95,9 +87,9 @@ fn create_replay_video_item(payload: Bytes) -> Item {
     item
 }
 
-fn serialize_replay(replay: &ExpandedReplay) -> Result<SmallVec<[Item; 2]>, SerializeReplayError> {
+fn serialize_replay(replay: &ReplayPayload) -> Result<Items, SerializeReplayError> {
     match replay {
-        ExpandedReplay::WebReplay { event, recording } => {
+        ReplayPayload::WebReplay { event, recording } => {
             let event_bytes: Bytes = event.to_json()?.into_bytes().into();
 
             Ok(smallvec![
@@ -105,7 +97,7 @@ fn serialize_replay(replay: &ExpandedReplay) -> Result<SmallVec<[Item; 2]>, Seri
                 create_replay_recording_item(recording.clone()),
             ])
         }
-        ExpandedReplay::NativeReplay {
+        ReplayPayload::NativeReplay {
             event,
             recording,
             video,
@@ -121,7 +113,7 @@ fn serialize_replay(replay: &ExpandedReplay) -> Result<SmallVec<[Item; 2]>, Seri
             let payload = rmp_serde::to_vec_named(&video_event)?;
             Ok(smallvec![create_replay_video_item(payload.into())])
         }
-        ExpandedReplay::StandaloneRecording { recording } => {
+        ReplayPayload::StandaloneRecording { recording } => {
             Ok(smallvec![create_replay_recording_item(recording.clone()),])
         }
     }

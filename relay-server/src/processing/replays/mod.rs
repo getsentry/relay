@@ -31,14 +31,15 @@ pub enum Error {
     #[error("replay feature flag missing")]
     FilterFeatureFlag,
 
-    /// There is an invalid amount of `replay_event` and `replay_recording` items in the envelope.
+    /// There is an invalid amount of `replay_event`, `replay_recording` and `replay_video` items in
+    /// the envelope.
     ///
-    /// Valid quantity combinations: (0, 0), (1, 1) or (0, 1).
-    /// Standalone events and recordings are supported for SDK compatibility.
+    /// Valid quantity combinations: (0, 0, 0), (1, 1, 0), (0, 1, 0) or (0, 0, 1).
+    /// Standalone recordings are supported for SDK compatibility.
     #[error("invalid item count")]
     InvalidItemCount,
 
-    /// Relay event without a recording.
+    /// Replay event without a recording.
     #[error("replay event without recording")]
     EventWithoutRecording,
 
@@ -70,15 +71,16 @@ pub enum Error {
     #[error("failed to scrub PII: {0}")]
     CouldNotScrub(#[from] ProcessingAction),
 
-    /// The Replays are rate limited.
+    /// The Replay was rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
 
-    /// Replays filtered due to a filtering rule
+    /// Replay filtered due to a filtering rule
     #[error("replay filtered with reason: {0}")]
     Filtered(FilterStatKey),
 
     /// Failed to re-serialize the replay.
+    #[cfg(feature = "processing")]
     #[error("failed to serialize replay")]
     FailedToSerializeReplay,
 
@@ -124,6 +126,7 @@ impl OutcomeError for Error {
                 Some(Outcome::RateLimited(reason_code))
             }
             Self::Filtered(key) => Some(Outcome::Filtered(key.clone())),
+            #[cfg(feature = "processing")]
             Self::FailedToSerializeReplay => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
             Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
@@ -201,17 +204,17 @@ impl processing::Processor for ReplaysProcessor {
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let replays = filter::feature_flag(replays, ctx)?;
-        let mut replays = process::expand(replays);
+        let mut replay = process::expand(replays)?;
 
-        validate::validate(&mut replays);
-        process::normalize(&mut replays, &self.geoip_lookup);
-        filter::filter(&mut replays, ctx);
+        validate::validate(&mut replay)?;
+        process::normalize(&mut replay, &self.geoip_lookup);
+        filter::filter(&mut replay, ctx)?;
 
-        let mut replays = self.limiter.enforce_quotas(replays, ctx).await?;
+        let mut replay = self.limiter.enforce_quotas(replay, ctx).await?;
 
-        process::scrub(&mut replays, ctx)?;
+        process::scrub(&mut replay, ctx)?;
 
-        Ok(Output::just(ReplaysOutput(replays)))
+        Ok(Output::just(ReplaysOutput(replay)))
     }
 }
 
@@ -257,29 +260,29 @@ impl Counted for ReplayVideoEvent {
     }
 }
 
-/// Replays which have been parsed and expanded from their serialized state.
+/// A Replay which has been parsed and expanded from its serialized state.
 #[derive(Debug)]
-pub struct ExpandedReplays {
+pub struct ExpandedReplay {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
-    /// Expanded replays
-    replays: Vec<ExpandedReplay>,
+    /// Replay Payload.
+    payload: ReplayPayload,
 }
 
-impl Counted for ExpandedReplays {
+impl Counted for ExpandedReplay {
     fn quantities(&self) -> crate::managed::Quantities {
-        self.replays.quantities()
+        self.payload.quantities()
     }
 }
 
-impl CountRateLimited for Managed<ExpandedReplays> {
+impl CountRateLimited for Managed<ExpandedReplay> {
     type Error = Error;
 }
 
-/// An expanded Replay.
+/// The payload of an [`ExpandedReplay`].
 #[derive(Debug)]
-enum ExpandedReplay {
+enum ReplayPayload {
     /// A web replay (event + rrweb recording)
     WebReplay {
         event: Annotated<Replay>,
@@ -293,42 +296,42 @@ enum ExpandedReplay {
     },
     /// A standalone replay recording.
     ///
-    /// Although a `replay_event` and `replay_recording` should always be send together in an
+    /// Although a `replay_event` and `replay_recording` should always be sent together in an
     /// envelope, this is not the case for some SDKs. As such, support this to not break them.
     StandaloneRecording { recording: Bytes },
 }
 
-impl Counted for ExpandedReplay {
+impl Counted for ReplayPayload {
     fn quantities(&self) -> crate::managed::Quantities {
         match self {
-            ExpandedReplay::WebReplay { .. } => {
+            ReplayPayload::WebReplay { .. } => {
                 smallvec::smallvec![(DataCategory::Replay, 2)]
             }
-            ExpandedReplay::NativeReplay { .. } | ExpandedReplay::StandaloneRecording { .. } => {
+            ReplayPayload::NativeReplay { .. } | ReplayPayload::StandaloneRecording { .. } => {
                 smallvec::smallvec![(DataCategory::Replay, 1)]
             }
         }
     }
 }
 
-impl ExpandedReplay {
+impl ReplayPayload {
     fn event_mut(&mut self) -> Option<&mut Annotated<Replay>> {
         match self {
-            ExpandedReplay::WebReplay { event, .. } => Some(event),
-            ExpandedReplay::NativeReplay { event, .. } => Some(event),
-            ExpandedReplay::StandaloneRecording { .. } => None,
+            ReplayPayload::WebReplay { event, .. } => Some(event),
+            ReplayPayload::NativeReplay { event, .. } => Some(event),
+            ReplayPayload::StandaloneRecording { .. } => None,
         }
     }
 
     fn recording_mut(&mut self) -> &mut Bytes {
         match self {
-            ExpandedReplay::WebReplay { recording, .. } => recording,
-            ExpandedReplay::NativeReplay { recording, .. } => recording,
-            ExpandedReplay::StandaloneRecording { recording } => recording,
+            ReplayPayload::WebReplay { recording, .. } => recording,
+            ReplayPayload::NativeReplay { recording, .. } => recording,
+            ReplayPayload::StandaloneRecording { recording } => recording,
         }
     }
 }
 
 /// Output produced by the [`ReplaysProcessor`].
 #[derive(Debug)]
-pub struct ReplaysOutput(Managed<ExpandedReplays>);
+pub struct ReplaysOutput(Managed<ExpandedReplay>);
