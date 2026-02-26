@@ -147,10 +147,33 @@ impl Item {
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![(DataCategory::UserReportV2, item_count)],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, item_count)],
-            ItemType::Profile => smallvec![
-                (DataCategory::Profile, item_count),
-                (DataCategory::ProfileIndexed, item_count)
-            ],
+            ItemType::Profile => match self.profile_type() {
+                Some(ProfileType::Backend) => smallvec![
+                    (DataCategory::Profile, item_count),
+                    (DataCategory::ProfileIndexed, item_count),
+                    (DataCategory::ProfileBackend, item_count),
+                ],
+                Some(ProfileType::Ui) => smallvec![
+                    (DataCategory::Profile, item_count),
+                    (DataCategory::ProfileIndexed, item_count),
+                    (DataCategory::ProfileUi, item_count)
+                ],
+                // Note: parsing the profile type (and validity) requires parsing the payload,
+                // which makes this semantically wrong but it is too expensive here to parse the
+                // payload.
+                None => smallvec![
+                    (DataCategory::Profile, item_count),
+                    (DataCategory::ProfileIndexed, item_count),
+                ],
+            },
+            ItemType::ProfileChunk => match self.profile_type() {
+                Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
+                Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
+                // Note: parsing the profile type (and validity) requires parsing the payload,
+                // which makes this semantically wrong but it is too expensive here to parse the
+                // payload.
+                None => smallvec![],
+            },
             ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
                 smallvec![(DataCategory::Replay, item_count)]
             }
@@ -160,12 +183,6 @@ impl Item {
                 (DataCategory::Span, item_count),
                 (DataCategory::SpanIndexed, item_count),
             ],
-            // NOTE: semantically wrong, but too expensive to parse.
-            ItemType::ProfileChunk => match self.profile_type() {
-                Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
-                Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
-                None => smallvec![],
-            },
             ItemType::ProfileChunkData => smallvec![],
             ItemType::Integration => match self.integration() {
                 Some(Integration::Logs(LogsIntegration::OtelV1 { .. })) => smallvec![

@@ -294,6 +294,28 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_SEER_USER = 34,
   /**
+   * Transaction profiles for backend platforms.
+   *
+   * This is an extension of [`Self::Profile`], but additional discriminates on the profile
+   * platform, see also [`Self::ProfileUi`].
+   *
+   * Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
+   *
+   * SDK rate limiting behavior: optional, apply to transaction profiles on "backend platforms'.
+   */
+  RELAY_DATA_CATEGORY_PROFILE_BACKEND = 35,
+  /**
+   * Transaction profiles for ui platforms.
+   *
+   * This is an extension of [`Self::Profile`], but additional discriminates on the profile
+   * platform, see also [`Self::ProfileBackend`].
+   *
+   * Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
+   *
+   * SDK rate limiting behavior: optional, apply to transaction profiles on "ui platforms'.
+   */
+  RELAY_DATA_CATEGORY_PROFILE_UI = 36,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,

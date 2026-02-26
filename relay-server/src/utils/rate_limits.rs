@@ -7,6 +7,7 @@ use relay_quotas::{
     DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
     Scoping,
 };
+use smallvec::SmallVec;
 
 use crate::envelope::{AttachmentParentType, Envelope, Item, ItemType};
 use crate::integrations::Integration;
@@ -189,6 +190,18 @@ impl AttachmentQuantities {
     }
 }
 
+/// Collection of all transaction profile quantities.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ProfileQuantities {
+    /// All transaction profiles in the backend category.
+    pub backend: usize,
+    /// All transaction profiles in the ui category.
+    pub ui: usize,
+    /// All transaction profiles, includes profiles in the backend and ui categories as well as
+    /// profiles which are in neither category.
+    pub total: usize,
+}
+
 /// A summary of `Envelope` contents.
 ///
 /// Summarizes the contained event, size of attachments, session updates, and whether there are
@@ -206,7 +219,7 @@ pub struct EnvelopeSummary {
     pub session_quantity: usize,
 
     /// The number of profiles.
-    pub profile_quantity: usize,
+    pub profile_quantity: ProfileQuantities,
 
     /// The number of replays.
     pub replay_quantity: usize,
@@ -311,7 +324,9 @@ impl EnvelopeSummary {
                     AttachmentParentType::Event => &mut self.attachment_quantities.event.count,
                 },
                 DataCategory::Session => &mut self.session_quantity,
-                DataCategory::Profile => &mut self.profile_quantity,
+                DataCategory::Profile => &mut self.profile_quantity.total,
+                DataCategory::ProfileBackend => &mut self.profile_quantity.backend,
+                DataCategory::ProfileUi => &mut self.profile_quantity.ui,
                 DataCategory::Replay => &mut self.replay_quantity,
                 DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
                 DataCategory::Monitor => &mut self.monitor_quantity,
@@ -355,6 +370,8 @@ impl EnvelopeSummary {
 pub struct CategoryLimit {
     /// The limited data category.
     category: Option<DataCategory>,
+    /// Additional and optional data categories in which outcomes will be produced.
+    extra_outcome_categories: SmallVec<[DataCategory; 1]>,
     /// The total rate limited quantity across all items.
     ///
     /// This will be `0` if nothing was rate limited.
@@ -374,10 +391,17 @@ impl CategoryLimit {
             Some(limit) => Self {
                 category: Some(category),
                 quantity,
+                extra_outcome_categories: Default::default(),
                 reason_code: limit.reason_code.clone(),
             },
             None => Self::default(),
         }
+    }
+
+    /// Adds an additional outcome in the specified category to the limit.
+    pub fn add_outcome_category(mut self, category: DataCategory) -> Self {
+        self.extra_outcome_categories.push(category);
+        self
     }
 
     /// Recreates the category limit, if active, for a new category with the same reason.
@@ -388,6 +412,7 @@ impl CategoryLimit {
 
         Self {
             category: Some(category),
+            extra_outcome_categories: Default::default(),
             quantity,
             reason_code: self.reason_code.clone(),
         }
@@ -398,6 +423,29 @@ impl CategoryLimit {
     /// Inactive limits are placeholders with no category set.
     pub fn is_active(&self) -> bool {
         self.category.is_some()
+    }
+
+    fn outcomes(self) -> impl Iterator<Item = (Outcome, DataCategory, usize)> {
+        let Self {
+            category,
+            extra_outcome_categories,
+            quantity,
+            reason_code,
+        } = self;
+
+        if category.is_none() || quantity == 0 {
+            return either::Either::Left(std::iter::empty());
+        }
+
+        let outcomes = std::iter::chain(category, extra_outcome_categories).map(move |category| {
+            (
+                Outcome::RateLimited(reason_code.clone()),
+                category,
+                quantity,
+            )
+        });
+
+        either::Either::Right(outcomes)
     }
 }
 
@@ -443,8 +491,15 @@ pub struct Enforcement {
     pub attachments_limits: AttachmentsLimits,
     /// The combined session item rate limit.
     pub sessions: CategoryLimit,
-    /// The combined profile item rate limit.
+    /// The combined transaction profile item rate limits, for all transaction profiles.
+    ///
+    /// This is at least the sum of [`Self::profiles_backend`] and [`Self::profiles_ui`],
+    /// potentially more if there are profiles without a known platform.
     pub profiles: CategoryLimit,
+    /// The combined backend transaction profile item rate limit.
+    pub profiles_backend: CategoryLimit,
+    /// The combined ui transaction profile item rate limit.
+    pub profiles_ui: CategoryLimit,
     /// The rate limit for the indexed profiles category.
     pub profiles_indexed: CategoryLimit,
     /// The combined replay item rate limit.
@@ -513,6 +568,8 @@ impl Enforcement {
                 },
             sessions: _, // Do not report outcomes for sessions.
             profiles,
+            profiles_backend,
+            profiles_ui,
             profiles_indexed,
             replays,
             check_ins,
@@ -536,6 +593,8 @@ impl Enforcement {
             span_attachment_bytes,
             span_attachment_item,
             profiles,
+            profiles_backend,
+            profiles_ui,
             profiles_indexed,
             replays,
             check_ins,
@@ -549,16 +608,7 @@ impl Enforcement {
             trace_metrics,
         ];
 
-        limits
-            .into_iter()
-            .filter(|limit| limit.quantity > 0)
-            .filter_map(move |limit| {
-                Some((
-                    Outcome::RateLimited(limit.reason_code),
-                    limit.category?,
-                    limit.quantity,
-                ))
-            })
+        limits.into_iter().flat_map(|limit| limit.outcomes())
     }
 
     /// Applies the [`Enforcement`] on the [`Envelope`] by removing all items that were rate limited
@@ -658,7 +708,18 @@ impl Enforcement {
                 }
             }
             ItemType::Session => !self.sessions.is_active(),
-            ItemType::Profile => !self.profiles_indexed.is_active(),
+            ItemType::Profile => {
+                if self.profiles_indexed.is_active() {
+                    false
+                } else if let Some(platform) = item.profile_type() {
+                    match platform {
+                        ProfileType::Backend => !self.profiles_backend.is_active(),
+                        ProfileType::Ui => !self.profiles_ui.is_active(),
+                    }
+                } else {
+                    true
+                }
+            }
             ItemType::ReplayEvent => !self.replays.is_active(),
             ItemType::ReplayVideo => !self.replays.is_active(),
             ItemType::ReplayRecording => !self.replays.is_active(),
@@ -1027,17 +1088,24 @@ where
         if enforcement.is_event_active() {
             enforcement.profiles = enforcement
                 .event
-                .clone_for(DataCategory::Profile, summary.profile_quantity);
-
+                .clone_for(DataCategory::Profile, summary.profile_quantity.total);
             enforcement.profiles_indexed = enforcement
                 .event_indexed
-                .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity)
-        } else if summary.profile_quantity > 0 {
+                .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity.total);
+
+            enforcement.profiles_backend = enforcement.event.clone_for(
+                DataCategory::ProfileBackend,
+                summary.profile_quantity.backend,
+            );
+            enforcement.profiles_ui = enforcement
+                .event
+                .clone_for(DataCategory::ProfileUi, summary.profile_quantity.ui);
+        } else if summary.profile_quantity.total > 0 {
             let mut profile_limits = self
                 .check
                 .apply(
                     scoping.item(DataCategory::Profile),
-                    summary.profile_quantity,
+                    summary.profile_quantity.total,
                 )
                 .await?;
 
@@ -1052,26 +1120,90 @@ where
 
             enforcement.profiles = CategoryLimit::new(
                 DataCategory::Profile,
-                summary.profile_quantity,
+                summary.profile_quantity.total,
                 profile_limits.longest(),
             );
 
-            if profile_limits.is_empty() {
-                profile_limits.merge(
-                    self.check
+            if enforcement.profiles.quantity == 0 {
+                if summary.profile_quantity.backend > 0 {
+                    let limit = self
+                        .check
                         .apply(
-                            scoping.item(DataCategory::ProfileIndexed),
-                            summary.profile_quantity,
+                            scoping.item(DataCategory::ProfileBackend),
+                            summary.profile_quantity.backend,
                         )
-                        .await?,
+                        .await?;
+
+                    enforcement.profiles_backend = CategoryLimit::new(
+                        DataCategory::ProfileBackend,
+                        summary.profile_quantity.backend,
+                        limit.longest(),
+                    )
+                    .add_outcome_category(DataCategory::Profile);
+
+                    profile_limits.merge(limit);
+                }
+                if summary.profile_quantity.ui > 0 {
+                    let limit = self
+                        .check
+                        .apply(
+                            scoping.item(DataCategory::ProfileUi),
+                            summary.profile_quantity.ui,
+                        )
+                        .await?;
+
+                    enforcement.profiles_ui = CategoryLimit::new(
+                        DataCategory::ProfileUi,
+                        summary.profile_quantity.ui,
+                        limit.longest(),
+                    )
+                    .add_outcome_category(DataCategory::Profile);
+
+                    profile_limits.merge(limit);
+                }
+            } else {
+                enforcement.profiles_backend = CategoryLimit::new(
+                    DataCategory::ProfileBackend,
+                    summary.profile_quantity.backend,
+                    profile_limits.longest(),
+                );
+                enforcement.profiles_ui = CategoryLimit::new(
+                    DataCategory::ProfileUi,
+                    summary.profile_quantity.ui,
+                    profile_limits.longest(),
                 );
             }
 
-            enforcement.profiles_indexed = CategoryLimit::new(
-                DataCategory::ProfileIndexed,
-                summary.profile_quantity,
-                profile_limits.longest(),
-            );
+            if enforcement.profiles.quantity > 0 {
+                enforcement.profiles_indexed = enforcement
+                    .profiles
+                    .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity.total);
+            } else {
+                let limit = self
+                    .check
+                    .apply(
+                        scoping.item(DataCategory::ProfileIndexed),
+                        summary.profile_quantity.total,
+                    )
+                    .await?;
+
+                if !limit.is_empty() {
+                    enforcement.profiles_indexed = CategoryLimit::new(
+                        DataCategory::ProfileIndexed,
+                        summary.profile_quantity.total,
+                        limit.longest(),
+                    );
+
+                    profile_limits.merge(limit);
+                } else {
+                    enforcement.profiles_backend = enforcement
+                        .profiles_backend
+                        .add_outcome_category(DataCategory::ProfileIndexed);
+                    enforcement.profiles_ui = enforcement
+                        .profiles_ui
+                        .add_outcome_category(DataCategory::ProfileIndexed);
+                }
+            }
 
             rate_limits.merge(profile_limits);
         }
