@@ -33,7 +33,7 @@ pub enum SystemGauges {
     /// This metric is tagged with:
     ///  - `service`: The fully qualified type name of the service implementation.
     ServiceBackPressure,
-    /// Number of messages currently being handled concurrently by a [`ConcurrentService`].
+    /// Number of messages currently being handled concurrently by a [`ConcurrentService`](crate::ConcurrentService).
     /// This metric is tagged with:
     /// - `service`: The fully qualified type name of the service implementation.
     ServiceConcurrency,
