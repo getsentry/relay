@@ -31,7 +31,7 @@ impl Item {
     }
 
     /// Returns the `ItemType` of this item.
-    pub fn ty(&self) -> ItemType {
+    pub fn ty(&self) -> &ItemType {
         self.headers.ty()
     }
 
@@ -464,7 +464,7 @@ impl Item {
 
     /// Returns `true` if this item is an attachment with AttachmentV2 content type.
     fn is_attachment_v2(&self) -> bool {
-        self.ty() == ItemType::Attachment
+        *self.ty() == ItemType::Attachment
             && self.content_type() == Some(ContentType::TraceAttachment)
     }
 
@@ -480,14 +480,15 @@ impl Item {
 
     /// Returns `true` if this item is an attachment placeholder.
     fn is_attachment_ref(&self) -> bool {
-        self.ty() == ItemType::Attachment && self.content_type() == Some(ContentType::AttachmentRef)
+        *self.ty() == ItemType::Attachment
+            && self.content_type() == Some(ContentType::AttachmentRef)
     }
 
     /// Returns the [`AttachmentParentType`] of an attachment.
     ///
     /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
     pub fn attachment_parent_type(&self) -> AttachmentParentType {
-        let is_attachment = self.ty() == ItemType::Attachment;
+        let is_attachment = *self.ty() == ItemType::Attachment;
         debug_assert!(
             is_attachment,
             "function should only be called on attachments"
@@ -656,7 +657,7 @@ impl Item {
             spans: crate::utils::SeqCount,
         }
 
-        if self.ty() != ItemType::Transaction || self.spans_extracted() {
+        if *self.ty() != ItemType::Transaction || self.spans_extracted() {
             return None;
         }
 
@@ -931,8 +932,8 @@ impl ItemHeaders {
     }
 
     /// Returns the type of the item.
-    pub fn ty(&self) -> ItemType {
-        self.ty.clone()
+    pub fn ty(&self) -> &ItemType {
+        &self.ty
     }
 
     /// Returns the content length of the item payload.

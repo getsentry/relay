@@ -206,10 +206,10 @@ impl<T: ContainerItem> ItemContainer<T> {
             });
         }
 
-        if item.ty() != T::ITEM_TYPE {
+        if *item.ty() != T::ITEM_TYPE {
             return Err(ContainerParseError::MismatchedItemType {
                 expected: T::ITEM_TYPE,
-                actual: item.ty(),
+                actual: item.ty().clone(),
             });
         }
 
@@ -249,7 +249,7 @@ impl<T: ContainerItem> ItemContainer<T> {
 
     /// Checks whether a given item is a container of `T`s, according to its item and content types.
     pub fn is_container(item: &Item) -> bool {
-        item.ty() == T::ITEM_TYPE && item.content_type() == Some(T::CONTENT_TYPE)
+        *item.ty() == T::ITEM_TYPE && item.content_type() == Some(T::CONTENT_TYPE)
     }
 
     fn deserialize<'de, D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {

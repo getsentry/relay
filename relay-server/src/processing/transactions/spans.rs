@@ -324,7 +324,7 @@ mod tests {
 
         let span = spans
             .into_iter()
-            .find(|item| item.as_ref().unwrap().ty() == ItemType::Span)
+            .find(|item| item.as_ref().unwrap().ty() == &ItemType::Span)
             .unwrap()
             .unwrap();
 

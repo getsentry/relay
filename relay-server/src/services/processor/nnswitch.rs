@@ -69,7 +69,7 @@ pub fn expand(
 }
 
 fn is_dying_message(item: &crate::envelope::Item) -> bool {
-    item.ty() == ItemType::Attachment
+    *item.ty() == ItemType::Attachment
         && item.payload().starts_with(SENTRY_MAGIC)
         && item.filename() == Some(DYING_MESSAGE_FILENAME)
 }
@@ -131,8 +131,8 @@ fn expand_dying_message_from_envelope_items(data: Bytes, envelope: &mut Envelope
         Envelope::parse_items_bytes(data).map_err(SwitchProcessingError::EnvelopeParsing)?;
     for item in items {
         // If it's an event type, merge it with the main event one already in the envelope.
-        if item.ty() == ItemType::Event
-            && let Some(event) = envelope.get_item_by_mut(|it| it.ty() == ItemType::Event)
+        if *item.ty() == ItemType::Event
+            && let Some(event) = envelope.get_item_by_mut(|it| *it.ty() == ItemType::Event)
         {
             update_event(item, event).map_err(SwitchProcessingError::InvalidJson)?;
             // Don't add this item as a new envelope item now that it's merged.
@@ -269,12 +269,12 @@ mod tests {
 
         let items: Vec<_> = envelope.envelope().items().collect();
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0].ty(), ItemType::Event);
+        assert_eq!(*items[0].ty(), ItemType::Event);
         assert_eq!(
             items[0].payload(),
             "{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
         );
-        assert_eq!(items[1].ty(), ItemType::Attachment);
+        assert_eq!(*items[1].ty(), ItemType::Attachment);
         assert_eq!(items[1].filename(), Some(DYING_MESSAGE_FILENAME));
         assert_eq!(items[1].payload().len(), 106);
 
@@ -282,12 +282,12 @@ mod tests {
 
         let items: Vec<_> = envelope.envelope().items().collect();
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0].ty(), ItemType::Event);
+        assert_eq!(*items[0].ty(), ItemType::Event);
         assert_eq!(
             items[0].payload(),
             "{\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"a\":\"val\",\"b\":\"c\"},\"message\":\"hello world\"}"
         );
-        assert_eq!(items[1].ty(), ItemType::Attachment);
+        assert_eq!(*items[1].ty(), ItemType::Attachment);
         assert_eq!(items[1].filename(), None);
         assert_eq!(items[1].payload(), "Hi".as_bytes());
     }
@@ -300,12 +300,12 @@ mod tests {
 
         let items: Vec<_> = envelope.envelope().items().collect();
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0].ty(), ItemType::Event);
+        assert_eq!(*items[0].ty(), ItemType::Event);
         assert_eq!(
             items[0].payload(),
             "{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
         );
-        assert_eq!(items[1].ty(), ItemType::Attachment);
+        assert_eq!(*items[1].ty(), ItemType::Attachment);
         assert_eq!(items[1].filename(), Some(DYING_MESSAGE_FILENAME));
         assert_eq!(items[1].payload().len(), 98);
 
@@ -313,12 +313,12 @@ mod tests {
 
         let items: Vec<_> = envelope.envelope().items().collect();
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0].ty(), ItemType::Event);
+        assert_eq!(*items[0].ty(), ItemType::Event);
         assert_eq!(
             items[0].payload(),
             "{\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"a\":\"val\",\"b\":\"c\"},\"message\":\"hello world\"}"
         );
-        assert_eq!(items[1].ty(), ItemType::Attachment);
+        assert_eq!(*items[1].ty(), ItemType::Attachment);
         assert_eq!(items[1].filename(), None);
         assert_eq!(items[1].payload(), "Hi".as_bytes());
     }

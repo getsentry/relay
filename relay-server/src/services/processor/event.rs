@@ -41,11 +41,11 @@ pub fn extract<Group: EventProcessing>(
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
     // `process_event`.
-    let event_item = envelope.take_item_by(|item| item.ty() == ItemType::Event);
-    let security_item = envelope.take_item_by(|item| item.ty() == ItemType::Security);
-    let raw_security_item = envelope.take_item_by(|item| item.ty() == ItemType::RawSecurity);
-    let user_report_v2_item = envelope.take_item_by(|item| item.ty() == ItemType::UserReportV2);
-    let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
+    let event_item = envelope.take_item_by(|item| *item.ty() == ItemType::Event);
+    let security_item = envelope.take_item_by(|item| *item.ty() == ItemType::Security);
+    let raw_security_item = envelope.take_item_by(|item| *item.ty() == ItemType::RawSecurity);
+    let user_report_v2_item = envelope.take_item_by(|item| *item.ty() == ItemType::UserReportV2);
+    let form_item = envelope.take_item_by(|item| *item.ty() == ItemType::FormData);
     let attachment_item =
         envelope.take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
     let breadcrumbs1 =

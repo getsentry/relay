@@ -116,7 +116,7 @@ pub fn process(
     event: Option<&Event>,
     ctx: &Context,
 ) -> Result<ProfileId, Outcome> {
-    debug_assert_eq!(profile.ty(), ItemType::Profile);
+    debug_assert_eq!(*profile.ty(), ItemType::Profile);
     let filter_settings = &ctx.project_info.config.filter_settings;
     let profiling_enabled = ctx.project_info.has_feature(Feature::Profiling);
 

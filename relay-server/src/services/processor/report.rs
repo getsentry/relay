@@ -71,7 +71,7 @@ pub fn process_client_reports(
     // we're going through all client reports but we're effectively just merging
     // them into the first one.
     managed_envelope.retain_items(|item| {
-        if item.ty() != ItemType::ClientReport {
+        if *item.ty() != ItemType::ClientReport {
             return ItemAction::Keep;
         };
         match ClientReport::parse(&item.payload()) {
@@ -198,7 +198,7 @@ pub fn process_client_reports(
 /// is written back into the item.
 pub fn process_user_reports<Group>(managed_envelope: &mut TypedEnvelope<Group>) {
     managed_envelope.retain_items(|item| {
-        if item.ty() != ItemType::UserReport {
+        if *item.ty() != ItemType::UserReport {
             return ItemAction::Keep;
         };
 
@@ -393,7 +393,7 @@ mod tests {
             panic!();
         };
         let item = new_envelope.envelope().items().next().unwrap();
-        assert_eq!(item.ty(), ItemType::ClientReport);
+        assert_eq!(*item.ty(), ItemType::ClientReport);
 
         new_envelope.accept(); // do not try to capture or emit outcomes
     }
@@ -500,7 +500,7 @@ mod tests {
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(
-            new_envelope.items().next().unwrap().ty(),
+            *new_envelope.items().next().unwrap().ty(),
             ItemType::UserReport
         );
     }
@@ -547,7 +547,7 @@ mod tests {
         let new_envelope = new_envelope.envelope();
 
         assert_eq!(new_envelope.len(), 1);
-        assert_eq!(new_envelope.items().next().unwrap().ty(), ItemType::Event);
+        assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
     }
 
     #[test]

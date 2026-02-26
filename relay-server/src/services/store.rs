@@ -351,7 +351,7 @@ impl StoreService {
         // Some error events like minidumps need all attachment chunks to be processed _before_
         // the event payload on the consumer side. Transaction attachments do not require this ordering
         // guarantee, so they do not have to go to the same topic as their event payload.
-        let event_topic = if event_item.as_ref().map(|x| x.ty()) == Some(ItemType::Transaction) {
+        let event_topic = if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
         } else if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
@@ -359,7 +359,7 @@ impl StoreService {
             KafkaTopic::Events
         };
 
-        let send_individual_attachments = matches!(event_type, None | Some(ItemType::Transaction));
+        let send_individual_attachments = matches!(event_type, None | Some(&ItemType::Transaction));
 
         let mut attachments = Vec::new();
 
@@ -445,7 +445,7 @@ impl StoreService {
                         |scope| {
                             scope.set_extra("item_types", item_types.into());
                             scope.set_extra("attachment_types", attachment_types.into());
-                            if other == ItemType::FormData {
+                            if *other == ItemType::FormData {
                                 let payload = item.payload();
                                 let form_data_keys = FormDataIter::new(&payload)
                                     .map(|entry| entry.key())
@@ -1033,7 +1033,7 @@ impl StoreService {
         downsampled_retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        debug_assert_eq!(item.ty(), ItemType::Span);
+        debug_assert_eq!(*item.ty(), ItemType::Span);
         debug_assert_eq!(item.content_type(), Some(ContentType::Json));
 
         let Scoping {
@@ -1585,7 +1585,7 @@ fn serialize_as_json<T: serde::Serialize>(
 ///
 /// Slow items must be routed to the `Attachments` topic.
 fn is_slow_item(item: &Item) -> bool {
-    item.ty() == ItemType::Attachment || item.ty() == ItemType::UserReport
+    *item.ty() == ItemType::Attachment || *item.ty() == ItemType::UserReport
 }
 
 fn bool_to_str(value: bool) -> &'static str {
