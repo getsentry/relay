@@ -711,7 +711,7 @@ mod tests {
 
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items.len(), 1);
-        assert_eq!(*items[0].ty(), ItemType::Attachment);
+        assert_eq!(items[0].ty(), &ItemType::Attachment);
     }
 
     #[test]
@@ -728,14 +728,14 @@ mod tests {
         envelope.add_item(item2);
 
         let taken = envelope
-            .take_item_by(|item| *item.ty() == ItemType::Attachment)
+            .take_item_by(|item| item.ty() == &ItemType::Attachment)
             .expect("should return some item");
 
         assert_eq!(taken.filename(), Some("item1"));
 
         assert!(
             envelope
-                .take_item_by(|item| *item.ty() == ItemType::Event)
+                .take_item_by(|item| item.ty() == &ItemType::Event)
                 .is_none()
         );
     }
@@ -898,7 +898,7 @@ mod tests {
         assert_eq!(envelope.len(), 2);
         let items: Vec<_> = envelope.items().collect();
 
-        assert_eq!(*items[0].ty(), ItemType::Attachment);
+        assert_eq!(items[0].ty(), &ItemType::Attachment);
         assert_eq!(items[0].len(), 10);
         assert_eq!(
             items[0].payload(),
@@ -906,7 +906,7 @@ mod tests {
         );
         assert_eq!(items[0].content_type(), Some(ContentType::Text));
 
-        assert_eq!(*items[1].ty(), ItemType::Event);
+        assert_eq!(items[1].ty(), &ItemType::Event);
         assert_eq!(items[1].len(), 41);
         assert_eq!(
             items[1].payload(),
@@ -947,7 +947,7 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(*items[0].ty(), ItemType::ReplayRecording);
+        assert_eq!(items[0].ty(), &ItemType::ReplayRecording);
     }
 
     #[test]
@@ -963,7 +963,7 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(*items[0].ty(), ItemType::ReplayVideo);
+        assert_eq!(items[0].ty(), &ItemType::ReplayVideo);
     }
 
     #[test]
@@ -979,7 +979,7 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(*items[0].ty(), ItemType::Attachment);
+        assert_eq!(items[0].ty(), &ItemType::Attachment);
         assert_eq!(
             items[0].attachment_type(),
             Some(AttachmentType::ViewHierarchy)
@@ -1008,9 +1008,9 @@ mod tests {
         let items = Envelope::parse_items_bytes(bytes).unwrap();
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].len(), 10);
-        assert_eq!(*items[0].ty(), ItemType::Attachment);
+        assert_eq!(items[0].ty(), &ItemType::Attachment);
         assert_eq!(items[1].len(), 10);
-        assert_eq!(*items[1].ty(), ItemType::ReplayRecording);
+        assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
     }
 
     #[test]
@@ -1158,7 +1158,7 @@ mod tests {
         envelope.add_item(Item::new(ItemType::Attachment));
 
         // Does not split when no item matches.
-        let split_opt = envelope.split_by(|item| *item.ty() == ItemType::Session);
+        let split_opt = envelope.split_by(|item| item.ty() == &ItemType::Session);
         assert!(split_opt.is_none());
     }
 
@@ -1169,7 +1169,7 @@ mod tests {
         envelope.add_item(Item::new(ItemType::Session));
 
         // Does not split when all items match.
-        let split_opt = envelope.split_by(|item| *item.ty() == ItemType::Session);
+        let split_opt = envelope.split_by(|item| item.ty() == &ItemType::Session);
         assert!(split_opt.is_none());
     }
 
@@ -1179,7 +1179,7 @@ mod tests {
         envelope.add_item(Item::new(ItemType::Session));
         envelope.add_item(Item::new(ItemType::Attachment));
 
-        let split_opt = envelope.split_by(|item| *item.ty() == ItemType::Session);
+        let split_opt = envelope.split_by(|item| item.ty() == &ItemType::Session);
         let split_envelope = split_opt.expect("split_by returns an Envelope");
 
         assert_eq!(split_envelope.len(), 1);
@@ -1187,11 +1187,11 @@ mod tests {
 
         // Matching items have moved into the split envelope.
         for item in split_envelope.items() {
-            assert_eq!(*item.ty(), ItemType::Session);
+            assert_eq!(item.ty(), &ItemType::Session);
         }
 
         for item in envelope.items() {
-            assert_eq!(*item.ty(), ItemType::Attachment);
+            assert_eq!(item.ty(), &ItemType::Attachment);
         }
     }
 

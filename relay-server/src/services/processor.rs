@@ -935,7 +935,7 @@ impl MetricData {
         let mut buckets = Vec::new();
         for item in items {
             let payload = item.payload();
-            if *item.ty() == ItemType::Statsd {
+            if item.ty() == &ItemType::Statsd {
                 for bucket_result in Bucket::parse_all(&payload, timestamp) {
                     match bucket_result {
                         Ok(bucket) => buckets.push(bucket),
@@ -945,7 +945,7 @@ impl MetricData {
                         ),
                     }
                 }
-            } else if *item.ty() == ItemType::MetricBuckets {
+            } else if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(parsed_buckets) => {
                         // Re-use the allocation of `b` if possible.
@@ -1400,7 +1400,7 @@ impl EnvelopeProcessorService {
         let attachments = managed_envelope
             .envelope_mut()
             .items_mut()
-            .filter(|i| *i.ty() == ItemType::Attachment);
+            .filter(|i| i.ty() == &ItemType::Attachment);
         processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
@@ -1438,7 +1438,7 @@ impl EnvelopeProcessorService {
         let attachments = managed_envelope
             .envelope_mut()
             .items_mut()
-            .filter(|i| *i.ty() == ItemType::Attachment);
+            .filter(|i| i.ty() == &ItemType::Attachment);
         processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         Ok(Some(extracted_metrics))
@@ -2008,7 +2008,7 @@ impl EnvelopeProcessorService {
                     let envelope_has_attachments = envelope
                         .envelope()
                         .items()
-                        .any(|item| *item.ty() == ItemType::Attachment);
+                        .any(|item| item.ty() == &ItemType::Attachment);
                     // Whether Relay will store this attachment in objectstore or use kafka like before.
                     let use_objectstore = || {
                         let options = &self.inner.global_config.current().options;
@@ -3469,7 +3469,7 @@ mod tests {
         };
         let event = envelope
             .envelope()
-            .get_item_by(|item| *item.ty() == ItemType::Event)
+            .get_item_by(|item| item.ty() == &ItemType::Event)
             .unwrap();
 
         let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();

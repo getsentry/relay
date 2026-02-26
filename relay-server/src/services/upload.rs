@@ -54,7 +54,7 @@ impl Upload {
             Self::Envelope(StoreEnvelope { envelope }) => envelope
                 .envelope()
                 .items()
-                .filter(|item| *item.ty() == ItemType::Attachment)
+                .filter(|item| item.ty() == &ItemType::Attachment)
                 .count(),
             Self::Attachment(_) => 1,
             Self::Stream { .. } => 1,
@@ -288,7 +288,7 @@ impl UploadServiceInner {
         let attachments = envelope
             .envelope_mut()
             .items_mut()
-            .filter(|item| *item.ty() == ItemType::Attachment);
+            .filter(|item| item.ty() == &ItemType::Attachment);
 
         match session {
             Err(error) => {

@@ -116,7 +116,7 @@ fn ensure_span_count(envelope: &mut Managed<Box<Envelope>>) {
     envelope.modify(|envelope, records| {
         if let Some(transaction_item) = envelope
             .items_mut()
-            .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())
+            .find(|item| item.ty() == &ItemType::Transaction && !item.spans_extracted())
         {
             // We're actively 'correcting' span counts -> there will be differences.
             records.lenient(DataCategory::Span);
