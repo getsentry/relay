@@ -9,6 +9,9 @@
 **Features**:
 
 - Populate gen_ai.response.model from gen_ai.request.model if not already set. ([#5654](https://github.com/getsentry/relay/pull/5654))
+
+**Internal**
+
 - Allow deferred lengths to the `/upload` endpoint when the sender is trusted. ([#5658](https://github.com/getsentry/relay/pull/5658))
 
 ## 26.2.1

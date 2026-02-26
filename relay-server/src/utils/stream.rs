@@ -31,8 +31,8 @@ impl ByteCounter {
         Self(Arc::new(AtomicUsize::new(0)))
     }
 
-    fn add(&self, n: usize) {
-        self.0.fetch_add(n, Ordering::Relaxed);
+    fn add(&self, n: usize) -> usize {
+        return n + self.0.fetch_add(n, Ordering::Relaxed);
     }
 
     pub fn get(&self) -> usize {
@@ -77,8 +77,7 @@ where
 
         match inner.poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
-                this.byte_counter.add(bytes.len());
-                let bytes_received = this.byte_counter.get();
+                let bytes_received = this.byte_counter.add(bytes.len());
                 if let Some(expected_length) = this.expected_length
                     && bytes_received > expected_length
                 {

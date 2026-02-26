@@ -18,6 +18,9 @@ pub enum Error {
     /// The `Upload-Length` and `Upload-Defer-Length` headers are both missing, incorrect, or cannot be parsed.
     #[error("Invalid Upload-Length")]
     UploadLength,
+    /// The `Upload-Defer-Length` header is not allowed for external/untrusted requests.
+    #[error("Upload-Defer-Length not allowed")]
+    DeferLengthNotAllowed,
     /// The `Content-Type` header is not what TUS expects.
     #[error("Invalid Content-Type")]
     ContentType,
@@ -57,12 +60,11 @@ pub const UPLOAD_OFFSET: &str = "Upload-Offset";
 pub const EXPECTED_CONTENT_TYPE: HeaderValue =
     HeaderValue::from_static("application/offset+octet-stream");
 
-fn parse_header<T: FromStr>(headers: &HeaderMap, header_name: &str) -> Option<T> {
-    headers.get(header_name)?.to_str().ok()?.parse().ok()
-}
-
 /// Validates TUS protocol headers and returns the expected upload length.
-pub fn validate_headers(headers: &HeaderMap, is_trusted: bool) -> Result<Option<usize>, Error> {
+pub fn validate_headers(
+    headers: &HeaderMap,
+    allow_defer_length: bool,
+) -> Result<Option<usize>, Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {
         return Err(Error::Version);
@@ -76,9 +78,13 @@ pub fn validate_headers(headers: &HeaderMap, is_trusted: bool) -> Result<Option<
     let upload_length: Option<usize> = parse_header(headers, UPLOAD_LENGTH);
     let upload_defer_length: Option<usize> = parse_header(headers, UPLOAD_DEFER_LENGTH);
 
-    match (upload_length, upload_defer_length, is_trusted) {
+    // Exactly one of Upload-Length and Upload-Defer-Length must be present.
+    // Upload-Defer-Length is only accepted if its value is 1 (as demanded by the TUS protocol)
+    // and `allow_defer_length` is true (i.e. the sender is trusted/internal).
+    match (upload_length, upload_defer_length, allow_defer_length) {
         (Some(u), None, _) => Ok(Some(u)),
         (None, Some(1), true) => Ok(None),
+        (None, Some(1), false) => Err(Error::DeferLengthNotAllowed),
         _ => Err(Error::UploadLength),
     }
 }
@@ -89,16 +95,9 @@ pub fn request_headers(upload_length: Option<usize>) -> HeaderMap {
     headers.insert(TUS_RESUMABLE, TUS_VERSION);
     headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
     if let Some(upload_length) = upload_length {
-        headers.insert(
-            UPLOAD_LENGTH,
-            HeaderValue::from_str(&upload_length.to_string())
-                .expect("string from usize should always be a valid header"),
-        );
+        headers.insert(UPLOAD_LENGTH, HeaderValue::from(upload_length));
     } else {
-        headers.insert(
-            UPLOAD_DEFER_LENGTH,
-            HeaderValue::from_str("1").expect("'1' should always be a valid header"),
-        );
+        headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from(1));
     }
     headers
 }
@@ -109,6 +108,10 @@ pub fn response_headers() -> HeaderMap {
     headers.insert(TUS_RESUMABLE, TUS_VERSION);
     headers.insert(TUS_EXTENSION, SUPPORTED_EXTENSIONS);
     headers
+}
+
+fn parse_header<T: FromStr>(headers: &HeaderMap, header_name: &str) -> Option<T> {
+    headers.get(header_name)?.to_str().ok()?.parse().ok()
 }
 
 #[cfg(test)]
@@ -159,5 +162,35 @@ mod tests {
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_headers(&headers, false);
         assert!(matches!(result, Err(Error::Version)));
+    }
+
+    #[test]
+    fn test_validate_tus_headers_valid_deferred_length_from_trusted_source() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+        headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("1"));
+        let result = validate_headers(&headers, true);
+        assert!(matches!(result, Ok(None)));
+    }
+
+    #[test]
+    fn test_validate_tus_headers_valid_deferred_length_from_untrusted_source() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+        headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("1"));
+        let result = validate_headers(&headers, false);
+        assert!(matches!(result, Err(Error::DeferLengthNotAllowed)));
+    }
+
+    #[test]
+    fn test_validate_tus_headers_invalid_deferred_length() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+        headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("2"));
+        let result = validate_headers(&headers, true);
+        assert!(matches!(result, Err(Error::UploadLength)));
     }
 }

@@ -47,6 +47,7 @@ enum Error {
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         match self {
+            Error::Tus(tus::Error::DeferLengthNotAllowed) => StatusCode::FORBIDDEN,
             Error::Tus(_) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::Upload(error) => match error {
@@ -121,7 +122,7 @@ async fn handle(
         .await
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
-    let scoping = check_request(&state, meta, upload_length.unwrap_or(1), project).await?;
+    let scoping = check_request(&state, meta, upload_length, project).await?;
     let stream = body
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
@@ -149,14 +150,14 @@ async fn handle(
 async fn check_request(
     state: &ServiceState,
     meta: RequestMeta,
-    upload_length: usize,
+    upload_length: Option<usize>,
     project: Project<'_>,
 ) -> Result<Scoping, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(Feature::UploadEndpoint);
     let mut item = Item::new(ItemType::Attachment);
     item.set_payload(ContentType::AttachmentRef, vec![]);
-    item.set_attachment_length(upload_length as u64);
+    item.set_attachment_length(upload_length.unwrap_or(1) as u64);
     envelope.add_item(item);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
     let rate_limits = project

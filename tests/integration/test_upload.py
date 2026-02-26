@@ -241,3 +241,27 @@ def test_upload_processing(
     assert PublicKey.parse(processing_relay.public_key).verify(
         unsigned_uri.encode(), signature
     )
+
+
+@pytest.mark.parametrize("defer_length_value", ["1", "2"])
+def test_upload_with_deferred_length(
+    mini_sentry, relay, relay_with_processing, project_config, defer_length_value
+):
+    project_id = 42
+    processing_relay = relay_with_processing(PROCESSING_OPTIONS)
+    relay = relay(processing_relay)
+
+    data = b"hello world"
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Defer-Length": defer_length_value,
+            "Content-Type": "application/offset+octet-stream",
+        },
+        data=data,
+    )
+
+    expected_status_code = 403 if defer_length_value == "1" else 400
+    assert response.status_code == expected_status_code
