@@ -924,6 +924,7 @@ impl ItemHeaders {
 
     // --- Getters ---
 
+    /// Returns the type of the item.
     pub fn ty(&self) -> ItemType {
         self.inner
             .get("type")
@@ -932,6 +933,10 @@ impl ItemHeaders {
             .unwrap_or_else(|| ItemType::Unknown(String::new()))
     }
 
+    /// Returns the content length of the item payload.
+    ///
+    /// Can be `None` if the item does not contain new lines, in which case the payload is
+    /// parsed until the first newline.
     pub fn length(&self) -> Option<u32> {
         self.inner
             .get("length")
@@ -939,6 +944,10 @@ impl ItemHeaders {
             .map(|v| v as u32)
     }
 
+    /// Returns the number of contained items in an [`super::ItemContainer`].
+    ///
+    /// The amount specified must match the amount of items contained in the container exactly.
+    /// Failing to specify the count or a mismatching count will be treated as an invalid envelope.
     pub fn item_count(&self) -> Option<u32> {
         self.inner
             .get("item_count")
@@ -946,6 +955,7 @@ impl ItemHeaders {
             .map(|v| v as u32)
     }
 
+    /// Returns the content type of this item's payload.
     pub fn content_type(&self) -> Option<ContentType> {
         self.inner
             .get("content_type")
@@ -953,6 +963,7 @@ impl ItemHeaders {
             .map(|s| s.parse().unwrap())
     }
 
+    /// Returns the attachment type if this is an attachment item.
     pub fn attachment_type(&self) -> Option<AttachmentType> {
         self.inner
             .get("attachment_type")
@@ -960,14 +971,21 @@ impl ItemHeaders {
             .map(|s| s.parse().unwrap())
     }
 
+    /// Returns the original file name if this is an attachment item.
     pub fn filename(&self) -> Option<&str> {
         self.inner.get("filename").and_then(|v| v.as_str())
     }
 
+    /// Returns the platform this item was produced for.
+    ///
+    /// Currently only used for [`ItemType::ProfileChunk`] to determine the correct data category.
     pub fn platform(&self) -> Option<&str> {
         self.inner.get("platform").and_then(|v| v.as_str())
     }
 
+    /// Returns the routing hint for publishing to kafka.
+    ///
+    /// Currently only used for [`ItemType::CheckIn`].
     pub fn routing_hint(&self) -> Option<Uuid> {
         self.inner
             .get("routing_hint")
@@ -975,6 +993,10 @@ impl ItemHeaders {
             .and_then(|s| s.parse().ok())
     }
 
+    /// Returns whether metrics have already been extracted from the item.
+    ///
+    /// The first Relay that extracts metrics sets this to `true` so upstream Relays
+    /// do not extract the metric again causing double counting.
     pub fn metrics_extracted(&self) -> bool {
         self.inner
             .get("metrics_extracted")
@@ -982,6 +1004,9 @@ impl ItemHeaders {
             .unwrap_or(false)
     }
 
+    /// Returns whether spans and span metrics have been extracted from a transaction.
+    ///
+    /// Also set to `true` for transactions extracted from spans, to prevent going in circles.
     pub fn spans_extracted(&self) -> bool {
         self.inner
             .get("spans_extracted")
@@ -989,6 +1014,10 @@ impl ItemHeaders {
             .unwrap_or(false)
     }
 
+    /// Returns the number of spans in the `event.spans` array.
+    ///
+    /// Should never be set except for transaction items. This number does *not* count the
+    /// transaction itself.
     pub fn span_count(&self) -> Option<usize> {
         self.inner
             .get("span_count")
@@ -996,6 +1025,9 @@ impl ItemHeaders {
             .map(|v| v as usize)
     }
 
+    /// Returns whether the event has been fully normalized.
+    ///
+    /// If the event has been partially normalized, this returns `false`.
     pub fn fully_normalized(&self) -> bool {
         self.inner
             .get("fully_normalized")
@@ -1003,6 +1035,9 @@ impl ItemHeaders {
             .unwrap_or(false)
     }
 
+    /// Returns `false` if the sampling decision is "drop".
+    ///
+    /// For profiles with the feature enabled, dropped items are kept but marked `sampled: false`.
     pub fn sampled(&self) -> bool {
         self.inner
             .get("sampled")
@@ -1010,6 +1045,9 @@ impl ItemHeaders {
             .unwrap_or(true)
     }
 
+    /// Returns the content length of an optional meta segment contained in the item.
+    ///
+    /// Currently only present for trace attachments.
     pub fn meta_length(&self) -> Option<u32> {
         self.inner
             .get("meta_length")
@@ -1017,8 +1055,11 @@ impl ItemHeaders {
             .map(|v| v as u32)
     }
 
+    /// Returns the parent entity that this item is associated with.
+    ///
+    /// Currently only applicable for trace attachments.
     pub fn parent_id(&self) -> Option<ParentId> {
-        // parent_id was #[serde(flatten)], so "span_id" appears as a direct key.
+        // ParentId was #[serde(flatten)], so "span_id" appears as a direct key.
         let val = self.inner.get("span_id")?;
         if val.is_null() {
             Some(ParentId::SpanId(None))
@@ -1028,6 +1069,10 @@ impl ItemHeaders {
         }
     }
 
+    /// Returns the size of the attachment that an attachment placeholder represents.
+    ///
+    /// Only valid in combination with [`ContentType::AttachmentRef`]. This untrusted header
+    /// is used to emit negative outcomes, but must not be used for consistent rate limiting.
     pub fn attachment_length(&self) -> Option<u64> {
         self.inner.get("attachment_length").and_then(|v| v.as_u64())
     }
@@ -1039,6 +1084,7 @@ impl ItemHeaders {
 
     // --- Setters ---
 
+    /// Sets a header value by key name, returning the previous value if present.
     pub fn set(
         &mut self,
         key: &str,
@@ -1054,6 +1100,9 @@ impl ItemHeaders {
         self.inner.as_object_mut().unwrap().remove(key)
     }
 
+    /// Sets the content length of the item payload.
+    ///
+    /// See [`Self::length`].
     pub fn set_length(&mut self, length: Option<u32>) {
         if let Some(v) = length {
             self.set("length", v);
@@ -1062,6 +1111,9 @@ impl ItemHeaders {
         }
     }
 
+    /// Sets the number of contained items.
+    ///
+    /// See [`Self::item_count`].
     pub fn set_item_count(&mut self, item_count: Option<u32>) {
         if let Some(v) = item_count {
             self.set("item_count", v);
@@ -1070,30 +1122,51 @@ impl ItemHeaders {
         }
     }
 
+    /// Sets the content type of this item's payload.
+    ///
+    /// See [`Self::content_type`].
     pub fn set_content_type(&mut self, content_type: ContentType) {
         self.set("content_type", content_type.as_str());
     }
 
+    /// Sets the attachment type.
+    ///
+    /// See [`Self::attachment_type`].
     pub fn set_attachment_type(&mut self, attachment_type: AttachmentType) {
         self.set("attachment_type", attachment_type.to_string());
     }
 
+    /// Sets the original file name.
+    ///
+    /// See [`Self::filename`].
     pub fn set_filename(&mut self, filename: String) {
         self.set("filename", filename);
     }
 
+    /// Sets the routing hint for publishing to kafka.
+    ///
+    /// See [`Self::routing_hint`].
     pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
         self.set("routing_hint", routing_hint.to_string());
     }
 
+    /// Sets the metrics extracted flag.
+    ///
+    /// See [`Self::metrics_extracted`].
     pub fn set_metrics_extracted(&mut self, val: bool) {
         self.set("metrics_extracted", val);
     }
 
+    /// Sets the spans extracted flag.
+    ///
+    /// See [`Self::spans_extracted`].
     pub fn set_spans_extracted(&mut self, val: bool) {
         self.set("spans_extracted", val);
     }
 
+    /// Sets the span count.
+    ///
+    /// See [`Self::span_count`].
     pub fn set_span_count(&mut self, count: Option<usize>) {
         if let Some(v) = count {
             self.set("span_count", v);
@@ -1102,22 +1175,37 @@ impl ItemHeaders {
         }
     }
 
+    /// Sets the fully normalized flag.
+    ///
+    /// See [`Self::fully_normalized`].
     pub fn set_fully_normalized(&mut self, val: bool) {
         self.set("fully_normalized", val);
     }
 
+    /// Sets the sampled flag.
+    ///
+    /// See [`Self::sampled`].
     pub fn set_sampled(&mut self, val: bool) {
         self.set("sampled", val);
     }
 
+    /// Sets the meta segment length.
+    ///
+    /// See [`Self::meta_length`].
     pub fn set_meta_length(&mut self, meta_length: u32) {
         self.set("meta_length", meta_length);
     }
 
+    /// Sets the attachment placeholder size.
+    ///
+    /// See [`Self::attachment_length`].
     pub fn set_attachment_length(&mut self, length: u64) {
         self.set("attachment_length", length);
     }
 
+    /// Sets the parent entity association.
+    ///
+    /// See [`Self::parent_id`].
     pub fn set_parent_id(&mut self, parent_id: Option<ParentId>) {
         match parent_id {
             Some(ParentId::SpanId(span_id)) => {
