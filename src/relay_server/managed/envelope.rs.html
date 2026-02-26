@@ -333,7 +333,7 @@
 <a href=#333 id=333 data-nosnippet>333</a>                    tags.project_key = <span class="self">self</span>.scoping().project_key.to_string(),
 <a href=#334 id=334 data-nosnippet>334</a>                    tags.has_attachments = summary.attachment_quantities.bytes() &gt; <span class="number">0</span>,
 <a href=#335 id=335 data-nosnippet>335</a>                    tags.has_sessions = summary.session_quantity &gt; <span class="number">0</span>,
-<a href=#336 id=336 data-nosnippet>336</a>                    tags.has_profiles = summary.profile_quantity &gt; <span class="number">0</span>,
+<a href=#336 id=336 data-nosnippet>336</a>                    tags.has_profiles = summary.profile_quantity.total &gt; <span class="number">0</span>,
 <a href=#337 id=337 data-nosnippet>337</a>                    tags.has_transactions = summary.secondary_transaction_quantity &gt; <span class="number">0</span>,
 <a href=#338 id=338 data-nosnippet>338</a>                    tags.has_span_metrics = summary.secondary_span_quantity &gt; <span class="number">0</span>,
 <a href=#339 id=339 data-nosnippet>339</a>                    tags.has_replays = summary.replay_quantity &gt; <span class="number">0</span>,
