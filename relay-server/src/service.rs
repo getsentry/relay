@@ -11,6 +11,10 @@ use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
+#[cfg(feature = "processing")]
+use crate::services::objectstore::Objectstore;
+#[cfg(feature = "processing")]
+use crate::services::objectstore::ObjectstoreService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{
@@ -23,10 +27,6 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
-#[cfg(feature = "processing")]
-use crate::services::upload::Upload;
-#[cfg(feature = "processing")]
-use crate::services::upload::UploadService;
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
 #[cfg(feature = "processing")]
@@ -79,7 +79,7 @@ pub struct Registry {
     pub project_cache_handle: ProjectCacheHandle,
     pub autoscaling: Option<Addr<AutoscalingMetrics>>,
     #[cfg(feature = "processing")]
-    pub upload: Option<Addr<Upload>>,
+    pub objectstore: Option<Addr<Objectstore>>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -240,10 +240,10 @@ impl ServiceState {
             .transpose()?;
 
         #[cfg(feature = "processing")]
-        let upload = UploadService::new(config.upload(), store.clone())?.map(|s| {
+        let objectstore = ObjectstoreService::new(config.objectstore(), store.clone())?.map(|s| {
             let concurrent = ConcurrentService::new(s)
                 .with_loadshedding()
-                .with_concurrency_limit(config.upload().max_concurrent_requests);
+                .with_concurrency_limit(config.objectstore().max_concurrent_requests);
             services.start(concurrent)
         });
 
@@ -302,7 +302,7 @@ impl ServiceState {
                             outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
                             #[cfg(feature = "processing")]
-                            upload: upload.clone(),
+                            objectstore: objectstore.clone(),
                             #[cfg(feature = "processing")]
                             store_forwarder: store,
                             aggregator: aggregator.clone(),
@@ -363,7 +363,7 @@ impl ServiceState {
             envelope_buffer,
             autoscaling,
             #[cfg(feature = "processing")]
-            upload,
+            objectstore,
         };
 
         let state = StateInner {
@@ -439,8 +439,8 @@ impl ServiceState {
     }
 
     #[cfg(feature = "processing")]
-    pub fn upload(&self) -> Option<&Addr<Upload>> {
-        self.inner.registry.upload.as_ref()
+    pub fn objectstore(&self) -> Option<&Addr<Objectstore>> {
+        self.inner.registry.objectstore.as_ref()
     }
 }
 

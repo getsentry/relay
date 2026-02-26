@@ -260,7 +260,7 @@ impl Forward for SpanOutput {
             match either.transpose() {
                 Either::Left(span) => {
                     if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
-                        s.store(span);
+                        s.send_to_store(span);
                     }
                 }
                 Either::Right(attachment) => {
@@ -271,7 +271,7 @@ impl Forward for SpanOutput {
                         ctx.retention,
                         ctx.server_sample_rate,
                     ) {
-                        s.upload(attachment);
+                        s.send_to_objectstore(attachment);
                     }
                 }
             }

@@ -70,7 +70,7 @@ impl Forward for ReplaysOutput {
 
         for replay in replays.split(|replay| replay.replays) {
             if let Ok(replay) = replay.try_map(|replay, _| store::convert(replay, &ctx)) {
-                s.store(replay);
+                s.send_to_store(replay);
             }
         }
         Ok(())

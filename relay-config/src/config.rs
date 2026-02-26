@@ -1224,9 +1224,9 @@ pub struct Processing {
     ///
     /// Must be between `0.0` and `1.0`, by default there is no limit configured.
     pub quota_cache_max: Option<f32>,
-    /// Configuration for attachment uploads.
-    #[serde(default)]
-    pub upload: UploadServiceConfig,
+    /// Configuration for the objectstore service.
+    #[serde(default, alias = "upload")]
+    pub objectstore: ObjectstoreServiceConfig,
 }
 
 impl Default for Processing {
@@ -1247,7 +1247,7 @@ impl Default for Processing {
             max_rate_limit: default_max_rate_limit(),
             quota_cache_ratio: None,
             quota_cache_max: None,
-            upload: UploadServiceConfig::default(),
+            objectstore: ObjectstoreServiceConfig::default(),
         }
     }
 }
@@ -1296,10 +1296,10 @@ impl Default for OutcomeAggregatorConfig {
     }
 }
 
-/// Configuration values for attachment uploads.
+/// Configuration values for the objectstore service.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-pub struct UploadServiceConfig {
+pub struct ObjectstoreServiceConfig {
     /// The base URL for the objectstore service.
     ///
     /// This defaults to [`None`], which means that the service will be disabled,
@@ -1313,7 +1313,7 @@ pub struct UploadServiceConfig {
     pub timeout: u64,
 }
 
-impl Default for UploadServiceConfig {
+impl Default for ObjectstoreServiceConfig {
     fn default() -> Self {
         Self {
             objectstore_url: None,
@@ -2597,9 +2597,9 @@ impl Config {
         &self.values.processing.topics.unused
     }
 
-    /// Configuration of the attachment upload service.
-    pub fn upload(&self) -> &UploadServiceConfig {
-        &self.values.processing.upload
+    /// Configuration of the objectstore service.
+    pub fn objectstore(&self) -> &ObjectstoreServiceConfig {
+        &self.values.processing.objectstore
     }
 
     /// Redis servers to connect to for project configs, cardinality limits,

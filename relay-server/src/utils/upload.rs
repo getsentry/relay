@@ -20,7 +20,7 @@ use tokio::sync::oneshot::error::RecvError;
 use crate::http::{HttpError, RequestBuilder, Response};
 use crate::service::ServiceState;
 #[cfg(feature = "processing")]
-use crate::services::upload::{Error as ServiceError, Upload};
+use crate::services::objectstore::{self, Objectstore};
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
@@ -46,8 +46,8 @@ pub enum Error {
     #[error("service unavailable")]
     ServiceUnavailable,
     #[cfg(feature = "processing")]
-    #[error("upload service: {0}")]
-    UploadService(#[from] ServiceError),
+    #[error("objectstore service: {0}")]
+    Objectstore(#[from] objectstore::Error),
     #[error("internal error")]
     Internal,
 }
@@ -66,15 +66,15 @@ pub struct Stream {
 pub enum Sink {
     Upstream(Addr<UpstreamRelay>),
     #[cfg(feature = "processing")]
-    Upload(Addr<Upload>),
+    Objectstore(Addr<Objectstore>),
 }
 
 impl Sink {
     /// Creates a new upload dispatcher.
     pub fn new(state: &ServiceState) -> Self {
         #[cfg(feature = "processing")]
-        if let Some(addr) = state.upload() {
-            return Self::Upload(addr.clone());
+        if let Some(addr) = state.objectstore() {
+            return Self::Objectstore(addr.clone());
         }
         Self::Upstream(state.upstream_relay().clone())
     }
@@ -90,7 +90,7 @@ impl Sink {
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Sink::Upload(addr) => {
+            Sink::Objectstore(addr) => {
                 let project_id = stream.scoping.project_id;
                 let byte_counter = stream.stream.byte_counter();
                 let key = addr

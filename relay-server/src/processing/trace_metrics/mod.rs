@@ -191,7 +191,7 @@ impl Forward for TraceMetricOutput {
 
         for metric in metrics.split(|metrics| metrics.metrics) {
             if let Ok(metric) = metric.try_map(|metric, _| store::convert(metric, &ctx)) {
-                s.store(metric);
+                s.send_to_store(metric);
             }
         }
 

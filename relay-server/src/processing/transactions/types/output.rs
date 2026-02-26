@@ -76,7 +76,7 @@ impl Forward for TransactionOutput {
     ) -> Result<(), Rejected<()>> {
         let envelope: ManagedEnvelope = self.serialize_envelope(ctx)?.into();
 
-        s.store(StoreEnvelope {
+        s.send_to_store(StoreEnvelope {
             envelope: envelope.into_processed(),
         });
 
