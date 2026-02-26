@@ -120,9 +120,9 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
 @pytest.mark.parametrize(
     "size,expected_status_code",
     [
-        (9, 400),  # smaller than announced
-        (11, 400),  # larger than announced
-        (101, 413),  # larger than allowed
+        pytest.param(9, 400, id="smaller_than_announced"),
+        pytest.param(11, 400, id="larger_than_announced"),
+        pytest.param(101, 413, id="larger_than_allowed"),
     ],
 )
 def test_upload_body_size(

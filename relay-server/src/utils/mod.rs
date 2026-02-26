@@ -1,5 +1,6 @@
 mod api;
 mod dynamic_sampling;
+mod error;
 mod multipart;
 mod param_parser;
 mod pick;
@@ -25,6 +26,7 @@ mod unreal;
 
 pub use self::api::*;
 pub use self::dynamic_sampling::*;
+pub use self::error::*;
 pub use self::forward::*;
 pub use self::memory::*;
 pub use self::multipart::*;

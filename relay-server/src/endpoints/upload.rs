@@ -29,8 +29,9 @@ use crate::service::ServiceState;
 use crate::services::projects::cache::Project;
 #[cfg(feature = "processing")]
 use crate::services::upload::Error as ServiceError;
+use crate::services::upstream::UpstreamRequestError;
 use crate::utils::upload::SignedLocation;
-use crate::utils::{CountingStream, tus, upload};
+use crate::utils::{CountingStream, find_error_source, tus, upload};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -51,7 +52,16 @@ impl IntoResponse for Error {
             Error::Tus(_) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::Upload(error) => match error {
-                upload::Error::Forward(error) => return error.into_response(),
+                upload::Error::Send(_) => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::UpstreamRequest(e) => match e {
+                    UpstreamRequestError::SendFailed(e)
+                        if find_error_source(&e, is_hyper_user_error).is_some() =>
+                    {
+                        return StatusCode::BAD_REQUEST.into_response();
+                    }
+                    _ => return e.into_response(),
+                },
+                upload::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                 upload::Error::Upstream(status) => status,
                 upload::Error::InvalidLocation | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
@@ -178,4 +188,10 @@ async fn check_request(
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle).route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
+}
+
+fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    error
+        .downcast_ref::<hyper::Error>()
+        .is_some_and(hyper::Error::is_user)
 }
