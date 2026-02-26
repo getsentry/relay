@@ -31,7 +31,7 @@ use crate::services::projects::cache::Project;
 use crate::services::upload::Error as ServiceError;
 use crate::services::upstream::UpstreamRequestError;
 use crate::utils::upload::SignedLocation;
-use crate::utils::{CountingStream, find_error_source, tus, upload};
+use crate::utils::{BoundedStream, find_error_source, tus, upload};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -137,7 +137,11 @@ async fn handle(
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
-    let stream = CountingStream::new(stream, upload_length);
+    let (lower_bound, upper_bound) = match upload_length {
+        None => (1, config.max_upload_size()),
+        Some(u) => (u, u),
+    };
+    let stream = BoundedStream::new(stream, lower_bound, upper_bound);
     let byte_counter = stream.byte_counter();
 
     let location = upload::Sink::new(&state)

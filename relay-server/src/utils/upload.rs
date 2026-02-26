@@ -24,7 +24,7 @@ use crate::services::upload::{Error as ServiceError, Upload};
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
-use crate::utils::{CountingStream, tus};
+use crate::utils::{BoundedStream, tus};
 
 /// An error that occurs during upload.
 #[derive(Debug, thiserror::Error)]
@@ -57,7 +57,7 @@ pub struct Stream {
     /// The organization and project the stream belongs to.
     pub scoping: Scoping,
     /// The body to be uploaded to objectstore, with length validation.
-    pub stream: CountingStream<BoxStream<'static, std::io::Result<Bytes>>>,
+    pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
 }
 
 /// A dispatcher for uploading large files.
@@ -204,7 +204,7 @@ impl SignedLocation {
 /// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
     scoping: Scoping,
-    body: Option<CountingStream<BoxStream<'static, std::io::Result<Bytes>>>>,
+    body: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
     sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
 
@@ -280,7 +280,12 @@ impl UpstreamRequest for UploadRequest {
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
-        for (key, value) in tus::request_headers(body.expected_length()) {
+        let upload_length = if body.lower_bound == body.upper_bound {
+            Some(body.lower_bound)
+        } else {
+            None
+        };
+        for (key, value) in tus::request_headers(upload_length) {
             let Some(key) = key else { continue };
             builder.header(key, value);
         }

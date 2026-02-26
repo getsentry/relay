@@ -16,13 +16,14 @@ use sync_wrapper::SyncWrapper;
 /// This type is `Sync` via [`SyncWrapper`], allowing it to be sent across thread boundaries
 /// as required by the upload service.
 #[derive(Debug)]
-pub struct CountingStream<S> {
+pub struct BoundedStream<S> {
+    pub lower_bound: usize,
+    pub upper_bound: usize,
     inner: Option<SyncWrapper<S>>,
-    expected_length: Option<usize>,
     byte_counter: ByteCounter,
 }
 
-/// A shared counter that can be read after the [`CountingStream`] has been moved.
+/// A shared counter that can be read after the [`BoundedStream`] has been moved.
 #[derive(Clone, Debug)]
 pub struct ByteCounter(Arc<AtomicUsize>);
 
@@ -32,7 +33,7 @@ impl ByteCounter {
     }
 
     fn add(&self, n: usize) -> usize {
-        return n + self.0.fetch_add(n, Ordering::Relaxed);
+        n + self.0.fetch_add(n, Ordering::Relaxed)
     }
 
     pub fn get(&self) -> usize {
@@ -40,19 +41,15 @@ impl ByteCounter {
     }
 }
 
-impl<S> CountingStream<S> {
-    /// Creates a new [`CountingStream`] wrapping the given stream with the expected total length.
-    pub fn new(stream: S, expected_length: Option<usize>) -> Self {
+impl<S> BoundedStream<S> {
+    /// Creates a new [`BoundedStream`] wrapping the given stream with the expected total length.
+    pub fn new(stream: S, lower_bound: usize, upper_bound: usize) -> Self {
         Self {
             inner: Some(SyncWrapper::new(stream)),
-            expected_length,
+            lower_bound,
+            upper_bound,
             byte_counter: ByteCounter::new(),
         }
-    }
-
-    /// Returns the expected total length of the stream.
-    pub fn expected_length(&self) -> Option<usize> {
-        self.expected_length
     }
 
     /// Returns a shared handle to read the byte count after the stream is consumed.
@@ -61,7 +58,7 @@ impl<S> CountingStream<S> {
     }
 }
 
-impl<S, E> Stream for CountingStream<S>
+impl<S, E> Stream for BoundedStream<S>
 where
     S: Stream<Item = Result<Bytes, E>> + Send + Unpin,
     E: Into<io::Error>,
@@ -78,15 +75,13 @@ where
         match inner.poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
                 let bytes_received = this.byte_counter.add(bytes.len());
-                if let Some(expected_length) = this.expected_length
-                    && bytes_received > expected_length
-                {
+                if bytes_received > this.upper_bound {
                     this.inner = None;
                     Poll::Ready(Some(Err(io::Error::new(
                         io::ErrorKind::FileTooLarge,
                         format!(
-                            "stream exceeded expected length: received {} > {}",
-                            bytes_received, expected_length
+                            "stream exceeded upper bound: received {} > {}",
+                            bytes_received, this.upper_bound
                         ),
                     ))))
                 } else {
@@ -96,15 +91,13 @@ where
             Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e.into()))),
             Poll::Ready(None) => {
                 let bytes_received = this.byte_counter.get();
-                if let Some(expected_length) = this.expected_length
-                    && bytes_received < expected_length
-                {
+                if bytes_received < this.lower_bound {
                     this.inner = None;
                     Poll::Ready(Some(Err(io::Error::new(
                         io::ErrorKind::UnexpectedEof,
                         format!(
-                            "stream shorter than expected length: received {} < {}",
-                            bytes_received, expected_length
+                            "stream shorter than lower bound: received {} < {}",
+                            bytes_received, this.lower_bound
                         ),
                     ))))
                 } else {
