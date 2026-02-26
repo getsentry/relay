@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -68,10 +69,13 @@ impl IntoResponse for ForwardError {
                 HttpError::Misconfigured => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             Self::Upstream(UpstreamRequestError::SendFailed(e)) => {
-                if has_source::<http_body_util::LengthLimitError>(&e) {
-                    return StatusCode::PAYLOAD_TOO_LARGE.into_response();
-                }
-                if e.is_timeout() {
+                if let Some(source) = find_source(&e, is_hyper_user_error) {
+                    if find_source(source, is_length_limit_error).is_some() {
+                        StatusCode::PAYLOAD_TOO_LARGE.into_response()
+                    } else {
+                        StatusCode::BAD_REQUEST.into_response()
+                    }
+                } else if e.is_timeout() {
                     StatusCode::GATEWAY_TIMEOUT.into_response()
                 } else {
                     StatusCode::BAD_GATEWAY.into_response()
@@ -336,14 +340,29 @@ impl ForwardRequestBuilder {
     }
 }
 
-/// Returns `true` if any of the error's sources matches the given type.
-fn has_source<T: std::error::Error + 'static>(error: &dyn std::error::Error) -> bool {
+fn find_source<E, P>(error: &E, predicate: P) -> Option<&dyn Error>
+where
+    E: std::error::Error + ?Sized,
+    P: Fn(&(dyn Error + 'static)) -> bool,
+{
     let mut source = error.source();
     while let Some(s) = source {
-        if s.downcast_ref::<T>().is_some() {
-            return true;
+        if predicate(s) {
+            return Some(s);
         }
         source = s.source();
     }
-    false
+    None
+}
+
+fn is_hyper_user_error(error: &(dyn Error + 'static)) -> bool {
+    error
+        .downcast_ref::<hyper::Error>()
+        .is_some_and(hyper::Error::is_user)
+}
+
+fn is_length_limit_error(error: &(dyn Error + 'static)) -> bool {
+    error
+        .downcast_ref::<http_body_util::LengthLimitError>()
+        .is_some()
 }

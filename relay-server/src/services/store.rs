@@ -12,9 +12,8 @@ use futures::FutureExt;
 use futures::future::BoxFuture;
 use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::value::RawValue;
-use smallvec::smallvec;
 use uuid::Uuid;
 
 use relay_base_schema::data_category::DataCategory;
@@ -39,7 +38,7 @@ use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
@@ -111,16 +110,11 @@ pub struct StoreMetrics {
 pub struct StoreTraceItem {
     /// The final trace item which will be produced to Kafka.
     pub trace_item: TraceItem,
-    /// Outcomes to be emitted when successfully producing the item to Kafka.
-    ///
-    /// Note: this is only a temporary measure, long term these outcomes will be part of the trace
-    /// item and emitted by Snuba to guarantee a delivery to storage.
-    pub quantities: Quantities,
 }
 
 impl Counted for StoreTraceItem {
     fn quantities(&self) -> Quantities {
-        self.quantities.clone()
+        self.trace_item.quantities()
     }
 }
 
@@ -180,16 +174,15 @@ pub struct StoreReplay {
     pub event: Option<Bytes>,
     /// Optional replay video.
     pub video: Option<Bytes>,
+    /// Outcome quantities associated with this replay.
+    ///
+    /// Quantities are different for web and native replays.
+    pub quantities: Quantities,
 }
 
 impl Counted for StoreReplay {
     fn quantities(&self) -> Quantities {
-        // Web replays currently count as 2 since they are 2 items in the envelope (event + recording).
-        if self.event.is_some() && self.video.is_none() {
-            smallvec![(DataCategory::Replay, 2)]
-        } else {
-            smallvec![(DataCategory::Replay, 1)]
-        }
+        self.quantities.clone()
     }
 }
 
@@ -374,8 +367,6 @@ impl StoreService {
         let send_individual_attachments = matches!(event_type, None | Some(&ItemType::Transaction));
 
         let mut attachments = Vec::new();
-        let mut replay_event = None;
-        let mut replay_recording = None;
 
         for item in envelope.items() {
             let content_type = item.content_type();
@@ -417,21 +408,6 @@ impl StoreService {
                     retention,
                     item,
                 )?,
-                ItemType::ReplayVideo => {
-                    self.produce_replay_video(
-                        event_id,
-                        scoping,
-                        item.payload(),
-                        received_at,
-                        retention,
-                    )?;
-                }
-                ItemType::ReplayRecording => {
-                    replay_recording = Some(item);
-                }
-                ItemType::ReplayEvent => {
-                    replay_event = Some(item);
-                }
                 ItemType::CheckIn => {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
@@ -492,24 +468,6 @@ impl StoreService {
                     )
                 }
             }
-        }
-
-        if let Some(recording) = replay_recording {
-            // If a recording item type was seen we produce it to Kafka with the replay-event
-            // payload (should it have been provided).
-            //
-            // The replay_video value is always specified as `None`. We do not allow separate
-            // item types for `ReplayVideo` events.
-            let replay_event = replay_event.map(|rv| rv.payload());
-            self.produce_replay_recording(
-                event_id,
-                scoping,
-                &recording.payload(),
-                replay_event.as_deref(),
-                None,
-                received_at,
-                retention,
-            )?;
         }
 
         if let Some(event_item) = event_item {
@@ -636,18 +594,31 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
-        let quantities = message.try_accept(|item| {
+        let eap_emits_outcomes = utils::is_rolled_out(
+            scoping.organization_id.value(),
+            self.global_config
+                .current()
+                .options
+                .eap_outcomes_rollout_rate,
+        )
+        .is_keep();
+
+        let outcomes = message.try_accept(|mut item| {
+            let outcomes = match eap_emits_outcomes {
+                true => None,
+                false => item.trace_item.outcomes.take(),
+            };
+
             let message = KafkaMessage::for_item(scoping, item.trace_item);
-            self.produce(KafkaTopic::Items, message)
-                .map(|()| item.quantities)
+            self.produce(KafkaTopic::Items, message).map(|()| outcomes)
         });
 
         // Accepted outcomes when items have been successfully produced to rdkafka.
         //
         // This is only a temporary measure, long term these outcomes will be part of the trace
         // item and emitted by Snuba to guarantee a delivery to storage.
-        if let Ok(quantities) = quantities {
-            for (category, quantity) in quantities {
+        if let Ok(Some(outcomes)) = outcomes {
+            for (category, quantity) in outcomes.quantities() {
                 self.outcome_aggregator.send(TrackOutcome {
                     category,
                     event_id: None,
@@ -665,6 +636,15 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
+        let relay_emits_accepted_outcome = !utils::is_rolled_out(
+            scoping.organization_id.value(),
+            self.global_config
+                .current()
+                .options
+                .eap_span_outcomes_rollout_rate,
+        )
+        .is_keep();
+
         let meta = SpanMeta {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
@@ -673,6 +653,7 @@ impl StoreService {
             retention_days: message.retention_days,
             downsampled_retention_days: message.downsampled_retention_days,
             received: datetime_to_timestamp(received_at),
+            accepted_outcome_emitted: relay_emits_accepted_outcome,
         };
 
         let result = message.try_accept(|span| {
@@ -698,17 +679,19 @@ impl StoreService {
                 via = "processing"
             );
 
-            // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
-            // or the segments consumer, depending on which will produce outcomes later.
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::SpanIndexed,
-                event_id: None,
-                outcome: Outcome::Accepted,
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
+            if relay_emits_accepted_outcome {
+                // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
+                // or the segments consumer, depending on which will produce outcomes later.
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::SpanIndexed,
+                    event_id: None,
+                    outcome: Outcome::Accepted,
+                    quantity: 1,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: received_at,
+                });
+            }
         }
     }
 
@@ -1024,109 +1007,6 @@ impl StoreService {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn produce_replay_recording(
-        &self,
-        event_id: Option<EventId>,
-        scoping: Scoping,
-        payload: &[u8],
-        replay_event: Option<&[u8]>,
-        replay_video: Option<&[u8]>,
-        received_at: DateTime<Utc>,
-        retention: u16,
-    ) -> Result<(), StoreError> {
-        // Maximum number of bytes accepted by the consumer.
-        let max_payload_size = self.config.max_replay_message_size();
-
-        // Size of the consumer message. We can be reasonably sure this won't overflow because
-        // of the request size validation provided by Nginx and Relay.
-        let mut payload_size = 2000; // Reserve 2KB for the message metadata.
-        payload_size += replay_event.as_ref().map_or(0, |b| b.len());
-        payload_size += replay_video.as_ref().map_or(0, |b| b.len());
-        payload_size += payload.len();
-
-        // If the recording payload can not fit in to the message do not produce and quit early.
-        if payload_size >= max_payload_size {
-            relay_log::debug!("replay_recording over maximum size.");
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::Replay,
-                event_id,
-                outcome: Outcome::Invalid(DiscardReason::TooLarge(
-                    DiscardItemType::ReplayRecording,
-                )),
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
-            return Ok(());
-        }
-
-        let message =
-            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
-                replay_id: event_id.ok_or(StoreError::NoEventId)?,
-                project_id: scoping.project_id,
-                key_id: scoping.key_id,
-                org_id: scoping.organization_id,
-                received: safe_timestamp(received_at),
-                retention_days: retention,
-                payload,
-                replay_event,
-                replay_video,
-                // Hardcoded to `true` to indicate to the consumer that it should always publish the
-                // replay_event as relay no longer does it.
-                relay_snuba_publish_disabled: true,
-            });
-
-        self.produce(KafkaTopic::ReplayRecordings, message)?;
-
-        Ok(())
-    }
-
-    fn produce_replay_video(
-        &self,
-        event_id: Option<EventId>,
-        scoping: Scoping,
-        payload: Bytes,
-        received_at: DateTime<Utc>,
-        retention: u16,
-    ) -> Result<(), StoreError> {
-        #[derive(Deserialize)]
-        struct VideoEvent<'a> {
-            replay_event: &'a [u8],
-            replay_recording: &'a [u8],
-            replay_video: &'a [u8],
-        }
-
-        let Ok(VideoEvent {
-            replay_video,
-            replay_event,
-            replay_recording,
-        }) = rmp_serde::from_slice::<VideoEvent>(&payload)
-        else {
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::Replay,
-                event_id,
-                outcome: Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
-            return Ok(());
-        };
-
-        self.produce_replay_recording(
-            event_id,
-            scoping,
-            replay_recording,
-            Some(replay_event),
-            Some(replay_video),
-            received_at,
-            retention,
-        )
-    }
-
     fn produce_check_in(
         &self,
         project_id: ProjectId,
@@ -1169,6 +1049,15 @@ impl StoreService {
             key_id,
         } = scoping;
 
+        let relay_emits_accepted_outcome = !utils::is_rolled_out(
+            scoping.organization_id.value(),
+            self.global_config
+                .current()
+                .options
+                .eap_span_outcomes_rollout_rate,
+        )
+        .is_keep();
+
         let payload = item.payload();
         let message = SpanKafkaMessageRaw {
             meta: SpanMeta {
@@ -1179,6 +1068,7 @@ impl StoreService {
                 retention_days,
                 downsampled_retention_days,
                 received: datetime_to_timestamp(received_at),
+                accepted_outcome_emitted: relay_emits_accepted_outcome,
             },
             span: serde_json::from_slice(&payload)
                 .map_err(|e| StoreError::EncodingFailed(e.into()))?,
@@ -1203,17 +1093,19 @@ impl StoreService {
             },
         )?;
 
-        // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
-        // or the segments consumer, depending on which will produce outcomes later.
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::SpanIndexed,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: 1,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
+        if relay_emits_accepted_outcome {
+            // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
+            // or the segments consumer, depending on which will produce outcomes later.
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::SpanIndexed,
+                event_id: None,
+                outcome: Outcome::Accepted,
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: received_at,
+            });
+        }
 
         Ok(())
     }
@@ -1510,6 +1402,8 @@ struct SpanMeta {
     retention_days: u16,
     /// Number of days until the downsampled version of this data should be deleted.
     downsampled_retention_days: u16,
+    /// Indicates whether Relay already emitted an accepted outcome or if EAP still needs to emit it.
+    accepted_outcome_emitted: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

@@ -620,6 +620,8 @@ pub struct Limits {
     pub max_event_size: ByteSize,
     /// The maximum size for each attachment.
     pub max_attachment_size: ByteSize,
+    /// The maximum size for a TUS upload request body.
+    pub max_upload_size: ByteSize,
     /// The maximum combined size for all attachments in an envelope or request.
     pub max_attachments_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
@@ -719,6 +721,7 @@ impl Default for Limits {
             max_concurrent_queries: 5,
             max_event_size: ByteSize::mebibytes(1),
             max_attachment_size: ByteSize::mebibytes(200),
+            max_upload_size: ByteSize::mebibytes(1024),
             max_attachments_size: ByteSize::mebibytes(200),
             max_client_reports_size: ByteSize::kibibytes(4),
             max_check_in_size: ByteSize::kibibytes(100),
@@ -2359,6 +2362,11 @@ impl Config {
     /// Returns the maximum size of each attachment.
     pub fn max_attachment_size(&self) -> usize {
         self.values.limits.max_attachment_size.as_bytes()
+    }
+
+    /// Returns the maximum size of a TUS upload request body.
+    pub fn max_upload_size(&self) -> usize {
+        self.values.limits.max_upload_size.as_bytes()
     }
 
     /// Returns the maximum combined size of attachments or payloads containing attachments

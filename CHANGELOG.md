@@ -4,6 +4,26 @@
 
 **Bug Fixes**:
 
+- Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
+
+**Features**:
+
+- Populate gen_ai.response.model from gen_ai.request.model if not already set. ([#5654](https://github.com/getsentry/relay/pull/5654))
+
+## 26.2.1
+
+**Bug Fixes**:
+
+- Return status code 200 instead of 202 for OTLP endpoints. ([#5645](https://github.com/getsentry/relay/pull/5645))
+
+**Features**:
+
+- Add experimental `/upload` endpoint for large file uploads. ([#5638](https://github.com/getsentry/relay/pull/5638))
+
+## 26.2.0
+
+**Bug Fixes**:
+
 - Emit outcomes for spans trimmed from a transaction. ([#5410](https://github.com/getsentry/relay/pull/5410))
 - Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
 - Fix inconsistencies with Insights' expected attributes. ([#5561](https://github.com/getsentry/relay/pull/5561))
@@ -17,6 +37,7 @@
 - Add Culture context to event schema. ([#5615](https://github.com/getsentry/relay/pull/5615))
 - Trim spans with a new EAP trimming processor. ([#5616](https://github.com/getsentry/relay/pull/5616))
 - Forwarded requests are now streamed instead of buffered in-memory. ([#5624](https://github.com/getsentry/relay/pull/5624))
+- Scrub `_vercel_jwt` cookie by default as part of PII scrubbing. ([#5643](https://github.com/getsentry/relay/pull/5643))
 
 **Internal**:
 

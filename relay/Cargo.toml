@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "The Relay binary, a proxy server for Sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.1.0"
+version = "26.2.1"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -24,6 +24,7 @@ clap = { workspace = true, features = ["env", "wrap_help"] }
 clap_complete = { workspace = true }
 dialoguer = { workspace = true }
 hostname = { workspace = true }
+http = { workspace = true }
 relay-config = { workspace = true }
 relay-log = { workspace = true, features = ["init"] }
 relay-server = { workspace = true }
