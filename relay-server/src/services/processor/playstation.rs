@@ -97,6 +97,18 @@ pub fn process(
         }
         merge_playstation_context(event, &prospero_dump);
 
+        // Remove the prosperodump attachment if the project is not configured to store it
+        if !project_info
+            .config
+            .playstation_config
+            .store_prosperodump
+        {
+            envelope.retain_items(|item| {
+                !(item.ty() == &ItemType::Attachment
+                    && item.attachment_type() == Some(&AttachmentType::Prosperodump))
+            });
+        }
+
         return Ok(Some(EventFullyNormalized(false)));
     }
     Ok(None)
