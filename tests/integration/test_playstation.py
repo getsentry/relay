@@ -1,3 +1,4 @@
+from collections import defaultdict
 from unittest import mock
 import pytest
 import os
@@ -22,7 +23,10 @@ def playstation_project_config():
         "config": {
             # Set to 100 years to prevent normalization from overwriting the timestamp
             "eventRetention": 36500,
-            "features": ["organizations:relay-playstation-ingestion"],
+            "features": [
+                "organizations:relay-playstation-ingestion",
+                "projects:relay-upload-endpoint",
+            ],
         }
     }
 
@@ -351,43 +355,70 @@ def test_playstation_user_data_extraction(
     assert len(event["attachments"]) == 3
 
 
-def test_playstation_ignore_large_fields(
+def test_playstation_large_attachments(
     mini_sentry,
     relay_with_playstation,
+    relay_processing_with_playstation,
+    relay_credentials,
+    objectstore,
+    outcomes_consumer,
+    attachments_consumer,
 ):
     PROJECT_ID = 42
-    playstation_dump = load_dump_file("user_data.prosperodmp")
+    playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
-
-    # Make a dummy video that is larger than the dump
-    video_content = "1" * (len(playstation_dump) + 100)
-    relay = relay_with_playstation(
-        mini_sentry,
+    outcomes_consumer = outcomes_consumer()
+    attachments_consumer = attachments_consumer()
+    credentials = relay_credentials()
+    upstream = relay_processing_with_playstation(
         {
+            "processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}},
+            # 1 MiB extra for minidump etc.
             "limits": {
-                "max_attachment_size": len(video_content) - 1,
+                "max_attachment_size": len(playstation_dump) + 1 * 1024 * 1024,
+                "max_attachments_size": len(playstation_dump) + 1 * 1024 * 1024,
             },
-            "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1},
         },
+        static_credentials=credentials,
     )
+    relay = relay_with_playstation(upstream, credentials=credentials)
+    # Video size exceeds attachment size limits - we expect this to be ignored
+    video_content = "1" * (len(playstation_dump) + 2 * 1024 * 1024)
 
     response = relay.send_playstation_request(
         PROJECT_ID, playstation_dump, video_content
     )
+    # Attachment chunks sent to Kafka
+    chunks = defaultdict(bytes)
+    event = None
+    while not event:
+        _, msg = attachments_consumer.get_message()
+        if msg.get("type") == "attachment_chunk":
+            chunks[msg["id"]] += msg["payload"]
+        elif msg.get("type") == "event":
+            event = msg
+
+    # Successful response
     assert response.ok
-    assert (mini_sentry.captured_outcomes.get(timeout=5)["outcomes"]) == [
-        {
-            "timestamp": mock.ANY,
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "too_large:attachment:attachment",
-            "category": 4,
-            "quantity": len(video_content),
-        }
-    ]
-    assert [
-        item.headers["filename"] for item in mini_sentry.get_captured_envelope().items
-    ] == ["playstation.prosperodmp"]
+
+    # No outcomes
+    assert len(outcomes_consumer.get_outcomes()) == 0
+
+    # Attachment chunks (created from the envelope) don't contain the video attachment, but instead
+    # just a location/reference to it. It is located in objectstore.
+    video_attachment = [
+        a for a in event["attachments"] if a["name"] == "crash-video.webm"
+    ][0]
+    location_uri = chunks[video_attachment["id"]].decode()
+    video_key = location_uri.split("/upload/")[1].split("/")[0]
+    objectstore_session = objectstore("attachments", PROJECT_ID)
+    assert objectstore_session.get(video_key).payload.read() == video_content.encode()
+
+    # Prospero dump is located in attachment chunks.
+    dump_attachment = [
+        a for a in event["attachments"] if a["name"] == "playstation.prosperodmp"
+    ][0]
+    assert chunks[dump_attachment["id"]] == playstation_dump
 
 
 def test_playstation_attachment(
