@@ -3137,8 +3137,6 @@ impl<'a> IntoIterator for CombinedQuotas<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;

@@ -202,30 +202,6 @@ def test_lcp_span(
             "retention_days": 90,
             "received_at": time_within(ts, precision="s"),
         },
-        # No metric extraction in the SpanV2 pipeline.
-        *(
-            [
-                {
-                    "org_id": 1,
-                    "project_id": 42,
-                    "name": "d:transactions/measurements.lcp@millisecond",
-                    "type": "d",
-                    "value": [548.0],
-                    "timestamp": time_within_delta(ts),
-                    "tags": {
-                        "browser.name": "Chrome",
-                        "environment": "prod",
-                        "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
-                        "span.op": "ui.webvital.lcp",
-                        "transaction": "/insights/projects/",
-                    },
-                    "retention_days": 90,
-                    "received_at": time_within(ts, precision="s"),
-                }
-            ]
-            if mode == "legacy"
-            else []
-        ),
     ]
 
 
@@ -379,30 +355,6 @@ def test_cls_span(
             "retention_days": 90,
             "received_at": time_within(ts, precision="s"),
         },
-        # No metric extraction in the SpanV2 pipeline.
-        *(
-            [
-                {
-                    "org_id": 1,
-                    "project_id": 42,
-                    "name": "d:transactions/measurements.cls@none",
-                    "type": "d",
-                    "value": [0.1],
-                    "timestamp": time_within_delta(ts),
-                    "tags": {
-                        "browser.name": "Chrome",
-                        "environment": "prod",
-                        "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
-                        "span.op": "ui.webvital.cls",
-                        "transaction": "/insights/projects/",
-                    },
-                    "retention_days": 90,
-                    "received_at": time_within(ts, precision="s"),
-                }
-            ]
-            if mode == "legacy"
-            else []
-        ),
     ]
 
 
@@ -540,28 +492,4 @@ def test_inp_span(
             "retention_days": 90,
             "received_at": time_within(ts, precision="s"),
         },
-        # No metric extraction in the SpanV2 pipeline.
-        *(
-            [
-                {
-                    "org_id": 1,
-                    "project_id": 42,
-                    "name": "d:spans/webvital.inp@millisecond",
-                    "type": "d",
-                    "value": [104.0],
-                    "timestamp": time_within_delta(ts),
-                    "tags": {
-                        "browser.name": "Chrome",
-                        "environment": "prod",
-                        "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
-                        "span.op": "ui.interaction.click",
-                        "transaction": "/insights/projects/",
-                    },
-                    "retention_days": 90,
-                    "received_at": time_within(ts, precision="s"),
-                }
-            ]
-            if mode == "legacy"
-            else []
-        ),
     ]
