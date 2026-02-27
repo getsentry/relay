@@ -191,6 +191,16 @@ pub struct Options {
     )]
     pub eap_outcomes_rollout_rate: f32,
 
+    /// Rollout rate for accepted outcomes for spans being emitted by EAP instead of Relay.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    #[serde(
+        rename = "relay.eap-span-outcomes.rollout-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub eap_span_outcomes_rollout_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

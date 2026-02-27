@@ -4,7 +4,7 @@ use relay_base_schema::events::EventType;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
-use relay_profiling::ProfileError;
+use relay_profiling::{ProfileError, ProfileType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_redis::AsyncRedisClient;
@@ -122,6 +122,17 @@ fn expand_profile(
             return None;
         }
     };
+
+    // If the profile type is new information, we now count the profile in an additional data category.
+    if profile.profile_type().is_none() {
+        record_keeper.modify_by(
+            match meta.kind {
+                ProfileType::Backend => DataCategory::ProfileBackend,
+                ProfileType::Ui => DataCategory::ProfileUi,
+            },
+            1,
+        );
+    }
 
     Some(ExpandedProfile {
         meta,
