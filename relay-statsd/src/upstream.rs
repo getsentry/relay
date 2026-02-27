@@ -74,7 +74,13 @@ impl Remote {
         let result = match self {
             Self::Udp(socket) => socket.send(buf).map(drop),
             #[cfg(unix)]
-            Self::UnixStream(socket) => socket.write_all(buf),
+            Self::UnixStream(socket) => {
+                let length = (buf.len() as u32).to_le_bytes();
+                let length = io::IoSlice::new(&length);
+                let buffer = io::IoSlice::new(buf);
+
+                write_all_vectored(socket, [length, buffer].as_mut_slice())
+            }
             #[cfg(unix)]
             Self::UnixDatagram(socket) => socket.send(buf).map(drop),
         };
@@ -186,4 +192,28 @@ impl Middleware for TryUpstream {
             Self::Error => {}
         }
     }
+}
+
+/// Like [`UnixStream::write_vectored`], but ensuing all bytes are written,
+///
+/// The implementation is taken from the nightly `write_all_vectored` function.
+#[cfg(unix)]
+fn write_all_vectored(stream: &mut UnixStream, mut bufs: &mut [io::IoSlice<'_>]) -> io::Result<()> {
+    // Guarantee that bufs is empty if it contains no data,
+    // to avoid calling write_vectored if there is no data to be written.
+    io::IoSlice::advance_slices(&mut bufs, 0);
+    while !bufs.is_empty() {
+        match stream.write_vectored(bufs) {
+            Ok(0) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::WriteZero,
+                    "failed to write whole buffer",
+                ));
+            }
+            Ok(n) => io::IoSlice::advance_slices(&mut bufs, n),
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
 }
