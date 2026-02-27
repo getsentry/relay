@@ -171,5 +171,10 @@ impl Middleware for TryUpstream {
         }
     }
 
-    fn poll(&mut self) {}
+    fn poll(&mut self) {
+        match self {
+            Self::Upstream(upstream) => upstream.poll(),
+            Self::Error => {}
+        }
+    }
 }
