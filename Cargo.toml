@@ -174,7 +174,7 @@ regex-lite = "0.1.7"
 reqwest = { version = "0.13.2", features = ["blocking"] }
 rmp-serde = "1.3.0"
 semver = "1.0.27"
-sentry = { version = "0.46.2", default-features = false, features = [
+sentry = { version = "0.41.0", default-features = false, features = [
   # default features, except `release-health` is disabled
   "backtrace",
   "contexts",
@@ -182,12 +182,12 @@ sentry = { version = "0.46.2", default-features = false, features = [
   "panic",
   "transport",
 ] }
-sentry-core = "0.46.2"
+sentry-core = "0.41.0"
 sentry-kafka-schemas = { version = "2.1.24", default-features = false }
 sentry-release-parser = { version = "1.4.0", default-features = false, features = [
   "semver-1",
 ] }
-sentry-types = "0.46.2"
+sentry-types = "0.41.0"
 sentry_protos = "0.7.0"
 serde = { version = "=1.0.228", features = ["derive", "rc"] }
 serde-transcode = "1.1.1"
