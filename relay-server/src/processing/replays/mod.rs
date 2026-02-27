@@ -31,7 +31,7 @@ pub enum Error {
     #[error("replay feature flag missing")]
     FilterFeatureFlag,
 
-    /// There is an invalid amount of `replay_event`, `replay_recording` and `replay_video` items in
+    /// There is an invalid number of `replay_event`, `replay_recording` and `replay_video` items in
     /// the envelope.
     ///
     /// Valid quantity combinations: (0, 0, 0), (1, 1, 0), (0, 1, 0) or (0, 0, 1).
@@ -75,7 +75,7 @@ pub enum Error {
     #[error("rate limited")]
     RateLimited(RateLimits),
 
-    /// Replay filtered due to a filtering rule
+    /// Replay filtered due to a filtering rule.
     #[error("replay filtered with reason: {0}")]
     Filtered(FilterStatKey),
 
@@ -266,7 +266,7 @@ pub struct ExpandedReplay {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
-    /// Replay Payload.
+    /// Replay payload.
     payload: ReplayPayload,
 }
 

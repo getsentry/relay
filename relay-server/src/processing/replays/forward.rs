@@ -94,7 +94,7 @@ fn serialize_replay(replay: &ReplayPayload) -> Result<Items, SerializeReplayErro
 
             Ok(smallvec![
                 create_replay_event_item(event_bytes),
-                create_replay_recording_item(recording.clone()),
+                create_replay_recording_item(recording.clone())
             ])
         }
         ReplayPayload::NativeReplay {
@@ -114,7 +114,7 @@ fn serialize_replay(replay: &ReplayPayload) -> Result<Items, SerializeReplayErro
             Ok(smallvec![create_replay_video_item(payload.into())])
         }
         ReplayPayload::StandaloneRecording { recording } => {
-            Ok(smallvec![create_replay_recording_item(recording.clone()),])
+            Ok(smallvec![create_replay_recording_item(recording.clone())])
         }
     }
 }
