@@ -26,7 +26,8 @@
 //!
 //! relay_statsd::init(MetricsClientConfig {
 //!     prefix: "myprefix",
-//!     host: "localhost:8125",
+//!     host: "localhost:8125".to_owned(),
+//!     buffer_size: None,
 //!     default_tags: BTreeMap::new(),
 //!     sample_rate: 1.0.into(),
 //!     aggregate: true,
