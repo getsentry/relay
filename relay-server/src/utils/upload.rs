@@ -24,7 +24,7 @@ use crate::services::upload::{Error as ServiceError, Upload};
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
-use crate::utils::{ExactStream, tus};
+use crate::utils::{BoundedStream, tus};
 
 /// An error that occurs during upload.
 #[derive(Debug, thiserror::Error)]
@@ -57,7 +57,7 @@ pub struct Stream {
     /// The organization and project the stream belongs to.
     pub scoping: Scoping,
     /// The body to be uploaded to objectstore, with length validation.
-    pub stream: ExactStream<BoxStream<'static, std::io::Result<Bytes>>>,
+    pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
 }
 
 /// A dispatcher for uploading large files.
@@ -92,12 +92,13 @@ impl Sink {
             #[cfg(feature = "processing")]
             Sink::Upload(addr) => {
                 let project_id = stream.scoping.project_id;
-                let length = stream.stream.expected_length();
+                let byte_counter = stream.stream.byte_counter();
                 let key = addr
                     .send(stream)
                     .await
                     .map_err(|_send_error| Error::ServiceUnavailable)??
                     .into_inner();
+                let length = byte_counter.get();
 
                 Location {
                     project_id,
@@ -202,7 +203,7 @@ impl SignedLocation {
 /// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
     scoping: Scoping,
-    body: Option<ExactStream<BoxStream<'static, std::io::Result<Bytes>>>>,
+    body: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
     sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
 
@@ -278,7 +279,8 @@ impl UpstreamRequest for UploadRequest {
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
-        for (key, value) in tus::request_headers(body.expected_length()) {
+        let upload_length = (body.lower_bound == body.upper_bound).then_some(body.lower_bound);
+        for (key, value) in tus::request_headers(upload_length) {
             let Some(key) = key else { continue };
             builder.header(key, value);
         }

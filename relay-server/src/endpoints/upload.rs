@@ -31,7 +31,7 @@ use crate::services::projects::cache::Project;
 use crate::services::upload::Error as ServiceError;
 use crate::services::upstream::UpstreamRequestError;
 use crate::utils::upload::SignedLocation;
-use crate::utils::{ExactStream, find_error_source, tus, upload};
+use crate::utils::{BoundedStream, find_error_source, tus, upload};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -48,6 +48,7 @@ enum Error {
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         match self {
+            Error::Tus(tus::Error::DeferLengthNotAllowed) => StatusCode::FORBIDDEN,
             Error::Tus(_) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::Upload(error) => match error {
@@ -115,10 +116,11 @@ async fn handle(
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    let upload_length = tus::validate_headers(&headers).map_err(Error::from)?;
+    let upload_length =
+        tus::validate_headers(&headers, meta.request_trust().is_trusted()).map_err(Error::from)?;
     let config = state.config();
 
-    if upload_length > config.max_upload_size() {
+    if upload_length.is_some_and(|len| len > config.max_upload_size()) {
         return Err(StatusCode::PAYLOAD_TOO_LARGE.into());
     }
 
@@ -135,7 +137,12 @@ async fn handle(
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
-    let stream = ExactStream::new(stream, upload_length);
+    let (lower_bound, upper_bound) = match upload_length {
+        None => (1, config.max_upload_size()),
+        Some(u) => (u, u),
+    };
+    let stream = BoundedStream::new(stream, lower_bound, upper_bound);
+    let byte_counter = stream.byte_counter();
 
     let location = upload::Sink::new(&state)
         .upload(config, upload::Stream { scoping, stream })
@@ -148,7 +155,7 @@ async fn handle(
     let mut response = location.into_response();
     response
         .headers_mut()
-        .insert(tus::UPLOAD_OFFSET, upload_length.into());
+        .insert(tus::UPLOAD_OFFSET, byte_counter.get().into());
 
     Ok(response)
 }
@@ -160,14 +167,14 @@ async fn handle(
 async fn check_request(
     state: &ServiceState,
     meta: RequestMeta,
-    upload_length: usize,
+    upload_length: Option<usize>,
     project: Project<'_>,
 ) -> Result<Scoping, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(Feature::UploadEndpoint);
     let mut item = Item::new(ItemType::Attachment);
     item.set_payload(ContentType::AttachmentRef, vec![]);
-    item.set_attachment_length(upload_length as u64);
+    item.set_attachment_length(upload_length.unwrap_or(1) as u64);
     envelope.add_item(item);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
     let rate_limits = project
