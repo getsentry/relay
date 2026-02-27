@@ -189,6 +189,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-stream"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b5a71a6f37880a80d1d7f19efd781e4b5de42c88f0722cc13bcb6cc2cfe8476"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3101,16 +3123,19 @@ dependencies = [
 
 [[package]]
 name = "objectstore-client"
-version = "0.0.18"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63772abe1fde8d0443c8f87c98974784e577f6064eb732d6e7e5ba1b2cd49a49"
+checksum = "8e624ba879f6d66d1855f4e6dd44534b84b3869c2fc651b452cbeb5996842aca"
 dependencies = [
  "async-compression",
+ "async-stream",
  "bytes",
  "futures-util",
  "infer",
  "jsonwebtoken",
+ "multer",
  "objectstore-types",
+ "percent-encoding",
  "reqwest 0.13.2",
  "sentry-core",
  "serde",
@@ -3122,9 +3147,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-types"
-version = "0.0.18"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23124dcd61e5cbcd3a6fb476a33b1aa3bcdde524333611a903e68cfbf9c588d4"
+checksum = "d62b780dd9cdaa3f0f2e7270fe9047bd42a92bd8a8061d259f737fab5599171a"
 dependencies = [
  "http",
  "humantime",
@@ -4865,6 +4890,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "native-tls",
  "once_cell",
  "percent-encoding",
