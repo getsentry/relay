@@ -237,7 +237,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 
     if let Some(item) = items
         .iter()
-        .find(|item| item.attachment_type() == Some(&AttachmentType::EventPayload))
+        .find(|item| item.attachment_type() == Some(AttachmentType::EventPayload))
         && let Some(event_id) = event_id_from_msgpack(&item.payload())?
     {
         return Ok(Some(event_id));

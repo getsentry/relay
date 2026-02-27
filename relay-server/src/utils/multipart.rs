@@ -235,7 +235,11 @@ where
                     }
 
                     if let Some(content_type) = content_type {
-                        item.set_payload(content_type.as_ref().into(), bytes);
+                        let ct = content_type
+                            .as_ref()
+                            .parse()
+                            .unwrap_or(ContentType::OctetStream);
+                        item.set_payload(ct, bytes);
                     } else {
                         item.set_payload_without_content_type(bytes);
                     }

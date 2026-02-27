@@ -8,7 +8,7 @@ use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
     SecurityReportType, Values,
 };
-use relay_protocol::{Annotated, Array, Empty, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Object};
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
 
@@ -47,11 +47,11 @@ pub fn extract<Group: EventProcessing>(
     let user_report_v2_item = envelope.take_item_by(|item| item.ty() == &ItemType::UserReportV2);
     let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
     let attachment_item =
-        envelope.take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
+        envelope.take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
     let breadcrumbs1 =
-        envelope.take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
+        envelope.take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
     let breadcrumbs2 =
-        envelope.take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
+        envelope.take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
 
     // Event items can never occur twice in an envelope.
     if let Some(duplicate) =
@@ -257,14 +257,11 @@ fn event_from_security_report(
         return Err(ProcessingError::InvalidSecurityReport(json_error));
     }
 
-    if let Some(release) = item.get_header("sentry_release").and_then(Value::as_str) {
+    if let Some(release) = item.sentry_release() {
         event.release = Annotated::from(LenientString(release.to_owned()));
     }
 
-    if let Some(env) = item
-        .get_header("sentry_environment")
-        .and_then(Value::as_str)
-    {
+    if let Some(env) = item.sentry_environment() {
         event.environment = Annotated::from(env.to_owned());
     }
 
