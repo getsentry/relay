@@ -283,7 +283,7 @@ pub struct ExpandedProfile {
 
 impl ExpandedProfile {
     pub fn serialize_item(mut self) -> Item {
-        self.item.set_profile_type(self.meta.kind);
+        self.item.set_platform(self.meta.platform);
         self.item
     }
 }
@@ -294,7 +294,7 @@ impl Counted for ExpandedProfile {
             (DataCategory::Profile, 1),
             (DataCategory::ProfileIndexed, 1),
             (
-                match self.meta.kind {
+                match self.meta.profile_type() {
                     ProfileType::Backend => DataCategory::ProfileBackend,
                     ProfileType::Ui => DataCategory::ProfileUi,
                 },
