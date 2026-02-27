@@ -64,7 +64,9 @@ impl Remote {
             //
             // See: <https://docs.datadoghq.com/extend/dogstatsd/high_throughput/?tab=go#ensure-proper-packet-sizes>
             #[cfg(unix)]
-            Self::UnixStream(_) | Self::UnixDatagram(_) => 8192,
+            Self::UnixStream(_) => 8192,
+            #[cfg(unix)]
+            Self::UnixDatagram(_) => 1024,
         }
     }
 
@@ -78,7 +80,7 @@ impl Remote {
         };
 
         if let Err(err) = result {
-            relay_log::error!("failed to send to upstream: {err}");
+            relay_log::warn!("failed to send metrics to upstream: {err}");
         }
     }
 }
