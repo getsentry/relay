@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use std::net::{Ipv4Addr, UdpSocket};
-use std::os::unix::net::UnixStream;
+#[cfg(unix)]
+use std::os::unix::net::{UnixDatagram, UnixStream};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use statsdproxy::middleware::Middleware;
@@ -9,7 +10,9 @@ use statsdproxy::types::Metric;
 pub enum Remote {
     Udp(UdpSocket),
     #[cfg(unix)]
-    Unix(UnixStream),
+    UnixStream(UnixStream),
+    #[cfg(unix)]
+    UnixDatagram(UnixDatagram),
 }
 
 impl Remote {
@@ -17,13 +20,6 @@ impl Remote {
         // Try treating the address as a fully-qualified URL, where the scheme is the transport identifier.
         if let Some((scheme, path)) = addr.split_once("://") {
             return match scheme {
-                #[cfg(unix)]
-                "unix" => {
-                    let socket = UnixStream::connect(path)?;
-                    socket.set_nonblocking(true)?;
-
-                    Ok(Self::Unix(socket))
-                }
                 "udp" => {
                     let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
                     socket.connect(path)?;
@@ -31,8 +27,23 @@ impl Remote {
 
                     Ok(Self::Udp(socket))
                 }
+                #[cfg(unix)]
+                "unixstream" => {
+                    let socket = UnixStream::connect(path)?;
+                    socket.set_nonblocking(true)?;
+
+                    Ok(Self::UnixStream(socket))
+                }
+                #[cfg(unix)]
+                "unixgram" => {
+                    let socket = UnixDatagram::unbound()?;
+                    socket.connect(path)?;
+                    socket.set_nonblocking(true)?;
+
+                    Ok(Self::UnixDatagram(socket))
+                }
                 _ => Err(io::Error::other(format!(
-                    "invalid scheme '{scheme}', expected 'udp' or 'unix'"
+                    "invalid scheme '{scheme}', expected one of 'udp', 'unixstream', 'unixgram'"
                 ))),
             };
         }
@@ -53,7 +64,7 @@ impl Remote {
             //
             // See: <https://docs.datadoghq.com/extend/dogstatsd/high_throughput/?tab=go#ensure-proper-packet-sizes>
             #[cfg(unix)]
-            Self::Unix(_) => 8192,
+            Self::UnixStream(_) | Self::UnixDatagram(_) => 8192,
         }
     }
 
@@ -61,7 +72,9 @@ impl Remote {
         let result = match self {
             Self::Udp(socket) => socket.send(buf).map(drop),
             #[cfg(unix)]
-            Self::Unix(socket) => socket.write_all(buf),
+            Self::UnixStream(socket) => socket.write_all(buf),
+            #[cfg(unix)]
+            Self::UnixDatagram(socket) => socket.send(buf).map(drop),
         };
 
         if let Err(err) = result {
