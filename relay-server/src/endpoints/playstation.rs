@@ -13,7 +13,8 @@ use crate::envelope::{AttachmentType, Envelope};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::utils::UnconstrainedMultipart;
+use crate::utils::upload::Sink;
+use crate::utils::{AttachmentStrategy, UnconstrainedMultipart, UploadExemptions};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -81,9 +82,21 @@ fn infer_attachment_type(_field_name: Option<&str>, file_name: &str) -> Attachme
 async fn extract_multipart(
     multipart: UnconstrainedMultipart,
     meta: RequestMeta,
-    config: &Config,
+    state: &ServiceState,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = multipart.items(infer_attachment_type, config).await?;
+    let upload_sink = Sink::new(state);
+    let scoping = meta.get_partial_scoping().into_scoping();
+    let attachment_strategy = AttachmentStrategy::Upload {
+        upload_sink,
+        scoping,
+        exemptions: UploadExemptions {
+            exempt_types: &[AttachmentType::Prosperodump],
+            ignore_size_limit_exceeded: true,
+        },
+    };
+    let mut items = multipart
+        .items(infer_attachment_type, state.config(), attachment_strategy)
+        .await?;
 
     let prosperodump_item = items
         .iter_mut()
@@ -116,7 +129,7 @@ async fn handle(
     }
 
     let multipart = request.extract_with_state(&state).await?;
-    let mut envelope = extract_multipart(multipart, meta, state.config()).await?;
+    let mut envelope = extract_multipart(multipart, meta, &state).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
     let id = envelope.event_id();
