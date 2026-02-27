@@ -1,18 +1,12 @@
 use relay_event_normalization::replay;
 
-use crate::managed::Managed;
-use crate::processing::replays::{Error, ExpandedReplays};
+use crate::processing::replays::{Error, ExpandedReplay, Result};
 
-/// Checks the structural validity of replays, rejecting invalid ones.
-pub fn validate(replays: &mut Managed<ExpandedReplays>) {
-    replays.retain(
-        |replays| &mut replays.replays,
-        |replay, _| {
-            let Some(event) = replay.event_mut() else {
-                return Ok(());
-            };
-            let event = event.value().ok_or(Error::NoEventContent)?;
-            replay::validate(event).map_err(Error::from)
-        },
-    )
+/// Checks the structural validity of a replay, rejects it if invalid.
+pub fn validate(replay: &ExpandedReplay) -> Result<()> {
+    let Some(event) = replay.payload.event() else {
+        return Ok(());
+    };
+    let event = event.value().ok_or(Error::NoEventContent)?;
+    replay::validate(event).map_err(Error::from)
 }
