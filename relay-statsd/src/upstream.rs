@@ -1,7 +1,7 @@
-use std::io::{self, Write};
+use std::io;
 use std::net::{Ipv4Addr, UdpSocket};
 #[cfg(unix)]
-use std::os::unix::net::{UnixDatagram, UnixStream};
+use std::os::unix::net::UnixDatagram;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use statsdproxy::middleware::Middleware;
@@ -9,8 +9,6 @@ use statsdproxy::types::Metric;
 
 pub enum Remote {
     Udp(UdpSocket),
-    #[cfg(unix)]
-    UnixStream(UnixStream),
     #[cfg(unix)]
     UnixDatagram(UnixDatagram),
 }
@@ -26,13 +24,6 @@ impl Remote {
                     socket.set_nonblocking(true)?;
 
                     Ok(Self::Udp(socket))
-                }
-                #[cfg(unix)]
-                "unixstream" => {
-                    let socket = UnixStream::connect(path)?;
-                    socket.set_nonblocking(true)?;
-
-                    Ok(Self::UnixStream(socket))
                 }
                 #[cfg(unix)]
                 "unixgram" => {
@@ -60,11 +51,6 @@ impl Remote {
         match self {
             // The original statsdproxy uses.
             Self::Udp(_) => 512,
-            // Datadog recommends 8192 for unix sockets.
-            //
-            // See: <https://docs.datadoghq.com/extend/dogstatsd/high_throughput/?tab=go#ensure-proper-packet-sizes>
-            #[cfg(unix)]
-            Self::UnixStream(_) => 8192,
             #[cfg(unix)]
             Self::UnixDatagram(_) => 1024,
         }
@@ -73,14 +59,6 @@ impl Remote {
     fn send(&mut self, buf: &[u8]) {
         let result = match self {
             Self::Udp(socket) => socket.send(buf).map(drop),
-            #[cfg(unix)]
-            Self::UnixStream(socket) => {
-                let length = (buf.len() as u32).to_le_bytes();
-                let length = io::IoSlice::new(&length);
-                let buffer = io::IoSlice::new(buf);
-
-                write_all_vectored(socket, [length, buffer].as_mut_slice())
-            }
             #[cfg(unix)]
             Self::UnixDatagram(socket) => socket.send(buf).map(drop),
         };
@@ -194,28 +172,4 @@ impl Middleware for TryUpstream {
     }
 
     fn poll(&mut self) {}
-}
-
-/// Like [`UnixStream::write_vectored`], but ensuing all bytes are written,
-///
-/// The implementation is taken from the nightly `write_all_vectored` function.
-#[cfg(unix)]
-fn write_all_vectored(stream: &mut UnixStream, mut bufs: &mut [io::IoSlice<'_>]) -> io::Result<()> {
-    // Guarantee that bufs is empty if it contains no data,
-    // to avoid calling write_vectored if there is no data to be written.
-    io::IoSlice::advance_slices(&mut bufs, 0);
-    while !bufs.is_empty() {
-        match stream.write_vectored(bufs) {
-            Ok(0) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::WriteZero,
-                    "failed to write whole buffer",
-                ));
-            }
-            Ok(n) => io::IoSlice::advance_slices(&mut bufs, n),
-            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
-            Err(e) => return Err(e),
-        }
-    }
-    Ok(())
 }
