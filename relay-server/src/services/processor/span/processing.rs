@@ -4,7 +4,9 @@ use std::error::Error;
 
 use crate::envelope::ItemType;
 use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
-use crate::metrics_extraction::{event, generic};
+use std::collections::BTreeMap;
+
+use crate::metrics_extraction::event;
 use crate::processing;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics, SpanGroup};
@@ -13,9 +15,7 @@ use crate::utils::SamplingResult;
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
-use relay_dynamic_config::{
-    CombinedMetricExtractionConfig, ErrorBoundary, GlobalConfig, ProjectConfig,
-};
+use relay_dynamic_config::{ErrorBoundary, GlobalConfig, ProjectConfig};
 use relay_event_normalization::span::ai::enrich_ai_span;
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
@@ -130,29 +130,44 @@ pub async fn process(
             }
         }
 
-        if let Some(config) = span_metrics_extraction_config {
+        if span_metrics_extraction_config.is_some() {
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
             relay_log::trace!("extracting metrics from standalone span {:?}", span.span_id);
 
-            let ErrorBoundary::Ok(global_metrics_config) = &ctx.global_config.metric_extraction
-            else {
-                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-            };
+            let is_segment = span.is_segment.value().is_some_and(|s| *s);
 
-            let metrics = generic::extract_metrics(
-                span,
-                CombinedMetricExtractionConfig::new(global_metrics_config, config),
-            );
-
-            extracted_metrics.extend_project_metrics(metrics, Some(sampling_decision));
+            // Create usage metric
+            if let Some(timestamp) = span
+                .timestamp
+                .value()
+                .and_then(|ts| relay_metrics::UnixTimestamp::from_datetime(ts.0))
+            {
+                let received_at = relay_metrics::UnixTimestamp::now();
+                let mut tags = BTreeMap::new();
+                tags.insert("is_segment".to_owned(), is_segment.to_string());
+                // Standalone spans are never from a transaction.
+                if is_segment {
+                    tags.insert("was_transaction".to_owned(), "false".to_owned());
+                }
+                let usage_bucket = relay_metrics::Bucket {
+                    timestamp,
+                    width: 0,
+                    name: "c:spans/usage@none".into(),
+                    value: relay_metrics::BucketValue::counter(1.into()),
+                    tags,
+                    metadata: relay_metrics::BucketMetadata::new(received_at),
+                };
+                extracted_metrics
+                    .extend_project_metrics(vec![usage_bucket], Some(sampling_decision));
+            }
 
             let bucket = event::create_span_root_counter(
                 span,
                 transaction_from_dsc.clone(),
                 1,
-                span.is_segment.value().is_some_and(|s| *s),
+                is_segment,
                 sampling_decision,
                 project_id,
             );

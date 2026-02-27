@@ -887,8 +887,6 @@ pub enum RelayCounters {
     RefreshStaleProjectCaches,
     /// Number of times that parsing a metrics bucket item from an envelope failed.
     MetricBucketsParsingFailed,
-    /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
-    MetricsTransactionNameExtracted,
     /// Number of Events with an OpenTelemetry Context
     ///
     /// This metric is tagged with:
@@ -1007,7 +1005,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::RefreshStaleProjectCaches => "project_cache.refresh",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
-            RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",

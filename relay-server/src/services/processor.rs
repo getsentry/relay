@@ -3151,10 +3151,6 @@ mod tests {
     use relay_pii::DataScrubbingConfig;
     use similar_asserts::assert_eq;
 
-    use crate::metrics_extraction::IntoMetric;
-    use crate::metrics_extraction::transactions::types::{
-        CommonTags, TransactionMeasurementTags, TransactionMetric,
-    };
     use crate::testutils::{create_test_processor, create_test_processor_with_addrs};
 
     #[cfg(feature = "processing")]
@@ -3603,26 +3599,14 @@ mod tests {
     fn test_mri_overhead_constant() {
         let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
 
-        let derived_value = {
-            let name = "foobar".to_owned();
-            let value = 5.into(); // Arbitrary value.
-            let unit = MetricUnit::Duration(DurationUnit::default());
-            let tags = TransactionMeasurementTags {
-                measurement_rating: None,
-                universal_tags: CommonTags(BTreeMap::new()),
-                score_profile_version: None,
-            };
+        // The MRI format for a measurement is: "d:transactions/measurements.<name>@<unit>"
+        // The overhead is everything except <name> and <unit>.
+        let name = "foobar";
+        let unit = MetricUnit::Duration(DurationUnit::default());
+        let unit_str = unit.to_string();
+        let mri = format!("d:transactions/measurements.{name}@{unit_str}");
+        let derived_value = mri.len() - name.len() - unit_str.len();
 
-            let measurement = TransactionMetric::Measurement {
-                name: name.clone(),
-                value,
-                unit,
-                tags,
-            };
-
-            let metric: Bucket = measurement.into_metric(UnixTimestamp::now());
-            metric.name.len() - unit.to_string().len() - name.len()
-        };
         assert_eq!(
             hardcoded_value, derived_value,
             "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
