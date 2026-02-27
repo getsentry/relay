@@ -47,7 +47,7 @@ pub enum Error {
     ServiceUnavailable,
     #[cfg(feature = "processing")]
     #[error("upload service: {0}")]
-    UploadService(ServiceError),
+    UploadService(#[from] ServiceError),
     #[error("internal error")]
     Internal,
 }
@@ -96,8 +96,7 @@ impl Sink {
                 let key = addr
                     .send(stream)
                     .await
-                    .map_err(|_send_error| Error::ServiceUnavailable)?
-                    .map_err(Error::UploadService)?
+                    .map_err(|_send_error| Error::ServiceUnavailable)??
                     .into_inner();
 
                 Location {
