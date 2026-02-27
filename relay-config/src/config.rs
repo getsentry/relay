@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr};
 use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -557,6 +557,10 @@ pub struct Metrics {
     ///
     /// Defaults to `None`.
     pub statsd: Option<String>,
+    /// Buffer size used for metrics sent to the statsd socket.
+    ///
+    /// Defaults to `None`.
+    pub statsd_buffer_size: Option<usize>,
     /// Common prefix that should be added to all metrics.
     ///
     /// Defaults to `"sentry.relay"`.
@@ -593,6 +597,7 @@ impl Default for Metrics {
     fn default() -> Self {
         Metrics {
             statsd: None,
+            statsd_buffer_size: None,
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
@@ -2161,20 +2166,14 @@ impl Config {
         &self.values.sentry
     }
 
-    /// Returns the socket addresses for statsd.
-    ///
-    /// If stats is disabled an empty vector is returned.
-    pub fn statsd_addrs(&self) -> anyhow::Result<Vec<SocketAddr>> {
-        if let Some(ref addr) = self.values.metrics.statsd {
-            let addrs = addr
-                .as_str()
-                .to_socket_addrs()
-                .with_context(|| ConfigError::file(ConfigErrorKind::InvalidValue, &self.path))?
-                .collect();
-            Ok(addrs)
-        } else {
-            Ok(vec![])
-        }
+    /// Returns the addresses for statsd metrics.
+    pub fn statsd_addr(&self) -> Option<&str> {
+        self.values.metrics.statsd.as_deref()
+    }
+
+    /// Returns the addresses for statsd metrics.
+    pub fn statsd_buffer_size(&self) -> Option<usize> {
+        self.values.metrics.statsd_buffer_size
     }
 
     /// Return the prefix for statsd metrics.
