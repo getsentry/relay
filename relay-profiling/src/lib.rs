@@ -142,7 +142,16 @@ fn minimal_profile_from_json(
 #[derive(Debug)]
 pub struct ProfileMetadata {
     pub id: ProfileId,
-    pub kind: ProfileType,
+    pub platform: String,
+}
+
+impl ProfileMetadata {
+    /// Returns the [`ProfileType`] of the profile.
+    ///
+    /// The [`ProfileType`] is inferred from the platform.
+    pub fn profile_type(&self) -> ProfileType {
+        ProfileType::from_platform(&self.platform)
+    }
 }
 
 pub fn parse_metadata(payload: &[u8]) -> Result<ProfileMetadata, ProfileError> {
@@ -192,7 +201,7 @@ pub fn parse_metadata(payload: &[u8]) -> Result<ProfileMetadata, ProfileError> {
 
     Ok(ProfileMetadata {
         id: profile.event_id,
-        kind: ProfileType::from_platform(&profile.platform),
+        platform: profile.platform,
     })
 }
 
@@ -293,6 +302,11 @@ impl ProfileChunk {
                 Err(ProfileError::InvalidJson(err))
             }
         }
+    }
+
+    /// Returns the platform of the profile chunk.
+    pub fn platform(&self) -> &str {
+        &self.profile.platform
     }
 
     /// Returns the [`ProfileType`] this chunk belongs to.
