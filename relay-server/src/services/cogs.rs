@@ -39,7 +39,7 @@ impl CogsService {
 
         let amount = match measurement.value {
             relay_cogs::Value::Time(duration) => {
-                duration.as_micros().try_into().unwrap_or(i64::MAX)
+                duration.as_micros().try_into().unwrap_or(u64::MAX)
             }
         };
 
