@@ -28,9 +28,9 @@ mod logs {
         state: ServiceState,
         builder: IntegrationBuilder,
     ) -> axum::response::Result<impl IntoResponse> {
-        let format = match ContentType::from(content_type.as_ref()) {
-            ContentType::Json => VercelLogDrainFormat::Json,
-            ContentType::NdJson => VercelLogDrainFormat::NdJson,
+        let format = match content_type.as_ref().parse::<ContentType>() {
+            Ok(ContentType::Json) => VercelLogDrainFormat::Json,
+            Ok(ContentType::NdJson) => VercelLogDrainFormat::NdJson,
             _ => return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE),
         };
 

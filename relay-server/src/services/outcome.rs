@@ -663,7 +663,6 @@ impl DiscardItemType {
             Self::Attachment(DiscardAttachmentType::UnrealContext) => "attachment:unreal_context",
             Self::Attachment(DiscardAttachmentType::UnrealLogs) => "attachment:unreal_logs",
             Self::Attachment(DiscardAttachmentType::ViewHierarchy) => "attachment:view_hierarchy",
-            Self::Attachment(DiscardAttachmentType::Unknown) => "attachment:unknown",
             Self::FormData => "form_data",
             Self::RawSecurity => "raw_security",
             Self::Nel => "nel",
@@ -763,8 +762,6 @@ pub enum DiscardAttachmentType {
     UnrealLogs,
     /// An application UI view hierarchy (json payload).
     ViewHierarchy,
-    /// Unknown attachment type, forwarded for compatibility.
-    Unknown,
 }
 
 impl From<&AttachmentType> for DiscardAttachmentType {
@@ -779,7 +776,6 @@ impl From<&AttachmentType> for DiscardAttachmentType {
             AttachmentType::UnrealContext => Self::UnrealContext,
             AttachmentType::UnrealLogs => Self::UnrealLogs,
             AttachmentType::ViewHierarchy => Self::ViewHierarchy,
-            AttachmentType::Unknown(_) => Self::Unknown,
         }
     }
 }

@@ -904,7 +904,7 @@ mod tests {
             items[0].payload(),
             Bytes::from(&b"\xef\xbb\xbfHello\r\n"[..])
         );
-        assert_eq!(items[0].content_type(), Some(&ContentType::Text));
+        assert_eq!(items[0].content_type(), Some(ContentType::Text));
 
         assert_eq!(items[1].ty(), &ItemType::Event);
         assert_eq!(items[1].len(), 41);
@@ -912,7 +912,7 @@ mod tests {
             items[1].payload(),
             Bytes::from("{\"message\":\"hello world\",\"level\":\"error\"}")
         );
-        assert_eq!(items[1].content_type(), Some(&ContentType::Json));
+        assert_eq!(items[1].content_type(), Some(ContentType::Json));
         assert_eq!(items[1].filename(), Some("application.log"));
     }
 
@@ -982,7 +982,7 @@ mod tests {
         assert_eq!(items[0].ty(), &ItemType::Attachment);
         assert_eq!(
             items[0].attachment_type(),
-            Some(&AttachmentType::ViewHierarchy)
+            Some(AttachmentType::ViewHierarchy)
         );
     }
 

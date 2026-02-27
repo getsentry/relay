@@ -36,7 +36,7 @@ pub fn expand(
     // Get instead of take as we want to keep the dump as an attachment
     if let Some(item) = envelope.get_item_by(|item| {
         item.ty() == &ItemType::Attachment
-            && item.attachment_type() == Some(&AttachmentType::Prosperodump)
+            && item.attachment_type() == Some(AttachmentType::Prosperodump)
     }) {
         let data = relay_prosperoconv::extract_data(&item.payload()).map_err(|err| {
             ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
@@ -75,7 +75,7 @@ pub fn process(
 
     if let Some(item) = envelope.get_item_by(|item| {
         item.ty() == &ItemType::Attachment
-            && item.attachment_type() == Some(&AttachmentType::Prosperodump)
+            && item.attachment_type() == Some(AttachmentType::Prosperodump)
     }) {
         metric!(counter(RelayCounters::PlaystationProcessing) += 1);
         let event = event.get_or_insert_with(Event::default);

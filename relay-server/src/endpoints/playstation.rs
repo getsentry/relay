@@ -87,7 +87,7 @@ async fn extract_multipart(
 
     let prosperodump_item = items
         .iter_mut()
-        .find(|item| item.attachment_type() == Some(&AttachmentType::Prosperodump))
+        .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
         .ok_or(BadStoreRequest::MissingProsperodump)?;
 
     prosperodump_item.set_payload(OctetStream, prosperodump_item.payload());

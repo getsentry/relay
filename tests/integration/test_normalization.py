@@ -52,7 +52,7 @@ def test_relay_with_full_normalization(mini_sentry, relay, config_full_normaliza
         assert "fully_normalized" in envelope.items[0].headers
         assert drop_props(expected) == drop_props(envelope.get_event())
     else:
-        assert "fully_normalized" not in envelope.items[0].headers
+        assert not envelope.items[0].headers.get("fully_normalized")
         assert drop_props(expected) != drop_props(envelope.get_event())
 
 
