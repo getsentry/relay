@@ -12,7 +12,7 @@ use relay_quotas::{DataCategory, RateLimits};
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{EnvelopeHeaders, ItemType, Items};
-use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Rejected};
+use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -206,9 +206,9 @@ impl processing::Processor for ReplaysProcessor {
         let replays = filter::feature_flag(replays, ctx)?;
         let mut replay = process::expand(replays)?;
 
-        validate::validate(&mut replay)?;
+        validate::validate(&replay).reject(&replay)?;
         process::normalize(&mut replay, &self.geoip_lookup);
-        filter::filter(&mut replay, ctx)?;
+        filter::filter(&replay, ctx).reject(&replay)?;
 
         let mut replay = self.limiter.enforce_quotas(replay, ctx).await?;
 
@@ -315,6 +315,14 @@ impl Counted for ReplayPayload {
 }
 
 impl ReplayPayload {
+    fn event(&self) -> Option<&Annotated<Replay>> {
+        match self {
+            ReplayPayload::WebReplay { event, .. } => Some(event),
+            ReplayPayload::NativeReplay { event, .. } => Some(event),
+            ReplayPayload::StandaloneRecording { .. } => None,
+        }
+    }
+
     fn event_mut(&mut self) -> Option<&mut Annotated<Replay>> {
         match self {
             ReplayPayload::WebReplay { event, .. } => Some(event),
