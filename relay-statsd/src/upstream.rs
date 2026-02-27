@@ -34,7 +34,7 @@ impl Remote {
                     Ok(Self::UnixDatagram(socket))
                 }
                 _ => Err(io::Error::other(format!(
-                    "invalid scheme '{scheme}', expected one of 'udp', 'unixstream', 'unixgram'"
+                    "invalid scheme '{scheme}', expected one of 'udp', 'unixgram'"
                 ))),
             };
         }
