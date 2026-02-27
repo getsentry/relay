@@ -1,6 +1,5 @@
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta, timezone
-from pathlib import Path
 
 import json
 import signal
@@ -14,7 +13,6 @@ from .consts import (
 import pytest
 import requests
 from requests.exceptions import HTTPError
-import yaml
 
 from .asserts import time_after, time_within_delta
 
@@ -850,7 +848,7 @@ def test_transaction_metrics(
     }
     decision = "drop" if discard_data else "keep"
 
-    assert metrics_consumer.get_metrics(n=11, with_headers=False) == [
+    assert metrics_consumer.get_metrics(n=6, with_headers=False) == [
         {
             **common,
             "name": "c:spans/count_per_root_project@none",
@@ -911,57 +909,6 @@ def test_transaction_metrics(
             "tags": {},
             "type": "c",
             "value": 2.0,
-        },
-        {
-            **common,
-            "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-            "tags": {
-                "platform": "other",
-                "transaction": "/organizations/:orgId/performance/:eventSlug/",
-                "transaction.status": "unknown",
-            },
-            "type": "d",
-            "value": [9.91, 9.91],
-        },
-        {
-            **common,
-            "name": "d:transactions/duration@millisecond",
-            "tags": {
-                "platform": "other",
-                "transaction": "/organizations/:orgId/performance/:eventSlug/",
-                "transaction.status": "unknown",
-            },
-            "type": "d",
-            "value": [500.0, 500.0],
-        },
-        {
-            **common,
-            "name": "d:transactions/duration_light@millisecond",
-            "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
-            "type": "d",
-            "value": [500.0, 500.0],
-        },
-        {
-            **common,
-            "name": "d:transactions/measurements.bar@none",
-            "tags": {
-                "platform": "other",
-                "transaction": "/organizations/:orgId/performance/:eventSlug/",
-                "transaction.status": "unknown",
-            },
-            "type": "d",
-            "value": [1.3],
-        },
-        {
-            **common,
-            "name": "d:transactions/measurements.foo@none",
-            "tags": {
-                "platform": "other",
-                "transaction": "/organizations/:orgId/performance/:eventSlug/",
-                "transaction.status": "unknown",
-            },
-            "type": "d",
-            "value": [1.2, 2.2],
         },
     ]
 
@@ -1100,19 +1047,9 @@ def test_transaction_metrics_extraction_external_relays(
         assert len(metrics_envelope.items) == 1
 
         payload = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(payload) == 8
+        assert len(payload) == 6
 
         by_name = {m["name"]: m for m in payload}
-        light_metric = by_name["d:transactions/duration_light@millisecond"]
-        assert (
-            light_metric["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
-        duration_metric = by_name["d:transactions/duration@millisecond"]
-        assert (
-            duration_metric["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
         count_metric = by_name["c:transactions/count_per_root_project@none"]
         assert count_metric["tags"]["transaction"] == "root_transaction"
         assert count_metric["value"] == 1.0
@@ -1159,20 +1096,10 @@ def test_transaction_metrics_extraction_processing_relays(
     tx_consumer.assert_empty()
 
     if expect_metrics_extraction:
-        metrics = metrics_by_name(metrics_consumer, 8)
+        metrics = metrics_by_name(metrics_consumer, 6)
         metric_usage = metrics["c:transactions/usage@none"]
         assert metric_usage["tags"] == {}
         assert metric_usage["value"] == 1.0
-        metric_duration = metrics["d:transactions/duration@millisecond"]
-        assert (
-            metric_duration["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
-        metric_duration_light = metrics["d:transactions/duration_light@millisecond"]
-        assert (
-            metric_duration_light["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
         metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
         assert metric_count_per_project["value"] == 1.0
     else:
@@ -1408,83 +1335,15 @@ def test_limit_custom_measurements(
 
     expected_metrics = {
         "c:transactions/usage@none",
-        "d:transactions/duration@millisecond",
-        "d:transactions/duration_light@millisecond",
         "c:transactions/count_per_root_project@none",
-        "d:transactions/measurements.foo@none",
-        "d:transactions/measurements.bar@none",
         "c:spans/usage@none",
         "c:spans/count_per_root_project@none",
     }
 
-    metrics = metrics_by_name(metrics_consumer, 10)
+    metrics = metrics_by_name(metrics_consumer, 6)
     metrics.pop("headers")
 
     assert metrics.keys() == expected_metrics
-
-
-def test_generic_metric_extraction(mini_sentry, relay):
-    PROJECT_ID = 42
-    mini_sentry.add_full_project_config(PROJECT_ID)
-
-    config = mini_sentry.project_configs[PROJECT_ID]["config"]
-    config["metricExtraction"] = {
-        "version": 1,
-        "metrics": [
-            {
-                "category": "transaction",
-                "mri": "c:transactions/on_demand@none",
-                "condition": {"op": "gte", "name": "event.duration", "value": 0.3},
-                "tags": [{"key": "query_hash", "value": "c91c2e4d"}],
-            }
-        ],
-    }
-    config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
-    config["sampling"] = {
-        "version": 2,
-        "rules": [
-            {
-                "id": 1,
-                "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "transaction",
-                "condition": {"op": "and", "inner": []},
-            }
-        ],
-    }
-
-    timestamp = datetime.now(tz=timezone.utc)
-    transaction = generate_transaction_item(timestamp.timestamp())
-
-    relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
-    relay.send_transaction(PROJECT_ID, transaction)
-
-    # Skip client reports
-    envelope = mini_sentry.get_captured_envelope()
-    assert envelope.get_event() is None
-    envelope = mini_sentry.get_captured_envelope()
-    assert envelope.get_event() is None
-
-    envelope = mini_sentry.get_captured_envelope()
-    for item in envelope.items:
-        # Transaction items should be sampled and not among the envelope items.
-        assert item.headers.get("type") != "transaction"
-
-    item = envelope.items[0]
-    assert item.headers.get("type") == "metric_buckets"
-
-    metrics = metrics_without_keys(
-        json.loads(item.get_bytes().decode()), keys={"metadata"}
-    )
-    assert {
-        "timestamp": time_after(int(timestamp.timestamp())),
-        "width": 1,
-        "name": "c:transactions/on_demand@none",
-        "type": "c",
-        "value": 1.0,
-        "tags": {"query_hash": "c91c2e4d"},
-    } in metrics
 
 
 def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_consumer):
@@ -1716,188 +1575,6 @@ def test_metrics_received_at(
         "retention_days": 90,
         "received_at": time_after(timestamp),
     }
-
-
-def test_histogram_outliers(mini_sentry, relay):
-    with open(Path(__file__).parent / "fixtures/histogram-outliers.yml") as f:
-        mini_sentry.global_config["metricExtraction"] = yaml.full_load(f)
-    project_config = mini_sentry.add_full_project_config(project_id=42)["config"]
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
-    project_config["metricExtraction"] = {
-        "version": 3,
-        "globalGroups": {"histogram_outliers": {"isEnabled": True}},
-    }
-    project_config["sampling"] = {  # Drop everything, to trigger metrics extractino
-        "version": 2,
-        "rules": [
-            {
-                "id": 1,
-                "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "transaction",
-                "condition": {"op": "and", "inner": []},
-            }
-        ],
-    }
-
-    timestamp = datetime.now(tz=timezone.utc)
-
-    event = {
-        "type": "transaction",
-        "transaction": "foo",
-        "transaction_info": {"source": "url"},  # 'transaction' tag not extracted
-        "platform": "javascript",
-        "contexts": {
-            "trace": {
-                "op": "pageload",
-                "trace_id": 32 * "b",
-                "span_id": 16 * "c",
-                "type": "trace",
-            }
-        },
-        "user": {"id": 123},
-        "measurements": {
-            "fcp": {"value": 999999999.0},
-            "lcp": {"value": 0.0},
-        },
-    }
-    event["timestamp"] = timestamp.isoformat()
-    event["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
-
-    relay = relay(mini_sentry, TEST_CONFIG)
-    relay.send_event(42, event)
-
-    tags = {}
-    for _ in range(3):
-        envelope = mini_sentry.get_captured_envelope()
-        for item in envelope:
-            if item.type == "metric_buckets":
-                buckets = json.loads(item.payload.get_bytes())
-                for bucket in buckets:
-                    if outlier := bucket.get("tags", {}).get("histogram_outlier"):
-                        tags[bucket["name"]] = outlier
-
-    assert tags == {
-        "d:transactions/measurements.fcp@millisecond": "outlier",
-        "d:transactions/duration@millisecond": "inlier",
-        "d:transactions/measurements.lcp@millisecond": "inlier",
-    }
-
-
-def test_metrics_extraction_with_computed_context_filters(
-    mini_sentry, relay_with_processing, metrics_consumer, transactions_consumer
-):
-    """
-    Test that metrics extraction filters work with computed contexts like os, runtime and browser.
-    """
-    metrics_consumer = metrics_consumer()
-    transactions_consumer = transactions_consumer()
-
-    relay = relay_with_processing(options=TEST_CONFIG)
-
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["metricExtraction"] = {
-        "version": 1,
-        "metrics": [
-            {
-                "category": "transaction",
-                "mri": "c:transactions/on_demand_os@none",
-                "condition": {
-                    "op": "eq",
-                    "name": "event.contexts.os",
-                    "value": "Windows 10",
-                },
-            },
-            {
-                "category": "transaction",
-                "mri": "c:transactions/on_demand_runtime@none",
-                "condition": {
-                    "op": "eq",
-                    "name": "event.contexts.runtime",
-                    "value": "Python 3.9.0",
-                },
-            },
-            {
-                "category": "transaction",
-                "mri": "c:transactions/on_demand_browser@none",
-                "condition": {
-                    "op": "eq",
-                    "name": "event.contexts.browser",
-                    "value": "Firefox 89.0",
-                },
-            },
-        ],
-    }
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
-
-    # Create a transaction with matching contexts
-    transaction = generate_transaction_item(datetime.now(tz=timezone.utc).timestamp())
-    transaction["contexts"].update(
-        {
-            "os": {
-                "name": "Windows",
-                "version": "10",
-            },
-            "runtime": {
-                "name": "Python",
-                "version": "3.9.0",
-            },
-            "browser": {
-                "name": "Firefox",
-                "version": "89.0",
-            },
-        }
-    )
-
-    # Set timestamps to avoid metrics being dropped due to age
-    timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = timestamp.isoformat()
-    transaction["start_timestamp"] = (timestamp - timedelta(seconds=1)).isoformat()
-
-    relay.send_transaction(project_id, transaction)
-
-    # Get the transaction event to verify it was processed
-    event, _ = transactions_consumer.get_event()
-    assert event["contexts"]["os"]["os"] == "Windows 10"
-    assert event["contexts"]["runtime"]["runtime"] == "Python 3.9.0"
-    assert event["contexts"]["browser"]["browser"] == "Firefox 89.0"
-
-    # Define list of extracted metrics to check
-    metric_names = [
-        "c:transactions/on_demand_os@none",
-        "c:transactions/on_demand_runtime@none",
-        "c:transactions/on_demand_browser@none",
-    ]
-
-    # Verify that all three metrics were extracted
-    metrics = metrics_by_name(metrics_consumer, 11)
-
-    # Check each extracted metric
-    for metric_name in metric_names:
-        assert metrics[metric_name]["value"] == 1.0
-
-    # Send another transaction with non-matching contexts
-    transaction["contexts"].update(
-        {
-            "os": {"name": "Linux", "version": "5.4", "type": "os"},
-            "runtime": {"name": "Node", "version": "16.0.0", "type": "runtime"},
-            "browser": {"name": "Chrome", "version": "95.0", "type": "browser"},
-        }
-    )
-    relay.send_transaction(project_id, transaction)
-
-    # Get the transaction event
-    event, _ = transactions_consumer.get_event()
-    assert event["contexts"]["os"]["os"] == "Linux 5.4"
-
-    # Verify no new metrics were extracted for the specified contexts
-    metrics = metrics_consumer.get_metrics()
-    for metric, _ in metrics:
-        assert metric["name"] not in metric_names
 
 
 def test_profiles_metrics(mini_sentry, relay):

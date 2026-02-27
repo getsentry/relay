@@ -277,57 +277,6 @@ def test_span_extraction(
         ]
 
 
-def test_duplicate_performance_score(mini_sentry, relay):
-    relay = relay(mini_sentry, options=TEST_CONFIG)
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
-    project_config["config"]["performanceScore"] = {
-        "profiles": [
-            {
-                "name": "Desktop",
-                "scoreComponents": [
-                    {"measurement": "cls", "weight": 1.0, "p10": 0.1, "p50": 0.25},
-                ],
-                "condition": {"op": "and", "inner": []},
-            }
-        ]
-    }
-    project_config["config"]["sampling"] = (
-        {  # Drop everything, to trigger metrics extractino
-            "version": 2,
-            "rules": [
-                {
-                    "id": 1,
-                    "samplingValue": {"type": "sampleRate", "value": 0.0},
-                    "type": "transaction",
-                    "condition": {"op": "and", "inner": []},
-                }
-            ],
-        }
-    )
-    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    event.setdefault("contexts", {})["browser"] = {"name": "Chrome"}
-    event["measurements"] = {"cls": {"value": 0.11}}
-    relay.send_event(project_id, event)
-
-    score_total_seen = 0
-    for _ in range(3):  # 2 client reports and the actual item we're interested in
-        envelope = mini_sentry.get_captured_envelope()
-        for item in envelope.items:
-            if item.type == "metric_buckets":
-                for metric in json.loads(item.payload.get_bytes()):
-                    if (
-                        metric["name"]
-                        == "d:transactions/measurements.score.total@ratio"
-                    ):
-                        score_total_seen += 1
-
-    assert score_total_seen == 1
-
-
 def envelope_with_spans(
     start: datetime, end: datetime, metrics_extracted: bool = False
 ) -> Envelope:
@@ -817,7 +766,7 @@ def test_rate_limit_consistent_extracted(
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
-    metrics = metrics_consumer.get_metrics(n=8)
+    metrics = metrics_consumer.get_metrics(n=6)
     span_count = sum(
         [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
     )
@@ -834,7 +783,7 @@ def test_rate_limit_consistent_extracted(
     assert outcomes == expected_outcomes
 
     metrics = metrics_consumer.get_metrics(timeout=1)
-    assert len(metrics) == 4
+    assert len(metrics) == 2
     assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
 
     outcomes_consumer.assert_empty()
@@ -882,11 +831,6 @@ def test_rate_limit_spans_in_envelope(
     relay.send_envelope(project_id, envelope)
 
     assert summarize_outcomes() == {(12, 2): 3, (16, 2): 3}
-
-    # We emit transaction metrics from spans for legacy reasons. These are not rate limited.
-    # (could be a bug)
-    ((metric, _),) = metrics_consumer.get_metrics(n=1)
-    assert ":spans/" not in metric["name"]
 
     spans_consumer.assert_empty()
     metrics_consumer.assert_empty()
