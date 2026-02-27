@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
+
+**Features**:
+
+- Populate gen_ai.response.model from gen_ai.request.model if not already set. ([#5654](https://github.com/getsentry/relay/pull/5654))
+
 ## 26.2.1
 
 **Bug Fixes**:
@@ -9,6 +19,10 @@
 **Features**:
 
 - Add experimental `/upload` endpoint for large file uploads. ([#5638](https://github.com/getsentry/relay/pull/5638))
+
+**Internal**:
+
+- Introduce additional and separate data categories for backend and ui transaction profiles. ([#5648](https://github.com/getsentry/relay/pull/5648))
 
 ## 26.2.0
 
@@ -34,6 +48,7 @@
 - Add EAP double-write for session data. ([#5588](https://github.com/getsentry/relay/pull/5588))
 - Always process OTLP spans with the span streaming pipeline. ([#5631](https://github.com/getsentry/relay/pull/5631))
 - Embed AI operation type mappings into Relay. ([#5555](https://github.com/getsentry/relay/pull/5555))
+- Apply continuous profiling rate limits to transaction profiles. ([#5614](https://github.com/getsentry/relay/pull/5614)
 - Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
 - Add `gen_ai_response_time_to_first_token` as a `SpanData` attribute. ([#5575](https://github.com/getsentry/relay/pull/5575))
 - Add sampling to expensive envelope buffer statsd metrics. ([#5576](https://github.com/getsentry/relay/pull/5576))
