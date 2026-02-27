@@ -280,11 +280,7 @@ impl UpstreamRequest for UploadRequest {
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
-        let upload_length = if body.lower_bound == body.upper_bound {
-            Some(body.lower_bound)
-        } else {
-            None
-        };
+        let upload_length = (body.lower_bound == body.upper_bound).then_some(body.lower_bound);
         for (key, value) in tus::request_headers(upload_length) {
             let Some(key) = key else { continue };
             builder.header(key, value);
