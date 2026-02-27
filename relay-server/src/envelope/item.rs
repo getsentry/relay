@@ -29,7 +29,6 @@ impl Item {
                 stored_key: None,
                 rate_limited: false,
                 source_quantities: None,
-                profile_type: None,
                 routing_hint: None,
                 inner: BTreeMap::new(),
             },
@@ -441,21 +440,18 @@ impl Item {
         self.headers.get(&ItemHeaderKey::Platform)
     }
 
-    /// Returns the associated profile type of a profile chunk.
+    /// Set the associated platform.
     ///
-    /// This primarily uses the profile type set via [`Self::set_profile_type`],
-    /// but if not set, it infers the [`ProfileType`] from the [`Self::platform`].
-    ///
-    /// Returns `None`, if neither source is available.
-    pub fn profile_type(&self) -> Option<ProfileType> {
-        self.headers
-            .profile_type
-            .or_else(|| self.platform().map(ProfileType::from_platform))
+    /// Note: this is currently only used for [`ItemType::ProfileChunk`].
+    pub fn set_platform(&mut self, platform: String) {
+        self.headers.set(ItemHeaderKey::Platform, platform);
     }
 
-    /// Set the profile type of the profile chunk.
-    pub fn set_profile_type(&mut self, profile_type: ProfileType) {
-        self.headers.profile_type = Some(profile_type);
+    /// Returns the associated profile type of a profile chunk.
+    ///
+    /// Infers the [`ProfileType`] from [`Self::platform`].
+    pub fn profile_type(&self) -> Option<ProfileType> {
+        self.platform().map(ProfileType::from_platform)
     }
 
     /// Gets the `sampled` flag.
@@ -1080,11 +1076,6 @@ pub struct ItemHeaders {
     /// published to Kafka.
     #[serde(default, skip)]
     routing_hint: Option<Uuid>,
-    /// Tracks whether the item is a backend or ui profile chunk.
-    ///
-    /// NOTE: This is internal-only and not exposed into the Envelope.
-    #[serde(default, skip)]
-    profile_type: Option<ProfileType>,
     /// Indicates that this item is being rate limited.
     ///
     /// By default, rate limited items are immediately removed from Envelopes. For processing,

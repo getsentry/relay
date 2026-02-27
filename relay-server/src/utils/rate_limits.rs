@@ -1799,10 +1799,10 @@ mod tests {
         let mut envelope = envelope![];
 
         let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_profile_type(ProfileType::Backend);
+        item.set_platform("python".to_owned());
         envelope.envelope_mut().add_item(item);
         let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_profile_type(ProfileType::Ui);
+        item.set_platform("javascript".to_owned());
         envelope.envelope_mut().add_item(item);
 
         let mock = mock_limiter(&[DataCategory::ProfileChunkUi]);
@@ -1826,10 +1826,10 @@ mod tests {
         let mut envelope = envelope![];
 
         let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_profile_type(ProfileType::Backend);
+        item.set_platform("python".to_owned());
         envelope.envelope_mut().add_item(item);
         let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_profile_type(ProfileType::Ui);
+        item.set_platform("javascript".to_owned());
         envelope.envelope_mut().add_item(item);
 
         let mock = mock_limiter(&[DataCategory::ProfileChunk]);
