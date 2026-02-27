@@ -256,6 +256,8 @@ where
                             ContentType::AttachmentRef,
                             location.as_bytes().to_owned(),
                         );
+                    } else {
+                        continue;
                     }
                 }
                 AttachmentStrategy::Upload {
