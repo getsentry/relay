@@ -147,7 +147,10 @@ async fn handle(
     let location = upload::Sink::new(&state)
         .upload(config, upload::Stream { scoping, stream })
         .await
-        .map_err(Error::from)?;
+        .map_err(|e| {
+            relay_log::warn!(error = &e as &dyn std::error::Error, "upload failed");
+            Error::from(e)
+        })?;
 
     let mut response = location.into_response();
     response
