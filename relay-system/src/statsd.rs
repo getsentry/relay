@@ -1,7 +1,7 @@
-use relay_statsd::{CounterMetric, GaugeMetric};
+use relay_statsd::GaugeMetric;
 
-/// Counter metrics for Relay system components.
-pub enum SystemCounters {
+/// Gauge metrics for Relay system components.
+pub enum SystemGauges {
     /// Number of active runtime tasks.
     ///
     /// Every call to [`spawn`](`crate::spawn()`) increases this counter by one,
@@ -12,18 +12,6 @@ pub enum SystemCounters {
     ///  - `file`: The source filename where the task is created.
     ///  - `line`: The source line where the task is created within the file.
     RuntimeTaskCount,
-}
-
-impl CounterMetric for SystemCounters {
-    fn name(&self) -> &'static str {
-        match self {
-            Self::RuntimeTaskCount => "runtime.task.count",
-        }
-    }
-}
-
-/// Gauge metrics for Relay system components.
-pub enum SystemGauges {
     /// A number of messages queued in a services inbound message channel.
     ///
     /// This metric is emitted once per second for every running service. Without backlogs, this
@@ -38,6 +26,7 @@ pub enum SystemGauges {
 impl GaugeMetric for SystemGauges {
     fn name(&self) -> &'static str {
         match *self {
+            Self::RuntimeTaskCount => "runtime.tasks",
             Self::ServiceBackPressure => "service.back_pressure",
         }
     }

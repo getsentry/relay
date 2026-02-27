@@ -113,12 +113,9 @@ impl TryFrom<DatabaseEnvelope> for Box<Envelope> {
         } = value;
 
         if encoded_envelope.starts_with(ZSTD_MAGIC_WORD) {
-            relay_statsd::metric!(
-                timer(RelayTimers::BufferEnvelopeDecompression, sample = 0.01),
-                {
-                    encoded_envelope = zstd::decode_all(&*encoded_envelope)?.into_boxed_slice();
-                }
-            );
+            relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeDecompression), {
+                encoded_envelope = zstd::decode_all(&*encoded_envelope)?.into_boxed_slice();
+            });
         }
 
         let mut envelope = Envelope::parse_bytes(Bytes::from(encoded_envelope))?;
@@ -144,19 +141,16 @@ impl<'a> TryFrom<&'a Envelope> for DatabaseEnvelope {
 
         let serialized_envelope = value.to_vec()?;
         relay_statsd::metric!(
-            distribution(RelayDistributions::BufferEnvelopeSize, sample = 0.01) =
-                serialized_envelope.len() as u64
+            distribution(RelayDistributions::BufferEnvelopeSize) = serialized_envelope.len() as u64
         );
 
-        let encoded_envelope = relay_statsd::metric!(
-            timer(RelayTimers::BufferEnvelopeCompression, sample = 0.01),
-            { zstd::encode_all(serialized_envelope.as_slice(), Self::COMPRESSION_LEVEL)? }
-        );
+        let encoded_envelope =
+            relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeCompression), {
+                zstd::encode_all(serialized_envelope.as_slice(), Self::COMPRESSION_LEVEL)?
+            });
         relay_statsd::metric!(
-            distribution(
-                RelayDistributions::BufferEnvelopeSizeCompressed,
-                sample = 0.01
-            ) = encoded_envelope.len() as u64
+            distribution(RelayDistributions::BufferEnvelopeSizeCompressed) =
+                encoded_envelope.len() as u64
         );
 
         Ok(DatabaseEnvelope {

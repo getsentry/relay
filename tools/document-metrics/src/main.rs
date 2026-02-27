@@ -24,7 +24,6 @@ enum MetricType {
     Timer,
     Counter,
     Distribution,
-    Set,
     Gauge,
 }
 
@@ -136,8 +135,6 @@ fn get_metric_type(imp: &mut syn::ItemImpl) -> Option<MetricType> {
         Some(MetricType::Counter)
     } else if trait_name == "DistributionMetric" {
         Some(MetricType::Distribution)
-    } else if trait_name == "SetMetric" {
-        Some(MetricType::Set)
     } else if trait_name == "GaugeMetric" {
         Some(MetricType::Gauge)
     } else {
@@ -300,30 +297,30 @@ mod tests {
     fn test_parse_metrics() -> Result<()> {
         let source = r#"
             /// A metric collection used for testing.
-            pub enum TestSets {
+            pub enum TestCounters {
                 /// The metric we test.
-                UniqueSet,
+                UniqueCounter,
                 /// The metric we test.
                 #[cfg(feature = "conditional")]
-                ConditionalSet,
+                ConditionalCounter,
                 /// Another metric we test.
                 #[cfg(cfg_flag)]
-                ConditionalCompileSet,
+                ConditionalCompileCounter,
                 /// Yet another metric we test.
                 #[cfg(all(cfg_flag, feature = "conditional"))]
-                MultiConditionalCompileSet,
+                MultiConditionalCompileCounter,
             }
 
-            impl SetMetric for TestSets {
+            impl CounterMetric for TestCounters {
                 fn name(&self) -> &'static str {
                     match self {
-                        Self::UniqueSet => "test.unique",
+                        Self::UniqueCounter => "test.unique",
                         #[cfg(feature = "conditional")]
-                        Self::ConditionalSet => "test.conditional",
+                        Self::ConditionalCounter => "test.conditional",
                         #[cfg(cfg_flag)]
-                        Self::ConditionalCompileSet => "test.conditional_compile",
+                        Self::ConditionalCompileCounter => "test.conditional_compile",
                         #[cfg(all(cfg_flag, feature = "conditional"))]
-                        Self::MultiConditionalCompileSet => "test.multi_conditional_compile"
+                        Self::MultiConditionalCompileCounter => "test.multi_conditional_compile"
                     }
                 }
             }
@@ -333,7 +330,7 @@ mod tests {
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
-                ty: Set,
+                ty: Counter,
                 name: "test.conditional",
                 description: "The metric we test.",
                 features: [
@@ -341,7 +338,7 @@ mod tests {
                 ],
             },
             Metric {
-                ty: Set,
+                ty: Counter,
                 name: "test.conditional_compile",
                 description: "Another metric we test.",
                 features: [
@@ -349,7 +346,7 @@ mod tests {
                 ],
             },
             Metric {
-                ty: Set,
+                ty: Counter,
                 name: "test.multi_conditional_compile",
                 description: "Yet another metric we test.",
                 features: [
@@ -358,7 +355,7 @@ mod tests {
                 ],
             },
             Metric {
-                ty: Set,
+                ty: Counter,
                 name: "test.unique",
                 description: "The metric we test.",
                 features: [],

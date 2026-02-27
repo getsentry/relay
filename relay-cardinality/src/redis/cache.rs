@@ -152,7 +152,7 @@ impl Inner {
                 .extract_if(|scope, cache| cache.current_slot < scope.active_slot(ts))
                 .count()
         });
-        metric!(counter(CardinalityLimiterCounters::RedisCacheVacuum) += expired as i64);
+        metric!(counter(CardinalityLimiterCounters::RedisCacheVacuum) += expired as u64);
     }
 }
 

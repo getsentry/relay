@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Use a much more mature (dog)statsd backend, with proper support for unix sockets and reservoir sampling.
+  Due to the new backend, all sampling and tag filtering configuration options have been removed. ([#5675](https://github.com/getsentry/relay/pull/5675))
+
 **Bug Fixes**:
 
 - Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
