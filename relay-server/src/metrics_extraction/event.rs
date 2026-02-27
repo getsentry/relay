@@ -76,10 +76,8 @@ fn extract_span_metrics_for_event(
         let bucket = create_span_root_counter!(1, true);
         output.sampling_metrics.extend(bucket);
         output.project_metrics.extend(create_span_usage(
-            event,
-            1,
-            true,  // is_segment
-            true,  // was_transaction (segment span from a transaction event)
+            event, 1, true, // is_segment
+            true, // was_transaction (segment span from a transaction event)
         ));
 
         // Child spans
