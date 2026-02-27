@@ -120,6 +120,8 @@ pub struct MetricsClientConfig<'a> {
     pub prefix: &'a str,
     /// Host of the metrics upstream.
     pub host: String,
+    /// The buffer size to use for the socket.
+    pub buffer_size: Option<usize>,
     /// Tags that are added to all metrics.
     pub default_tags: BTreeMap<String, String>,
     /// Default sample rate for metrics, between 0.0 (= 0%) and 1.0 (= 100%)
@@ -296,7 +298,7 @@ pub fn init(config: MetricsClientConfig<'_>) -> std::io::Result<()> {
     relay_log::info!("reporting metrics to statsd at {}", config.host);
 
     // Probe the connection to catch misconfigurations early.
-    if let Err(err) = upstream::Upstream::connect(&config.host) {
+    if let Err(err) = upstream::Upstream::connect(&config.host, config.buffer_size) {
         relay_log::error!(
             error = &err as &dyn std::error::Error,
             "failed to connect to statsd sink at {}",
@@ -334,7 +336,7 @@ pub fn init(config: MetricsClientConfig<'_>) -> std::io::Result<()> {
                     flush_offset: 0,
                     max_map_size: None,
                 },
-                upstream::TryUpstream::connect(&config.host),
+                upstream::TryUpstream::connect(&config.host, config.buffer_size),
             );
 
             DenyTag::new(deny_config.clone(), aggregate)
@@ -343,7 +345,7 @@ pub fn init(config: MetricsClientConfig<'_>) -> std::io::Result<()> {
         StatsdClient::from_sink(config.prefix, statsdproxy_sink)
     } else {
         let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
-            let upstream = upstream::TryUpstream::connect(&config.host);
+            let upstream = upstream::TryUpstream::connect(&config.host, config.buffer_size);
             DenyTag::new(deny_config.clone(), upstream)
         });
         StatsdClient::from_sink(config.prefix, statsdproxy_sink)

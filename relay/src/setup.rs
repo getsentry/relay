@@ -113,6 +113,7 @@ pub fn init_metrics(config: &Config) -> Result<()> {
     relay_statsd::init(MetricsClientConfig {
         prefix: config.metrics_prefix(),
         host: host.to_owned(),
+        buffer_size: config.statsd_buffer_size(),
         default_tags,
         sample_rate: config.metrics_sample_rate().into(),
         aggregate: config.metrics_aggregate(),

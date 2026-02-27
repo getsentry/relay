@@ -557,6 +557,10 @@ pub struct Metrics {
     ///
     /// Defaults to `None`.
     pub statsd: Option<String>,
+    /// Buffer size used for metrics sent to the statsd socket.
+    ///
+    /// Defaults to `None`.
+    pub statsd_buffer_size: Option<usize>,
     /// Common prefix that should be added to all metrics.
     ///
     /// Defaults to `"sentry.relay"`.
@@ -593,6 +597,7 @@ impl Default for Metrics {
     fn default() -> Self {
         Metrics {
             statsd: None,
+            statsd_buffer_size: None,
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
@@ -2164,6 +2169,11 @@ impl Config {
     /// Returns the addresses for statsd metrics.
     pub fn statsd_addr(&self) -> Option<&str> {
         self.values.metrics.statsd.as_deref()
+    }
+
+    /// Returns the addresses for statsd metrics.
+    pub fn statsd_buffer_size(&self) -> Option<usize> {
+        self.values.metrics.statsd_buffer_size
     }
 
     /// Return the prefix for statsd metrics.

@@ -99,11 +99,11 @@ pub struct Upstream {
 }
 
 impl Upstream {
-    pub fn connect(upstream: &str) -> io::Result<Self> {
+    pub fn connect(upstream: &str, bufsize: Option<usize>) -> io::Result<Self> {
         let remote = Remote::connect(upstream)?;
 
         Ok(Upstream {
-            buffer: vec![0; remote.bufsize()],
+            buffer: vec![0; bufsize.unwrap_or_else(|| remote.bufsize())],
             remote,
             buf_used: 0,
             last_sent_at: UNIX_EPOCH,
@@ -171,8 +171,8 @@ pub enum TryUpstream {
 }
 
 impl TryUpstream {
-    pub fn connect(upstream: &str) -> Self {
-        match Upstream::connect(upstream) {
+    pub fn connect(upstream: &str, bufsize: Option<usize>) -> Self {
+        match Upstream::connect(upstream, bufsize) {
             Ok(upstream) => Self::Upstream(upstream),
             Err(err) => {
                 relay_log::error!(
@@ -192,6 +192,8 @@ impl Middleware for TryUpstream {
             Self::Error => {}
         }
     }
+
+    fn poll(&mut self) {}
 }
 
 /// Like [`UnixStream::write_vectored`], but ensuing all bytes are written,
