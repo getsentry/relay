@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr};
 use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -2161,20 +2161,9 @@ impl Config {
         &self.values.sentry
     }
 
-    /// Returns the socket addresses for statsd.
-    ///
-    /// If stats is disabled an empty vector is returned.
-    pub fn statsd_addrs(&self) -> anyhow::Result<Vec<SocketAddr>> {
-        if let Some(ref addr) = self.values.metrics.statsd {
-            let addrs = addr
-                .as_str()
-                .to_socket_addrs()
-                .with_context(|| ConfigError::file(ConfigErrorKind::InvalidValue, &self.path))?
-                .collect();
-            Ok(addrs)
-        } else {
-            Ok(vec![])
-        }
+    /// Returns the addresses for statsd metrics.
+    pub fn statsd_addr(&self) -> Option<&str> {
+        self.values.metrics.statsd.as_deref()
     }
 
     /// Return the prefix for statsd metrics.
