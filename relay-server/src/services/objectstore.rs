@@ -23,8 +23,8 @@ use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
+use crate::services::upload;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::upload;
 
 use super::outcome::Outcome;
 

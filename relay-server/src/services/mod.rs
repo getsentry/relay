@@ -45,4 +45,5 @@ pub mod server;
 pub mod stats;
 #[cfg(feature = "processing")]
 pub mod store;
+pub mod upload;
 pub mod upstream;
