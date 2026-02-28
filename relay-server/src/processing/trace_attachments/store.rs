@@ -13,8 +13,8 @@ use crate::processing::utils::store::{
     AttributeMeta, extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
     quantities_to_trace_item_outcomes, uuid_to_item_id,
 };
+use crate::services::objectstore::StoreAttachment;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::upload::StoreAttachment;
 
 /// Converts an expanded attachment to a storable unit.
 pub fn convert(

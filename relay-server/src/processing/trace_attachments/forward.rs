@@ -45,7 +45,7 @@ impl Forward for Managed<ExpandedAttachments> {
         let server_sample_rate = self.server_sample_rate;
         for attachment in self.split(|work| work.attachments) {
             if let Ok(message) = store::convert(attachment, retention, server_sample_rate) {
-                s.upload(message)
+                s.send_to_objectstore(message)
             }
         }
         Ok(())

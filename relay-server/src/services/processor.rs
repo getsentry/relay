@@ -76,9 +76,9 @@ use crate::{http, processing};
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
+    crate::services::objectstore::Objectstore,
     crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
-    crate::services::upload::Upload,
     crate::utils::Enforcement,
     itertools::Itertools,
     relay_cardinality::{
@@ -1102,7 +1102,7 @@ pub struct Addrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    pub upload: Option<Addr<Upload>>,
+    pub objectstore: Option<Addr<Objectstore>>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
@@ -1114,7 +1114,7 @@ impl Default for Addrs {
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
             #[cfg(feature = "processing")]
-            upload: None,
+            objectstore: None,
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator: Addr::dummy(),
@@ -2002,7 +2002,7 @@ impl EnvelopeProcessorService {
         {
             use crate::processing::StoreHandle;
 
-            let upload = self.inner.addrs.upload.as_ref();
+            let objectstore = self.inner.addrs.objectstore.as_ref();
             match submit {
                 Submit::Envelope(envelope) => {
                     let envelope_has_attachments = envelope
@@ -2015,18 +2015,18 @@ impl EnvelopeProcessorService {
                         utils::sample(options.objectstore_attachments_sample_rate).is_keep()
                     };
 
-                    if let Some(upload) = &self.inner.addrs.upload
+                    if let Some(objectstore) = &self.inner.addrs.objectstore
                         && envelope_has_attachments
                         && use_objectstore()
                     {
-                        // the `UploadService` will upload all attachments, and then forward the envelope to the `StoreService`.
-                        upload.send(StoreEnvelope { envelope })
+                        // the `ObjectstoreService` will upload all attachments, and then forward the envelope to the `StoreService`.
+                        objectstore.send(StoreEnvelope { envelope })
                     } else {
                         store_forwarder.send(StoreEnvelope { envelope })
                     }
                 }
                 Submit::Output { output, ctx } => output
-                    .forward_store(StoreHandle::new(store_forwarder, upload), ctx)
+                    .forward_store(StoreHandle::new(store_forwarder, objectstore), ctx)
                     .unwrap_or_else(|err| err.into_inner()),
             }
             return;

@@ -33,6 +33,8 @@ pub mod cogs;
 pub mod global_config;
 pub mod health_check;
 pub mod metrics;
+#[cfg(feature = "processing")]
+pub mod objectstore;
 pub mod outcome;
 pub mod outcome_aggregator;
 pub mod processor;
@@ -43,6 +45,4 @@ pub mod server;
 pub mod stats;
 #[cfg(feature = "processing")]
 pub mod store;
-#[cfg(feature = "processing")]
-pub mod upload;
 pub mod upstream;
