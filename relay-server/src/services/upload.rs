@@ -5,13 +5,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::stream::FuturesUnordered;
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
 use relay_config::UploadServiceConfig;
 use relay_system::{
-    Addr, AsyncResponse, FromMessage, Interface, NoResponse, Receiver, Sender, Service,
+    Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
 use uuid::Uuid;
@@ -25,7 +23,7 @@ use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
-use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
+use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::upload;
 
 use super::outcome::Outcome;
@@ -154,9 +152,8 @@ impl fmt::Display for UploadKey {
 /// The service that uploads the attachments.
 ///
 /// Accepts upload requests and maintains a list of concurrent uploads.
+#[derive(Clone)]
 pub struct UploadService {
-    pending_requests: FuturesUnordered<BoxFuture<'static, ()>>,
-    max_concurrent_requests: usize,
     inner: Arc<UploadServiceInner>,
 }
 
@@ -168,7 +165,7 @@ impl UploadService {
         let Some(store) = store else { return Ok(None) };
         let UploadServiceConfig {
             objectstore_url,
-            max_concurrent_requests,
+            max_concurrent_requests: _,
             timeout,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
@@ -192,62 +189,39 @@ impl UploadService {
         };
 
         Ok(Some(Self {
-            pending_requests: FuturesUnordered::new(),
-            max_concurrent_requests: *max_concurrent_requests,
             inner: Arc::new(inner),
         }))
     }
+}
 
-    fn handle_message(&self, message: Upload) {
-        if self.pending_requests.len() >= self.max_concurrent_requests {
-            relay_statsd::metric!(
-                counter(RelayCounters::AttachmentUpload) += message.attachment_count() as u64,
-                result = "load_shed",
-                type = message.ty(),
-            );
-            match message {
-                Upload::Envelope(envelope) => {
-                    // Event attachments can still go the old route.
+impl SimpleService for UploadService {
+    type Interface = Upload;
 
-                    self.inner.store.send(envelope);
-                }
-                Upload::Attachment(managed) => {
-                    let _ = managed.reject_err(Error::LoadShed);
-                }
-                Upload::Stream { message: _, sender } => {
-                    sender.send(Err(Error::LoadShed));
-                }
-            };
-            return;
-        }
-        let inner = self.inner.clone();
-        self.pending_requests
-            .push(async move { inner.handle_message(message).await }.boxed());
+    async fn handle_message(&self, message: Self::Interface) {
+        self.inner.handle_message(message).await
     }
 }
 
-impl Service for UploadService {
-    type Interface = Upload;
+impl LoadShed<Upload> for UploadService {
+    fn handle_loadshed(&self, message: Upload) {
+        relay_statsd::metric!(
+            counter(RelayCounters::AttachmentUpload) += message.attachment_count() as u64,
+            result = "load_shed",
+            type = message.ty(),
+        );
+        match message {
+            Upload::Envelope(envelope) => {
+                // Event attachments can still go the old route.
 
-    async fn run(mut self, mut rx: Receiver<Self::Interface>) {
-        relay_log::info!("Upload service started");
-        loop {
-            relay_log::trace!("Upload loop iteration");
-            tokio::select! {
-                // Bias towards handling responses so that there's space for new incoming requests.
-                biased;
-
-                Some(_) = self.pending_requests.next() => {},
-                Some(message) = rx.recv() => self.handle_message(message),
-
-                else => break,
+                self.inner.store.send(envelope);
             }
-            relay_statsd::metric!(
-                gauge(RelayGauges::ConcurrentAttachmentUploads) =
-                    self.pending_requests.len() as u64
-            );
+            Upload::Attachment(managed) => {
+                let _ = managed.reject_err(Error::LoadShed);
+            }
+            Upload::Stream { message: _, sender } => {
+                sender.send(Err(Error::LoadShed));
+            }
         }
-        relay_log::info!("Upload service stopped");
     }
 }
 
