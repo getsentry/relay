@@ -272,7 +272,7 @@ def test_playstation_wrong_file(
     assert response.json()["detail"] == "invalid prosperodump"
 
 
-def test_playstation_too_large(
+def test_playstation_max_attachments_size_exceeded(
     mini_sentry, relay_processing_with_playstation, outcomes_consumer
 ):
     PROJECT_ID = 42
@@ -282,6 +282,7 @@ def test_playstation_too_large(
     relay = relay_processing_with_playstation(
         {
             "limits": {
+                "max_attachment_size": 1000 * 1024 * 1024,
                 "max_attachments_size": len(playstation_dump) - 1,
             }
         }
@@ -292,6 +293,31 @@ def test_playstation_too_large(
 
     response = exc_info.value.response
     assert response.status_code == 400, "Expected a 400 status code"
+
+
+def test_playstation_max_attachment_size_exceeded(
+    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    mini_sentry.add_full_project_config(PROJECT_ID)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_processing_with_playstation(
+        {
+            "limits": {
+                "max_attachment_size": len(playstation_dump) - 1,
+                "max_attachments_size": 1000 * 1024 * 1024,
+            }
+        }
+    )
+
+    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+        _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+
+    response = exc_info.value.response
+    assert response.status_code == 400, "Expected a 400 status code"
+
+    assert len(outcomes_consumer.get_outcomes()) == 1
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
@@ -405,7 +431,7 @@ def test_playstation_large_attachments(
     assert len(outcomes_consumer.get_outcomes()) == 0
 
     # Attachment chunks (created from the envelope) don't contain the video attachment, but instead
-    # just a location/reference to it. It is located in objectstore.
+    # a location/reference to it in objectstore.
     video_attachment = [
         a for a in event["attachments"] if a["name"] == "crash-video.webm"
     ][0]

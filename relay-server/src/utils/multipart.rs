@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 use std::io;
+use std::marker::PhantomData;
 use std::task::Poll;
 
 use axum::RequestExt;
@@ -7,10 +8,14 @@ use axum::extract::{FromRequest, FromRequestParts, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use bytes::{Bytes, BytesMut};
+#[cfg(sentry)]
+use futures::stream::BoxStream;
 use futures::{StreamExt, TryStreamExt};
 use multer::{Field, Multipart};
 use relay_config::Config;
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::DataCategory;
+#[cfg(sentry)]
+use relay_quotas::Scoping;
 use relay_system::Addr;
 use serde::{Deserialize, Serialize};
 
@@ -20,8 +25,11 @@ use crate::service::ServiceState;
 use crate::services::outcome::{
     DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome, TrackOutcome,
 };
+use crate::utils::ApiErrorResponse;
+#[cfg(sentry)]
+use crate::utils::BoundedStream;
+#[cfg(sentry)]
 use crate::utils::upload::{Sink, Stream};
-use crate::utils::{ApiErrorResponse, BoundedStream};
 
 /// Type used for encoding string lengths.
 type Len = u32;
@@ -197,6 +205,7 @@ impl IntoResponse for BadMultipart {
 /// [`AttachmentStrategy::Upload`] allows specifying exempt attachment types - these are added to
 /// the envelope instead of uploaded.
 pub enum AttachmentStrategy<'a> {
+    #[cfg(sentry)]
     Upload {
         upload_sink: Sink,
         scoping: Scoping,
@@ -204,9 +213,11 @@ pub enum AttachmentStrategy<'a> {
     },
     AddToEnvelope {
         ignore_size_limit_exceeded: bool,
+        _phantom: PhantomData<&'a ()>,
     },
 }
 
+#[cfg(sentry)]
 pub struct UploadExemptions<'a> {
     pub exempt_types: &'a [AttachmentType],
     pub ignore_size_limit_exceeded: bool,
@@ -225,41 +236,37 @@ where
 {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
-    let mut attachments_size = 0;
+    let mut attachments_size: usize = 0;
 
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
             let mut item = Item::new(ItemType::Attachment);
-            item.set_attachment_type(infer_type(field.name(), file_name));
+            let attachment_type = infer_type(field.name(), file_name);
+            item.set_attachment_type(attachment_type.clone());
             item.set_filename(file_name);
 
             match &attachment_strategy {
+                #[cfg(sentry)]
                 AttachmentStrategy::Upload {
                     upload_sink,
                     scoping,
-                    exemptions: UploadExemptions { exempt_types, .. },
-                } if item
-                    .attachment_type()
-                    .is_some_and(|at| !exempt_types.contains(at)) =>
-                {
-                    let stream = Stream {
-                        scoping: *scoping,
-                        stream: BoundedStream::new(
-                            Box::pin(field.map_err(io::Error::other)),
-                            1,
-                            config.max_upload_size(),
-                        ),
-                    };
-                    let location = upload_sink.upload(config, stream).await;
-                    if let Ok(location) = location.and_then(|l| l.into_header_value()) {
-                        item.set_payload(
-                            ContentType::AttachmentRef,
-                            location.as_bytes().to_owned(),
-                        );
-                    } else {
-                        continue;
-                    }
+                    exemptions:
+                        UploadExemptions {
+                            exempt_types,
+                            ignore_size_limit_exceeded,
+                        },
+                } if !exempt_types.contains(&attachment_type) => {
+                    upload_attachment_and_add_ref_to_items(
+                        scoping,
+                        field,
+                        config,
+                        upload_sink,
+                        item,
+                        &mut items,
+                    )
+                    .await;
                 }
+                #[cfg(sentry)]
                 AttachmentStrategy::Upload {
                     exemptions:
                         UploadExemptions {
@@ -267,44 +274,34 @@ where
                             ..
                         },
                     ..
-                }
-                | AttachmentStrategy::AddToEnvelope {
-                    ignore_size_limit_exceeded,
                 } => {
-                    let content_type = field.content_type().cloned();
-                    let field = LimitedField::new(field, config.max_attachment_size());
-                    match field.bytes().await {
-                        Err(multer::Error::FieldSizeExceeded { limit, .. })
-                            if *ignore_size_limit_exceeded =>
-                        {
-                            emit_outcome(
-                                Outcome::Invalid(DiscardReason::TooLarge(
-                                    DiscardItemType::Attachment(DiscardAttachmentType::Attachment),
-                                )),
-                                u32::try_from(limit).unwrap_or(u32::MAX),
-                            );
-                            continue;
-                        }
-                        Err(err) => return Err(err),
-                        Ok(bytes) => {
-                            attachments_size += bytes.len();
-
-                            if attachments_size > config.max_attachments_size() {
-                                return Err(multer::Error::StreamSizeExceeded {
-                                    limit: config.max_attachments_size() as u64,
-                                });
-                            }
-
-                            if let Some(content_type) = content_type {
-                                item.set_payload(content_type.as_ref().into(), bytes);
-                            } else {
-                                item.set_payload_without_content_type(bytes);
-                            }
-                        }
-                    }
+                    add_attachment_to_items(
+                        field,
+                        item,
+                        &mut items,
+                        config,
+                        *ignore_size_limit_exceeded,
+                        &mut attachments_size,
+                        &mut emit_outcome,
+                    )
+                    .await?;
+                }
+                AttachmentStrategy::AddToEnvelope {
+                    ignore_size_limit_exceeded,
+                    ..
+                } => {
+                    add_attachment_to_items(
+                        field,
+                        item,
+                        &mut items,
+                        config,
+                        *ignore_size_limit_exceeded,
+                        &mut attachments_size,
+                        &mut emit_outcome,
+                    )
+                    .await?;
                 }
             }
-            items.push(item);
         } else if let Some(field_name) = field.name().map(str::to_owned) {
             // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
             // process sentry event payloads even if they contain invalid encoding.
@@ -325,6 +322,72 @@ where
     }
 
     Ok(items)
+}
+
+#[cfg(sentry)]
+async fn upload_attachment_and_add_ref_to_items(
+    scoping: &Scoping,
+    field: Field<'static>,
+    config: &Config,
+    upload_sink: &Sink,
+    mut item: Item,
+    items: &mut Items,
+) {
+    let stream: BoxStream<'static, io::Result<Bytes>> = Box::pin(field.map_err(io::Error::other));
+    let stream = BoundedStream::new(stream, 1, config.max_upload_size());
+    let stream = Stream {
+        scoping: *scoping,
+        stream: stream,
+    };
+    let location = upload_sink.upload(config, stream).await;
+    if let Ok(location) = location.and_then(|l| l.into_header_value()) {
+        let location = location.as_bytes().to_owned();
+        item.set_payload(ContentType::AttachmentRef, location);
+        items.push(item);
+    }
+}
+
+async fn add_attachment_to_items<G>(
+    field: Field<'_>,
+    mut item: Item,
+    items: &mut Items,
+    config: &Config,
+    ignore_size_limit_exceeded: bool,
+    attachments_size: &mut usize,
+    emit_outcome: &mut G,
+) -> Result<(), multer::Error>
+where
+    G: FnMut(Outcome, u32),
+{
+    let content_type = field.content_type().cloned();
+    let field = LimitedField::new(field, config.max_attachment_size());
+    match field.bytes().await {
+        Err(multer::Error::FieldSizeExceeded { limit, .. }) if ignore_size_limit_exceeded => {
+            emit_outcome(
+                Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+                    DiscardAttachmentType::Attachment,
+                ))),
+                u32::try_from(limit).unwrap_or(u32::MAX),
+            );
+            Ok(())
+        }
+        Err(err) => Err(err),
+        Ok(bytes) => {
+            *attachments_size += bytes.len();
+            if *attachments_size > config.max_attachments_size() {
+                return Err(multer::Error::StreamSizeExceeded {
+                    limit: config.max_attachments_size() as u64,
+                });
+            }
+            if let Some(content_type) = content_type {
+                item.set_payload(content_type.as_ref().into(), bytes);
+            } else {
+                item.set_payload_without_content_type(bytes);
+            }
+            items.push(item);
+            Ok(())
+        }
+    }
 }
 
 /// Wrapper around `multer::Field` which consumes the entire underlying stream even when the
@@ -430,6 +493,7 @@ impl ConstrainedMultipart {
             config,
             AttachmentStrategy::AddToEnvelope {
                 ignore_size_limit_exceeded: false,
+                _phantom: PhantomData,
             },
         )
         .await
@@ -624,6 +688,7 @@ mod tests {
             &config,
             AttachmentStrategy::AddToEnvelope {
                 ignore_size_limit_exceeded: true,
+                _phantom: PhantomData,
             },
         )
         .await
@@ -676,6 +741,7 @@ mod tests {
             &config,
             AttachmentStrategy::AddToEnvelope {
                 ignore_size_limit_exceeded: true,
+                _phantom: PhantomData,
             },
         )
         .await;
