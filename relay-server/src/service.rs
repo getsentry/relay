@@ -44,6 +44,8 @@ use relay_redis::AsyncRedisClient;
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
+#[cfg(feature = "processing")]
+use relay_system::ConcurrentService;
 use relay_system::{Addr, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
 
 /// Indicates the type of failure of the server.
@@ -238,7 +240,12 @@ impl ServiceState {
             .transpose()?;
 
         #[cfg(feature = "processing")]
-        let upload = UploadService::new(config.upload(), store.clone())?.map(|s| services.start(s));
+        let upload = UploadService::new(config.upload(), store.clone())?.map(|s| {
+            let concurrent = ConcurrentService::new(s)
+                .with_loadshedding()
+                .with_concurrency_limit(config.upload().max_concurrent_requests);
+            services.start(concurrent)
+        });
 
         let envelope_buffer = PartitionedEnvelopeBuffer::create(
             config.spool_partitions(),
