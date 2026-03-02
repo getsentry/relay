@@ -13,6 +13,7 @@
 
 **Internal**
 
+- Remove all metrics extraction except usage and count_per_root. ([#5674](https://github.com/getsentry/relay/pull/5674))
 - Allow deferred lengths to the `/upload` endpoint when the sender is trusted. ([#5658](https://github.com/getsentry/relay/pull/5658))
 
 ## 26.2.1

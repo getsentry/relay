@@ -80,11 +80,12 @@ fn extract_span_metrics_for_event(
             true, // was_transaction (segment span from a transaction event)
         ));
 
-        // Child spans
+        // Child spans — only count entries with a valid span value,
+        // since Annotated entries can have None values.
         let span_count = event
             .spans
             .value()
-            .map(|spans| spans.len() as u32)
+            .map(|spans| spans.iter().filter(|s| s.value().is_some()).count() as u32)
             .unwrap_or(0);
 
         let bucket = create_span_root_counter!(span_count, false);
