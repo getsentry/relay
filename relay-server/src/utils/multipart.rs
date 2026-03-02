@@ -337,7 +337,7 @@ async fn upload_attachment_and_add_ref_to_items(
     let stream = BoundedStream::new(stream, 1, config.max_upload_size());
     let stream = Stream {
         scoping: *scoping,
-        stream: stream,
+        stream,
     };
     let location = upload_sink.upload(config, stream).await;
     if let Ok(location) = location.and_then(|l| l.into_header_value()) {
