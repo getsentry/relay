@@ -430,7 +430,7 @@
 <a href=#430 id=430 data-nosnippet>430</a>            is_container = is_container,
 <a href=#431 id=431 data-nosnippet>431</a>        );
 <a href=#432 id=432 data-nosnippet>432</a>        <span class="macro">metric!</span>(
-<a href=#433 id=433 data-nosnippet>433</a>            counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(<span class="number">1</span>),
+<a href=#433 id=433 data-nosnippet>433</a>            counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(<span class="number">1</span>) <span class="kw">as </span>u64,
 <a href=#434 id=434 data-nosnippet>434</a>            item_type = item_type,
 <a href=#435 id=435 data-nosnippet>435</a>            is_container = is_container,
 <a href=#436 id=436 data-nosnippet>436</a>            sdk = client_name,

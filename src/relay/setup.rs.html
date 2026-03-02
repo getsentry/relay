@@ -3,7 +3,7 @@
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>anyhow::Result;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>relay_config::{Config, RelayMode};
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_server::MemoryStat;
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_statsd::MetricsClientConfig;
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_statsd::MetricsConfig;
 <a href=#7 id=7 data-nosnippet>7</a>
 <a href=#8 id=8 data-nosnippet>8</a><span class="doccomment">/// Validates that the `batch_size_bytes` of the configuration is correct and doesn't lead to
 <a href=#9 id=9 data-nosnippet>9</a>/// deadlocks in the buffer.
@@ -110,16 +110,13 @@
 <a href=#110 id=110 data-nosnippet>110</a>    {
 <a href=#111 id=111 data-nosnippet>111</a>        default_tags.insert(hostname_tag.to_owned(), hostname);
 <a href=#112 id=112 data-nosnippet>112</a>    }
-<a href=#113 id=113 data-nosnippet>113</a>    relay_statsd::init(MetricsClientConfig {
-<a href=#114 id=114 data-nosnippet>114</a>        prefix: config.metrics_prefix(),
+<a href=#113 id=113 data-nosnippet>113</a>    relay_statsd::init(MetricsConfig {
+<a href=#114 id=114 data-nosnippet>114</a>        prefix: config.metrics_prefix().to_owned(),
 <a href=#115 id=115 data-nosnippet>115</a>        host: host.to_owned(),
 <a href=#116 id=116 data-nosnippet>116</a>        buffer_size: config.statsd_buffer_size(),
 <a href=#117 id=117 data-nosnippet>117</a>        default_tags,
-<a href=#118 id=118 data-nosnippet>118</a>        sample_rate: config.metrics_sample_rate().into(),
-<a href=#119 id=119 data-nosnippet>119</a>        aggregate: config.metrics_aggregate(),
-<a href=#120 id=120 data-nosnippet>120</a>        allow_high_cardinality_tags: config.metrics_allow_high_cardinality_tags(),
-<a href=#121 id=121 data-nosnippet>121</a>    })<span class="question-mark">?</span>;
-<a href=#122 id=122 data-nosnippet>122</a>
-<a href=#123 id=123 data-nosnippet>123</a>    <span class="prelude-val">Ok</span>(())
-<a href=#124 id=124 data-nosnippet>124</a>}
+<a href=#118 id=118 data-nosnippet>118</a>    })<span class="question-mark">?</span>;
+<a href=#119 id=119 data-nosnippet>119</a>
+<a href=#120 id=120 data-nosnippet>120</a>    <span class="prelude-val">Ok</span>(())
+<a href=#121 id=121 data-nosnippet>121</a>}
 </code></pre></div></section></main></body></html>

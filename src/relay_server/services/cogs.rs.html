@@ -39,7 +39,7 @@
 <a href=#39 id=39 data-nosnippet>39</a>
 <a href=#40 id=40 data-nosnippet>40</a>        <span class="kw">let </span>amount = <span class="kw">match </span>measurement.value {
 <a href=#41 id=41 data-nosnippet>41</a>            relay_cogs::Value::Time(duration) =&gt; {
-<a href=#42 id=42 data-nosnippet>42</a>                duration.as_micros().try_into().unwrap_or(i64::MAX)
+<a href=#42 id=42 data-nosnippet>42</a>                duration.as_micros().try_into().unwrap_or(u64::MAX)
 <a href=#43 id=43 data-nosnippet>43</a>            }
 <a href=#44 id=44 data-nosnippet>44</a>        };
 <a href=#45 id=45 data-nosnippet>45</a>

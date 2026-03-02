@@ -79,13 +79,13 @@
 <a href=#79 id=79 data-nosnippet>79</a>    <span class="doccomment">/// Adds an envelope to the buffer.
 <a href=#80 id=80 data-nosnippet>80</a>    </span><span class="kw">pub async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
 <a href=#81 id=81 data-nosnippet>81</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#82 id=82 data-nosnippet>82</a>            distribution(RelayDistributions::BufferEnvelopeBodySize, sample = <span class="number">0.01</span>) =
+<a href=#82 id=82 data-nosnippet>82</a>            distribution(RelayDistributions::BufferEnvelopeBodySize) =
 <a href=#83 id=83 data-nosnippet>83</a>                envelope.items().map(Item::len).sum::&lt;usize&gt;() <span class="kw">as </span>u64,
 <a href=#84 id=84 data-nosnippet>84</a>            partition_id = <span class="self">self</span>.partition_tag()
 <a href=#85 id=85 data-nosnippet>85</a>        );
 <a href=#86 id=86 data-nosnippet>86</a>
 <a href=#87 id=87 data-nosnippet>87</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#88 id=88 data-nosnippet>88</a>            timer(RelayTimers::BufferPush, sample = <span class="number">0.01</span>),
+<a href=#88 id=88 data-nosnippet>88</a>            timer(RelayTimers::BufferPush),
 <a href=#89 id=89 data-nosnippet>89</a>            partition_id = <span class="self">self</span>.partition_tag(),
 <a href=#90 id=90 data-nosnippet>90</a>            {
 <a href=#91 id=91 data-nosnippet>91</a>                <span class="kw">match </span><span class="self">self </span>{
@@ -99,7 +99,7 @@
 <a href=#99 id=99 data-nosnippet>99</a>    <span class="doccomment">/// Returns a reference to the next-in-line envelope.
 <a href=#100 id=100 data-nosnippet>100</a>    </span><span class="kw">pub async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Peek, EnvelopeBufferError&gt; {
 <a href=#101 id=101 data-nosnippet>101</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#102 id=102 data-nosnippet>102</a>            timer(RelayTimers::BufferPeek, sample = <span class="number">0.01</span>),
+<a href=#102 id=102 data-nosnippet>102</a>            timer(RelayTimers::BufferPeek),
 <a href=#103 id=103 data-nosnippet>103</a>            partition_id = <span class="self">self</span>.partition_tag(),
 <a href=#104 id=104 data-nosnippet>104</a>            {
 <a href=#105 id=105 data-nosnippet>105</a>                <span class="kw">match </span><span class="self">self </span>{
@@ -113,7 +113,7 @@
 <a href=#113 id=113 data-nosnippet>113</a>    <span class="doccomment">/// Pops the next-in-line envelope.
 <a href=#114 id=114 data-nosnippet>114</a>    </span><span class="kw">pub async fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;, EnvelopeBufferError&gt; {
 <a href=#115 id=115 data-nosnippet>115</a>        <span class="macro">relay_statsd::metric!</span>(
-<a href=#116 id=116 data-nosnippet>116</a>            timer(RelayTimers::BufferPop, sample = <span class="number">0.01</span>),
+<a href=#116 id=116 data-nosnippet>116</a>            timer(RelayTimers::BufferPop),
 <a href=#117 id=117 data-nosnippet>117</a>            partition_id = <span class="self">self</span>.partition_tag(),
 <a href=#118 id=118 data-nosnippet>118</a>            {
 <a href=#119 id=119 data-nosnippet>119</a>                <span class="kw">match </span><span class="self">self </span>{

@@ -94,7 +94,7 @@
 <a href=#94 id=94 data-nosnippet>94</a>    ///
 <a href=#95 id=95 data-nosnippet>95</a>    /// This method is only called if `statistics.interval.ms` is configured.
 <a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">fn </span>stats(<span class="kw-2">&amp;</span><span class="self">self</span>, statistics: rdkafka::Statistics) {
-<a href=#97 id=97 data-nosnippet>97</a>        <span class="kw">let </span>producer_name = <span class="kw-2">&amp;</span><span class="self">self</span>.producer_name;
+<a href=#97 id=97 data-nosnippet>97</a>        <span class="kw">let </span>producer_name = <span class="self">self</span>.producer_name.as_str();
 <a href=#98 id=98 data-nosnippet>98</a>
 <a href=#99 id=99 data-nosnippet>99</a>        <span class="macro">relay_statsd::metric!</span>(
 <a href=#100 id=100 data-nosnippet>100</a>            gauge(KafkaGauges::MessageCount) = statistics.msg_cnt,
@@ -206,7 +206,7 @@
 <a href=#206 id=206 data-nosnippet>206</a>                <span class="macro">metric!</span>(
 <a href=#207 id=207 data-nosnippet>207</a>                    counter(KafkaCounters::ProduceStatusSuccess) += <span class="number">1</span>,
 <a href=#208 id=208 data-nosnippet>208</a>                    topic = message.topic(),
-<a href=#209 id=209 data-nosnippet>209</a>                    producer_name = <span class="kw-2">&amp;</span><span class="self">self</span>.producer_name
+<a href=#209 id=209 data-nosnippet>209</a>                    producer_name = <span class="self">self</span>.producer_name.as_str(),
 <a href=#210 id=210 data-nosnippet>210</a>                );
 <a href=#211 id=211 data-nosnippet>211</a>            }
 <a href=#212 id=212 data-nosnippet>212</a>            <span class="prelude-val">Err</span>((error, message)) =&gt; {
@@ -220,7 +220,7 @@
 <a href=#220 id=220 data-nosnippet>220</a>                <span class="macro">metric!</span>(
 <a href=#221 id=221 data-nosnippet>221</a>                    counter(KafkaCounters::ProduceStatusError) += <span class="number">1</span>,
 <a href=#222 id=222 data-nosnippet>222</a>                    topic = message.topic(),
-<a href=#223 id=223 data-nosnippet>223</a>                    producer_name = <span class="kw-2">&amp;</span><span class="self">self</span>.producer_name
+<a href=#223 id=223 data-nosnippet>223</a>                    producer_name = <span class="self">self</span>.producer_name.as_str(),
 <a href=#224 id=224 data-nosnippet>224</a>                );
 <a href=#225 id=225 data-nosnippet>225</a>            }
 <a href=#226 id=226 data-nosnippet>226</a>        }

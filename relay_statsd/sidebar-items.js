@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["disable","init","init_basic","set_client","with_capturing_test_client","with_client"],"macro":["metric"],"mod":["prelude"],"struct":["DenyTagConfig","MetricsClient","MetricsClientConfig","SampleRate"],"trait":["CounterMetric","DistributionMetric","GaugeMetric","SetMetric","TimerMetric"]};
+window.SIDEBAR_ITEMS = {"fn":["init","with_capturing_test_client"],"macro":["metric"],"struct":["Error","MetricsConfig"],"trait":["CounterMetric","DistributionMetric","GaugeMetric","TimerMetric"]};
