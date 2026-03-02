@@ -4,7 +4,7 @@
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>relay_protocol::Annotated;
 <a href=#5 id=5 data-nosnippet>5</a>
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::managed::Counted;
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::processing::replays::{Error, ExpandedReplay};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::processing::replays::{Error, ReplayPayload, <span class="prelude-ty">Result</span>};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreReplay;
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="doccomment">/// Reserved bytes for message metadata.
@@ -21,15 +21,15 @@
 <a href=#21 id=21 data-nosnippet>21</a>    </span><span class="kw">pub </span>max_replay_message_size: usize,
 <a href=#22 id=22 data-nosnippet>22</a>}
 <a href=#23 id=23 data-nosnippet>23</a>
-<a href=#24 id=24 data-nosnippet>24</a><span class="doccomment">/// Converts an [`ExpandedReplay`] into a storable [`StoreReplay`].
+<a href=#24 id=24 data-nosnippet>24</a><span class="doccomment">/// Converts a [`ReplayPayload`] into a storable [`StoreReplay`].
 <a href=#25 id=25 data-nosnippet>25</a>///
 <a href=#26 id=26 data-nosnippet>26</a>/// Fails if the event can not be serialized or the created message is too large for the consumer.
-<a href=#27 id=27 data-nosnippet>27</a></span><span class="kw">pub fn </span>convert(replay: ExpandedReplay, ctx: <span class="kw-2">&amp;</span>Context) -&gt; <span class="prelude-ty">Result</span>&lt;StoreReplay, Error&gt; {
+<a href=#27 id=27 data-nosnippet>27</a></span><span class="kw">pub fn </span>convert(replay: ReplayPayload, ctx: <span class="kw-2">&amp;</span>Context) -&gt; <span class="prelude-ty">Result</span>&lt;StoreReplay&gt; {
 <a href=#28 id=28 data-nosnippet>28</a>    <span class="kw">let </span>quantities = replay.quantities();
 <a href=#29 id=29 data-nosnippet>29</a>    <span class="kw">let </span>(recording, event, video) = <span class="kw">match </span>replay {
-<a href=#30 id=30 data-nosnippet>30</a>        ExpandedReplay::StandaloneRecording { recording } =&gt; (recording, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
-<a href=#31 id=31 data-nosnippet>31</a>        ExpandedReplay::WebReplay { event, recording } =&gt; (recording, <span class="prelude-val">Some</span>(event), <span class="prelude-val">None</span>),
-<a href=#32 id=32 data-nosnippet>32</a>        ExpandedReplay::NativeReplay {
+<a href=#30 id=30 data-nosnippet>30</a>        ReplayPayload::StandaloneRecording { recording } =&gt; (recording, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
+<a href=#31 id=31 data-nosnippet>31</a>        ReplayPayload::WebReplay { event, recording } =&gt; (recording, <span class="prelude-val">Some</span>(event), <span class="prelude-val">None</span>),
+<a href=#32 id=32 data-nosnippet>32</a>        ReplayPayload::NativeReplay {
 <a href=#33 id=33 data-nosnippet>33</a>            event,
 <a href=#34 id=34 data-nosnippet>34</a>            recording,
 <a href=#35 id=35 data-nosnippet>35</a>            video,
@@ -59,8 +59,8 @@
 <a href=#59 id=59 data-nosnippet>59</a>    })
 <a href=#60 id=60 data-nosnippet>60</a>}
 <a href=#61 id=61 data-nosnippet>61</a>
-<a href=#62 id=62 data-nosnippet>62</a><span class="kw">fn </span>serialize_event(replay: Annotated&lt;Replay&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Error&gt; {
-<a href=#63 id=63 data-nosnippet>63</a>    replay
+<a href=#62 id=62 data-nosnippet>62</a><span class="kw">fn </span>serialize_event(replay_event: Annotated&lt;Replay&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes&gt; {
+<a href=#63 id=63 data-nosnippet>63</a>    replay_event
 <a href=#64 id=64 data-nosnippet>64</a>        .to_json()
 <a href=#65 id=65 data-nosnippet>65</a>        .map_err(|<span class="kw">_</span>| Error::FailedToSerializeReplay)
 <a href=#66 id=66 data-nosnippet>66</a>        .map(|json| json.into_bytes().into())
