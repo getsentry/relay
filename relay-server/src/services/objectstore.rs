@@ -424,6 +424,12 @@ impl ObjectstoreServiceInner {
     }
 
     async fn upload(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
+        self.upload_inner(ty, request)
+            .await
+            .inspect_err(|e| relay_log::error!(error = e as &dyn std::error::Error))
+    }
+
+    async fn upload_inner(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
         relay_log::trace!("Starting attachment upload");
         let response = relay_statsd::metric!(
             timer(RelayTimers::AttachmentUploadDuration),
