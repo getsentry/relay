@@ -1629,19 +1629,29 @@ pub struct Upload {
     /// Maximum number of uploads that the service accepts.
     ///
     /// Additional uploads will be rejected.
+    #[serde(default = "upload_max_concurrent_requests")]
     pub max_concurrent_requests: usize,
     /// Maximum time spent trying to upload, in seconds.
     /// Currently only used by non-processing relays, as the objectstore service has its own timeout.
+    #[serde(default = "upload_timeout_seconds")]
     pub timeout: u64,
 }
 
 impl Default for Upload {
     fn default() -> Self {
         Self {
-            max_concurrent_requests: 10,
-            timeout: 60,
+            max_concurrent_requests: upload_max_concurrent_requests(),
+            timeout: upload_timeout_seconds(),
         }
     }
+}
+
+fn upload_max_concurrent_requests() -> usize {
+    10
+}
+
+fn upload_timeout_seconds() -> u64 {
+    60
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
