@@ -27,6 +27,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
+use crate::services::upload::{self, Upload};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
 #[cfg(feature = "processing")]
@@ -80,6 +81,7 @@ pub struct Registry {
     pub autoscaling: Option<Addr<AutoscalingMetrics>>,
     #[cfg(feature = "processing")]
     pub objectstore: Option<Addr<Objectstore>>,
+    pub upload: Addr<Upload>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -351,6 +353,13 @@ impl ServiceState {
             upstream_relay.clone(),
         ));
 
+        let upload = services.start(upload::create_service(
+            &config,
+            &upstream_relay,
+            #[cfg(feature = "processing")]
+            &objectstore,
+        ));
+
         let registry = Registry {
             processor,
             health_check,
@@ -364,6 +373,7 @@ impl ServiceState {
             autoscaling,
             #[cfg(feature = "processing")]
             objectstore,
+            upload,
         };
 
         let state = StateInner {
@@ -439,8 +449,14 @@ impl ServiceState {
     }
 
     #[cfg(feature = "processing")]
+    /// Returns the address of the [`Objectstore`] service.
     pub fn objectstore(&self) -> Option<&Addr<Objectstore>> {
         self.inner.registry.objectstore.as_ref()
+    }
+
+    /// Returns the address of the [`Upload`] service.
+    pub fn upload(&self) -> &Addr<Upload> {
+        &self.inner.registry.upload
     }
 }
 

@@ -1,6 +1,8 @@
 //! Utilities for uploading large files.
 
 use std::fmt;
+use std::sync::Arc;
+use std::time::Duration;
 
 use bytes::Bytes;
 #[cfg(feature = "processing")]
@@ -13,12 +15,14 @@ use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_quotas::Scoping;
-use relay_system::Addr;
+use relay_system::{
+    Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, Sender, SimpleService,
+};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 
 use crate::http::{HttpError, RequestBuilder, Response};
-use crate::service::ServiceState;
+
 #[cfg(feature = "processing")]
 use crate::services::objectstore::{self, Objectstore};
 use crate::services::upstream::{
@@ -39,18 +43,28 @@ pub enum Error {
     Upstream(StatusCode),
     #[error("upstream provided invalid location")]
     InvalidLocation,
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     #[error("failed to sign location")]
     SigningFailed,
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     #[error("service unavailable")]
     ServiceUnavailable,
     #[cfg(feature = "processing")]
     #[error("objectstore service: {0}")]
     Objectstore(#[from] objectstore::Error),
+    #[error("loadshed")]
+    LoadShed,
     #[error("internal error")]
     Internal,
 }
+
+/// The message interface for this service.
+pub enum Upload {
+    /// Upload a stream of bytes for a project.
+    ///
+    /// Returns the trusted identifier of the upload.
+    Stream(Stream, Sender<Result<SignedLocation, Error>>),
+}
+
+impl Interface for Upload {}
 
 /// A stream of bytes to be uploaded to objectstore or the upstream.
 pub struct Stream {
@@ -60,37 +74,76 @@ pub struct Stream {
     pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
 }
 
+impl FromMessage<Stream> for Upload {
+    type Response = AsyncResponse<Result<SignedLocation, Error>>;
+
+    fn from_message(message: Stream, sender: Sender<Result<SignedLocation, Error>>) -> Self {
+        Self::Stream(message, sender)
+    }
+}
+
+/// Creates a new upload service.
+pub fn create_service(
+    config: &Arc<Config>,
+    upstream: &Addr<UpstreamRelay>,
+    #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
+) -> ConcurrentService<Service> {
+    let service = create_service_inner(
+        config,
+        upstream,
+        #[cfg(feature = "processing")]
+        objectstore,
+    );
+    ConcurrentService::new(service)
+        .with_loadshedding()
+        .with_concurrency_limit(config.upload().max_concurrent_requests)
+}
+
+fn create_service_inner(
+    config: &Arc<Config>,
+    upstream: &Addr<UpstreamRelay>,
+    #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
+) -> Service {
+    #[cfg(feature = "processing")]
+    if let Some(addr) = objectstore.as_ref() {
+        return Service::Objectstore {
+            addr: addr.clone(),
+            config: config.clone(),
+        };
+    }
+    Service::Upstream {
+        addr: upstream.clone(),
+        timeout: Duration::from_secs(config.upload().timeout),
+    }
+}
+
 /// A dispatcher for uploading large files.
 ///
 /// Uploads go to either the upstream relay or objectstore.
-pub enum Sink {
-    Upstream(Addr<UpstreamRelay>),
+#[derive(Debug, Clone)]
+pub enum Service {
+    Upstream {
+        addr: Addr<UpstreamRelay>,
+        timeout: Duration,
+    },
     #[cfg(feature = "processing")]
-    Objectstore(Addr<Objectstore>),
+    Objectstore {
+        addr: Addr<Objectstore>,
+        config: Arc<Config>,
+    },
 }
 
-impl Sink {
-    /// Creates a new upload dispatcher.
-    pub fn new(state: &ServiceState) -> Self {
-        #[cfg(feature = "processing")]
-        if let Some(addr) = state.objectstore() {
-            return Self::Objectstore(addr.clone());
-        }
-        Self::Upstream(state.upstream_relay().clone())
-    }
-
-    /// Uploads a given stream and returns the upload's identifier upon success.
-    pub async fn upload(&self, config: &Config, stream: Stream) -> Result<SignedLocation, Error> {
+impl Service {
+    async fn upload(&self, stream: Stream) -> Result<SignedLocation, Error> {
         match self {
-            Sink::Upstream(addr) => {
-                let (request, response_channel) = UploadRequest::create(stream);
+            Service::Upstream { addr, timeout } => {
+                let (request, rx) = UploadRequest::create(stream);
                 addr.send(SendRequest(request));
-                let response =
-                    tokio::time::timeout(config.http_timeout(), response_channel).await???;
+                let response = tokio::time::timeout(*timeout, rx).await???;
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Sink::Objectstore(addr) => {
+            Service::Objectstore { addr, config } => {
                 let project_id = stream.scoping.project_id;
                 let byte_counter = stream.stream.byte_counter();
                 let key = addr
@@ -108,6 +161,21 @@ impl Sink {
                 .try_sign(config)
             }
         }
+    }
+}
+
+impl SimpleService for Service {
+    type Interface = Upload;
+
+    async fn handle_message(&self, message: Upload) {
+        let Upload::Stream(stream, tx) = message;
+        tx.send(self.upload(stream).await)
+    }
+}
+
+impl LoadShed<Upload> for Service {
+    fn handle_loadshed(&self, Upload::Stream(_, tx): Upload) {
+        tx.send(Err(Error::LoadShed));
     }
 }
 
@@ -161,7 +229,6 @@ impl Location {
 #[derive(Debug)]
 pub enum SignedLocation {
     FromUpstream(HeaderValue),
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     Local {
         location: Location,
         signature: Signature,

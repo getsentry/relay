@@ -1623,6 +1623,28 @@ impl Default for Cogs {
     }
 }
 
+/// Configuration for the upload service.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Upload {
+    /// Maximum number of uploads that the service accepts.
+    ///
+    /// Additional uploads will be rejected.
+    pub max_concurrent_requests: usize,
+    /// Maximum time spent trying to upload, in seconds.
+    /// Currently only used by non-processing relays, as the objectstore service has its own timeout.
+    pub timeout: u64,
+}
+
+impl Default for Upload {
+    fn default() -> Self {
+        Self {
+            max_concurrent_requests: 10,
+            timeout: 60,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1663,6 +1685,8 @@ struct ConfigValues {
     health: Health,
     #[serde(default)]
     cogs: Cogs,
+    #[serde(default)]
+    upload: Upload,
 }
 
 impl ConfigObject for ConfigValues {
@@ -2565,6 +2589,11 @@ impl Config {
     /// Configuration of the objectstore service.
     pub fn objectstore(&self) -> &ObjectstoreServiceConfig {
         &self.values.processing.objectstore
+    }
+
+    /// Configuration of the upload service.
+    pub fn upload(&self) -> &Upload {
+        &self.values.upload
     }
 
     /// Redis servers to connect to for project configs, cardinality limits,
