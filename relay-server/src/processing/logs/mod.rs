@@ -197,7 +197,7 @@ impl Forward for LogOutput {
 
         for log in logs.split(|logs| logs.logs) {
             if let Ok(log) = log.try_map(|log, _| store::convert(log, &ctx)) {
-                s.store(log)
+                s.send_to_store(log)
             };
         }
 

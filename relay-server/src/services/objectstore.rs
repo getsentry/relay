@@ -1,4 +1,4 @@
-//! Service that uploads attachments.
+//! Objectstore service for uploading attachments.
 use std::array::TryFromSliceError;
 use std::fmt;
 use std::sync::Arc;
@@ -7,7 +7,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use futures::StreamExt;
 use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
-use relay_config::UploadServiceConfig;
+use relay_config::ObjectstoreServiceConfig;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
@@ -28,22 +28,22 @@ use crate::utils::upload;
 
 use super::outcome::Outcome;
 
-/// Messages that the upload service can handle.
-pub enum Upload {
+/// Messages that the objectstore service can handle.
+pub enum Objectstore {
     Envelope(StoreEnvelope),
     Attachment(Managed<StoreAttachment>),
     Stream {
         message: upload::Stream,
-        sender: Sender<Result<UploadKey, Error>>,
+        sender: Sender<Result<ObjectstoreKey, Error>>,
     },
 }
 
-impl Upload {
+impl Objectstore {
     fn ty(&self) -> &str {
         match self {
-            Upload::Envelope(_) => "envelope",
-            Upload::Attachment(_) => "attachment_v2",
-            Upload::Stream { .. } => "stream",
+            Objectstore::Envelope(_) => "envelope",
+            Objectstore::Attachment(_) => "attachment_v2",
+            Objectstore::Stream { .. } => "stream",
         }
     }
 
@@ -60,9 +60,9 @@ impl Upload {
     }
 }
 
-impl Interface for Upload {}
+impl Interface for Objectstore {}
 
-impl FromMessage<StoreEnvelope> for Upload {
+impl FromMessage<StoreEnvelope> for Objectstore {
     type Response = NoResponse;
 
     fn from_message(message: StoreEnvelope, _sender: ()) -> Self {
@@ -70,7 +70,7 @@ impl FromMessage<StoreEnvelope> for Upload {
     }
 }
 
-impl FromMessage<Managed<StoreAttachment>> for Upload {
+impl FromMessage<Managed<StoreAttachment>> for Objectstore {
     type Response = NoResponse;
 
     fn from_message(message: Managed<StoreAttachment>, _sender: ()) -> Self {
@@ -78,10 +78,13 @@ impl FromMessage<Managed<StoreAttachment>> for Upload {
     }
 }
 
-impl FromMessage<upload::Stream> for Upload {
-    type Response = AsyncResponse<Result<UploadKey, Error>>;
+impl FromMessage<upload::Stream> for Objectstore {
+    type Response = AsyncResponse<Result<ObjectstoreKey, Error>>;
 
-    fn from_message(message: upload::Stream, sender: Sender<Result<UploadKey, Error>>) -> Self {
+    fn from_message(
+        message: upload::Stream,
+        sender: Sender<Result<ObjectstoreKey, Error>>,
+    ) -> Self {
         Self::Stream { message, sender }
     }
 }
@@ -134,36 +137,36 @@ impl OutcomeError for Error {
 
 /// The objectstore key that identifies a successful upload.
 #[derive(Debug, PartialEq)]
-pub struct UploadKey(String);
+pub struct ObjectstoreKey(String);
 
-impl UploadKey {
+impl ObjectstoreKey {
     /// Returns the underlying [`String`].
     pub fn into_inner(self) -> String {
         self.0
     }
 }
 
-impl fmt::Display for UploadKey {
+impl fmt::Display for ObjectstoreKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
-/// The service that uploads the attachments.
+/// The objectstore service that uploads attachments.
 ///
 /// Accepts upload requests and maintains a list of concurrent uploads.
 #[derive(Clone)]
-pub struct UploadService {
-    inner: Arc<UploadServiceInner>,
+pub struct ObjectstoreService {
+    inner: Arc<ObjectstoreServiceInner>,
 }
 
-impl UploadService {
+impl ObjectstoreService {
     pub fn new(
-        config: &UploadServiceConfig,
+        config: &ObjectstoreServiceConfig,
         store: Option<Addr<Store>>,
     ) -> anyhow::Result<Option<Self>> {
         let Some(store) = store else { return Ok(None) };
-        let UploadServiceConfig {
+        let ObjectstoreServiceConfig {
             objectstore_url,
             max_concurrent_requests: _,
             timeout,
@@ -178,7 +181,7 @@ impl UploadService {
         let trace_attachments = Usecase::new("trace_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 
-        let inner = UploadServiceInner {
+        let inner = ObjectstoreServiceInner {
             timeout: Duration::from_secs(*timeout),
 
             store,
@@ -194,38 +197,38 @@ impl UploadService {
     }
 }
 
-impl SimpleService for UploadService {
-    type Interface = Upload;
+impl SimpleService for ObjectstoreService {
+    type Interface = Objectstore;
 
     async fn handle_message(&self, message: Self::Interface) {
         self.inner.handle_message(message).await
     }
 }
 
-impl LoadShed<Upload> for UploadService {
-    fn handle_loadshed(&self, message: Upload) {
+impl LoadShed<Objectstore> for ObjectstoreService {
+    fn handle_loadshed(&self, message: Objectstore) {
         relay_statsd::metric!(
             counter(RelayCounters::AttachmentUpload) += message.attachment_count() as u64,
             result = "load_shed",
             type = message.ty(),
         );
         match message {
-            Upload::Envelope(envelope) => {
+            Objectstore::Envelope(envelope) => {
                 // Event attachments can still go the old route.
 
                 self.inner.store.send(envelope);
             }
-            Upload::Attachment(managed) => {
+            Objectstore::Attachment(managed) => {
                 let _ = managed.reject_err(Error::LoadShed);
             }
-            Upload::Stream { message: _, sender } => {
+            Objectstore::Stream { message: _, sender } => {
                 sender.send(Err(Error::LoadShed));
             }
         }
     }
 }
 
-struct UploadServiceInner {
+struct ObjectstoreServiceInner {
     timeout: Duration,
     store: Addr<Store>,
 
@@ -234,14 +237,14 @@ struct UploadServiceInner {
     trace_attachments: Usecase,
 }
 
-impl UploadServiceInner {
-    async fn handle_message(&self, message: Upload) {
+impl ObjectstoreServiceInner {
+    async fn handle_message(&self, message: Objectstore) {
         match message {
-            Upload::Envelope(StoreEnvelope { envelope }) => {
+            Objectstore::Envelope(StoreEnvelope { envelope }) => {
                 self.handle_envelope(envelope).await;
             }
-            Upload::Attachment(attachment) => self.handle_attachment(attachment).await,
-            Upload::Stream {
+            Objectstore::Attachment(attachment) => self.handle_attachment(attachment).await,
+            Objectstore::Stream {
                 message: managed,
                 sender,
             } => self.handle_stream(managed, sender).await,
@@ -367,7 +370,7 @@ impl UploadServiceInner {
     async fn handle_stream(
         &self,
         upload::Stream { scoping, stream }: upload::Stream,
-        sender: Sender<Result<UploadKey, Error>>,
+        sender: Sender<Result<ObjectstoreKey, Error>>,
     ) {
         let session = match self
             .event_attachments
@@ -411,7 +414,7 @@ impl UploadServiceInner {
         session: &Session,
         payload: Bytes,
         key: Option<String>,
-    ) -> Result<UploadKey, Error> {
+    ) -> Result<ObjectstoreKey, Error> {
         let mut request = session.put(payload);
         if let Some(key) = key {
             request = request.key(key);
@@ -419,7 +422,7 @@ impl UploadServiceInner {
         self.upload(ty, request).await
     }
 
-    async fn upload(&self, ty: &str, request: PutBuilder) -> Result<UploadKey, Error> {
+    async fn upload(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
         relay_log::trace!("Starting attachment upload");
         let response = relay_statsd::metric!(
             timer(RelayTimers::AttachmentUploadDuration),
@@ -434,6 +437,6 @@ impl UploadServiceInner {
 
         relay_log::trace!("Finished attachment upload");
 
-        Ok(UploadKey(response.key))
+        Ok(ObjectstoreKey(response.key))
     }
 }

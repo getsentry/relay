@@ -63,7 +63,7 @@ impl Forward for ReplaysOutput {
         };
 
         if let Ok(replay) = replay.try_map(|replay, _| store::convert(replay.payload, &ctx)) {
-            s.store(replay);
+            s.send_to_store(replay);
         }
         Ok(())
     }

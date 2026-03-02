@@ -13,8 +13,6 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
 use http::header;
-#[cfg(feature = "processing")]
-use objectstore_client as objectstore;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_quotas::Scoping;
@@ -26,9 +24,9 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
-use crate::services::projects::cache::Project;
 #[cfg(feature = "processing")]
-use crate::services::upload::Error as ServiceError;
+use crate::services::objectstore;
+use crate::services::projects::cache::Project;
 use crate::services::upstream::UpstreamRequestError;
 use crate::utils::upload::SignedLocation;
 use crate::utils::{BoundedStream, find_error_source, tus, upload};
@@ -68,17 +66,17 @@ impl IntoResponse for Error {
                 }
                 upload::Error::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
-                upload::Error::UploadService(service_error) => match service_error {
-                    ServiceError::Timeout => StatusCode::GATEWAY_TIMEOUT,
-                    ServiceError::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
-                    ServiceError::UploadFailed(error) => match error {
-                        objectstore::Error::Reqwest(error) => match error.status() {
+                upload::Error::Objectstore(service_error) => match service_error {
+                    objectstore::Error::Timeout => StatusCode::GATEWAY_TIMEOUT,
+                    objectstore::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
+                    objectstore::Error::UploadFailed(error) => match error {
+                        objectstore_client::Error::Reqwest(error) => match error.status() {
                             Some(status) => status,
                             None => StatusCode::INTERNAL_SERVER_ERROR,
                         },
                         _ => StatusCode::INTERNAL_SERVER_ERROR,
                     },
-                    ServiceError::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    objectstore::Error::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 },
                 upload::Error::Internal => {
                     debug_assert!(false);
