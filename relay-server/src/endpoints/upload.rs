@@ -155,9 +155,8 @@ async fn handle(
         .map_err(Error::from)
         .and_then(|r| r.map_err(Error::from));
 
-    let location = result.map_err(|e| {
-        relay_log::warn!(error = &e as &dyn std::error::Error, "upload failed");
-        e
+    let location = result.inspect_err(|e| {
+        relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
 
     let mut response = location.into_response();

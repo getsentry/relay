@@ -356,6 +356,7 @@ impl ServiceState {
         let upload = services.start(upload::create_service(
             &config,
             &upstream_relay,
+            #[cfg(feature = "processing")]
             &objectstore,
         ));
 

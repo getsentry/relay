@@ -1,7 +1,6 @@
 //! Utilities for uploading large files.
 
 use std::fmt;
-#[cfg(feature = "processing")]
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -44,10 +43,8 @@ pub enum Error {
     Upstream(StatusCode),
     #[error("upstream provided invalid location")]
     InvalidLocation,
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     #[error("failed to sign location")]
     SigningFailed,
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     #[error("service unavailable")]
     ServiceUnavailable,
     #[cfg(feature = "processing")]
@@ -89,21 +86,35 @@ impl FromMessage<Stream> for Upload {
 pub fn create_service(
     config: &Arc<Config>,
     upstream: &Addr<UpstreamRelay>,
-    objectstore: &Option<Addr<Objectstore>>,
+    #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
 ) -> ConcurrentService<Service> {
-    let service = match objectstore.as_ref() {
-        Some(addr) => Service::Objectstore {
-            addr: addr.clone(),
-            config: config.clone(),
-        },
-        None => Service::Upstream {
-            addr: upstream.clone(),
-            timeout: Duration::from_secs(config.upload().timeout),
-        },
-    };
+    let service = create_service_inner(
+        config,
+        upstream,
+        #[cfg(feature = "processing")]
+        objectstore,
+    );
     ConcurrentService::new(service)
         .with_loadshedding()
         .with_concurrency_limit(config.upload().max_concurrent_requests)
+}
+
+fn create_service_inner(
+    config: &Arc<Config>,
+    upstream: &Addr<UpstreamRelay>,
+    #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
+) -> Service {
+    #[cfg(feature = "processing")]
+    if let Some(addr) = objectstore.as_ref() {
+        return Service::Objectstore {
+            addr: addr.clone(),
+            config: config.clone(),
+        };
+    }
+    Service::Upstream {
+        addr: upstream.clone(),
+        timeout: Duration::from_secs(config.upload().timeout),
+    }
 }
 
 /// A dispatcher for uploading large files.
@@ -218,7 +229,6 @@ impl Location {
 #[derive(Debug)]
 pub enum SignedLocation {
     FromUpstream(HeaderValue),
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     Local {
         location: Location,
         signature: Signature,
