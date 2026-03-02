@@ -138,8 +138,7 @@ pub async fn process(
 
             // Create usage metric — standalone spans are never from a transaction.
             let usage_bucket = event::create_span_usage(span, 1, is_segment, false);
-            extracted_metrics
-                .extend_project_metrics(usage_bucket, Some(sampling_decision));
+            extracted_metrics.extend_project_metrics(usage_bucket, Some(sampling_decision));
 
             let bucket = event::create_span_root_counter(
                 span,
