@@ -171,7 +171,7 @@ rdkafka-sys = "4.10.0"
 redis = { version = "1.0.2", default-features = false }
 regex = "1.11.3"
 regex-lite = "0.1.7"
-reqwest = "0.12.23"
+reqwest = { version = "0.13.2", features = ["blocking"] }
 rmp-serde = "1.3.0"
 semver = "1.0.27"
 sentry = { version = "0.41.0", default-features = false, features = [
