@@ -4,8 +4,6 @@ use std::error::Error;
 
 use crate::envelope::ItemType;
 use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
-use std::collections::BTreeMap;
-
 use crate::metrics_extraction::event;
 use crate::processing;
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -138,30 +136,10 @@ pub async fn process(
 
             let is_segment = span.is_segment.value().is_some_and(|s| *s);
 
-            // Create usage metric
-            if let Some(timestamp) = span
-                .timestamp
-                .value()
-                .and_then(|ts| relay_metrics::UnixTimestamp::from_datetime(ts.0))
-            {
-                let received_at = relay_metrics::UnixTimestamp::now();
-                let mut tags = BTreeMap::new();
-                tags.insert("is_segment".to_owned(), is_segment.to_string());
-                // Standalone spans are never from a transaction.
-                if is_segment {
-                    tags.insert("was_transaction".to_owned(), "false".to_owned());
-                }
-                let usage_bucket = relay_metrics::Bucket {
-                    timestamp,
-                    width: 0,
-                    name: "c:spans/usage@none".into(),
-                    value: relay_metrics::BucketValue::counter(1.into()),
-                    tags,
-                    metadata: relay_metrics::BucketMetadata::new(received_at),
-                };
-                extracted_metrics
-                    .extend_project_metrics(vec![usage_bucket], Some(sampling_decision));
-            }
+            // Create usage metric — standalone spans are never from a transaction.
+            let usage_bucket = event::create_span_usage(span, 1, is_segment, false);
+            extracted_metrics
+                .extend_project_metrics(usage_bucket, Some(sampling_decision));
 
             let bucket = event::create_span_root_counter(
                 span,

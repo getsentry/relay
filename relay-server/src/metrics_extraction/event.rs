@@ -96,9 +96,12 @@ fn extract_span_metrics_for_event(
     });
 }
 
-/// Creates the `c:spans/usage@none` metric for spans within an event.
-fn create_span_usage(
-    event: &Event,
+/// Creates the `c:spans/usage@none` metric.
+///
+/// The `was_transaction` tag is only added for segment spans to distinguish
+/// whether the segment originated from a transaction event or a standalone span.
+pub fn create_span_usage<T: Extractable>(
+    instance: &T,
     count: u32,
     is_segment: bool,
     was_transaction: bool,
@@ -107,7 +110,7 @@ fn create_span_usage(
         return None;
     }
 
-    let timestamp = <Event as Extractable>::timestamp(event)?;
+    let timestamp = instance.timestamp()?;
 
     let received_at = if cfg!(not(test)) {
         UnixTimestamp::now()
@@ -117,8 +120,8 @@ fn create_span_usage(
 
     let mut tags = BTreeMap::new();
     tags.insert("is_segment".to_owned(), is_segment.to_string());
-    if is_segment && was_transaction {
-        tags.insert("was_transaction".to_owned(), "true".to_owned());
+    if is_segment {
+        tags.insert("was_transaction".to_owned(), was_transaction.to_string());
     }
 
     Some(Bucket {
