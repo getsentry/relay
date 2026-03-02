@@ -269,6 +269,7 @@ impl ObjectstoreServiceInner {
 
         match session {
             Err(error) => {
+                relay_log::error!(error = &error as &dyn std::error::Error);
                 relay_statsd::metric!(
                     counter(RelayCounters::AttachmentUpload) += attachments.count() as u64,
                     result = error.to_string().as_str(),
