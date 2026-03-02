@@ -191,7 +191,7 @@
 <a href=#191 id=191 data-nosnippet>191</a>
 <a href=#192 id=192 data-nosnippet>192</a>        <span class="kw">for </span>metric <span class="kw">in </span>metrics.split(|metrics| metrics.metrics) {
 <a href=#193 id=193 data-nosnippet>193</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(metric) = metric.try_map(|metric, <span class="kw">_</span>| store::convert(metric, <span class="kw-2">&amp;</span>ctx)) {
-<a href=#194 id=194 data-nosnippet>194</a>                s.store(metric);
+<a href=#194 id=194 data-nosnippet>194</a>                s.send_to_store(metric);
 <a href=#195 id=195 data-nosnippet>195</a>            }
 <a href=#196 id=196 data-nosnippet>196</a>        }
 <a href=#197 id=197 data-nosnippet>197</a>

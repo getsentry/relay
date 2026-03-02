@@ -139,7 +139,7 @@
 <a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">let </span>retention_days = ctx.event_retention().standard;
 <a href=#140 id=140 data-nosnippet>140</a>
 <a href=#141 id=141 data-nosnippet>141</a>        <span class="kw">for </span>item <span class="kw">in </span>profile_chunks.split(|pc| pc.profile_chunks) {
-<a href=#142 id=142 data-nosnippet>142</a>            s.store(item.map(|item, <span class="kw">_</span>| StoreProfileChunk {
+<a href=#142 id=142 data-nosnippet>142</a>            s.send_to_store(item.map(|item, <span class="kw">_</span>| StoreProfileChunk {
 <a href=#143 id=143 data-nosnippet>143</a>                retention_days,
 <a href=#144 id=144 data-nosnippet>144</a>                payload: item.payload(),
 <a href=#145 id=145 data-nosnippet>145</a>                quantities: item.quantities(),

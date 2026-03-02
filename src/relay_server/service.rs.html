@@ -11,22 +11,22 @@
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::services::global_config::{GlobalConfigManager, GlobalConfigService};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::services::health_check::{HealthCheck, HealthCheckService};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::services::metrics::RouterService;
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome_aggregator::OutcomeAggregator;
-<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-<a href=#17 id=17 data-nosnippet>17</a>    <span class="self">self</span>, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
-<a href=#18 id=18 data-nosnippet>18</a>};
-<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::source::ProjectSource;
-<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::services::proxy_processor::{ProxyAddrs, ProxyProcessorService};
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::services::relays::{RelayCache, RelayCacheService};
-<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
-<a href=#24 id=24 data-nosnippet>24</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">use </span><span class="kw">crate</span>::services::store::{StoreService, StoreServicePool};
-<a href=#26 id=26 data-nosnippet>26</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#27 id=27 data-nosnippet>27</a></span><span class="kw">use </span><span class="kw">crate</span>::services::upload::Upload;
+<a href=#14 id=14 data-nosnippet>14</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#15 id=15 data-nosnippet>15</a></span><span class="kw">use </span><span class="kw">crate</span>::services::objectstore::Objectstore;
+<a href=#16 id=16 data-nosnippet>16</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#17 id=17 data-nosnippet>17</a></span><span class="kw">use </span><span class="kw">crate</span>::services::objectstore::ObjectstoreService;
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
+<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome_aggregator::OutcomeAggregator;
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{
+<a href=#21 id=21 data-nosnippet>21</a>    <span class="self">self</span>, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
+<a href=#22 id=22 data-nosnippet>22</a>};
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
+<a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::source::ProjectSource;
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::services::proxy_processor::{ProxyAddrs, ProxyProcessorService};
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span><span class="kw">crate</span>::services::relays::{RelayCache, RelayCacheService};
+<a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
 <a href=#28 id=28 data-nosnippet>28</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">use </span><span class="kw">crate</span>::services::upload::UploadService;
+<a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">use </span><span class="kw">crate</span>::services::store::{StoreService, StoreServicePool};
 <a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span><span class="kw">crate</span>::services::upstream::{UpstreamRelay, UpstreamRelayService};
 <a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span><span class="kw">crate</span>::utils::{MemoryChecker, MemoryStat, ThreadKind};
 <a href=#32 id=32 data-nosnippet>32</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -79,7 +79,7 @@
 <a href=#79 id=79 data-nosnippet>79</a>    <span class="kw">pub </span>project_cache_handle: ProjectCacheHandle,
 <a href=#80 id=80 data-nosnippet>80</a>    <span class="kw">pub </span>autoscaling: <span class="prelude-ty">Option</span>&lt;Addr&lt;AutoscalingMetrics&gt;&gt;,
 <a href=#81 id=81 data-nosnippet>81</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#82 id=82 data-nosnippet>82</a>    </span><span class="kw">pub </span>upload: <span class="prelude-ty">Option</span>&lt;Addr&lt;Upload&gt;&gt;,
+<a href=#82 id=82 data-nosnippet>82</a>    </span><span class="kw">pub </span>objectstore: <span class="prelude-ty">Option</span>&lt;Addr&lt;Objectstore&gt;&gt;,
 <a href=#83 id=83 data-nosnippet>83</a>}
 <a href=#84 id=84 data-nosnippet>84</a>
 <a href=#85 id=85 data-nosnippet>85</a><span class="doccomment">/// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -240,10 +240,10 @@
 <a href=#240 id=240 data-nosnippet>240</a>            .transpose()<span class="question-mark">?</span>;
 <a href=#241 id=241 data-nosnippet>241</a>
 <a href=#242 id=242 data-nosnippet>242</a>        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#243 id=243 data-nosnippet>243</a>        </span><span class="kw">let </span>upload = UploadService::new(config.upload(), store.clone())<span class="question-mark">?</span>.map(|s| {
+<a href=#243 id=243 data-nosnippet>243</a>        </span><span class="kw">let </span>objectstore = ObjectstoreService::new(config.objectstore(), store.clone())<span class="question-mark">?</span>.map(|s| {
 <a href=#244 id=244 data-nosnippet>244</a>            <span class="kw">let </span>concurrent = ConcurrentService::new(s)
 <a href=#245 id=245 data-nosnippet>245</a>                .with_loadshedding()
-<a href=#246 id=246 data-nosnippet>246</a>                .with_concurrency_limit(config.upload().max_concurrent_requests);
+<a href=#246 id=246 data-nosnippet>246</a>                .with_concurrency_limit(config.objectstore().max_concurrent_requests);
 <a href=#247 id=247 data-nosnippet>247</a>            services.start(concurrent)
 <a href=#248 id=248 data-nosnippet>248</a>        });
 <a href=#249 id=249 data-nosnippet>249</a>
@@ -302,7 +302,7 @@
 <a href=#302 id=302 data-nosnippet>302</a>                            outcome_aggregator: outcome_aggregator.clone(),
 <a href=#303 id=303 data-nosnippet>303</a>                            upstream_relay: upstream_relay.clone(),
 <a href=#304 id=304 data-nosnippet>304</a>                            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#305 id=305 data-nosnippet>305</a>                            </span>upload: upload.clone(),
+<a href=#305 id=305 data-nosnippet>305</a>                            </span>objectstore: objectstore.clone(),
 <a href=#306 id=306 data-nosnippet>306</a>                            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#307 id=307 data-nosnippet>307</a>                            </span>store_forwarder: store,
 <a href=#308 id=308 data-nosnippet>308</a>                            aggregator: aggregator.clone(),
@@ -363,7 +363,7 @@
 <a href=#363 id=363 data-nosnippet>363</a>            envelope_buffer,
 <a href=#364 id=364 data-nosnippet>364</a>            autoscaling,
 <a href=#365 id=365 data-nosnippet>365</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#366 id=366 data-nosnippet>366</a>            </span>upload,
+<a href=#366 id=366 data-nosnippet>366</a>            </span>objectstore,
 <a href=#367 id=367 data-nosnippet>367</a>        };
 <a href=#368 id=368 data-nosnippet>368</a>
 <a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">let </span>state = StateInner {
@@ -439,8 +439,8 @@
 <a href=#439 id=439 data-nosnippet>439</a>    }
 <a href=#440 id=440 data-nosnippet>440</a>
 <a href=#441 id=441 data-nosnippet>441</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#442 id=442 data-nosnippet>442</a>    </span><span class="kw">pub fn </span>upload(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Addr&lt;Upload&gt;&gt; {
-<a href=#443 id=443 data-nosnippet>443</a>        <span class="self">self</span>.inner.registry.upload.as_ref()
+<a href=#442 id=442 data-nosnippet>442</a>    </span><span class="kw">pub fn </span>objectstore(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Addr&lt;Objectstore&gt;&gt; {
+<a href=#443 id=443 data-nosnippet>443</a>        <span class="self">self</span>.inner.registry.objectstore.as_ref()
 <a href=#444 id=444 data-nosnippet>444</a>    }
 <a href=#445 id=445 data-nosnippet>445</a>}
 <a href=#446 id=446 data-nosnippet>446</a>

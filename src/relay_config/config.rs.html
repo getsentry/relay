@@ -1204,9 +1204,9 @@
 <a href=#1204 id=1204 data-nosnippet>1204</a>    ///
 <a href=#1205 id=1205 data-nosnippet>1205</a>    /// Must be between `0.0` and `1.0`, by default there is no limit configured.
 <a href=#1206 id=1206 data-nosnippet>1206</a>    </span><span class="kw">pub </span>quota_cache_max: <span class="prelude-ty">Option</span>&lt;f32&gt;,
-<a href=#1207 id=1207 data-nosnippet>1207</a>    <span class="doccomment">/// Configuration for attachment uploads.
-<a href=#1208 id=1208 data-nosnippet>1208</a>    </span><span class="attr">#[serde(default)]
-<a href=#1209 id=1209 data-nosnippet>1209</a>    </span><span class="kw">pub </span>upload: UploadServiceConfig,
+<a href=#1207 id=1207 data-nosnippet>1207</a>    <span class="doccomment">/// Configuration for the objectstore service.
+<a href=#1208 id=1208 data-nosnippet>1208</a>    </span><span class="attr">#[serde(default, alias = <span class="string">"upload"</span>)]
+<a href=#1209 id=1209 data-nosnippet>1209</a>    </span><span class="kw">pub </span>objectstore: ObjectstoreServiceConfig,
 <a href=#1210 id=1210 data-nosnippet>1210</a>}
 <a href=#1211 id=1211 data-nosnippet>1211</a>
 <a href=#1212 id=1212 data-nosnippet>1212</a><span class="kw">impl </span>Default <span class="kw">for </span>Processing {
@@ -1227,7 +1227,7 @@
 <a href=#1227 id=1227 data-nosnippet>1227</a>            max_rate_limit: default_max_rate_limit(),
 <a href=#1228 id=1228 data-nosnippet>1228</a>            quota_cache_ratio: <span class="prelude-val">None</span>,
 <a href=#1229 id=1229 data-nosnippet>1229</a>            quota_cache_max: <span class="prelude-val">None</span>,
-<a href=#1230 id=1230 data-nosnippet>1230</a>            upload: UploadServiceConfig::default(),
+<a href=#1230 id=1230 data-nosnippet>1230</a>            objectstore: ObjectstoreServiceConfig::default(),
 <a href=#1231 id=1231 data-nosnippet>1231</a>        }
 <a href=#1232 id=1232 data-nosnippet>1232</a>    }
 <a href=#1233 id=1233 data-nosnippet>1233</a>}
@@ -1276,10 +1276,10 @@
 <a href=#1276 id=1276 data-nosnippet>1276</a>    }
 <a href=#1277 id=1277 data-nosnippet>1277</a>}
 <a href=#1278 id=1278 data-nosnippet>1278</a>
-<a href=#1279 id=1279 data-nosnippet>1279</a><span class="doccomment">/// Configuration values for attachment uploads.
+<a href=#1279 id=1279 data-nosnippet>1279</a><span class="doccomment">/// Configuration values for the objectstore service.
 <a href=#1280 id=1280 data-nosnippet>1280</a></span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
 <a href=#1281 id=1281 data-nosnippet>1281</a>#[serde(default)]
-<a href=#1282 id=1282 data-nosnippet>1282</a></span><span class="kw">pub struct </span>UploadServiceConfig {
+<a href=#1282 id=1282 data-nosnippet>1282</a></span><span class="kw">pub struct </span>ObjectstoreServiceConfig {
 <a href=#1283 id=1283 data-nosnippet>1283</a>    <span class="doccomment">/// The base URL for the objectstore service.
 <a href=#1284 id=1284 data-nosnippet>1284</a>    ///
 <a href=#1285 id=1285 data-nosnippet>1285</a>    /// This defaults to [`None`], which means that the service will be disabled,
@@ -1293,7 +1293,7 @@
 <a href=#1293 id=1293 data-nosnippet>1293</a>    </span><span class="kw">pub </span>timeout: u64,
 <a href=#1294 id=1294 data-nosnippet>1294</a>}
 <a href=#1295 id=1295 data-nosnippet>1295</a>
-<a href=#1296 id=1296 data-nosnippet>1296</a><span class="kw">impl </span>Default <span class="kw">for </span>UploadServiceConfig {
+<a href=#1296 id=1296 data-nosnippet>1296</a><span class="kw">impl </span>Default <span class="kw">for </span>ObjectstoreServiceConfig {
 <a href=#1297 id=1297 data-nosnippet>1297</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
 <a href=#1298 id=1298 data-nosnippet>1298</a>        <span class="self">Self </span>{
 <a href=#1299 id=1299 data-nosnippet>1299</a>            objectstore_url: <span class="prelude-val">None</span>,
@@ -2562,9 +2562,9 @@
 <a href=#2562 id=2562 data-nosnippet>2562</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.topics.unused
 <a href=#2563 id=2563 data-nosnippet>2563</a>    }
 <a href=#2564 id=2564 data-nosnippet>2564</a>
-<a href=#2565 id=2565 data-nosnippet>2565</a>    <span class="doccomment">/// Configuration of the attachment upload service.
-<a href=#2566 id=2566 data-nosnippet>2566</a>    </span><span class="kw">pub fn </span>upload(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>UploadServiceConfig {
-<a href=#2567 id=2567 data-nosnippet>2567</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.upload
+<a href=#2565 id=2565 data-nosnippet>2565</a>    <span class="doccomment">/// Configuration of the objectstore service.
+<a href=#2566 id=2566 data-nosnippet>2566</a>    </span><span class="kw">pub fn </span>objectstore(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ObjectstoreServiceConfig {
+<a href=#2567 id=2567 data-nosnippet>2567</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.objectstore
 <a href=#2568 id=2568 data-nosnippet>2568</a>    }
 <a href=#2569 id=2569 data-nosnippet>2569</a>
 <a href=#2570 id=2570 data-nosnippet>2570</a>    <span class="doccomment">/// Redis servers to connect to for project configs, cardinality limits,

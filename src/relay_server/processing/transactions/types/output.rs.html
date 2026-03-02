@@ -76,7 +76,7 @@
 <a href=#76 id=76 data-nosnippet>76</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;()&gt;&gt; {
 <a href=#77 id=77 data-nosnippet>77</a>        <span class="kw">let </span>envelope: ManagedEnvelope = <span class="self">self</span>.serialize_envelope(ctx)<span class="question-mark">?</span>.into();
 <a href=#78 id=78 data-nosnippet>78</a>
-<a href=#79 id=79 data-nosnippet>79</a>        s.store(StoreEnvelope {
+<a href=#79 id=79 data-nosnippet>79</a>        s.send_to_store(StoreEnvelope {
 <a href=#80 id=80 data-nosnippet>80</a>            envelope: envelope.into_processed(),
 <a href=#81 id=81 data-nosnippet>81</a>        });
 <a href=#82 id=82 data-nosnippet>82</a>
