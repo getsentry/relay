@@ -58,27 +58,48 @@ pub enum Error {
 
 /// The message interface for this service.
 pub enum Upload {
-    /// Upload a stream of bytes for a project.
+    /// Creates an upload resource.
     ///
     /// Returns the trusted identifier of the upload.
-    Stream(Stream, Sender<Result<SignedLocation, Error>>),
+    Create(Create, Sender<Result<SignedLocation, Error>>),
+    /// Upload a stream of bytes for a given location.
+    Data(Stream, Sender<Result<(), Error>>),
 }
 
 impl Interface for Upload {}
 
+/// Request to create an upload resource.
+pub struct Create {
+    /// The project to create the upload for.
+    pub scoping: Scoping,
+    /// The size of the intended upload in bytes, as specified in the `Upload-Length` header.
+    ///
+    /// `None` if `Upload-Defer-Length: 1`.
+    pub length: Option<usize>,
+}
+
 /// A stream of bytes to be uploaded to objectstore or the upstream.
 pub struct Stream {
     /// The organization and project the stream belongs to.
-    pub scoping: Scoping,
+    // pub scoping: Scoping,
+    pub location: SignedLocation,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
+}
+
+impl FromMessage<Create> for Upload {
+    type Response = AsyncResponse<Result<SignedLocation, Error>>;
+
+    fn from_message(message: Create, sender: Sender<Result<SignedLocation, Error>>) -> Self {
+        Self::Create(message, sender)
+    }
 }
 
 impl FromMessage<Stream> for Upload {
     type Response = AsyncResponse<Result<SignedLocation, Error>>;
 
     fn from_message(message: Stream, sender: Sender<Result<SignedLocation, Error>>) -> Self {
-        Self::Stream(message, sender)
+        Self::Data(message, sender)
     }
 }
 

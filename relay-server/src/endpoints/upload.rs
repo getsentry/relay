@@ -6,12 +6,14 @@
 //! Reference: <https://tus.io/protocols/resumable-upload#creation-with-upload>
 
 use std::io;
+use std::pin::Pin;
 
 use axum::body::Body;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
-use futures::StreamExt;
+use bytes::Bytes;
+use futures::{Stream, StreamExt};
 use http::header;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -151,12 +153,7 @@ async fn handle(
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
     let byte_counter = stream.byte_counter();
 
-    let result = state
-        .upload()
-        .send(upload::Stream { scoping, stream })
-        .await
-        .map_err(Error::from)
-        .and_then(|r| r.map_err(Error::from));
+    let result = upload(&state, upload_length, scoping, stream).await;
 
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
@@ -168,6 +165,25 @@ async fn handle(
         .insert(tus::UPLOAD_OFFSET, byte_counter.get().into());
 
     Ok(response)
+}
+
+async fn upload(
+    state: &ServiceState,
+    length: Option<usize>,
+    scoping: Scoping,
+    stream: BoundedStream<Pin<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send>>>,
+) -> Result<SignedLocation, Error> {
+    let location = state
+        .upload()
+        .send(upload::Create { scoping, length })
+        .await??;
+
+    let location = state
+        .upload()
+        .send(upload::Stream { location, stream })
+        .await??;
+
+    Ok(location)
 }
 
 /// Check request by converting it into a pseudo-envelope.
