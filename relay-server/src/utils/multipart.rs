@@ -201,15 +201,12 @@ impl IntoResponse for BadMultipart {
 }
 
 /// Strategy for attachments found in multipart fields.
-///
-/// [`AttachmentStrategy::Upload`] allows specifying exempt attachment types - these are added to
-/// the envelope instead of uploaded.
 pub enum AttachmentStrategy<'a> {
     #[cfg(sentry)]
     Upload {
         upload_sink: Sink,
         scoping: Scoping,
-        exemptions: UploadExemptions<'a>,
+        exemptions: UploadExemptions<'a>, // attachment types to add to envelope instead of upload
     },
     AddToEnvelope {
         ignore_size_limit_exceeded: bool,
