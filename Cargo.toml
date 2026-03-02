@@ -95,7 +95,6 @@ brotli = "7.0.0"
 bytecount = "0.6.9"
 bytes = "1.10.1"
 bzip2 = "0.6.0"
-cadence = "1.6.0"
 chrono = { version = "0.4.42", default-features = false, features = [
   "std",
   "serde",
@@ -106,7 +105,6 @@ cmake = "0.1.54"
 console = "0.15.11"
 cookie = "0.18.1"
 criterion = "0.5.1"
-crossbeam-channel = "0.5.15"
 data-encoding = "2.9.0"
 deadpool = "0.12.3"
 debugid = "0.8.0"
@@ -144,6 +142,8 @@ mimalloc = { version = "0.1.48", features = ["v3"] }
 mime = "0.3.17"
 minidump = "0.26.0"
 multer = "3.1.0"
+metrics = "0.24.3"
+metrics-exporter-dogstatsd = "0.9.6"
 num-traits = "0.2.19"
 num_cpus = "1.17.0"
 objectstore-client = "0.0.18"
@@ -205,7 +205,6 @@ smallvec = { version = "1.15.1", features = ["serde"] }
 socket2 = "0.6.2"
 sqlparser = "0.60.0"
 sqlx = { version = "0.8.6", default-features = false }
-statsdproxy = { version = "0.4.1", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
 symbolic-unreal = { version = "12.12.3", default-features = false }
 syn = { version = "2.0.106" }

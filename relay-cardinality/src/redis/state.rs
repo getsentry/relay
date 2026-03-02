@@ -6,7 +6,7 @@ use crate::{
     CardinalityLimit,
     limiter::{Entry, EntryId, Scoping},
     redis::quota::{PartialQuotaScoping, QuotaScoping},
-    statsd::{CardinalityLimiterCounters, CardinalityLimiterSets},
+    statsd::CardinalityLimiterCounters,
 };
 
 /// Internal state combining relevant entries for the respective quotas.
@@ -27,16 +27,14 @@ pub struct LimitState<'a> {
 
     /// The original cardinality limit.
     cardinality_limit: &'a CardinalityLimit,
-    /// The original/full scoping.
-    scoping: Scoping,
     /// Amount of cache hits.
-    cache_hits: i64,
+    cache_hits: u64,
     /// Amount of cache misses.
-    cache_misses: i64,
+    cache_misses: u64,
     /// Amount of accepts,
-    accepts: i64,
+    accepts: u64,
     /// Amount of rejections.
-    rejections: i64,
+    rejections: u64,
 }
 
 impl<'a> LimitState<'a> {
@@ -49,7 +47,6 @@ impl<'a> LimitState<'a> {
             scopes: BTreeMap::new(),
             limit: cardinality_limit.limit,
             cardinality_limit,
-            scoping,
             cache_hits: 0,
             cache_misses: 0,
             accepts: 0,
@@ -161,15 +158,6 @@ impl Drop for LimitState<'_> {
             id = &self.cardinality_limit.id,
             passive = passive,
         );
-
-        let organization_id = self.scoping.organization_id;
-        let status = if self.rejections > 0 { "limited" } else { "ok" };
-        metric!(
-            set(CardinalityLimiterSets::Organizations) = organization_id.value() as i64,
-            id = &self.cardinality_limit.id,
-            passive = passive,
-            status = status,
-        )
     }
 }
 

@@ -94,7 +94,7 @@ impl ClientContext for Context {
     ///
     /// This method is only called if `statistics.interval.ms` is configured.
     fn stats(&self, statistics: rdkafka::Statistics) {
-        let producer_name = &self.producer_name;
+        let producer_name = self.producer_name.as_str();
 
         relay_statsd::metric!(
             gauge(KafkaGauges::MessageCount) = statistics.msg_cnt,
@@ -206,7 +206,7 @@ impl ProducerContext for Context {
                 metric!(
                     counter(KafkaCounters::ProduceStatusSuccess) += 1,
                     topic = message.topic(),
-                    producer_name = &self.producer_name
+                    producer_name = self.producer_name.as_str(),
                 );
             }
             Err((error, message)) => {
@@ -220,7 +220,7 @@ impl ProducerContext for Context {
                 metric!(
                     counter(KafkaCounters::ProduceStatusError) += 1,
                     topic = message.topic(),
-                    producer_name = &self.producer_name
+                    producer_name = self.producer_name.as_str(),
                 );
             }
         }

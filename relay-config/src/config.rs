@@ -569,28 +569,11 @@ pub struct Metrics {
     pub default_tags: BTreeMap<String, String>,
     /// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
     pub hostname_tag: Option<String>,
-    /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
-    ///
-    /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
-    /// Defaults to `1.0` (100%).
-    pub sample_rate: f64,
     /// Interval for periodic metrics emitted from Relay.
     ///
     /// Setting it to `0` seconds disables the periodic metrics.
     /// Defaults to 5 seconds.
     pub periodic_secs: u64,
-    /// Whether local metric aggregation using statdsproxy should be enabled.
-    ///
-    /// Defaults to `true`.
-    pub aggregate: bool,
-    /// Allows emission of metrics with high cardinality tags.
-    ///
-    /// High cardinality tags are dynamic values attached to metrics,
-    /// such as project IDs. When enabled, these tags will be included
-    /// in the emitted metrics. When disabled, the tags will be omitted.
-    ///
-    /// Defaults to `false`.
-    pub allow_high_cardinality_tags: bool,
 }
 
 impl Default for Metrics {
@@ -601,10 +584,7 @@ impl Default for Metrics {
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
-            sample_rate: 1.0,
             periodic_secs: 5,
-            aggregate: true,
-            allow_high_cardinality_tags: false,
         }
     }
 }
@@ -2189,21 +2169,6 @@ impl Config {
     /// Returns the name of the hostname tag that should be attached to each outgoing metric.
     pub fn metrics_hostname_tag(&self) -> Option<&str> {
         self.values.metrics.hostname_tag.as_deref()
-    }
-
-    /// Returns the global sample rate for all metrics.
-    pub fn metrics_sample_rate(&self) -> f64 {
-        self.values.metrics.sample_rate
-    }
-
-    /// Returns whether local metric aggregation should be enabled.
-    pub fn metrics_aggregate(&self) -> bool {
-        self.values.metrics.aggregate
-    }
-
-    /// Returns whether high cardinality tags should be removed before sending metrics.
-    pub fn metrics_allow_high_cardinality_tags(&self) -> bool {
-        self.values.metrics.allow_high_cardinality_tags
     }
 
     /// Returns the interval for periodic metrics emitted from Relay.
