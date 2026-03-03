@@ -20,6 +20,7 @@ use relay_system::{
 };
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
+use uuid::Uuid;
 
 use crate::http::{HttpError, RequestBuilder, Response};
 
@@ -63,7 +64,10 @@ pub enum Upload {
     /// Returns the trusted identifier of the upload.
     Create(Create, Sender<Result<SignedLocation, Error>>),
     /// Upload a stream of bytes for a given location.
-    Data(Stream, Sender<Result<(), Error>>),
+    ///
+    /// The service also returns the signed location. This is redundant, but creates a simpler
+    /// flow for the caller side.
+    Upload(Stream, Sender<Result<SignedLocation, Error>>),
 }
 
 impl Interface for Upload {}
@@ -74,14 +78,15 @@ pub struct Create {
     pub scoping: Scoping,
     /// The size of the intended upload in bytes, as specified in the `Upload-Length` header.
     ///
-    /// `None` if `Upload-Defer-Length: 1`.
+    /// Trusted clients (i.e. PoP Relays) are allowed to omit the length (see `Upload-Defer-Length: 1`).
     pub length: Option<usize>,
 }
 
 /// A stream of bytes to be uploaded to objectstore or the upstream.
 pub struct Stream {
     /// The organization and project the stream belongs to.
-    // pub scoping: Scoping,
+    pub scoping: Scoping,
+    /// The location of the upload (contains the objectstore key).
     pub location: SignedLocation,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
@@ -99,7 +104,7 @@ impl FromMessage<Stream> for Upload {
     type Response = AsyncResponse<Result<SignedLocation, Error>>;
 
     fn from_message(message: Stream, sender: Sender<Result<SignedLocation, Error>>) -> Self {
-        Self::Data(message, sender)
+        Self::Upload(message, sender)
     }
 }
 
@@ -155,10 +160,31 @@ pub enum Service {
 }
 
 impl Service {
+    async fn create(&self, Create { scoping, length }: Create) -> Result<SignedLocation, Error> {
+        match self {
+            Service::Upstream { addr, timeout } => {
+                let (request, rx) = UploadRequest::create(scoping, length);
+                addr.send(SendRequest(request));
+                let response = tokio::time::timeout(*timeout, rx).await???;
+                SignedLocation::try_from_response(response)
+            }
+            Service::Objectstore { addr: _, config } => {
+                // We can create & sign a location right here, no need to query the objectstore service.
+                let key = Uuid::now_v7().as_simple().to_string();
+                Location {
+                    project_id: scoping.project_id,
+                    key,
+                    length,
+                }
+                .try_sign(config)
+            }
+        }
+    }
+
     async fn upload(&self, stream: Stream) -> Result<SignedLocation, Error> {
         match self {
             Service::Upstream { addr, timeout } => {
-                let (request, rx) = UploadRequest::create(stream);
+                let (request, rx) = UploadRequest::upload(stream);
                 addr.send(SendRequest(request));
                 // We're already passing `timeout` to the reqwest library, but we also want to
                 // limit the time spent waiting for the upstream service:
@@ -174,7 +200,7 @@ impl Service {
                     .await
                     .map_err(|_send_error| Error::ServiceUnavailable)??
                     .into_inner();
-                let length = byte_counter.get();
+                let length = Some(byte_counter.get());
 
                 Location {
                     project_id,
@@ -191,14 +217,22 @@ impl SimpleService for Service {
     type Interface = Upload;
 
     async fn handle_message(&self, message: Upload) {
-        let Upload::Stream(stream, tx) = message;
-        tx.send(self.upload(stream).await)
+        match message {
+            Upload::Create(create, sender) => {
+                sender.send(self.create(create).await);
+            }
+            Upload::Upload(stream, sender) => {
+                sender.send(self.upload(stream).await);
+            }
+        }
     }
 }
 
 impl LoadShed<Upload> for Service {
-    fn handle_loadshed(&self, Upload::Stream(_, tx): Upload) {
-        tx.send(Err(Error::LoadShed));
+    fn handle_loadshed(&self, message: Upload) {
+        match message {
+            Upload::Create(_, tx) | Upload::Upload(_, tx) => tx.send(Err(Error::LoadShed)),
+        }
     }
 }
 
@@ -211,9 +245,12 @@ impl LoadShed<Upload> for Service {
 /// to validate whether the URI (especially the length) has been tempered with.
 #[derive(Debug)]
 pub struct Location {
+    /// Sentry project ID.
     pub project_id: ProjectId,
+    /// Objectstore identifier.
     pub key: String,
-    pub length: usize,
+    /// Value of the `Upload-Length` header. `None` if `Upload-Defer-Length: 1`.
+    pub length: Option<usize>,
 }
 
 impl Location {
@@ -223,7 +260,10 @@ impl Location {
             key,
             length,
         } = self;
-        format!("/api/{project_id}/upload/{key}/?length={length}")
+        match length {
+            Some(length) => format!("/api/{project_id}/upload/{key}/?length={length}"),
+            None => format!("/api/{project_id}/upload/{key}/"),
+        }
     }
 
     #[cfg(feature = "processing")]
@@ -241,7 +281,7 @@ impl Location {
                 },
             );
 
-        Ok(SignedLocation::Local {
+        Ok(SignedLocation {
             location: self,
             signature,
         })
@@ -250,30 +290,30 @@ impl Location {
 
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
 #[derive(Debug)]
-pub enum SignedLocation {
-    FromUpstream(HeaderValue),
-    Local {
-        location: Location,
-        signature: Signature,
-    },
+pub struct SignedLocation {
+    location: Location,
+    signature: Signature,
 }
 
 impl SignedLocation {
     /// Converts the location into an URI for future reference.
     pub fn into_header_value(self) -> Result<HeaderValue, Error> {
-        let header = match self {
-            SignedLocation::FromUpstream(value) => value,
-            SignedLocation::Local {
-                location,
-                signature,
-            } => {
-                let mut uri = location.as_uri();
-                uri.push_str("&signature=");
-                uri.push_str(&signature.to_string());
-                HeaderValue::from_str(&uri).map_err(|_| Error::Internal)?
-            }
-        };
-        Ok(header)
+        let Self {
+            location,
+            signature,
+        } = self;
+        let mut uri = location.as_uri();
+        uri.push(if location.length.is_some() { '&' } else { '?' }); // TODO: brittle
+        uri.push_str("signature=");
+        uri.push_str(&signature.to_string());
+
+        HeaderValue::from_str(&uri).map_err(|_| Error::Internal)
+    }
+
+    /// Verifies the signature and returns the underlying location upon success.
+    pub fn verify(self) -> Location {
+        // FIXME actually verify.
+        self.location
     }
 
     fn try_from_response(response: Response) -> Result<Self, Error> {
@@ -283,40 +323,84 @@ impl SignedLocation {
                     .headers()
                     .get(hyper::header::LOCATION)
                     .ok_or(Error::InvalidLocation)?;
-                Ok(Self::FromUpstream(location.clone()))
+                todo!("parse this into a SignedLocation")
             }
             status => Err(Error::Upstream(status)),
         }
     }
 }
 
+enum RequestKind {
+    Create {
+        length: Option<usize>,
+    },
+    Upload {
+        location: SignedLocation,
+        stream: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
+    },
+}
+
 /// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
     scoping: Scoping,
     timeout: Option<Duration>,
-    body: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
+    kind: RequestKind,
     sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
 
 impl UploadRequest {
     fn create(
+        scoping: Scoping,
+        length: Option<usize>,
+    ) -> (
+        Self,
+        oneshot::Receiver<Result<Response, UpstreamRequestError>>,
+    ) {
+        let (sender, rx) = oneshot::channel();
+
+        (
+            Self {
+                scoping,
+                kind: RequestKind::Create { length },
+                sender,
+            },
+            rx,
+        )
+    }
+
+    fn upload(
         stream: Stream,
     ) -> (
         Self,
         oneshot::Receiver<Result<Response, UpstreamRequestError>>,
     ) {
         let (sender, rx) = oneshot::channel();
-        let Stream { scoping, stream } = stream;
+        let Stream {
+            scoping,
+            location,
+            stream,
+        } = stream;
 
         (
             Self {
                 scoping,
                 timeout: None, // will be set by `configure()`
-                body: Some(stream),
+                kind: RequestKind::Upload {
+                    location,
+                    stream: Some(stream),
+                },
                 sender,
             },
             rx,
         )
+    }
+
+    /// Returns the length of the upload, if known.
+    fn length(&self) -> Option<usize> {
+        match &self.kind {
+            RequestKind::Create { length } => *length,
+            RequestKind::Upload { stream, .. } => stream.as_ref().and_then(BoundedStream::length),
+        }
     }
 }
 
@@ -330,12 +414,22 @@ impl fmt::Debug for UploadRequest {
 
 impl UpstreamRequest for UploadRequest {
     fn method(&self) -> Method {
-        Method::POST
+        match self.kind {
+            RequestKind::Create { .. } => Method::POST,
+            RequestKind::Upload { .. } => Method::PATCH, // TODO: allow method
+        }
     }
 
     fn path(&self) -> std::borrow::Cow<'_, str> {
         let project_id = self.scoping.project_id;
-        format!("/api/{project_id}/upload/").into()
+        match &self.kind {
+            RequestKind::Create { .. } => format!("/api/{project_id}/upload/"),
+            RequestKind::Upload { location, .. } => {
+                let key = &location.location.key;
+                format!("/api/{project_id}/upload/{key}/")
+            }
+        }
+        .into()
     }
 
     fn route(&self) -> &'static str {
@@ -368,15 +462,20 @@ impl UpstreamRequest for UploadRequest {
     }
 
     fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
-        let Some(body) = self.body.take() else {
-            relay_log::error!("upload request was retried or never initialized");
-            return Err(HttpError::Misconfigured);
+        let body = match &mut self.kind {
+            RequestKind::Create { .. } => None,
+            RequestKind::Upload { stream, .. } => match stream.take() {
+                Some(body) => Some(body),
+                None => {
+                    relay_log::error!("upload request was retried or never initialized");
+                    return Err(HttpError::Misconfigured);
+                }
+            },
         };
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
-        let upload_length = (body.lower_bound == body.upper_bound).then_some(body.lower_bound);
-        for (key, value) in tus::request_headers(upload_length) {
+        for (key, value) in tus::request_headers(self.length()) {
             let Some(key) = key else { continue };
             builder.header(key, value);
         }

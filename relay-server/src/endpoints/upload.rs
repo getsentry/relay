@@ -153,7 +153,7 @@ async fn handle(
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
     let byte_counter = stream.byte_counter();
 
-    let result = upload(&state, upload_length, scoping, stream).await;
+    let result = upload(&state, scoping, stream).await;
 
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
@@ -169,18 +169,24 @@ async fn handle(
 
 async fn upload(
     state: &ServiceState,
-    length: Option<usize>,
     scoping: Scoping,
     stream: BoundedStream<Pin<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send>>>,
 ) -> Result<SignedLocation, Error> {
     let location = state
         .upload()
-        .send(upload::Create { scoping, length })
+        .send(upload::Create {
+            scoping,
+            length: stream.length(),
+        })
         .await??;
 
     let location = state
         .upload()
-        .send(upload::Stream { location, stream })
+        .send(upload::Stream {
+            stream,
+            scoping,
+            location,
+        })
         .await??;
 
     Ok(location)
