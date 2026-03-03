@@ -12,7 +12,6 @@ use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
-use uuid::Uuid;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::ItemType;
@@ -23,7 +22,7 @@ use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
-use crate::services::upload;
+use crate::services::upload::{self};
 use crate::statsd::{RelayCounters, RelayTimers};
 
 use super::outcome::Outcome;
@@ -370,9 +369,16 @@ impl ObjectstoreServiceInner {
 
     async fn handle_stream(
         &self,
-        upload::Stream { scoping, stream }: upload::Stream,
+        stream: upload::Stream,
         sender: Sender<Result<ObjectstoreKey, Error>>,
     ) {
+        let upload::Stream {
+            scoping,
+            location,
+            stream,
+        } = stream;
+        // debug_assert_eq!(scoping.project_id, stream.location.location.project_id);
+        // debug_assert_eq!(stream.length(), Some(location.length));
         let session = match self
             .event_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
@@ -392,8 +398,9 @@ impl ObjectstoreServiceInner {
 
         let request = session
             .put_stream(stream.boxed())
-            // generate ID here to drop the hyphens and be consistent with other attachment uploads.
-            .key(Uuid::now_v7().as_simple().to_string());
+            .key(location.verify().key);
+
+        // let result = location.verify();
 
         let result = self.upload("stream", request).await;
 
