@@ -320,7 +320,7 @@ impl EnvelopeSummary {
         //
         // Currently there is no outcome category for this item, as it will be dissolved into
         // multiple different items once processed.
-        if item.attachment_type() == Some(AttachmentType::NnswitchDyingMessage) {
+        if item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage) {
             return;
         }
 

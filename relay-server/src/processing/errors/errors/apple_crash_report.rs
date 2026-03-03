@@ -5,7 +5,7 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::processing::errors::{Error, Result};
 
 #[derive(Debug)]
@@ -14,7 +14,7 @@ pub struct AppleCrashReport {
 }
 
 impl SentryError for AppleCrashReport {
-    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(apple_crash_report) = utils::take_item_by(items, |item| {
             item.attachment_type() == Some(AttachmentType::AppleCrashReport)
         }) else {
@@ -25,7 +25,7 @@ impl SentryError for AppleCrashReport {
         let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
 
         if !ctx.processing.is_processing() {
-            return Ok(Some(ParsedError {
+            return Ok(Some(Expansion {
                 event,
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
@@ -42,7 +42,7 @@ impl SentryError for AppleCrashReport {
         metrics.bytes_ingested_event_applecrashreport =
             Annotated::new(apple_crash_report.len() as u64);
 
-        Ok(Some(ParsedError {
+        Ok(Some(Expansion {
             event,
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),

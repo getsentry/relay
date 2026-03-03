@@ -40,9 +40,9 @@ pub fn expand(
 ) -> std::result::Result<(), ProcessingError> {
     let envelope = managed_envelope.envelope_mut();
 
-    if let Some(item) = envelope
-        .take_item_by(|item| item.attachment_type() == Some(AttachmentType::NnswitchDyingMessage))
-        && let Err(e) = expand_dying_message(item.payload(), envelope)
+    if let Some(item) = envelope.take_item_by(|item| {
+        item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage)
+    }) && let Err(e) = expand_dying_message(item.payload(), envelope)
     {
         // If we fail to process the dying message, we need to add back the original attachment.
         envelope.add_item(item);

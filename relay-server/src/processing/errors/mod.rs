@@ -247,7 +247,7 @@ impl processing::RateLimited for Managed<ExpandedError> {
                 self.modify(|this, record_keeper| {
                     record_keeper.reject_err(
                         Error::RateLimited(limits),
-                        std::mem::take(&mut this.attachments),
+                        std::mem::take(&mut this.user_reports),
                     );
                 });
                 break;

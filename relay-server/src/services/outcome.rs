@@ -771,7 +771,7 @@ impl From<&AttachmentType> for DiscardAttachmentType {
             AttachmentType::EventPayload => Self::EventPayload,
             AttachmentType::Breadcrumbs => Self::Breadcrumbs,
             AttachmentType::Prosperodump => Self::Prosperodump,
-            AttachmentType::NnswitchDyingMessage => Self::NnswitchDyingMessage,
+            AttachmentType::NintendoSwitchDyingMessage => Self::NnswitchDyingMessage,
             AttachmentType::UnrealContext => Self::UnrealContext,
             AttachmentType::UnrealLogs => Self::UnrealLogs,
             AttachmentType::ViewHierarchy => Self::ViewHierarchy,

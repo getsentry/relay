@@ -14,7 +14,7 @@ use crate::envelope::{AttachmentType, EnvelopeError, Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
-use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
 
@@ -28,9 +28,9 @@ pub enum Nnswitch {
 }
 
 impl SentryError for Nnswitch {
-    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(dying_message) = utils::take_item_by(items, |item| {
-            item.attachment_type() == Some(AttachmentType::NnswitchDyingMessage)
+            item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage)
         }) else {
             return Ok(None);
         };
@@ -38,7 +38,7 @@ impl SentryError for Nnswitch {
         let mut metrics = Default::default();
 
         if !ctx.processing.is_processing() {
-            return Ok(Some(ParsedError {
+            return Ok(Some(Expansion {
                 event: utils::take_parsed_event(items, &mut metrics, ctx)?,
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
@@ -72,7 +72,7 @@ impl SentryError for Nnswitch {
             (None, None) => return Err(ProcessingError::NoEventPayload.into()),
         };
 
-        Ok(Some(ParsedError {
+        Ok(Some(Expansion {
             event,
             attachments,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),

@@ -4,7 +4,7 @@ use relay_quotas::DataCategory;
 use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
-use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::statsd::RelayCounters;
 
 #[derive(Debug)]
@@ -15,7 +15,7 @@ impl SentryError for UserReportV2 {
         DataCategory::UserReportV2
     }
 
-    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(ev) = utils::take_item_of_type(items, ItemType::UserReportV2) else {
             return Ok(None);
         };
@@ -28,7 +28,7 @@ impl SentryError for UserReportV2 {
             counter(RelayCounters::FeedbackAttachments) += attachments.len() as u64
         );
 
-        Ok(Some(ParsedError {
+        Ok(Some(Expansion {
             event: utils::event_from_json_payload(ev, EventType::UserReportV2, &mut metrics, ctx)?,
             attachments,
             user_reports: Default::default(),

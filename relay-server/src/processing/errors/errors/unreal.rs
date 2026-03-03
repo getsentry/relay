@@ -5,7 +5,7 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::processing::errors::{Error, Result};
 use crate::services::processor::ProcessingError;
 
@@ -21,7 +21,7 @@ pub enum Unreal {
 }
 
 impl SentryError for Unreal {
-    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(report) = utils::take_item_of_type(items, ItemType::UnrealReport) else {
             return Ok(None);
         };
@@ -29,7 +29,7 @@ impl SentryError for Unreal {
         let mut metrics = Default::default();
 
         if !ctx.processing.is_processing() {
-            return Ok(Some(ParsedError {
+            return Ok(Some(Expansion {
                 event: Annotated::empty(),
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
@@ -97,7 +97,7 @@ impl SentryError for Unreal {
             metrics.bytes_ingested_event_applecrashreport = Annotated::new(acr.len() as u64);
         }
 
-        Ok(Some(ParsedError {
+        Ok(Some(Expansion {
             event,
             attachments,
             user_reports,

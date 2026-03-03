@@ -1,13 +1,13 @@
 use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
-use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 
 #[derive(Debug)]
 pub struct Generic {}
 
 impl SentryError for Generic {
-    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(ev) = utils::take_item_of_type(items, ItemType::Event) else {
             return Ok(None);
         };
@@ -24,7 +24,7 @@ impl SentryError for Generic {
             event.ty.set_value(None);
         }
 
-        Ok(Some(ParsedError {
+        Ok(Some(Expansion {
             event,
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),

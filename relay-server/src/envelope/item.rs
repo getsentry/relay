@@ -296,7 +296,7 @@ impl Item {
                 .payload
                 .starts_with(crate::constants::NNSWITCH_SENTRY_MAGIC)
         {
-            return Some(AttachmentType::NnswitchDyingMessage);
+            return Some(AttachmentType::NintendoSwitchDyingMessage);
         }
 
         None
@@ -645,7 +645,7 @@ impl Item {
                         | AttachmentType::EventPayload
                         | AttachmentType::Prosperodump
                         | AttachmentType::Breadcrumbs
-                        | AttachmentType::NnswitchDyingMessage,
+                        | AttachmentType::NintendoSwitchDyingMessage,
                     ) => true,
                     Some(
                         AttachmentType::Attachment

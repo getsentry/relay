@@ -6,13 +6,12 @@ use crate::envelope::{EnvelopeHeaders, Item};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::errors::Result;
 use crate::processing::{self, ForwardContext};
+use crate::statsd::RelayCounters;
 
 mod apple_crash_report;
-mod attachments;
-mod form_data;
 mod generic;
 mod minidump;
-mod nnswitch;
+mod nswitch;
 mod playstation;
 mod raw_security;
 mod security;
@@ -21,44 +20,21 @@ mod user_report_v2;
 mod utils;
 
 pub use self::apple_crash_report::*;
-pub use self::attachments::*;
-pub use self::form_data::*;
 pub use self::generic::*;
 pub use self::minidump::*;
-pub use self::nnswitch::*;
+pub use self::nswitch::*;
 pub use self::playstation::*;
 pub use self::raw_security::*;
 pub use self::security::*;
 pub use self::unreal::*;
 pub use self::user_report_v2::*;
 
-#[derive(Debug)]
-pub struct ErrorItems {
-    pub attachments: Vec<Item>,
-    pub user_reports: Vec<Item>,
-    pub other: Vec<Item>,
-}
-
-impl From<ErrorItems> for Vec<Item> {
-    fn from(value: ErrorItems) -> Self {
-        let ErrorItems {
-            attachments,
-            user_reports,
-            other,
-        } = value;
-
-        let mut items = attachments;
-        items.reserve_exact(user_reports.len() + other.len());
-        items.extend(user_reports);
-        items.extend(other);
-
-        items
-    }
-}
-
+/// Context required to expand a [`SentryError`].
 #[derive(Debug, Clone, Copy)]
 pub struct Context<'a> {
+    /// Context from the envelope.
     pub envelope: &'a EnvelopeHeaders,
+    /// Processing context.
     pub processing: processing::Context<'a>,
 }
 
@@ -95,7 +71,7 @@ pub trait SentryError: Counted {
     /// passed items are invalid, or it must return a fully constructed [`Self`].
     ///
     /// The parser may return `Ok(None)` when none of the passed items match this shape of error.
-    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>>
+    fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>>
     where
         Self: Sized;
 
@@ -156,11 +132,17 @@ macro_rules! gen_error_kind {
                 }
             }
 
-            fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
+            fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
                 $(
                     if let Some(p) = <$name as SentryError>::try_expand(items, ctx)? {
                         relay_log::debug!("expanded event using: {name}", name = stringify!($name));
-                        return Ok(Some(ParsedError {
+
+                        relay_statsd::metric!(
+                            counter(RelayCounters::ErrorProcessed) += 1,
+                            expansion = stringify!($name),
+                        );
+
+                        return Ok(Some(Expansion {
                             event: p.event,
                             attachments: p.attachments,
                             user_reports: p.user_reports,
@@ -170,6 +152,11 @@ macro_rules! gen_error_kind {
                         }))
                     };
                 )*
+
+                relay_statsd::metric!(
+                    counter(RelayCounters::ErrorProcessed) += 1,
+                    expansion = "none",
+                );
 
                 Ok(None)
             }
@@ -218,18 +205,24 @@ gen_error_kind![
     Security,
     RawSecurity,
     UserReportV2,
-    FormData,
-    Attachments,
     Generic,
 ];
 
-// TODO: this may need a better name
+/// A successfully expanded error returned from [`SentryError::try_expand`].
 #[derive(Debug)]
-pub struct ParsedError<T> {
+pub struct Expansion<T> {
+    /// The event, may be empty.
     pub event: Annotated<Event>,
+    /// A list of attachments, either from the original envelope or created through the expansion.
     pub attachments: Vec<Item>,
+    /// A list of user reports, either from the original envelope or created through the expansion.
     pub user_reports: Vec<Item>,
+    /// The custom error data.
     pub error: T,
+    /// Metrics about the error/event.
     pub metrics: Metrics,
+    /// Whether the event can be considered fully normalized.
+    ///
+    /// Callers must still verify that the information can be trusted.
     pub fully_normalized: bool,
 }

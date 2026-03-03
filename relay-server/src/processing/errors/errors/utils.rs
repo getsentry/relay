@@ -106,7 +106,7 @@ pub fn take_event_from_attachments(
         item.attachment_type() == Some(AttachmentType::Breadcrumbs)
     });
 
-    if ev.is_none() && b1.is_none() || b2.is_none() {
+    if ev.is_none() && b1.is_none() {
         return Ok(Annotated::empty());
     }
 
