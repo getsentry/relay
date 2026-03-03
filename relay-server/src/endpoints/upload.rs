@@ -13,6 +13,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt};
 use http::header;
 use relay_config::Config;
@@ -71,6 +72,7 @@ impl IntoResponse for Error {
                 upload::Error::InvalidLocation | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
+                upload::Error::InvalidSignature => StatusCode::BAD_REQUEST,
                 upload::Error::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error {
@@ -141,6 +143,7 @@ async fn handle(
         .await
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
+    let received = meta.received_at();
     let scoping = check_request(&state, meta, upload_length, project).await?;
     let stream = body
         .into_data_stream()
@@ -153,7 +156,7 @@ async fn handle(
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
     let byte_counter = stream.byte_counter();
 
-    let result = upload(&state, scoping, stream).await;
+    let result = upload(&state, received, scoping, stream).await;
 
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
@@ -169,6 +172,7 @@ async fn handle(
 
 async fn upload(
     state: &ServiceState,
+    received: DateTime<Utc>,
     scoping: Scoping,
     stream: BoundedStream<Pin<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send>>>,
 ) -> Result<SignedLocation, Error> {
@@ -183,6 +187,7 @@ async fn upload(
     let location = state
         .upload()
         .send(upload::Stream {
+            received,
             scoping,
             location,
             stream,
