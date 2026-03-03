@@ -2,7 +2,7 @@
 *   @getsentry/ingest
 
 # Kafka metrics
-/relay-kafka/src/statsd.rs  @getsentry/streaming-platform
+/relay-kafka/src/statsd.rs  @getsentry/streaming-platform @getsentry/ingest
 
 # Legal
 /LICENSE.md  @getsentry/owners-legal
