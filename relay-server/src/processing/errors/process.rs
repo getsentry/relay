@@ -11,8 +11,17 @@ use crate::processing::utils::event::EventFullyNormalized;
 use crate::processing::{self, Context};
 use crate::services::processor::ProcessingError;
 
-pub fn expand(error: Managed<SerializedError>, ctx: Context<'_>) -> Managed<ExpandedError> {
-    error.map(|error, records| do_expand(error, ctx, records).unwrap())
+/// Expands an (error) event envelope.
+///
+/// Identifies the underlying type of error/event and expands it into an event and its parts.
+///
+/// For example an crash report attachment may be expanded into an error event, multiple other
+/// attachments and some user feedback.
+pub fn expand(
+    error: Managed<SerializedError>,
+    ctx: Context<'_>,
+) -> Result<Managed<ExpandedError>, Rejected<Error>> {
+    error.try_map(|error, records| do_expand(error, ctx, records))
 }
 
 fn do_expand(
@@ -22,25 +31,42 @@ fn do_expand(
 ) -> Result<ExpandedError> {
     let is_trusted = error.headers.meta().request_trust().is_trusted();
 
-    let ctx = errors::Context {
-        envelope: &error.headers,
-        processing: ctx,
-    };
-
+    // Certain attachment types are dissolved into different types (Nintendo Switch),
+    // or are created from other types (unreal).
     records.lenient(DataCategory::Attachment);
     records.lenient(DataCategory::AttachmentItem);
+    // User feedback is extracted from unreal reports.
     records.lenient(DataCategory::UserReportV2);
 
-    // TODO: support the "only expand errors in processing" usecase
-    let parsed = ErrorKind::try_expand(&mut error.items, ctx)
-        .unwrap()
-        .unwrap();
+    let Some(parsed) = ErrorKind::try_expand(
+        &mut error.items,
+        errors::Context {
+            envelope: &error.headers,
+            processing: ctx,
+        },
+    )?
+    else {
+        return Err(ProcessingError::NoEventPayload.into());
+    };
 
-    // TODO: think about forward compatibility with the remaining `items`.
-    // TODO: event size limit(s), maybe in serialize?
+    // All unprocessed items which would create an event but were not turned into an event are
+    // duplicates.
+    //
+    // E.g. if you send an envelope with two error events, you end up here.
+    //
+    // It is reasonable to just reject such envelopes, this is ported over from a prior
+    // implementation of the error processing pipeline.
+    for item in error.items.extract_if(.., |item| item.creates_event()) {
+        records.reject_err(ProcessingError::DuplicateItem(item.ty().clone()), item);
+    }
 
-    // TODO: this is getting close to just passing the entire Managed instance to the ErrorKind
-    // thingy
+    if ctx.is_processing() {
+        // In processing, there are cannot be any leftover events due to forward compatibility.
+        for item in std::mem::take(&mut error.items) {
+            records.reject_err(ProcessingError::UnsupportedItem, item);
+        }
+    }
+
     Ok(ExpandedError {
         headers: error.headers,
         flags: Flags {
@@ -51,6 +77,7 @@ fn do_expand(
         attachments: parsed.attachments,
         user_reports: parsed.user_reports,
         data: parsed.error,
+        other: error.items,
     })
 }
 

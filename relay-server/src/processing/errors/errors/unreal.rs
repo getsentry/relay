@@ -1,17 +1,18 @@
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
+use relay_quotas::{DataCategory, RateLimits};
 
 use crate::envelope::{AttachmentType, Item, ItemType};
-use crate::managed::{Counted, Quantities};
+use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::processing::errors::{Error, Result};
 use crate::services::processor::ProcessingError;
 
 #[derive(Debug)]
 pub enum Unreal {
     Forward {
-        report: Box<Item>,
+        report: Item,
     },
     Process {
         minidump: Option<Item>,
@@ -32,9 +33,7 @@ impl SentryError for Unreal {
                 event: Annotated::empty(),
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-                error: Self::Forward {
-                    report: Box::new(report),
-                },
+                error: Self::Forward { report },
                 metrics,
                 fully_normalized: false,
             }));
@@ -44,12 +43,12 @@ impl SentryError for Unreal {
         let event = expansion.event;
         let mut attachments = expansion.attachments.into_vec();
 
+        // `process` later fills this event in, ideally the event is already filled in here,
+        // during the expansion, it is split into two phases now, to keep compatibility with
+        // the existing unreal code.
         let mut event = match utils::take_item_of_type(items, ItemType::Event).or(event) {
             Some(event) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
-            // `process` later fills this event in, ideally the event is already filled in here,
-            // during the expansion, it is split into two phases now, to keep compatibility with
-            // the existing unreal code.
-            None => Annotated::empty(),
+            None => utils::take_event_from_attachments(items, &mut metrics, ctx)?,
         };
 
         attachments.extend(items.extract_if(.., |item| *item.ty() == ItemType::Attachment));
@@ -76,11 +75,11 @@ impl SentryError for Unreal {
             user_reports.extend(result.user_reports);
         }
 
-        let minidump = utils::take_item_by(items, |item| {
-            item.attachment_type() == Some(&AttachmentType::Minidump)
+        let minidump = utils::take_item_by(&mut attachments, |item| {
+            item.attachment_type() == Some(AttachmentType::Minidump)
         });
-        let apple_crash_report = utils::take_item_by(items, |item| {
-            item.attachment_type() == Some(&AttachmentType::AppleCrashReport)
+        let apple_crash_report = utils::take_item_by(&mut attachments, |item| {
+            item.attachment_type() == Some(AttachmentType::AppleCrashReport)
         });
 
         if let Some(minidump) = &minidump {
@@ -111,9 +110,40 @@ impl SentryError for Unreal {
         }))
     }
 
+    fn apply_rate_limit(
+        &mut self,
+        _category: DataCategory,
+        limits: RateLimits,
+        records: &mut RecordKeeper<'_>,
+    ) -> Result<()> {
+        let Self::Process {
+            minidump,
+            apple_crash_report,
+        } = self
+        else {
+            return Ok(());
+        };
+
+        if let Some(apple_crash_report) = apple_crash_report
+            && !apple_crash_report.rate_limited()
+        {
+            apple_crash_report.set_rate_limited(true);
+            records.reject_err(Error::RateLimited(limits.clone()), &*apple_crash_report);
+        }
+
+        if let Some(minidump) = minidump
+            && !minidump.rate_limited()
+        {
+            minidump.set_rate_limited(true);
+            records.reject_err(Error::RateLimited(limits.clone()), &*minidump);
+        }
+
+        Ok(())
+    }
+
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         match self {
-            Self::Forward { report } => items.push(*report),
+            Self::Forward { report } => items.push(report),
             Self::Process {
                 minidump,
                 apple_crash_report,
@@ -136,8 +166,27 @@ impl SentryError for Unreal {
 
 impl Counted for Unreal {
     fn quantities(&self) -> Quantities {
-        // Like minidumps the crash represents the error and is not counted as an attachment or an
-        // additional type.
-        Default::default()
+        match self {
+            Self::Forward { .. } => Quantities::default(),
+            Self::Process {
+                minidump,
+                apple_crash_report,
+            } => {
+                let mut quantities = Quantities::default();
+
+                if let Some(apple_crash_report) = apple_crash_report
+                    && !apple_crash_report.rate_limited()
+                {
+                    quantities.extend(apple_crash_report.quantities());
+                }
+                if let Some(minidump) = minidump
+                    && !minidump.rate_limited()
+                {
+                    quantities.extend(minidump.quantities());
+                }
+
+                quantities
+            }
+        }
     }
 }

@@ -1,3 +1,5 @@
+use relay_quotas::DataCategory;
+
 use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::errors::Result;
@@ -7,6 +9,10 @@ use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils
 pub struct Security {}
 
 impl SentryError for Security {
+    fn event_category(&self) -> DataCategory {
+        DataCategory::Security
+    }
+
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         let Some(ev) = utils::take_item_of_type(items, ItemType::Security) else {
             return Ok(None);

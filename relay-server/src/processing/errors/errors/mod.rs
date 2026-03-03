@@ -1,7 +1,6 @@
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
-use sentry::Data;
 
 use crate::envelope::{EnvelopeHeaders, Item};
 use crate::managed::{Counted, Quantities, RecordKeeper};

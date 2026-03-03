@@ -1,5 +1,6 @@
 use relay_event_schema::protocol::Metrics;
 use relay_protocol::Annotated;
+use relay_quotas::DataCategory;
 
 use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities};
@@ -10,6 +11,10 @@ use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils
 pub struct RawSecurity {}
 
 impl SentryError for RawSecurity {
+    fn event_category(&self) -> DataCategory {
+        DataCategory::Security
+    }
+
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         let Some(item) = utils::take_item_of_type(items, ItemType::RawSecurity) else {
             return Ok(None);

@@ -7,18 +7,13 @@ use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
 
 use crate::Envelope;
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::constants::NNSWITCH_SENTRY_MAGIC;
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::managed::TypedEnvelope;
 use crate::services::processor::{ErrorGroup, ProcessingError};
 use crate::utils;
 
 pub use crate::processing::errors::SwitchProcessingError;
-
-/// Magic number indicating the dying message file is encoded by sentry-switch SDK.
-const SENTRY_MAGIC: &[u8] = "sntr".as_bytes();
-
-/// The file name that Nintendo uses to in the events they forward.
-const DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
 
 /// Limit the size of the decompressed data to prevent an invalid frame blowing up memory usage.
 const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
@@ -45,7 +40,8 @@ pub fn expand(
 ) -> std::result::Result<(), ProcessingError> {
     let envelope = managed_envelope.envelope_mut();
 
-    if let Some(item) = envelope.take_item_by(is_dying_message)
+    if let Some(item) = envelope
+        .take_item_by(|item| item.attachment_type() == Some(AttachmentType::NnswitchDyingMessage))
         && let Err(e) = expand_dying_message(item.payload(), envelope)
     {
         // If we fail to process the dying message, we need to add back the original attachment.
@@ -56,16 +52,10 @@ pub fn expand(
     Ok(())
 }
 
-fn is_dying_message(item: &crate::envelope::Item) -> bool {
-    item.ty() == &ItemType::Attachment
-        && item.payload().starts_with(SENTRY_MAGIC)
-        && item.filename() == Some(DYING_MESSAGE_FILENAME)
-}
-
 /// Parses DyingMessage contents and updates the envelope.
 /// See dying_message.md for the documentation.
 fn expand_dying_message(mut payload: Bytes, envelope: &mut Envelope) -> Result<()> {
-    payload.advance(SENTRY_MAGIC.len());
+    payload.advance(NNSWITCH_SENTRY_MAGIC.len());
     let version = payload
         .try_get_u8()
         .map_err(|_| SwitchProcessingError::UnexpectedEof {
@@ -205,22 +195,10 @@ mod tests {
     use std::io::Write;
 
     use super::*;
-    use crate::envelope::Item;
+    use crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME;
     use crate::managed::ManagedEnvelope;
     use crate::services::processor::ProcessingGroup;
     use zstd::bulk::Compressor as ZstdCompressor;
-
-    #[test]
-    fn test_is_dying_message() {
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_filename("any");
-        item.set_payload(ContentType::OctetStream, Bytes::from("sntrASDF"));
-        assert!(!is_dying_message(&item));
-        item.set_filename(DYING_MESSAGE_FILENAME);
-        assert!(is_dying_message(&item));
-        item.set_payload(ContentType::OctetStream, Bytes::from("FOO"));
-        assert!(!is_dying_message(&item));
-    }
 
     fn create_envelope(dying_message: Bytes) -> TypedEnvelope<ErrorGroup> {
         // Note: the attachment length specified in the "outer" envelope attachment is very important.
@@ -263,7 +241,7 @@ mod tests {
             "{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
         );
         assert_eq!(items[1].ty(), &ItemType::Attachment);
-        assert_eq!(items[1].filename(), Some(DYING_MESSAGE_FILENAME));
+        assert_eq!(items[1].filename(), Some(NNSWITCH_DYING_MESSAGE_FILENAME));
         assert_eq!(items[1].payload().len(), 106);
 
         expand(&mut envelope).unwrap();
@@ -294,7 +272,7 @@ mod tests {
             "{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
         );
         assert_eq!(items[1].ty(), &ItemType::Attachment);
-        assert_eq!(items[1].filename(), Some(DYING_MESSAGE_FILENAME));
+        assert_eq!(items[1].filename(), Some(NNSWITCH_DYING_MESSAGE_FILENAME));
         assert_eq!(items[1].payload().len(), 98);
 
         expand(&mut envelope).unwrap();

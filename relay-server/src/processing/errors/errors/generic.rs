@@ -15,8 +15,17 @@ impl SentryError for Generic {
         let fully_normalized = ev.fully_normalized();
         let mut metrics = Default::default();
 
+        let mut event = utils::event_from_json_payload(ev, None, &mut metrics, ctx)?;
+
+        let skip_normalization = ctx.processing.is_processing() && fully_normalized;
+        if !skip_normalization && let Some(event) = event.value_mut() {
+            // Event items can never include transactions, so retain the event type and let
+            // inference deal with this during normalization.
+            event.ty.set_value(None);
+        }
+
         Ok(Some(ParsedError {
-            event: utils::event_from_json_payload(ev, None, &mut metrics, ctx)?,
+            event,
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             error: Self {},

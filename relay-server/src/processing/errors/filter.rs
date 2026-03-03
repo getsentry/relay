@@ -1,4 +1,4 @@
-use crate::managed::{Counted, Managed};
+use crate::managed::Managed;
 use crate::processing::errors::{ExpandedError, Result};
 use crate::processing::{self, Context};
 use crate::services::processor::ProcessingError;

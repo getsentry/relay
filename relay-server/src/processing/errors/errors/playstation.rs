@@ -34,7 +34,7 @@ impl SentryError for Playstation {
         let mut metrics = Default::default();
 
         let Some(prosperodump) = utils::take_item_by(items, |item| {
-            item.attachment_type() == Some(&AttachmentType::Prosperodump)
+            item.attachment_type() == Some(AttachmentType::Prosperodump)
         }) else {
             return Ok(None);
         };
@@ -43,7 +43,7 @@ impl SentryError for Playstation {
             let attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
 
             return Ok(Some(ParsedError {
-                event: utils::try_take_parsed_event(items, &mut metrics, ctx)?,
+                event: utils::take_parsed_event(items, &mut metrics, ctx)?,
                 attachments,
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
                 error: Self {

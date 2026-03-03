@@ -25,7 +25,7 @@ mod process;
 pub use errors::SwitchProcessingError;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
-use relay_protocol::{Annotated, Empty};
+use relay_protocol::Annotated;
 use relay_quotas::RateLimits;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -107,12 +107,7 @@ impl processing::Processor for ErrorsProcessor {
         error: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        println!(
-            "foobar xxxx: {:?}",
-            EnvelopeSummary::compute_items(&error.items)
-        );
-
-        let mut error = process::expand(error, ctx);
+        let mut error = process::expand(error, ctx)?;
 
         process::process(&mut error)?;
 
@@ -175,6 +170,8 @@ struct ExpandedError {
     ///
     /// This may contain elements which are custom to the specific event shape being handled.
     pub data: errors::ErrorKind,
+    /// Forward compatibility, unknown items.
+    pub other: Vec<Item>,
 }
 
 impl Counted for ExpandedError {
@@ -185,6 +182,7 @@ impl Counted for ExpandedError {
         quantities.extend(self.attachments.quantities());
         quantities.extend(self.user_reports.quantities());
         quantities.extend(self.data.quantities());
+        quantities.extend(self.other.quantities());
 
         quantities
     }
@@ -197,7 +195,7 @@ impl processing::RateLimited for Managed<ExpandedError> {
     async fn enforce<R>(
         mut self,
         mut rate_limiter: R,
-        ctx: processing::Context<'_>,
+        _ctx: processing::Context<'_>,
     ) -> Result<Self::Output, Rejected<Self::Error>>
     where
         R: processing::RateLimiter,
@@ -278,6 +276,7 @@ impl Forward for ErrorOutput {
                     attachments,
                     user_reports,
                     data,
+                    other,
                 } = errors;
 
                 let mut items = Vec::with_capacity(1 + attachments.len() + user_reports.len());
@@ -300,29 +299,18 @@ impl Forward for ErrorOutput {
                     items.push(item);
                 }
 
-                // The switch dying message counts as an error but also doesn't.
-                // records.lenient(DataCategory::Error);
-
-                println!("DATA: {:?}", data.quantities());
-
                 data.serialize_into(&mut items, ctx)?;
 
                 items.extend(attachments);
                 items.extend(user_reports);
 
-                for item in &items {
-                    println!(
-                        "item {:?} {:?} rl:{}",
-                        item.ty(),
-                        item.attachment_type(),
-                        item.rate_limited()
-                    );
+                if !ctx.config.processing_enabled() {
+                    items.extend(other);
+                } else {
+                    debug_assert!(other.is_empty());
                 }
 
                 let envelope = Envelope::from_parts(headers, items.into());
-
-                println!("foobar: {:?}", EnvelopeSummary::compute(&envelope));
-
                 Ok::<_, Error>(envelope)
             })
             .map_err(|err| err.map(|_| ()))
@@ -347,9 +335,9 @@ impl Forward for ErrorOutput {
         };
 
         if has_attachments && use_objectstore() {
-            s.upload(crate::services::store::StoreEnvelope { envelope });
+            s.send_to_objectstore(crate::services::store::StoreEnvelope { envelope });
         } else {
-            s.store(crate::services::store::StoreEnvelope { envelope });
+            s.send_to_store(crate::services::store::StoreEnvelope { envelope });
         }
 
         Ok(())

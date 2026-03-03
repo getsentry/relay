@@ -508,6 +508,9 @@ pub enum ProcessingError {
     #[error("invalid transaction event")]
     InvalidTransaction,
 
+    #[error("the item is not allowed/supported in this envelope")]
+    UnsupportedItem,
+
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
 
@@ -576,6 +579,7 @@ impl ProcessingError {
             Self::InvalidSecurityType(_) => {
                 Some(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
+            Self::UnsupportedItem => Some(Outcome::Invalid(DiscardReason::InvalidEnvelope)),
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::UnsupportedSecurityType => Some(Outcome::Filtered(FilterStatKey::InvalidCsp)),
             Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
@@ -1626,7 +1630,7 @@ impl EnvelopeProcessorService {
 
         match group {
             ProcessingGroup::Error => {
-                if ctx.project_info.has_feature(Feature::NewErrorProcessing) || true {
+                if ctx.project_info.has_feature(Feature::NewErrorProcessing) {
                     self.process_with_processor(
                         &self.inner.processing.errors,
                         managed_envelope,

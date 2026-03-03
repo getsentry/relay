@@ -4,10 +4,9 @@ use relay_quotas::{DataCategory, RateLimits};
 
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
+use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
 use crate::processing::errors::{Error, Result};
-use crate::processing::{self, ForwardContext};
-use crate::services::processor::ProcessingError;
 
 #[derive(Debug)]
 pub struct Minidump {
@@ -17,17 +16,18 @@ pub struct Minidump {
 impl SentryError for Minidump {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         let Some(minidump) = utils::take_item_by(items, |item| {
-            item.attachment_type() == Some(&AttachmentType::Minidump)
+            item.attachment_type() == Some(AttachmentType::Minidump)
         }) else {
             return Ok(None);
         };
 
         let mut metrics = Default::default();
+        let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
 
         // TODO: this is copy pasta and can be nicer
         if !ctx.processing.is_processing() {
             return Ok(Some(ParsedError {
-                event: utils::try_take_parsed_event(items, &mut metrics, ctx)?,
+                event,
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
                 error: Self { minidump },
@@ -35,11 +35,6 @@ impl SentryError for Minidump {
                 fully_normalized: false,
             }));
         }
-
-        let mut event = match utils::take_item_of_type(items, ItemType::Event) {
-            Some(event) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
-            None => Annotated::empty(),
-        };
 
         crate::utils::process_minidump(
             event.get_or_insert_with(Event::default),
@@ -71,7 +66,7 @@ impl SentryError for Minidump {
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()> {
+    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         items.push(self.minidump);
         Ok(())
     }

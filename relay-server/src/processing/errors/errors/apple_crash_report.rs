@@ -16,16 +16,17 @@ pub struct AppleCrashReport {
 impl SentryError for AppleCrashReport {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         let Some(apple_crash_report) = utils::take_item_by(items, |item| {
-            item.attachment_type() == Some(&AttachmentType::AppleCrashReport)
+            item.attachment_type() == Some(AttachmentType::AppleCrashReport)
         }) else {
             return Ok(None);
         };
 
         let mut metrics = Default::default();
+        let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
 
         if !ctx.processing.is_processing() {
             return Ok(Some(ParsedError {
-                event: utils::try_take_parsed_event(items, &mut metrics, ctx)?,
+                event,
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
                 error: Self { apple_crash_report },
@@ -33,11 +34,6 @@ impl SentryError for AppleCrashReport {
                 fully_normalized: false,
             }));
         }
-
-        let mut event = match utils::take_item_of_type(items, ItemType::Event) {
-            Some(event) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
-            None => Annotated::empty(),
-        };
 
         crate::utils::process_apple_crash_report(
             event.get_or_insert_with(Event::default),
@@ -70,7 +66,7 @@ impl SentryError for AppleCrashReport {
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()> {
+    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         items.push(self.apple_crash_report);
         Ok(())
     }

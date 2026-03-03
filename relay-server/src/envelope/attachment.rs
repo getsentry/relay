@@ -31,6 +31,9 @@ pub enum AttachmentType {
     // A prosperodump crash report (binary data)
     Prosperodump,
 
+    /// A Switch dying message.
+    NnswitchDyingMessage,
+
     /// This is a binary attachment present in Unreal 4 events containing event context information.
     ///
     /// This can be deserialized using the `symbolic` crate see
@@ -60,6 +63,7 @@ impl fmt::Display for AttachmentType {
             AttachmentType::EventPayload => write!(f, "event.payload"),
             AttachmentType::Prosperodump => write!(f, "playstation.prosperodump"),
             AttachmentType::Breadcrumbs => write!(f, "event.breadcrumbs"),
+            AttachmentType::NnswitchDyingMessage => write!(f, "nnswitch.dying_message"),
             AttachmentType::UnrealContext => write!(f, "unreal.context"),
             AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
             AttachmentType::ViewHierarchy => write!(f, "event.view_hierarchy"),
@@ -80,6 +84,7 @@ impl std::str::FromStr for AttachmentType {
             "event.applecrashreport" => AttachmentType::AppleCrashReport,
             "event.payload" => AttachmentType::EventPayload,
             "playstation.prosperodump" => AttachmentType::Prosperodump,
+            "nnswitch.dying_message" => AttachmentType::NnswitchDyingMessage,
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
             "event.view_hierarchy" => AttachmentType::ViewHierarchy,
             "unreal.context" => AttachmentType::UnrealContext,

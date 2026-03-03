@@ -12,13 +12,13 @@ pub struct Attachments {}
 impl SentryError for Attachments {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         let ev = utils::take_item_by(items, |item| {
-            item.attachment_type() == Some(&AttachmentType::EventPayload)
+            item.attachment_type() == Some(AttachmentType::EventPayload)
         });
         let b1 = utils::take_item_by(items, |item| {
-            item.attachment_type() == Some(&AttachmentType::Breadcrumbs)
+            item.attachment_type() == Some(AttachmentType::Breadcrumbs)
         });
         let b2 = utils::take_item_by(items, |item| {
-            item.attachment_type() == Some(&AttachmentType::Breadcrumbs)
+            item.attachment_type() == Some(AttachmentType::Breadcrumbs)
         });
 
         if ev.is_none() && b1.is_none() || b2.is_none() {

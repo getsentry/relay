@@ -5,24 +5,18 @@
 use bytes::{Buf, Bytes};
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
-use relay_quotas::{DataCategory, RateLimits};
 use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeError, Item, ItemType};
-use crate::managed::{Counted, Quantities, RecordKeeper};
+use crate::constants::NNSWITCH_SENTRY_MAGIC;
+use crate::envelope::{AttachmentType, EnvelopeError, Item, ItemType};
+use crate::managed::{Counted, Quantities};
 use crate::processing::ForwardContext;
+use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
-use crate::processing::errors::{Error, Result};
 use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
-
-/// Magic number indicating the dying message file is encoded by sentry-switch SDK.
-const SENTRY_MAGIC: &[u8] = "sntr".as_bytes();
-
-/// The file name that Nintendo uses to in the events they forward.
-const DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
 
 /// Limit the size of the decompressed data to prevent an invalid frame blowing up memory usage.
 const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
@@ -35,7 +29,9 @@ pub enum Nnswitch {
 
 impl SentryError for Nnswitch {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
-        let Some(dying_message) = utils::take_item_by(items, is_dying_message) else {
+        let Some(dying_message) = utils::take_item_by(items, |item| {
+            item.attachment_type() == Some(AttachmentType::NnswitchDyingMessage)
+        }) else {
             return Ok(None);
         };
 
@@ -43,7 +39,7 @@ impl SentryError for Nnswitch {
 
         if !ctx.processing.is_processing() {
             return Ok(Some(ParsedError {
-                event: utils::try_take_parsed_event(items, &mut metrics, ctx)?,
+                event: utils::take_parsed_event(items, &mut metrics, ctx)?,
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
                 error: Self::Forward {
@@ -146,12 +142,6 @@ fn merge_events_inner(
     Annotated::<Event>::deserialize_with_meta(from_dying_message)
 }
 
-fn is_dying_message(item: &crate::envelope::Item) -> bool {
-    item.ty() == &ItemType::Attachment
-        && item.payload().starts_with(SENTRY_MAGIC)
-        && item.filename() == Some(DYING_MESSAGE_FILENAME)
-}
-
 #[derive(Debug, Default)]
 struct ExpandedDyingMessage {
     event: Option<Item>,
@@ -161,7 +151,7 @@ struct ExpandedDyingMessage {
 /// Parses DyingMessage contents and updates the envelope.
 /// See dying_message.md for the documentation.
 fn expand_dying_message(mut payload: Bytes) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
-    payload.advance(SENTRY_MAGIC.len());
+    payload.advance(NNSWITCH_SENTRY_MAGIC.len());
     let version = payload
         .try_get_u8()
         .map_err(|_| SwitchProcessingError::UnexpectedEof {
@@ -301,20 +291,9 @@ mod tests {
     use std::io::Write;
 
     use super::*;
-    use crate::envelope::{ContentType, Item};
+    use crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME;
+    use crate::envelope::Item;
     use zstd::bulk::Compressor as ZstdCompressor;
-
-    #[test]
-    fn test_is_dying_message() {
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_filename("any");
-        item.set_payload(ContentType::OctetStream, Bytes::from("sntrASDF"));
-        assert!(!is_dying_message(&item));
-        item.set_filename(DYING_MESSAGE_FILENAME);
-        assert!(is_dying_message(&item));
-        item.set_payload(ContentType::OctetStream, Bytes::from("FOO"));
-        assert!(!is_dying_message(&item));
-    }
 
     fn create_envelope_items(dying_message: Bytes) -> Vec<Item> {
         // Note: the attachment length specified in the "outer" envelope attachment is very important.
@@ -349,7 +328,7 @@ mod tests {
         ));
 
         assert_eq!(items[1].ty(), &ItemType::Attachment);
-        assert_eq!(items[1].filename(), Some(DYING_MESSAGE_FILENAME));
+        assert_eq!(items[1].filename(), Some(NNSWITCH_DYING_MESSAGE_FILENAME));
         assert_eq!(items[1].payload().len(), 106);
 
         let parsed = Nnswitch::try_expand(&mut items, Context::for_test())
