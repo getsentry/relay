@@ -180,9 +180,9 @@ async fn upload(
     let location = state
         .upload()
         .send(upload::Stream {
-            stream,
             scoping,
-            location,
+            key: location.into_key()?,
+            stream,
         })
         .await??;
 
