@@ -6,9 +6,9 @@ use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::errors::errors::SentryError as _;
-use crate::processing::utils::event::{EventFullyNormalized, event_category};
+use crate::processing::utils::event::EventFullyNormalized;
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter};
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::Outcome;
 use crate::services::processor::ProcessingError;
 use crate::statsd::RelayTimers;
 use crate::utils::EnvelopeSummary;
@@ -26,7 +26,7 @@ pub use errors::SwitchProcessingError;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::{Annotated, Empty};
-use relay_quotas::DataCategory;
+use relay_quotas::RateLimits;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -34,6 +34,8 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Error {
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingError),
+    #[error("rate limited")]
+    RateLimited(RateLimits),
 }
 
 impl OutcomeError for Error {
@@ -42,6 +44,10 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::ProcessingFailed(e) => e.to_outcome(),
+            Self::RateLimited(limits) => {
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                Some(Outcome::RateLimited(reason_code))
+            }
         };
         (outcome, self)
     }
@@ -101,6 +107,11 @@ impl processing::Processor for ErrorsProcessor {
         error: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
+        println!(
+            "foobar xxxx: {:?}",
+            EnvelopeSummary::compute_items(&error.items)
+        );
+
         let mut error = process::expand(error, ctx);
 
         process::process(&mut error)?;
@@ -170,13 +181,7 @@ impl Counted for ExpandedError {
     fn quantities(&self) -> Quantities {
         let mut quantities = Quantities::default();
 
-        // TODO: should this always count in the error category if empty?
-        // TODO: how relevant is this for rate limits?
-        //if !self.event.is_empty() {
-        let category = event_category(&self.event).unwrap_or(DataCategory::Error);
-        quantities.push((category, 1));
-        //}
-
+        quantities.push((self.data.event_category(), 1));
         quantities.extend(self.attachments.quantities());
         quantities.extend(self.user_reports.quantities());
         quantities.extend(self.data.quantities());
@@ -190,13 +195,67 @@ impl processing::RateLimited for Managed<ExpandedError> {
     type Error = Error;
 
     async fn enforce<R>(
-        self,
-        _rate_limiter: R,
-        _ctx: processing::Context<'_>,
+        mut self,
+        mut rate_limiter: R,
+        ctx: processing::Context<'_>,
     ) -> Result<Self::Output, Rejected<Self::Error>>
     where
         R: processing::RateLimiter,
     {
+        let scoping = self.scoping();
+
+        let limits = rate_limiter
+            .try_consume(scoping.item(self.data.event_category()), 1)
+            .await;
+
+        if !limits.is_empty() {
+            return Err(self.reject_err(Error::RateLimited(limits)));
+        }
+
+        for (category, quantity) in self.data.quantities() {
+            let limits = rate_limiter
+                .try_consume(scoping.item(category), quantity)
+                .await;
+
+            if !limits.is_empty() {
+                self.try_modify(|this, records| {
+                    this.data.apply_rate_limit(category, limits, records)
+                })?;
+            }
+        }
+
+        for (category, quantity) in self.attachments.quantities() {
+            let limits = rate_limiter
+                .try_consume(scoping.item(category), quantity)
+                .await;
+
+            if !limits.is_empty() {
+                self.modify(|this, record_keeper| {
+                    record_keeper.reject_err(
+                        Error::RateLimited(limits),
+                        std::mem::take(&mut this.attachments),
+                    );
+                });
+                break;
+            }
+        }
+
+        for (category, quantity) in self.user_reports.quantities() {
+            let limits = rate_limiter
+                .try_consume(scoping.item(category), quantity)
+                .await;
+
+            if !limits.is_empty() {
+                self.modify(|this, record_keeper| {
+                    record_keeper.reject_err(
+                        Error::RateLimited(limits),
+                        std::mem::take(&mut this.attachments),
+                    );
+                });
+                break;
+            }
+        }
+
         Ok(self)
     }
 }
@@ -218,7 +277,7 @@ impl Forward for ErrorOutput {
                     event,
                     attachments,
                     user_reports,
-                    data: error,
+                    data,
                 } = errors;
 
                 let mut items = Vec::with_capacity(1 + attachments.len() + user_reports.len());
@@ -244,15 +303,27 @@ impl Forward for ErrorOutput {
                 // The switch dying message counts as an error but also doesn't.
                 // records.lenient(DataCategory::Error);
 
-                error.serialize_into(&mut items, ctx)?;
+                println!("DATA: {:?}", data.quantities());
+
+                data.serialize_into(&mut items, ctx)?;
 
                 items.extend(attachments);
                 items.extend(user_reports);
 
-                // TODO: size limits?
-                // TODO: metrics?
+                for item in &items {
+                    println!(
+                        "item {:?} {:?} rl:{}",
+                        item.ty(),
+                        item.attachment_type(),
+                        item.rate_limited()
+                    );
+                }
 
-                Ok::<_, Error>(Envelope::from_parts(headers, items.into()))
+                let envelope = Envelope::from_parts(headers, items.into());
+
+                println!("foobar: {:?}", EnvelopeSummary::compute(&envelope));
+
+                Ok::<_, Error>(envelope)
             })
             .map_err(|err| err.map(|_| ()))
     }
@@ -266,7 +337,20 @@ impl Forward for ErrorOutput {
         let envelope = self.serialize_envelope(ctx)?;
         let envelope = ManagedEnvelope::from(envelope).into_processed();
 
-        s.store(crate::services::store::StoreEnvelope { envelope });
+        let has_attachments = envelope
+            .envelope()
+            .items()
+            .any(|item| item.ty() == &ItemType::Attachment);
+        let use_objectstore = || {
+            let options = &ctx.global_config.options;
+            crate::utils::sample(options.objectstore_attachments_sample_rate).is_keep()
+        };
+
+        if has_attachments && use_objectstore() {
+            s.upload(crate::services::store::StoreEnvelope { envelope });
+        } else {
+            s.store(crate::services::store::StoreEnvelope { envelope });
+        }
 
         Ok(())
     }

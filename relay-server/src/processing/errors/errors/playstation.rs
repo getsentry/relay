@@ -1,15 +1,19 @@
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
+use relay_quotas::{DataCategory, RateLimits};
 
 use crate::envelope::{AttachmentType, Item, ItemType};
-use crate::managed::{Counted, Quantities};
-use crate::processing::errors::Result;
+use crate::managed::{Counted, Quantities, RecordKeeper};
+use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::processing::errors::{Error, Result};
 
-// TODO: compare with nnswitch and decide whether we should use enums
 #[derive(Debug)]
-pub struct Playstation {}
+pub struct Playstation {
+    prosperodump: Item,
+    minidump: Option<Item>,
+}
 
 impl SentryError for Playstation {
     #[cfg(not(sentry))]
@@ -36,14 +40,16 @@ impl SentryError for Playstation {
         };
 
         if !ctx.processing.is_processing() {
-            let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
-            attachments.push(prosperodump);
+            let attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
 
             return Ok(Some(ParsedError {
                 event: utils::try_take_parsed_event(items, &mut metrics, ctx)?,
                 attachments,
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-                error: Self {},
+                error: Self {
+                    prosperodump,
+                    minidump: None,
+                },
                 metrics,
                 fully_normalized: false,
             }));
@@ -93,18 +99,19 @@ impl SentryError for Playstation {
         crate::utils::process_minidump(event.get_or_insert_with(Event::default), &minidump_buffer);
         metrics.bytes_ingested_event_minidump = Annotated::new(minidump_buffer.len() as u64);
 
-        let mut attachments = items
-            .extract_if(.., |item| *item.ty() == ItemType::Attachment)
-            .collect::<Vec<_>>();
-
-        attachments.push(prosperodump);
-        attachments.push({
+        let minidump = {
             let mut item = Item::new(ItemType::Attachment);
             item.set_filename("generated_minidump.dmp");
             item.set_payload(crate::envelope::ContentType::Minidump, minidump_buffer);
             item.set_attachment_type(AttachmentType::Minidump);
+            // If the original prosperodump is already rate limited, so will be the minidump.
+            item.set_rate_limited(prosperodump.rate_limited());
             item
-        });
+        };
+
+        let mut attachments = items
+            .extract_if(.., |item| *item.ty() == ItemType::Attachment)
+            .collect::<Vec<_>>();
 
         attachments.extend(prospero_dump.files.iter().map(|file| {
             let mut item = Item::new(ItemType::Attachment);
@@ -136,16 +143,65 @@ impl SentryError for Playstation {
             event,
             attachments,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-            error: Self {},
+            error: Self {
+                prosperodump,
+                minidump: Some(minidump),
+            },
             metrics,
             fully_normalized: false,
         }))
+    }
+
+    fn apply_rate_limit(
+        &mut self,
+        _category: DataCategory,
+        limits: RateLimits,
+        records: &mut RecordKeeper<'_>,
+    ) -> Result<()> {
+        if !self.prosperodump.rate_limited() {
+            self.prosperodump.set_rate_limited(true);
+            records.reject_err(Error::RateLimited(limits.clone()), &self.prosperodump);
+        }
+
+        if let Some(minidump) = self.minidump.as_mut()
+            && !minidump.rate_limited()
+        {
+            minidump.set_rate_limited(true);
+            records.reject_err(Error::RateLimited(limits), &*minidump);
+        }
+
+        Ok(())
+    }
+
+    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
+        items.push(self.prosperodump);
+        items.extend(self.minidump);
+        Ok(())
+    }
+
+    fn minidump_mut(&mut self) -> Option<&mut Item> {
+        self.minidump.as_mut()
     }
 }
 
 impl Counted for Playstation {
     fn quantities(&self) -> Quantities {
-        Default::default()
+        let mut quantities = Quantities::default();
+
+        // A rate limited crash dump no longer counts as an attachment, but it is still passed
+        // along to have its data later extracted into an error (Symbolication).
+        //
+        // The rate limited information is passed along and will lead to the item later to be
+        // dropped.
+        if !self.prosperodump.rate_limited() {
+            quantities.extend(self.prosperodump.quantities());
+        }
+        if let Some(minidump) = &self.minidump
+            && !minidump.rate_limited()
+        {
+            quantities.extend(minidump.quantities());
+        }
+        quantities
     }
 }
 

@@ -1,8 +1,10 @@
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
+use relay_quotas::{DataCategory, RateLimits};
+use sentry::Data;
 
 use crate::envelope::{EnvelopeHeaders, Item};
-use crate::managed::{Counted, Quantities};
+use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::errors::Result;
 use crate::processing::{self, ForwardContext};
 
@@ -79,6 +81,15 @@ impl Context<'static> {
 
 /// A shape of error Sentry supports.
 pub trait SentryError: Counted {
+    /// The event category this error/event counts in.
+    ///
+    /// This category is used for outcomes and rate-limiting.
+    ///
+    /// This defaults to [`DataCategory::Error`].
+    fn event_category(&self) -> DataCategory {
+        DataCategory::Error
+    }
+
     /// Attempts to parse this error from the passed [`items`].
     ///
     /// If parsing modifies the parsed `items` it must either return an error, indicating the
@@ -88,6 +99,25 @@ pub trait SentryError: Counted {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>>
     where
         Self: Sized;
+
+    /// Applies rate limits to the error item.
+    fn apply_rate_limit(
+        &mut self,
+        category: DataCategory,
+        limits: RateLimits,
+        records: &mut RecordKeeper<'_>,
+    ) -> Result<()> {
+        debug_assert!(
+            false,
+            "{} has quantities but does not implement `apply_rate_limit`",
+            std::any::type_name_of_val(&self),
+        );
+        let _ = category;
+        let _ = limits;
+        let _ = records;
+
+        Ok(())
+    }
 
     /// Serializes the error back into items, ready to be attached to an envelope.
     ///
@@ -106,6 +136,11 @@ pub trait SentryError: Counted {
         let _ = ctx;
         Ok(())
     }
+
+    /// Returns a minidump item if this error holds a minidump.
+    fn minidump_mut(&mut self) -> Option<&mut Item> {
+        None
+    }
 }
 
 macro_rules! gen_error_kind {
@@ -116,6 +151,12 @@ macro_rules! gen_error_kind {
         }
 
         impl SentryError for ErrorKind {
+            fn event_category(&self) -> DataCategory {
+                match self {
+                    $(Self::$name(error) => error.event_category(),)*
+                }
+            }
+
             fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
                 $(
                     if let Some(p) = <$name as SentryError>::try_expand(items, ctx)? {
@@ -134,29 +175,17 @@ macro_rules! gen_error_kind {
                 Ok(None)
             }
 
-            // fn process(&mut self, ctx: Context<'_>) -> Result<()> {
-            //     match self {
-            //         $(Self::$name(error) => error.process(ctx),)*
-            //     }
-            // }
-
             fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()> {
                 match self {
                     $(Self::$name(error) => error.serialize_into(items, ctx),)*
                 }
             }
-            //
-            // fn as_ref(&self) -> ErrorRef<'_> {
-            //     match self {
-            //         $(Self::$name(error) => error.as_ref(),)*
-            //     }
-            // }
-            //
-            // fn as_ref_mut(&mut self) -> ErrorRefMut<'_> {
-            //     match self {
-            //         $(Self::$name(error) => error.as_ref_mut(),)*
-            //     }
-            // }
+
+            fn minidump_mut(&mut self) -> Option<&mut Item> {
+                match self {
+                    $(Self::$name(error) => error.minidump_mut(),)*
+                }
+            }
         }
 
         $(

@@ -278,6 +278,7 @@ impl EnvelopeSummary {
             // If the item has been rate limited before, the quota has been consumed and outcomes
             // emitted. We can skip it here.
             if item.rate_limited() {
+                println!("{:?} rate limited", item.ty());
                 continue;
             }
 
@@ -288,6 +289,7 @@ impl EnvelopeSummary {
 
             summary.payload_size += item.len();
 
+            println!("{:?} add quantities", item.ty());
             summary.add_quantities(item);
 
             // Special case since v1 and v2 share a data category.
@@ -301,6 +303,10 @@ impl EnvelopeSummary {
     }
 
     fn add_quantities(&mut self, item: &Item) {
+        if item.filename() == Some("dying_message.dat") {
+            return;
+        }
+
         for (category, quantity) in item.quantities() {
             let target_quantity = match category {
                 DataCategory::Attachment => match item.attachment_parent_type() {
@@ -652,6 +658,7 @@ impl Enforcement {
                             return true;
                         }
                         if item.creates_event() {
+                            println!("-----------------> IS RATE LIMITED");
                             item.set_rate_limited(true);
                             true
                         } else {

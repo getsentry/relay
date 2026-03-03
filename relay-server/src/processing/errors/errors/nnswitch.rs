@@ -5,16 +5,16 @@
 use bytes::{Buf, Bytes};
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
-use relay_quotas::DataCategory;
+use relay_quotas::{DataCategory, RateLimits};
 use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
 
 use crate::Envelope;
 use crate::envelope::{EnvelopeError, Item, ItemType};
-use crate::managed::{Counted, Quantities};
+use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::processing::errors::{Error, Result};
 use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
 
@@ -98,13 +98,9 @@ impl SentryError for Nnswitch {
 
 impl Counted for Nnswitch {
     fn quantities(&self) -> Quantities {
-        match self {
-            Self::Forward { dying_message } => smallvec::smallvec![
-                (DataCategory::AttachmentItem, 1),
-                (DataCategory::Attachment, dying_message.len()),
-            ],
-            Self::Process => Default::default(),
-        }
+        // The dying message does not count as an attachment, because it will cease to exist and be
+        // fully merged into the error after processing.
+        Default::default()
     }
 }
 

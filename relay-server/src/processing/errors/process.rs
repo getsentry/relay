@@ -104,6 +104,9 @@ pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(),
     error.try_modify(|error, _| {
         processing::utils::event::scrub(&mut error.event, ctx.project_info)?;
         processing::utils::attachments::scrub(error.attachments.iter_mut(), ctx.project_info);
+        if let Some(minidump) = error.data.minidump_mut() {
+            processing::utils::attachments::scrub(std::iter::once(minidump), ctx.project_info);
+        }
 
         Ok::<_, Error>(())
     })

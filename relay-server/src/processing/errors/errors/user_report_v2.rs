@@ -1,4 +1,5 @@
 use relay_base_schema::events::EventType;
+use relay_quotas::DataCategory;
 
 use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities};
@@ -10,6 +11,10 @@ use crate::statsd::RelayCounters;
 pub struct UserReportV2 {}
 
 impl SentryError for UserReportV2 {
+    fn event_category(&self) -> DataCategory {
+        DataCategory::UserReportV2
+    }
+
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
         let Some(ev) = utils::take_item_of_type(items, ItemType::UserReportV2) else {
             return Ok(None);

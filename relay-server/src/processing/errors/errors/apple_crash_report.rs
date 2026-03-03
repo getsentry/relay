@@ -1,17 +1,21 @@
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
+use relay_quotas::{DataCategory, RateLimits};
 
 use crate::envelope::{AttachmentType, Item, ItemType};
-use crate::managed::{Counted, Quantities};
-use crate::processing::errors::Result;
+use crate::managed::{Counted, Quantities, RecordKeeper};
+use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::processing::errors::{Error, Result};
 
 #[derive(Debug)]
-pub struct AppleCrashReport {}
+pub struct AppleCrashReport {
+    pub apple_crash_report: Item,
+}
 
 impl SentryError for AppleCrashReport {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
-        let Some(acr) = utils::take_item_by(items, |item| {
+        let Some(apple_crash_report) = utils::take_item_by(items, |item| {
             item.attachment_type() == Some(&AttachmentType::AppleCrashReport)
         }) else {
             return Ok(None);
@@ -20,14 +24,11 @@ impl SentryError for AppleCrashReport {
         let mut metrics = Default::default();
 
         if !ctx.processing.is_processing() {
-            let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
-            attachments.push(acr);
-
             return Ok(Some(ParsedError {
                 event: utils::try_take_parsed_event(items, &mut metrics, ctx)?,
-                attachments,
+                attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-                error: Self {},
+                error: Self { apple_crash_report },
                 metrics,
                 fully_normalized: false,
             }));
@@ -40,28 +41,51 @@ impl SentryError for AppleCrashReport {
 
         crate::utils::process_apple_crash_report(
             event.get_or_insert_with(Event::default),
-            &acr.payload(),
+            &apple_crash_report.payload(),
         );
-        metrics.bytes_ingested_event_applecrashreport = Annotated::new(acr.len() as u64);
-
-        let mut attachments = items
-            .extract_if(.., |item| *item.ty() == ItemType::Attachment)
-            .collect::<Vec<_>>();
-        attachments.push(acr);
+        metrics.bytes_ingested_event_applecrashreport =
+            Annotated::new(apple_crash_report.len() as u64);
 
         Ok(Some(ParsedError {
             event,
-            attachments,
+            attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-            error: Self {},
+            error: Self { apple_crash_report },
             metrics,
             fully_normalized: false,
         }))
+    }
+
+    fn apply_rate_limit(
+        &mut self,
+        _category: DataCategory,
+        limits: RateLimits,
+        records: &mut RecordKeeper<'_>,
+    ) -> Result<()> {
+        if !self.apple_crash_report.rate_limited() {
+            self.apple_crash_report.set_rate_limited(true);
+            records.reject_err(Error::RateLimited(limits), &self.apple_crash_report);
+        }
+
+        Ok(())
+    }
+
+    fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()> {
+        items.push(self.apple_crash_report);
+        Ok(())
     }
 }
 
 impl Counted for AppleCrashReport {
     fn quantities(&self) -> Quantities {
-        Default::default()
+        // A rate limited crash report no longer counts as an attachment, but it is still passed
+        // along to have its data later extracted into an error (Symbolication).
+        //
+        // The rate limited information is passed along and will lead to the item later to be
+        // dropped.
+        match self.apple_crash_report.rate_limited() {
+            true => Default::default(),
+            false => self.apple_crash_report.quantities(),
+        }
     }
 }

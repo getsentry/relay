@@ -1,13 +1,18 @@
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
+use relay_quotas::{DataCategory, RateLimits};
 
 use crate::envelope::{AttachmentType, Item, ItemType};
-use crate::managed::{Counted, Quantities};
-use crate::processing::errors::Result;
+use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::errors::errors::{Context, ParsedError, SentryError, utils};
+use crate::processing::errors::{Error, Result};
+use crate::processing::{self, ForwardContext};
+use crate::services::processor::ProcessingError;
 
 #[derive(Debug)]
-pub struct Minidump {}
+pub struct Minidump {
+    pub minidump: Item,
+}
 
 impl SentryError for Minidump {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<ParsedError<Self>>> {
@@ -21,14 +26,11 @@ impl SentryError for Minidump {
 
         // TODO: this is copy pasta and can be nicer
         if !ctx.processing.is_processing() {
-            let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
-            attachments.push(minidump);
-
             return Ok(Some(ParsedError {
                 event: utils::try_take_parsed_event(items, &mut metrics, ctx)?,
-                attachments,
+                attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-                error: Self {},
+                error: Self { minidump },
                 metrics,
                 fully_normalized: false,
             }));
@@ -45,24 +47,50 @@ impl SentryError for Minidump {
         );
         metrics.bytes_ingested_event_minidump = Annotated::new(minidump.len() as u64);
 
-        let mut attachments = items
-            .extract_if(.., |item| *item.ty() == ItemType::Attachment)
-            .collect::<Vec<_>>();
-        attachments.push(minidump);
-
         Ok(Some(ParsedError {
             event,
-            attachments,
+            attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-            error: Self {},
+            error: Self { minidump },
             metrics,
             fully_normalized: false,
         }))
+    }
+
+    fn apply_rate_limit(
+        &mut self,
+        _category: DataCategory,
+        limits: RateLimits,
+        records: &mut RecordKeeper<'_>,
+    ) -> Result<()> {
+        if !self.minidump.rate_limited() {
+            self.minidump.set_rate_limited(true);
+            records.reject_err(Error::RateLimited(limits), &self.minidump);
+        }
+
+        Ok(())
+    }
+
+    fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()> {
+        items.push(self.minidump);
+        Ok(())
+    }
+
+    fn minidump_mut(&mut self) -> Option<&mut Item> {
+        Some(&mut self.minidump)
     }
 }
 
 impl Counted for Minidump {
     fn quantities(&self) -> Quantities {
-        Default::default()
+        // A rate limited crash dump no longer counts as an attachment, but it is still passed
+        // along to have its data later extracted into an error (Symbolication).
+        //
+        // The rate limited information is passed along and will lead to the item later to be
+        // dropped.
+        match self.minidump.rate_limited() {
+            true => Default::default(),
+            false => self.minidump.quantities(),
+        }
     }
 }

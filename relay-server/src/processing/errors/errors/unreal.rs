@@ -1,6 +1,5 @@
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
-use relay_quotas::DataCategory;
 
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities};
@@ -11,8 +10,13 @@ use crate::services::processor::ProcessingError;
 
 #[derive(Debug)]
 pub enum Unreal {
-    Forward { report: Box<Item> },
-    Process,
+    Forward {
+        report: Box<Item>,
+    },
+    Process {
+        minidump: Option<Item>,
+        apple_crash_report: Option<Item>,
+    },
 }
 
 impl SentryError for Unreal {
@@ -72,33 +76,36 @@ impl SentryError for Unreal {
             user_reports.extend(result.user_reports);
         }
 
-        // TODO: so this overlaps with `Minidump` and `AppleCrashReport`.
-        if let Some(acr) = attachments
-            .iter()
-            .find(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport))
-        {
-            crate::utils::process_apple_crash_report(
-                event.get_or_insert_with(Event::default),
-                &acr.payload(),
-            );
-            metrics.bytes_ingested_event_applecrashreport = Annotated::new(acr.len() as u64);
-        }
-        if let Some(minidump) = attachments
-            .iter()
-            .find(|item| item.attachment_type() == Some(&AttachmentType::Minidump))
-        {
+        let minidump = utils::take_item_by(items, |item| {
+            item.attachment_type() == Some(&AttachmentType::Minidump)
+        });
+        let apple_crash_report = utils::take_item_by(items, |item| {
+            item.attachment_type() == Some(&AttachmentType::AppleCrashReport)
+        });
+
+        if let Some(minidump) = &minidump {
             crate::utils::process_minidump(
                 event.get_or_insert_with(Event::default),
                 &minidump.payload(),
             );
             metrics.bytes_ingested_event_minidump = Annotated::new(minidump.len() as u64);
         }
+        if let Some(acr) = &apple_crash_report {
+            crate::utils::process_apple_crash_report(
+                event.get_or_insert_with(Event::default),
+                &acr.payload(),
+            );
+            metrics.bytes_ingested_event_applecrashreport = Annotated::new(acr.len() as u64);
+        }
 
         Ok(Some(ParsedError {
             event,
             attachments,
             user_reports,
-            error: Self::Process,
+            error: Self::Process {
+                minidump,
+                apple_crash_report,
+            },
             metrics,
             fully_normalized: false,
         }))
@@ -106,20 +113,31 @@ impl SentryError for Unreal {
 
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         match self {
-            Unreal::Forward { report } => items.push(*report),
-            Unreal::Process => {}
+            Self::Forward { report } => items.push(*report),
+            Self::Process {
+                minidump,
+                apple_crash_report,
+            } => {
+                items.extend(minidump);
+                items.extend(apple_crash_report);
+            }
         }
 
         Ok(())
+    }
+
+    fn minidump_mut(&mut self) -> Option<&mut Item> {
+        match self {
+            Self::Forward { .. } => None,
+            Self::Process { minidump, .. } => minidump.as_mut(),
+        }
     }
 }
 
 impl Counted for Unreal {
     fn quantities(&self) -> Quantities {
-        // match self {
-        //     Unreal::Forward { .. } => smallvec::smallvec![(DataCategory::Error, 1)],
-        //     Unreal::Process => Default::default(),
-        // }
+        // Like minidumps the crash represents the error and is not counted as an attachment or an
+        // additional type.
         Default::default()
     }
 }
