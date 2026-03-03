@@ -77,7 +77,7 @@ impl SentryError for Nnswitch {
             attachments,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             error: Self::Process {},
-            metrics: Default::default(),
+            metrics,
             fully_normalized: false,
         }))
     }

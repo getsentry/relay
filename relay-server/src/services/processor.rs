@@ -1373,10 +1373,7 @@ impl EnvelopeProcessorService {
         )?;
         let filter_run =
             processing::utils::event::filter(managed_envelope.envelope().headers(), &event, ctx)
-                .map_err(|err| {
-                    managed_envelope.reject(Outcome::Filtered(err.clone()));
-                    ProcessingError::EventFiltered(err)
-                })?;
+                .map_err(|err| ProcessingError::EventFiltered(err))?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             dynamic_sampling::tag_error_with_sampling_decision(

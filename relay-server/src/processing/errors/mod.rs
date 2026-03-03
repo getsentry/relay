@@ -142,16 +142,14 @@ impl Counted for SerializedError {
     }
 }
 
-#[derive(Debug)]
-struct Flags {
-    pub fully_normalized: EventFullyNormalized,
-}
-
+/// An error envelope which has been expanded.
 #[derive(Debug)]
 struct ExpandedError {
-    // TODO: event_id is a very important header, maybe pull it out to a field
+    /// Original envelope headers.
     pub headers: EnvelopeHeaders,
-    pub flags: Flags,
+    /// Whether the payload has been fully normalized.
+    pub fully_normalized: EventFullyNormalized,
+    /// Metrics associated with the event.
     pub metrics: Metrics,
 
     /// The associated event.
@@ -270,7 +268,7 @@ impl Forward for ErrorOutput {
             .try_map(|errors, _records| {
                 let ExpandedError {
                     headers,
-                    flags,
+                    fully_normalized,
                     metrics: _,
                     event,
                     attachments,
@@ -292,7 +290,7 @@ impl Forward for ErrorOutput {
                         }),
                     );
 
-                    if flags.fully_normalized.0 {
+                    if fully_normalized.0 {
                         item.set_fully_normalized(true);
                     }
 
