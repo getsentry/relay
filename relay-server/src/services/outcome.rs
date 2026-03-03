@@ -511,6 +511,9 @@ pub enum DiscardReason {
     MissingDynamicSamplingContext,
     /// (Relay) The dynamic sampling context is invalid or does not match the payload.
     InvalidDynamicSamplingContext,
+
+    // (Relay) A client report or one of its outcomes is invalid.
+    InvalidClientReport,
 }
 
 impl DiscardReason {
@@ -567,6 +570,7 @@ impl DiscardReason {
             DiscardReason::InvalidCheckIn => "invalid_check_in",
             DiscardReason::MissingDynamicSamplingContext => "missing_dsc",
             DiscardReason::InvalidDynamicSamplingContext => "invalid_dsc",
+            DiscardReason::InvalidClientReport => "invalid_client_report",
         }
     }
 }
