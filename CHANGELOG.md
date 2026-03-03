@@ -10,6 +10,10 @@
 
 - Populate gen_ai.response.model from gen_ai.request.model if not already set. ([#5654](https://github.com/getsentry/relay/pull/5654))
 
+**Internal**:
+
+- Use new processor architecture to process client reports. ([#5686](https://github.com/getsentry/relay/pull/5686))
+
 ## 26.2.1
 
 **Bug Fixes**:
