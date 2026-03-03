@@ -21,7 +21,7 @@ impl SentryError for Security {
         let mut metrics = Default::default();
 
         Ok(Some(Expansion {
-            event: utils::event_from_json_payload(ev, None, &mut metrics, ctx)?,
+            event: Box::new(utils::event_from_json_payload(ev, None, &mut metrics, ctx)?),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             error: Self {},

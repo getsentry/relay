@@ -29,7 +29,12 @@ impl SentryError for UserReportV2 {
         );
 
         Ok(Some(Expansion {
-            event: utils::event_from_json_payload(ev, EventType::UserReportV2, &mut metrics, ctx)?,
+            event: Box::new(utils::event_from_json_payload(
+                ev,
+                EventType::UserReportV2,
+                &mut metrics,
+                ctx,
+            )?),
             attachments,
             user_reports: Default::default(),
             error: Self {},

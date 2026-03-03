@@ -39,7 +39,7 @@ impl SentryError for Nnswitch {
 
         if !ctx.processing.is_processing() {
             return Ok(Some(Expansion {
-                event: utils::take_parsed_event(items, &mut metrics, ctx)?,
+                event: Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?),
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
                 error: Self::Forward {
@@ -73,7 +73,7 @@ impl SentryError for Nnswitch {
         };
 
         Ok(Some(Expansion {
-            event,
+            event: Box::new(event),
             attachments,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             error: Self::Process {},

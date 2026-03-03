@@ -26,7 +26,7 @@ impl SentryError for AppleCrashReport {
 
         if !ctx.processing.is_processing() {
             return Ok(Some(Expansion {
-                event,
+                event: Box::new(event),
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
                 error: Self { apple_crash_report },
@@ -43,7 +43,7 @@ impl SentryError for AppleCrashReport {
             Annotated::new(apple_crash_report.len() as u64);
 
         Ok(Some(Expansion {
-            event,
+            event: Box::new(event),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             error: Self { apple_crash_report },

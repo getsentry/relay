@@ -43,7 +43,7 @@ impl SentryError for Playstation {
             let attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
 
             return Ok(Some(Expansion {
-                event: utils::take_parsed_event(items, &mut metrics, ctx)?,
+                event: Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?),
                 attachments,
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
                 error: Self {
@@ -140,7 +140,7 @@ impl SentryError for Playstation {
         }
 
         Ok(Some(Expansion {
-            event,
+            event: Box::new(event),
             attachments,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             error: Self {

@@ -212,7 +212,7 @@ gen_error_kind![
 #[derive(Debug)]
 pub struct Expansion<T> {
     /// The event, may be empty.
-    pub event: Annotated<Event>,
+    pub event: Box<Annotated<Event>>,
     /// A list of attachments, either from the original envelope or created through the expansion.
     pub attachments: Vec<Item>,
     /// A list of user reports, either from the original envelope or created through the expansion.

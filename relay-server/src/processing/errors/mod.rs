@@ -159,7 +159,7 @@ struct ExpandedError {
     ///
     /// Having no event in a processing Relay must result in an error and the entire event must be
     /// discarded.
-    pub event: Annotated<Event>,
+    pub event: Box<Annotated<Event>>,
     /// Optional list of attachments sent with the event.
     pub attachments: Vec<Item>,
     /// Optional list of user reports sent with the event.

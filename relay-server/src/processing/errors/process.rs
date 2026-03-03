@@ -6,7 +6,7 @@ use relay_quotas::DataCategory;
 use crate::envelope::{ContentType, Item};
 use crate::managed::{Managed, RecordKeeper, Rejected};
 use crate::processing::errors::errors::{self, ErrorKind, SentryError as _};
-use crate::processing::errors::{Error, ExpandedError, Flags, Result, SerializedError};
+use crate::processing::errors::{Error, ExpandedError, Result, SerializedError};
 use crate::processing::utils::event::EventFullyNormalized;
 use crate::processing::{self, Context};
 use crate::services::processor::ProcessingError;
@@ -69,9 +69,7 @@ fn do_expand(
 
     Ok(ExpandedError {
         headers: error.headers,
-        flags: Flags {
-            fully_normalized: EventFullyNormalized(is_trusted && parsed.fully_normalized),
-        },
+        fully_normalized: EventFullyNormalized(is_trusted && parsed.fully_normalized),
         metrics: parsed.metrics,
         event: parsed.event,
         attachments: parsed.attachments,
@@ -114,10 +112,10 @@ pub fn normalize(
     let scoping = error.scoping();
 
     error.try_modify(|error, _| {
-        error.flags.fully_normalized = processing::utils::event::normalize(
+        error.fully_normalized = processing::utils::event::normalize(
             &error.headers,
             &mut error.event,
-            error.flags.fully_normalized,
+            error.fully_normalized,
             scoping.project_id,
             ctx,
             geoip_lookup,

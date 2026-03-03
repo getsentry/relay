@@ -30,7 +30,7 @@ impl SentryError for Unreal {
 
         if !ctx.processing.is_processing() {
             return Ok(Some(Expansion {
-                event: Annotated::empty(),
+                event: Box::new(Annotated::empty()),
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
                 error: Self::Forward { report },
@@ -98,7 +98,7 @@ impl SentryError for Unreal {
         }
 
         Ok(Some(Expansion {
-            event,
+            event: Box::new(event),
             attachments,
             user_reports,
             error: Self::Process {

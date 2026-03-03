@@ -30,7 +30,7 @@ impl SentryError for RawSecurity {
         metrics.bytes_ingested_event = Annotated::new(len as u64);
 
         Ok(Some(Expansion {
-            event,
+            event: Box::new(event),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             error: Self {},
