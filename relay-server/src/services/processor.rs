@@ -1348,7 +1348,7 @@ impl EnvelopeProcessorService {
         let attachments = managed_envelope
             .envelope()
             .items()
-            .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment));
+            .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment));
         processing::utils::event::finalize(
             managed_envelope.envelope().headers(),
             &mut event,

@@ -24,10 +24,10 @@ pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: 
         for item in attachments {
             debug_assert_eq!(item.ty(), &ItemType::Attachment);
             if view_hierarchy_scrubbing_enabled
-                && item.attachment_type() == Some(&AttachmentType::ViewHierarchy)
+                && item.attachment_type() == Some(AttachmentType::ViewHierarchy)
             {
                 scrub_view_hierarchy(item, config)
-            } else if item.attachment_type() == Some(&AttachmentType::Minidump) {
+            } else if item.attachment_type() == Some(AttachmentType::Minidump) {
                 scrub_minidump(item, config)
             } else if item.ty() == &ItemType::Attachment && has_simple_attachment_selector(config) {
                 // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
@@ -40,7 +40,7 @@ pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: 
 }
 
 fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
-    debug_assert_eq!(item.attachment_type(), Some(&AttachmentType::Minidump));
+    debug_assert_eq!(item.attachment_type(), Some(AttachmentType::Minidump));
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.payload().to_vec();
 
@@ -76,12 +76,8 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
         }
     }
 
-    let content_type = item
-        .content_type()
-        .unwrap_or(&ContentType::Minidump)
-        .clone();
-
-    item.set_payload(content_type, payload);
+    item.set_default_content_type(ContentType::Minidump);
+    item.set_payload_without_content_type(payload);
 }
 
 fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
@@ -95,8 +91,8 @@ fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::Pi
                 timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
                 status = "ok"
             );
-            let content_type = item.content_type().unwrap_or(&ContentType::Json).clone();
-            item.set_payload(content_type, output);
+            item.set_default_content_type(ContentType::Json);
+            item.set_payload_without_content_type(output);
         }
         Err(e) => {
             relay_log::debug!(error = &e as &dyn Error, "failed to scrub view hierarchy",);

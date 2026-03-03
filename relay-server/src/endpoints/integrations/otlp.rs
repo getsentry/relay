@@ -32,9 +32,9 @@ mod traces {
         state: ServiceState,
         builder: IntegrationBuilder,
     ) -> axum::response::Result<impl IntoResponse> {
-        let format = match ContentType::from(content_type.as_ref()) {
-            ContentType::Json => OtelFormat::Json,
-            ContentType::Protobuf => OtelFormat::Protobuf,
+        let format = match content_type.as_ref().parse::<ContentType>() {
+            Ok(ContentType::Json) => OtelFormat::Json,
+            Ok(ContentType::Protobuf) => OtelFormat::Protobuf,
             _ => return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE),
         };
 
@@ -63,9 +63,9 @@ mod logs {
         state: ServiceState,
         builder: IntegrationBuilder,
     ) -> axum::response::Result<impl IntoResponse> {
-        let format = match ContentType::from(content_type.as_ref()) {
-            ContentType::Json => OtelFormat::Json,
-            ContentType::Protobuf => OtelFormat::Protobuf,
+        let format = match content_type.as_ref().parse::<ContentType>() {
+            Ok(ContentType::Json) => OtelFormat::Json,
+            Ok(ContentType::Protobuf) => OtelFormat::Protobuf,
             _ => return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE),
         };
 
