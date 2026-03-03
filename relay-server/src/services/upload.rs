@@ -341,14 +341,47 @@ impl SignedLocation {
     fn try_from_response(response: Response) -> Result<Self, Error> {
         match response.status() {
             status if status.is_success() => {
-                let location = response
+                let header = response
                     .headers()
                     .get(hyper::header::LOCATION)
                     .ok_or(Error::InvalidLocation)?;
-                todo!("parse here")
+                let uri = header.to_str().map_err(|_| Error::InvalidLocation)?;
+                Self::try_from_str(uri)
             }
             status => Err(Error::Upstream(status)),
         }
+    }
+
+    fn try_from_str(uri: &str) -> Result<Self, Error> {
+        // Parse path segments: /api/{project_id}/upload/{key}/
+        let path = uri.split('?').next().unwrap_or(uri);
+        let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+        let [_, project_id, _, key] = segments.as_slice() else {
+            return Err(Error::InvalidLocation);
+        };
+        let project_id: ProjectId = project_id.parse().map_err(|_| Error::InvalidLocation)?;
+
+        // Parse query parameters: length and signature.
+        let query = uri.split('?').nth(1).ok_or(Error::InvalidLocation)?;
+        let mut length = None;
+        let mut signature = None;
+        for param in query.split('&') {
+            if let Some(v) = param.strip_prefix("length=") {
+                length = Some(v.parse().map_err(|_| Error::InvalidLocation)?);
+            } else if let Some(v) = param.strip_prefix("signature=") {
+                signature = Some(Signature(v.to_owned()));
+            }
+        }
+        let signature = signature.ok_or(Error::InvalidLocation)?;
+
+        Ok(SignedLocation {
+            location: Location {
+                project_id,
+                key: (*key).to_owned(),
+                length,
+            },
+            signature,
+        })
     }
 }
 
