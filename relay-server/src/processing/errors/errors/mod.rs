@@ -38,6 +38,23 @@ pub struct Context<'a> {
     pub processing: processing::Context<'a>,
 }
 
+#[cfg(test)]
+impl Context<'static> {
+    /// Returns a [`Context`] with default values for testing.
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
+    pub fn for_test() -> Self {
+        use std::sync::LazyLock;
+
+        static ENVELOPE: LazyLock<Box<crate::envelope::Envelope>> =
+            LazyLock::new(|| crate::testutils::new_envelope(false, ""));
+
+        Self {
+            envelope: ENVELOPE.headers(),
+            processing: processing::Context::for_test(),
+        }
+    }
+}
+
 /// A shape of error Sentry supports.
 pub trait SentryError: Counted {
     /// The event category this error/event counts in.
