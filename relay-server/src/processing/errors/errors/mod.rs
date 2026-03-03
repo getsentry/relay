@@ -65,7 +65,7 @@ pub trait SentryError: Counted {
         DataCategory::Error
     }
 
-    /// Attempts to parse this error from the passed [`items`].
+    /// Attempts to parse this error from the passed `items`.
     ///
     /// If parsing modifies the parsed `items` it must either return an error, indicating the
     /// passed items are invalid, or it must return a fully constructed [`Self`].
@@ -96,8 +96,7 @@ pub trait SentryError: Counted {
 
     /// Serializes the error back into items, ready to be attached to an envelope.
     ///
-    /// The default implementation serializes all items exposed through [`Self::as_ref_mut`].
-    /// Errors which handle with more items must override this implementation.
+    /// The default implementation does not serialize any data.
     fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()>
     where
         Self: Sized,
