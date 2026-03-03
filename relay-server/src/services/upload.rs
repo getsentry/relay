@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
+use chrono::DateTime;
 #[cfg(feature = "processing")]
 use chrono::Utc;
 use futures::stream::BoxStream;
@@ -48,6 +49,8 @@ pub enum Error {
     InvalidLocation,
     #[error("failed to sign location")]
     SigningFailed,
+    #[error("invalid signature")]
+    InvalidSignature,
     #[error("service unavailable")]
     ServiceUnavailable,
     #[cfg(feature = "processing")]
@@ -86,6 +89,8 @@ pub struct Create {
 
 /// A stream of bytes to be uploaded to objectstore or the upstream.
 pub struct Stream {
+    /// Time of arrival of the request.
+    pub received: DateTime<Utc>,
     /// The organization & project that the stream belongs to.
     pub scoping: Scoping,
     /// The location to upload to.
@@ -194,6 +199,7 @@ impl Service {
             #[cfg(feature = "processing")]
             Service::Objectstore { addr, config } => {
                 let Stream {
+                    received,
                     scoping,
                     location,
                     stream,
@@ -202,7 +208,7 @@ impl Service {
                     project_id,
                     key,
                     length,
-                } = location.verify()?;
+                } = location.verify(received, &config)?;
 
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert_eq!(stream.length(), length);
@@ -332,8 +338,17 @@ impl SignedLocation {
     /// Converts the signed location into a location object.
     ///
     /// Fails if the signature is outdated or incorrect.
-    fn verify(self) -> Result<Location, Error> {
-        Ok(self.location) // TODO: actually verify
+    fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location, Error> {
+        let public_key = config.public_key().ok_or(Error::SigningFailed)?;
+        let is_valid = self.signature.verify(
+            public_key,
+            received,
+            chrono::Duration::seconds(config.upload().max_age),
+        );
+        match is_valid {
+            true => Ok(self.location),
+            false => Err(Error::InvalidSignature),
+        }
     }
 
     fn try_from_response(response: Response) -> Result<Self, Error> {
@@ -437,6 +452,7 @@ impl UploadRequest {
         let (sender, rx) = oneshot::channel();
         let Stream {
             scoping,
+            received: _,
             location,
             stream,
         } = stream;
