@@ -5,7 +5,6 @@
   "editor.formatOnType": true,
   "editor.tabSize": 4,
   "editor.rulers": [100],
-  "files.autoSave": "onWindowChange",
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
 

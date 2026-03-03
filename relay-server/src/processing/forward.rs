@@ -6,43 +6,43 @@ use relay_system::{Addr, FromMessage};
 
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
+#[cfg(feature = "processing")]
+use crate::services::objectstore::Objectstore;
 use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
 use crate::services::store::Store;
-#[cfg(feature = "processing")]
-use crate::services::upload::Upload;
 
 /// A transparent handle that dispatches between store-like services.
 #[cfg(feature = "processing")]
 #[derive(Debug, Clone, Copy)]
 pub struct StoreHandle<'a> {
     store: &'a Addr<Store>,
-    upload: Option<&'a Addr<Upload>>,
+    objectstore: Option<&'a Addr<Objectstore>>,
 }
 
 #[cfg(feature = "processing")]
 impl<'a> StoreHandle<'a> {
-    pub fn new(store: &'a Addr<Store>, upload: Option<&'a Addr<Upload>>) -> Self {
-        Self { store, upload }
+    pub fn new(store: &'a Addr<Store>, objectstore: Option<&'a Addr<Objectstore>>) -> Self {
+        Self { store, objectstore }
     }
 
     /// Sends a message to the [`Store`] service.
-    pub fn store<M>(&self, message: M)
+    pub fn send_to_store<M>(&self, message: M)
     where
         Store: FromMessage<M>,
     {
         self.store.send(message);
     }
 
-    /// Sends a message to the [`Upload`] service.
-    pub fn upload<M>(&self, message: M)
+    /// Sends a message to the [`Objectstore`] service.
+    pub fn send_to_objectstore<M>(&self, message: M)
     where
-        Upload: FromMessage<M>,
+        Objectstore: FromMessage<M>,
     {
-        if let Some(upload) = self.upload {
-            upload.send(message);
+        if let Some(objectstore) = self.objectstore {
+            objectstore.send(message);
         } else {
-            relay_log::error!("Upload service not configured. Dropping message.");
+            relay_log::error!("Objectstore service not configured. Dropping message.");
         }
     }
 }

@@ -13,12 +13,10 @@ publish = false
 workspace = true
 
 [dependencies]
-cadence = { workspace = true }
-crossbeam-channel = { workspace = true }
-parking_lot = { workspace = true }
-rand = { workspace = true }
 relay-log = { workspace = true }
-statsdproxy = { workspace = true, features = ["cadence"] }
+
+metrics = { workspace = true }
+metrics-exporter-dogstatsd = { workspace = true }
 
 [features]
 default = []

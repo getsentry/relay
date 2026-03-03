@@ -3,10 +3,13 @@ Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Event
 
 from flask import Response
 import pytest
 import urllib
+
 from sentry_relay.auth import PublicKey
 
 
@@ -241,3 +244,67 @@ def test_upload_processing(
     assert PublicKey.parse(processing_relay.public_key).verify(
         unsigned_uri.encode(), signature
     )
+
+
+@pytest.mark.parametrize("defer_length_value", ["1", "2"])
+def test_upload_with_deferred_length(
+    mini_sentry, relay, relay_with_processing, project_config, defer_length_value
+):
+    project_id = 42
+    processing_relay = relay_with_processing(PROCESSING_OPTIONS)
+    relay = relay(processing_relay)
+
+    data = b"hello world"
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Defer-Length": defer_length_value,
+            "Content-Type": "application/offset+octet-stream",
+        },
+        data=data,
+    )
+
+    expected_status_code = 403 if defer_length_value == "1" else 400
+    assert response.status_code == expected_status_code
+
+
+def test_concurrency_limit(mini_sentry, relay, project_config):
+    """Exceeding upload.max_concurrent_requests results in 503 Service Unavailable."""
+
+    project_id = 42
+    max_concurrent = 1
+
+    mini_sentry.allow_chunked = True
+    all_uploads_running = Event()
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def slow_upstream(**opts):
+        all_uploads_running.wait(timeout=10)
+        return Response("", status=201, headers={"Location": "dummy"})
+
+    relay = relay(
+        mini_sentry,
+        {"upload": {"max_concurrent_requests": 1}},
+    )
+
+    def do_upload():
+        return relay.post(
+            "/api/%s/upload/?sentry_key=%s"
+            % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+            headers={
+                "Tus-Resumable": "1.0.0",
+                "Upload-Length": "5",
+                "Content-Type": "application/offset+octet-stream",
+            },
+            data=b"hello",
+        )
+
+    with ThreadPoolExecutor(max_workers=max_concurrent + 1) as pool:
+        futures = [pool.submit(do_upload) for _ in range(max_concurrent + 1)]
+        all_uploads_running.set()
+        results = [f.result() for f in as_completed(futures)]
+
+    status_codes = sorted(r.status_code for r in results)
+    assert status_codes == [201, 503]

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Use a more mature (dog)statsd backend, with proper support for unix sockets and reservoir sampling.
+  Due to the new backend, all sampling and tag filtering configuration options have been removed. ([#5675](https://github.com/getsentry/relay/pull/5675))
+
 **Bug Fixes**:
 
 - Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
@@ -9,6 +14,11 @@
 **Features**:
 
 - Populate gen_ai.response.model from gen_ai.request.model if not already set. ([#5654](https://github.com/getsentry/relay/pull/5654))
+- Add support for Unix domain sockets for statsd metrics. ([#5668](https://github.com/getsentry/relay/pull/5668))
+
+**Internal**
+
+- Allow deferred lengths to the `/upload` endpoint when the sender is trusted. ([#5658](https://github.com/getsentry/relay/pull/5658))
 
 **Internal**:
 

@@ -237,7 +237,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 
     if let Some(item) = items
         .iter()
-        .find(|item| item.attachment_type() == Some(&AttachmentType::EventPayload))
+        .find(|item| item.attachment_type() == Some(AttachmentType::EventPayload))
         && let Some(event_id) = event_id_from_msgpack(&item.payload())?
     {
         return Ok(Some(event_id));
@@ -430,7 +430,7 @@ fn emit_envelope_metrics(envelope: &Envelope) {
             is_container = is_container,
         );
         metric!(
-            counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(1),
+            counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(1) as u64,
             item_type = item_type,
             is_container = is_container,
             sdk = client_name,

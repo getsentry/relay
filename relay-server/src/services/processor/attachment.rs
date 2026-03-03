@@ -25,9 +25,9 @@ pub fn create_placeholders(
 ) -> Option<EventFullyNormalized> {
     let envelope = managed_envelope.envelope();
     let minidump_attachment =
-        envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
+        envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
     let apple_crash_report_attachment = envelope
-        .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
+        .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
 
     if let Some(item) = minidump_attachment {
         let event = event.get_or_insert_with(Event::default);

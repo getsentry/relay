@@ -119,7 +119,7 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
 /// Parses and validates a span attachment, converting it into a structured type.
 fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, ExpandedAttachment)> {
     let associated_span_id = match item.parent_id() {
-        Some(ParentId::SpanId(span_id)) => *span_id,
+        Some(ParentId::SpanId(span_id)) => span_id,
         None => {
             relay_log::debug!("span attachment missing associated span id");
             return Err(Error::Invalid(DiscardReason::InvalidSpanAttachment));
