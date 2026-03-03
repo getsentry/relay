@@ -346,43 +346,51 @@ impl SignedLocation {
                     .get(hyper::header::LOCATION)
                     .ok_or(Error::InvalidLocation)?;
                 let uri = header.to_str().map_err(|_| Error::InvalidLocation)?;
-                Self::try_from_str(uri)
+                Self::try_from_str(uri).ok_or(Error::InvalidLocation)
             }
             status => Err(Error::Upstream(status)),
         }
     }
 
-    fn try_from_str(uri: &str) -> Result<Self, Error> {
+    fn try_from_str(uri: &str) -> Option<Self> {
         // Parse path segments: /api/{project_id}/upload/{key}/
         let path = uri.split('?').next().unwrap_or(uri);
-        let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-        let [_, project_id, _, key] = segments.as_slice() else {
-            return Err(Error::InvalidLocation);
-        };
-        let project_id: ProjectId = project_id.parse().map_err(|_| Error::InvalidLocation)?;
+        let mut segments = path.split('/').filter(|s| !s.is_empty());
+        expect(&mut segments, "api")?;
+        let project_id = segments.next()?;
+        expect(&mut segments, "upload")?;
+        let key = segments.next()?;
+        if !(key.len() == 32 && key.bytes().all(|c| c.is_ascii_hexdigit())) {
+            return None;
+        }
+        let project_id: ProjectId = project_id.parse().ok()?;
 
         // Parse query parameters: length and signature.
-        let query = uri.split('?').nth(1).ok_or(Error::InvalidLocation)?;
+        let query = uri.split('?').nth(1)?;
         let mut length = None;
         let mut signature = None;
         for param in query.split('&') {
             if let Some(v) = param.strip_prefix("length=") {
-                length = Some(v.parse().map_err(|_| Error::InvalidLocation)?);
+                length = Some(v.parse().ok()?);
             } else if let Some(v) = param.strip_prefix("signature=") {
                 signature = Some(Signature(v.to_owned()));
             }
         }
-        let signature = signature.ok_or(Error::InvalidLocation)?;
+        let signature = signature?;
 
-        Ok(SignedLocation {
+        Some(SignedLocation {
             location: Location {
                 project_id,
-                key: (*key).to_owned(),
+                key: key.to_owned(),
                 length,
             },
             signature,
         })
     }
+}
+
+fn expect<'a, I: Iterator<Item = &'a str>>(it: &mut I, expected_value: &str) -> Option<()> {
+    (it.next()? == expected_value).then_some(())
 }
 
 enum RequestKind {
