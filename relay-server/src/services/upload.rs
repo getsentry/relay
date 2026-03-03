@@ -162,13 +162,13 @@ pub enum Service {
 impl Service {
     async fn create(&self, Create { scoping, length }: Create) -> Result<SignedLocation, Error> {
         match self {
-            Service::Upstream { addr, timeout } => {
+            Self::Upstream { addr, timeout } => {
                 let (request, rx) = UploadRequest::create(scoping, length);
                 addr.send(SendRequest(request));
                 let response = tokio::time::timeout(*timeout, rx).await???;
                 SignedLocation::try_from_response(response)
             }
-            Service::Objectstore { addr: _, config } => {
+            Self::Objectstore { addr: _, config } => {
                 // We can create & sign a location right here, no need to query the objectstore service.
                 let key = Uuid::now_v7().as_simple().to_string();
                 Location {
@@ -315,16 +315,19 @@ impl SignedLocation {
         Ok(header)
     }
 
-    pub fn into_key(self) -> Result<String, Error> {
+    pub fn key(&self) -> Result<&str, Error> {
         match self {
             SignedLocation::FromUpstream(header_value) => {
-                let s = dbg!(header_value.to_str().map_err(|_| Error::InvalidLocation)?);
-                let q = dbg!(s.rfind('/').ok_or(Error::InvalidLocation)?);
-                let r = dbg!(dbg!(s.get((q - 32)..q)).ok_or(Error::InvalidLocation)?);
-                let uuid = dbg!(Uuid::parse_str(r).map_err(|_| Error::InvalidLocation)?);
-                Ok(uuid.to_string())
+                let header = header_value.to_str().map_err(|_| Error::InvalidLocation)?;
+                let i = header.rfind('/').ok_or(Error::InvalidLocation)?;
+                let key = header.get((i - 32)..i).ok_or(Error::InvalidLocation)?;
+                if key.bytes().any(|b| !b.is_ascii_hexdigit()) {
+                    return Err(Error::InvalidLocation);
+                }
+
+                Ok(key)
             }
-            SignedLocation::Local { location, .. } => Ok(location.key),
+            SignedLocation::Local { location, .. } => Ok(&location.key),
         }
     }
 

@@ -364,8 +364,6 @@ impl ObjectstoreServiceInner {
             key,
             stream,
         } = stream;
-        // debug_assert_eq!(scoping.project_id, stream.location.location.project_id);
-        // debug_assert_eq!(stream.length(), Some(location.length));
         let session = match self
             .event_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())

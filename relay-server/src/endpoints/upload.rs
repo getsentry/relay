@@ -181,7 +181,7 @@ async fn upload(
         .upload()
         .send(upload::Stream {
             scoping,
-            key: location.into_key()?,
+            key: location.key()?.to_owned(),
             stream,
         })
         .await??;
