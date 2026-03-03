@@ -119,7 +119,7 @@
 <a href=#119 id=119 data-nosnippet>119</a><span class="doccomment">/// Parses and validates a span attachment, converting it into a structured type.
 <a href=#120 id=120 data-nosnippet>120</a></span><span class="kw">fn </span>parse_and_validate_span_attachment(item: <span class="kw-2">&amp;</span>Item) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="prelude-ty">Option</span>&lt;SpanId&gt;, ExpandedAttachment)&gt; {
 <a href=#121 id=121 data-nosnippet>121</a>    <span class="kw">let </span>associated_span_id = <span class="kw">match </span>item.parent_id() {
-<a href=#122 id=122 data-nosnippet>122</a>        <span class="prelude-val">Some</span>(ParentId::SpanId(span_id)) =&gt; <span class="kw-2">*</span>span_id,
+<a href=#122 id=122 data-nosnippet>122</a>        <span class="prelude-val">Some</span>(ParentId::SpanId(span_id)) =&gt; span_id,
 <a href=#123 id=123 data-nosnippet>123</a>        <span class="prelude-val">None </span>=&gt; {
 <a href=#124 id=124 data-nosnippet>124</a>            <span class="macro">relay_log::debug!</span>(<span class="string">"span attachment missing associated span id"</span>);
 <a href=#125 id=125 data-nosnippet>125</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Invalid(DiscardReason::InvalidSpanAttachment));

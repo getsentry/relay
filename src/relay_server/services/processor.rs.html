@@ -1348,7 +1348,7 @@
 <a href=#1348 id=1348 data-nosnippet>1348</a>        <span class="kw">let </span>attachments = managed_envelope
 <a href=#1349 id=1349 data-nosnippet>1349</a>            .envelope()
 <a href=#1350 id=1350 data-nosnippet>1350</a>            .items()
-<a href=#1351 id=1351 data-nosnippet>1351</a>            .filter(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Attachment));
+<a href=#1351 id=1351 data-nosnippet>1351</a>            .filter(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Attachment));
 <a href=#1352 id=1352 data-nosnippet>1352</a>        processing::utils::event::finalize(
 <a href=#1353 id=1353 data-nosnippet>1353</a>            managed_envelope.envelope().headers(),
 <a href=#1354 id=1354 data-nosnippet>1354</a>            <span class="kw-2">&amp;mut </span>event,

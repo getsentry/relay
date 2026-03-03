@@ -904,7 +904,7 @@
 <a href=#904 id=904 data-nosnippet>904</a>            items[<span class="number">0</span>].payload(),
 <a href=#905 id=905 data-nosnippet>905</a>            Bytes::from(<span class="kw-2">&amp;</span><span class="string">b"\xef\xbb\xbfHello\r\n"</span>[..])
 <a href=#906 id=906 data-nosnippet>906</a>        );
-<a href=#907 id=907 data-nosnippet>907</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].content_type(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ContentType::Text));
+<a href=#907 id=907 data-nosnippet>907</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].content_type(), <span class="prelude-val">Some</span>(ContentType::Text));
 <a href=#908 id=908 data-nosnippet>908</a>
 <a href=#909 id=909 data-nosnippet>909</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Event);
 <a href=#910 id=910 data-nosnippet>910</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].len(), <span class="number">41</span>);
@@ -912,7 +912,7 @@
 <a href=#912 id=912 data-nosnippet>912</a>            items[<span class="number">1</span>].payload(),
 <a href=#913 id=913 data-nosnippet>913</a>            Bytes::from(<span class="string">"{\"message\":\"hello world\",\"level\":\"error\"}"</span>)
 <a href=#914 id=914 data-nosnippet>914</a>        );
-<a href=#915 id=915 data-nosnippet>915</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].content_type(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ContentType::Json));
+<a href=#915 id=915 data-nosnippet>915</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].content_type(), <span class="prelude-val">Some</span>(ContentType::Json));
 <a href=#916 id=916 data-nosnippet>916</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">Some</span>(<span class="string">"application.log"</span>));
 <a href=#917 id=917 data-nosnippet>917</a>    }
 <a href=#918 id=918 data-nosnippet>918</a>
@@ -982,7 +982,7 @@
 <a href=#982 id=982 data-nosnippet>982</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
 <a href=#983 id=983 data-nosnippet>983</a>        <span class="macro">assert_eq!</span>(
 <a href=#984 id=984 data-nosnippet>984</a>            items[<span class="number">0</span>].attachment_type(),
-<a href=#985 id=985 data-nosnippet>985</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::ViewHierarchy)
+<a href=#985 id=985 data-nosnippet>985</a>            <span class="prelude-val">Some</span>(AttachmentType::ViewHierarchy)
 <a href=#986 id=986 data-nosnippet>986</a>        );
 <a href=#987 id=987 data-nosnippet>987</a>    }
 <a href=#988 id=988 data-nosnippet>988</a>

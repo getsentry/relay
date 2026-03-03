@@ -199,10 +199,10 @@
 <a href=#199 id=199 data-nosnippet>199</a>    /// This function also validates metadata of the container, specifically the content type
 <a href=#200 id=200 data-nosnippet>200</a>    /// and amount of contained items.
 <a href=#201 id=201 data-nosnippet>201</a>    </span><span class="kw">pub fn </span>parse(item: <span class="kw-2">&amp;</span>Item) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ContainerParseError&gt; {
-<a href=#202 id=202 data-nosnippet>202</a>        <span class="kw">if </span>item.content_type() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>T::CONTENT_TYPE) {
+<a href=#202 id=202 data-nosnippet>202</a>        <span class="kw">if </span>item.content_type() != <span class="prelude-val">Some</span>(T::CONTENT_TYPE) {
 <a href=#203 id=203 data-nosnippet>203</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(ContainerParseError::MismatchedContentType {
 <a href=#204 id=204 data-nosnippet>204</a>                expected: T::CONTENT_TYPE,
-<a href=#205 id=205 data-nosnippet>205</a>                actual: item.content_type().cloned(),
+<a href=#205 id=205 data-nosnippet>205</a>                actual: item.content_type(),
 <a href=#206 id=206 data-nosnippet>206</a>            });
 <a href=#207 id=207 data-nosnippet>207</a>        }
 <a href=#208 id=208 data-nosnippet>208</a>
@@ -249,7 +249,7 @@
 <a href=#249 id=249 data-nosnippet>249</a>
 <a href=#250 id=250 data-nosnippet>250</a>    <span class="doccomment">/// Checks whether a given item is a container of `T`s, according to its item and content types.
 <a href=#251 id=251 data-nosnippet>251</a>    </span><span class="kw">pub fn </span>is_container(item: <span class="kw-2">&amp;</span>Item) -&gt; bool {
-<a href=#252 id=252 data-nosnippet>252</a>        item.ty() == <span class="kw-2">&amp;</span>T::ITEM_TYPE &amp;&amp; item.content_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>T::CONTENT_TYPE)
+<a href=#252 id=252 data-nosnippet>252</a>        item.ty() == <span class="kw-2">&amp;</span>T::ITEM_TYPE &amp;&amp; item.content_type() == <span class="prelude-val">Some</span>(T::CONTENT_TYPE)
 <a href=#253 id=253 data-nosnippet>253</a>    }
 <a href=#254 id=254 data-nosnippet>254</a>
 <a href=#255 id=255 data-nosnippet>255</a>    <span class="kw">fn </span>deserialize&lt;<span class="lifetime">'de</span>, D: de::Deserializer&lt;<span class="lifetime">'de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
@@ -357,7 +357,7 @@
 <a href=#357 id=357 data-nosnippet>357</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Log);
 <a href=#358 id=358 data-nosnippet>358</a>        container.write_to(<span class="kw-2">&amp;mut </span>item).unwrap();
 <a href=#359 id=359 data-nosnippet>359</a>
-<a href=#360 id=360 data-nosnippet>360</a>        <span class="macro">assert_eq!</span>(item.content_type(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ContentType::LogContainer));
+<a href=#360 id=360 data-nosnippet>360</a>        <span class="macro">assert_eq!</span>(item.content_type(), <span class="prelude-val">Some</span>(ContentType::LogContainer));
 <a href=#361 id=361 data-nosnippet>361</a>        <span class="macro">assert_eq!</span>(item.item_count(), <span class="prelude-val">Some</span>(<span class="number">2</span>));
 <a href=#362 id=362 data-nosnippet>362</a>
 <a href=#363 id=363 data-nosnippet>363</a>        <span class="kw">let </span>payload = item.payload();

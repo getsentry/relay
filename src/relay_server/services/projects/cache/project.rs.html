@@ -167,7 +167,7 @@
 <a href=#167 id=167 data-nosnippet>167</a>    }
 <a href=#168 id=168 data-nosnippet>168</a>
 <a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">fn </span>get_span_count(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; usize {
-<a href=#170 id=170 data-nosnippet>170</a>        envelope.items().next().unwrap().span_count()
+<a href=#170 id=170 data-nosnippet>170</a>        envelope.items().next().unwrap().span_count() <span class="kw">as </span>usize
 <a href=#171 id=171 data-nosnippet>171</a>    }
 <a href=#172 id=172 data-nosnippet>172</a>
 <a href=#173 id=173 data-nosnippet>173</a>    <span class="attr">#[tokio::test]

@@ -351,10 +351,10 @@
 <a href=#351 id=351 data-nosnippet>351</a>        .get_header(UNREAL_USER_HEADER)
 <a href=#352 id=352 data-nosnippet>352</a>        .and_then(Value::as_str);
 <a href=#353 id=353 data-nosnippet>353</a>    <span class="kw">let </span>context_item =
-<a href=#354 id=354 data-nosnippet>354</a>        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::UnrealContext));
+<a href=#354 id=354 data-nosnippet>354</a>        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::UnrealContext));
 <a href=#355 id=355 data-nosnippet>355</a>    <span class="kw">let </span><span class="kw-2">mut </span>logs_items = envelope
 <a href=#356 id=356 data-nosnippet>356</a>        .items()
-<a href=#357 id=357 data-nosnippet>357</a>        .filter(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::UnrealLogs))
+<a href=#357 id=357 data-nosnippet>357</a>        .filter(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::UnrealLogs))
 <a href=#358 id=358 data-nosnippet>358</a>        .map(|item| item.payload())
 <a href=#359 id=359 data-nosnippet>359</a>        .peekable();
 <a href=#360 id=360 data-nosnippet>360</a>

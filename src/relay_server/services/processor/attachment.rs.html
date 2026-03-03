@@ -25,9 +25,9 @@
 <a href=#25 id=25 data-nosnippet>25</a>) -&gt; <span class="prelude-ty">Option</span>&lt;EventFullyNormalized&gt; {
 <a href=#26 id=26 data-nosnippet>26</a>    <span class="kw">let </span>envelope = managed_envelope.envelope();
 <a href=#27 id=27 data-nosnippet>27</a>    <span class="kw">let </span>minidump_attachment =
-<a href=#28 id=28 data-nosnippet>28</a>        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
+<a href=#28 id=28 data-nosnippet>28</a>        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Minidump));
 <a href=#29 id=29 data-nosnippet>29</a>    <span class="kw">let </span>apple_crash_report_attachment = envelope
-<a href=#30 id=30 data-nosnippet>30</a>        .get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::AppleCrashReport));
+<a href=#30 id=30 data-nosnippet>30</a>        .get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::AppleCrashReport));
 <a href=#31 id=31 data-nosnippet>31</a>
 <a href=#32 id=32 data-nosnippet>32</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = minidump_attachment {
 <a href=#33 id=33 data-nosnippet>33</a>        <span class="kw">let </span>event = event.get_or_insert_with(Event::default);

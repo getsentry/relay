@@ -32,9 +32,9 @@
 <a href=#32 id=32 data-nosnippet>32</a>        state: ServiceState,
 <a href=#33 id=33 data-nosnippet>33</a>        builder: IntegrationBuilder,
 <a href=#34 id=34 data-nosnippet>34</a>    ) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
-<a href=#35 id=35 data-nosnippet>35</a>        <span class="kw">let </span>format = <span class="kw">match </span>ContentType::from(content_type.as_ref()) {
-<a href=#36 id=36 data-nosnippet>36</a>            ContentType::Json =&gt; OtelFormat::Json,
-<a href=#37 id=37 data-nosnippet>37</a>            ContentType::Protobuf =&gt; OtelFormat::Protobuf,
+<a href=#35 id=35 data-nosnippet>35</a>        <span class="kw">let </span>format = <span class="kw">match </span>content_type.as_ref().parse::&lt;ContentType&gt;() {
+<a href=#36 id=36 data-nosnippet>36</a>            <span class="prelude-val">Ok</span>(ContentType::Json) =&gt; OtelFormat::Json,
+<a href=#37 id=37 data-nosnippet>37</a>            <span class="prelude-val">Ok</span>(ContentType::Protobuf) =&gt; OtelFormat::Protobuf,
 <a href=#38 id=38 data-nosnippet>38</a>            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(StatusCode::UNSUPPORTED_MEDIA_TYPE),
 <a href=#39 id=39 data-nosnippet>39</a>        };
 <a href=#40 id=40 data-nosnippet>40</a>
@@ -63,9 +63,9 @@
 <a href=#63 id=63 data-nosnippet>63</a>        state: ServiceState,
 <a href=#64 id=64 data-nosnippet>64</a>        builder: IntegrationBuilder,
 <a href=#65 id=65 data-nosnippet>65</a>    ) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
-<a href=#66 id=66 data-nosnippet>66</a>        <span class="kw">let </span>format = <span class="kw">match </span>ContentType::from(content_type.as_ref()) {
-<a href=#67 id=67 data-nosnippet>67</a>            ContentType::Json =&gt; OtelFormat::Json,
-<a href=#68 id=68 data-nosnippet>68</a>            ContentType::Protobuf =&gt; OtelFormat::Protobuf,
+<a href=#66 id=66 data-nosnippet>66</a>        <span class="kw">let </span>format = <span class="kw">match </span>content_type.as_ref().parse::&lt;ContentType&gt;() {
+<a href=#67 id=67 data-nosnippet>67</a>            <span class="prelude-val">Ok</span>(ContentType::Json) =&gt; OtelFormat::Json,
+<a href=#68 id=68 data-nosnippet>68</a>            <span class="prelude-val">Ok</span>(ContentType::Protobuf) =&gt; OtelFormat::Protobuf,
 <a href=#69 id=69 data-nosnippet>69</a>            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(StatusCode::UNSUPPORTED_MEDIA_TYPE),
 <a href=#70 id=70 data-nosnippet>70</a>        };
 <a href=#71 id=71 data-nosnippet>71</a>
