@@ -207,7 +207,7 @@ macro_rules! gen_error_kind {
 // For example a Minidump crash may contain an error, which would also be picked up by the generic
 // error.
 gen_error_kind![
-    Nnswitch,
+    Nswitch,
     Unreal,
     Minidump,
     AppleCrashReport,

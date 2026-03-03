@@ -22,12 +22,12 @@ use crate::services::processor::ProcessingError;
 const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
 
 #[derive(Debug)]
-pub enum Nnswitch {
+pub enum Nswitch {
     Forward { dying_message: Item },
     Process,
 }
 
-impl SentryError for Nnswitch {
+impl SentryError for Nswitch {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(dying_message) = utils::take_item_by(items, |item| {
             item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage)
@@ -90,7 +90,7 @@ impl SentryError for Nnswitch {
     }
 }
 
-impl Counted for Nnswitch {
+impl Counted for Nswitch {
     fn quantities(&self) -> Quantities {
         // The dying message does not count as an attachment, because it will cease to exist and be
         // fully merged into the error after processing.
@@ -210,9 +210,7 @@ fn expand_dying_message_from_envelope_items(
         .into_vec();
 
     let event = utils::take_item_of_type(&mut items, ItemType::Event);
-    let attachments = items
-        .extract_if(.., |item| *item.ty() == ItemType::Attachment)
-        .collect();
+    let attachments = utils::take_items_of_type(&mut items, ItemType::Attachment);
 
     if !items.is_empty() {
         // Ignore unsupported items instead of failing to keep forward compatibility.
@@ -285,14 +283,39 @@ fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u
 }
 
 #[cfg(test)]
+#[cfg(feature = "processing")]
 mod tests {
+    use super::*;
+
+    use relay_config::{Config, OverridableConfig};
     use relay_protocol::assert_annotated_snapshot;
     use std::io::Write;
+    use zstd::bulk::Compressor as ZstdCompressor;
 
-    use super::*;
     use crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME;
     use crate::envelope::Item;
-    use zstd::bulk::Compressor as ZstdCompressor;
+    use crate::processing;
+
+    fn ctx() -> Context<'static> {
+        static CONFIG: std::sync::LazyLock<Config> = std::sync::LazyLock::new(|| {
+            let mut config = Config::default();
+            config
+                .apply_override(OverridableConfig {
+                    processing: Some("true".to_owned()),
+                    ..Default::default()
+                })
+                .unwrap();
+            config
+        });
+
+        Context {
+            processing: processing::Context {
+                config: &CONFIG,
+                ..processing::Context::for_test()
+            },
+            ..Context::for_test()
+        }
+    }
 
     fn create_envelope_items(dying_message: Bytes) -> Vec<Item> {
         // Note: the attachment length specified in the "outer" envelope attachment is very important.
@@ -330,9 +353,7 @@ mod tests {
         assert_eq!(items[1].filename(), Some(NNSWITCH_DYING_MESSAGE_FILENAME));
         assert_eq!(items[1].payload().len(), 106);
 
-        let parsed = Nnswitch::try_expand(&mut items, Context::for_test())
-            .unwrap()
-            .unwrap();
+        let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
 
         assert_annotated_snapshot!(parsed.event, @r#"
         {
@@ -359,9 +380,7 @@ mod tests {
         let dying_message = create_compressed_dying_message(0x10);
         let mut items = create_envelope_items(dying_message.into());
 
-        let parsed = Nnswitch::try_expand(&mut items, Context::for_test())
-            .unwrap()
-            .unwrap();
+        let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
 
         assert_annotated_snapshot!(parsed.event, @r#"
         {
@@ -416,7 +435,7 @@ mod tests {
         let dying_message = create_compressed_dying_message(0b0001_0001);
         let mut items = create_envelope_items(dying_message.into());
 
-        assert!(Nnswitch::try_expand(&mut items, Context::for_test()).is_err());
+        assert!(Nswitch::try_expand(&mut items, ctx()).is_err());
     }
 
     #[test]
@@ -426,15 +445,13 @@ mod tests {
             {\"type\":\"event\"}\n\
             ",
         ));
-        assert!(Nnswitch::try_expand(&mut items, Context::for_test()).is_err());
+        assert!(Nswitch::try_expand(&mut items, ctx()).is_err());
     }
 
     #[test]
     fn test_expand_works_with_empty_data() {
         let mut items = create_envelope_items(Bytes::from("sntr\0\0\0\0"));
 
-        let _ = Nnswitch::try_expand(&mut items, Context::for_test())
-            .unwrap()
-            .unwrap();
+        let _ = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
     }
 }
