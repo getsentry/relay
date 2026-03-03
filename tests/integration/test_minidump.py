@@ -507,7 +507,7 @@ def test_minidump_with_processing(
                 "org_id": 1,
                 "outcome": 2,
                 "project_id": 42,
-                "quantity": 591593,
+                "quantity": len(content),
                 "reason": "static_disabled_quota",
             },
             {
