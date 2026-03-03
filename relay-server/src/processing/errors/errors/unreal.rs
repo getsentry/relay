@@ -42,16 +42,15 @@ impl SentryError for Unreal {
             let expansion = crate::utils::expand_unreal(report, ctx.processing.config)?;
             let event = expansion.event;
             let mut attachments = expansion.attachments.into_vec();
+            attachments.extend(items.extract_if(.., |item| *item.ty() == ItemType::Attachment));
 
             // `process` later fills this event in, ideally the event is already filled in here,
             // during the expansion, it is split into two phases now, to keep compatibility with
             // the existing unreal code.
             let mut event = match utils::take_item_of_type(items, ItemType::Event).or(event) {
                 Some(event) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
-                None => utils::take_event_from_attachments(items, &mut metrics, ctx)?,
+                None => utils::take_event_from_attachments(attachments, &mut metrics, ctx)?,
             };
-
-            attachments.extend(items.extract_if(.., |item| *item.ty() == ItemType::Attachment));
 
             let mut user_reports: Vec<Item> = utils::take_items_of_type(items, ItemType::UserReport);
 
