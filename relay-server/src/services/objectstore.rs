@@ -6,8 +6,12 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use futures::StreamExt;
+use futures::stream::BoxStream;
 use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
+use relay_base_schema::organization::OrganizationId;
+use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
+use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
@@ -22,8 +26,9 @@ use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
-use crate::services::upload::{self, Stream};
+use crate::services::upload;
 use crate::statsd::{RelayCounters, RelayTimers};
+use crate::utils::BoundedStream;
 
 use super::outcome::Outcome;
 
@@ -31,7 +36,7 @@ use super::outcome::Outcome;
 pub enum Objectstore {
     Envelope(StoreEnvelope),
     Attachment(Managed<StoreAttachment>),
-    Stream(upload::Stream, Sender<Result<ObjectstoreKey, Error>>),
+    Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
 impl Objectstore {
@@ -72,6 +77,14 @@ impl FromMessage<Managed<StoreAttachment>> for Objectstore {
     fn from_message(message: Managed<StoreAttachment>, _sender: ()) -> Self {
         Self::Attachment(message)
     }
+}
+
+/// A stream that can be uploaded to objectstore.
+pub struct Stream {
+    pub organization_id: OrganizationId,
+    pub project_id: ProjectId,
+    pub key: String,
+    pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
 }
 
 impl FromMessage<Stream> for Objectstore {
@@ -360,13 +373,14 @@ impl ObjectstoreServiceInner {
 
     async fn handle_stream(&self, stream: Stream, sender: Sender<Result<ObjectstoreKey, Error>>) {
         let Stream {
-            scoping,
+            organization_id,
+            project_id,
             key,
             stream,
         } = stream;
         let session = match self
             .event_attachments
-            .for_project(scoping.organization_id.value(), scoping.project_id.value())
+            .for_project(organization_id.value(), project_id.value())
             .session(&self.objectstore_client)
         {
             Ok(session) => session,
