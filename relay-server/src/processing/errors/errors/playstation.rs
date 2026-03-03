@@ -1,14 +1,13 @@
-use relay_dynamic_config::Feature;
-#[cfg(feature = "processing")]
+#[cfg(all(sentry, feature = "processing"))]
 use relay_event_schema::protocol::Event;
-#[cfg(feature = "processing")]
+#[cfg(all(sentry, feature = "processing"))]
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{AttachmentType, Item, ItemType};
+use crate::envelope::Item;
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Error, Result};
 
 #[derive(Debug)]
@@ -25,6 +24,9 @@ impl SentryError for Playstation {
 
     #[cfg(sentry)]
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
+        use crate::envelope::{AttachmentType, ItemType};
+        use crate::processing::errors::errors::utils;
+        use relay_dynamic_config::Feature;
         use relay_event_schema::protocol::Metrics;
 
         if ctx.processing.should_filter(Feature::PlaystationIngestion) {
@@ -69,7 +71,7 @@ impl SentryError for Playstation {
             let mut event = match (event, prospero_event) {
                 (Some(event), Some(prospero)) => {
                     metrics.bytes_ingested_event =
-                        Annotated::new((event.len() + prospero.len()) as u64);
+                        ((event.len() + prospero.len()) as u64).into();
                     merge_events(&event, prospero.as_bytes(), ctx)?
                 }
                 (Some(event), None) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
