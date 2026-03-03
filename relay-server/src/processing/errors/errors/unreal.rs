@@ -49,7 +49,7 @@ impl SentryError for Unreal {
             // the existing unreal code.
             let mut event = match utils::take_item_of_type(items, ItemType::Event).or(event) {
                 Some(event) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
-                None => utils::take_event_from_attachments(attachments, &mut metrics, ctx)?,
+                None => utils::take_event_from_attachments(&mut attachments, &mut metrics, ctx)?,
             };
 
             let mut user_reports: Vec<Item> = utils::take_items_of_type(items, ItemType::UserReport);
