@@ -1,5 +1,7 @@
 use relay_dynamic_config::Feature;
+#[cfg(feature = "processing")]
 use relay_event_schema::protocol::Event;
+#[cfg(feature = "processing")]
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -23,15 +25,13 @@ impl SentryError for Playstation {
 
     #[cfg(sentry)]
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        use crate::constants::SENTRY_CRASH_PAYLOAD_KEY;
-        use crate::services::processor::ProcessingError;
-        use crate::statsd::RelayCounters;
+        use relay_event_schema::protocol::Metrics;
 
         if ctx.processing.should_filter(Feature::PlaystationIngestion) {
             return Ok(None);
         }
 
-        let mut metrics = Default::default();
+        let mut metrics = Metrics::default();
 
         let Some(prosperodump) = utils::take_item_by(items, |item| {
             item.attachment_type() == Some(AttachmentType::Prosperodump)
@@ -39,113 +39,108 @@ impl SentryError for Playstation {
             return Ok(None);
         };
 
-        if !ctx.processing.is_processing() {
-            let attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
+        let user_reports = utils::take_items_of_type(items, ItemType::UserReport);
+        #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
+        let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
 
-            return Ok(Some(Expansion {
-                event: Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?),
-                attachments,
-                user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-                error: Self {
-                    prosperodump,
-                    minidump: None,
-                },
-                metrics,
-                fully_normalized: false,
-            }));
-        }
+        let (event, minidump) = utils::if_not_processing!(ctx, {
+            let event = Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?);
+            (event, None)
+        } else {
+            use crate::constants::SENTRY_CRASH_PAYLOAD_KEY;
+            use crate::services::processor::ProcessingError;
+            use crate::statsd::RelayCounters;
 
-        relay_statsd::metric!(counter(RelayCounters::PlaystationProcessing) += 1);
+            relay_statsd::metric!(counter(RelayCounters::PlaystationProcessing) += 1);
 
-        let data = relay_prosperoconv::extract_data(&prosperodump.payload()).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
-        })?;
-        let prospero_dump = relay_prosperoconv::ProsperoDump::parse(&data).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {err}"))
-        })?;
-        let minidump_buffer = relay_prosperoconv::write_dump(&prospero_dump).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {err}"))
-        })?;
+            let data = relay_prosperoconv::extract_data(&prosperodump.payload()).map_err(|err| {
+                ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
+            })?;
+            let prospero_dump = relay_prosperoconv::ProsperoDump::parse(&data).map_err(|err| {
+                ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {err}"))
+            })?;
+            let minidump_buffer = relay_prosperoconv::write_dump(&prospero_dump).map_err(|err| {
+                ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {err}"))
+            })?;
 
-        let event = utils::take_item_of_type(items, ItemType::Event);
-        let prospero_event = prospero_dump.userdata.get(SENTRY_CRASH_PAYLOAD_KEY);
+            let event = utils::take_item_of_type(items, ItemType::Event);
+            let prospero_event = prospero_dump.userdata.get(SENTRY_CRASH_PAYLOAD_KEY);
 
-        let mut event = match (event, prospero_event) {
-            (Some(event), Some(prospero)) => {
-                metrics.bytes_ingested_event =
-                    Annotated::new((event.len() + prospero.len()) as u64);
-                merge_events(&event, prospero.as_bytes(), ctx)?
+            let mut event = match (event, prospero_event) {
+                (Some(event), Some(prospero)) => {
+                    metrics.bytes_ingested_event =
+                        Annotated::new((event.len() + prospero.len()) as u64);
+                    merge_events(&event, prospero.as_bytes(), ctx)?
+                }
+                (Some(event), None) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
+                (None, Some(prospero)) => {
+                    utils::event_from_json(prospero.as_bytes(), None, &mut metrics, ctx)?
+                }
+                (None, None) => Annotated::empty(),
+            };
+
+            // If "__sentry" is not a key in the userdata do the legacy extraction.
+            // This should be removed once all customers migrated to the new format.
+            if prospero_event.is_none() {
+                crate::services::processor::playstation::legacy_userdata_extraction(
+                    event.get_or_insert_with(Default::default),
+                    &prospero_dump,
+                );
             }
-            (Some(event), None) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
-            (None, Some(prospero)) => {
-                utils::event_from_json(prospero.as_bytes(), None, &mut metrics, ctx)?
-            }
-            (None, None) => Annotated::empty(),
-        };
-
-        // If "__sentry" is not a key in the userdata do the legacy extraction.
-        // This should be removed once all customers migrated to the new format.
-        if prospero_event.is_none() {
-            crate::services::processor::playstation::legacy_userdata_extraction(
+            crate::services::processor::playstation::merge_playstation_context(
                 event.get_or_insert_with(Default::default),
                 &prospero_dump,
             );
-        }
-        crate::services::processor::playstation::merge_playstation_context(
-            event.get_or_insert_with(Default::default),
-            &prospero_dump,
-        );
 
-        crate::utils::process_minidump(event.get_or_insert_with(Event::default), &minidump_buffer);
-        metrics.bytes_ingested_event_minidump = Annotated::new(minidump_buffer.len() as u64);
+            crate::utils::process_minidump(event.get_or_insert_with(Event::default), &minidump_buffer);
+            metrics.bytes_ingested_event_minidump = Annotated::new(minidump_buffer.len() as u64);
 
-        let minidump = {
-            let mut item = Item::new(ItemType::Attachment);
-            item.set_filename("generated_minidump.dmp");
-            item.set_payload(crate::envelope::ContentType::Minidump, minidump_buffer);
-            item.set_attachment_type(AttachmentType::Minidump);
-            // If the original prosperodump is already rate limited, so will be the minidump.
-            item.set_rate_limited(prosperodump.rate_limited());
-            item
-        };
-
-        let mut attachments = items
-            .extract_if(.., |item| *item.ty() == ItemType::Attachment)
-            .collect::<Vec<_>>();
-
-        attachments.extend(prospero_dump.files.iter().map(|file| {
-            let mut item = Item::new(ItemType::Attachment);
-            item.set_filename(file.name);
-            item.set_attachment_type(AttachmentType::Attachment);
-            item.set_payload(
-                crate::services::processor::playstation::infer_content_type(file.name),
-                file.contents.to_owned(),
-            );
-            item
-        }));
-
-        let console_log = {
-            let mut console_log = prospero_dump.system_log.into_owned();
-            console_log.extend(prospero_dump.log_lines);
-            console_log
-        };
-        if !console_log.is_empty() {
-            attachments.push({
+            let minidump = {
                 let mut item = Item::new(ItemType::Attachment);
-                item.set_filename("console.log");
-                item.set_payload(crate::envelope::ContentType::Text, console_log.into_bytes());
-                item.set_attachment_type(AttachmentType::Attachment);
+                item.set_filename("generated_minidump.dmp");
+                item.set_payload(crate::envelope::ContentType::Minidump, minidump_buffer);
+                item.set_attachment_type(AttachmentType::Minidump);
+                // If the original prosperodump is already rate limited, so will be the minidump.
+                item.set_rate_limited(prosperodump.rate_limited());
                 item
-            })
-        }
+            };
+
+            attachments.extend(prospero_dump.files.iter().map(|file| {
+                let mut item = Item::new(ItemType::Attachment);
+                item.set_filename(file.name);
+                item.set_attachment_type(AttachmentType::Attachment);
+                item.set_payload(
+                    crate::services::processor::playstation::infer_content_type(file.name),
+                    file.contents.to_owned(),
+                );
+                item
+            }));
+
+            let console_log = {
+                let mut console_log = prospero_dump.system_log.into_owned();
+                console_log.extend(prospero_dump.log_lines);
+                console_log
+            };
+            if !console_log.is_empty() {
+                attachments.push({
+                    let mut item = Item::new(ItemType::Attachment);
+                    item.set_filename("console.log");
+                    item.set_payload(crate::envelope::ContentType::Text, console_log.into_bytes());
+                    item.set_attachment_type(AttachmentType::Attachment);
+                    item
+                })
+            }
+
+            (Box::new(event), Some(minidump))
+        });
 
         Ok(Some(Expansion {
-            event: Box::new(event),
+            event,
             attachments,
-            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+            user_reports,
             error: Self {
                 prosperodump,
-                minidump: Some(minidump),
+                minidump,
             },
             metrics,
             fully_normalized: false,
@@ -205,7 +200,7 @@ impl Counted for Playstation {
     }
 }
 
-#[cfg(sentry)]
+#[cfg(all(sentry, feature = "processing"))]
 fn merge_events(
     from_envelope: &Item,
     from_prospero: &[u8],
@@ -222,7 +217,7 @@ fn merge_events(
         .map_err(Into::into)
 }
 
-#[cfg(sentry)]
+#[cfg(all(sentry, feature = "processing"))]
 fn merge_events_inner(
     from_envelope: &Item,
     from_prospero: &[u8],

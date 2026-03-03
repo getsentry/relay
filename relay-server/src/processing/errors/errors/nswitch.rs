@@ -23,7 +23,7 @@ const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
 
 #[derive(Debug)]
 pub enum Nnswitch {
-    Forward { dying_message: Box<Item> },
+    Forward { dying_message: Item },
     Process,
 }
 
@@ -37,14 +37,15 @@ impl SentryError for Nnswitch {
 
         let mut metrics = Default::default();
 
+        let attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
+        let user_reports = utils::take_items_of_type(items, ItemType::UserReport);
+
         if !ctx.processing.is_processing() {
             return Ok(Some(Expansion {
                 event: Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?),
-                attachments: utils::take_items_of_type(items, ItemType::Attachment),
-                user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-                error: Self::Forward {
-                    dying_message: Box::new(dying_message),
-                },
+                attachments,
+                user_reports,
+                error: Self::Forward { dying_message },
                 metrics,
                 fully_normalized: false,
             }));
@@ -52,13 +53,10 @@ impl SentryError for Nnswitch {
 
         let event = utils::take_item_of_type(items, ItemType::Event);
 
-        let mut attachments = items
-            .extract_if(.., |item| *item.ty() == ItemType::Attachment)
-            .collect::<Vec<_>>();
-
         let dying_message = expand_dying_message(dying_message.payload())
             .map_err(ProcessingError::InvalidNintendoDyingMessage)?;
 
+        let mut attachments = attachments;
         attachments.extend(dying_message.attachments);
 
         let event = match (event, dying_message.event) {
@@ -75,7 +73,7 @@ impl SentryError for Nnswitch {
         Ok(Some(Expansion {
             event: Box::new(event),
             attachments,
-            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+            user_reports,
             error: Self::Process {},
             metrics,
             fully_normalized: false,
@@ -84,7 +82,7 @@ impl SentryError for Nnswitch {
 
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         match self {
-            Self::Forward { dying_message } => items.push(*dying_message),
+            Self::Forward { dying_message } => items.push(dying_message),
             Self::Process => {}
         }
 
@@ -104,6 +102,7 @@ impl Counted for Nnswitch {
 #[derive(Debug, thiserror::Error)]
 pub enum SwitchProcessingError {
     #[error("invalid json")]
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     InvalidJson(#[source] serde_json::Error),
     #[error("envelope parsing failed")]
     EnvelopeParsing(#[from] EnvelopeError),

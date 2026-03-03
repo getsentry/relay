@@ -8,6 +8,38 @@ use crate::processing::errors::errors::Context;
 use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
 
+macro_rules! if_not_processing {
+    ($ctx:expr, $if_true:block) => {
+        match $ctx {
+            #[cfg(not(feature = "processing"))]
+            ctx if !ctx.processing.is_processing() => $if_true,
+            _ => {}
+        }
+    };
+    ($ctx:expr, $if_true:block else $if_false:block) => {
+        match $ctx {
+            #[cfg(not(feature = "processing"))]
+            _ => $if_true
+            #[cfg(feature = "processing")]
+            ctx => {
+                if !ctx.processing.is_processing() $if_true else $if_false
+            }
+        }
+    };
+}
+pub(crate) use if_not_processing;
+
+macro_rules! if_processing {
+    ($ctx:expr, $if_true:block) => {
+        match $ctx {
+            #[cfg(feature = "processing")]
+            ctx if ctx.processing.is_processing() => $if_true,
+            _ => {}
+        }
+    };
+}
+pub(crate) use if_processing;
+
 pub fn take_item_by<F>(items: &mut Vec<Item>, f: F) -> Option<Item>
 where
     F: FnMut(&Item) -> bool,

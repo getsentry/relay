@@ -1,5 +1,3 @@
-use relay_event_schema::protocol::Event;
-use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::envelope::{AttachmentType, Item, ItemType};
@@ -22,24 +20,16 @@ impl SentryError for Minidump {
         };
 
         let mut metrics = Default::default();
+        #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
         let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
 
-        if !ctx.processing.is_processing() {
-            return Ok(Some(Expansion {
-                event: Box::new(event),
-                attachments: utils::take_items_of_type(items, ItemType::Attachment),
-                user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-                error: Self { minidump },
-                metrics,
-                fully_normalized: false,
-            }));
-        }
-
-        crate::utils::process_minidump(
-            event.get_or_insert_with(Event::default),
-            &minidump.payload(),
-        );
-        metrics.bytes_ingested_event_minidump = Annotated::new(minidump.len() as u64);
+        utils::if_processing!(ctx, {
+            crate::utils::process_minidump(
+                event.get_or_insert_with(Default::default),
+                &minidump.payload(),
+            );
+            metrics.bytes_ingested_event_minidump = (minidump.len() as u64).into();
+        });
 
         Ok(Some(Expansion {
             event: Box::new(event),

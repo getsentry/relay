@@ -48,7 +48,7 @@ use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::processing::check_ins::CheckInsProcessor;
-use crate::processing::errors::ErrorsProcessor;
+use crate::processing::errors::{ErrorsProcessor, SwitchProcessingError};
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::replays::ReplaysProcessor;
@@ -78,7 +78,6 @@ use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
     crate::services::objectstore::Objectstore,
-    crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::Enforcement,
     itertools::Itertools,
@@ -554,7 +553,6 @@ pub enum ProcessingError {
     #[error("invalid processing group type")]
     InvalidProcessingGroup(Box<InvalidProcessingGroupType>),
 
-    #[cfg(feature = "processing")]
     #[error("nintendo switch dying message processing failed {0:?}")]
     InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
 
@@ -587,7 +585,6 @@ impl ProcessingError {
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
-            #[cfg(feature = "processing")]
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
@@ -1373,7 +1370,7 @@ impl EnvelopeProcessorService {
         )?;
         let filter_run =
             processing::utils::event::filter(managed_envelope.envelope().headers(), &event, ctx)
-                .map_err(|err| ProcessingError::EventFiltered(err))?;
+                .map_err(ProcessingError::EventFiltered)?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             dynamic_sampling::tag_error_with_sampling_decision(

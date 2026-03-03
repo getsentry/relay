@@ -71,12 +71,9 @@ pub trait Forward {
 #[derive(Copy, Clone, Debug)]
 pub struct ForwardContext<'a> {
     /// The Relay configuration.
-    #[cfg_attr(
-        not(feature = "processing"),
-        expect(unused, reason = "only used in processing")
-    )]
     pub config: &'a Config,
     /// A view of the currently active global configuration.
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub global_config: &'a GlobalConfig,
     /// Project configuration associated with the unit of work.
     pub project_info: &'a ProjectInfo,
