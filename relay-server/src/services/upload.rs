@@ -86,8 +86,8 @@ pub struct Create {
 pub struct Stream {
     /// The organization and project the stream belongs to.
     pub scoping: Scoping,
-    /// The location of the upload (contains the objectstore key).
-    pub location: SignedLocation,
+    /// The designated objectstore key for the upload.
+    pub key: String,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
 }
@@ -195,6 +195,7 @@ impl Service {
             Service::Objectstore { addr, config } => {
                 let project_id = stream.scoping.project_id;
                 let byte_counter = stream.stream.byte_counter();
+
                 let key = addr
                     .send(stream)
                     .await
@@ -281,7 +282,7 @@ impl Location {
                 },
             );
 
-        Ok(SignedLocation {
+        Ok(SignedLocation::Local {
             location: self,
             signature,
         })
@@ -290,30 +291,43 @@ impl Location {
 
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
 #[derive(Debug)]
-pub struct SignedLocation {
-    location: Location,
-    signature: Signature,
+pub enum SignedLocation {
+    FromUpstream(HeaderValue),
+    Local {
+        location: Location,
+        signature: Signature,
+    },
 }
 
 impl SignedLocation {
     /// Converts the location into an URI for future reference.
     pub fn into_header_value(self) -> Result<HeaderValue, Error> {
-        let Self {
-            location,
-            signature,
-        } = self;
-        let mut uri = location.as_uri();
-        uri.push(if location.length.is_some() { '&' } else { '?' }); // TODO: brittle
-        uri.push_str("signature=");
-        uri.push_str(&signature.to_string());
-
-        HeaderValue::from_str(&uri).map_err(|_| Error::Internal)
+        let header = match self {
+            SignedLocation::FromUpstream(value) => value,
+            SignedLocation::Local {
+                location,
+                signature,
+            } => {
+                let mut uri = location.as_uri();
+                uri.push_str("&signature=");
+                uri.push_str(&signature.to_string());
+                HeaderValue::from_str(&uri).map_err(|_| Error::Internal)?
+            }
+        };
+        Ok(header)
     }
 
-    /// Verifies the signature and returns the underlying location upon success.
-    pub fn verify(self) -> Location {
-        // FIXME actually verify.
-        self.location
+    pub fn into_key(self) -> Result<String, Error> {
+        match self {
+            SignedLocation::FromUpstream(header_value) => {
+                let s = dbg!(header_value.to_str().map_err(|_| Error::InvalidLocation)?);
+                let q = dbg!(s.rfind('/').ok_or(Error::InvalidLocation)?);
+                let r = dbg!(dbg!(s.get((q - 32)..q)).ok_or(Error::InvalidLocation)?);
+                let uuid = dbg!(Uuid::parse_str(r).map_err(|_| Error::InvalidLocation)?);
+                Ok(uuid.to_string())
+            }
+            SignedLocation::Local { location, .. } => Ok(location.key),
+        }
     }
 
     fn try_from_response(response: Response) -> Result<Self, Error> {
@@ -323,7 +337,7 @@ impl SignedLocation {
                     .headers()
                     .get(hyper::header::LOCATION)
                     .ok_or(Error::InvalidLocation)?;
-                todo!("parse this into a SignedLocation")
+                Ok(Self::FromUpstream(location.clone()))
             }
             status => Err(Error::Upstream(status)),
         }
@@ -335,7 +349,7 @@ enum RequestKind {
         length: Option<usize>,
     },
     Upload {
-        location: SignedLocation,
+        key: String,
         stream: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
     },
 }
@@ -377,7 +391,7 @@ impl UploadRequest {
         let (sender, rx) = oneshot::channel();
         let Stream {
             scoping,
-            location,
+            key,
             stream,
         } = stream;
 
@@ -386,7 +400,7 @@ impl UploadRequest {
                 scoping,
                 timeout: None, // will be set by `configure()`
                 kind: RequestKind::Upload {
-                    location,
+                    key,
                     stream: Some(stream),
                 },
                 sender,
@@ -424,8 +438,7 @@ impl UpstreamRequest for UploadRequest {
         let project_id = self.scoping.project_id;
         match &self.kind {
             RequestKind::Create { .. } => format!("/api/{project_id}/upload/"),
-            RequestKind::Upload { location, .. } => {
-                let key = &location.location.key;
+            RequestKind::Upload { key, .. } => {
                 format!("/api/{project_id}/upload/{key}/")
             }
         }

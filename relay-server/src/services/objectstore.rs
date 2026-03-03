@@ -22,7 +22,7 @@ use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
-use crate::services::upload::{self};
+use crate::services::upload::{self, Stream};
 use crate::statsd::{RelayCounters, RelayTimers};
 
 use super::outcome::Outcome;
@@ -31,10 +31,7 @@ use super::outcome::Outcome;
 pub enum Objectstore {
     Envelope(StoreEnvelope),
     Attachment(Managed<StoreAttachment>),
-    Stream {
-        message: upload::Stream,
-        sender: Sender<Result<ObjectstoreKey, Error>>,
-    },
+    Stream(upload::Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
 impl Objectstore {
@@ -77,14 +74,11 @@ impl FromMessage<Managed<StoreAttachment>> for Objectstore {
     }
 }
 
-impl FromMessage<upload::Stream> for Objectstore {
+impl FromMessage<Stream> for Objectstore {
     type Response = AsyncResponse<Result<ObjectstoreKey, Error>>;
 
-    fn from_message(
-        message: upload::Stream,
-        sender: Sender<Result<ObjectstoreKey, Error>>,
-    ) -> Self {
-        Self::Stream { message, sender }
+    fn from_message(message: Stream, sender: Sender<Result<ObjectstoreKey, Error>>) -> Self {
+        Self::Stream(message, sender)
     }
 }
 
@@ -217,7 +211,7 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::Attachment(managed) => {
                 let _ = managed.reject_err(Error::LoadShed);
             }
-            Objectstore::Stream { message: _, sender } => {
+            Objectstore::Stream(_, sender) => {
                 sender.send(Err(Error::LoadShed));
             }
         }
@@ -239,10 +233,7 @@ impl ObjectstoreServiceInner {
                 self.handle_envelope(envelope).await;
             }
             Objectstore::Attachment(attachment) => self.handle_attachment(attachment).await,
-            Objectstore::Stream {
-                message: managed,
-                sender,
-            } => self.handle_stream(managed, sender).await,
+            Objectstore::Stream(stream, sender) => self.handle_stream(stream, sender).await,
         }
     }
 
@@ -363,14 +354,10 @@ impl ObjectstoreServiceInner {
         Ok(())
     }
 
-    async fn handle_stream(
-        &self,
-        stream: upload::Stream,
-        sender: Sender<Result<ObjectstoreKey, Error>>,
-    ) {
-        let upload::Stream {
+    async fn handle_stream(&self, stream: Stream, sender: Sender<Result<ObjectstoreKey, Error>>) {
+        let Stream {
             scoping,
-            location,
+            key,
             stream,
         } = stream;
         // debug_assert_eq!(scoping.project_id, stream.location.location.project_id);
@@ -392,12 +379,7 @@ impl ObjectstoreServiceInner {
             }
         };
 
-        let request = session
-            .put_stream(stream.boxed())
-            .key(location.verify().key);
-
-        // let result = location.verify();
-
+        let request = session.put_stream(stream.boxed()).key(key);
         let result = self.upload("stream", request).await;
 
         relay_statsd::metric!(
