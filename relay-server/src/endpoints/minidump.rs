@@ -22,6 +22,7 @@ use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
 use crate::utils::{self, ConstrainedMultipart};
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -65,8 +66,11 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-/// Convenience wrapper to let a decoder decode its full input into a buffer
-fn run_decoder(decoder: &mut Box<dyn Read>) -> std::io::Result<Vec<u8>> {
+/// Convenience wrapper to let a decoder decode its full input into a buffer.
+///
+/// Stops reading once `max_size` is exceeded and returns an error. This prevents
+/// decompression bombs from exhausting memory.
+fn run_decoder(mut decoder: impl Read) -> std::io::Result<Vec<u8>> {
     let mut buffer = Vec::new();
     decoder.read_to_end(&mut buffer)?;
     Ok(buffer)
@@ -94,23 +98,31 @@ fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
 }
 
 /// Tries to decode a minidump using any of the supported compression formats
-/// or returns the provided minidump payload untouched if no format where detected
-fn decode_minidump(minidump_data: Bytes) -> Result<Bytes, BadStoreRequest> {
-    match decoder_from(minidump_data.clone()) {
-        Some(mut decoder) => {
-            match run_decoder(&mut decoder) {
-                Ok(decoded) => Ok(Bytes::from(decoded)),
-                Err(err) => {
-                    // we detected a compression container but failed to decode it
-                    relay_log::trace!("invalid compression container");
-                    Err(BadStoreRequest::InvalidCompressionContainer(err))
-                }
+/// or returns the provided minidump payload untouched if no format where detected.
+///
+/// Returns an `Overflow` error if the decompressed size exceeds `max_size`.
+fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadStoreRequest> {
+    let Some(decoder) = decoder_from(minidump_data.clone()) else {
+        // this means we haven't detected any compression container
+        // proceed to process the payload untouched (as a plain minidump).
+        return Ok(minidump_data);
+    };
+
+    let decoder = decoder.take(max_size.saturating_add(1) as u64);
+
+    match run_decoder(decoder) {
+        Ok(decoded) => {
+            if decoded.len() > max_size {
+                return Err(BadStoreRequest::Overflow(DiscardItemType::Attachment(
+                    DiscardAttachmentType::Minidump,
+                )));
             }
+            Ok(Bytes::from(decoded))
         }
-        None => {
-            // this means we haven't detected any compression container
-            // proceed to process the payload untouched (as a plain minidump).
-            Ok(minidump_data)
+        Err(err) => {
+            // we detected a compression container but failed to decode it
+            relay_log::trace!("invalid compression container");
+            Err(BadStoreRequest::InvalidCompressionContainer(err))
         }
     }
 }
@@ -173,7 +185,7 @@ async fn extract_multipart(
 
     let minidump_item = items
         .iter_mut()
-        .find(|item| item.attachment_type() == Some(&AttachmentType::Minidump))
+        .find(|item| item.attachment_type() == Some(AttachmentType::Minidump))
         .ok_or(BadStoreRequest::MissingMinidump)?;
 
     let embedded_opt = extract_embedded_minidump(minidump_item.payload()).await?;
@@ -181,7 +193,10 @@ async fn extract_multipart(
         minidump_item.set_payload(Minidump, embedded);
     }
 
-    minidump_item.set_payload(Minidump, decode_minidump(minidump_item.payload())?);
+    minidump_item.set_payload(
+        Minidump,
+        decode_minidump(minidump_item.payload(), config.max_attachment_size())?,
+    );
 
     validate_minidump(&minidump_item.payload())?;
 
@@ -199,10 +214,14 @@ async fn extract_multipart(
     Ok(envelope)
 }
 
-fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>, BadStoreRequest> {
+fn extract_raw_minidump(
+    data: Bytes,
+    meta: RequestMeta,
+    max_size: usize,
+) -> Result<Box<Envelope>, BadStoreRequest> {
     let mut item = Item::new(ItemType::Attachment);
 
-    item.set_payload(Minidump, decode_minidump(data)?);
+    item.set_payload(Minidump, decode_minidump(data, max_size)?);
     validate_minidump(&item.payload())?;
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
@@ -224,11 +243,12 @@ async fn handle(
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
+    let config = state.config();
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
-        extract_raw_minidump(request.extract().await?, meta)?
+        extract_raw_minidump(request.extract().await?, meta, config.max_attachment_size())?
     } else {
         let multipart = request.extract_with_state(&state).await?;
-        extract_multipart(multipart, meta, state.config()).await?
+        extract_multipart(multipart, meta, config).await?
     };
 
     let id = envelope.event_id();
@@ -313,25 +333,42 @@ mod tests {
     #[test]
     fn test_validate_encoded_minidump() -> Result<(), Box<dyn std::error::Error>> {
         let encoders: Vec<EncodeFunction> = vec![encode_gzip, encode_zst, encode_bzip, encode_xz];
-
         for encoder in &encoders {
             let be_minidump = b"PMDMxxxxxx";
             let compressed = encoder(be_minidump)?;
-            let mut decoder = decoder_from(compressed).unwrap();
-            assert!(run_decoder(&mut decoder).is_ok());
+            let decoder = decoder_from(compressed).unwrap();
+            assert!(run_decoder(decoder).is_ok());
 
             let le_minidump = b"MDMPxxxxxx";
             let compressed = encoder(le_minidump)?;
-            let mut decoder = decoder_from(compressed).unwrap();
-            assert!(run_decoder(&mut decoder).is_ok());
+            let decoder = decoder_from(compressed).unwrap();
+            assert!(run_decoder(decoder).is_ok());
 
             let garbage = b"xxxxxx";
             let compressed = encoder(garbage)?;
-            let mut decoder = decoder_from(compressed).unwrap();
-            let decoded = run_decoder(&mut decoder);
+            let decoder = decoder_from(compressed).unwrap();
+            let decoded = run_decoder(decoder);
             assert!(decoded.is_ok());
             assert!(validate_minidump(&decoded.unwrap()).is_err());
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_decode_minidump_size_limit() -> Result<(), Box<dyn std::error::Error>> {
+        // Create a minidump that will decompress to 100 bytes
+        let minidump_data = b"xxxxxxxxxx".repeat(10);
+        let compressed = encode_gzip(&minidump_data)?;
+
+        // With a limit larger than the decompressed size, decoding should succeed
+        let result = decode_minidump(compressed.clone(), 200);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 100);
+
+        // With a limit smaller than the decompressed size, decoding should fail with Overflow
+        let result = decode_minidump(compressed, 50);
+        assert!(matches!(result, Err(BadStoreRequest::Overflow(_))));
 
         Ok(())
     }
@@ -422,57 +459,51 @@ mod tests {
         assert_eq!(item.filename().unwrap(), "config.json");
         assert!(item.content_type().is_none());
         assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(item.attachment_type().unwrap(), &AttachmentType::Attachment);
+        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Attachment);
         assert_eq!(item.payload().len(), 95);
 
         // the first breadcrumb buffer
         let item = &items[1];
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb1");
-        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(
-            item.attachment_type().unwrap(),
-            &AttachmentType::Breadcrumbs
-        );
+        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
         assert_eq!(item.payload().len(), 66);
 
         // the second breadcrumb buffer is empty since we haven't reached our max in the first
         let item = &items[2];
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb2");
-        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(
-            item.attachment_type().unwrap(),
-            &AttachmentType::Breadcrumbs
-        );
+        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
         assert_eq!(item.payload().len(), 0);
 
         // the msg-pack encoded event file
         let item = &items[3];
         assert_eq!(item.filename().unwrap(), "__sentry-event");
-        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.ty(), &ItemType::Attachment);
         assert_eq!(
             item.attachment_type().unwrap(),
-            &AttachmentType::EventPayload
+            AttachmentType::EventPayload
         );
         assert_eq!(item.payload().len(), 29);
 
         // the next item is the view-hierarchy file
         let item = &items[4];
         assert_eq!(item.filename().unwrap(), "view-hierarchy.json");
-        assert_eq!(item.content_type().unwrap(), &ContentType::Json);
+        assert_eq!(item.content_type().unwrap(), ContentType::Json);
         assert_eq!(item.ty(), &ItemType::Attachment);
         assert_eq!(
             item.attachment_type().unwrap(),
-            &AttachmentType::ViewHierarchy
+            AttachmentType::ViewHierarchy
         );
         assert_eq!(item.payload().len(), 184);
 
         // the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
         let item = &items[5];
         assert!(item.filename().is_none());
-        assert_eq!(item.content_type().unwrap(), &ContentType::Text);
+        assert_eq!(item.content_type().unwrap(), ContentType::Text);
         assert_eq!(item.ty(), &ItemType::FormData);
         assert!(item.attachment_type().is_none());
         let form_payload = item.payload();

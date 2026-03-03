@@ -26,6 +26,13 @@ TEST_CONFIG = {
 
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
+@pytest.mark.parametrize(
+    "eap_span_outcomes_rollout_rate",
+    [
+        pytest.param(0.0, id="relay_emits_accepted_outcome"),
+        pytest.param(1.0, id="eap_emits_accepted_outcome"),
+    ],
+)
 def test_span_extraction(
     mini_sentry,
     relay_with_processing,
@@ -34,11 +41,19 @@ def test_span_extraction(
     events_consumer,
     metrics_consumer,
     performance_issues_spans,
+    outcomes_consumer,
+    eap_span_outcomes_rollout_rate,
 ):
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
     events_consumer = events_consumer()
     metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    mini_sentry.global_config["options"][
+        "relay.eap-span-outcomes.rollout-rate"
+    ] = eap_span_outcomes_rollout_rate
+    relay_emits_accepted_outcome = eap_span_outcomes_rollout_rate == 0.0
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
@@ -167,6 +182,7 @@ def test_span_extraction(
         "project_id": 42,
         "key_id": 123,
         "retention_days": 90,
+        "accepted_outcome_emitted": relay_emits_accepted_outcome,
         "span_id": "bbbbbbbbbbbbbbbb",
         "start_timestamp": start.timestamp(),
         "status": "ok",
@@ -237,6 +253,7 @@ def test_span_extraction(
         "project_id": 42,
         "key_id": 123,
         "retention_days": 90,
+        "accepted_outcome_emitted": relay_emits_accepted_outcome,
         "span_id": "968cff94913ebb07",
         "start_timestamp": start_timestamp.timestamp(),
         "status": "ok",
@@ -246,6 +263,18 @@ def test_span_extraction(
     assert transaction_span == expected_transaction_span
 
     spans_consumer.assert_empty()
+
+    if relay_emits_accepted_outcome:
+        assert outcomes_consumer.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 2,
+            }
+        ]
 
 
 def test_duplicate_performance_score(mini_sentry, relay):

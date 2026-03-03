@@ -408,11 +408,11 @@ pub fn process_unreal<'a>(
     let context_item = attachments
         .clone()
         .into_iter()
-        .find(|item| item.attachment_type() == Some(&AttachmentType::UnrealContext));
+        .find(|item| item.attachment_type() == Some(AttachmentType::UnrealContext));
 
     let mut logs_items = attachments
         .into_iter()
-        .filter(|item| item.attachment_type() == Some(&AttachmentType::UnrealLogs))
+        .filter(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs))
         .map(|item| item.payload())
         .peekable();
 

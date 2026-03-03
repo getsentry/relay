@@ -9,6 +9,7 @@ local pipedream_config = {
   auto_deploy: false,
   exclude_regions: [
     'de',
+    'us',
     's4s2',
     'customer-1',
     'customer-2',

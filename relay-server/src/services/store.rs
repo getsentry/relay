@@ -407,7 +407,7 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
+                ItemType::Span if content_type == Some(ContentType::Json) => self.produce_span(
                     scoping,
                     received_at,
                     event_id,
@@ -631,6 +631,15 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
+        let relay_emits_accepted_outcome = !utils::is_rolled_out(
+            scoping.organization_id.value(),
+            self.global_config
+                .current()
+                .options
+                .eap_span_outcomes_rollout_rate,
+        )
+        .is_keep();
+
         let meta = SpanMeta {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
@@ -639,6 +648,7 @@ impl StoreService {
             retention_days: message.retention_days,
             downsampled_retention_days: message.downsampled_retention_days,
             received: datetime_to_timestamp(received_at),
+            accepted_outcome_emitted: relay_emits_accepted_outcome,
         };
 
         let result = message.try_accept(|span| {
@@ -664,17 +674,19 @@ impl StoreService {
                 via = "processing"
             );
 
-            // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
-            // or the segments consumer, depending on which will produce outcomes later.
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::SpanIndexed,
-                event_id: None,
-                outcome: Outcome::Accepted,
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
+            if relay_emits_accepted_outcome {
+                // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
+                // or the segments consumer, depending on which will produce outcomes later.
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::SpanIndexed,
+                    event_id: None,
+                    outcome: Outcome::Accepted,
+                    quantity: 1,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: received_at,
+                });
+            }
         }
     }
 
@@ -882,10 +894,8 @@ impl StoreService {
                 None => UNNAMED_ATTACHMENT.to_owned(),
             },
             rate_limited: item.rate_limited(),
-            content_type: item
-                .content_type()
-                .map(|content_type| content_type.as_str().to_owned()),
-            attachment_type: item.attachment_type().cloned().unwrap_or_default(),
+            content_type: item.raw_content_type().map(|s| s.to_ascii_lowercase()),
+            attachment_type: item.attachment_type().unwrap_or_default(),
             size,
             payload,
         };
@@ -1022,7 +1032,7 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         debug_assert_eq!(item.ty(), &ItemType::Span);
-        debug_assert_eq!(item.content_type(), Some(&ContentType::Json));
+        debug_assert_eq!(item.content_type(), Some(ContentType::Json));
 
         let Scoping {
             organization_id,
@@ -1030,6 +1040,15 @@ impl StoreService {
             project_key: _,
             key_id,
         } = scoping;
+
+        let relay_emits_accepted_outcome = !utils::is_rolled_out(
+            scoping.organization_id.value(),
+            self.global_config
+                .current()
+                .options
+                .eap_span_outcomes_rollout_rate,
+        )
+        .is_keep();
 
         let payload = item.payload();
         let message = SpanKafkaMessageRaw {
@@ -1041,6 +1060,7 @@ impl StoreService {
                 retention_days,
                 downsampled_retention_days,
                 received: datetime_to_timestamp(received_at),
+                accepted_outcome_emitted: relay_emits_accepted_outcome,
             },
             span: serde_json::from_slice(&payload)
                 .map_err(|e| StoreError::EncodingFailed(e.into()))?,
@@ -1065,17 +1085,19 @@ impl StoreService {
             },
         )?;
 
-        // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
-        // or the segments consumer, depending on which will produce outcomes later.
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::SpanIndexed,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: 1,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
+        if relay_emits_accepted_outcome {
+            // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
+            // or the segments consumer, depending on which will produce outcomes later.
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::SpanIndexed,
+                event_id: None,
+                outcome: Outcome::Accepted,
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: received_at,
+            });
+        }
 
         Ok(())
     }
@@ -1372,6 +1394,8 @@ struct SpanMeta {
     retention_days: u16,
     /// Number of days until the downsampled version of this data should be deleted.
     downsampled_retention_days: u16,
+    /// Indicates whether Relay already emitted an accepted outcome or if EAP still needs to emit it.
+    accepted_outcome_emitted: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

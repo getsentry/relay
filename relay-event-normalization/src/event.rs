@@ -2325,6 +2325,7 @@ mod tests {
           "gen_ai.usage.total_tokens": 3000.0,
           "gen_ai.usage.input_tokens": 1000.0,
           "gen_ai.usage.output_tokens": 2000.0,
+          "gen_ai.response.model": "claude-2.1",
           "gen_ai.request.model": "claude-2.1",
           "gen_ai.cost.total_tokens": 50.0,
           "gen_ai.cost.input_tokens": 10.0,
@@ -2338,6 +2339,7 @@ mod tests {
           "gen_ai.usage.total_tokens": 3000.0,
           "gen_ai.usage.input_tokens": 1000.0,
           "gen_ai.usage.output_tokens": 2000.0,
+          "gen_ai.response.model": "gpt4-21-04",
           "gen_ai.request.model": "gpt4-21-04",
           "gen_ai.cost.total_tokens": 80.0,
           "gen_ai.cost.input_tokens": 20.0,
@@ -2444,6 +2446,7 @@ mod tests {
           "gen_ai.usage.input_tokens.cached": 500,
           "gen_ai.usage.output_tokens": 2000,
           "gen_ai.usage.output_tokens.reasoning": 1000,
+          "gen_ai.response.model": "claude-2.1",
           "gen_ai.request.model": "claude-2.1",
           "gen_ai.cost.total_tokens": 75.0,
           "gen_ai.cost.input_tokens": 25.0,
@@ -2457,6 +2460,7 @@ mod tests {
           "gen_ai.usage.total_tokens": 3000.0,
           "gen_ai.usage.input_tokens": 1000,
           "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.response.model": "gpt4-21-04",
           "gen_ai.request.model": "gpt4-21-04",
           "gen_ai.cost.total_tokens": 190.0,
           "gen_ai.cost.input_tokens": 90.0,
@@ -2527,6 +2531,7 @@ mod tests {
 
         assert_annotated_snapshot!(span, @r#"
         {
+          "gen_ai.response.model": "claude-2.1",
           "gen_ai.request.model": "claude-2.1",
           "gen_ai.operation.type": "agent"
         }
@@ -2615,6 +2620,7 @@ mod tests {
           "gen_ai.usage.input_tokens.cached": 500,
           "gen_ai.usage.output_tokens": 2000,
           "gen_ai.usage.output_tokens.reasoning": 1000,
+          "gen_ai.response.model": "claude-2.1",
           "gen_ai.request.model": "claude-2.1",
           "gen_ai.cost.total_tokens": 65.0,
           "gen_ai.cost.input_tokens": 25.0,
@@ -2628,6 +2634,7 @@ mod tests {
           "gen_ai.usage.total_tokens": 3000.0,
           "gen_ai.usage.input_tokens": 1000,
           "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.response.model": "gpt4-21-04",
           "gen_ai.request.model": "gpt4-21-04",
           "gen_ai.cost.total_tokens": 190.0,
           "gen_ai.cost.input_tokens": 90.0,

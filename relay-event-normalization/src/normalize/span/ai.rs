@@ -283,14 +283,9 @@ fn extract_ai_data(
 
     // Extracts the total cost of the AI model used
     if let Some(model_id) = data
-        .gen_ai_request_model
+        .gen_ai_response_model
         .value()
         .and_then(|val| val.as_str())
-        .or_else(|| {
-            data.gen_ai_response_model
-                .value()
-                .and_then(|val| val.as_str())
-        })
     {
         extract_ai_model_cost_data(
             ai_model_costs.cost_per_token(model_id),
@@ -327,6 +322,13 @@ fn enrich_ai_span_data(
     map_ai_measurements_to_data(data, measurements.value());
 
     set_total_tokens(data);
+
+    // Default response model to request model if not set.
+    if data.gen_ai_response_model.value().is_none()
+        && let Some(request_model) = data.gen_ai_request_model.value().cloned()
+    {
+        data.gen_ai_response_model.set_value(Some(request_model));
+    }
 
     if let Some(model_costs) = model_costs {
         extract_ai_data(data, duration, model_costs, origin, platform);
@@ -671,6 +673,43 @@ mod tests {
         assert_annotated_snapshot!(&span.data, @r#"
         {
           "gen_ai.operation.name": "embeddings",
+          "gen_ai.operation.type": "ai_client"
+        }
+        "#);
+    }
+
+    /// Test that the response model is defaulted to the request model if not set.
+    #[test]
+    fn test_default_response_model_from_request_model() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.request.model": "gpt-4",
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.response.model": "gpt-4",
+          "gen_ai.request.model": "gpt-4",
+          "gen_ai.operation.type": "ai_client"
+        }
+        "#);
+    }
+
+    /// Test that the response model is defaulted to the request model if not set.
+    #[test]
+    fn test_default_response_model_not_overridden() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.request.model": "gpt-4",
+            "gen_ai.response.model": "gpt-4-abcd",
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.response.model": "gpt-4-abcd",
+          "gen_ai.request.model": "gpt-4",
           "gen_ai.operation.type": "ai_client"
         }
         "#);

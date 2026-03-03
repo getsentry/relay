@@ -65,7 +65,7 @@ pub fn parse_and_validate(item: &Item) -> Result<ExpandedAttachment, DiscardReas
     })?;
 
     Ok(ExpandedAttachment {
-        parent_id: item.parent_id().cloned(),
+        parent_id: item.parent_id(),
         meta,
         body: payload.slice_ref(body),
     })

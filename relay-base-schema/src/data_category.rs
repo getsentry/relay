@@ -223,6 +223,24 @@ pub enum DataCategory {
     ///
     /// SDK rate limiting behavior: ignore.
     SeerUser = 34,
+    /// Transaction profiles for backend platforms.
+    ///
+    /// This is an extension of [`Self::Profile`], but additionally discriminates on the profile
+    /// platform, see also [`Self::ProfileUi`].
+    ///
+    /// Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
+    ///
+    /// SDK rate limiting behavior: optional, apply to transaction profiles on "backend platforms".
+    ProfileBackend = 35,
+    /// Transaction profiles for ui platforms.
+    ///
+    /// This is an extension of [`Self::Profile`], but additionally discriminates on the profile
+    /// platform, see also [`Self::ProfileBackend`].
+    ///
+    /// Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
+    ///
+    /// SDK rate limiting behavior: optional, apply to transaction profiles on "ui platforms".
+    ProfileUi = 36,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -272,6 +290,8 @@ impl DataCategory {
             "installable_build" => Self::InstallableBuild,
             "trace_metric" => Self::TraceMetric,
             "seer_user" => Self::SeerUser,
+            "profile_backend" => Self::ProfileBackend,
+            "profile_ui" => Self::ProfileUi,
             _ => Self::Unknown,
         }
     }
@@ -314,6 +334,8 @@ impl DataCategory {
             Self::InstallableBuild => "installable_build",
             Self::TraceMetric => "trace_metric",
             Self::SeerUser => "seer_user",
+            Self::ProfileBackend => "profile_backend",
+            Self::ProfileUi => "profile_ui",
             Self::Unknown => "unknown",
         }
     }
@@ -420,6 +442,8 @@ impl TryFrom<u8> for DataCategory {
             32 => Ok(Self::InstallableBuild),
             33 => Ok(Self::TraceMetric),
             34 => Ok(Self::SeerUser),
+            35 => Ok(Self::ProfileBackend),
+            36 => Ok(Self::ProfileUi),
             other => Err(UnknownDataCategory(other as u32)),
         }
     }
@@ -516,7 +540,9 @@ impl CategoryUnit {
             | DataCategory::SizeAnalysis
             | DataCategory::InstallableBuild
             | DataCategory::TraceMetric
-            | DataCategory::SeerUser => Some(Self::Count),
+            | DataCategory::SeerUser
+            | DataCategory::ProfileBackend
+            | DataCategory::ProfileUi => Some(Self::Count),
 
             DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
 
@@ -552,8 +578,8 @@ mod tests {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
-        assert_eq!(DataCategory::try_from(34u8), Ok(DataCategory::SeerUser));
-        assert_eq!(DataCategory::try_from(35u8), Err(UnknownDataCategory(35)));
+        assert_eq!(DataCategory::try_from(36u8), Ok(DataCategory::ProfileUi));
+        assert_eq!(DataCategory::try_from(37u8), Err(UnknownDataCategory(37)));
     }
 
     #[test]

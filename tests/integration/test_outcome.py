@@ -1578,12 +1578,17 @@ def test_profile_outcomes_too_many(
     assert profiles_consumer.get_profile()
 
 
-@pytest.mark.parametrize("quota_category", ["transaction", "profile"])
+@pytest.mark.parametrize(
+    "quota_category",
+    ["transaction", "profile", "profile_ui"],
+)
+@pytest.mark.parametrize("with_platform_header", [True, False])
 def test_profile_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
     quota_category,
+    with_platform_header,
 ):
     """
     Profiles that are rate limited before metrics extraction should count towards `Profile`.
@@ -1607,15 +1612,12 @@ def test_profile_outcomes_rate_limited(
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
             "aggregator": {
                 "bucket_interval": 1,
                 "flush_interval": 1,
             },
-        },
+        }
     }
-
     upstream = relay_with_processing(config)
 
     with open(
@@ -1633,16 +1635,27 @@ def test_profile_outcomes_rate_limited(
             type="transaction",
         )
     )
-    envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=profile),
+            type="profile",
+            headers=dict(platform="cocoa") if with_platform_header else dict(),
+        )
+    )
     upstream.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
-    outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_categories = [
         (DataCategory.PROFILE, 1),
         (DataCategory.PROFILE_INDEXED, 1),
     ]
+    # If the platform header is set, the outcome can be emitted in the fast path, for all limits,
+    # if the header is missing, it can only be enforced with consistent rate limiting, which only
+    # happens for the `profile_ui` category (as the rate limit can't be enforced in the fast path).
+    if with_platform_header or quota_category == "profile_ui":
+        expected_categories.append((DataCategory.PROFILE_UI, 1))
+
     if quota_category == "transaction":
         # Transaction got rate limited as well:
         expected_categories += [
@@ -1651,7 +1664,6 @@ def test_profile_outcomes_rate_limited(
             (DataCategory.SPAN, 2),
             (DataCategory.SPAN_INDEXED, 2),
         ]
-    expected_categories.sort()
 
     expected_outcomes = [
         {
@@ -1667,7 +1679,7 @@ def test_profile_outcomes_rate_limited(
         for (category, quantity) in expected_categories
     ]
 
-    if quota_category == "profile":
+    if quota_category != "transaction":
         expected_outcomes.append(
             {
                 "category": DataCategory.SPAN_INDEXED,
@@ -1679,6 +1691,9 @@ def test_profile_outcomes_rate_limited(
                 "timestamp": time_within_delta(),
             }
         )
+
+    outcomes.sort(key=lambda o: sorted(o.items()))
+    expected_outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1711,10 +1726,6 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
                 "bucket_interval": 1,
                 "flush_interval": 0,
             },
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
         },
     }
 

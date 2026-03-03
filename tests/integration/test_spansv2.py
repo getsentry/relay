@@ -33,18 +33,33 @@ def envelope_with_spans(*payloads: dict, trace_info=None) -> Envelope:
     return envelope
 
 
+@pytest.mark.parametrize(
+    "eap_span_outcomes_rollout_rate",
+    [
+        pytest.param(0.0, id="relay_emits_accepted_outcome"),
+        pytest.param(1.0, id="eap_emits_accepted_outcome"),
+    ],
+)
 def test_spansv2_basic(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
+    outcomes_consumer,
+    eap_span_outcomes_rollout_rate,
 ):
     """
     A basic test making sure spans can be ingested and have basic normalizations applied.
     """
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    mini_sentry.global_config["options"][
+        "relay.eap-span-outcomes.rollout-rate"
+    ] = eap_span_outcomes_rollout_rate
+    relay_emits_accepted_outcome = eap_span_outcomes_rollout_rate == 0.0
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -143,6 +158,7 @@ def test_spansv2_basic(
         "is_segment": True,
         "status": "ok",
         "retention_days": 42,
+        "accepted_outcome_emitted": relay_emits_accepted_outcome,
         "downsampled_retention_days": 1337,
         "key_id": 123,
         "organization_id": 1,
@@ -181,6 +197,18 @@ def test_spansv2_basic(
             "value": 1.0,
         },
     ]
+
+    if relay_emits_accepted_outcome:
+        assert outcomes_consumer.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            }
+        ]
 
 
 def test_spansv2_trimming_basic(
@@ -332,6 +360,7 @@ def test_spansv2_trimming_basic(
         "is_segment": True,
         "status": "ok",
         "retention_days": 42,
+        "accepted_outcome_emitted": True,
         "downsampled_retention_days": 1337,
         "key_id": 123,
         "organization_id": 1,
@@ -1417,6 +1446,7 @@ def test_spansv2_attribute_normalization(
         "end_timestamp": time_is(ts.timestamp() + 0.5),
         "status": "ok",
         "retention_days": 42,
+        "accepted_outcome_emitted": True,
         "downsampled_retention_days": 1337,
         "key_id": 123,
         "organization_id": 1,

@@ -6,12 +6,14 @@
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
+use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::response::IntoResponse;
 use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{
@@ -35,7 +37,7 @@ use tokio::time::Instant;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::statsd::{RelayDistributions, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
+use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff, find_error_source};
 
 /// Rate limits returned by the upstream.
 ///
@@ -200,6 +202,39 @@ impl UpstreamRequestError {
             UpstreamRequestError::AuthDenied => "auth_denied",
         }
     }
+}
+
+impl IntoResponse for UpstreamRequestError {
+    fn into_response(self) -> axum::response::Response {
+        match self {
+            Self::Http(e) => match e {
+                HttpError::Overflow => StatusCode::PAYLOAD_TOO_LARGE.into_response(),
+                HttpError::Reqwest(error) => error
+                    .status()
+                    .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+                    .into_response(),
+                HttpError::Io(_) => StatusCode::BAD_GATEWAY.into_response(),
+                HttpError::Json(_) => StatusCode::BAD_REQUEST.into_response(),
+                HttpError::Misconfigured => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            },
+            Self::SendFailed(e) => {
+                if find_error_source(&e, is_length_limit_error).is_some() {
+                    StatusCode::PAYLOAD_TOO_LARGE.into_response()
+                } else if e.is_timeout() {
+                    StatusCode::GATEWAY_TIMEOUT.into_response()
+                } else {
+                    StatusCode::BAD_GATEWAY.into_response()
+                }
+            }
+            _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        }
+    }
+}
+
+fn is_length_limit_error(error: &(dyn Error + 'static)) -> bool {
+    error
+        .downcast_ref::<http_body_util::LengthLimitError>()
+        .is_some()
 }
 
 /// Checks the authentication state with the upstream.

@@ -492,7 +492,7 @@ impl EnvelopeBufferService {
                 buffer.mark_ready(&own_key, false);
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferProjectPending) += 1,
-                    partition_id = &partition_tag
+                    partition_id = partition_tag
                 );
 
                 return Ok(());
@@ -511,7 +511,7 @@ impl EnvelopeBufferService {
                     buffer.mark_ready(&sampling_key, false);
                     relay_statsd::metric!(
                         counter(RelayCounters::BufferProjectPending) += 1,
-                        partition_id = &partition_tag
+                        partition_id = partition_tag
                     );
 
                     return Ok(());

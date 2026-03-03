@@ -13,11 +13,10 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
 use http::header;
-#[cfg(feature = "processing")]
-use objectstore_client as objectstore;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_quotas::Scoping;
+use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
@@ -26,11 +25,12 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
-use crate::services::projects::cache::Project;
 #[cfg(feature = "processing")]
-use crate::services::upload::Error as ServiceError;
-use crate::utils::upload::SignedLocation;
-use crate::utils::{ExactStream, tus, upload};
+use crate::services::objectstore;
+use crate::services::projects::cache::Project;
+use crate::services::upload::{self, SignedLocation};
+use crate::services::upstream::UpstreamRequestError;
+use crate::utils::{BoundedStream, find_error_source, tus};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -40,6 +40,9 @@ enum Error {
     #[error("request error: {0}")]
     Request(#[from] BadStoreRequest),
 
+    #[error("service error: {0}")]
+    SendError(#[from] SendError),
+
     #[error("upload error: {0}")]
     Upload(#[from] upload::Error),
 }
@@ -47,28 +50,40 @@ enum Error {
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         match self {
+            Error::Tus(tus::Error::DeferLengthNotAllowed) => StatusCode::FORBIDDEN,
             Error::Tus(_) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
+            Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
-                upload::Error::Forward(error) => return error.into_response(),
+                upload::Error::Send(_) => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::UpstreamRequest(e) => match e {
+                    UpstreamRequestError::SendFailed(e)
+                        if find_error_source(&e, is_hyper_user_error).is_some() =>
+                    {
+                        return StatusCode::BAD_REQUEST.into_response();
+                    }
+                    _ => return e.into_response(),
+                },
+                upload::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                 upload::Error::Upstream(status) => status,
                 upload::Error::InvalidLocation | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
                 upload::Error::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
-                upload::Error::UploadService(service_error) => match service_error {
-                    ServiceError::Timeout => StatusCode::GATEWAY_TIMEOUT,
-                    ServiceError::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
-                    ServiceError::UploadFailed(error) => match error {
-                        objectstore::Error::Reqwest(error) => match error.status() {
+                upload::Error::Objectstore(service_error) => match service_error {
+                    objectstore::Error::Timeout => StatusCode::GATEWAY_TIMEOUT,
+                    objectstore::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
+                    objectstore::Error::UploadFailed(error) => match error {
+                        objectstore_client::Error::Reqwest(error) => match error.status() {
                             Some(status) => status,
                             None => StatusCode::INTERNAL_SERVER_ERROR,
                         },
                         _ => StatusCode::INTERNAL_SERVER_ERROR,
                     },
-                    ServiceError::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    objectstore::Error::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 },
+                upload::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                 upload::Error::Internal => {
                     debug_assert!(false);
                     relay_log::error!(error = &error as &dyn std::error::Error);
@@ -105,10 +120,11 @@ async fn handle(
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    let upload_length = tus::validate_headers(&headers).map_err(Error::from)?;
+    let upload_length =
+        tus::validate_headers(&headers, meta.request_trust().is_trusted()).map_err(Error::from)?;
     let config = state.config();
 
-    if upload_length > config.max_upload_size() {
+    if upload_length.is_some_and(|len| len > config.max_upload_size()) {
         return Err(StatusCode::PAYLOAD_TOO_LARGE.into());
     }
 
@@ -125,17 +141,28 @@ async fn handle(
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
-    let stream = ExactStream::new(stream, upload_length);
+    let (lower_bound, upper_bound) = match upload_length {
+        None => (1, config.max_upload_size()),
+        Some(u) => (u, u),
+    };
+    let stream = BoundedStream::new(stream, lower_bound, upper_bound);
+    let byte_counter = stream.byte_counter();
 
-    let location = upload::Sink::new(&state)
-        .upload(config, upload::Stream { scoping, stream })
+    let result = state
+        .upload()
+        .send(upload::Stream { scoping, stream })
         .await
-        .map_err(Error::from)?;
+        .map_err(Error::from)
+        .and_then(|r| r.map_err(Error::from));
+
+    let location = result.inspect_err(|e| {
+        relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
+    })?;
 
     let mut response = location.into_response();
     response
         .headers_mut()
-        .insert(tus::UPLOAD_OFFSET, upload_length.into());
+        .insert(tus::UPLOAD_OFFSET, byte_counter.get().into());
 
     Ok(response)
 }
@@ -147,14 +174,14 @@ async fn handle(
 async fn check_request(
     state: &ServiceState,
     meta: RequestMeta,
-    upload_length: usize,
+    upload_length: Option<usize>,
     project: Project<'_>,
 ) -> Result<Scoping, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(Feature::UploadEndpoint);
     let mut item = Item::new(ItemType::Attachment);
     item.set_payload(ContentType::AttachmentRef, vec![]);
-    item.set_attachment_length(upload_length as u64);
+    item.set_attachment_length(upload_length.unwrap_or(1) as u64);
     envelope.add_item(item);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
     let rate_limits = project
@@ -175,4 +202,10 @@ async fn check_request(
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle).route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
+}
+
+fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    error
+        .downcast_ref::<hyper::Error>()
+        .is_some_and(hyper::Error::is_user)
 }
