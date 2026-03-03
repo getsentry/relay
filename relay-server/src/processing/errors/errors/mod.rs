@@ -161,6 +161,17 @@ macro_rules! gen_error_kind {
                 Ok(None)
             }
 
+            fn apply_rate_limit(
+                &mut self,
+                category: DataCategory,
+                limits: RateLimits,
+                records: &mut RecordKeeper<'_>,
+            ) -> Result<()> {
+                match self {
+                    $(Self::$name(error) => error.apply_rate_limit(category, limits, records),)*
+                }
+            }
+
             fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()> {
                 match self {
                     $(Self::$name(error) => error.serialize_into(items, ctx),)*
