@@ -6,7 +6,6 @@
 //! Reference: <https://tus.io/protocols/resumable-upload#creation-with-upload>
 
 use std::io;
-use std::pin::Pin;
 
 use axum::body::Body;
 use axum::http::{HeaderMap, StatusCode};
@@ -14,7 +13,8 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
+use futures::stream::BoxStream;
 use http::header;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -174,7 +174,7 @@ async fn upload(
     state: &ServiceState,
     received: DateTime<Utc>,
     scoping: Scoping,
-    stream: BoundedStream<Pin<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send>>>,
+    stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
 ) -> Result<SignedLocation, Error> {
     let location = state
         .upload()

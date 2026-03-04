@@ -13,7 +13,6 @@ use http::{HeaderValue, Method, StatusCode};
 use relay_auth::Signature;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
-use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_quotas::Scoping;
@@ -26,7 +25,6 @@ use uuid::Uuid;
 
 use crate::http::{HttpError, RequestBuilder, Response};
 
-use crate::services::objectstore::ObjectstoreKey;
 #[cfg(feature = "processing")]
 use crate::services::objectstore::{self, Objectstore};
 use crate::services::upstream::{
@@ -210,7 +208,7 @@ impl Service {
                     project_id,
                     key,
                     length,
-                } = location.verify(received, &config)?;
+                } = location.verify(received, config)?;
 
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert_eq!(stream.length(), length);

@@ -11,7 +11,6 @@ use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase}
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
-use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
@@ -26,7 +25,6 @@ use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
-use crate::services::upload;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::BoundedStream;
 
