@@ -341,6 +341,7 @@ impl SignedLocation {
     fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location, Error> {
         let public_key = config.public_key().ok_or(Error::SigningFailed)?;
         let is_valid = self.signature.verify(
+            self.location.as_uri().as_bytes(),
             public_key,
             received,
             chrono::Duration::seconds(config.upload().max_age),
@@ -500,9 +501,10 @@ impl UpstreamRequest for UploadRequest {
     fn path(&self) -> std::borrow::Cow<'_, str> {
         let project_id = self.scoping.project_id;
         match &self.kind {
-            RequestKind::Create { .. } => format!("/api/{project_id}/upload/").into(),
-            RequestKind::Upload { location, .. } => location.location.key.as_str().into(),
+            RequestKind::Create { .. } => format!("/api/{project_id}/upload/"),
+            RequestKind::Upload { location, .. } => location.location.as_uri(),
         }
+        .into()
     }
 
     fn route(&self) -> &'static str {

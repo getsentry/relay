@@ -775,7 +775,7 @@ impl Signature {
     ) -> bool {
         public_key
             .iter()
-            .any(|p| self.verify(p, start_time, max_age))
+            .any(|p| self.verify(&[], p, start_time, max_age))
     }
 
     /// Verifies the signature using the specified public key.
@@ -785,11 +785,12 @@ impl Signature {
     /// starting from `start_time` and not exceeding `max_age`.
     pub fn verify(
         &self,
+        data: &[u8],
         public_key: &PublicKey,
         start_time: DateTime<Utc>,
         max_age: Duration,
     ) -> bool {
-        let Some(header) = public_key.verify_meta(&[], self.as_signature_ref()) else {
+        let Some(header) = public_key.verify_meta(data, self.as_signature_ref()) else {
             return false;
         };
         let Some(timestamp) = header.timestamp else {
@@ -1073,9 +1074,10 @@ mod tests {
         let signature = pair.0.sign(&[]);
         let start_time = Utc::now();
         // The signature is valid in general
-        assert!(signature.verify(&pair.1, start_time, Duration::seconds(10)));
+        assert!(signature.verify(&[], &pair.1, start_time, Duration::seconds(10)));
         // Signature is no longer valid because too much time elapsed
         assert!(!signature.verify(
+            &[],
             &pair.1,
             start_time - Duration::seconds(1),
             Duration::milliseconds(500)
@@ -1115,7 +1117,7 @@ mod tests {
     fn test_regular_algorithm() {
         let (secret, public) = generate_key_pair();
         let signature = secret.sign(&[]);
-        assert!(signature.verify(&public, Utc::now(), Duration::seconds(10)));
+        assert!(signature.verify(&[], &public, Utc::now(), Duration::seconds(10)));
     }
 
     #[test]
@@ -1126,7 +1128,7 @@ mod tests {
             signature_algorithm: Some(SignatureAlgorithm::Prehashed),
         };
         let signature = secret.sign_with_header(&[], &header);
-        assert!(signature.verify(&public, Utc::now(), Duration::seconds(10)));
+        assert!(signature.verify(&[], &public, Utc::now(), Duration::seconds(10)));
     }
 
     #[test]

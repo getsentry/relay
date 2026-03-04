@@ -12,7 +12,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use http::header;
@@ -143,7 +143,6 @@ async fn handle(
         .await
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
-    let received = meta.received_at();
     let scoping = check_request(&state, meta, upload_length, project).await?;
     let stream = body
         .into_data_stream()
@@ -156,9 +155,10 @@ async fn handle(
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
     let byte_counter = stream.byte_counter();
 
-    let result = upload(&state, received, scoping, stream).await;
+    let result = upload(&state, scoping, stream).await;
 
     let location = result.inspect_err(|e| {
+        dbg!(e);
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
 
@@ -172,7 +172,6 @@ async fn handle(
 
 async fn upload(
     state: &ServiceState,
-    received: DateTime<Utc>,
     scoping: Scoping,
     stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
 ) -> Result<SignedLocation, Error> {
@@ -187,7 +186,7 @@ async fn upload(
     let location = state
         .upload()
         .send(upload::Stream {
-            received,
+            received: Utc::now(), // fake received until we split requests
             scoping,
             location,
             stream,
