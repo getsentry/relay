@@ -10,6 +10,7 @@
 **Bug Fixes**:
 
 - Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
+- Increase default HTTP timeout from 5 to 15 seconds to handle slow upstream event data retrieval. ([#XXXX](https://github.com/getsentry/relay/pull/XXXX))
 
 **Features**:
 
