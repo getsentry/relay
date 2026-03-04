@@ -169,6 +169,7 @@ impl ObjectstoreService {
         let ObjectstoreServiceConfig {
             objectstore_url,
             max_concurrent_requests: _,
+            max_backlog: _,
             timeout,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
