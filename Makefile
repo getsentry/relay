@@ -5,7 +5,7 @@ RELAY_CARGO_ARGS ?= ${CARGO_ARGS}
 all: check test ## run all checks and tests
 .PHONY: all
 
-check: style lint ## run the lints and check the code style for rust and python code
+check: doc style lint ## run the lints and check the code style for rust and python code
 .PHONY: check
 
 clean: ## remove python virtual environment and delete cached rust files together with target folder
@@ -81,7 +81,7 @@ doc: doc-rust ## generate all API docs
 .PHONY: doc
 
 doc-rust: setup-git ## generate API docs for Rust code
-	cargo doc --workspace --all-features --no-deps ${RELAY_CARGO_ARGS}
+	RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --document-private-items ${RELAY_CARGO_ARGS}
 .PHONY: doc-rust
 
 # Style checking

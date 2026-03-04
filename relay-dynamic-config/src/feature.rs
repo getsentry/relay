@@ -126,6 +126,9 @@ pub enum Feature {
     /// Enable the upload endpoint for attachments.
     #[serde(rename = "projects:relay-upload-endpoint")]
     UploadEndpoint,
+    /// Enable the new Client Reports pipeline in Relay.
+    #[serde(rename = "organizations:new-client-report-processing")]
+    NewClientReportProcessing,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///

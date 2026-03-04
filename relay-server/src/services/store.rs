@@ -407,7 +407,7 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
+                ItemType::Span if content_type == Some(ContentType::Json) => self.produce_span(
                     scoping,
                     received_at,
                     event_id,
@@ -894,10 +894,8 @@ impl StoreService {
                 None => UNNAMED_ATTACHMENT.to_owned(),
             },
             rate_limited: item.rate_limited(),
-            content_type: item
-                .content_type()
-                .map(|content_type| content_type.as_str().to_owned()),
-            attachment_type: item.attachment_type().cloned().unwrap_or_default(),
+            content_type: item.raw_content_type().map(|s| s.to_ascii_lowercase()),
+            attachment_type: item.attachment_type().unwrap_or_default(),
             size,
             payload,
         };
@@ -1034,7 +1032,7 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         debug_assert_eq!(item.ty(), &ItemType::Span);
-        debug_assert_eq!(item.content_type(), Some(&ContentType::Json));
+        debug_assert_eq!(item.content_type(), Some(ContentType::Json));
 
         let Scoping {
             organization_id,

@@ -269,6 +269,7 @@ fn get_default_filters() -> EnvFilter {
         tower_http=TRACE,\
         trust_dns_proto=WARN,\
         minidump=ERROR,\
+        metrics_exporter_dogstatsd::forwarder::sync=OFF,\
         ",
     );
 

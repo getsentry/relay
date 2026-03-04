@@ -118,7 +118,7 @@ impl Forward for CheckInsOutput {
         let envelope = self.serialize_envelope(ctx)?;
         let envelope = ManagedEnvelope::from(envelope).into_processed();
 
-        s.store(crate::services::store::StoreEnvelope { envelope });
+        s.send_to_store(crate::services::store::StoreEnvelope { envelope });
 
         Ok(())
     }
