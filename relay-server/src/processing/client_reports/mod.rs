@@ -5,7 +5,7 @@ use relay_system::Addr;
 use crate::envelope::{EnvelopeHeaders, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{self, Context, Nothing, Output};
-use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{Outcome, TrackOutcome};
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -43,15 +43,8 @@ impl OutcomeError for Error {
     type Error = Self;
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
-        let outcome = match &self {
-            Error::CouldNotParse(_) | Error::OverlongOutcomeReason | Error::InvalidOutcome => {
-                Some(Outcome::Invalid(DiscardReason::InvalidClientReport))
-            }
-            Error::InvalidTimestamp | Error::OutcomeTooOld | Error::OutcomeInFuture => {
-                Some(Outcome::Invalid(DiscardReason::Timestamp))
-            }
-        };
-        (outcome, self)
+        // Client reports are outcomes, and we do not emit outcomes for outcomes.
+        (None, self)
     }
 }
 
