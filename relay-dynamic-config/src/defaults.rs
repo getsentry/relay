@@ -56,4 +56,3 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;
     }
 }
-
