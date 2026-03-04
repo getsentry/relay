@@ -28,7 +28,7 @@ pub fn expand(reports: Managed<SerializedClientReports>) -> Managed<ClientOutcom
             match ClientReport::parse(&report.payload()) {
                 Ok(client_report) => expand_report(client_report, default_timestamp, &mut outcomes),
                 Err(err) => {
-                    relay_log::trace!(
+                    relay_log::debug!(
                         error = &err as &dyn std::error::Error,
                         "invalid client report received"
                     );
