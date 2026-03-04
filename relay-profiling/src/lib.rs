@@ -158,7 +158,11 @@ pub fn parse_metadata(payload: &[u8]) -> Result<ProfileMetadata, ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
-            relay_log::debug!(error = &err as &dyn Error, from = "minimal",);
+            relay_log::debug!(
+                error = &err as &dyn Error,
+                from = "minimal",
+                "invalid profile"
+            );
             return Err(ProfileError::InvalidJson(err));
         }
     };

@@ -2282,7 +2282,9 @@ impl EnvelopeProcessorService {
                             is_limited = limits.is_limited();
                             rate_limits.merge(limits)
                         }
-                        Err(e) => relay_log::error!(error = &e as &dyn Error),
+                        Err(e) => {
+                            relay_log::error!(error = &e as &dyn Error, "rate limiting error")
+                        }
                     }
                 }
 

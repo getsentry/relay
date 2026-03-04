@@ -86,7 +86,10 @@ impl IntoResponse for Error {
                 upload::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                 upload::Error::Internal => {
                     debug_assert!(false);
-                    relay_log::error!(error = &error as &dyn std::error::Error);
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "internal upload error"
+                    );
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
             },
