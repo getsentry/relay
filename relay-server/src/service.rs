@@ -244,7 +244,7 @@ impl ServiceState {
         #[cfg(feature = "processing")]
         let objectstore = ObjectstoreService::new(config.objectstore(), store.clone())?.map(|s| {
             let concurrent = ConcurrentService::new(s)
-                .with_loadshedding()
+                .with_backlog_limit(0)
                 .with_concurrency_limit(config.objectstore().max_concurrent_requests);
             services.start(concurrent)
         });

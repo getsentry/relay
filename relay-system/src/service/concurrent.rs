@@ -37,8 +37,8 @@ where
     S: SimpleService + Clone + Send + Sync,
 {
     inner: S,
-    congestion_control: CongestionControl,
     max_concurrency: usize,
+    max_backlog: usize,
     pending: FuturesUnordered<BoxFuture<'static, ()>>,
 }
 
@@ -52,8 +52,8 @@ where
     pub fn new(inner: S) -> Self {
         Self {
             inner,
-            congestion_control: CongestionControl::Backpressure,
             max_concurrency: usize::MAX,
+            max_backlog: usize::MAX,
             pending: FuturesUnordered::new(),
         }
     }
@@ -64,11 +64,11 @@ where
         self
     }
 
-    /// Changes the congestion control strategy to load-shedding.
+    /// Limits the amount of messages that wait in the queue by loadshedding.
     ///
     /// This will drop messages.
-    pub fn with_loadshedding(mut self) -> Self {
-        self.congestion_control = CongestionControl::LoadShed;
+    pub fn with_backlog_limit(mut self, limit: usize) -> Self {
+        self.max_backlog = limit;
         self
     }
 }
@@ -84,7 +84,10 @@ where
             relay_log::trace!("Concurrent service loop iteration");
 
             let has_capacity = self.pending.len() < self.max_concurrency;
-            let should_consume = has_capacity || self.congestion_control.is_loadshed();
+            let should_consume = has_capacity || {
+                let backlog = rx.queue_size.load(std::sync::atomic::Ordering::Relaxed);
+                backlog > self.max_backlog as u64
+            };
 
             tokio::select! {
                 // Bias towards handling responses so that there's space for new incoming requests.
@@ -112,28 +115,9 @@ where
 }
 
 /// A trait describing what to do with a message that was load-shed.
-///
-/// The default implementation is to do nothing, so implementations may be empty,
-/// especially when the congestion control mechanism is backpressure.
 pub trait LoadShed<T> {
     /// Gets called for every message that gets dropped by loadshedding.
-    fn handle_loadshed(&self, _message: T) {}
-}
-
-/// Represents whether the [`ConcurrentService`] should load-shed or apply
-/// backpressure when it's maximum concurrency has been reached.
-#[derive(Debug, Clone, Copy)]
-pub enum CongestionControl {
-    /// Leave incoming messages in the queue.
-    Backpressure,
-    /// Drop incoming messages if there is no capacity.
-    LoadShed,
-}
-
-impl CongestionControl {
-    fn is_loadshed(&self) -> bool {
-        matches!(self, Self::LoadShed)
-    }
+    fn handle_loadshed(&self, _message: T);
 }
 
 #[cfg(test)]
@@ -147,7 +131,10 @@ mod tests {
     use super::*;
 
     #[derive(Clone)]
-    struct CountingService(Arc<AtomicUsize>);
+    struct CountingService {
+        success: Arc<AtomicUsize>,
+        fail: Arc<AtomicUsize>,
+    }
     struct Incr;
     impl Interface for Incr {}
     impl FromMessage<()> for Incr {
@@ -161,33 +148,47 @@ mod tests {
 
         async fn handle_message(&self, _message: Incr) {
             tokio::time::sleep(Duration::from_secs(2)).await;
-            self.0.fetch_add(1, Ordering::Relaxed);
+            self.success.fetch_add(1, Ordering::Relaxed);
         }
     }
 
-    impl LoadShed<Incr> for CountingService {}
+    impl LoadShed<Incr> for CountingService {
+        fn handle_loadshed(&self, _message: Incr) {
+            self.fail.fetch_add(1, Ordering::Relaxed);
+        }
+    }
 
     #[tokio::test(start_paused = true)]
     async fn loadshed() {
-        let inner = CountingService(Arc::new(AtomicUsize::new(0)));
+        let inner = CountingService {
+            success: Arc::new(AtomicUsize::new(0)),
+            fail: Arc::new(AtomicUsize::new(0)),
+        };
         let service = ConcurrentService::new(inner.clone())
             .with_concurrency_limit(5)
-            .with_loadshedding();
+            .with_backlog_limit(0);
         let addr = service.start_detached();
 
         for _ in 0..10 {
             addr.send(());
         }
 
+        assert_eq!(inner.success.load(Ordering::Relaxed), 0);
+        assert_eq!(inner.fail.load(Ordering::Relaxed), 0);
+
         tokio::time::sleep(Duration::from_secs(10)).await;
 
         // Only half of the items have been processed
-        assert_eq!(inner.0.load(Ordering::Relaxed), 5);
+        assert_eq!(inner.success.load(Ordering::Relaxed), 5);
+        assert_eq!(inner.fail.load(Ordering::Relaxed), 5);
     }
 
     #[tokio::test(start_paused = true)]
     async fn backpressure() {
-        let inner = CountingService(Arc::new(AtomicUsize::new(0)));
+        let inner = CountingService {
+            success: Arc::new(AtomicUsize::new(0)),
+            fail: Arc::new(AtomicUsize::new(0)),
+        };
         let service = ConcurrentService::new(inner.clone()).with_concurrency_limit(5);
         let addr = service.start_detached();
 
@@ -197,10 +198,39 @@ mod tests {
 
         // After 3 seconds, only half the messages have been handled:
         tokio::time::sleep(Duration::from_secs(3)).await;
-        assert_eq!(inner.0.load(Ordering::Relaxed), 5);
+        assert_eq!(inner.success.load(Ordering::Relaxed), 5);
+        assert_eq!(inner.fail.load(Ordering::Relaxed), 0);
 
         // After 5 seconds, everything's been handled:
         tokio::time::sleep(Duration::from_secs(2)).await;
-        assert_eq!(inner.0.load(Ordering::Relaxed), 10);
+        assert_eq!(inner.success.load(Ordering::Relaxed), 10);
+        assert_eq!(inner.fail.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn backpressure_and_loadshed() {
+        let inner = CountingService {
+            success: Arc::new(AtomicUsize::new(0)),
+            fail: Arc::new(AtomicUsize::new(0)),
+        };
+        let service = ConcurrentService::new(inner.clone())
+            .with_concurrency_limit(5)
+            .with_backlog_limit(5);
+        let addr = service.start_detached();
+
+        for _ in 0..13 {
+            addr.send(());
+        }
+
+        // After 3 seconds, only 5 messages have been handled.
+        // Three have been dropped due to loadshedding.
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        assert_eq!(inner.success.load(Ordering::Relaxed), 5);
+        assert_eq!(inner.fail.load(Ordering::Relaxed), 3);
+
+        // After 5 seconds, another 5 messages got handled:
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        assert_eq!(inner.success.load(Ordering::Relaxed), 10);
+        assert_eq!(inner.fail.load(Ordering::Relaxed), 3);
     }
 }
