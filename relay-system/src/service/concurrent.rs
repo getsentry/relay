@@ -28,7 +28,11 @@ use crate::statsd::SystemGauges;
 /// }
 ///
 /// // `Loadshed` implementation is required but can be empty.
-/// impl LoadShed<MyMessage> for MyService {}
+/// impl LoadShed<MyMessage> for MyService {
+///     fn handle_loadshed(&self, _: MyMessage) {
+///         eprintln!("Dropped a message!");
+///     }
+/// }
 ///
 /// let concurrent_service = ConcurrentService::new(MyService).with_concurrency_limit(5);
 /// ```
