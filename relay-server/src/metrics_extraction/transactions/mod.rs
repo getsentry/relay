@@ -266,9 +266,8 @@ impl TransactionExtractor<'_> {
             return Ok(metrics);
         }
 
-        let (Some(&_start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value())
-        else {
-            relay_log::debug!("failed to extract the start and the end timestamps from the event");
+        let Some(&end) = event.timestamp.value() else {
+            relay_log::debug!("failed to extract the end timestamp from the event");
             return Err(ExtractMetricsError::MissingTimestamp);
         };
 
