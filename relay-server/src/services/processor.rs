@@ -48,6 +48,7 @@ use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::processing::check_ins::CheckInsProcessor;
+use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::replays::ReplaysProcessor;
@@ -1148,6 +1149,7 @@ struct Processing {
     profile_chunks: ProfileChunksProcessor,
     trace_attachments: TraceAttachmentsProcessor,
     replays: ReplaysProcessor,
+    client_reports: ClientReportsProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1203,7 +1205,7 @@ impl EnvelopeProcessorService {
         ));
         #[cfg(feature = "processing")]
         let rate_limiter = rate_limiter.map(Arc::new);
-
+        let outcome_aggregator = addrs.outcome_aggregator.clone();
         let inner = InnerProcessor {
             pool,
             global_config,
@@ -1239,6 +1241,7 @@ impl EnvelopeProcessorService {
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
                 replays: ReplaysProcessor::new(quota_limiter, geoip_lookup.clone()),
+                client_reports: ClientReportsProcessor::new(outcome_aggregator),
             },
             geoip_lookup,
             config,
@@ -1636,7 +1639,21 @@ impl EnvelopeProcessorService {
                     .await
             }
             ProcessingGroup::Standalone => run!(process_standalone, ctx),
-            ProcessingGroup::ClientReport => run!(process_client_reports, ctx),
+            ProcessingGroup::ClientReport => {
+                if ctx
+                    .project_info
+                    .has_feature(Feature::NewClientReportProcessing)
+                {
+                    self.process_with_processor(
+                        &self.inner.processing.client_reports,
+                        managed_envelope,
+                        ctx,
+                    )
+                    .await
+                } else {
+                    run!(process_client_reports, ctx)
+                }
+            }
             ProcessingGroup::Replay => {
                 self.process_with_processor(&self.inner.processing.replays, managed_envelope, ctx)
                     .await
