@@ -4,12 +4,12 @@ use relay_protocol::RuleCondition;
 use crate::metrics::MetricSpec;
 use crate::{MetricExtractionConfig, ProjectConfig, Tag};
 
-/// Ensures the metric extraction config exists and is enabled.
+/// Adds span metric extraction rules to the project config.
 ///
-/// This is needed so that downstream checks on `metric_extraction.is_enabled()`
-/// continue to gate usage and count_per_root metric creation for standalone spans.
-/// The usage metric spec itself is not consumed by generic extraction (which has been
-/// removed), but its presence keeps the config in an "enabled" state.
+/// This pushes the usage metric spec into the generic metric extraction config
+/// so that downstream Relays (which still use generic extraction) can extract it.
+/// The spec also keeps the config in an "enabled" state for `is_enabled()` checks
+/// that gate metric creation in standalone span processing.
 pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     let config = project_config
         .metric_extraction
@@ -20,7 +20,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     }
     config._span_metrics_extended = true;
 
-    // Push a metric spec to keep the config non-empty (required for is_enabled()).
     config.metrics.push(MetricSpec {
         category: DataCategory::Span,
         mri: "c:spans/usage@none".into(),

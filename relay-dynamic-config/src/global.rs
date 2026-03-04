@@ -80,9 +80,6 @@ impl GlobalConfig {
             ErrorBoundary::Ok(f) => Some(f),
         }
     }
-
-    /// Modifies the global config after deserialization.
-    pub fn normalize(&mut self) {}
 }
 
 fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool {
