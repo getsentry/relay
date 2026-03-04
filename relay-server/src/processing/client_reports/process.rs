@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use chrono::Utc;
 use relay_common::time::UnixTimestamp;
 use relay_event_normalization::ClockDriftProcessor;
@@ -99,9 +101,11 @@ pub fn normalize(outcomes: &mut Managed<ClientOutcomes>) {
 /// Client report outcomes that cannot be converted to an [`Outcome`] are rejected.
 pub fn emit(outcomes: Managed<ClientOutcomes>, outcome_aggregator: &Addr<TrackOutcome>) {
     let scoping = outcomes.scoping();
+    let remote_addr = outcomes.headers.meta().remote_addr();
 
     for outcome in outcomes.split(|outcomes| outcomes.outcomes) {
-        let _ = outcome.try_accept(|outcome| emit_outcome(outcome, outcome_aggregator, scoping));
+        let _ = outcome
+            .try_accept(|outcome| emit_outcome(outcome, outcome_aggregator, scoping, remote_addr));
     }
 }
 
@@ -109,6 +113,7 @@ fn emit_outcome(
     outcome: ClientOutcome,
     outcome_aggregator: &Addr<TrackOutcome>,
     scoping: Scoping,
+    remote_addr: Option<IpAddr>,
 ) -> Result<(), Error> {
     let ClientOutcome {
         outcome_type,
@@ -131,7 +136,7 @@ fn emit_outcome(
         scoping,
         outcome,
         event_id: None,
-        remote_addr: None, // omitting the client address allows for better aggregation
+        remote_addr,
         category,
         quantity,
     });
