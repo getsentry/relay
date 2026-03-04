@@ -269,7 +269,7 @@ impl ObjectstoreServiceInner {
 
         match session {
             Err(error) => {
-                relay_log::error!(error = &error as &dyn std::error::Error);
+                relay_log::error!(error = &error as &dyn std::error::Error, "session error");
                 relay_statsd::metric!(
                     counter(RelayCounters::AttachmentUpload) += attachments.count() as u64,
                     result = error.to_string().as_str(),
@@ -424,9 +424,12 @@ impl ObjectstoreServiceInner {
     }
 
     async fn upload(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
-        self.upload_inner(ty, request)
-            .await
-            .inspect_err(|e| relay_log::error!(error = e as &dyn std::error::Error))
+        self.upload_inner(ty, request).await.inspect_err(|e| {
+            relay_log::error!(
+                error = e as &dyn std::error::Error,
+                "objectstore upload failed"
+            )
+        })
     }
 
     async fn upload_inner(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
