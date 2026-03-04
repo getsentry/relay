@@ -2,14 +2,11 @@ use relay_base_schema::data_category::DataCategory;
 use relay_protocol::RuleCondition;
 
 use crate::metrics::MetricSpec;
-use crate::{MetricExtractionConfig, ProjectConfig, Tag};
+use crate::{GroupKey, MetricExtractionConfig, ProjectConfig, Tag};
 
-/// Adds span metric extraction rules to the project config.
+/// Conditionally enables metrics extraction groups from the global config.
 ///
-/// This pushes the usage metric spec into the generic metric extraction config
-/// so that downstream Relays (which still use generic extraction) can extract it.
-/// The spec also keeps the config in an "enabled" state for `is_enabled()` checks
-/// that gate metric creation in standalone span processing.
+/// Depending on feature flags, groups are either enabled or not.
 pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     let config = project_config
         .metric_extraction
@@ -20,6 +17,11 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     }
     config._span_metrics_extended = true;
 
+    // If there are any spans in the system, extract the usage metric for them.
+    //
+    // The metric is always tagged with `is_segment` (`true`/`false`) and additionally
+    // segment spans are gain the additional tag `was_transaction` if the segment span was created
+    // from a transaction.
     config.metrics.push(MetricSpec {
         category: DataCategory::Span,
         mri: "c:spans/usage@none".into(),
@@ -29,15 +31,29 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             Tag::with_key("is_segment")
                 .with_value("true")
                 .when(RuleCondition::eq("span.is_segment", true)),
+            // Only tag transaction status for segment spans.
             Tag::with_key("was_transaction").with_value("true").when(
                 RuleCondition::eq("span.is_segment", true)
                     .and(RuleCondition::eq("span.was_transaction", true)),
             ),
+            // Fallback, for all non segment spans.
             Tag::with_key("is_segment").with_value("false").always(),
         ],
     });
+
+    config
+        .global_groups
+        .entry(GroupKey::SpanMetricsCommon)
+        .or_default()
+        .is_enabled = true;
+    config
+        .global_groups
+        .entry(GroupKey::SpanMetricsTx)
+        .or_default()
+        .is_enabled = true;
 
     if config.version == 0 {
         config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;
     }
 }
+
