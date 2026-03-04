@@ -82,9 +82,6 @@ pub enum RelayGauges {
     /// - `service`: the service name.
     /// - `instance_id`: a for the service name unique identifier for the running service
     ServiceUtilization,
-    /// Number of attachment uploads currently in flight.
-    #[cfg(feature = "processing")]
-    ConcurrentAttachmentUploads,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -113,8 +110,6 @@ impl GaugeMetric for RelayGauges {
             #[cfg(feature = "processing")]
             Self::MetricDelayMax => "metrics.delay.max",
             Self::ServiceUtilization => "service.utilization",
-            #[cfg(feature = "processing")]
-            Self::ConcurrentAttachmentUploads => "attachment.upload.concurrent",
         }
     }
 }

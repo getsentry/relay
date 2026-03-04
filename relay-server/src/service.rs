@@ -11,6 +11,10 @@ use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
+#[cfg(feature = "processing")]
+use crate::services::objectstore::Objectstore;
+#[cfg(feature = "processing")]
+use crate::services::objectstore::ObjectstoreService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{
@@ -23,10 +27,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
-#[cfg(feature = "processing")]
-use crate::services::upload::Upload;
-#[cfg(feature = "processing")]
-use crate::services::upload::UploadService;
+use crate::services::upload::{self, Upload};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
 #[cfg(feature = "processing")]
@@ -44,6 +45,8 @@ use relay_redis::AsyncRedisClient;
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
+#[cfg(feature = "processing")]
+use relay_system::ConcurrentService;
 use relay_system::{Addr, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
 
 /// Indicates the type of failure of the server.
@@ -77,7 +80,8 @@ pub struct Registry {
     pub project_cache_handle: ProjectCacheHandle,
     pub autoscaling: Option<Addr<AutoscalingMetrics>>,
     #[cfg(feature = "processing")]
-    pub upload: Option<Addr<Upload>>,
+    pub objectstore: Option<Addr<Objectstore>>,
+    pub upload: Addr<Upload>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -238,7 +242,12 @@ impl ServiceState {
             .transpose()?;
 
         #[cfg(feature = "processing")]
-        let upload = UploadService::new(config.upload(), store.clone())?.map(|s| services.start(s));
+        let objectstore = ObjectstoreService::new(config.objectstore(), store.clone())?.map(|s| {
+            let concurrent = ConcurrentService::new(s)
+                .with_loadshedding()
+                .with_concurrency_limit(config.objectstore().max_concurrent_requests);
+            services.start(concurrent)
+        });
 
         let envelope_buffer = PartitionedEnvelopeBuffer::create(
             config.spool_partitions(),
@@ -295,7 +304,7 @@ impl ServiceState {
                             outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
                             #[cfg(feature = "processing")]
-                            upload: upload.clone(),
+                            objectstore: objectstore.clone(),
                             #[cfg(feature = "processing")]
                             store_forwarder: store,
                             aggregator: aggregator.clone(),
@@ -344,6 +353,13 @@ impl ServiceState {
             upstream_relay.clone(),
         ));
 
+        let upload = services.start(upload::create_service(
+            &config,
+            &upstream_relay,
+            #[cfg(feature = "processing")]
+            &objectstore,
+        ));
+
         let registry = Registry {
             processor,
             health_check,
@@ -356,6 +372,7 @@ impl ServiceState {
             envelope_buffer,
             autoscaling,
             #[cfg(feature = "processing")]
+            objectstore,
             upload,
         };
 
@@ -432,8 +449,14 @@ impl ServiceState {
     }
 
     #[cfg(feature = "processing")]
-    pub fn upload(&self) -> Option<&Addr<Upload>> {
-        self.inner.registry.upload.as_ref()
+    /// Returns the address of the [`Objectstore`] service.
+    pub fn objectstore(&self) -> Option<&Addr<Objectstore>> {
+        self.inner.registry.objectstore.as_ref()
+    }
+
+    /// Returns the address of the [`Upload`] service.
+    pub fn upload(&self) -> &Addr<Upload> {
+        &self.inner.registry.upload
     }
 }
 

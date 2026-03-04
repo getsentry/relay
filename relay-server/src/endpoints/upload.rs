@@ -13,11 +13,10 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use futures::StreamExt;
 use http::header;
-#[cfg(feature = "processing")]
-use objectstore_client as objectstore;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_quotas::Scoping;
+use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
@@ -26,12 +25,12 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
-use crate::services::projects::cache::Project;
 #[cfg(feature = "processing")]
-use crate::services::upload::Error as ServiceError;
+use crate::services::objectstore;
+use crate::services::projects::cache::Project;
+use crate::services::upload::{self, SignedLocation};
 use crate::services::upstream::UpstreamRequestError;
-use crate::utils::upload::SignedLocation;
-use crate::utils::{BoundedStream, find_error_source, tus, upload};
+use crate::utils::{BoundedStream, find_error_source, tus};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -40,6 +39,9 @@ enum Error {
 
     #[error("request error: {0}")]
     Request(#[from] BadStoreRequest),
+
+    #[error("service error: {0}")]
+    SendError(#[from] SendError),
 
     #[error("upload error: {0}")]
     Upload(#[from] upload::Error),
@@ -51,6 +53,7 @@ impl IntoResponse for Error {
             Error::Tus(tus::Error::DeferLengthNotAllowed) => StatusCode::FORBIDDEN,
             Error::Tus(_) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
+            Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
                 upload::Error::Send(_) => StatusCode::SERVICE_UNAVAILABLE,
                 upload::Error::UpstreamRequest(e) => match e {
@@ -68,21 +71,25 @@ impl IntoResponse for Error {
                 }
                 upload::Error::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
-                upload::Error::UploadService(service_error) => match service_error {
-                    ServiceError::Timeout => StatusCode::GATEWAY_TIMEOUT,
-                    ServiceError::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
-                    ServiceError::UploadFailed(error) => match error {
-                        objectstore::Error::Reqwest(error) => match error.status() {
+                upload::Error::Objectstore(service_error) => match service_error {
+                    objectstore::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
+                    objectstore::Error::UploadFailed(error) => match error {
+                        objectstore_client::Error::Reqwest(error) => match error.status() {
+                            _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
                             Some(status) => status,
                             None => StatusCode::INTERNAL_SERVER_ERROR,
                         },
                         _ => StatusCode::INTERNAL_SERVER_ERROR,
                     },
-                    ServiceError::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    objectstore::Error::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 },
+                upload::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                 upload::Error::Internal => {
                     debug_assert!(false);
-                    relay_log::error!(error = &error as &dyn std::error::Error);
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "internal upload error"
+                    );
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
             },
@@ -144,13 +151,16 @@ async fn handle(
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
     let byte_counter = stream.byte_counter();
 
-    let location = upload::Sink::new(&state)
-        .upload(config, upload::Stream { scoping, stream })
+    let result = state
+        .upload()
+        .send(upload::Stream { scoping, stream })
         .await
-        .map_err(|e| {
-            relay_log::warn!(error = &e as &dyn std::error::Error, "upload failed");
-            Error::from(e)
-        })?;
+        .map_err(Error::from)
+        .and_then(|r| r.map_err(Error::from));
+
+    let location = result.inspect_err(|e| {
+        relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
+    })?;
 
     let mut response = location.into_response();
     response

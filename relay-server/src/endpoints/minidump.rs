@@ -185,7 +185,7 @@ async fn extract_multipart(
 
     let minidump_item = items
         .iter_mut()
-        .find(|item| item.attachment_type() == Some(&AttachmentType::Minidump))
+        .find(|item| item.attachment_type() == Some(AttachmentType::Minidump))
         .ok_or(BadStoreRequest::MissingMinidump)?;
 
     let embedded_opt = extract_embedded_minidump(minidump_item.payload()).await?;
@@ -459,57 +459,51 @@ mod tests {
         assert_eq!(item.filename().unwrap(), "config.json");
         assert!(item.content_type().is_none());
         assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(item.attachment_type().unwrap(), &AttachmentType::Attachment);
+        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Attachment);
         assert_eq!(item.payload().len(), 95);
 
         // the first breadcrumb buffer
         let item = &items[1];
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb1");
-        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(
-            item.attachment_type().unwrap(),
-            &AttachmentType::Breadcrumbs
-        );
+        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
         assert_eq!(item.payload().len(), 66);
 
         // the second breadcrumb buffer is empty since we haven't reached our max in the first
         let item = &items[2];
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb2");
-        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(
-            item.attachment_type().unwrap(),
-            &AttachmentType::Breadcrumbs
-        );
+        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
         assert_eq!(item.payload().len(), 0);
 
         // the msg-pack encoded event file
         let item = &items[3];
         assert_eq!(item.filename().unwrap(), "__sentry-event");
-        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.ty(), &ItemType::Attachment);
         assert_eq!(
             item.attachment_type().unwrap(),
-            &AttachmentType::EventPayload
+            AttachmentType::EventPayload
         );
         assert_eq!(item.payload().len(), 29);
 
         // the next item is the view-hierarchy file
         let item = &items[4];
         assert_eq!(item.filename().unwrap(), "view-hierarchy.json");
-        assert_eq!(item.content_type().unwrap(), &ContentType::Json);
+        assert_eq!(item.content_type().unwrap(), ContentType::Json);
         assert_eq!(item.ty(), &ItemType::Attachment);
         assert_eq!(
             item.attachment_type().unwrap(),
-            &AttachmentType::ViewHierarchy
+            AttachmentType::ViewHierarchy
         );
         assert_eq!(item.payload().len(), 184);
 
         // the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
         let item = &items[5];
         assert!(item.filename().is_none());
-        assert_eq!(item.content_type().unwrap(), &ContentType::Text);
+        assert_eq!(item.content_type().unwrap(), ContentType::Text);
         assert_eq!(item.ty(), &ItemType::FormData);
         assert!(item.attachment_type().is_none());
         let form_payload = item.payload();

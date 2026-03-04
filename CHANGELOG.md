@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Use a more mature (dog)statsd backend, with proper support for unix sockets and reservoir sampling.
+  Due to the new backend, all sampling and tag filtering configuration options have been removed. ([#5675](https://github.com/getsentry/relay/pull/5675))
+
 **Bug Fixes**:
 
 - Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
@@ -15,6 +20,7 @@
 
 - Strip performance metric specs from extraction while keeping extraction interfaces intact. ([#5674](https://github.com/getsentry/relay/pull/5674))
 - Allow deferred lengths to the `/upload` endpoint when the sender is trusted. ([#5658](https://github.com/getsentry/relay/pull/5658))
+- Use new processor architecture to process client reports. ([#5686](https://github.com/getsentry/relay/pull/5686))
 
 ## 26.2.1
 
