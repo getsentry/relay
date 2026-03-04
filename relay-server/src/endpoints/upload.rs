@@ -75,6 +75,7 @@ impl IntoResponse for Error {
                     objectstore::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::Error::UploadFailed(error) => match error {
                         objectstore_client::Error::Reqwest(error) => match error.status() {
+                            _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
                             Some(status) => status,
                             None => StatusCode::INTERNAL_SERVER_ERROR,
                         },
