@@ -13,7 +13,6 @@ use crate::envelope::{AttachmentType, Envelope};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::utils::upload::Sink;
 use crate::utils::{AttachmentStrategy, UnconstrainedMultipart, UploadExemptions};
 
 /// The extension of a prosperodump in the multipart form-data upload.
@@ -84,10 +83,9 @@ async fn extract_multipart(
     meta: RequestMeta,
     state: &ServiceState,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let upload_sink = Sink::new(state);
     let scoping = meta.get_partial_scoping().into_scoping();
     let attachment_strategy = AttachmentStrategy::Upload {
-        upload_sink,
+        state,
         scoping,
         exemptions: UploadExemptions {
             exempt_types: &[AttachmentType::Prosperodump],
