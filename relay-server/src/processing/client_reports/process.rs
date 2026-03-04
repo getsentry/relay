@@ -163,3 +163,104 @@ fn outcome_from_parts(outcome_type: ClientOutcomeType, reason: &str) -> Result<O
         })),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::services::outcome::RuleCategory;
+
+    use super::*;
+
+    #[test]
+    fn test_from_outcome_type_sampled() {
+        assert!(outcome_from_parts(ClientOutcomeType::FilteredSampling, "adsf").is_err());
+
+        assert!(outcome_from_parts(ClientOutcomeType::FilteredSampling, "Sampled:").is_err());
+
+        assert!(outcome_from_parts(ClientOutcomeType::FilteredSampling, "Sampled:foo").is_err());
+
+        assert!(matches!(
+            outcome_from_parts(ClientOutcomeType::FilteredSampling, "Sampled:"),
+            Err(())
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientOutcomeType::FilteredSampling, "Sampled:;"),
+            Err(())
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientOutcomeType::FilteredSampling, "Sampled:ab;12"),
+            Err(())
+        ));
+
+        assert_eq!(
+            outcome_from_parts(ClientOutcomeType::FilteredSampling, "Sampled:123,456"),
+            Ok(Outcome::FilteredSampling(RuleCategories(
+                [RuleCategory::Other].into()
+            )))
+        );
+
+        assert_eq!(
+            outcome_from_parts(ClientOutcomeType::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(RuleCategories(
+                [RuleCategory::Other].into()
+            )))
+        );
+
+        assert_eq!(
+            outcome_from_parts(ClientOutcomeType::FilteredSampling, "Sampled:1001"),
+            Ok(Outcome::FilteredSampling(RuleCategories(
+                [RuleCategory::BoostEnvironments].into()
+            )))
+        );
+
+        assert_eq!(
+            outcome_from_parts(
+                ClientOutcomeType::FilteredSampling,
+                "Sampled:1001,1456,1567,3333,4444"
+            ),
+            Ok(Outcome::FilteredSampling(RuleCategories(
+                [
+                    RuleCategory::BoostEnvironments,
+                    RuleCategory::BoostLowVolumeTransactions,
+                    RuleCategory::BoostLatestReleases,
+                    RuleCategory::Custom
+                ]
+                .into()
+            )))
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_filtered() {
+        assert!(matches!(
+            outcome_from_parts(ClientOutcomeType::Filtered, "error-message"),
+            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientOutcomeType::Filtered, "hydration-error"),
+            Ok(Outcome::Filtered(FilterStatKey::GenericFilter(_)))
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_client_discard() {
+        assert_eq!(
+            outcome_from_parts(ClientOutcomeType::ClientDiscard, "foo_reason").unwrap(),
+            Outcome::ClientDiscard("foo_reason".into())
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_rate_limited() {
+        assert!(matches!(
+            outcome_from_parts(ClientOutcomeType::RateLimited, ""),
+            Ok(Outcome::RateLimited(None))
+        ));
+        assert_eq!(
+            outcome_from_parts(ClientOutcomeType::RateLimited, "foo_reason").unwrap(),
+            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
+        );
+    }
+}
