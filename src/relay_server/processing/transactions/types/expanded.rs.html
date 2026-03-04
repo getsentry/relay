@@ -283,7 +283,7 @@
 <a href=#283 id=283 data-nosnippet>283</a>
 <a href=#284 id=284 data-nosnippet>284</a><span class="kw">impl </span>ExpandedProfile {
 <a href=#285 id=285 data-nosnippet>285</a>    <span class="kw">pub fn </span>serialize_item(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Item {
-<a href=#286 id=286 data-nosnippet>286</a>        <span class="self">self</span>.item.set_profile_type(<span class="self">self</span>.meta.kind);
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="self">self</span>.item.set_platform(<span class="self">self</span>.meta.platform);
 <a href=#287 id=287 data-nosnippet>287</a>        <span class="self">self</span>.item
 <a href=#288 id=288 data-nosnippet>288</a>    }
 <a href=#289 id=289 data-nosnippet>289</a>}
@@ -294,7 +294,7 @@
 <a href=#294 id=294 data-nosnippet>294</a>            (DataCategory::Profile, <span class="number">1</span>),
 <a href=#295 id=295 data-nosnippet>295</a>            (DataCategory::ProfileIndexed, <span class="number">1</span>),
 <a href=#296 id=296 data-nosnippet>296</a>            (
-<a href=#297 id=297 data-nosnippet>297</a>                <span class="kw">match </span><span class="self">self</span>.meta.kind {
+<a href=#297 id=297 data-nosnippet>297</a>                <span class="kw">match </span><span class="self">self</span>.meta.profile_type() {
 <a href=#298 id=298 data-nosnippet>298</a>                    ProfileType::Backend =&gt; DataCategory::ProfileBackend,
 <a href=#299 id=299 data-nosnippet>299</a>                    ProfileType::Ui =&gt; DataCategory::ProfileUi,
 <a href=#300 id=300 data-nosnippet>300</a>                },

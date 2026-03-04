@@ -1799,10 +1799,10 @@
 <a href=#1799 id=1799 data-nosnippet>1799</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[];
 <a href=#1800 id=1800 data-nosnippet>1800</a>
 <a href=#1801 id=1801 data-nosnippet>1801</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ProfileChunk);
-<a href=#1802 id=1802 data-nosnippet>1802</a>        item.set_profile_type(ProfileType::Backend);
+<a href=#1802 id=1802 data-nosnippet>1802</a>        item.set_platform(<span class="string">"python"</span>.to_owned());
 <a href=#1803 id=1803 data-nosnippet>1803</a>        envelope.envelope_mut().add_item(item);
 <a href=#1804 id=1804 data-nosnippet>1804</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ProfileChunk);
-<a href=#1805 id=1805 data-nosnippet>1805</a>        item.set_profile_type(ProfileType::Ui);
+<a href=#1805 id=1805 data-nosnippet>1805</a>        item.set_platform(<span class="string">"javascript"</span>.to_owned());
 <a href=#1806 id=1806 data-nosnippet>1806</a>        envelope.envelope_mut().add_item(item);
 <a href=#1807 id=1807 data-nosnippet>1807</a>
 <a href=#1808 id=1808 data-nosnippet>1808</a>        <span class="kw">let </span>mock = mock_limiter(<span class="kw-2">&amp;</span>[DataCategory::ProfileChunkUi]);
@@ -1826,10 +1826,10 @@
 <a href=#1826 id=1826 data-nosnippet>1826</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[];
 <a href=#1827 id=1827 data-nosnippet>1827</a>
 <a href=#1828 id=1828 data-nosnippet>1828</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ProfileChunk);
-<a href=#1829 id=1829 data-nosnippet>1829</a>        item.set_profile_type(ProfileType::Backend);
+<a href=#1829 id=1829 data-nosnippet>1829</a>        item.set_platform(<span class="string">"python"</span>.to_owned());
 <a href=#1830 id=1830 data-nosnippet>1830</a>        envelope.envelope_mut().add_item(item);
 <a href=#1831 id=1831 data-nosnippet>1831</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ProfileChunk);
-<a href=#1832 id=1832 data-nosnippet>1832</a>        item.set_profile_type(ProfileType::Ui);
+<a href=#1832 id=1832 data-nosnippet>1832</a>        item.set_platform(<span class="string">"javascript"</span>.to_owned());
 <a href=#1833 id=1833 data-nosnippet>1833</a>        envelope.envelope_mut().add_item(item);
 <a href=#1834 id=1834 data-nosnippet>1834</a>
 <a href=#1835 id=1835 data-nosnippet>1835</a>        <span class="kw">let </span>mock = mock_limiter(<span class="kw-2">&amp;</span>[DataCategory::ProfileChunk]);
