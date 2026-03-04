@@ -106,8 +106,6 @@ impl Counted for StoreAttachment {
 /// Errors that can occur when trying to upload an attachment.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("timeout")]
-    Timeout,
     #[error("load shed")]
     LoadShed,
     #[error("upload failed: {0}")]
@@ -119,7 +117,6 @@ pub enum Error {
 impl Error {
     fn as_str(&self) -> &'static str {
         match self {
-            Error::Timeout => "timeout",
             Error::LoadShed => "load-shed",
             Error::UploadFailed(_) => "upload_failed",
             Error::Uuid(_) => "uuid",
@@ -175,17 +172,16 @@ impl ObjectstoreService {
             return Ok(None);
         };
 
-        let objectstore_client = Client::builder(objectstore_url).build()?;
+        let objectstore_client = Client::builder(objectstore_url)
+            .configure_reqwest(|builder| builder.timeout(Duration::from_secs(*timeout)))
+            .build()?;
         let event_attachments = Usecase::new("attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 
         let inner = ObjectstoreServiceInner {
-            timeout: Duration::from_secs(*timeout),
-
             store,
-
             objectstore_client,
             event_attachments,
             trace_attachments,
@@ -229,7 +225,6 @@ impl LoadShed<Objectstore> for ObjectstoreService {
 }
 
 struct ObjectstoreServiceInner {
-    timeout: Duration,
     store: Addr<Store>,
 
     objectstore_client: Client,
@@ -269,7 +264,7 @@ impl ObjectstoreServiceInner {
 
         match session {
             Err(error) => {
-                relay_log::error!(error = &error as &dyn std::error::Error);
+                relay_log::error!(error = &error as &dyn std::error::Error, "session error");
                 relay_statsd::metric!(
                     counter(RelayCounters::AttachmentUpload) += attachments.count() as u64,
                     result = error.to_string().as_str(),
@@ -424,9 +419,12 @@ impl ObjectstoreServiceInner {
     }
 
     async fn upload(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
-        self.upload_inner(ty, request)
-            .await
-            .inspect_err(|e| relay_log::error!(error = e as &dyn std::error::Error))
+        self.upload_inner(ty, request).await.inspect_err(|e| {
+            relay_log::error!(
+                error = e as &dyn std::error::Error,
+                "objectstore upload failed"
+            )
+        })
     }
 
     async fn upload_inner(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
@@ -435,9 +433,8 @@ impl ObjectstoreServiceInner {
             timer(RelayTimers::AttachmentUploadDuration),
             type = ty,
             {
-                tokio::time::timeout(self.timeout, request.send())
+                request.send()
                     .await
-                    .map_err(|_elapsed| Error::Timeout)?
                     .map_err(Error::UploadFailed)?
             }
         );
