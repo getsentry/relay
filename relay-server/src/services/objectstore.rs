@@ -106,8 +106,6 @@ impl Counted for StoreAttachment {
 /// Errors that can occur when trying to upload an attachment.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("timeout")]
-    Timeout,
     #[error("load shed")]
     LoadShed,
     #[error("upload failed: {0}")]
@@ -119,7 +117,6 @@ pub enum Error {
 impl Error {
     fn as_str(&self) -> &'static str {
         match self {
-            Error::Timeout => "timeout",
             Error::LoadShed => "load-shed",
             Error::UploadFailed(_) => "upload_failed",
             Error::Uuid(_) => "uuid",
