@@ -72,10 +72,10 @@
 <a href=#72 id=72 data-nosnippet>72</a>                upload::Error::ServiceUnavailable =&gt; StatusCode::SERVICE_UNAVAILABLE,
 <a href=#73 id=73 data-nosnippet>73</a>                <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#74 id=74 data-nosnippet>74</a>                </span>upload::Error::Objectstore(service_error) =&gt; <span class="kw">match </span>service_error {
-<a href=#75 id=75 data-nosnippet>75</a>                    objectstore::Error::Timeout =&gt; StatusCode::GATEWAY_TIMEOUT,
-<a href=#76 id=76 data-nosnippet>76</a>                    objectstore::Error::LoadShed =&gt; StatusCode::SERVICE_UNAVAILABLE,
-<a href=#77 id=77 data-nosnippet>77</a>                    objectstore::Error::UploadFailed(error) =&gt; <span class="kw">match </span>error {
-<a href=#78 id=78 data-nosnippet>78</a>                        objectstore_client::Error::Reqwest(error) =&gt; <span class="kw">match </span>error.status() {
+<a href=#75 id=75 data-nosnippet>75</a>                    objectstore::Error::LoadShed =&gt; StatusCode::SERVICE_UNAVAILABLE,
+<a href=#76 id=76 data-nosnippet>76</a>                    objectstore::Error::UploadFailed(error) =&gt; <span class="kw">match </span>error {
+<a href=#77 id=77 data-nosnippet>77</a>                        objectstore_client::Error::Reqwest(error) =&gt; <span class="kw">match </span>error.status() {
+<a href=#78 id=78 data-nosnippet>78</a>                            <span class="kw">_ if </span>error.is_timeout() =&gt; StatusCode::GATEWAY_TIMEOUT,
 <a href=#79 id=79 data-nosnippet>79</a>                            <span class="prelude-val">Some</span>(status) =&gt; status,
 <a href=#80 id=80 data-nosnippet>80</a>                            <span class="prelude-val">None </span>=&gt; StatusCode::INTERNAL_SERVER_ERROR,
 <a href=#81 id=81 data-nosnippet>81</a>                        },
