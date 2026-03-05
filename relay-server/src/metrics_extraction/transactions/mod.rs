@@ -928,13 +928,6 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
-        let extractor = TransactionExtractor {
-            config: &config,
-            generic_config: None,
-            transaction_from_dsc: Some("test_transaction"),
-            sampling_decision: SamplingDecision::Keep,
-            target_project_id: ProjectId::new(4711),
-        };
 
         // Verify device.class tag is extracted for mobile SDKs
         let tags = extract_universal_tags(event.value().unwrap(), &config);
