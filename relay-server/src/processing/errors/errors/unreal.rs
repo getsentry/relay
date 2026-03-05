@@ -24,9 +24,11 @@ impl SentryError for Unreal {
             return Ok(None);
         };
 
+        let mut metrics = Default::default();
+
         let expansion = utils::if_not_processing!(ctx, {
             Expansion {
-                event: Box::new(Annotated::empty()),
+                event: Box::new(utils::take_event_from_crash_items(items, &mut metrics, ctx)?),
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
                 error: Self::Forward { report },
@@ -36,8 +38,6 @@ impl SentryError for Unreal {
         } else {
             use crate::envelope::AttachmentType;
             use crate::services::processor::ProcessingError;
-
-            let mut metrics = Default::default();
 
             let expansion = crate::utils::expand_unreal(report, ctx.processing.config)?;
             let event = expansion.event;
