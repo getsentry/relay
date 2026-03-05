@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/managed/managed.rs`."><title>managed.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.1 (01f6ddf75 2026-02-11)" data-channel="1.93.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_server/managed/</div>managed.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="attr">#[cfg(debug_assertions)]
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/managed/managed.rs`."><title>managed.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-ffcac47a.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_server/managed/</div>managed.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="attr">#[cfg(debug_assertions)]
 <a href=#2 id=2 data-nosnippet>2</a></span><span class="kw">use </span>std::collections::BTreeMap;
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>std::convert::Infallible;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>std::fmt;
@@ -402,7 +402,7 @@
 <a href=#402 id=402 data-nosnippet>402</a>        </span>F: FnOnce(T, <span class="kw-2">&amp;mut </span>RecordKeeper) -&gt; S,
 <a href=#403 id=403 data-nosnippet>403</a>        S: Counted,
 <a href=#404 id=404 data-nosnippet>404</a>    {
-<a href=#405 id=405 data-nosnippet>405</a>        <span class="self">self</span>.try_map(<span class="kw">move </span>|inner, records| <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Infallible&gt;(f(inner, records)))
+<a href=#405 id=405 data-nosnippet>405</a>        <span class="self">self</span>.try_map(<span class="kw">move </span>|inner, records| Ok::&lt;<span class="kw">_</span>, Infallible&gt;(f(inner, records)))
 <a href=#406 id=406 data-nosnippet>406</a>            .unwrap_or_else(|e| <span class="kw">match </span>e.<span class="number">0 </span>{})
 <a href=#407 id=407 data-nosnippet>407</a>    }
 <a href=#408 id=408 data-nosnippet>408</a>
@@ -444,7 +444,7 @@
 <a href=#444 id=444 data-nosnippet>444</a>    {
 <a href=#445 id=445 data-nosnippet>445</a>        <span class="self">self</span>.try_modify(<span class="kw">move </span>|inner, records| {
 <a href=#446 id=446 data-nosnippet>446</a>            f(inner, records);
-<a href=#447 id=447 data-nosnippet>447</a>            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Infallible&gt;(())
+<a href=#447 id=447 data-nosnippet>447</a>            Ok::&lt;<span class="kw">_</span>, Infallible&gt;(())
 <a href=#448 id=448 data-nosnippet>448</a>        })
 <a href=#449 id=449 data-nosnippet>449</a>        .unwrap_or_else(|e| <span class="kw">match </span>e {})
 <a href=#450 id=450 data-nosnippet>450</a>    }
@@ -490,7 +490,7 @@
 <a href=#490 id=490 data-nosnippet>490</a>    <span class="kw">where
 <a href=#491 id=491 data-nosnippet>491</a>        </span>F: FnOnce(T) -&gt; S,
 <a href=#492 id=492 data-nosnippet>492</a>    {
-<a href=#493 id=493 data-nosnippet>493</a>        <span class="self">self</span>.try_accept(|item| <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Infallible&gt;(f(item)))
+<a href=#493 id=493 data-nosnippet>493</a>        <span class="self">self</span>.try_accept(|item| Ok::&lt;<span class="kw">_</span>, Infallible&gt;(f(item)))
 <a href=#494 id=494 data-nosnippet>494</a>            .unwrap_or_else(|err| <span class="kw">match </span>err.<span class="number">0 </span>{})
 <a href=#495 id=495 data-nosnippet>495</a>    }
 <a href=#496 id=496 data-nosnippet>496</a>
@@ -1068,7 +1068,7 @@
 <a href=#1068 id=1068 data-nosnippet>1068</a>
 <a href=#1069 id=1069 data-nosnippet>1069</a><span class="attr">#[cfg(test)]
 <a href=#1070 id=1070 data-nosnippet>1070</a></span><span class="kw">mod </span>tests {
-<a href=#1071 id=1071 data-nosnippet>1071</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#1071 id=1071 data-nosnippet>1071</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
 <a href=#1072 id=1072 data-nosnippet>1072</a>
 <a href=#1073 id=1073 data-nosnippet>1073</a>    <span class="kw">struct </span>CountedVec(Vec&lt;u32&gt;);
 <a href=#1074 id=1074 data-nosnippet>1074</a>

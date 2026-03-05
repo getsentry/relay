@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-conventions/src/consts.rs`."><title>consts.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_conventions" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.1 (01f6ddf75 2026-02-11)" data-channel="1.93.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_conventions/</div>consts.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="macro">macro_rules!</span> convention_attributes {
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-conventions/src/consts.rs`."><title>consts.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_conventions" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_conventions/</div>consts.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="macro">macro_rules!</span> convention_attributes {
 <a href=#2 id=2 data-nosnippet>2</a>    ($(<span class="macro-nonterminal">$name</span>:ident =&gt; <span class="macro-nonterminal">$attr</span>:literal,)<span class="kw-2">*</span>) =&gt; {
 <a href=#3 id=3 data-nosnippet>3</a>        $(<span class="kw">pub const </span><span class="macro-nonterminal">$name</span>: <span class="kw-2">&amp;</span>str = <span class="macro-nonterminal">$attr</span>;)*
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -63,46 +63,51 @@
 <a href=#63 id=63 data-nosnippet>63</a>    OP =&gt; <span class="string">"sentry.op"</span>,
 <a href=#64 id=64 data-nosnippet>64</a>    ORIGIN =&gt; <span class="string">"sentry.origin"</span>,
 <a href=#65 id=65 data-nosnippet>65</a>    PLATFORM =&gt; <span class="string">"sentry.platform"</span>,
-<a href=#66 id=66 data-nosnippet>66</a>    PROFILE_ID =&gt; <span class="string">"sentry.profile_id"</span>,
-<a href=#67 id=67 data-nosnippet>67</a>    RELEASE =&gt; <span class="string">"sentry.release"</span>,
-<a href=#68 id=68 data-nosnippet>68</a>    RESOURCE_RENDER_BLOCKING_STATUS =&gt; <span class="string">"resource.render_blocking_status"</span>,
-<a href=#69 id=69 data-nosnippet>69</a>    RPC_GRPC_STATUS_CODE =&gt; <span class="string">"rpc.grpc.status_code"</span>,
-<a href=#70 id=70 data-nosnippet>70</a>    RPC_SERVICE =&gt; <span class="string">"rpc.service"</span>,
-<a href=#71 id=71 data-nosnippet>71</a>    SEGMENT_ID =&gt; <span class="string">"sentry.segment.id"</span>,
-<a href=#72 id=72 data-nosnippet>72</a>    SEGMENT_NAME =&gt; <span class="string">"sentry.segment.name"</span>,
-<a href=#73 id=73 data-nosnippet>73</a>    SENTRY_ACTION =&gt; <span class="string">"sentry.action"</span>,
-<a href=#74 id=74 data-nosnippet>74</a>    SENTRY_CATEGORY =&gt; <span class="string">"sentry.category"</span>,
-<a href=#75 id=75 data-nosnippet>75</a>    SENTRY_DOMAIN =&gt; <span class="string">"sentry.domain"</span>,
-<a href=#76 id=76 data-nosnippet>76</a>    SENTRY_GROUP =&gt; <span class="string">"sentry.group"</span>,
-<a href=#77 id=77 data-nosnippet>77</a>    SENTRY_NORMALIZED_DESCRIPTION =&gt; <span class="string">"sentry.normalized_description"</span>,
-<a href=#78 id=78 data-nosnippet>78</a>    SENTRY_STATUS_CODE =&gt; <span class="string">"sentry.status_code"</span>,
-<a href=#79 id=79 data-nosnippet>79</a>    SERVER_ADDRESS =&gt; <span class="string">"server.address"</span>,
-<a href=#80 id=80 data-nosnippet>80</a>    SPAN_KIND =&gt; <span class="string">"sentry.kind"</span>,
-<a href=#81 id=81 data-nosnippet>81</a>    STATUS_MESSAGE =&gt; <span class="string">"sentry.status.message"</span>,
-<a href=#82 id=82 data-nosnippet>82</a>    UI_COMPONENT_NAME =&gt; <span class="string">"ui.component_name"</span>,
-<a href=#83 id=83 data-nosnippet>83</a>    URL_FULL =&gt; <span class="string">"url.full"</span>,
-<a href=#84 id=84 data-nosnippet>84</a>    URL_PATH =&gt; <span class="string">"url.path"</span>,
-<a href=#85 id=85 data-nosnippet>85</a>    URL_SCHEME =&gt; <span class="string">"url.scheme"</span>,
-<a href=#86 id=86 data-nosnippet>86</a>    URL_DOMAIN =&gt; <span class="string">"url.domain"</span>,
-<a href=#87 id=87 data-nosnippet>87</a>    USER_AGENT_ORIGINAL =&gt; <span class="string">"user_agent.original"</span>,
-<a href=#88 id=88 data-nosnippet>88</a>    USER_GEO_CITY =&gt; <span class="string">"user.geo.city"</span>,
-<a href=#89 id=89 data-nosnippet>89</a>    USER_GEO_COUNTRY_CODE =&gt; <span class="string">"user.geo.country_code"</span>,
-<a href=#90 id=90 data-nosnippet>90</a>    USER_GEO_REGION =&gt; <span class="string">"user.geo.region"</span>,
-<a href=#91 id=91 data-nosnippet>91</a>    USER_GEO_SUBDIVISION =&gt; <span class="string">"user.geo.subdivision"</span>,
-<a href=#92 id=92 data-nosnippet>92</a>);
-<a href=#93 id=93 data-nosnippet>93</a>
-<a href=#94 id=94 data-nosnippet>94</a><span class="doccomment">/// Attributes which are in use by Relay but are not yet defined in the Sentry conventions.
-<a href=#95 id=95 data-nosnippet>95</a>///
-<a href=#96 id=96 data-nosnippet>96</a>/// Really do not add to this list, at all, ever. The only reason this opt-out even exists to make a
-<a href=#97 id=97 data-nosnippet>97</a>/// transition easier for attributes which Relay already uses but aren't yet in conventions.
-<a href=#98 id=98 data-nosnippet>98</a></span><span class="kw">mod </span>not_yet_defined {
-<a href=#99 id=99 data-nosnippet>99</a>    <span class="comment">// The legacy http request method attribute used by transactions spans.
-<a href=#100 id=100 data-nosnippet>100</a>    // Could not be added to sentry conventions at the time due to an attribute naming conflict that
-<a href=#101 id=101 data-nosnippet>101</a>    // requires updating the sentry conventions code gen.
-<a href=#102 id=102 data-nosnippet>102</a>    // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
-<a href=#103 id=103 data-nosnippet>103</a>    </span><span class="kw">pub const </span>LEGACY_HTTP_REQUEST_METHOD: <span class="kw-2">&amp;</span>str = <span class="string">"http.request_method"</span>;
-<a href=#104 id=104 data-nosnippet>104</a>
-<a href=#105 id=105 data-nosnippet>105</a>    <span class="kw">pub const </span>WAS_TRANSACTION: <span class="kw-2">&amp;</span>str = <span class="string">"sentry.was_transaction"</span>;
-<a href=#106 id=106 data-nosnippet>106</a>}
-<a href=#107 id=107 data-nosnippet>107</a><span class="kw">pub use </span><span class="self">self</span>::not_yet_defined::<span class="kw-2">*</span>;
+<a href=#66 id=66 data-nosnippet>66</a>    RELEASE =&gt; <span class="string">"sentry.release"</span>,
+<a href=#67 id=67 data-nosnippet>67</a>    RESOURCE_RENDER_BLOCKING_STATUS =&gt; <span class="string">"resource.render_blocking_status"</span>,
+<a href=#68 id=68 data-nosnippet>68</a>    RPC_GRPC_STATUS_CODE =&gt; <span class="string">"rpc.grpc.status_code"</span>,
+<a href=#69 id=69 data-nosnippet>69</a>    RPC_SERVICE =&gt; <span class="string">"rpc.service"</span>,
+<a href=#70 id=70 data-nosnippet>70</a>    SEGMENT_ID =&gt; <span class="string">"sentry.segment.id"</span>,
+<a href=#71 id=71 data-nosnippet>71</a>    SEGMENT_NAME =&gt; <span class="string">"sentry.segment.name"</span>,
+<a href=#72 id=72 data-nosnippet>72</a>    SENTRY_ACTION =&gt; <span class="string">"sentry.action"</span>,
+<a href=#73 id=73 data-nosnippet>73</a>    SENTRY_CATEGORY =&gt; <span class="string">"sentry.category"</span>,
+<a href=#74 id=74 data-nosnippet>74</a>    SENTRY_DOMAIN =&gt; <span class="string">"sentry.domain"</span>,
+<a href=#75 id=75 data-nosnippet>75</a>    SENTRY_GROUP =&gt; <span class="string">"sentry.group"</span>,
+<a href=#76 id=76 data-nosnippet>76</a>    SENTRY_NORMALIZED_DESCRIPTION =&gt; <span class="string">"sentry.normalized_description"</span>,
+<a href=#77 id=77 data-nosnippet>77</a>    SENTRY_STATUS_CODE =&gt; <span class="string">"sentry.status_code"</span>,
+<a href=#78 id=78 data-nosnippet>78</a>    SERVER_ADDRESS =&gt; <span class="string">"server.address"</span>,
+<a href=#79 id=79 data-nosnippet>79</a>    SPAN_KIND =&gt; <span class="string">"sentry.kind"</span>,
+<a href=#80 id=80 data-nosnippet>80</a>    STATUS_MESSAGE =&gt; <span class="string">"sentry.status.message"</span>,
+<a href=#81 id=81 data-nosnippet>81</a>    UI_COMPONENT_NAME =&gt; <span class="string">"ui.component_name"</span>,
+<a href=#82 id=82 data-nosnippet>82</a>    URL_FULL =&gt; <span class="string">"url.full"</span>,
+<a href=#83 id=83 data-nosnippet>83</a>    URL_PATH =&gt; <span class="string">"url.path"</span>,
+<a href=#84 id=84 data-nosnippet>84</a>    URL_SCHEME =&gt; <span class="string">"url.scheme"</span>,
+<a href=#85 id=85 data-nosnippet>85</a>    URL_DOMAIN =&gt; <span class="string">"url.domain"</span>,
+<a href=#86 id=86 data-nosnippet>86</a>    USER_AGENT_ORIGINAL =&gt; <span class="string">"user_agent.original"</span>,
+<a href=#87 id=87 data-nosnippet>87</a>    USER_GEO_CITY =&gt; <span class="string">"user.geo.city"</span>,
+<a href=#88 id=88 data-nosnippet>88</a>    USER_GEO_COUNTRY_CODE =&gt; <span class="string">"user.geo.country_code"</span>,
+<a href=#89 id=89 data-nosnippet>89</a>    USER_GEO_REGION =&gt; <span class="string">"user.geo.region"</span>,
+<a href=#90 id=90 data-nosnippet>90</a>    USER_GEO_SUBDIVISION =&gt; <span class="string">"user.geo.subdivision"</span>,
+<a href=#91 id=91 data-nosnippet>91</a>);
+<a href=#92 id=92 data-nosnippet>92</a>
+<a href=#93 id=93 data-nosnippet>93</a><span class="doccomment">/// Attributes which are in use by Relay but are not yet defined in the Sentry conventions.
+<a href=#94 id=94 data-nosnippet>94</a>///
+<a href=#95 id=95 data-nosnippet>95</a>/// Really do not add to this list, at all, ever. The only reason this opt-out even exists to make a
+<a href=#96 id=96 data-nosnippet>96</a>/// transition easier for attributes which Relay already uses but aren't yet in conventions.
+<a href=#97 id=97 data-nosnippet>97</a></span><span class="kw">mod </span>not_yet_defined {
+<a href=#98 id=98 data-nosnippet>98</a>    <span class="comment">// The legacy http request method attribute used by transactions spans.
+<a href=#99 id=99 data-nosnippet>99</a>    // Could not be added to sentry conventions at the time due to an attribute naming conflict that
+<a href=#100 id=100 data-nosnippet>100</a>    // requires updating the sentry conventions code gen.
+<a href=#101 id=101 data-nosnippet>101</a>    // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
+<a href=#102 id=102 data-nosnippet>102</a>    </span><span class="kw">pub const </span>LEGACY_HTTP_REQUEST_METHOD: <span class="kw-2">&amp;</span>str = <span class="string">"http.request_method"</span>;
+<a href=#103 id=103 data-nosnippet>103</a>
+<a href=#104 id=104 data-nosnippet>104</a>    <span class="kw">pub const </span>WAS_TRANSACTION: <span class="kw-2">&amp;</span>str = <span class="string">"sentry.was_transaction"</span>;
+<a href=#105 id=105 data-nosnippet>105</a>
+<a href=#106 id=106 data-nosnippet>106</a>    <span class="comment">// TODO(mjq): Evaluate and remove usages of this constant, or restore it in
+<a href=#107 id=107 data-nosnippet>107</a>    // conventions. This was deleted from conventions in
+<a href=#108 id=108 data-nosnippet>108</a>    // https://github.com/getsentry/sentry-conventions/pull/256 but is still
+<a href=#109 id=109 data-nosnippet>109</a>    // used in Relay.
+<a href=#110 id=110 data-nosnippet>110</a>    </span><span class="kw">pub const </span>PROFILE_ID: <span class="kw-2">&amp;</span>str = <span class="string">"sentry.profile_id"</span>;
+<a href=#111 id=111 data-nosnippet>111</a>}
+<a href=#112 id=112 data-nosnippet>112</a><span class="kw">pub use </span><span class="self">self</span>::not_yet_defined::<span class="kw-2">*</span>;
 </code></pre></div></section></main></body></html>
