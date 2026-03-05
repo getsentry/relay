@@ -736,6 +736,11 @@ struct PrivateProjectState {
     ///
     /// A refresh of the project, will not push the expiration time.
     expiry: Option<Instant>,
+
+    /// The time that this state entry was created.
+    ///
+    /// This field is made `None` as soon as the initial metric has been emitted.
+    pending_since: Option<Instant>,
 }
 
 impl PrivateProjectState {
@@ -749,6 +754,7 @@ impl PrivateProjectState {
             backoff: RetryBackoff::new(config.max_retry_backoff),
             last_fetch: None,
             expiry: None,
+            pending_since: Some(Instant::now()),
         }
     }
 
@@ -868,6 +874,12 @@ impl PrivateProjectState {
                 Some(_) | None => when.expiry_time(config),
             };
             self.expiry = Some(expiry.0);
+
+            if let Some(created) = self.pending_since.take() {
+                relay_statsd::metric!(
+                    timer(RelayTimers::ProjectCacheInitialFetchDuration) = now - created,
+                )
+            };
 
             self.state = FetchState::Complete { when };
             FetchResult::Done { expiry, refresh }

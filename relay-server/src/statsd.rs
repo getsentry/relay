@@ -440,6 +440,9 @@ pub enum RelayTimers {
     ProjectCacheUpdateLatency,
     /// Total time spent from starting to fetch a project config update to completing the fetch.
     ProjectCacheFetchDuration,
+    /// Total time spent from creating a "pending" project state the the first non-pending state
+    /// is loaded.
+    ProjectCacheInitialFetchDuration,
     /// Total time in milliseconds spent fetching queued project configuration updates requests to
     /// resolve.
     ///
@@ -636,6 +639,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectStateDecompression => "project_state.decompression",
             RelayTimers::ProjectCacheUpdateLatency => "project_cache.latency",
             RelayTimers::ProjectCacheFetchDuration => "project_cache.fetch.duration",
+            RelayTimers::ProjectCacheInitialFetchDuration => "project_cache.fetch.initial.duration",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::ViewHierarchyScrubbing => "scrubbing.view_hierarchy_scrubbing.duration",
