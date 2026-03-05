@@ -94,11 +94,14 @@ impl processing::Processor for ErrorsProcessor {
             .take_items_by(Item::requires_event)
             .into_vec();
 
+        if items.is_empty() {
+            return None;
+        }
+
         let errors = SerializedError {
             headers: envelope.envelope().headers().clone(),
             items,
         };
-
         Some(Managed::with_meta_from(envelope, errors))
     }
 
@@ -236,6 +239,7 @@ impl processing::RateLimited for Managed<ExpandedError> {
                 self.try_modify(|this, records| {
                     this.data.apply_rate_limit(category, limits, records)
                 })?;
+                break;
             }
         }
 
