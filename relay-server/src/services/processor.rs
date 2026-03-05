@@ -1424,6 +1424,18 @@ impl EnvelopeProcessorService {
         managed_envelope: &mut TypedEnvelope<StandaloneGroup>,
         ctx: processing::Context<'_>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
+        for item in managed_envelope.envelope().items() {
+            let attachment_type_tag = match item.attachment_type() {
+                Some(t) => &t.to_string(),
+                None => "",
+            };
+            relay_statsd::metric!(
+                counter(RelayCounters::StandaloneItem) += 1,
+                item_type = item.ty().name(),
+                attachment_type = attachment_type_tag,
+            );
+        }
+
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         standalone::process(managed_envelope);

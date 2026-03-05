@@ -969,6 +969,12 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
     ErrorProcessed,
+    /// Number of 'standalone' items.
+    ///
+    /// This metric is tagged with:
+    /// - `item_type`: The type of the item.
+    /// - `attachment_type`: The attachment type of the item, if any.
+    StandaloneItem,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1029,6 +1035,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
+            RelayCounters::StandaloneItem => "processing.standalone_item",
         }
     }
 }

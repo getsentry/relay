@@ -1289,6 +1289,11 @@ pub struct ObjectstoreServiceConfig {
     /// Maximum concurrency of uploads.
     pub max_concurrent_requests: usize,
 
+    /// Maximum size of the service input queue when `max_concurrent_requests` is saturated.
+    ///
+    /// The service will loadshed if this threshold is reached.
+    pub max_backlog: usize,
+
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
     pub timeout: u64,
 }
@@ -1298,6 +1303,7 @@ impl Default for ObjectstoreServiceConfig {
         Self {
             objectstore_url: None,
             max_concurrent_requests: 10,
+            max_backlog: 20,
             timeout: 60,
         }
     }
