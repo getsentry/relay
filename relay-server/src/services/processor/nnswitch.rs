@@ -16,7 +16,7 @@ use crate::utils;
 pub use crate::processing::errors::SwitchProcessingError;
 
 /// Limit the size of the decompressed data to prevent an invalid frame blowing up memory usage.
-const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
+const MAX_DECOMPRESSED_SIZE: usize = 100 * 1024;
 
 type Result<T> = std::result::Result<T, SwitchProcessingError>;
 
