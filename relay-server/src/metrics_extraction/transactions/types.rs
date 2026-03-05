@@ -4,7 +4,9 @@ use std::fmt::Display;
 
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{Bucket, BucketMetadata, BucketValue, MetricNamespace, MetricResourceIdentifier, MetricUnit};
+use relay_metrics::{
+    Bucket, BucketMetadata, BucketValue, MetricNamespace, MetricResourceIdentifier, MetricUnit,
+};
 
 use crate::metrics_extraction::IntoMetric;
 

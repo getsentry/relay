@@ -170,16 +170,15 @@ mod tests {
 
         let mut event = Annotated::from_json(json).unwrap();
 
-        let breakdowns_config: relay_event_normalization::BreakdownsConfig =
-            serde_json::from_str(
-                r#"{
+        let breakdowns_config: relay_event_normalization::BreakdownsConfig = serde_json::from_str(
+            r#"{
                 "span_ops": {
                     "type": "spanOperations",
                     "matches": ["react.mount"]
                 }
             }"#,
-            )
-            .unwrap();
+        )
+        .unwrap();
 
         relay_event_normalization::validate_event(
             &mut event,
