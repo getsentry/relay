@@ -1,5 +1,3 @@
-use relay_protocol::Annotated;
-
 use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities};
 use crate::processing::ForwardContext;
@@ -32,7 +30,7 @@ impl SentryError for Unreal {
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
                 error: Self::Forward { report },
-                metrics: Default::default(),
+                metrics,
                 fully_normalized: false,
             }
         } else {
@@ -86,14 +84,14 @@ impl SentryError for Unreal {
                     event.get_or_insert_with(Default::default),
                     &minidump.payload(),
                 );
-                metrics.bytes_ingested_event_minidump = Annotated::new(minidump.len() as u64);
+                metrics.bytes_ingested_event_minidump = (minidump.len() as u64).into();
             }
             if let Some(acr) = &apple_crash_report {
                 crate::utils::process_apple_crash_report(
                     event.get_or_insert_with(Default::default),
                     &acr.payload(),
                 );
-                metrics.bytes_ingested_event_applecrashreport = Annotated::new(acr.len() as u64);
+                metrics.bytes_ingested_event_applecrashreport = (acr.len() as u64).into();
             }
 
             Expansion {
