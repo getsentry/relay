@@ -210,7 +210,7 @@
 <a href=#210 id=210 data-nosnippet>210</a>    work: <span class="kw-2">&amp;</span>Managed&lt;Box&lt;ExpandedTransaction&gt;&gt;,
 <a href=#211 id=211 data-nosnippet>211</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#212 id=212 data-nosnippet>212</a>) -&gt; <span class="prelude-ty">Result</span>&lt;FiltersStatus, Rejected&lt;Error&gt;&gt; {
-<a href=#213 id=213 data-nosnippet>213</a>    utils::event::filter(<span class="kw-2">&amp;</span>work.headers, <span class="kw-2">&amp;</span>work.event, <span class="kw-2">&amp;</span>ctx)
+<a href=#213 id=213 data-nosnippet>213</a>    utils::event::filter(<span class="kw-2">&amp;</span>work.headers, <span class="kw-2">&amp;</span>work.event, ctx)
 <a href=#214 id=214 data-nosnippet>214</a>        .map_err(ProcessingError::EventFiltered)
 <a href=#215 id=215 data-nosnippet>215</a>        .map_err(Error::from)
 <a href=#216 id=216 data-nosnippet>216</a>        .reject(work)

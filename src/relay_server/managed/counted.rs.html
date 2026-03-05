@@ -239,7 +239,7 @@
 <a href=#239 id=239 data-nosnippet>239</a>    }
 <a href=#240 id=240 data-nosnippet>240</a>}
 <a href=#241 id=241 data-nosnippet>241</a>
-<a href=#242 id=242 data-nosnippet>242</a><span class="kw">impl</span>&lt;T: Counted&gt; Counted <span class="kw">for </span>Vec&lt;T&gt; {
+<a href=#242 id=242 data-nosnippet>242</a><span class="kw">impl</span>&lt;T: Counted&gt; Counted <span class="kw">for </span>[T] {
 <a href=#243 id=243 data-nosnippet>243</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
 <a href=#244 id=244 data-nosnippet>244</a>        <span class="kw">let </span><span class="kw-2">mut </span>quantities = BTreeMap::new();
 <a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">for </span>element <span class="kw">in </span><span class="self">self </span>{
@@ -251,15 +251,15 @@
 <a href=#251 id=251 data-nosnippet>251</a>    }
 <a href=#252 id=252 data-nosnippet>252</a>}
 <a href=#253 id=253 data-nosnippet>253</a>
-<a href=#254 id=254 data-nosnippet>254</a><span class="kw">impl</span>&lt;T: Counted, <span class="kw">const </span>N: usize&gt; Counted <span class="kw">for </span>SmallVec&lt;[T; N]&gt; {
+<a href=#254 id=254 data-nosnippet>254</a><span class="kw">impl</span>&lt;T: Counted&gt; Counted <span class="kw">for </span>Vec&lt;T&gt; {
 <a href=#255 id=255 data-nosnippet>255</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
-<a href=#256 id=256 data-nosnippet>256</a>        <span class="kw">let </span><span class="kw-2">mut </span>quantities = BTreeMap::new();
-<a href=#257 id=257 data-nosnippet>257</a>        <span class="kw">for </span>element <span class="kw">in </span><span class="self">self </span>{
-<a href=#258 id=258 data-nosnippet>258</a>            <span class="kw">for </span>(category, size) <span class="kw">in </span>element.quantities() {
-<a href=#259 id=259 data-nosnippet>259</a>                <span class="kw-2">*</span>quantities.entry(category).or_default() += size;
-<a href=#260 id=260 data-nosnippet>260</a>            }
-<a href=#261 id=261 data-nosnippet>261</a>        }
-<a href=#262 id=262 data-nosnippet>262</a>        quantities.into_iter().collect()
+<a href=#256 id=256 data-nosnippet>256</a>        <span class="self">self</span>.as_slice().quantities()
+<a href=#257 id=257 data-nosnippet>257</a>    }
+<a href=#258 id=258 data-nosnippet>258</a>}
+<a href=#259 id=259 data-nosnippet>259</a>
+<a href=#260 id=260 data-nosnippet>260</a><span class="kw">impl</span>&lt;T: Counted, <span class="kw">const </span>N: usize&gt; Counted <span class="kw">for </span>SmallVec&lt;[T; N]&gt; {
+<a href=#261 id=261 data-nosnippet>261</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
+<a href=#262 id=262 data-nosnippet>262</a>        <span class="self">self</span>.as_slice().quantities()
 <a href=#263 id=263 data-nosnippet>263</a>    }
 <a href=#264 id=264 data-nosnippet>264</a>}
 </code></pre></div></section></main></body></html>

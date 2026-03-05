@@ -97,7 +97,7 @@
 <a href=#97 id=97 data-nosnippet>97</a>        <span class="kw">let </span>len = item.len();
 <a href=#98 id=98 data-nosnippet>98</a>
 <a href=#99 id=99 data-nosnippet>99</a>        <span class="kw">let </span><span class="kw-2">mut </span>value = SerdeValue::Object(Default::default());
-<a href=#100 id=100 data-nosnippet>100</a>        merge_formdata(<span class="kw-2">&amp;mut </span>value, item);
+<a href=#100 id=100 data-nosnippet>100</a>        merge_formdata(<span class="kw-2">&amp;mut </span>value, <span class="kw-2">&amp;</span>item);
 <a href=#101 id=101 data-nosnippet>101</a>        <span class="kw">let </span>event = Annotated::deserialize_with_meta(value).unwrap_or_default();
 <a href=#102 id=102 data-nosnippet>102</a>
 <a href=#103 id=103 data-nosnippet>103</a>        (event, len)
@@ -219,7 +219,7 @@
 <a href=#219 id=219 data-nosnippet>219</a>    <span class="prelude-val">Ok</span>((event, item.len()))
 <a href=#220 id=220 data-nosnippet>220</a>}
 <a href=#221 id=221 data-nosnippet>221</a>
-<a href=#222 id=222 data-nosnippet>222</a><span class="kw">fn </span>event_from_security_report(
+<a href=#222 id=222 data-nosnippet>222</a><span class="kw">pub fn </span>event_from_security_report(
 <a href=#223 id=223 data-nosnippet>223</a>    item: Item,
 <a href=#224 id=224 data-nosnippet>224</a>    meta: <span class="kw-2">&amp;</span>RequestMeta,
 <a href=#225 id=225 data-nosnippet>225</a>) -&gt; <span class="prelude-ty">Result</span>&lt;ExtractedEvent, ProcessingError&gt; {
@@ -338,7 +338,7 @@
 <a href=#338 id=338 data-nosnippet>338</a>    <span class="prelude-val">Ok</span>(breadcrumbs)
 <a href=#339 id=339 data-nosnippet>339</a>}
 <a href=#340 id=340 data-nosnippet>340</a>
-<a href=#341 id=341 data-nosnippet>341</a><span class="kw">fn </span>event_from_attachments(
+<a href=#341 id=341 data-nosnippet>341</a><span class="kw">pub fn </span>event_from_attachments(
 <a href=#342 id=342 data-nosnippet>342</a>    config: <span class="kw-2">&amp;</span>Config,
 <a href=#343 id=343 data-nosnippet>343</a>    event_item: <span class="prelude-ty">Option</span>&lt;Item&gt;,
 <a href=#344 id=344 data-nosnippet>344</a>    breadcrumbs_item1: <span class="prelude-ty">Option</span>&lt;Item&gt;,
@@ -390,7 +390,7 @@
 <a href=#390 id=390 data-nosnippet>390</a>    <span class="prelude-val">Ok</span>((event, len))
 <a href=#391 id=391 data-nosnippet>391</a>}
 <a href=#392 id=392 data-nosnippet>392</a>
-<a href=#393 id=393 data-nosnippet>393</a><span class="kw">fn </span>merge_formdata(target: <span class="kw-2">&amp;mut </span>SerdeValue, item: Item) {
+<a href=#393 id=393 data-nosnippet>393</a><span class="kw">pub fn </span>merge_formdata(target: <span class="kw-2">&amp;mut </span>SerdeValue, item: <span class="kw-2">&amp;</span>Item) {
 <a href=#394 id=394 data-nosnippet>394</a>    <span class="kw">let </span>payload = item.payload();
 <a href=#395 id=395 data-nosnippet>395</a>    <span class="kw">let </span><span class="kw-2">mut </span>aggregator = ChunkedFormDataAggregator::new();
 <a href=#396 id=396 data-nosnippet>396</a>

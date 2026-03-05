@@ -2,7 +2,7 @@
     otel_span: <a class="struct" href="otel_trace/struct.Span.html" title="struct relay_spans::otel_trace::Span">Span</a>,
     resource: <a class="enum" href="https://doc.rust-lang.org/1.93.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;Resource&gt;,
     scope: <a class="enum" href="https://doc.rust-lang.org/1.93.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;InstrumentationScope&gt;,
-) -&gt; <a class="struct" href="../relay_event_schema/protocol/span_v2/struct.SpanV2.html" title="struct relay_event_schema::protocol::span_v2::SpanV2">SpanV2</a></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Transform an OTEL span to a Sentry span V2.</p>
+) -&gt; SpanV2</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Transform an OTEL span to a Sentry span V2.</p>
 <p>This uses attributes in the OTEL span to populate various fields in the Sentry span.</p>
 <ul>
 <li>The Sentry span’s <code>name</code> field may be set based on <code>db</code> or <code>http</code> attributes
