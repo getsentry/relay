@@ -52,6 +52,13 @@ impl<S> BoundedStream<S> {
         }
     }
 
+    /// Returns the exact length of the stream.
+    ///
+    /// Returns `None` if `lower_bound != upper_bound`.
+    pub fn length(&self) -> Option<usize> {
+        (self.lower_bound == self.upper_bound).then_some(self.lower_bound)
+    }
+
     /// Returns a shared handle to read the byte count after the stream is consumed.
     pub fn byte_counter(&self) -> ByteCounter {
         self.byte_counter.clone()

@@ -1640,6 +1640,10 @@ pub struct Upload {
     /// Maximum time spent trying to upload, in seconds.
     /// Currently only used by non-processing relays, as the objectstore service has its own timeout.
     pub timeout: u64,
+    /// The maximum time between creating the upload and uploading the data / the attachment placeholder.
+    ///
+    /// In seconds.
+    pub max_age: i64,
 }
 
 impl Default for Upload {
@@ -1647,6 +1651,7 @@ impl Default for Upload {
         Self {
             max_concurrent_requests: 10,
             timeout: 60,
+            max_age: 60 * 60, // 1h
         }
     }
 }

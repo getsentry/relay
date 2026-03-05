@@ -18,8 +18,24 @@ def dummy_upload(mini_sentry):
     mini_sentry.allow_chunked = True
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
-    def dummy_upload(**opts):
-        return Response("", status=201, headers={"Location": "dummy"})
+    def create(**opts):
+        return Response(
+            "",
+            status=201,
+            headers={
+                "Location": "/api/42/upload/9ec79c33ec9942ab8353589fcb2e04dc/?length=666&signature=fake"
+            },
+        )
+
+    @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
+    def upload(**opts):
+        return Response(
+            "",
+            status=204,
+            headers={
+                "Location": "/api/42/upload/9ec79c33ec9942ab8353589fcb2e04dc/?length=666&signature=fake"
+            },
+        )
 
 
 @pytest.fixture
