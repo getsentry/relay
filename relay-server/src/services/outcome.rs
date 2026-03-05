@@ -112,9 +112,6 @@ trait TrackOutcomeLike {
     /// Returns the number of items for that outcome.
     fn quantity(&self) -> Option<u32>;
 
-    /// The project id for the outcomes.
-    fn project_id(&self) -> ProjectId;
-
     /// The category for the outcome.
     fn category(&self) -> DataCategory;
 }
@@ -151,10 +148,6 @@ impl TrackOutcomeLike for TrackOutcome {
 
     fn quantity(&self) -> Option<u32> {
         Some(self.quantity)
-    }
-
-    fn project_id(&self) -> ProjectId {
-        self.scoping.project_id
     }
 
     fn category(&self) -> DataCategory {
@@ -663,7 +656,6 @@ impl DiscardItemType {
             Self::Attachment(DiscardAttachmentType::UnrealContext) => "attachment:unreal_context",
             Self::Attachment(DiscardAttachmentType::UnrealLogs) => "attachment:unreal_logs",
             Self::Attachment(DiscardAttachmentType::ViewHierarchy) => "attachment:view_hierarchy",
-            Self::Attachment(DiscardAttachmentType::Unknown) => "attachment:unknown",
             Self::FormData => "form_data",
             Self::RawSecurity => "raw_security",
             Self::Nel => "nel",
@@ -764,8 +756,6 @@ pub enum DiscardAttachmentType {
     UnrealLogs,
     /// An application UI view hierarchy (json payload).
     ViewHierarchy,
-    /// Unknown attachment type, forwarded for compatibility.
-    Unknown,
 }
 
 impl From<&AttachmentType> for DiscardAttachmentType {
@@ -780,7 +770,6 @@ impl From<&AttachmentType> for DiscardAttachmentType {
             AttachmentType::UnrealContext => Self::UnrealContext,
             AttachmentType::UnrealLogs => Self::UnrealLogs,
             AttachmentType::ViewHierarchy => Self::ViewHierarchy,
-            AttachmentType::Unknown(_) => Self::Unknown,
         }
     }
 }
@@ -884,10 +873,6 @@ impl TrackOutcomeLike for TrackRawOutcome {
 
     fn quantity(&self) -> Option<u32> {
         self.quantity
-    }
-
-    fn project_id(&self) -> ProjectId {
-        self.project_id
     }
 
     fn category(&self) -> DataCategory {
@@ -1170,9 +1155,7 @@ impl FromMessage<TrackRawOutcome> for OutcomeProducer {
 fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
     if let Some(quantity) = message.quantity() {
         metric!(
-            counter(RelayCounters::OutcomeQuantity) += quantity,
-            hc.project_id = message.project_id().to_string().as_str(),
-            hc.reason = message.reason().as_deref().unwrap_or(""),
+            counter(RelayCounters::OutcomeQuantity) += quantity.into(),
             category = message.category().name(),
             outcome = message.tag_name(),
             to = to,
@@ -1181,8 +1164,6 @@ fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
     metric!(
         counter(RelayCounters::Outcomes) += 1,
         reason = message.reason().as_deref().unwrap_or(""),
-        hc.category = message.category().name(),
-        hc.project_id = message.project_id().to_string().as_str(),
         outcome = message.tag_name(),
         to = to,
     );

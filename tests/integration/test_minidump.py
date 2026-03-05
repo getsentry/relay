@@ -6,6 +6,8 @@ import pytest
 from requests import HTTPError
 from uuid import UUID
 
+from sentry_relay.consts import DataCategory
+
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
 BREADCRUMB_ATTACHMENT_NAME1 = "__sentry-breadcrumb1"
@@ -377,6 +379,7 @@ def test_minidump_with_processing(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
+    outcomes_consumer,
     rate_limit,
     minidump_filename,
     use_objectstore,
@@ -427,6 +430,7 @@ def test_minidump_with_processing(
         ]
 
     attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     # if we test a compressed minidump fixture we upload the compressed content
     # but retrieve the uncompressed minidump content from the `attachments_consumer` below.
@@ -494,6 +498,28 @@ def test_minidump_with_processing(
         }
 
     assert "errors" not in event
+
+    if rate_limit == "attachment":
+        assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
+            {
+                "category": DataCategory.ATTACHMENT.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 2,
+                "project_id": 42,
+                "quantity": len(content),
+                "reason": "static_disabled_quota",
+            },
+            {
+                "category": DataCategory.ATTACHMENT_ITEM.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 2,
+                "project_id": 42,
+                "quantity": 1,
+                "reason": "static_disabled_quota",
+            },
+        ]
 
 
 def test_minidump_with_processing_invalid(

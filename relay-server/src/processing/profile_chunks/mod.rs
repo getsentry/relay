@@ -160,7 +160,7 @@ impl Forward for ProfileChunkOutput {
         let retention_days = ctx.event_retention().standard;
 
         for ppc in profile_chunks.split(|pc| pc.profile_chunks) {
-            s.store(ppc.map(|ppc, _| StoreProfileChunk {
+            s.send_to_store(ppc.map(|ppc, _| StoreProfileChunk {
                 retention_days,
                 payload: ppc.item.payload(),
                 quantities: ppc.item.quantities(),

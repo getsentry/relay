@@ -52,12 +52,11 @@ def test_nnswitch(
     )
     relay.send_envelope(PROJECT_ID, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 0
-
     event, _ = events_consumer.get_event()
     assert event["sdk"]["name"] == "sentry.native.switch"
     assert event["user"]["id"] == "user-id"
     assert event["contexts"]["os"]["name"] == "Nintendo"
     assert event["breadcrumbs"]["values"][0]["type"] == "bread"
     assert event["breadcrumbs"]["values"][0]["message"] == "crumb"
+
+    outcomes_consumer.assert_empty()

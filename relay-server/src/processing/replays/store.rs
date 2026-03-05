@@ -4,7 +4,7 @@ use relay_event_schema::protocol::{EventId, Replay};
 use relay_protocol::Annotated;
 
 use crate::managed::Counted;
-use crate::processing::replays::{Error, ExpandedReplay};
+use crate::processing::replays::{Error, ReplayPayload, Result};
 use crate::services::store::StoreReplay;
 
 /// Reserved bytes for message metadata.
@@ -21,15 +21,15 @@ pub struct Context {
     pub max_replay_message_size: usize,
 }
 
-/// Converts an [`ExpandedReplay`] into a storable [`StoreReplay`].
+/// Converts a [`ReplayPayload`] into a storable [`StoreReplay`].
 ///
 /// Fails if the event can not be serialized or the created message is too large for the consumer.
-pub fn convert(replay: ExpandedReplay, ctx: &Context) -> Result<StoreReplay, Error> {
+pub fn convert(replay: ReplayPayload, ctx: &Context) -> Result<StoreReplay> {
     let quantities = replay.quantities();
     let (recording, event, video) = match replay {
-        ExpandedReplay::StandaloneRecording { recording } => (recording, None, None),
-        ExpandedReplay::WebReplay { event, recording } => (recording, Some(event), None),
-        ExpandedReplay::NativeReplay {
+        ReplayPayload::StandaloneRecording { recording } => (recording, None, None),
+        ReplayPayload::WebReplay { event, recording } => (recording, Some(event), None),
+        ReplayPayload::NativeReplay {
             event,
             recording,
             video,
@@ -59,8 +59,8 @@ pub fn convert(replay: ExpandedReplay, ctx: &Context) -> Result<StoreReplay, Err
     })
 }
 
-fn serialize_event(replay: Annotated<Replay>) -> Result<Bytes, Error> {
-    replay
+fn serialize_event(replay_event: Annotated<Replay>) -> Result<Bytes> {
+    replay_event
         .to_json()
         .map_err(|_| Error::FailedToSerializeReplay)
         .map(|json| json.into_bytes().into())

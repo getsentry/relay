@@ -48,6 +48,7 @@ use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::processing::check_ins::CheckInsProcessor;
+use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::replays::ReplaysProcessor;
@@ -76,9 +77,9 @@ use crate::{http, processing};
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
+    crate::services::objectstore::Objectstore,
     crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
-    crate::services::upload::Upload,
     crate::utils::Enforcement,
     itertools::Itertools,
     relay_cardinality::{
@@ -1106,7 +1107,7 @@ pub struct Addrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    pub upload: Option<Addr<Upload>>,
+    pub objectstore: Option<Addr<Objectstore>>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
@@ -1118,7 +1119,7 @@ impl Default for Addrs {
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
             #[cfg(feature = "processing")]
-            upload: None,
+            objectstore: None,
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator: Addr::dummy(),
@@ -1152,6 +1153,7 @@ struct Processing {
     profile_chunks: ProfileChunksProcessor,
     trace_attachments: TraceAttachmentsProcessor,
     replays: ReplaysProcessor,
+    client_reports: ClientReportsProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1207,7 +1209,7 @@ impl EnvelopeProcessorService {
         ));
         #[cfg(feature = "processing")]
         let rate_limiter = rate_limiter.map(Arc::new);
-
+        let outcome_aggregator = addrs.outcome_aggregator.clone();
         let inner = InnerProcessor {
             pool,
             global_config,
@@ -1243,6 +1245,7 @@ impl EnvelopeProcessorService {
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
                 replays: ReplaysProcessor::new(quota_limiter, geoip_lookup.clone()),
+                client_reports: ClientReportsProcessor::new(outcome_aggregator),
             },
             geoip_lookup,
             config,
@@ -1352,7 +1355,7 @@ impl EnvelopeProcessorService {
         let attachments = managed_envelope
             .envelope()
             .items()
-            .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment));
+            .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment));
         processing::utils::event::finalize(
             managed_envelope.envelope().headers(),
             &mut event,
@@ -1640,7 +1643,21 @@ impl EnvelopeProcessorService {
                     .await
             }
             ProcessingGroup::Standalone => run!(process_standalone, ctx),
-            ProcessingGroup::ClientReport => run!(process_client_reports, ctx),
+            ProcessingGroup::ClientReport => {
+                if ctx
+                    .project_info
+                    .has_feature(Feature::NewClientReportProcessing)
+                {
+                    self.process_with_processor(
+                        &self.inner.processing.client_reports,
+                        managed_envelope,
+                        ctx,
+                    )
+                    .await
+                } else {
+                    run!(process_client_reports, ctx)
+                }
+            }
             ProcessingGroup::Replay => {
                 self.process_with_processor(&self.inner.processing.replays, managed_envelope, ctx)
                     .await
@@ -2006,7 +2023,7 @@ impl EnvelopeProcessorService {
         {
             use crate::processing::StoreHandle;
 
-            let upload = self.inner.addrs.upload.as_ref();
+            let objectstore = self.inner.addrs.objectstore.as_ref();
             match submit {
                 Submit::Envelope(envelope) => {
                     let envelope_has_attachments = envelope
@@ -2019,18 +2036,18 @@ impl EnvelopeProcessorService {
                         utils::sample(options.objectstore_attachments_sample_rate).is_keep()
                     };
 
-                    if let Some(upload) = &self.inner.addrs.upload
+                    if let Some(objectstore) = &self.inner.addrs.objectstore
                         && envelope_has_attachments
                         && use_objectstore()
                     {
-                        // the `UploadService` will upload all attachments, and then forward the envelope to the `StoreService`.
-                        upload.send(StoreEnvelope { envelope })
+                        // the `ObjectstoreService` will upload all attachments, and then forward the envelope to the `StoreService`.
+                        objectstore.send(StoreEnvelope { envelope })
                     } else {
                         store_forwarder.send(StoreEnvelope { envelope })
                     }
                 }
                 Submit::Output { output, ctx } => output
-                    .forward_store(StoreHandle::new(store_forwarder, upload), ctx)
+                    .forward_store(StoreHandle::new(store_forwarder, objectstore), ctx)
                     .unwrap_or_else(|err| err.into_inner()),
             }
             return;
@@ -2274,7 +2291,9 @@ impl EnvelopeProcessorService {
                             is_limited = limits.is_limited();
                             rate_limits.merge(limits)
                         }
-                        Err(e) => relay_log::error!(error = &e as &dyn Error),
+                        Err(e) => {
+                            relay_log::error!(error = &e as &dyn Error, "rate limiting error")
+                        }
                     }
                 }
 

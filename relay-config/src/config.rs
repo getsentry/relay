@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr};
 use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -557,6 +557,10 @@ pub struct Metrics {
     ///
     /// Defaults to `None`.
     pub statsd: Option<String>,
+    /// Buffer size used for metrics sent to the statsd socket.
+    ///
+    /// Defaults to `None`.
+    pub statsd_buffer_size: Option<usize>,
     /// Common prefix that should be added to all metrics.
     ///
     /// Defaults to `"sentry.relay"`.
@@ -565,41 +569,22 @@ pub struct Metrics {
     pub default_tags: BTreeMap<String, String>,
     /// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
     pub hostname_tag: Option<String>,
-    /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
-    ///
-    /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
-    /// Defaults to `1.0` (100%).
-    pub sample_rate: f64,
     /// Interval for periodic metrics emitted from Relay.
     ///
     /// Setting it to `0` seconds disables the periodic metrics.
     /// Defaults to 5 seconds.
     pub periodic_secs: u64,
-    /// Whether local metric aggregation using statdsproxy should be enabled.
-    ///
-    /// Defaults to `true`.
-    pub aggregate: bool,
-    /// Allows emission of metrics with high cardinality tags.
-    ///
-    /// High cardinality tags are dynamic values attached to metrics,
-    /// such as project IDs. When enabled, these tags will be included
-    /// in the emitted metrics. When disabled, the tags will be omitted.
-    ///
-    /// Defaults to `false`.
-    pub allow_high_cardinality_tags: bool,
 }
 
 impl Default for Metrics {
     fn default() -> Self {
         Metrics {
             statsd: None,
+            statsd_buffer_size: None,
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
-            sample_rate: 1.0,
             periodic_secs: 5,
-            aggregate: true,
-            allow_high_cardinality_tags: false,
         }
     }
 }
@@ -1219,9 +1204,9 @@ pub struct Processing {
     ///
     /// Must be between `0.0` and `1.0`, by default there is no limit configured.
     pub quota_cache_max: Option<f32>,
-    /// Configuration for attachment uploads.
-    #[serde(default)]
-    pub upload: UploadServiceConfig,
+    /// Configuration for the objectstore service.
+    #[serde(default, alias = "upload")]
+    pub objectstore: ObjectstoreServiceConfig,
 }
 
 impl Default for Processing {
@@ -1242,7 +1227,7 @@ impl Default for Processing {
             max_rate_limit: default_max_rate_limit(),
             quota_cache_ratio: None,
             quota_cache_max: None,
-            upload: UploadServiceConfig::default(),
+            objectstore: ObjectstoreServiceConfig::default(),
         }
     }
 }
@@ -1291,10 +1276,10 @@ impl Default for OutcomeAggregatorConfig {
     }
 }
 
-/// Configuration values for attachment uploads.
+/// Configuration values for the objectstore service.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-pub struct UploadServiceConfig {
+pub struct ObjectstoreServiceConfig {
     /// The base URL for the objectstore service.
     ///
     /// This defaults to [`None`], which means that the service will be disabled,
@@ -1304,15 +1289,21 @@ pub struct UploadServiceConfig {
     /// Maximum concurrency of uploads.
     pub max_concurrent_requests: usize,
 
+    /// Maximum size of the service input queue when `max_concurrent_requests` is saturated.
+    ///
+    /// The service will loadshed if this threshold is reached.
+    pub max_backlog: usize,
+
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
     pub timeout: u64,
 }
 
-impl Default for UploadServiceConfig {
+impl Default for ObjectstoreServiceConfig {
     fn default() -> Self {
         Self {
             objectstore_url: None,
             max_concurrent_requests: 10,
+            max_backlog: 20,
             timeout: 60,
         }
     }
@@ -1638,6 +1629,28 @@ impl Default for Cogs {
     }
 }
 
+/// Configuration for the upload service.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Upload {
+    /// Maximum number of uploads that the service accepts.
+    ///
+    /// Additional uploads will be rejected.
+    pub max_concurrent_requests: usize,
+    /// Maximum time spent trying to upload, in seconds.
+    /// Currently only used by non-processing relays, as the objectstore service has its own timeout.
+    pub timeout: u64,
+}
+
+impl Default for Upload {
+    fn default() -> Self {
+        Self {
+            max_concurrent_requests: 10,
+            timeout: 60,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1678,6 +1691,8 @@ struct ConfigValues {
     health: Health,
     #[serde(default)]
     cogs: Cogs,
+    #[serde(default)]
+    upload: Upload,
 }
 
 impl ConfigObject for ConfigValues {
@@ -2161,20 +2176,14 @@ impl Config {
         &self.values.sentry
     }
 
-    /// Returns the socket addresses for statsd.
-    ///
-    /// If stats is disabled an empty vector is returned.
-    pub fn statsd_addrs(&self) -> anyhow::Result<Vec<SocketAddr>> {
-        if let Some(ref addr) = self.values.metrics.statsd {
-            let addrs = addr
-                .as_str()
-                .to_socket_addrs()
-                .with_context(|| ConfigError::file(ConfigErrorKind::InvalidValue, &self.path))?
-                .collect();
-            Ok(addrs)
-        } else {
-            Ok(vec![])
-        }
+    /// Returns the addresses for statsd metrics.
+    pub fn statsd_addr(&self) -> Option<&str> {
+        self.values.metrics.statsd.as_deref()
+    }
+
+    /// Returns the addresses for statsd metrics.
+    pub fn statsd_buffer_size(&self) -> Option<usize> {
+        self.values.metrics.statsd_buffer_size
     }
 
     /// Return the prefix for statsd metrics.
@@ -2190,21 +2199,6 @@ impl Config {
     /// Returns the name of the hostname tag that should be attached to each outgoing metric.
     pub fn metrics_hostname_tag(&self) -> Option<&str> {
         self.values.metrics.hostname_tag.as_deref()
-    }
-
-    /// Returns the global sample rate for all metrics.
-    pub fn metrics_sample_rate(&self) -> f64 {
-        self.values.metrics.sample_rate
-    }
-
-    /// Returns whether local metric aggregation should be enabled.
-    pub fn metrics_aggregate(&self) -> bool {
-        self.values.metrics.aggregate
-    }
-
-    /// Returns whether high cardinality tags should be removed before sending metrics.
-    pub fn metrics_allow_high_cardinality_tags(&self) -> bool {
-        self.values.metrics.allow_high_cardinality_tags
     }
 
     /// Returns the interval for periodic metrics emitted from Relay.
@@ -2598,9 +2592,14 @@ impl Config {
         &self.values.processing.topics.unused
     }
 
-    /// Configuration of the attachment upload service.
-    pub fn upload(&self) -> &UploadServiceConfig {
-        &self.values.processing.upload
+    /// Configuration of the objectstore service.
+    pub fn objectstore(&self) -> &ObjectstoreServiceConfig {
+        &self.values.processing.objectstore
+    }
+
+    /// Configuration of the upload service.
+    pub fn upload(&self) -> &Upload {
+        &self.values.upload
     }
 
     /// Redis servers to connect to for project configs, cardinality limits,

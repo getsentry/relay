@@ -3,7 +3,7 @@ use anyhow::Context;
 use anyhow::Result;
 use relay_config::{Config, RelayMode};
 use relay_server::MemoryStat;
-use relay_statsd::MetricsClientConfig;
+use relay_statsd::MetricsConfig;
 
 /// Validates that the `batch_size_bytes` of the configuration is correct and doesn't lead to
 /// deadlocks in the buffer.
@@ -100,10 +100,9 @@ pub fn dump_credentials(config: &Config) {
 
 /// Initialize the metric system.
 pub fn init_metrics(config: &Config) -> Result<()> {
-    let addrs = config.statsd_addrs()?;
-    if addrs.is_empty() {
+    let Some(host) = config.statsd_addr() else {
         return Ok(());
-    }
+    };
 
     let mut default_tags = config.metrics_default_tags().clone();
     if let Some(hostname_tag) = config.metrics_hostname_tag()
@@ -111,14 +110,12 @@ pub fn init_metrics(config: &Config) -> Result<()> {
     {
         default_tags.insert(hostname_tag.to_owned(), hostname);
     }
-    relay_statsd::init(MetricsClientConfig {
-        prefix: config.metrics_prefix(),
-        host: &addrs[..],
+    relay_statsd::init(MetricsConfig {
+        prefix: config.metrics_prefix().to_owned(),
+        host: host.to_owned(),
+        buffer_size: config.statsd_buffer_size(),
         default_tags,
-        sample_rate: config.metrics_sample_rate().into(),
-        aggregate: config.metrics_aggregate(),
-        allow_high_cardinality_tags: config.metrics_allow_high_cardinality_tags(),
-    });
+    })?;
 
     Ok(())
 }

@@ -91,7 +91,8 @@ pub fn process(profile_chunks: &mut Managed<SerializedProfileChunks>, ctx: Conte
                     sdk = sdk
                 );
 
-                item.set_profile_type(pc.profile_type());
+                item.set_platform(pc.platform().to_owned());
+                debug_assert_eq!(item.profile_type(), Some(pc.profile_type()));
                 match pc.profile_type() {
                     ProfileType::Ui => records.modify_by(DataCategory::ProfileChunkUi, 1),
                     ProfileType::Backend => records.modify_by(DataCategory::ProfileChunk, 1),
