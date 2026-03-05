@@ -7,9 +7,7 @@ use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::processing::errors::{Error, Result};
 
 #[derive(Debug)]
-pub struct Minidump {
-    pub minidump: Item,
-}
+pub struct Minidump(pub Item);
 
 impl SentryError for Minidump {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
@@ -35,7 +33,7 @@ impl SentryError for Minidump {
             event: Box::new(event),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-            error: Self { minidump },
+            error: Self(minidump),
             metrics,
             fully_normalized: false,
         }))
@@ -47,21 +45,21 @@ impl SentryError for Minidump {
         limits: RateLimits,
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
-        if !self.minidump.rate_limited() {
-            self.minidump.set_rate_limited(true);
-            records.reject_err(Error::RateLimited(limits), &self.minidump);
+        if !self.0.rate_limited() {
+            self.0.set_rate_limited(true);
+            records.reject_err(Error::RateLimited(limits), &self.0);
         }
 
         Ok(())
     }
 
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        items.push(self.minidump);
+        items.push(self.0);
         Ok(())
     }
 
     fn minidump_mut(&mut self) -> Option<&mut Item> {
-        Some(&mut self.minidump)
+        Some(&mut self.0)
     }
 }
 
@@ -72,9 +70,9 @@ impl Counted for Minidump {
         //
         // The rate limited information is passed along and will lead to the item later to be
         // dropped.
-        match self.minidump.rate_limited() {
+        match self.0.rate_limited() {
             true => Default::default(),
-            false => self.minidump.quantities(),
+            false => self.0.quantities(),
         }
     }
 }

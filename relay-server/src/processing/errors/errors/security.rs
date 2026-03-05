@@ -6,7 +6,7 @@ use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 
 #[derive(Debug)]
-pub struct Security {}
+pub struct Security;
 
 impl SentryError for Security {
     fn event_category(&self) -> DataCategory {
@@ -24,7 +24,7 @@ impl SentryError for Security {
             event: Box::new(utils::event_from_json_payload(ev, None, &mut metrics, ctx)?),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-            error: Self {},
+            error: Self,
             metrics,
             fully_normalized: false,
         }))

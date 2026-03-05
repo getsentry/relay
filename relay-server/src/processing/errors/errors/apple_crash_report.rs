@@ -7,9 +7,7 @@ use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::processing::errors::{Error, Result};
 
 #[derive(Debug)]
-pub struct AppleCrashReport {
-    pub apple_crash_report: Item,
-}
+pub struct AppleCrashReport(pub Item);
 
 impl SentryError for AppleCrashReport {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
@@ -36,7 +34,7 @@ impl SentryError for AppleCrashReport {
             event: Box::new(event),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-            error: Self { apple_crash_report },
+            error: Self(apple_crash_report),
             metrics,
             fully_normalized: false,
         }))
@@ -48,16 +46,16 @@ impl SentryError for AppleCrashReport {
         limits: RateLimits,
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
-        if !self.apple_crash_report.rate_limited() {
-            self.apple_crash_report.set_rate_limited(true);
-            records.reject_err(Error::RateLimited(limits), &self.apple_crash_report);
+        if !self.0.rate_limited() {
+            self.0.set_rate_limited(true);
+            records.reject_err(Error::RateLimited(limits), &self.0);
         }
 
         Ok(())
     }
 
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        items.push(self.apple_crash_report);
+        items.push(self.0);
         Ok(())
     }
 }
@@ -69,9 +67,9 @@ impl Counted for AppleCrashReport {
         //
         // The rate limited information is passed along and will lead to the item later to be
         // dropped.
-        match self.apple_crash_report.rate_limited() {
+        match self.0.rate_limited() {
             true => Default::default(),
-            false => self.apple_crash_report.quantities(),
+            false => self.0.quantities(),
         }
     }
 }

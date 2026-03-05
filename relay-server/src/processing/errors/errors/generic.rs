@@ -4,7 +4,7 @@ use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 
 #[derive(Debug)]
-pub struct Generic {}
+pub struct Generic;
 
 impl SentryError for Generic {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
@@ -28,7 +28,7 @@ impl SentryError for Generic {
             event: Box::new(event),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-            error: Self {},
+            error: Self,
             metrics,
             fully_normalized,
         }))

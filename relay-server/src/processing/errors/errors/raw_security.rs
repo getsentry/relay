@@ -8,7 +8,7 @@ use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 
 #[derive(Debug)]
-pub struct RawSecurity {}
+pub struct RawSecurity;
 
 impl SentryError for RawSecurity {
     fn event_category(&self) -> DataCategory {
@@ -33,7 +33,7 @@ impl SentryError for RawSecurity {
             event: Box::new(event),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-            error: Self {},
+            error: Self,
             metrics,
             fully_normalized: false,
         }))

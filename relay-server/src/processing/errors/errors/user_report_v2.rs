@@ -8,7 +8,7 @@ use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::statsd::RelayCounters;
 
 #[derive(Debug)]
-pub struct UserReportV2 {}
+pub struct UserReportV2;
 
 impl SentryError for UserReportV2 {
     fn event_category(&self) -> DataCategory {
@@ -37,7 +37,7 @@ impl SentryError for UserReportV2 {
             )?),
             attachments,
             user_reports: Default::default(),
-            error: Self {},
+            error: Self,
             metrics,
             fully_normalized: false,
         }))
