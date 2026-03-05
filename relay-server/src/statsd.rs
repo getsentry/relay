@@ -964,6 +964,12 @@ pub enum RelayCounters {
     /// The metric is emitted when processing profile chunks, profile chunks which are fast path
     /// rate limited are not counted in this metric.
     ProfileChunksWithoutPlatform,
+    /// Number of 'standalone' items.
+    ///
+    /// This metric is tagged with:
+    /// - `item_type`: The type of the item.
+    /// - `attachment_type`: The attachment type of the item, if any.
+    StandaloneItem,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1023,6 +1029,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::AttachmentUpload => "attachment.upload",
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
+            RelayCounters::StandaloneItem => "processing.standalone_item",
         }
     }
 }
