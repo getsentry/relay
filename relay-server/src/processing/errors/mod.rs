@@ -169,18 +169,37 @@ struct ExpandedError {
     /// This may contain elements which are custom to the specific event shape being handled.
     pub data: errors::ErrorKind,
     /// Forward compatibility, unknown items.
+    ///
+    /// These items are not rate limited as Relay does not know about the items, so it will also
+    /// not know how to rate limit them.
+    /// They are still dropped if the entire event is rate limited/rejected.
+    ///
+    /// A processing Relay will always discard them, this Relay must know about all item types in
+    /// use.
     pub other: Vec<Item>,
 }
 
 impl Counted for ExpandedError {
     fn quantities(&self) -> Quantities {
+        let Self {
+            headers: _,
+            fully_normalized: _,
+            metrics: _,
+            // Quantity inferred from `data.event_category()`.
+            event: _,
+            attachments,
+            user_reports,
+            data,
+            other,
+        } = self;
+
         let mut quantities = Quantities::default();
 
-        quantities.push((self.data.event_category(), 1));
-        quantities.extend(self.attachments.quantities());
-        quantities.extend(self.user_reports.quantities());
-        quantities.extend(self.data.quantities());
-        quantities.extend(self.other.quantities());
+        quantities.push((data.event_category(), 1));
+        quantities.extend(attachments.quantities());
+        quantities.extend(user_reports.quantities());
+        quantities.extend(data.quantities());
+        quantities.extend(other.quantities());
 
         quantities
     }
