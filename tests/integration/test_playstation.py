@@ -498,7 +498,6 @@ def test_playstation_attachment_no_feature_flag(
         },
         "_metrics": {
             "bytes.ingested.event": 137,
-            "bytes.ingested.event.attachment": 209385,
         },
     }
 
