@@ -378,6 +378,19 @@ impl ProcessingGroup {
         // will be in the same envelope with all require event items.
         if !envelope.items().any(Item::creates_event) {
             let standalone_items = envelope.take_items_by(Item::requires_event);
+
+            for item in &standalone_items {
+                let attachment_type_tag = match item.attachment_type() {
+                    Some(t) => &t.to_string(),
+                    None => "",
+                };
+                relay_statsd::metric!(
+                    counter(RelayCounters::StandaloneItem) += 1,
+                    item_type = item.ty().name(),
+                    attachment_type = attachment_type_tag,
+                );
+            }
+
             if !standalone_items.is_empty() {
                 grouped_envelopes.push((
                     ProcessingGroup::Standalone,
