@@ -272,7 +272,7 @@ impl SignedLocation {
 /// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
     scoping: Scoping,
-    timeout: Duration,
+    timeout: Option<Duration>,
     body: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
     sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
@@ -290,7 +290,7 @@ impl UploadRequest {
         (
             Self {
                 scoping,
-                timeout: Duration::MAX, // will be set by `configure()`
+                timeout: None, // will be set by `configure()`
                 body: Some(stream),
                 sender,
             },
@@ -322,7 +322,7 @@ impl UpstreamRequest for UploadRequest {
     }
 
     fn configure(&mut self, config: &Config) {
-        self.timeout = Duration::from_secs(config.upload().timeout);
+        self.timeout = Some(Duration::from_secs(config.upload().timeout));
     }
 
     fn respond(
@@ -360,7 +360,13 @@ impl UpstreamRequest for UploadRequest {
             builder.header(key, value);
         }
 
-        builder.timeout(self.timeout);
+        debug_assert!(
+            self.timeout.is_some(),
+            "timeout should be set by UpstreamRequest::configure()"
+        );
+        if let Some(timeout) = self.timeout {
+            builder.timeout(timeout);
+        }
 
         builder.body(reqwest::Body::wrap_stream(body));
 
