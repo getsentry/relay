@@ -2,7 +2,7 @@ use relay_base_schema::data_category::DataCategory;
 use relay_protocol::RuleCondition;
 
 use crate::metrics::MetricSpec;
-use crate::{GroupKey, MetricExtractionConfig, ProjectConfig, Tag};
+use crate::{MetricExtractionConfig, ProjectConfig, Tag};
 
 /// Conditionally enables metrics extraction groups from the global config.
 ///
@@ -40,17 +40,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             Tag::with_key("is_segment").with_value("false").always(),
         ],
     });
-
-    config
-        .global_groups
-        .entry(GroupKey::SpanMetricsCommon)
-        .or_default()
-        .is_enabled = true;
-    config
-        .global_groups
-        .entry(GroupKey::SpanMetricsTx)
-        .or_default()
-        .is_enabled = true;
 
     if config.version == 0 {
         config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;

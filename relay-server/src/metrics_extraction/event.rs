@@ -195,8 +195,7 @@ mod tests {
         features: impl Into<BTreeSet<Feature>>,
         metric_extraction: Option<MetricExtractionConfig>,
     ) -> OwnedConfig {
-        let mut global = GlobalConfig::default();
-        global.normalize();
+        let global = GlobalConfig::default();
         let global = global.metric_extraction.ok().unwrap();
 
         let features = FeatureSet(features.into());
