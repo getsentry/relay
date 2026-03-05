@@ -95,7 +95,7 @@ pub fn create_service(
         objectstore,
     );
     ConcurrentService::new(service)
-        .with_loadshedding()
+        .with_backlog_limit(0)
         .with_concurrency_limit(config.upload().max_concurrent_requests)
 }
 
