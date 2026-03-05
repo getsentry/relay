@@ -173,7 +173,6 @@ impl Item {
                 (DataCategory::Span, item_count),
                 (DataCategory::SpanIndexed, item_count),
             ],
-            ItemType::ProfileChunkData => smallvec![],
             ItemType::Integration => match self.integration() {
                 Some(Integration::Logs(LogsIntegration::OtelV1 { .. })) => smallvec![
                     (DataCategory::LogByte, self.len().max(1)),
@@ -662,8 +661,7 @@ impl Item {
             | ItemType::Nel
             | ItemType::Log
             | ItemType::TraceMetric
-            | ItemType::ProfileChunk
-            | ItemType::ProfileChunkData => false,
+            | ItemType::ProfileChunk => false,
 
             // For now integrations can not create events, we may need to revisit this in the
             // future and break down different types of integrations here, similar to attachments.
@@ -702,7 +700,6 @@ impl Item {
             ItemType::Log => false,
             ItemType::TraceMetric => false,
             ItemType::ProfileChunk => false,
-            ItemType::ProfileChunkData => false,
             ItemType::Integration => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
@@ -799,8 +796,6 @@ pub enum ItemType {
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
     ProfileChunk,
-    /// Binary profile payload (e.g. Perfetto trace) accompanying a ProfileChunk.
-    ProfileChunkData,
     /// Integrations are a vendor specific set of endpoints providing integrations with external
     /// systems, standards and vendors.
     ///
@@ -860,7 +855,6 @@ impl ItemType {
             Self::TraceMetric => "trace_metric",
             Self::Span => "span",
             Self::ProfileChunk => "profile_chunk",
-            Self::ProfileChunkData => "profile_chunk_data",
             Self::Integration => "integration",
             Self::Unknown(_) => "unknown",
         }
@@ -921,7 +915,6 @@ impl ItemType {
             ItemType::Span => true,
             ItemType::UserReportV2 => false,
             ItemType::ProfileChunk => true,
-            ItemType::ProfileChunkData => false,
             ItemType::Integration => false,
             ItemType::Unknown(_) => true,
         }
@@ -966,7 +959,6 @@ impl std::str::FromStr for ItemType {
             // "profile_chunk_ui" is to be treated as an alias for `ProfileChunk`
             // because Android 8.10.0 and 8.11.0 is sending it as the item type.
             "profile_chunk_ui" => Self::ProfileChunk,
-            "profile_chunk_data" => Self::ProfileChunkData,
             "integration" => Self::Integration,
             other => Self::Unknown(other.to_owned()),
         })

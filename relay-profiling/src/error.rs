@@ -40,12 +40,6 @@ pub enum ProfileError {
     DurationIsTooLong,
     #[error("duration is zero")]
     DurationIsZero,
-    #[error("invalid protobuf")]
-    InvalidProtobuf,
-    #[error("no profile samples in trace")]
-    NoProfileSamplesInTrace,
-    #[error("missing clock snapshot in perfetto trace")]
-    MissingClockSnapshot,
     #[error("filtered profile")]
     Filtered(FilterStatKey),
     #[error(transparent)]

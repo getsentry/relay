@@ -138,7 +138,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::TraceMetric => None,
         ItemType::Span => None,
         ItemType::ProfileChunk => None,
-        ItemType::ProfileChunkData => None,
         ItemType::Integration => None,
         ItemType::Unknown(_) => None,
     }
@@ -752,7 +751,6 @@ impl Enforcement {
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::UserReportV2  // This is an event type.
-            | ItemType::ProfileChunkData
             | ItemType::Unknown(_) => true,
         }
     }

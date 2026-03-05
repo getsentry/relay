@@ -101,7 +101,7 @@ impl ProfileType {
     /// <https://github.com/getsentry/sentry/blob/ed2e1c8bcd0d633e6f828fcfbeefbbdd98ef3dba/src/sentry/profiles/task.py#L995>
     pub fn from_platform(platform: &str) -> Self {
         match platform {
-            "cocoa" | "android" | "javascript" | "perfetto" => Self::Ui,
+            "cocoa" | "android" | "javascript" => Self::Ui,
             _ => Self::Backend,
         }
     }
@@ -453,7 +453,8 @@ mod tests {
             "version": "2",
             "chunk_id": "0432a0a4c25f4697bf9f0a2fcbe6a814",
             "profiler_id": "4d229f1d3807421ba62a5f8bc295d836",
-            "platform": "perfetto",
+            "platform": "android",
+            "content_type": "perfetto",
             "client_sdk": {"name": "sentry-android", "version": "1.0"},
         });
         let metadata_bytes = serde_json::to_vec(&metadata_json).unwrap();
@@ -462,7 +463,7 @@ mod tests {
         assert!(result.is_ok(), "expand_perfetto failed: {result:?}");
 
         let output: sample::v2::ProfileChunk = serde_json::from_slice(&result.unwrap()).unwrap();
-        assert_eq!(output.metadata.platform, "perfetto");
+        assert_eq!(output.metadata.platform, "android");
         assert!(!output.profile.samples.is_empty());
         assert!(!output.profile.frames.is_empty());
         assert!(

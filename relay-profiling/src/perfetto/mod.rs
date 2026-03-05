@@ -143,7 +143,8 @@ struct FrameKey {
 
 /// Converts a Perfetto binary trace into Sample v2 [`ProfileData`] and debug images.
 pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), ProfileError> {
-    let trace = proto::Trace::decode(perfetto_bytes).map_err(|_| ProfileError::InvalidProtobuf)?;
+    let trace =
+        proto::Trace::decode(perfetto_bytes).map_err(|_| ProfileError::InvalidSampledProfile)?;
 
     let mut tables_by_seq: HashMap<u32, InternTables> = HashMap::new();
     let mut thread_meta: BTreeMap<String, ThreadMetadata> = BTreeMap::new();
@@ -224,10 +225,10 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     }
 
     if raw_samples.is_empty() {
-        return Err(ProfileError::NoProfileSamplesInTrace);
+        return Err(ProfileError::NotEnoughSamples);
     }
 
-    let clock_offset_ns = clock_offset_ns.ok_or(ProfileError::MissingClockSnapshot)?;
+    let clock_offset_ns = clock_offset_ns.ok_or(ProfileError::InvalidSampledProfile)?;
 
     raw_samples.sort_by_key(|s| s.0);
 
@@ -304,7 +305,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     }
 
     if samples.is_empty() {
-        return Err(ProfileError::NoProfileSamplesInTrace);
+        return Err(ProfileError::NotEnoughSamples);
     }
 
     // Build debug images from referenced native mappings.
@@ -670,13 +671,13 @@ mod tests {
         let trace = proto::Trace { packet: vec![] };
         let bytes = trace.encode_to_vec();
         let result = convert(&bytes);
-        assert!(matches!(result, Err(ProfileError::NoProfileSamplesInTrace)));
+        assert!(matches!(result, Err(ProfileError::NotEnoughSamples)));
     }
 
     #[test]
     fn test_convert_invalid_protobuf() {
         let result = convert(b"not a valid protobuf");
-        assert!(matches!(result, Err(ProfileError::InvalidProtobuf)));
+        assert!(matches!(result, Err(ProfileError::InvalidSampledProfile)));
     }
 
     #[test]
@@ -702,7 +703,7 @@ mod tests {
         };
         let bytes = trace.encode_to_vec();
         let result = convert(&bytes);
-        assert!(matches!(result, Err(ProfileError::MissingClockSnapshot)));
+        assert!(matches!(result, Err(ProfileError::InvalidSampledProfile)));
     }
 
     #[test]
