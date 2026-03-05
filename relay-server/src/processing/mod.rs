@@ -24,6 +24,7 @@ pub use self::forward::*;
 pub use self::limits::*;
 
 pub mod check_ins;
+pub mod client_reports;
 pub mod errors;
 pub mod logs;
 pub mod profile_chunks;
@@ -167,6 +168,14 @@ impl<T> Output<T> {
         Self {
             main: None,
             metrics: Some(metrics),
+        }
+    }
+
+    /// Creates an new empty output.
+    pub fn empty() -> Self {
+        Self {
+            main: None,
+            metrics: None,
         }
     }
 
