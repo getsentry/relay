@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.24
+
+### Bug Fixes 🐛
+
+- (profiles) Use separate data categories for transaction backend/ui profiles by @Dav1dde in [#5648](https://github.com/getsentry/relay/pull/5648)
+
 ## 0.9.23
 
 - Add `CategoryUnit` enum to expose data category measurement units (count, bytes, milliseconds) for quota validation. ([#5427](https://github.com/getsentry/relay/pull/5427))
