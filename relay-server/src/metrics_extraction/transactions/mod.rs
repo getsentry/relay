@@ -3,237 +3,18 @@ use std::collections::BTreeMap;
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::{CombinedMetricExtractionConfig, TransactionMetricsConfig};
-use relay_event_normalization::span::country_subregion::Subregion;
-use relay_event_normalization::utils as normalize_utils;
-use relay_event_schema::protocol::{
-    AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
-};
+use relay_dynamic_config::CombinedMetricExtractionConfig;
+use relay_event_schema::protocol::Event;
 use relay_metrics::Bucket;
 use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::IntoMetric;
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
-    CommonTag, CommonTags, ExtractMetricsError, LightTransactionTags, TransactionCPRTags,
-    TransactionMetric,
+    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionMetric,
 };
-use crate::statsd::RelayCounters;
-use crate::utils;
 
 pub mod types;
-
-/// Placeholder for transaction names in metrics that is used when SDKs are likely sending high
-/// cardinality data such as raw URLs.
-const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
-
-/// Tags we set on metrics for performance score measurements (e.g. `score.lcp.weight`).
-///
-/// These are a subset of "universal" tags.
-#[allow(dead_code)]
-const PERFORMANCE_SCORE_TAGS: [CommonTag; 7] = [
-    CommonTag::BrowserName,
-    CommonTag::Environment,
-    CommonTag::GeoCountryCode,
-    CommonTag::UserSubregion,
-    CommonTag::Release,
-    CommonTag::Transaction,
-    CommonTag::TransactionOp,
-];
-
-/// Extract HTTP method
-/// See <https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67>.
-fn extract_http_method(transaction: &Event) -> Option<String> {
-    let request = transaction.request.value()?;
-    let method = request.method.value()?;
-    Some(method.clone())
-}
-
-/// Extract the browser name from the [`BrowserContext`] context.
-fn extract_browser_name(event: &Event) -> Option<String> {
-    let browser = event.context::<BrowserContext>()?;
-    browser.name.value().cloned()
-}
-
-/// Extract the OS name from the [`OsContext`] context.
-fn extract_os_name(event: &Event) -> Option<String> {
-    let os = event.context::<OsContext>()?;
-    os.name.value().cloned()
-}
-
-/// Extract the GEO country code from the [`relay_event_schema::protocol::User`] context.
-fn extract_geo_country_code(event: &Event) -> Option<String> {
-    let user = event.user.value()?;
-    let geo = user.geo.value()?;
-    geo.country_code.value().cloned()
-}
-
-fn is_low_cardinality(source: &TransactionSource) -> bool {
-    match source {
-        // For now, we hope that custom transaction names set by users are low-cardinality.
-        TransactionSource::Custom => true,
-
-        // "url" are raw URLs, potentially containing identifiers.
-        TransactionSource::Url => false,
-
-        // These four are names of software components, which we assume to be low-cardinality.
-        TransactionSource::Route
-        | TransactionSource::View
-        | TransactionSource::Component
-        | TransactionSource::Task => true,
-
-        // We know now that the rules to remove high cardinality were applied, so we assume
-        // low-cardinality now.
-        TransactionSource::Sanitized => true,
-
-        // Explicit `Unknown` is used to mark a legacy SDK that does not send the transaction name,
-        // but we assume sends low-cardinality data. See `is_high_cardinality_transaction`.
-        TransactionSource::Unknown => true,
-
-        // Any other value would be an SDK bug or users manually configuring the
-        // source, assume high-cardinality and drop.
-        TransactionSource::Other(_) => false,
-    }
-}
-
-/// Decide whether we want to keep the transaction name.
-/// High-cardinality sources are excluded to protect our metrics infrastructure.
-/// Note that this will produce a discrepancy between metrics and raw transaction data.
-pub fn get_transaction_name(event: &Event) -> Option<String> {
-    let original = event.transaction.value()?;
-
-    let source = event
-        .transaction_info
-        .value()
-        .and_then(|info| info.source.value());
-
-    match source {
-        Some(source) if is_low_cardinality(source) => Some(original.clone()),
-        Some(TransactionSource::Other(_)) | None => None,
-        Some(_) => Some(PLACEHOLDER_UNPARAMETERIZED.to_owned()),
-    }
-}
-
-fn track_transaction_name_stats(event: &Event) {
-    let name_used = match get_transaction_name(event).as_deref() {
-        Some(self::PLACEHOLDER_UNPARAMETERIZED) => "placeholder",
-        Some(_) => "original",
-        None => "none",
-    };
-
-    relay_statsd::metric!(
-        counter(RelayCounters::MetricsTransactionNameExtracted) += 1,
-        source = utils::transaction_source_tag(event),
-        sdk_name = event
-            .client_sdk
-            .value()
-            .and_then(|sdk| sdk.name.as_str())
-            .unwrap_or_default(),
-        name_used = name_used,
-    );
-}
-
-/// These are the tags that are added to extracted low cardinality metrics.
-fn extract_light_transaction_tags(tags: &CommonTags) -> LightTransactionTags {
-    LightTransactionTags {
-        transaction_op: tags.0.get(&CommonTag::TransactionOp).cloned(),
-        transaction: tags.0.get(&CommonTag::Transaction).cloned(),
-    }
-}
-
-/// These are the tags that are added to all extracted metrics.
-fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> CommonTags {
-    let mut tags = BTreeMap::new();
-    if let Some(release) = event.release.as_str() {
-        tags.insert(CommonTag::Release, release.to_owned());
-    }
-    if let Some(dist) = event.dist.value() {
-        tags.insert(CommonTag::Dist, dist.to_string());
-    }
-    if let Some(environment) = event.environment.as_str() {
-        tags.insert(CommonTag::Environment, environment.to_owned());
-    }
-    if let Some(transaction_name) = get_transaction_name(event) {
-        tags.insert(CommonTag::Transaction, transaction_name);
-    }
-
-    // The platform tag should not increase dimensionality in most cases, because most
-    // transactions are specific to one platform.
-    // NOTE: we might want to reconsider normalization a little and include the
-    // `relay_event_normalization::is_valid_platform` into normalization.
-    let platform = match event.platform.as_str() {
-        Some(platform) if relay_event_normalization::is_valid_platform(platform) => platform,
-        _ => "other",
-    };
-
-    tags.insert(CommonTag::Platform, platform.to_owned());
-
-    if let Some(trace_context) = event.context::<TraceContext>() {
-        // We assume that the trace context status is automatically set to unknown inside of the
-        // normalization step.
-        if let Some(status) = trace_context.status.value() {
-            tags.insert(CommonTag::TransactionStatus, status.to_string());
-        }
-
-        if let Some(op) = normalize_utils::extract_transaction_op(trace_context) {
-            tags.insert(CommonTag::TransactionOp, op);
-        }
-    }
-
-    if let Some(http_method) = extract_http_method(event) {
-        tags.insert(CommonTag::HttpMethod, http_method);
-    }
-
-    if let Some(browser_name) = extract_browser_name(event) {
-        tags.insert(CommonTag::BrowserName, browser_name);
-    }
-
-    if let Some(os_name) = extract_os_name(event) {
-        tags.insert(CommonTag::OsName, os_name);
-    }
-
-    if let Some(geo_country_code) = extract_geo_country_code(event) {
-        tags.insert(CommonTag::GeoCountryCode, geo_country_code);
-    }
-
-    // The product only uses the subregion for web data at the moment
-    if let Some(_browser_name) = extract_browser_name(event)
-        && let Some(geo_country_code) = extract_geo_country_code(event)
-        && let Some(subregion) = Subregion::from_iso2(geo_country_code.as_str())
-    {
-        let numerical_subregion = subregion as u8;
-        tags.insert(CommonTag::UserSubregion, numerical_subregion.to_string());
-    }
-
-    if let Some(status_code) = normalize_utils::extract_http_status_code(event) {
-        tags.insert(CommonTag::HttpStatusCode, status_code);
-    }
-
-    if normalize_utils::MOBILE_SDKS.contains(&event.sdk_name())
-        && let Some(device_class) = event.tag_value("device.class")
-    {
-        tags.insert(CommonTag::DeviceClass, device_class.to_owned());
-    }
-
-    let custom_tags = &config.extract_custom_tags;
-    if !custom_tags.is_empty() {
-        // XXX(slow): event tags are a flat array
-        if let Some(event_tags) = event.tags.value() {
-            for tag_entry in &**event_tags {
-                if let Some(entry) = tag_entry.value() {
-                    let (key, value) = entry.as_pair();
-                    if let (Some(key), Some(value)) = (key.as_str(), value.as_str())
-                        && custom_tags.contains(key)
-                    {
-                        tags.insert(CommonTag::Custom(key.to_owned()), value.to_owned());
-                    }
-                }
-            }
-        }
-    }
-
-    CommonTags(tags)
-}
 
 /// Metrics extracted from an envelope.
 ///
@@ -251,7 +32,6 @@ pub struct ExtractedMetrics {
 
 /// A utility that extracts metrics from transactions.
 pub struct TransactionExtractor<'a> {
-    pub config: &'a TransactionMetricsConfig,
     pub generic_config: Option<CombinedMetricExtractionConfig<'a>>,
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_decision: SamplingDecision,
@@ -275,10 +55,6 @@ impl TransactionExtractor<'_> {
             relay_log::debug!("event timestamp is not a valid unix timestamp");
             return Err(ExtractMetricsError::InvalidTimestamp);
         };
-
-        track_transaction_name_stats(event);
-        let tags = extract_universal_tags(event, self.config);
-        let _light_tags = extract_light_transaction_tags(&tags);
 
         // Internal usage counter
         metrics
@@ -318,41 +94,17 @@ impl TransactionExtractor<'_> {
     }
 }
 
-#[allow(dead_code)]
-fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
-    let rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
-        debug_assert!(meh_ceiling < poor_ceiling);
-        Some(if value < meh_ceiling {
-            "good".to_owned()
-        } else if value < poor_ceiling {
-            "meh".to_owned()
-        } else {
-            "poor".to_owned()
-        })
-    };
-
-    match name {
-        "lcp" => rate_range(2500.0, 4000.0),
-        "fcp" => rate_range(1000.0, 3000.0),
-        "fid" => rate_range(100.0, 300.0),
-        "inp" => rate_range(200.0, 500.0),
-        "cls" => rate_range(0.1, 0.25),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use relay_dynamic_config::{
-        AcceptTransactionNames, CombinedMetricExtractionConfig, MetricExtractionConfig, TagMapping,
+        CombinedMetricExtractionConfig, MetricExtractionConfig, TagMapping,
+        TransactionMetricsConfig,
     };
     use relay_event_normalization::{
-        BreakdownsConfig, CombinedMeasurementsConfig, EventValidationConfig, MeasurementsConfig,
-        NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
-        PerformanceScoreWeightedComponent, normalize_event, set_default_transaction_source,
-        validate_event,
+        CombinedMeasurementsConfig, MeasurementsConfig, NormalizationConfig,
+        PerformanceScoreConfig, PerformanceScoreProfile, PerformanceScoreWeightedComponent,
+        normalize_event,
     };
-    use relay_metrics::BucketValue;
     use relay_protocol::{Annotated, RuleCondition};
 
     use super::*;
@@ -418,17 +170,22 @@ mod tests {
 
         let mut event = Annotated::from_json(json).unwrap();
 
-        let breakdowns_config: BreakdownsConfig = serde_json::from_str(
-            r#"{
+        let breakdowns_config: relay_event_normalization::BreakdownsConfig =
+            serde_json::from_str(
+                r#"{
                 "span_ops": {
                     "type": "spanOperations",
                     "matches": ["react.mount"]
                 }
             }"#,
+            )
+            .unwrap();
+
+        relay_event_normalization::validate_event(
+            &mut event,
+            &relay_event_normalization::EventValidationConfig::default(),
         )
         .unwrap();
-
-        validate_event(&mut event, &EventValidationConfig::default()).unwrap();
 
         normalize_event(
             &mut event,
@@ -453,16 +210,7 @@ mod tests {
             },
         );
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"{
-                "version": 1,
-                "extractCustomTags": ["fOO"]
-            }"#,
-        )
-        .unwrap();
-
         let extractor = TransactionExtractor {
-            config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
@@ -555,9 +303,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         normalize_event(&mut event, &NormalizationConfig::default());
 
-        let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
-            config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
@@ -611,9 +357,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         normalize_event(&mut event, &NormalizationConfig::default());
 
-        let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
-            config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
@@ -643,54 +387,6 @@ mod tests {
             },
         ]
         "#);
-    }
-
-    #[test]
-    fn test_transaction_duration() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "platform": "bogus",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "release": "1.2.3",
-            "environment": "fake_environment",
-            "transaction": "mytransaction",
-            "contexts": {
-                "trace": {
-                    "status": "ok"
-                }
-            }
-        }
-        "#;
-
-        let event = Annotated::from_json(json).unwrap();
-
-        let config = TransactionMetricsConfig::default();
-        let extractor = TransactionExtractor {
-            config: &config,
-            generic_config: None,
-            transaction_from_dsc: Some("test_transaction"),
-            sampling_decision: SamplingDecision::Keep,
-            target_project_id: ProjectId::new(4711),
-        };
-
-        let extracted = extractor.extract(event.value().unwrap()).unwrap();
-
-        // Verify usage metric is produced
-        let usage_metric = extracted
-            .project_metrics
-            .iter()
-            .find(|m| &*m.name == "c:transactions/usage@none")
-            .unwrap();
-        assert_eq!(usage_metric.value, BucketValue::counter(1.into()));
-
-        // Verify tag extraction still works correctly
-        let tags = extract_universal_tags(event.value().unwrap(), &config);
-        assert_eq!(tags.0[&CommonTag::Release], "1.2.3");
-        assert_eq!(tags.0[&CommonTag::TransactionStatus], "ok");
-        assert_eq!(tags.0[&CommonTag::Environment], "fake_environment");
-        assert_eq!(tags.0[&CommonTag::Platform], "other");
     }
 
     #[test]
@@ -736,9 +432,7 @@ mod tests {
             },
         );
 
-        let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
-            config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
@@ -768,58 +462,6 @@ mod tests {
             },
         ]
         "#);
-    }
-
-    #[test]
-    fn test_unknown_transaction_status_no_trace_context() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100"
-        }
-        "#;
-
-        let event = Annotated::from_json(json).unwrap();
-
-        let config = TransactionMetricsConfig::default();
-
-        // Verify tag extraction: no trace context means only platform tag
-        let tags = extract_universal_tags(event.value().unwrap(), &config);
-        assert_eq!(
-            tags.0,
-            BTreeMap::from([(CommonTag::Platform, "other".to_owned())])
-        );
-    }
-
-    #[test]
-    fn test_unknown_transaction_status() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {
-                "trace": {
-                    "status": "ok"
-                }
-            }
-        }
-        "#;
-
-        let event = Annotated::from_json(json).unwrap();
-
-        let config = TransactionMetricsConfig::default();
-
-        // Verify tag extraction includes status and platform
-        let tags = extract_universal_tags(event.value().unwrap(), &config);
-        assert_eq!(
-            tags.0,
-            BTreeMap::from([
-                (CommonTag::TransactionStatus, "ok".to_owned()),
-                (CommonTag::Platform, "other".to_owned())
-            ])
-        );
     }
 
     #[test]
@@ -865,9 +507,7 @@ mod tests {
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
-            config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
@@ -900,55 +540,6 @@ mod tests {
     }
 
     #[test]
-    fn test_device_class_mobile() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {
-                "trace": {
-                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                    "span_id": "fa90fdead5f74053"
-                }
-            },
-            "measurements": {
-                "frames_frozen": {
-                    "value": 3
-                }
-            },
-            "tags": {
-                "device.class": "2"
-            },
-            "sdk": {
-                "name": "sentry.cocoa"
-            }
-        }
-        "#;
-        let event = Annotated::from_json(json).unwrap();
-
-        let config = TransactionMetricsConfig::default();
-
-        // Verify device.class tag is extracted for mobile SDKs
-        let tags = extract_universal_tags(event.value().unwrap(), &config);
-        assert_eq!(tags.0[&CommonTag::DeviceClass], "2");
-    }
-
-    /// Helper function to check if the transaction name is set correctly
-    fn extract_transaction_name(json: &str) -> Option<String> {
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-
-        // Logic from `set_default_transaction_source` was previously duplicated in
-        // `extract_transaction_metrics`. Add it here such that tests can remain.
-        set_default_transaction_source(event.value_mut().as_mut().unwrap());
-
-        let config = TransactionMetricsConfig::default();
-        let tags = extract_universal_tags(event.value().unwrap(), &config);
-
-        tags.0.get(&CommonTag::Transaction).cloned()
-    }
-
-    #[test]
     fn test_root_counter_keep() {
         let json = r#"
         {
@@ -966,9 +557,7 @@ mod tests {
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
-            config: &config,
             generic_config: None,
             transaction_from_dsc: Some("root_transaction"),
             sampling_decision: SamplingDecision::Keep,
@@ -1005,184 +594,9 @@ mod tests {
     }
 
     #[test]
-    fn test_legacy_js_looks_like_url() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo/",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.javascript.browser"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert!(name.is_none());
-    }
-
-    #[test]
-    fn test_legacy_js_does_not_look_like_url() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.javascript.browser"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name.as_deref(), Some("foo"));
-    }
-
-    #[test]
-    fn test_js_url_strict() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.javascript.browser"},
-            "transaction_info": {"source": "url"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
-    }
-
-    #[test]
-    fn test_python_404() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo/",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.python", "integrations":["django"]},
-            "tags": {"http.status_code": "404"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert!(name.is_none());
-    }
-
-    #[test]
-    fn test_python_200() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo/",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.python", "integrations":["django"]},
-            "tags": {"http.status_code": "200"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name, Some("foo/".to_owned()));
-    }
-
-    #[test]
-    fn test_express_options() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo/",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
-            "request": {"method": "OPTIONS"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert!(name.is_none());
-    }
-
-    #[test]
-    fn test_express() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo/",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
-            "request": {"method": "GET"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name, Some("foo/".to_owned()));
-    }
-
-    #[test]
-    fn test_other_client_unknown() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo/",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "some_client"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name.as_deref(), Some("foo/"));
-    }
-
-    #[test]
-    fn test_other_client_url() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "some_client"},
-            "transaction_info": {"source": "url"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
-    }
-
-    #[test]
-    fn test_any_client_route() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "some_client"},
-            "transaction_info": {"source": "route"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name, Some("foo".to_owned()));
-    }
-
-    #[test]
     fn test_parse_transaction_name_strategy() {
+        use relay_dynamic_config::AcceptTransactionNames;
+
         for (config_str, expected_strategy) in [
             (r#"{}"#, AcceptTransactionNames::ClientBased),
             (
@@ -1236,9 +650,7 @@ mod tests {
         // Normalize first, to make sure that the metrics were computed:
         normalize_event(&mut event, &NormalizationConfig::default());
 
-        let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
-            config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
@@ -1278,7 +690,6 @@ mod tests {
         )
         .unwrap();
 
-        let config = TransactionMetricsConfig::new();
         let generic_tags: Vec<TagMapping> = serde_json::from_str(
             r#"[
                 {
@@ -1312,7 +723,6 @@ mod tests {
         let combined_config = CombinedMetricExtractionConfig::from(&generic_config);
 
         let extractor = TransactionExtractor {
-            config: &config,
             generic_config: Some(combined_config),
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,

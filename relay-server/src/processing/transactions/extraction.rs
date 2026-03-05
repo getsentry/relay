@@ -143,7 +143,6 @@ pub fn extract_metrics(
         let transaction_from_dsc = dsc.and_then(|dsc| dsc.transaction.as_deref());
 
         let extractor = TransactionExtractor {
-            config: tx_config,
             generic_config: Some(combined_config),
             transaction_from_dsc,
             sampling_decision,
