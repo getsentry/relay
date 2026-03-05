@@ -70,7 +70,10 @@ where
 
     /// Limits the amount of messages that wait in the queue by loadshedding.
     ///
-    /// This will drop messages.
+    /// Setting this limit will cause message loss.
+    ///
+    /// Note that cleanup of the queue may be deferred until the next pending
+    /// future completes.
     pub fn with_backlog_limit(mut self, limit: usize) -> Self {
         self.max_backlog = limit;
         self
