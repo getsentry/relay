@@ -113,7 +113,6 @@ fn create_service_inner(
     }
     Service::Upstream {
         addr: upstream.clone(),
-        timeout: Duration::from_secs(config.upload().timeout),
     }
 }
 
@@ -124,7 +123,6 @@ fn create_service_inner(
 pub enum Service {
     Upstream {
         addr: Addr<UpstreamRelay>,
-        timeout: Duration,
     },
     #[cfg(feature = "processing")]
     Objectstore {
@@ -136,10 +134,10 @@ pub enum Service {
 impl Service {
     async fn upload(&self, stream: Stream) -> Result<SignedLocation, Error> {
         match self {
-            Service::Upstream { addr, timeout } => {
+            Service::Upstream { addr } => {
                 let (request, rx) = UploadRequest::create(stream);
                 addr.send(SendRequest(request));
-                let response = tokio::time::timeout(*timeout, rx).await???;
+                let response = rx.await??;
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
@@ -270,6 +268,7 @@ impl SignedLocation {
 /// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
     scoping: Scoping,
+    timeout: Duration,
     body: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
     sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
@@ -287,6 +286,7 @@ impl UploadRequest {
         (
             Self {
                 scoping,
+                timeout: Duration::MAX, // will be set by `configure()`
                 body: Some(stream),
                 sender,
             },
@@ -315,6 +315,10 @@ impl UpstreamRequest for UploadRequest {
 
     fn route(&self) -> &'static str {
         "upload"
+    }
+
+    fn configure(&mut self, config: &Config) {
+        self.timeout = Duration::from_secs(config.upload().timeout);
     }
 
     fn respond(
@@ -351,6 +355,8 @@ impl UpstreamRequest for UploadRequest {
             let Some(key) = key else { continue };
             builder.header(key, value);
         }
+
+        builder.timeout(self.timeout);
 
         builder.body(reqwest::Body::wrap_stream(body));
 
