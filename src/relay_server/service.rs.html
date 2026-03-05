@@ -244,7 +244,7 @@
 <a href=#244 id=244 data-nosnippet>244</a>        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#245 id=245 data-nosnippet>245</a>        </span><span class="kw">let </span>objectstore = ObjectstoreService::new(config.objectstore(), store.clone())<span class="question-mark">?</span>.map(|s| {
 <a href=#246 id=246 data-nosnippet>246</a>            <span class="kw">let </span>concurrent = ConcurrentService::new(s)
-<a href=#247 id=247 data-nosnippet>247</a>                .with_loadshedding()
+<a href=#247 id=247 data-nosnippet>247</a>                .with_backlog_limit(config.objectstore().max_backlog)
 <a href=#248 id=248 data-nosnippet>248</a>                .with_concurrency_limit(config.objectstore().max_concurrent_requests);
 <a href=#249 id=249 data-nosnippet>249</a>            services.start(concurrent)
 <a href=#250 id=250 data-nosnippet>250</a>        });
