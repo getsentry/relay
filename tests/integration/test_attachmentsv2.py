@@ -1296,12 +1296,14 @@ def test_attachment_default_pii_scrubbing_meta(
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.get_captured_envelope()
+    forwarded = [mini_sentry.get_captured_envelope()]
     if owned_by == "trace":
         # attachment comes in separate envelope
-        forwarded = mini_sentry.get_captured_envelope()
+        forwarded.append(mini_sentry.get_captured_envelope())
 
-    attachment = next(i for i in forwarded.items if i.type == "attachment")
+    attachment = next(
+        i for envelope in forwarded for i in envelope.items if i.type == "attachment"
+    )
     meta_length = attachment.headers.get("meta_length")
     payload = attachment.payload.bytes
     metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
