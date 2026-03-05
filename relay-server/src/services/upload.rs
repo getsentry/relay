@@ -113,6 +113,7 @@ fn create_service_inner(
     }
     Service::Upstream {
         addr: upstream.clone(),
+        timeout: Duration::from_secs(config.upload().timeout),
     }
 }
 
@@ -123,6 +124,7 @@ fn create_service_inner(
 pub enum Service {
     Upstream {
         addr: Addr<UpstreamRelay>,
+        timeout: Duration,
     },
     #[cfg(feature = "processing")]
     Objectstore {
@@ -134,10 +136,12 @@ pub enum Service {
 impl Service {
     async fn upload(&self, stream: Stream) -> Result<SignedLocation, Error> {
         match self {
-            Service::Upstream { addr } => {
+            Service::Upstream { addr, timeout } => {
                 let (request, rx) = UploadRequest::create(stream);
                 addr.send(SendRequest(request));
-                let response = rx.await??;
+                // We're already passing `timeout` to the reqwest library, but we also want to
+                // limit the time spent waiting for the upstream service:
+                let response = tokio::time::timeout(*timeout, rx).await???;
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
