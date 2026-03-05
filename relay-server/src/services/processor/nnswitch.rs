@@ -2,40 +2,23 @@
 //!
 //! These functions are included only in the processing mode.
 
-use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeError, Item, ItemType};
-use crate::managed::TypedEnvelope;
-use crate::services::processor::{ErrorGroup, ProcessingError};
-use crate::utils;
 use bytes::{Buf, Bytes};
 use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
 
-/// Magic number indicating the dying message file is encoded by sentry-switch SDK.
-const SENTRY_MAGIC: &[u8] = "sntr".as_bytes();
+use crate::Envelope;
+use crate::constants::NNSWITCH_SENTRY_MAGIC;
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::managed::TypedEnvelope;
+use crate::services::processor::{ErrorGroup, ProcessingError};
+use crate::utils;
 
-/// The file name that Nintendo uses to in the events they forward.
-const DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
+pub use crate::processing::errors::SwitchProcessingError;
 
 /// Limit the size of the decompressed data to prevent an invalid frame blowing up memory usage.
 const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
 
 type Result<T> = std::result::Result<T, SwitchProcessingError>;
-
-/// An error returned when parsing the dying message attachment.
-#[derive(Debug, thiserror::Error)]
-pub enum SwitchProcessingError {
-    #[error("invalid json")]
-    InvalidJson(#[source] serde_json::Error),
-    #[error("envelope parsing failed")]
-    EnvelopeParsing(#[from] EnvelopeError),
-    #[error("unexpected EOF, expected {expected:?}")]
-    UnexpectedEof { expected: String },
-    #[error("invalid {0:?} ({1:?})")]
-    InvalidValue(String, usize),
-    #[error("Zstandard error")]
-    Zstandard(#[source] std::io::Error),
-}
 
 /// Expands Nintendo Switch crash-reports.
 ///
@@ -57,8 +40,9 @@ pub fn expand(
 ) -> std::result::Result<(), ProcessingError> {
     let envelope = managed_envelope.envelope_mut();
 
-    if let Some(item) = envelope.take_item_by(is_dying_message)
-        && let Err(e) = expand_dying_message(item.payload(), envelope)
+    if let Some(item) = envelope.take_item_by(|item| {
+        item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage)
+    }) && let Err(e) = expand_dying_message(item.payload(), envelope)
     {
         // If we fail to process the dying message, we need to add back the original attachment.
         envelope.add_item(item);
@@ -68,25 +52,19 @@ pub fn expand(
     Ok(())
 }
 
-fn is_dying_message(item: &crate::envelope::Item) -> bool {
-    item.ty() == &ItemType::Attachment
-        && item.payload().starts_with(SENTRY_MAGIC)
-        && item.filename() == Some(DYING_MESSAGE_FILENAME)
-}
-
 /// Parses DyingMessage contents and updates the envelope.
 /// See dying_message.md for the documentation.
 fn expand_dying_message(mut payload: Bytes, envelope: &mut Envelope) -> Result<()> {
-    payload.advance(SENTRY_MAGIC.len());
+    payload.advance(NNSWITCH_SENTRY_MAGIC.len());
     let version = payload
         .try_get_u8()
         .map_err(|_| SwitchProcessingError::UnexpectedEof {
-            expected: "version".into(),
+            expected: "version",
         })?;
     match version {
         0 => expand_dying_message_v0(payload, envelope),
         _ => Err(SwitchProcessingError::InvalidValue(
-            "version".into(),
+            "version",
             version as usize,
         )),
     }
@@ -97,7 +75,7 @@ fn expand_dying_message_v0(mut payload: Bytes, envelope: &mut Envelope) -> Resul
     let encoding_byte = payload
         .try_get_u8()
         .map_err(|_| SwitchProcessingError::UnexpectedEof {
-            expected: "encoding".into(),
+            expected: "encoding",
         })?;
     let format = (encoding_byte >> 6) & 0b0000_0011;
     let compression = (encoding_byte >> 4) & 0b0000_0011;
@@ -107,7 +85,7 @@ fn expand_dying_message_v0(mut payload: Bytes, envelope: &mut Envelope) -> Resul
         payload
             .try_get_u16()
             .map_err(|_| SwitchProcessingError::UnexpectedEof {
-                expected: "compressed data length".into(),
+                expected: "compressed data length",
             })?;
     let data = decompress_data(
         payload,
@@ -119,7 +97,7 @@ fn expand_dying_message_v0(mut payload: Bytes, envelope: &mut Envelope) -> Resul
     match format {
         0 => expand_dying_message_from_envelope_items(data, envelope),
         _ => Err(SwitchProcessingError::InvalidValue(
-            "payload format".into(),
+            "payload format",
             format as usize,
         )),
     }
@@ -160,7 +138,7 @@ fn decompress_data(
 ) -> Result<Bytes> {
     if payload.len() < compressed_length {
         return Err(SwitchProcessingError::InvalidValue(
-            "compressed data length".into(),
+            "compressed data length",
             compressed_length,
         ));
     }
@@ -174,7 +152,7 @@ fn decompress_data(
             .map(Bytes::from)
             .map_err(SwitchProcessingError::Zstandard),
         _ => Err(SwitchProcessingError::InvalidValue(
-            "compression format".into(),
+            "compression format",
             compression as usize,
         )),
     }
@@ -217,22 +195,10 @@ mod tests {
     use std::io::Write;
 
     use super::*;
-    use crate::envelope::Item;
+    use crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME;
     use crate::managed::ManagedEnvelope;
     use crate::services::processor::ProcessingGroup;
     use zstd::bulk::Compressor as ZstdCompressor;
-
-    #[test]
-    fn test_is_dying_message() {
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_filename("any");
-        item.set_payload(ContentType::OctetStream, Bytes::from("sntrASDF"));
-        assert!(!is_dying_message(&item));
-        item.set_filename(DYING_MESSAGE_FILENAME);
-        assert!(is_dying_message(&item));
-        item.set_payload(ContentType::OctetStream, Bytes::from("FOO"));
-        assert!(!is_dying_message(&item));
-    }
 
     fn create_envelope(dying_message: Bytes) -> TypedEnvelope<ErrorGroup> {
         // Note: the attachment length specified in the "outer" envelope attachment is very important.
@@ -275,7 +241,7 @@ mod tests {
             "{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
         );
         assert_eq!(items[1].ty(), &ItemType::Attachment);
-        assert_eq!(items[1].filename(), Some(DYING_MESSAGE_FILENAME));
+        assert_eq!(items[1].filename(), Some(NNSWITCH_DYING_MESSAGE_FILENAME));
         assert_eq!(items[1].payload().len(), 106);
 
         expand(&mut envelope).unwrap();
@@ -306,7 +272,7 @@ mod tests {
             "{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
         );
         assert_eq!(items[1].ty(), &ItemType::Attachment);
-        assert_eq!(items[1].filename(), Some(DYING_MESSAGE_FILENAME));
+        assert_eq!(items[1].filename(), Some(NNSWITCH_DYING_MESSAGE_FILENAME));
         assert_eq!(items[1].payload().len(), 98);
 
         expand(&mut envelope).unwrap();

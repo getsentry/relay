@@ -964,6 +964,11 @@ pub enum RelayCounters {
     /// The metric is emitted when processing profile chunks, profile chunks which are fast path
     /// rate limited are not counted in this metric.
     ProfileChunksWithoutPlatform,
+    /// Amount of errors have been processed by the error processing pipeline.
+    ///
+    /// This metric is tagged with:
+    /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
+    ErrorProcessed,
     /// Number of 'standalone' items.
     ///
     /// This metric is tagged with:
@@ -1029,6 +1034,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::AttachmentUpload => "attachment.upload",
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
+            RelayCounters::ErrorProcessed => "event.error.processed",
             RelayCounters::StandaloneItem => "processing.standalone_item",
         }
     }

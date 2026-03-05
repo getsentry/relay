@@ -184,6 +184,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
                 self.modify(|this, record_keeper| {
                     record_keeper.reject_err(Error::from(limits), this.profile.take());
                 });
+                break;
             }
         }
 
@@ -198,6 +199,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
                     record_keeper
                         .reject_err(Error::from(limits), std::mem::take(&mut this.attachments));
                 });
+                break;
             }
         }
 

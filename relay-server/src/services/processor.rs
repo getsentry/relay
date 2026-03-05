@@ -49,6 +49,7 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
+use crate::processing::errors::{ErrorsProcessor, SwitchProcessingError};
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::replays::ReplaysProcessor;
@@ -78,7 +79,6 @@ use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
     crate::services::objectstore::Objectstore,
-    crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::Enforcement,
     itertools::Itertools,
@@ -95,7 +95,7 @@ use {
 
 mod attachment;
 mod dynamic_sampling;
-mod event;
+pub mod event;
 mod metrics;
 mod nel;
 mod profile;
@@ -103,7 +103,7 @@ mod report;
 mod span;
 
 #[cfg(all(sentry, feature = "processing"))]
-mod playstation;
+pub mod playstation;
 mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
@@ -508,6 +508,9 @@ pub enum ProcessingError {
     #[error("invalid transaction event")]
     InvalidTransaction,
 
+    #[error("the item is not allowed/supported in this envelope")]
+    UnsupportedItem,
+
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
 
@@ -551,7 +554,6 @@ pub enum ProcessingError {
     #[error("invalid processing group type")]
     InvalidProcessingGroup(Box<InvalidProcessingGroupType>),
 
-    #[cfg(feature = "processing")]
     #[error("nintendo switch dying message processing failed {0:?}")]
     InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
 
@@ -576,6 +578,7 @@ impl ProcessingError {
             Self::InvalidSecurityType(_) => {
                 Some(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
+            Self::UnsupportedItem => Some(Outcome::Invalid(DiscardReason::InvalidEnvelope)),
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::UnsupportedSecurityType => Some(Outcome::Filtered(FilterStatKey::InvalidCsp)),
             Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
@@ -583,7 +586,6 @@ impl ProcessingError {
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
-            #[cfg(feature = "processing")]
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
@@ -600,7 +602,7 @@ impl ProcessingError {
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::MissingProjectId => None,
-            Self::EventFiltered(_) => None,
+            Self::EventFiltered(key) => Some(Outcome::Filtered(key.clone())),
             Self::InvalidProcessingGroup(_) => None,
 
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
@@ -1140,6 +1142,7 @@ struct InnerProcessor {
 }
 
 struct Processing {
+    errors: ErrorsProcessor,
     logs: LogsProcessor,
     trace_metrics: TraceMetricsProcessor,
     spans: SpansProcessor,
@@ -1228,6 +1231,7 @@ impl EnvelopeProcessorService {
                 .map(CardinalityLimiter::new),
             metric_outcomes,
             processing: Processing {
+                errors: ErrorsProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
                 trace_metrics: TraceMetricsProcessor::new(Arc::clone(&quota_limiter)),
                 spans: SpansProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
@@ -1368,11 +1372,8 @@ impl EnvelopeProcessorService {
             &self.inner.geoip_lookup,
         )?;
         let filter_run =
-            processing::utils::event::filter(managed_envelope.envelope().headers(), &event, &ctx)
-                .map_err(|err| {
-                managed_envelope.reject(Outcome::Filtered(err.clone()));
-                ProcessingError::EventFiltered(err)
-            })?;
+            processing::utils::event::filter(managed_envelope.envelope().headers(), &event, ctx)
+                .map_err(ProcessingError::EventFiltered)?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             dynamic_sampling::tag_error_with_sampling_decision(
@@ -1637,7 +1638,18 @@ impl EnvelopeProcessorService {
         relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
-            ProcessingGroup::Error => run!(process_errors, project_id, ctx),
+            ProcessingGroup::Error => {
+                if ctx.project_info.has_feature(Feature::NewErrorProcessing) {
+                    self.process_with_processor(
+                        &self.inner.processing.errors,
+                        managed_envelope,
+                        ctx,
+                    )
+                    .await
+                } else {
+                    run!(process_errors, project_id, ctx)
+                }
+            }
             ProcessingGroup::Transaction => {
                 self.process_with_processor(
                     &self.inner.processing.transactions,
