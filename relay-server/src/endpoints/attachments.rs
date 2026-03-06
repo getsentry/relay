@@ -32,7 +32,7 @@ impl AttachmentStrategy for AttachmentsAttachmentStrategy {
         field: Field<'static>,
         item: Item,
         config: &Config,
-    ) -> impl Future<Output = Result<Option<crate::envelope::Item>, multer::Error>> + Send {
+    ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
         read_attachment_bytes_into_item(field, item, config, FieldSizeExceededAction::Err)
     }
 }

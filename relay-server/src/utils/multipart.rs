@@ -200,14 +200,14 @@ pub trait AttachmentStrategy {
 
 pub enum FieldSizeExceededAction<'a> {
     Err,
-    EmitOutcome(Box<dyn FnMut(Outcome, u32) + Send + 'a>),
+    EmitOutcome(Box<dyn Fn(Outcome, u32) + Send + 'a>),
 }
 
 pub async fn read_attachment_bytes_into_item(
     field: Field<'static>,
     mut item: Item,
     config: &Config,
-    mut field_size_exceeded_action: FieldSizeExceededAction<'_>,
+    field_size_exceeded_action: FieldSizeExceededAction<'_>,
 ) -> Result<Option<Item>, multer::Error> {
     {
         let content_type = field.content_type().cloned();
@@ -228,7 +228,7 @@ pub async fn read_attachment_bytes_into_item(
             Err(err) => {
                 if let multer::Error::FieldSizeExceeded { limit, .. } = err
                     && let FieldSizeExceededAction::EmitOutcome(emit_outcome) =
-                        &mut field_size_exceeded_action
+                        field_size_exceeded_action
                 {
                     emit_outcome(
                         Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
