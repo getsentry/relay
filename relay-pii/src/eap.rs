@@ -171,7 +171,7 @@ mod tests {
             ..Default::default()
         };
 
-        let scrubbing_config = data_scrubbing_config.pii_config().unwrap();
+        let scrubbing_config = data_scrubbing_config.pii_config();
 
         eap::scrub(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
 
@@ -238,7 +238,7 @@ mod tests {
             ..Default::default()
         };
 
-        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+        let scrubbing_config = scrubbing_config.pii_config();
 
         let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
         {
@@ -529,7 +529,7 @@ mod tests {
             ..Default::default()
         };
 
-        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+        let scrubbing_config = scrubbing_config.pii_config();
 
         eap::scrub(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
 
@@ -628,7 +628,7 @@ mod tests {
             ..Default::default()
         };
 
-        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+        let scrubbing_config = scrubbing_config.pii_config();
 
         eap::scrub(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
 
@@ -718,7 +718,7 @@ mod tests {
             ..Default::default()
         };
 
-        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+        let scrubbing_config = scrubbing_config.pii_config();
 
         eap::scrub(
             ValueType::OurLog,
@@ -805,7 +805,7 @@ mod tests {
                 scrubbing_config.scrub_defaults = false;
                 scrubbing_config.scrub_ip_addresses = false;
 
-                let scrubbing_config = scrubbing_config.pii_config().unwrap();
+                let scrubbing_config = scrubbing_config.pii_config();
 
                 let span_json = format!(r#"{{
                     "start_timestamp": 1544719859.0,
@@ -2171,7 +2171,7 @@ mod tests {
     "###);
 
     attribute_rule_test!(
-        test_scrub_attributes_pii_string_rules_bearer_mask, 
+        test_scrub_attributes_pii_string_rules_bearer_mask,
         "@bearer:mask",
         "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
     @r###"

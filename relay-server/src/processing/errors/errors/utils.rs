@@ -179,8 +179,8 @@ pub fn take_event_from_formdata(
 ///
 /// Tries multiple sources for events:
 /// 1. [`take_parsed_event`]
-/// 2. [`take_event_from_formdata`]
-/// 3. [`take_event_from_attachments`]
+/// 2. [`take_event_from_attachments`]
+/// 3. [`take_event_from_formdata`]
 ///
 /// Used when parsing crashes which have multiple additional ways of supplying additional event
 /// data.
@@ -196,12 +196,12 @@ pub fn take_event_from_crash_items(
         return Ok(event);
     }
 
-    let event = take_event_from_formdata(items, metrics)?;
+    let event = take_event_from_attachments(items, metrics, ctx)?;
     if event.0.is_some() {
         return Ok(event);
     }
 
-    let event = take_event_from_attachments(items, metrics, ctx)?;
+    let event = take_event_from_formdata(items, metrics)?;
     if event.0.is_some() {
         return Ok(event);
     }

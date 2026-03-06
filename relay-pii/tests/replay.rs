@@ -14,7 +14,7 @@ fn simple_enabled_config() -> DataScrubbingConfig {
 #[test]
 fn test_scrub_pii_from_annotated_replay() {
     let scrub_config = simple_enabled_config();
-    let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap();
+    let pii_config = scrub_config.pii_config().as_ref().unwrap();
     let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
     let payload = include_str!("../../tests/fixtures/replay.json");
