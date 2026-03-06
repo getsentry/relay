@@ -230,7 +230,7 @@ async fn multipart_items(
 ) -> Result<Items, multer::Error> {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
-    let mut attachments_size: usize = 0;
+    let mut attachments_size = 0;
 
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
@@ -532,7 +532,7 @@ mod tests {
         }
 
         let res = multipart_items(multipart, &config, MockAttachmentStrategy).await;
-        assert!(res.is_err());
+        assert!(res.is_err_and(|x| matches!(x, multer::Error::FieldSizeExceeded { .. })));
     }
 
     #[tokio::test]
