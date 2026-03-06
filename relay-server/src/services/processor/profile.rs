@@ -86,8 +86,7 @@ mod tests {
             Some(ErrorBoundary::Ok(TransactionMetricsConfig::new()));
         project_info.config.features.0.insert(Feature::Profiling);
 
-        let mut global_config = GlobalConfig::default();
-        global_config.normalize();
+        let global_config = GlobalConfig::default();
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
