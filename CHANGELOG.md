@@ -22,6 +22,7 @@
 
 - Strip performance metric specs from extraction while keeping extraction interfaces intact. ([#5674](https://github.com/getsentry/relay/pull/5674))
 - Allow deferred lengths to the `/upload` endpoint when the sender is trusted. ([#5658](https://github.com/getsentry/relay/pull/5658))
+- Stream non-prosperodmp attachments received at `/playstation` to objectstore. ([#5673](https://github.com/getsentry/relay/pull/5673))
 - Use new processor architecture to process client reports. ([#5686](https://github.com/getsentry/relay/pull/5686))
 - Prevent timeouts on the `/upload` endpoint. ([#5692](https://github.com/getsentry/relay/pull/5692))
 - Handle traffic bursts in the objectstore service. ([#5689](https://github.com/getsentry/relay/pull/5689))

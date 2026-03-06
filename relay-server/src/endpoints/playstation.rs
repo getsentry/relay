@@ -1,19 +1,28 @@
+use std::io;
+
 use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
+use bytes::Bytes;
+use futures::TryStreamExt;
+use futures::stream::BoxStream;
+use multer::Field;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
 use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::ContentType::OctetStream;
-use crate::envelope::{AttachmentType, Envelope};
+use crate::envelope::ContentType::{self, OctetStream};
+use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::utils::UnconstrainedMultipart;
+use crate::services::upload::Stream;
+use crate::utils::{
+    AttachmentStrategy, BoundedStream, UnconstrainedMultipart, read_attachment_bytes_into_item,
+};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -53,6 +62,57 @@ struct Parts {
     upload: &'static [&'static str],
 }
 
+struct PlaystationAttachmentStrategy<'a> {
+    state: &'a ServiceState,
+    request_meta: &'a RequestMeta,
+}
+
+impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
+    fn infer_type(&self, field: &Field) -> AttachmentType {
+        if field
+            .file_name()
+            .is_some_and(|f| f.ends_with(PROSPERODUMP_EXTENSION))
+        {
+            AttachmentType::Prosperodump
+        } else {
+            AttachmentType::Attachment
+        }
+    }
+
+    async fn add_to_item(
+        &self,
+        field: Field<'static>,
+        mut item: Item,
+        config: &Config,
+    ) -> Result<Option<Item>, multer::Error> {
+        let attachment_type = self.infer_type(&field);
+        match attachment_type {
+            AttachmentType::Prosperodump => {
+                read_attachment_bytes_into_item(field, item, config).await
+            }
+            _ => {
+                let stream: BoxStream<'static, io::Result<Bytes>> =
+                    Box::pin(field.map_err(io::Error::other));
+                let stream = BoundedStream::new(stream, 1, config.max_upload_size());
+                let stream = Stream {
+                    scoping: self.request_meta.get_partial_scoping().into_scoping(),
+                    stream,
+                };
+                let result = self.state.upload().send(stream).await;
+                if let Ok(Ok(location)) = result
+                    && let Ok(location) = location.into_header_value()
+                {
+                    let location = location.as_bytes().to_owned();
+                    item.set_payload(ContentType::AttachmentRef, location);
+                    Ok(Some(item))
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+}
+
 fn create_data_request_response() -> DataRequestResponse {
     DataRequestResponse {
         parts: Parts {
@@ -70,20 +130,16 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-fn infer_attachment_type(_field_name: Option<&str>, file_name: &str) -> AttachmentType {
-    if file_name.ends_with(PROSPERODUMP_EXTENSION) {
-        AttachmentType::Prosperodump
-    } else {
-        AttachmentType::Attachment
-    }
-}
-
 async fn extract_multipart(
     multipart: UnconstrainedMultipart,
     meta: RequestMeta,
-    config: &Config,
+    state: &ServiceState,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = multipart.items(infer_attachment_type, config).await?;
+    let attachment_strategy = PlaystationAttachmentStrategy {
+        state,
+        request_meta: &meta,
+    };
+    let mut items = multipart.items(state.config(), attachment_strategy).await?;
 
     let prosperodump_item = items
         .iter_mut()
@@ -116,7 +172,7 @@ async fn handle(
     }
 
     let multipart = request.extract_with_state(&state).await?;
-    let mut envelope = extract_multipart(multipart, meta, state.config()).await?;
+    let mut envelope = extract_multipart(multipart, meta, &state).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
     let id = envelope.event_id();
