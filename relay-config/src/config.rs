@@ -883,6 +883,10 @@ pub struct Http {
     ///
     /// The forward endpoint forwards unknown API requests to the upstream.
     pub forward: bool,
+    /// Enables an async DNS resolver through the `hickory-dns` crate, which uses an LRU cache for
+    /// the resolved entries. This helps to limit the amount of requests made to the upstream DNS
+    /// server (important for K8s infrastructure).
+    pub dns_cache: bool,
 }
 
 impl Default for Http {
@@ -899,6 +903,7 @@ impl Default for Http {
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
             forward: true,
+            dns_cache: true,
         }
     }
 }
@@ -2224,6 +2229,11 @@ impl Config {
     /// Returns the failed upstream request retry interval.
     pub fn http_max_retry_interval(&self) -> Duration {
         Duration::from_secs(self.values.http.max_retry_interval.into())
+    }
+
+    /// Returns `true` if relay should use an in-process cache for DNS lookups.
+    pub fn http_dns_cache(&self) -> bool {
+        self.values.http.dns_cache
     }
 
     /// Returns the expiry timeout for cached projects.
