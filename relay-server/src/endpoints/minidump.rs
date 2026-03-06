@@ -6,7 +6,7 @@ use bytes::Bytes;
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
 use liblzma::read::XzDecoder;
-use multer::Multipart;
+use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use std::convert::Infallible;
@@ -137,8 +137,8 @@ fn remove_container_extension(filename: &str) -> &str {
         .unwrap_or(filename)
 }
 
-fn infer_attachment_type(field_name: Option<&str>, _file_name: &str) -> AttachmentType {
-    match field_name.unwrap_or("") {
+fn infer_attachment_type(field: &Field) -> AttachmentType {
+    match field.name().unwrap_or("") {
         MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
         ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
         ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,

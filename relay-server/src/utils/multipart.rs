@@ -1,30 +1,22 @@
 use std::convert::Infallible;
+use std::future::Future;
 use std::io;
 use std::task::Poll;
 
-use axum::RequestExt;
-use axum::extract::{FromRequest, FromRequestParts, Request};
+use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use bytes::{Bytes, BytesMut};
-use futures::stream::BoxStream;
 use futures::{StreamExt, TryStreamExt};
 use multer::{Field, Multipart};
 use relay_config::Config;
-use relay_quotas::DataCategory;
-use relay_quotas::Scoping;
-use relay_system::Addr;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
-use crate::extractors::{BadEventMeta, PartialDsn, Remote, RequestMeta};
+use crate::extractors::{BadEventMeta, Remote};
 use crate::service::ServiceState;
-use crate::services::outcome::{
-    DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome, TrackOutcome,
-};
-use crate::services::upload::{self, SignedLocation, Stream};
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::utils::ApiErrorResponse;
-use crate::utils::BoundedStream;
 
 /// Type used for encoding string lengths.
 type Len = u32;
@@ -195,34 +187,74 @@ impl IntoResponse for BadMultipart {
     }
 }
 
-/// Strategy for attachments found in multipart fields.
-pub enum AttachmentStrategy<'a> {
-    #[cfg_attr(not(sentry), allow(dead_code))]
-    Upload {
-        scoping: Scoping,
-        state: &'a ServiceState,
-        exemptions: UploadExemptions<'a>, // attachment types to add to envelope instead of upload
-    },
-    AddToEnvelope {
-        ignore_size_limit_exceeded: bool,
-    },
+pub trait AddAttachmentToItem {
+    fn add(
+        &mut self,
+        field: Field<'static>,
+        item: Item,
+    ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send;
 }
 
-pub struct UploadExemptions<'a> {
-    pub exempt_types: &'a [AttachmentType],
-    pub ignore_size_limit_exceeded: bool,
+pub enum FieldSizeExceededAction<'a> {
+    Err,
+    EmitOutcome(Box<dyn FnMut(Outcome, u32) + Send + 'a>),
 }
 
-async fn multipart_items<'a, F, G>(
+pub struct ReadBytesIntoItem<'a> {
+    pub config: &'a Config,
+    pub field_size_exceeded_action: FieldSizeExceededAction<'a>,
+}
+
+impl AddAttachmentToItem for ReadBytesIntoItem<'_> {
+    async fn add(
+        &mut self,
+        field: Field<'static>,
+        mut item: Item,
+    ) -> Result<Option<Item>, multer::Error> {
+        {
+            let content_type = field.content_type().cloned();
+            let field = LimitedField::new(field, self.config.max_attachment_size());
+            match field.bytes().await {
+                Ok(bytes) => {
+                    if let Some(content_type) = content_type {
+                        let ct = content_type
+                            .as_ref()
+                            .parse()
+                            .unwrap_or(ContentType::OctetStream);
+                        item.set_payload(ct, bytes);
+                    } else {
+                        item.set_payload_without_content_type(bytes);
+                    }
+                    Ok(Some(item))
+                }
+                Err(err) => {
+                    if let multer::Error::FieldSizeExceeded { limit, .. } = err
+                        && let FieldSizeExceededAction::EmitOutcome(emit_outcome) =
+                            &mut self.field_size_exceeded_action
+                    {
+                        emit_outcome(
+                            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+                                DiscardAttachmentType::Attachment,
+                            ))),
+                            u32::try_from(limit).unwrap_or(u32::MAX),
+                        );
+                        Ok(None)
+                    } else {
+                        Err(err)
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn multipart_items(
     mut multipart: Multipart<'static>,
-    mut infer_type: F,
-    mut emit_outcome: G,
     config: &Config,
-    attachment_strategy: AttachmentStrategy<'a>,
+    mut infer_attachment_type: impl FnMut(&Field) -> AttachmentType,
+    mut attachment_strategy: impl AddAttachmentToItem,
 ) -> Result<Items, multer::Error>
 where
-    F: FnMut(Option<&str>, &str) -> AttachmentType,
-    G: FnMut(Outcome, u32),
 {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
@@ -231,47 +263,18 @@ where
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
             let mut item = Item::new(ItemType::Attachment);
-            let attachment_type = infer_type(field.name(), file_name);
+            let attachment_type = infer_attachment_type(&field);
             item.set_attachment_type(attachment_type);
             item.set_filename(file_name);
-
-            match &attachment_strategy {
-                AttachmentStrategy::Upload {
-                    scoping,
-                    state,
-                    exemptions:
-                        UploadExemptions {
-                            exempt_types,
-                            ignore_size_limit_exceeded,
-                        },
-                    ..
-                } if !exempt_types.contains(&attachment_type) => {
-                    upload_attachment_and_add_ref_to_items(scoping, field, state, item, &mut items)
-                        .await;
+            let item = attachment_strategy.add(field, item).await?;
+            if let Some(item) = item {
+                attachments_size += item.len();
+                if attachments_size > config.max_attachments_size() {
+                    return Err(multer::Error::StreamSizeExceeded {
+                        limit: config.max_attachments_size() as u64,
+                    });
                 }
-                AttachmentStrategy::Upload {
-                    exemptions:
-                        UploadExemptions {
-                            ignore_size_limit_exceeded,
-                            ..
-                        },
-                    ..
-                }
-                | AttachmentStrategy::AddToEnvelope {
-                    ignore_size_limit_exceeded,
-                    ..
-                } => {
-                    add_attachment_to_items(
-                        field,
-                        item,
-                        &mut items,
-                        config,
-                        *ignore_size_limit_exceeded,
-                        &mut attachments_size,
-                        &mut emit_outcome,
-                    )
-                    .await?;
-                }
+                items.push(item);
             }
         } else if let Some(field_name) = field.name().map(str::to_owned) {
             // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
@@ -293,80 +296,6 @@ where
     }
 
     Ok(items)
-}
-
-async fn upload_attachment_and_add_ref_to_items(
-    scoping: &Scoping,
-    field: Field<'static>,
-    state: &ServiceState,
-    mut item: Item,
-    items: &mut Items,
-) {
-    let stream: BoxStream<'static, io::Result<Bytes>> = Box::pin(field.map_err(io::Error::other));
-    let stream = BoundedStream::new(stream, 1, state.config().max_upload_size());
-    let stream = Stream {
-        scoping: *scoping,
-        stream,
-    };
-
-    let result: Result<Result<SignedLocation, upload::Error>, relay_system::SendError> =
-        state.upload().send(stream).await;
-
-    if let Ok(location) = result
-        && let Ok(location) = location
-        && let Ok(location) = location.into_header_value()
-    {
-        let location = location.as_bytes().to_owned();
-        item.set_payload(ContentType::AttachmentRef, location);
-        items.push(item);
-    }
-}
-
-async fn add_attachment_to_items<G>(
-    field: Field<'_>,
-    mut item: Item,
-    items: &mut Items,
-    config: &Config,
-    ignore_size_limit_exceeded: bool,
-    attachments_size: &mut usize,
-    emit_outcome: &mut G,
-) -> Result<(), multer::Error>
-where
-    G: FnMut(Outcome, u32),
-{
-    let content_type = field.content_type().cloned();
-    let field = LimitedField::new(field, config.max_attachment_size());
-    match field.bytes().await {
-        Err(multer::Error::FieldSizeExceeded { limit, .. }) if ignore_size_limit_exceeded => {
-            emit_outcome(
-                Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
-                    DiscardAttachmentType::Attachment,
-                ))),
-                u32::try_from(limit).unwrap_or(u32::MAX),
-            );
-            Ok(())
-        }
-        Err(err) => Err(err),
-        Ok(bytes) => {
-            *attachments_size += bytes.len();
-            if *attachments_size > config.max_attachments_size() {
-                return Err(multer::Error::StreamSizeExceeded {
-                    limit: config.max_attachments_size() as u64,
-                });
-            }
-            if let Some(content_type) = content_type {
-                let ct = content_type
-                    .as_ref()
-                    .parse()
-                    .unwrap_or(ContentType::OctetStream);
-                item.set_payload(ct, bytes);
-            } else {
-                item.set_payload_without_content_type(bytes);
-            }
-            items.push(item);
-            Ok(())
-        }
-    }
 }
 
 /// Wrapper around `multer::Field` which consumes the entire underlying stream even when the
@@ -459,19 +388,20 @@ impl FromRequest<ServiceState> for ConstrainedMultipart {
 }
 
 impl ConstrainedMultipart {
-    pub async fn items<F>(self, infer_type: F, config: &Config) -> Result<Items, multer::Error>
-    where
-        F: FnMut(Option<&str>, &str) -> AttachmentType,
-    {
+    pub async fn items(
+        self,
+        infer_attachment_type: impl FnMut(&Field) -> AttachmentType,
+        config: &Config,
+    ) -> Result<Items, multer::Error> {
         // The emit outcome closure here does nothing since in this code branch we don't want to
         // emit outcomes as we already return an error to the request.
         multipart_items(
             self.0,
-            infer_type,
-            |_, _| (),
             config,
-            AttachmentStrategy::AddToEnvelope {
-                ignore_size_limit_exceeded: false,
+            infer_attachment_type,
+            ReadBytesIntoItem {
+                config,
+                field_size_exceeded_action: FieldSizeExceededAction::Err,
             },
         )
         .await
@@ -484,61 +414,34 @@ impl ConstrainedMultipart {
 #[allow(dead_code)]
 pub struct UnconstrainedMultipart {
     multipart: Multipart<'static>,
-    outcome_aggregator: Addr<TrackOutcome>,
-    request_meta: RequestMeta,
 }
 
 impl FromRequest<ServiceState> for UnconstrainedMultipart {
     type Rejection = BadMultipart;
 
     async fn from_request(
-        mut request: Request,
-        state: &ServiceState,
+        request: Request,
+        _state: &ServiceState,
     ) -> Result<Self, Self::Rejection> {
-        let mut parts = request.extract_parts().await?;
-        let request_meta = RequestMeta::<PartialDsn>::from_request_parts(&mut parts, state).await?;
-
         let multipart = multipart_from_request(request, multer::Constraints::new())?;
-        Ok(UnconstrainedMultipart {
-            multipart,
-            outcome_aggregator: state.outcome_aggregator().clone(),
-            request_meta,
-        })
+        Ok(UnconstrainedMultipart { multipart })
     }
 }
 
 #[cfg_attr(not(any(test, sentry)), expect(dead_code))]
 impl UnconstrainedMultipart {
-    pub async fn items<'a, F>(
+    pub async fn items(
         self,
-        infer_type: F,
+        infer_attachment_type: impl FnMut(&Field) -> AttachmentType,
         config: &Config,
-        attachment_strategy: AttachmentStrategy<'a>,
-    ) -> Result<Items, multer::Error>
-    where
-        F: FnMut(Option<&str>, &str) -> AttachmentType,
-    {
-        let UnconstrainedMultipart {
-            multipart,
-            outcome_aggregator,
-            request_meta,
-        } = self;
+        attachment_strategy: impl AddAttachmentToItem,
+    ) -> Result<Items, multer::Error> {
+        let UnconstrainedMultipart { multipart } = self;
 
         multipart_items(
             multipart,
-            infer_type,
-            |outcome, quantity| {
-                outcome_aggregator.send(TrackOutcome {
-                    timestamp: request_meta.received_at(),
-                    scoping: request_meta.get_partial_scoping().into_scoping(),
-                    outcome,
-                    event_id: None,
-                    remote_addr: request_meta.remote_addr(),
-                    category: DataCategory::Attachment,
-                    quantity,
-                })
-            },
             config,
+            infer_attachment_type,
             attachment_strategy,
         )
         .await
@@ -659,13 +562,16 @@ mod tests {
         .unwrap();
 
         let mut mock_outcomes = vec![];
+        let emit_outcome = |_, x| mock_outcomes.push(x);
         let items = multipart_items(
             multipart,
-            |_, _| AttachmentType::Attachment,
-            |_, x| mock_outcomes.push(x),
             &config,
-            AttachmentStrategy::AddToEnvelope {
-                ignore_size_limit_exceeded: true,
+            |_| AttachmentType::Attachment,
+            ReadBytesIntoItem {
+                config: &config,
+                field_size_exceeded_action: FieldSizeExceededAction::EmitOutcome(Box::new(
+                    emit_outcome,
+                )),
             },
         )
         .await
@@ -695,7 +601,7 @@ mod tests {
 
         let stream = futures::stream::once(async move { Ok::<_, Infallible>(data) });
 
-        let config = Config::from_json_value(serde_json::json!({
+        let config = &Config::from_json_value(serde_json::json!({
             "limits": {
                 "max_attachments_size": 5
             }
@@ -704,23 +610,18 @@ mod tests {
 
         let multipart = Multipart::new(stream, "X-BOUNDARY");
 
-        let result = UnconstrainedMultipart {
-            multipart,
-            outcome_aggregator: Addr::dummy(),
-            request_meta: RequestMeta::new(
-                "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
-                    .parse()
-                    .unwrap(),
-            ),
-        }
-        .items(
-            |_, _| AttachmentType::Attachment,
-            &config,
-            AttachmentStrategy::AddToEnvelope {
-                ignore_size_limit_exceeded: true,
-            },
-        )
-        .await;
+        let result = UnconstrainedMultipart { multipart }
+            .items(
+                |_| AttachmentType::Attachment,
+                config,
+                ReadBytesIntoItem {
+                    config,
+                    field_size_exceeded_action: FieldSizeExceededAction::EmitOutcome(Box::new(
+                        |_, _| (),
+                    )),
+                },
+            )
+            .await;
 
         // Should be warned if the overall stream limit is being breached.
         assert!(result.is_err_and(|x| matches!(x, multer::Error::StreamSizeExceeded { limit: _ })));
