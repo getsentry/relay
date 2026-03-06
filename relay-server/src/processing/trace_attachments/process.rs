@@ -112,8 +112,6 @@ pub fn scrub(work: &mut Managed<ExpandedAttachments>, ctx: Context<'_>) {
 /// Errors that can occur during attachment scrubbing.
 #[derive(Debug, thiserror::Error)]
 pub enum ScrubAttachmentError {
-    #[error("pii config")]
-    PiiConfig,
     #[error("processing error: {0}")]
     ProcessingFailed(#[from] ProcessingAction),
 }
@@ -123,12 +121,7 @@ pub fn scrub_attachment<'a>(
     attachment: &mut ExpandedAttachment,
     ctx: Context<'a>,
 ) -> Result<(), ScrubAttachmentError> {
-    let pii_config_from_scrubbing = ctx
-        .project_info
-        .config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|_| ScrubAttachmentError::PiiConfig)?;
+    let pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
 
     let ExpandedAttachment {
         parent_id: _,

@@ -328,10 +328,8 @@ pub unsafe extern "C" fn relay_validate_pii_config(value: *const RelayStr) -> Re
 pub unsafe extern "C" fn relay_convert_datascrubbing_config(config: *const RelayStr) -> RelayStr {
     let config: DataScrubbingConfig = serde_json::from_str(unsafe { (*config).as_str() })?;
     match config.pii_config() {
-        Ok(Some(config)) => RelayStr::from_string(serde_json::to_string(config)?),
-        Ok(None) => RelayStr::new("{}"),
-        // NOTE: Callers of this function must be able to handle this error.
-        Err(e) => RelayStr::from_string(e.to_string()),
+        Some(config) => RelayStr::from_string(serde_json::to_string(config)?),
+        None => RelayStr::new("{}"),
     }
 }
 

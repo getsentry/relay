@@ -52,9 +52,6 @@ pub enum Error {
     /// A processor failed to process the spans.
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
-    /// Internal error, Pii config could not be loaded.
-    #[error("Pii configuration error")]
-    PiiConfig,
     /// The span is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
@@ -78,7 +75,6 @@ impl OutcomeError for Error {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
-            Self::PiiConfig => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
@@ -95,7 +91,6 @@ impl From<RateLimits> for Error {
 impl From<ScrubAttachmentError> for Error {
     fn from(value: ScrubAttachmentError) -> Self {
         match value {
-            ScrubAttachmentError::PiiConfig => Self::PiiConfig,
             ScrubAttachmentError::ProcessingFailed(action) => Self::ProcessingFailed(action),
         }
     }

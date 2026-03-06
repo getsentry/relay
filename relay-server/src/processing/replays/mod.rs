@@ -6,7 +6,6 @@ use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::Replay;
 use relay_filter::FilterStatKey;
-use relay_pii::PiiConfigError;
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 use serde::{Deserialize, Serialize};
@@ -63,10 +62,6 @@ pub enum Error {
     #[error("invalid replay")]
     InvalidReplayRecordingEvent,
 
-    /// The PII config could not be loaded.
-    #[error("invalid pii config")]
-    PiiConfig(PiiConfigError),
-
     /// An error occurred during PII scrubbing of the Replay.
     #[error("failed to scrub PII: {0}")]
     CouldNotScrub(#[from] ProcessingAction),
@@ -118,7 +113,6 @@ impl OutcomeError for Error {
             Self::InvalidReplayRecordingEvent => {
                 Some(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
             }
-            Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::CouldNotScrub(_) => Some(Outcome::Invalid(DiscardReason::InvalidReplayEventPii)),
 
             Self::RateLimited(limits) => {

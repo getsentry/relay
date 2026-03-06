@@ -115,12 +115,7 @@ fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Er
         processor::process_value(event, &mut processor, ProcessingState::root())?;
     }
 
-    let pii_config = ctx
-        .project_info
-        .config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| Error::PiiConfig(e.clone()))?;
+    let pii_config = ctx.project_info.config.datascrubbing_settings.pii_config();
 
     if let Some(config) = pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
@@ -134,10 +129,12 @@ fn scrub_recordings(
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     let event_id = replay.headers.event_id();
-    let pii_config = match ctx.project_info.config.datascrubbing_settings.pii_config() {
-        Ok(config) => config.as_ref(),
-        Err(e) => return Err(replay.reject_err(Error::PiiConfig(e.clone()))),
-    };
+    let pii_config = ctx
+        .project_info
+        .config
+        .datascrubbing_settings
+        .pii_config()
+        .as_ref();
 
     let mut scrubber = RecordingScrubber::new(
         ctx.config.max_replay_uncompressed_size(),
