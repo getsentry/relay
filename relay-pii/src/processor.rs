@@ -644,7 +644,7 @@ mod tests {
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
         use crate::convert::to_pii_config as to_pii_config_impl;
-        let rv = to_pii_config_impl(datascrubbing_config).unwrap();
+        let rv = to_pii_config_impl(datascrubbing_config);
         if let Some(ref config) = rv {
             let roundtrip: PiiConfig =
                 serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
@@ -1322,7 +1322,6 @@ mod tests {
             scrub_ip_addresses: true,
             ..Default::default()
         })
-        .unwrap()
         .unwrap();
 
         let mut event = Annotated::new(Event {
@@ -1379,7 +1378,6 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         })
-        .unwrap()
         .unwrap();
 
         let mut event = Annotated::new(Event {
@@ -1591,7 +1589,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(
@@ -1621,7 +1619,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1647,7 +1645,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1679,7 +1677,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1707,7 +1705,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1730,7 +1728,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
 
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         processor::process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1785,7 +1783,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(breadcrumb);
@@ -1810,7 +1808,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(breadcrumb);
@@ -1841,7 +1839,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1869,7 +1867,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(breadcrumb);
