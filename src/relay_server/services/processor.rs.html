@@ -3175,660 +3175,619 @@
 <a href=#3175 id=3175 data-nosnippet>3175</a>
 <a href=#3176 id=3176 data-nosnippet>3176</a><span class="attr">#[cfg(test)]
 <a href=#3177 id=3177 data-nosnippet>3177</a></span><span class="kw">mod </span>tests {
-<a href=#3178 id=3178 data-nosnippet>3178</a>    <span class="kw">use </span>std::collections::BTreeMap;
-<a href=#3179 id=3179 data-nosnippet>3179</a>
-<a href=#3180 id=3180 data-nosnippet>3180</a>    <span class="kw">use </span>insta::assert_debug_snapshot;
-<a href=#3181 id=3181 data-nosnippet>3181</a>    <span class="kw">use </span>relay_base_schema::metrics::{DurationUnit, MetricUnit};
-<a href=#3182 id=3182 data-nosnippet>3182</a>    <span class="kw">use </span>relay_common::glob2::LazyGlob;
-<a href=#3183 id=3183 data-nosnippet>3183</a>    <span class="kw">use </span>relay_dynamic_config::ProjectConfig;
-<a href=#3184 id=3184 data-nosnippet>3184</a>    <span class="kw">use </span>relay_event_normalization::{
-<a href=#3185 id=3185 data-nosnippet>3185</a>        MeasurementsConfig, NormalizationConfig, RedactionRule, TransactionNameConfig,
-<a href=#3186 id=3186 data-nosnippet>3186</a>        TransactionNameRule,
-<a href=#3187 id=3187 data-nosnippet>3187</a>    };
-<a href=#3188 id=3188 data-nosnippet>3188</a>    <span class="kw">use </span>relay_event_schema::protocol::TransactionSource;
-<a href=#3189 id=3189 data-nosnippet>3189</a>    <span class="kw">use </span>relay_pii::DataScrubbingConfig;
-<a href=#3190 id=3190 data-nosnippet>3190</a>    <span class="kw">use </span>similar_asserts::assert_eq;
-<a href=#3191 id=3191 data-nosnippet>3191</a>
-<a href=#3192 id=3192 data-nosnippet>3192</a>    <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
-<a href=#3193 id=3193 data-nosnippet>3193</a>    <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::{
-<a href=#3194 id=3194 data-nosnippet>3194</a>        CommonTags, TransactionMeasurementTags, TransactionMetric,
+<a href=#3178 id=3178 data-nosnippet>3178</a>    <span class="kw">use </span>insta::assert_debug_snapshot;
+<a href=#3179 id=3179 data-nosnippet>3179</a>    <span class="kw">use </span>relay_common::glob2::LazyGlob;
+<a href=#3180 id=3180 data-nosnippet>3180</a>    <span class="kw">use </span>relay_dynamic_config::ProjectConfig;
+<a href=#3181 id=3181 data-nosnippet>3181</a>    <span class="kw">use </span>relay_event_normalization::{
+<a href=#3182 id=3182 data-nosnippet>3182</a>        NormalizationConfig, RedactionRule, TransactionNameConfig, TransactionNameRule,
+<a href=#3183 id=3183 data-nosnippet>3183</a>    };
+<a href=#3184 id=3184 data-nosnippet>3184</a>    <span class="kw">use </span>relay_event_schema::protocol::TransactionSource;
+<a href=#3185 id=3185 data-nosnippet>3185</a>    <span class="kw">use </span>relay_pii::DataScrubbingConfig;
+<a href=#3186 id=3186 data-nosnippet>3186</a>    <span class="kw">use </span>similar_asserts::assert_eq;
+<a href=#3187 id=3187 data-nosnippet>3187</a>
+<a href=#3188 id=3188 data-nosnippet>3188</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils::{create_test_processor, create_test_processor_with_addrs};
+<a href=#3189 id=3189 data-nosnippet>3189</a>
+<a href=#3190 id=3190 data-nosnippet>3190</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#3191 id=3191 data-nosnippet>3191</a>    </span><span class="kw">use </span>{
+<a href=#3192 id=3192 data-nosnippet>3192</a>        relay_metrics::BucketValue,
+<a href=#3193 id=3193 data-nosnippet>3193</a>        relay_quotas::{QuotaScope, ReasonCode},
+<a href=#3194 id=3194 data-nosnippet>3194</a>        relay_test::mock_service,
 <a href=#3195 id=3195 data-nosnippet>3195</a>    };
-<a href=#3196 id=3196 data-nosnippet>3196</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils::{create_test_processor, create_test_processor_with_addrs};
-<a href=#3197 id=3197 data-nosnippet>3197</a>
-<a href=#3198 id=3198 data-nosnippet>3198</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#3199 id=3199 data-nosnippet>3199</a>    </span><span class="kw">use </span>{
-<a href=#3200 id=3200 data-nosnippet>3200</a>        relay_metrics::BucketValue,
-<a href=#3201 id=3201 data-nosnippet>3201</a>        relay_quotas::{QuotaScope, ReasonCode},
-<a href=#3202 id=3202 data-nosnippet>3202</a>        relay_test::mock_service,
-<a href=#3203 id=3203 data-nosnippet>3203</a>    };
-<a href=#3204 id=3204 data-nosnippet>3204</a>
-<a href=#3205 id=3205 data-nosnippet>3205</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
-<a href=#3206 id=3206 data-nosnippet>3206</a>
-<a href=#3207 id=3207 data-nosnippet>3207</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#3208 id=3208 data-nosnippet>3208</a>    </span><span class="kw">fn </span>mock_quota(id: <span class="kw-2">&amp;</span>str) -&gt; Quota {
-<a href=#3209 id=3209 data-nosnippet>3209</a>        Quota {
-<a href=#3210 id=3210 data-nosnippet>3210</a>            id: <span class="prelude-val">Some</span>(id.into()),
-<a href=#3211 id=3211 data-nosnippet>3211</a>            categories: [DataCategory::MetricBucket].into(),
-<a href=#3212 id=3212 data-nosnippet>3212</a>            scope: QuotaScope::Organization,
-<a href=#3213 id=3213 data-nosnippet>3213</a>            scope_id: <span class="prelude-val">None</span>,
-<a href=#3214 id=3214 data-nosnippet>3214</a>            limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-<a href=#3215 id=3215 data-nosnippet>3215</a>            window: <span class="prelude-val">None</span>,
-<a href=#3216 id=3216 data-nosnippet>3216</a>            reason_code: <span class="prelude-val">None</span>,
-<a href=#3217 id=3217 data-nosnippet>3217</a>            namespace: <span class="prelude-val">None</span>,
-<a href=#3218 id=3218 data-nosnippet>3218</a>        }
-<a href=#3219 id=3219 data-nosnippet>3219</a>    }
+<a href=#3196 id=3196 data-nosnippet>3196</a>
+<a href=#3197 id=3197 data-nosnippet>3197</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
+<a href=#3198 id=3198 data-nosnippet>3198</a>
+<a href=#3199 id=3199 data-nosnippet>3199</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#3200 id=3200 data-nosnippet>3200</a>    </span><span class="kw">fn </span>mock_quota(id: <span class="kw-2">&amp;</span>str) -&gt; Quota {
+<a href=#3201 id=3201 data-nosnippet>3201</a>        Quota {
+<a href=#3202 id=3202 data-nosnippet>3202</a>            id: <span class="prelude-val">Some</span>(id.into()),
+<a href=#3203 id=3203 data-nosnippet>3203</a>            categories: [DataCategory::MetricBucket].into(),
+<a href=#3204 id=3204 data-nosnippet>3204</a>            scope: QuotaScope::Organization,
+<a href=#3205 id=3205 data-nosnippet>3205</a>            scope_id: <span class="prelude-val">None</span>,
+<a href=#3206 id=3206 data-nosnippet>3206</a>            limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
+<a href=#3207 id=3207 data-nosnippet>3207</a>            window: <span class="prelude-val">None</span>,
+<a href=#3208 id=3208 data-nosnippet>3208</a>            reason_code: <span class="prelude-val">None</span>,
+<a href=#3209 id=3209 data-nosnippet>3209</a>            namespace: <span class="prelude-val">None</span>,
+<a href=#3210 id=3210 data-nosnippet>3210</a>        }
+<a href=#3211 id=3211 data-nosnippet>3211</a>    }
+<a href=#3212 id=3212 data-nosnippet>3212</a>
+<a href=#3213 id=3213 data-nosnippet>3213</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#3214 id=3214 data-nosnippet>3214</a>    #[test]
+<a href=#3215 id=3215 data-nosnippet>3215</a>    </span><span class="kw">fn </span>test_dynamic_quotas() {
+<a href=#3216 id=3216 data-nosnippet>3216</a>        <span class="kw">let </span>global_config = GlobalConfig {
+<a href=#3217 id=3217 data-nosnippet>3217</a>            quotas: <span class="macro">vec!</span>[mock_quota(<span class="string">"foo"</span>), mock_quota(<span class="string">"bar"</span>)],
+<a href=#3218 id=3218 data-nosnippet>3218</a>            ..Default::default()
+<a href=#3219 id=3219 data-nosnippet>3219</a>        };
 <a href=#3220 id=3220 data-nosnippet>3220</a>
-<a href=#3221 id=3221 data-nosnippet>3221</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#3222 id=3222 data-nosnippet>3222</a>    #[test]
-<a href=#3223 id=3223 data-nosnippet>3223</a>    </span><span class="kw">fn </span>test_dynamic_quotas() {
-<a href=#3224 id=3224 data-nosnippet>3224</a>        <span class="kw">let </span>global_config = GlobalConfig {
-<a href=#3225 id=3225 data-nosnippet>3225</a>            quotas: <span class="macro">vec!</span>[mock_quota(<span class="string">"foo"</span>), mock_quota(<span class="string">"bar"</span>)],
-<a href=#3226 id=3226 data-nosnippet>3226</a>            ..Default::default()
-<a href=#3227 id=3227 data-nosnippet>3227</a>        };
-<a href=#3228 id=3228 data-nosnippet>3228</a>
-<a href=#3229 id=3229 data-nosnippet>3229</a>        <span class="kw">let </span>project_quotas = <span class="macro">vec!</span>[mock_quota(<span class="string">"baz"</span>), mock_quota(<span class="string">"qux"</span>)];
-<a href=#3230 id=3230 data-nosnippet>3230</a>
-<a href=#3231 id=3231 data-nosnippet>3231</a>        <span class="kw">let </span>dynamic_quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, <span class="kw-2">&amp;</span>project_quotas);
-<a href=#3232 id=3232 data-nosnippet>3232</a>
-<a href=#3233 id=3233 data-nosnippet>3233</a>        <span class="macro">assert_eq!</span>(dynamic_quotas.len(), <span class="number">4</span>);
-<a href=#3234 id=3234 data-nosnippet>3234</a>        <span class="macro">assert!</span>(!dynamic_quotas.is_empty());
-<a href=#3235 id=3235 data-nosnippet>3235</a>
-<a href=#3236 id=3236 data-nosnippet>3236</a>        <span class="kw">let </span>quota_ids = dynamic_quotas.into_iter().filter_map(|q| q.id.as_deref());
-<a href=#3237 id=3237 data-nosnippet>3237</a>        <span class="macro">assert!</span>(quota_ids.eq([<span class="string">"foo"</span>, <span class="string">"bar"</span>, <span class="string">"baz"</span>, <span class="string">"qux"</span>]));
-<a href=#3238 id=3238 data-nosnippet>3238</a>    }
+<a href=#3221 id=3221 data-nosnippet>3221</a>        <span class="kw">let </span>project_quotas = <span class="macro">vec!</span>[mock_quota(<span class="string">"baz"</span>), mock_quota(<span class="string">"qux"</span>)];
+<a href=#3222 id=3222 data-nosnippet>3222</a>
+<a href=#3223 id=3223 data-nosnippet>3223</a>        <span class="kw">let </span>dynamic_quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, <span class="kw-2">&amp;</span>project_quotas);
+<a href=#3224 id=3224 data-nosnippet>3224</a>
+<a href=#3225 id=3225 data-nosnippet>3225</a>        <span class="macro">assert_eq!</span>(dynamic_quotas.len(), <span class="number">4</span>);
+<a href=#3226 id=3226 data-nosnippet>3226</a>        <span class="macro">assert!</span>(!dynamic_quotas.is_empty());
+<a href=#3227 id=3227 data-nosnippet>3227</a>
+<a href=#3228 id=3228 data-nosnippet>3228</a>        <span class="kw">let </span>quota_ids = dynamic_quotas.into_iter().filter_map(|q| q.id.as_deref());
+<a href=#3229 id=3229 data-nosnippet>3229</a>        <span class="macro">assert!</span>(quota_ids.eq([<span class="string">"foo"</span>, <span class="string">"bar"</span>, <span class="string">"baz"</span>, <span class="string">"qux"</span>]));
+<a href=#3230 id=3230 data-nosnippet>3230</a>    }
+<a href=#3231 id=3231 data-nosnippet>3231</a>
+<a href=#3232 id=3232 data-nosnippet>3232</a>    <span class="doccomment">/// Ensures that if we ratelimit one batch of buckets in [`FlushBuckets`] message, it won't
+<a href=#3233 id=3233 data-nosnippet>3233</a>    /// also ratelimit the next batches in the same message automatically.
+<a href=#3234 id=3234 data-nosnippet>3234</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#3235 id=3235 data-nosnippet>3235</a>    #[tokio::test]
+<a href=#3236 id=3236 data-nosnippet>3236</a>    </span><span class="kw">async fn </span>test_ratelimit_per_batch() {
+<a href=#3237 id=3237 data-nosnippet>3237</a>        <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
+<a href=#3238 id=3238 data-nosnippet>3238</a>        <span class="kw">use </span>relay_protocol::FiniteF64;
 <a href=#3239 id=3239 data-nosnippet>3239</a>
-<a href=#3240 id=3240 data-nosnippet>3240</a>    <span class="doccomment">/// Ensures that if we ratelimit one batch of buckets in [`FlushBuckets`] message, it won't
-<a href=#3241 id=3241 data-nosnippet>3241</a>    /// also ratelimit the next batches in the same message automatically.
-<a href=#3242 id=3242 data-nosnippet>3242</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#3243 id=3243 data-nosnippet>3243</a>    #[tokio::test]
-<a href=#3244 id=3244 data-nosnippet>3244</a>    </span><span class="kw">async fn </span>test_ratelimit_per_batch() {
-<a href=#3245 id=3245 data-nosnippet>3245</a>        <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
-<a href=#3246 id=3246 data-nosnippet>3246</a>        <span class="kw">use </span>relay_protocol::FiniteF64;
-<a href=#3247 id=3247 data-nosnippet>3247</a>
-<a href=#3248 id=3248 data-nosnippet>3248</a>        <span class="kw">let </span>rate_limited_org = Scoping {
-<a href=#3249 id=3249 data-nosnippet>3249</a>            organization_id: OrganizationId::new(<span class="number">1</span>),
-<a href=#3250 id=3250 data-nosnippet>3250</a>            project_id: ProjectId::new(<span class="number">21</span>),
-<a href=#3251 id=3251 data-nosnippet>3251</a>            project_key: ProjectKey::parse(<span class="string">"00000000000000000000000000000000"</span>).unwrap(),
-<a href=#3252 id=3252 data-nosnippet>3252</a>            key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-<a href=#3253 id=3253 data-nosnippet>3253</a>        };
-<a href=#3254 id=3254 data-nosnippet>3254</a>
-<a href=#3255 id=3255 data-nosnippet>3255</a>        <span class="kw">let </span>not_rate_limited_org = Scoping {
-<a href=#3256 id=3256 data-nosnippet>3256</a>            organization_id: OrganizationId::new(<span class="number">2</span>),
-<a href=#3257 id=3257 data-nosnippet>3257</a>            project_id: ProjectId::new(<span class="number">21</span>),
-<a href=#3258 id=3258 data-nosnippet>3258</a>            project_key: ProjectKey::parse(<span class="string">"11111111111111111111111111111111"</span>).unwrap(),
-<a href=#3259 id=3259 data-nosnippet>3259</a>            key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-<a href=#3260 id=3260 data-nosnippet>3260</a>        };
-<a href=#3261 id=3261 data-nosnippet>3261</a>
-<a href=#3262 id=3262 data-nosnippet>3262</a>        <span class="kw">let </span>message = {
-<a href=#3263 id=3263 data-nosnippet>3263</a>            <span class="kw">let </span>project_info = {
-<a href=#3264 id=3264 data-nosnippet>3264</a>                <span class="kw">let </span>quota = Quota {
-<a href=#3265 id=3265 data-nosnippet>3265</a>                    id: <span class="prelude-val">Some</span>(<span class="string">"testing"</span>.into()),
-<a href=#3266 id=3266 data-nosnippet>3266</a>                    categories: [DataCategory::MetricBucket].into(),
-<a href=#3267 id=3267 data-nosnippet>3267</a>                    scope: relay_quotas::QuotaScope::Organization,
-<a href=#3268 id=3268 data-nosnippet>3268</a>                    scope_id: <span class="prelude-val">Some</span>(rate_limited_org.organization_id.to_string().into()),
-<a href=#3269 id=3269 data-nosnippet>3269</a>                    limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-<a href=#3270 id=3270 data-nosnippet>3270</a>                    window: <span class="prelude-val">None</span>,
-<a href=#3271 id=3271 data-nosnippet>3271</a>                    reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"test"</span>)),
-<a href=#3272 id=3272 data-nosnippet>3272</a>                    namespace: <span class="prelude-val">None</span>,
-<a href=#3273 id=3273 data-nosnippet>3273</a>                };
-<a href=#3274 id=3274 data-nosnippet>3274</a>
-<a href=#3275 id=3275 data-nosnippet>3275</a>                <span class="kw">let </span><span class="kw-2">mut </span>config = ProjectConfig::default();
-<a href=#3276 id=3276 data-nosnippet>3276</a>                config.quotas.push(quota);
-<a href=#3277 id=3277 data-nosnippet>3277</a>
-<a href=#3278 id=3278 data-nosnippet>3278</a>                Arc::new(ProjectInfo {
-<a href=#3279 id=3279 data-nosnippet>3279</a>                    config,
-<a href=#3280 id=3280 data-nosnippet>3280</a>                    ..Default::default()
-<a href=#3281 id=3281 data-nosnippet>3281</a>                })
-<a href=#3282 id=3282 data-nosnippet>3282</a>            };
-<a href=#3283 id=3283 data-nosnippet>3283</a>
-<a href=#3284 id=3284 data-nosnippet>3284</a>            <span class="kw">let </span>project_metrics = |scoping| ProjectBuckets {
-<a href=#3285 id=3285 data-nosnippet>3285</a>                buckets: <span class="macro">vec!</span>[Bucket {
-<a href=#3286 id=3286 data-nosnippet>3286</a>                    name: <span class="string">"d:transactions/bar"</span>.into(),
-<a href=#3287 id=3287 data-nosnippet>3287</a>                    value: BucketValue::Counter(FiniteF64::new(<span class="number">1.0</span>).unwrap()),
-<a href=#3288 id=3288 data-nosnippet>3288</a>                    timestamp: UnixTimestamp::now(),
-<a href=#3289 id=3289 data-nosnippet>3289</a>                    tags: Default::default(),
-<a href=#3290 id=3290 data-nosnippet>3290</a>                    width: <span class="number">10</span>,
-<a href=#3291 id=3291 data-nosnippet>3291</a>                    metadata: BucketMetadata::default(),
-<a href=#3292 id=3292 data-nosnippet>3292</a>                }],
-<a href=#3293 id=3293 data-nosnippet>3293</a>                rate_limits: Default::default(),
-<a href=#3294 id=3294 data-nosnippet>3294</a>                project_info: project_info.clone(),
-<a href=#3295 id=3295 data-nosnippet>3295</a>                scoping,
-<a href=#3296 id=3296 data-nosnippet>3296</a>            };
-<a href=#3297 id=3297 data-nosnippet>3297</a>
-<a href=#3298 id=3298 data-nosnippet>3298</a>            <span class="kw">let </span>buckets = hashbrown::HashMap::from([
-<a href=#3299 id=3299 data-nosnippet>3299</a>                (
-<a href=#3300 id=3300 data-nosnippet>3300</a>                    rate_limited_org.project_key,
-<a href=#3301 id=3301 data-nosnippet>3301</a>                    project_metrics(rate_limited_org),
-<a href=#3302 id=3302 data-nosnippet>3302</a>                ),
-<a href=#3303 id=3303 data-nosnippet>3303</a>                (
-<a href=#3304 id=3304 data-nosnippet>3304</a>                    not_rate_limited_org.project_key,
-<a href=#3305 id=3305 data-nosnippet>3305</a>                    project_metrics(not_rate_limited_org),
-<a href=#3306 id=3306 data-nosnippet>3306</a>                ),
-<a href=#3307 id=3307 data-nosnippet>3307</a>            ]);
-<a href=#3308 id=3308 data-nosnippet>3308</a>
-<a href=#3309 id=3309 data-nosnippet>3309</a>            FlushBuckets {
-<a href=#3310 id=3310 data-nosnippet>3310</a>                partition_key: <span class="number">0</span>,
-<a href=#3311 id=3311 data-nosnippet>3311</a>                buckets,
-<a href=#3312 id=3312 data-nosnippet>3312</a>            }
-<a href=#3313 id=3313 data-nosnippet>3313</a>        };
-<a href=#3314 id=3314 data-nosnippet>3314</a>
-<a href=#3315 id=3315 data-nosnippet>3315</a>        <span class="comment">// ensure the order of the map while iterating is as expected.
-<a href=#3316 id=3316 data-nosnippet>3316</a>        </span><span class="macro">assert_eq!</span>(message.buckets.keys().count(), <span class="number">2</span>);
-<a href=#3317 id=3317 data-nosnippet>3317</a>
-<a href=#3318 id=3318 data-nosnippet>3318</a>        <span class="kw">let </span>config = {
-<a href=#3319 id=3319 data-nosnippet>3319</a>            <span class="kw">let </span>config_json = <span class="macro">serde_json::json!</span>({
-<a href=#3320 id=3320 data-nosnippet>3320</a>                <span class="string">"processing"</span>: {
-<a href=#3321 id=3321 data-nosnippet>3321</a>                    <span class="string">"enabled"</span>: <span class="bool-val">true</span>,
-<a href=#3322 id=3322 data-nosnippet>3322</a>                    <span class="string">"kafka_config"</span>: [],
-<a href=#3323 id=3323 data-nosnippet>3323</a>                    <span class="string">"redis"</span>: {
-<a href=#3324 id=3324 data-nosnippet>3324</a>                        <span class="string">"server"</span>: std::env::var(<span class="string">"RELAY_REDIS_URL"</span>).unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned()),
-<a href=#3325 id=3325 data-nosnippet>3325</a>                    }
-<a href=#3326 id=3326 data-nosnippet>3326</a>                }
-<a href=#3327 id=3327 data-nosnippet>3327</a>            });
-<a href=#3328 id=3328 data-nosnippet>3328</a>            Config::from_json_value(config_json).unwrap()
-<a href=#3329 id=3329 data-nosnippet>3329</a>        };
-<a href=#3330 id=3330 data-nosnippet>3330</a>
-<a href=#3331 id=3331 data-nosnippet>3331</a>        <span class="kw">let </span>(store, handle) = {
-<a href=#3332 id=3332 data-nosnippet>3332</a>            <span class="kw">let </span>f = |org_ids: <span class="kw-2">&amp;mut </span>Vec&lt;OrganizationId&gt;, msg: Store| {
-<a href=#3333 id=3333 data-nosnippet>3333</a>                <span class="kw">let </span>org_id = <span class="kw">match </span>msg {
-<a href=#3334 id=3334 data-nosnippet>3334</a>                    Store::Metrics(x) =&gt; x.scoping.organization_id,
-<a href=#3335 id=3335 data-nosnippet>3335</a>                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"received envelope when expecting only metrics"</span>),
-<a href=#3336 id=3336 data-nosnippet>3336</a>                };
-<a href=#3337 id=3337 data-nosnippet>3337</a>                org_ids.push(org_id);
-<a href=#3338 id=3338 data-nosnippet>3338</a>            };
+<a href=#3240 id=3240 data-nosnippet>3240</a>        <span class="kw">let </span>rate_limited_org = Scoping {
+<a href=#3241 id=3241 data-nosnippet>3241</a>            organization_id: OrganizationId::new(<span class="number">1</span>),
+<a href=#3242 id=3242 data-nosnippet>3242</a>            project_id: ProjectId::new(<span class="number">21</span>),
+<a href=#3243 id=3243 data-nosnippet>3243</a>            project_key: ProjectKey::parse(<span class="string">"00000000000000000000000000000000"</span>).unwrap(),
+<a href=#3244 id=3244 data-nosnippet>3244</a>            key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
+<a href=#3245 id=3245 data-nosnippet>3245</a>        };
+<a href=#3246 id=3246 data-nosnippet>3246</a>
+<a href=#3247 id=3247 data-nosnippet>3247</a>        <span class="kw">let </span>not_rate_limited_org = Scoping {
+<a href=#3248 id=3248 data-nosnippet>3248</a>            organization_id: OrganizationId::new(<span class="number">2</span>),
+<a href=#3249 id=3249 data-nosnippet>3249</a>            project_id: ProjectId::new(<span class="number">21</span>),
+<a href=#3250 id=3250 data-nosnippet>3250</a>            project_key: ProjectKey::parse(<span class="string">"11111111111111111111111111111111"</span>).unwrap(),
+<a href=#3251 id=3251 data-nosnippet>3251</a>            key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
+<a href=#3252 id=3252 data-nosnippet>3252</a>        };
+<a href=#3253 id=3253 data-nosnippet>3253</a>
+<a href=#3254 id=3254 data-nosnippet>3254</a>        <span class="kw">let </span>message = {
+<a href=#3255 id=3255 data-nosnippet>3255</a>            <span class="kw">let </span>project_info = {
+<a href=#3256 id=3256 data-nosnippet>3256</a>                <span class="kw">let </span>quota = Quota {
+<a href=#3257 id=3257 data-nosnippet>3257</a>                    id: <span class="prelude-val">Some</span>(<span class="string">"testing"</span>.into()),
+<a href=#3258 id=3258 data-nosnippet>3258</a>                    categories: [DataCategory::MetricBucket].into(),
+<a href=#3259 id=3259 data-nosnippet>3259</a>                    scope: relay_quotas::QuotaScope::Organization,
+<a href=#3260 id=3260 data-nosnippet>3260</a>                    scope_id: <span class="prelude-val">Some</span>(rate_limited_org.organization_id.to_string().into()),
+<a href=#3261 id=3261 data-nosnippet>3261</a>                    limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
+<a href=#3262 id=3262 data-nosnippet>3262</a>                    window: <span class="prelude-val">None</span>,
+<a href=#3263 id=3263 data-nosnippet>3263</a>                    reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"test"</span>)),
+<a href=#3264 id=3264 data-nosnippet>3264</a>                    namespace: <span class="prelude-val">None</span>,
+<a href=#3265 id=3265 data-nosnippet>3265</a>                };
+<a href=#3266 id=3266 data-nosnippet>3266</a>
+<a href=#3267 id=3267 data-nosnippet>3267</a>                <span class="kw">let </span><span class="kw-2">mut </span>config = ProjectConfig::default();
+<a href=#3268 id=3268 data-nosnippet>3268</a>                config.quotas.push(quota);
+<a href=#3269 id=3269 data-nosnippet>3269</a>
+<a href=#3270 id=3270 data-nosnippet>3270</a>                Arc::new(ProjectInfo {
+<a href=#3271 id=3271 data-nosnippet>3271</a>                    config,
+<a href=#3272 id=3272 data-nosnippet>3272</a>                    ..Default::default()
+<a href=#3273 id=3273 data-nosnippet>3273</a>                })
+<a href=#3274 id=3274 data-nosnippet>3274</a>            };
+<a href=#3275 id=3275 data-nosnippet>3275</a>
+<a href=#3276 id=3276 data-nosnippet>3276</a>            <span class="kw">let </span>project_metrics = |scoping| ProjectBuckets {
+<a href=#3277 id=3277 data-nosnippet>3277</a>                buckets: <span class="macro">vec!</span>[Bucket {
+<a href=#3278 id=3278 data-nosnippet>3278</a>                    name: <span class="string">"d:transactions/bar"</span>.into(),
+<a href=#3279 id=3279 data-nosnippet>3279</a>                    value: BucketValue::Counter(FiniteF64::new(<span class="number">1.0</span>).unwrap()),
+<a href=#3280 id=3280 data-nosnippet>3280</a>                    timestamp: UnixTimestamp::now(),
+<a href=#3281 id=3281 data-nosnippet>3281</a>                    tags: Default::default(),
+<a href=#3282 id=3282 data-nosnippet>3282</a>                    width: <span class="number">10</span>,
+<a href=#3283 id=3283 data-nosnippet>3283</a>                    metadata: BucketMetadata::default(),
+<a href=#3284 id=3284 data-nosnippet>3284</a>                }],
+<a href=#3285 id=3285 data-nosnippet>3285</a>                rate_limits: Default::default(),
+<a href=#3286 id=3286 data-nosnippet>3286</a>                project_info: project_info.clone(),
+<a href=#3287 id=3287 data-nosnippet>3287</a>                scoping,
+<a href=#3288 id=3288 data-nosnippet>3288</a>            };
+<a href=#3289 id=3289 data-nosnippet>3289</a>
+<a href=#3290 id=3290 data-nosnippet>3290</a>            <span class="kw">let </span>buckets = hashbrown::HashMap::from([
+<a href=#3291 id=3291 data-nosnippet>3291</a>                (
+<a href=#3292 id=3292 data-nosnippet>3292</a>                    rate_limited_org.project_key,
+<a href=#3293 id=3293 data-nosnippet>3293</a>                    project_metrics(rate_limited_org),
+<a href=#3294 id=3294 data-nosnippet>3294</a>                ),
+<a href=#3295 id=3295 data-nosnippet>3295</a>                (
+<a href=#3296 id=3296 data-nosnippet>3296</a>                    not_rate_limited_org.project_key,
+<a href=#3297 id=3297 data-nosnippet>3297</a>                    project_metrics(not_rate_limited_org),
+<a href=#3298 id=3298 data-nosnippet>3298</a>                ),
+<a href=#3299 id=3299 data-nosnippet>3299</a>            ]);
+<a href=#3300 id=3300 data-nosnippet>3300</a>
+<a href=#3301 id=3301 data-nosnippet>3301</a>            FlushBuckets {
+<a href=#3302 id=3302 data-nosnippet>3302</a>                partition_key: <span class="number">0</span>,
+<a href=#3303 id=3303 data-nosnippet>3303</a>                buckets,
+<a href=#3304 id=3304 data-nosnippet>3304</a>            }
+<a href=#3305 id=3305 data-nosnippet>3305</a>        };
+<a href=#3306 id=3306 data-nosnippet>3306</a>
+<a href=#3307 id=3307 data-nosnippet>3307</a>        <span class="comment">// ensure the order of the map while iterating is as expected.
+<a href=#3308 id=3308 data-nosnippet>3308</a>        </span><span class="macro">assert_eq!</span>(message.buckets.keys().count(), <span class="number">2</span>);
+<a href=#3309 id=3309 data-nosnippet>3309</a>
+<a href=#3310 id=3310 data-nosnippet>3310</a>        <span class="kw">let </span>config = {
+<a href=#3311 id=3311 data-nosnippet>3311</a>            <span class="kw">let </span>config_json = <span class="macro">serde_json::json!</span>({
+<a href=#3312 id=3312 data-nosnippet>3312</a>                <span class="string">"processing"</span>: {
+<a href=#3313 id=3313 data-nosnippet>3313</a>                    <span class="string">"enabled"</span>: <span class="bool-val">true</span>,
+<a href=#3314 id=3314 data-nosnippet>3314</a>                    <span class="string">"kafka_config"</span>: [],
+<a href=#3315 id=3315 data-nosnippet>3315</a>                    <span class="string">"redis"</span>: {
+<a href=#3316 id=3316 data-nosnippet>3316</a>                        <span class="string">"server"</span>: std::env::var(<span class="string">"RELAY_REDIS_URL"</span>).unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned()),
+<a href=#3317 id=3317 data-nosnippet>3317</a>                    }
+<a href=#3318 id=3318 data-nosnippet>3318</a>                }
+<a href=#3319 id=3319 data-nosnippet>3319</a>            });
+<a href=#3320 id=3320 data-nosnippet>3320</a>            Config::from_json_value(config_json).unwrap()
+<a href=#3321 id=3321 data-nosnippet>3321</a>        };
+<a href=#3322 id=3322 data-nosnippet>3322</a>
+<a href=#3323 id=3323 data-nosnippet>3323</a>        <span class="kw">let </span>(store, handle) = {
+<a href=#3324 id=3324 data-nosnippet>3324</a>            <span class="kw">let </span>f = |org_ids: <span class="kw-2">&amp;mut </span>Vec&lt;OrganizationId&gt;, msg: Store| {
+<a href=#3325 id=3325 data-nosnippet>3325</a>                <span class="kw">let </span>org_id = <span class="kw">match </span>msg {
+<a href=#3326 id=3326 data-nosnippet>3326</a>                    Store::Metrics(x) =&gt; x.scoping.organization_id,
+<a href=#3327 id=3327 data-nosnippet>3327</a>                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"received envelope when expecting only metrics"</span>),
+<a href=#3328 id=3328 data-nosnippet>3328</a>                };
+<a href=#3329 id=3329 data-nosnippet>3329</a>                org_ids.push(org_id);
+<a href=#3330 id=3330 data-nosnippet>3330</a>            };
+<a href=#3331 id=3331 data-nosnippet>3331</a>
+<a href=#3332 id=3332 data-nosnippet>3332</a>            mock_service(<span class="string">"store_forwarder"</span>, <span class="macro">vec!</span>[], f)
+<a href=#3333 id=3333 data-nosnippet>3333</a>        };
+<a href=#3334 id=3334 data-nosnippet>3334</a>
+<a href=#3335 id=3335 data-nosnippet>3335</a>        <span class="kw">let </span>processor = create_test_processor(config).<span class="kw">await</span>;
+<a href=#3336 id=3336 data-nosnippet>3336</a>        <span class="macro">assert!</span>(processor.redis_rate_limiter_enabled());
+<a href=#3337 id=3337 data-nosnippet>3337</a>
+<a href=#3338 id=3338 data-nosnippet>3338</a>        processor.encode_metrics_processing(message, <span class="kw-2">&amp;</span>store).<span class="kw">await</span>;
 <a href=#3339 id=3339 data-nosnippet>3339</a>
-<a href=#3340 id=3340 data-nosnippet>3340</a>            mock_service(<span class="string">"store_forwarder"</span>, <span class="macro">vec!</span>[], f)
-<a href=#3341 id=3341 data-nosnippet>3341</a>        };
+<a href=#3340 id=3340 data-nosnippet>3340</a>        drop(store);
+<a href=#3341 id=3341 data-nosnippet>3341</a>        <span class="kw">let </span>orgs_not_ratelimited = handle.<span class="kw">await</span>.unwrap();
 <a href=#3342 id=3342 data-nosnippet>3342</a>
-<a href=#3343 id=3343 data-nosnippet>3343</a>        <span class="kw">let </span>processor = create_test_processor(config).<span class="kw">await</span>;
-<a href=#3344 id=3344 data-nosnippet>3344</a>        <span class="macro">assert!</span>(processor.redis_rate_limiter_enabled());
-<a href=#3345 id=3345 data-nosnippet>3345</a>
-<a href=#3346 id=3346 data-nosnippet>3346</a>        processor.encode_metrics_processing(message, <span class="kw-2">&amp;</span>store).<span class="kw">await</span>;
-<a href=#3347 id=3347 data-nosnippet>3347</a>
-<a href=#3348 id=3348 data-nosnippet>3348</a>        drop(store);
-<a href=#3349 id=3349 data-nosnippet>3349</a>        <span class="kw">let </span>orgs_not_ratelimited = handle.<span class="kw">await</span>.unwrap();
-<a href=#3350 id=3350 data-nosnippet>3350</a>
-<a href=#3351 id=3351 data-nosnippet>3351</a>        <span class="macro">assert_eq!</span>(
-<a href=#3352 id=3352 data-nosnippet>3352</a>            orgs_not_ratelimited,
-<a href=#3353 id=3353 data-nosnippet>3353</a>            <span class="macro">vec!</span>[not_rate_limited_org.organization_id]
-<a href=#3354 id=3354 data-nosnippet>3354</a>        );
-<a href=#3355 id=3355 data-nosnippet>3355</a>    }
-<a href=#3356 id=3356 data-nosnippet>3356</a>
-<a href=#3357 id=3357 data-nosnippet>3357</a>    <span class="attr">#[tokio::test]
-<a href=#3358 id=3358 data-nosnippet>3358</a>    </span><span class="kw">async fn </span>test_browser_version_extraction_with_pii_like_data() {
-<a href=#3359 id=3359 data-nosnippet>3359</a>        <span class="kw">let </span>processor = create_test_processor(Default::default()).<span class="kw">await</span>;
-<a href=#3360 id=3360 data-nosnippet>3360</a>        <span class="kw">let </span>outcome_aggregator = Addr::dummy();
-<a href=#3361 id=3361 data-nosnippet>3361</a>        <span class="kw">let </span>event_id = EventId::new();
-<a href=#3362 id=3362 data-nosnippet>3362</a>
-<a href=#3363 id=3363 data-nosnippet>3363</a>        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-<a href=#3364 id=3364 data-nosnippet>3364</a>            </span>.parse()
-<a href=#3365 id=3365 data-nosnippet>3365</a>            .unwrap();
-<a href=#3366 id=3366 data-nosnippet>3366</a>
-<a href=#3367 id=3367 data-nosnippet>3367</a>        <span class="kw">let </span>request_meta = RequestMeta::new(dsn);
-<a href=#3368 id=3368 data-nosnippet>3368</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta);
-<a href=#3369 id=3369 data-nosnippet>3369</a>
-<a href=#3370 id=3370 data-nosnippet>3370</a>        envelope.add_item({
-<a href=#3371 id=3371 data-nosnippet>3371</a>                <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
-<a href=#3372 id=3372 data-nosnippet>3372</a>                item.set_payload(
-<a href=#3373 id=3373 data-nosnippet>3373</a>                    ContentType::Json,
-<a href=#3374 id=3374 data-nosnippet>3374</a>                    <span class="string">r#"
-<a href=#3375 id=3375 data-nosnippet>3375</a>                    {
-<a href=#3376 id=3376 data-nosnippet>3376</a>                        "request": {
-<a href=#3377 id=3377 data-nosnippet>3377</a>                            "headers": [
-<a href=#3378 id=3378 data-nosnippet>3378</a>                                ["User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"]
-<a href=#3379 id=3379 data-nosnippet>3379</a>                            ]
-<a href=#3380 id=3380 data-nosnippet>3380</a>                        }
-<a href=#3381 id=3381 data-nosnippet>3381</a>                    }
-<a href=#3382 id=3382 data-nosnippet>3382</a>                "#</span>,
-<a href=#3383 id=3383 data-nosnippet>3383</a>                );
-<a href=#3384 id=3384 data-nosnippet>3384</a>                item
-<a href=#3385 id=3385 data-nosnippet>3385</a>            });
-<a href=#3386 id=3386 data-nosnippet>3386</a>
-<a href=#3387 id=3387 data-nosnippet>3387</a>        <span class="kw">let </span><span class="kw-2">mut </span>datascrubbing_settings = DataScrubbingConfig::default();
-<a href=#3388 id=3388 data-nosnippet>3388</a>        <span class="comment">// enable all the default scrubbing
-<a href=#3389 id=3389 data-nosnippet>3389</a>        </span>datascrubbing_settings.scrub_data = <span class="bool-val">true</span>;
-<a href=#3390 id=3390 data-nosnippet>3390</a>        datascrubbing_settings.scrub_defaults = <span class="bool-val">true</span>;
-<a href=#3391 id=3391 data-nosnippet>3391</a>        datascrubbing_settings.scrub_ip_addresses = <span class="bool-val">true</span>;
-<a href=#3392 id=3392 data-nosnippet>3392</a>
-<a href=#3393 id=3393 data-nosnippet>3393</a>        <span class="comment">// Make sure to mask any IP-like looking data
-<a href=#3394 id=3394 data-nosnippet>3394</a>        </span><span class="kw">let </span>pii_config = serde_json::from_str(<span class="string">r#"{"applications": {"**": ["@ip:mask"]}}"#</span>).unwrap();
-<a href=#3395 id=3395 data-nosnippet>3395</a>
-<a href=#3396 id=3396 data-nosnippet>3396</a>        <span class="kw">let </span>config = ProjectConfig {
-<a href=#3397 id=3397 data-nosnippet>3397</a>            datascrubbing_settings,
-<a href=#3398 id=3398 data-nosnippet>3398</a>            pii_config: <span class="prelude-val">Some</span>(pii_config),
-<a href=#3399 id=3399 data-nosnippet>3399</a>            ..Default::default()
-<a href=#3400 id=3400 data-nosnippet>3400</a>        };
+<a href=#3343 id=3343 data-nosnippet>3343</a>        <span class="macro">assert_eq!</span>(
+<a href=#3344 id=3344 data-nosnippet>3344</a>            orgs_not_ratelimited,
+<a href=#3345 id=3345 data-nosnippet>3345</a>            <span class="macro">vec!</span>[not_rate_limited_org.organization_id]
+<a href=#3346 id=3346 data-nosnippet>3346</a>        );
+<a href=#3347 id=3347 data-nosnippet>3347</a>    }
+<a href=#3348 id=3348 data-nosnippet>3348</a>
+<a href=#3349 id=3349 data-nosnippet>3349</a>    <span class="attr">#[tokio::test]
+<a href=#3350 id=3350 data-nosnippet>3350</a>    </span><span class="kw">async fn </span>test_browser_version_extraction_with_pii_like_data() {
+<a href=#3351 id=3351 data-nosnippet>3351</a>        <span class="kw">let </span>processor = create_test_processor(Default::default()).<span class="kw">await</span>;
+<a href=#3352 id=3352 data-nosnippet>3352</a>        <span class="kw">let </span>outcome_aggregator = Addr::dummy();
+<a href=#3353 id=3353 data-nosnippet>3353</a>        <span class="kw">let </span>event_id = EventId::new();
+<a href=#3354 id=3354 data-nosnippet>3354</a>
+<a href=#3355 id=3355 data-nosnippet>3355</a>        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+<a href=#3356 id=3356 data-nosnippet>3356</a>            </span>.parse()
+<a href=#3357 id=3357 data-nosnippet>3357</a>            .unwrap();
+<a href=#3358 id=3358 data-nosnippet>3358</a>
+<a href=#3359 id=3359 data-nosnippet>3359</a>        <span class="kw">let </span>request_meta = RequestMeta::new(dsn);
+<a href=#3360 id=3360 data-nosnippet>3360</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta);
+<a href=#3361 id=3361 data-nosnippet>3361</a>
+<a href=#3362 id=3362 data-nosnippet>3362</a>        envelope.add_item({
+<a href=#3363 id=3363 data-nosnippet>3363</a>                <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
+<a href=#3364 id=3364 data-nosnippet>3364</a>                item.set_payload(
+<a href=#3365 id=3365 data-nosnippet>3365</a>                    ContentType::Json,
+<a href=#3366 id=3366 data-nosnippet>3366</a>                    <span class="string">r#"
+<a href=#3367 id=3367 data-nosnippet>3367</a>                    {
+<a href=#3368 id=3368 data-nosnippet>3368</a>                        "request": {
+<a href=#3369 id=3369 data-nosnippet>3369</a>                            "headers": [
+<a href=#3370 id=3370 data-nosnippet>3370</a>                                ["User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"]
+<a href=#3371 id=3371 data-nosnippet>3371</a>                            ]
+<a href=#3372 id=3372 data-nosnippet>3372</a>                        }
+<a href=#3373 id=3373 data-nosnippet>3373</a>                    }
+<a href=#3374 id=3374 data-nosnippet>3374</a>                "#</span>,
+<a href=#3375 id=3375 data-nosnippet>3375</a>                );
+<a href=#3376 id=3376 data-nosnippet>3376</a>                item
+<a href=#3377 id=3377 data-nosnippet>3377</a>            });
+<a href=#3378 id=3378 data-nosnippet>3378</a>
+<a href=#3379 id=3379 data-nosnippet>3379</a>        <span class="kw">let </span><span class="kw-2">mut </span>datascrubbing_settings = DataScrubbingConfig::default();
+<a href=#3380 id=3380 data-nosnippet>3380</a>        <span class="comment">// enable all the default scrubbing
+<a href=#3381 id=3381 data-nosnippet>3381</a>        </span>datascrubbing_settings.scrub_data = <span class="bool-val">true</span>;
+<a href=#3382 id=3382 data-nosnippet>3382</a>        datascrubbing_settings.scrub_defaults = <span class="bool-val">true</span>;
+<a href=#3383 id=3383 data-nosnippet>3383</a>        datascrubbing_settings.scrub_ip_addresses = <span class="bool-val">true</span>;
+<a href=#3384 id=3384 data-nosnippet>3384</a>
+<a href=#3385 id=3385 data-nosnippet>3385</a>        <span class="comment">// Make sure to mask any IP-like looking data
+<a href=#3386 id=3386 data-nosnippet>3386</a>        </span><span class="kw">let </span>pii_config = serde_json::from_str(<span class="string">r#"{"applications": {"**": ["@ip:mask"]}}"#</span>).unwrap();
+<a href=#3387 id=3387 data-nosnippet>3387</a>
+<a href=#3388 id=3388 data-nosnippet>3388</a>        <span class="kw">let </span>config = ProjectConfig {
+<a href=#3389 id=3389 data-nosnippet>3389</a>            datascrubbing_settings,
+<a href=#3390 id=3390 data-nosnippet>3390</a>            pii_config: <span class="prelude-val">Some</span>(pii_config),
+<a href=#3391 id=3391 data-nosnippet>3391</a>            ..Default::default()
+<a href=#3392 id=3392 data-nosnippet>3392</a>        };
+<a href=#3393 id=3393 data-nosnippet>3393</a>
+<a href=#3394 id=3394 data-nosnippet>3394</a>        <span class="kw">let </span>project_info = ProjectInfo {
+<a href=#3395 id=3395 data-nosnippet>3395</a>            config,
+<a href=#3396 id=3396 data-nosnippet>3396</a>            ..Default::default()
+<a href=#3397 id=3397 data-nosnippet>3397</a>        };
+<a href=#3398 id=3398 data-nosnippet>3398</a>
+<a href=#3399 id=3399 data-nosnippet>3399</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope, <span class="kw-2">&amp;</span>Default::default());
+<a href=#3400 id=3400 data-nosnippet>3400</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#3401 id=3401 data-nosnippet>3401</a>
-<a href=#3402 id=3402 data-nosnippet>3402</a>        <span class="kw">let </span>project_info = ProjectInfo {
-<a href=#3403 id=3403 data-nosnippet>3403</a>            config,
-<a href=#3404 id=3404 data-nosnippet>3404</a>            ..Default::default()
-<a href=#3405 id=3405 data-nosnippet>3405</a>        };
-<a href=#3406 id=3406 data-nosnippet>3406</a>
-<a href=#3407 id=3407 data-nosnippet>3407</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope, <span class="kw-2">&amp;</span>Default::default());
-<a href=#3408 id=3408 data-nosnippet>3408</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
-<a href=#3409 id=3409 data-nosnippet>3409</a>
-<a href=#3410 id=3410 data-nosnippet>3410</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-<a href=#3411 id=3411 data-nosnippet>3411</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
-<a href=#3412 id=3412 data-nosnippet>3412</a>
-<a href=#3413 id=3413 data-nosnippet>3413</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
-<a href=#3414 id=3414 data-nosnippet>3414</a>            group,
-<a href=#3415 id=3415 data-nosnippet>3415</a>            envelope,
-<a href=#3416 id=3416 data-nosnippet>3416</a>            ctx: processing::Context {
-<a href=#3417 id=3417 data-nosnippet>3417</a>                project_info: <span class="kw-2">&amp;</span>project_info,
-<a href=#3418 id=3418 data-nosnippet>3418</a>                ..processing::Context::for_test()
-<a href=#3419 id=3419 data-nosnippet>3419</a>            },
-<a href=#3420 id=3420 data-nosnippet>3420</a>        };
-<a href=#3421 id=3421 data-nosnippet>3421</a>
-<a href=#3422 id=3422 data-nosnippet>3422</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Submit::Envelope(<span class="kw-2">mut </span>new_envelope))) = processor.process(message).<span class="kw">await else </span>{
-<a href=#3423 id=3423 data-nosnippet>3423</a>            <span class="macro">panic!</span>();
-<a href=#3424 id=3424 data-nosnippet>3424</a>        };
-<a href=#3425 id=3425 data-nosnippet>3425</a>        <span class="kw">let </span>new_envelope = new_envelope.envelope_mut();
-<a href=#3426 id=3426 data-nosnippet>3426</a>
-<a href=#3427 id=3427 data-nosnippet>3427</a>        <span class="kw">let </span>event_item = new_envelope.items().last().unwrap();
-<a href=#3428 id=3428 data-nosnippet>3428</a>        <span class="kw">let </span>annotated_event: Annotated&lt;Event&gt; =
-<a href=#3429 id=3429 data-nosnippet>3429</a>            Annotated::from_json_bytes(<span class="kw-2">&amp;</span>event_item.payload()).unwrap();
-<a href=#3430 id=3430 data-nosnippet>3430</a>        <span class="kw">let </span>event = annotated_event.into_value().unwrap();
-<a href=#3431 id=3431 data-nosnippet>3431</a>        <span class="kw">let </span>headers = event
-<a href=#3432 id=3432 data-nosnippet>3432</a>            .request
-<a href=#3433 id=3433 data-nosnippet>3433</a>            .into_value()
-<a href=#3434 id=3434 data-nosnippet>3434</a>            .unwrap()
-<a href=#3435 id=3435 data-nosnippet>3435</a>            .headers
-<a href=#3436 id=3436 data-nosnippet>3436</a>            .into_value()
-<a href=#3437 id=3437 data-nosnippet>3437</a>            .unwrap();
-<a href=#3438 id=3438 data-nosnippet>3438</a>
-<a href=#3439 id=3439 data-nosnippet>3439</a>        <span class="comment">// IP-like data must be masked
-<a href=#3440 id=3440 data-nosnippet>3440</a>        </span><span class="macro">assert_eq!</span>(
-<a href=#3441 id=3441 data-nosnippet>3441</a>            <span class="prelude-val">Some</span>(
-<a href=#3442 id=3442 data-nosnippet>3442</a>                <span class="string">"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"
-<a href=#3443 id=3443 data-nosnippet>3443</a>            </span>),
-<a href=#3444 id=3444 data-nosnippet>3444</a>            headers.get_header(<span class="string">"User-Agent"</span>)
-<a href=#3445 id=3445 data-nosnippet>3445</a>        );
-<a href=#3446 id=3446 data-nosnippet>3446</a>        <span class="comment">// But we still get correct browser and version number
-<a href=#3447 id=3447 data-nosnippet>3447</a>        </span><span class="kw">let </span>contexts = event.contexts.into_value().unwrap();
-<a href=#3448 id=3448 data-nosnippet>3448</a>        <span class="kw">let </span>browser = contexts.<span class="number">0</span>.get(<span class="string">"browser"</span>).unwrap();
-<a href=#3449 id=3449 data-nosnippet>3449</a>        <span class="macro">assert_eq!</span>(
-<a href=#3450 id=3450 data-nosnippet>3450</a>            <span class="string">r#"{"browser":"Chrome 103.0.0","name":"Chrome","version":"103.0.0","type":"browser"}"#</span>,
-<a href=#3451 id=3451 data-nosnippet>3451</a>            browser.to_json().unwrap()
-<a href=#3452 id=3452 data-nosnippet>3452</a>        );
-<a href=#3453 id=3453 data-nosnippet>3453</a>    }
-<a href=#3454 id=3454 data-nosnippet>3454</a>
-<a href=#3455 id=3455 data-nosnippet>3455</a>    <span class="attr">#[tokio::test]
-<a href=#3456 id=3456 data-nosnippet>3456</a>    #[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#3457 id=3457 data-nosnippet>3457</a>    </span><span class="kw">async fn </span>test_materialize_dsc() {
-<a href=#3458 id=3458 data-nosnippet>3458</a>        <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::PublicKeyConfig;
-<a href=#3459 id=3459 data-nosnippet>3459</a>
-<a href=#3460 id=3460 data-nosnippet>3460</a>        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-<a href=#3461 id=3461 data-nosnippet>3461</a>            </span>.parse()
-<a href=#3462 id=3462 data-nosnippet>3462</a>            .unwrap();
-<a href=#3463 id=3463 data-nosnippet>3463</a>        <span class="kw">let </span>request_meta = RequestMeta::new(dsn);
-<a href=#3464 id=3464 data-nosnippet>3464</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, request_meta);
-<a href=#3465 id=3465 data-nosnippet>3465</a>
-<a href=#3466 id=3466 data-nosnippet>3466</a>        <span class="kw">let </span>dsc = <span class="string">r#"{
-<a href=#3467 id=3467 data-nosnippet>3467</a>            "trace_id": "00000000-0000-0000-0000-000000000000",
-<a href=#3468 id=3468 data-nosnippet>3468</a>            "public_key": "e12d836b15bb49d7bbf99e64295d995b",
-<a href=#3469 id=3469 data-nosnippet>3469</a>            "sample_rate": "0.2"
-<a href=#3470 id=3470 data-nosnippet>3470</a>        }"#</span>;
-<a href=#3471 id=3471 data-nosnippet>3471</a>        envelope.set_dsc(serde_json::from_str(dsc).unwrap());
-<a href=#3472 id=3472 data-nosnippet>3472</a>
-<a href=#3473 id=3473 data-nosnippet>3473</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
-<a href=#3474 id=3474 data-nosnippet>3474</a>        item.set_payload(ContentType::Json, <span class="string">r#"{}"#</span>);
-<a href=#3475 id=3475 data-nosnippet>3475</a>        envelope.add_item(item);
-<a href=#3476 id=3476 data-nosnippet>3476</a>
-<a href=#3477 id=3477 data-nosnippet>3477</a>        <span class="kw">let </span>outcome_aggregator = Addr::dummy();
-<a href=#3478 id=3478 data-nosnippet>3478</a>        <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
-<a href=#3479 id=3479 data-nosnippet>3479</a>
-<a href=#3480 id=3480 data-nosnippet>3480</a>        <span class="kw">let </span><span class="kw-2">mut </span>project_info = ProjectInfo::default();
-<a href=#3481 id=3481 data-nosnippet>3481</a>        project_info.public_keys.push(PublicKeyConfig {
-<a href=#3482 id=3482 data-nosnippet>3482</a>            public_key: ProjectKey::parse(<span class="string">"e12d836b15bb49d7bbf99e64295d995b"</span>).unwrap(),
-<a href=#3483 id=3483 data-nosnippet>3483</a>            numeric_id: <span class="prelude-val">Some</span>(<span class="number">1</span>),
-<a href=#3484 id=3484 data-nosnippet>3484</a>        });
-<a href=#3485 id=3485 data-nosnippet>3485</a>
-<a href=#3486 id=3486 data-nosnippet>3486</a>        <span class="kw">let </span>config = <span class="macro">serde_json::json!</span>({
-<a href=#3487 id=3487 data-nosnippet>3487</a>            <span class="string">"processing"</span>: {
-<a href=#3488 id=3488 data-nosnippet>3488</a>                <span class="string">"enabled"</span>: <span class="bool-val">true</span>,
-<a href=#3489 id=3489 data-nosnippet>3489</a>                <span class="string">"kafka_config"</span>: [],
-<a href=#3490 id=3490 data-nosnippet>3490</a>            }
-<a href=#3491 id=3491 data-nosnippet>3491</a>        });
-<a href=#3492 id=3492 data-nosnippet>3492</a>
-<a href=#3493 id=3493 data-nosnippet>3493</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
-<a href=#3494 id=3494 data-nosnippet>3494</a>            group: ProcessingGroup::Error,
-<a href=#3495 id=3495 data-nosnippet>3495</a>            envelope: managed_envelope,
-<a href=#3496 id=3496 data-nosnippet>3496</a>            ctx: processing::Context {
-<a href=#3497 id=3497 data-nosnippet>3497</a>                config: <span class="kw-2">&amp;</span>Config::from_json_value(config.clone()).unwrap(),
-<a href=#3498 id=3498 data-nosnippet>3498</a>                project_info: <span class="kw-2">&amp;</span>project_info,
-<a href=#3499 id=3499 data-nosnippet>3499</a>                sampling_project_info: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_info),
-<a href=#3500 id=3500 data-nosnippet>3500</a>                ..processing::Context::for_test()
-<a href=#3501 id=3501 data-nosnippet>3501</a>            },
-<a href=#3502 id=3502 data-nosnippet>3502</a>        };
-<a href=#3503 id=3503 data-nosnippet>3503</a>
-<a href=#3504 id=3504 data-nosnippet>3504</a>        <span class="kw">let </span>processor = create_test_processor(Config::from_json_value(config).unwrap()).<span class="kw">await</span>;
-<a href=#3505 id=3505 data-nosnippet>3505</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Submit::Envelope(envelope))) = processor.process(message).<span class="kw">await else </span>{
-<a href=#3506 id=3506 data-nosnippet>3506</a>            <span class="macro">panic!</span>();
-<a href=#3507 id=3507 data-nosnippet>3507</a>        };
-<a href=#3508 id=3508 data-nosnippet>3508</a>        <span class="kw">let </span>event = envelope
-<a href=#3509 id=3509 data-nosnippet>3509</a>            .envelope()
-<a href=#3510 id=3510 data-nosnippet>3510</a>            .get_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Event)
-<a href=#3511 id=3511 data-nosnippet>3511</a>            .unwrap();
-<a href=#3512 id=3512 data-nosnippet>3512</a>
-<a href=#3513 id=3513 data-nosnippet>3513</a>        <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json_bytes(<span class="kw-2">&amp;</span>event.payload()).unwrap();
-<a href=#3514 id=3514 data-nosnippet>3514</a>        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap()._dsc, @<span class="string">r###"
-<a href=#3515 id=3515 data-nosnippet>3515</a>        Object(
-<a href=#3516 id=3516 data-nosnippet>3516</a>            {
-<a href=#3517 id=3517 data-nosnippet>3517</a>                "environment": ~,
-<a href=#3518 id=3518 data-nosnippet>3518</a>                "public_key": String(
-<a href=#3519 id=3519 data-nosnippet>3519</a>                    "e12d836b15bb49d7bbf99e64295d995b",
+<a href=#3402 id=3402 data-nosnippet>3402</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
+<a href=#3403 id=3403 data-nosnippet>3403</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
+<a href=#3404 id=3404 data-nosnippet>3404</a>
+<a href=#3405 id=3405 data-nosnippet>3405</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
+<a href=#3406 id=3406 data-nosnippet>3406</a>            group,
+<a href=#3407 id=3407 data-nosnippet>3407</a>            envelope,
+<a href=#3408 id=3408 data-nosnippet>3408</a>            ctx: processing::Context {
+<a href=#3409 id=3409 data-nosnippet>3409</a>                project_info: <span class="kw-2">&amp;</span>project_info,
+<a href=#3410 id=3410 data-nosnippet>3410</a>                ..processing::Context::for_test()
+<a href=#3411 id=3411 data-nosnippet>3411</a>            },
+<a href=#3412 id=3412 data-nosnippet>3412</a>        };
+<a href=#3413 id=3413 data-nosnippet>3413</a>
+<a href=#3414 id=3414 data-nosnippet>3414</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Submit::Envelope(<span class="kw-2">mut </span>new_envelope))) = processor.process(message).<span class="kw">await else </span>{
+<a href=#3415 id=3415 data-nosnippet>3415</a>            <span class="macro">panic!</span>();
+<a href=#3416 id=3416 data-nosnippet>3416</a>        };
+<a href=#3417 id=3417 data-nosnippet>3417</a>        <span class="kw">let </span>new_envelope = new_envelope.envelope_mut();
+<a href=#3418 id=3418 data-nosnippet>3418</a>
+<a href=#3419 id=3419 data-nosnippet>3419</a>        <span class="kw">let </span>event_item = new_envelope.items().last().unwrap();
+<a href=#3420 id=3420 data-nosnippet>3420</a>        <span class="kw">let </span>annotated_event: Annotated&lt;Event&gt; =
+<a href=#3421 id=3421 data-nosnippet>3421</a>            Annotated::from_json_bytes(<span class="kw-2">&amp;</span>event_item.payload()).unwrap();
+<a href=#3422 id=3422 data-nosnippet>3422</a>        <span class="kw">let </span>event = annotated_event.into_value().unwrap();
+<a href=#3423 id=3423 data-nosnippet>3423</a>        <span class="kw">let </span>headers = event
+<a href=#3424 id=3424 data-nosnippet>3424</a>            .request
+<a href=#3425 id=3425 data-nosnippet>3425</a>            .into_value()
+<a href=#3426 id=3426 data-nosnippet>3426</a>            .unwrap()
+<a href=#3427 id=3427 data-nosnippet>3427</a>            .headers
+<a href=#3428 id=3428 data-nosnippet>3428</a>            .into_value()
+<a href=#3429 id=3429 data-nosnippet>3429</a>            .unwrap();
+<a href=#3430 id=3430 data-nosnippet>3430</a>
+<a href=#3431 id=3431 data-nosnippet>3431</a>        <span class="comment">// IP-like data must be masked
+<a href=#3432 id=3432 data-nosnippet>3432</a>        </span><span class="macro">assert_eq!</span>(
+<a href=#3433 id=3433 data-nosnippet>3433</a>            <span class="prelude-val">Some</span>(
+<a href=#3434 id=3434 data-nosnippet>3434</a>                <span class="string">"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"
+<a href=#3435 id=3435 data-nosnippet>3435</a>            </span>),
+<a href=#3436 id=3436 data-nosnippet>3436</a>            headers.get_header(<span class="string">"User-Agent"</span>)
+<a href=#3437 id=3437 data-nosnippet>3437</a>        );
+<a href=#3438 id=3438 data-nosnippet>3438</a>        <span class="comment">// But we still get correct browser and version number
+<a href=#3439 id=3439 data-nosnippet>3439</a>        </span><span class="kw">let </span>contexts = event.contexts.into_value().unwrap();
+<a href=#3440 id=3440 data-nosnippet>3440</a>        <span class="kw">let </span>browser = contexts.<span class="number">0</span>.get(<span class="string">"browser"</span>).unwrap();
+<a href=#3441 id=3441 data-nosnippet>3441</a>        <span class="macro">assert_eq!</span>(
+<a href=#3442 id=3442 data-nosnippet>3442</a>            <span class="string">r#"{"browser":"Chrome 103.0.0","name":"Chrome","version":"103.0.0","type":"browser"}"#</span>,
+<a href=#3443 id=3443 data-nosnippet>3443</a>            browser.to_json().unwrap()
+<a href=#3444 id=3444 data-nosnippet>3444</a>        );
+<a href=#3445 id=3445 data-nosnippet>3445</a>    }
+<a href=#3446 id=3446 data-nosnippet>3446</a>
+<a href=#3447 id=3447 data-nosnippet>3447</a>    <span class="attr">#[tokio::test]
+<a href=#3448 id=3448 data-nosnippet>3448</a>    #[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#3449 id=3449 data-nosnippet>3449</a>    </span><span class="kw">async fn </span>test_materialize_dsc() {
+<a href=#3450 id=3450 data-nosnippet>3450</a>        <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::PublicKeyConfig;
+<a href=#3451 id=3451 data-nosnippet>3451</a>
+<a href=#3452 id=3452 data-nosnippet>3452</a>        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+<a href=#3453 id=3453 data-nosnippet>3453</a>            </span>.parse()
+<a href=#3454 id=3454 data-nosnippet>3454</a>            .unwrap();
+<a href=#3455 id=3455 data-nosnippet>3455</a>        <span class="kw">let </span>request_meta = RequestMeta::new(dsn);
+<a href=#3456 id=3456 data-nosnippet>3456</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, request_meta);
+<a href=#3457 id=3457 data-nosnippet>3457</a>
+<a href=#3458 id=3458 data-nosnippet>3458</a>        <span class="kw">let </span>dsc = <span class="string">r#"{
+<a href=#3459 id=3459 data-nosnippet>3459</a>            "trace_id": "00000000-0000-0000-0000-000000000000",
+<a href=#3460 id=3460 data-nosnippet>3460</a>            "public_key": "e12d836b15bb49d7bbf99e64295d995b",
+<a href=#3461 id=3461 data-nosnippet>3461</a>            "sample_rate": "0.2"
+<a href=#3462 id=3462 data-nosnippet>3462</a>        }"#</span>;
+<a href=#3463 id=3463 data-nosnippet>3463</a>        envelope.set_dsc(serde_json::from_str(dsc).unwrap());
+<a href=#3464 id=3464 data-nosnippet>3464</a>
+<a href=#3465 id=3465 data-nosnippet>3465</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
+<a href=#3466 id=3466 data-nosnippet>3466</a>        item.set_payload(ContentType::Json, <span class="string">r#"{}"#</span>);
+<a href=#3467 id=3467 data-nosnippet>3467</a>        envelope.add_item(item);
+<a href=#3468 id=3468 data-nosnippet>3468</a>
+<a href=#3469 id=3469 data-nosnippet>3469</a>        <span class="kw">let </span>outcome_aggregator = Addr::dummy();
+<a href=#3470 id=3470 data-nosnippet>3470</a>        <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
+<a href=#3471 id=3471 data-nosnippet>3471</a>
+<a href=#3472 id=3472 data-nosnippet>3472</a>        <span class="kw">let </span><span class="kw-2">mut </span>project_info = ProjectInfo::default();
+<a href=#3473 id=3473 data-nosnippet>3473</a>        project_info.public_keys.push(PublicKeyConfig {
+<a href=#3474 id=3474 data-nosnippet>3474</a>            public_key: ProjectKey::parse(<span class="string">"e12d836b15bb49d7bbf99e64295d995b"</span>).unwrap(),
+<a href=#3475 id=3475 data-nosnippet>3475</a>            numeric_id: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+<a href=#3476 id=3476 data-nosnippet>3476</a>        });
+<a href=#3477 id=3477 data-nosnippet>3477</a>
+<a href=#3478 id=3478 data-nosnippet>3478</a>        <span class="kw">let </span>config = <span class="macro">serde_json::json!</span>({
+<a href=#3479 id=3479 data-nosnippet>3479</a>            <span class="string">"processing"</span>: {
+<a href=#3480 id=3480 data-nosnippet>3480</a>                <span class="string">"enabled"</span>: <span class="bool-val">true</span>,
+<a href=#3481 id=3481 data-nosnippet>3481</a>                <span class="string">"kafka_config"</span>: [],
+<a href=#3482 id=3482 data-nosnippet>3482</a>            }
+<a href=#3483 id=3483 data-nosnippet>3483</a>        });
+<a href=#3484 id=3484 data-nosnippet>3484</a>
+<a href=#3485 id=3485 data-nosnippet>3485</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
+<a href=#3486 id=3486 data-nosnippet>3486</a>            group: ProcessingGroup::Error,
+<a href=#3487 id=3487 data-nosnippet>3487</a>            envelope: managed_envelope,
+<a href=#3488 id=3488 data-nosnippet>3488</a>            ctx: processing::Context {
+<a href=#3489 id=3489 data-nosnippet>3489</a>                config: <span class="kw-2">&amp;</span>Config::from_json_value(config.clone()).unwrap(),
+<a href=#3490 id=3490 data-nosnippet>3490</a>                project_info: <span class="kw-2">&amp;</span>project_info,
+<a href=#3491 id=3491 data-nosnippet>3491</a>                sampling_project_info: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_info),
+<a href=#3492 id=3492 data-nosnippet>3492</a>                ..processing::Context::for_test()
+<a href=#3493 id=3493 data-nosnippet>3493</a>            },
+<a href=#3494 id=3494 data-nosnippet>3494</a>        };
+<a href=#3495 id=3495 data-nosnippet>3495</a>
+<a href=#3496 id=3496 data-nosnippet>3496</a>        <span class="kw">let </span>processor = create_test_processor(Config::from_json_value(config).unwrap()).<span class="kw">await</span>;
+<a href=#3497 id=3497 data-nosnippet>3497</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Submit::Envelope(envelope))) = processor.process(message).<span class="kw">await else </span>{
+<a href=#3498 id=3498 data-nosnippet>3498</a>            <span class="macro">panic!</span>();
+<a href=#3499 id=3499 data-nosnippet>3499</a>        };
+<a href=#3500 id=3500 data-nosnippet>3500</a>        <span class="kw">let </span>event = envelope
+<a href=#3501 id=3501 data-nosnippet>3501</a>            .envelope()
+<a href=#3502 id=3502 data-nosnippet>3502</a>            .get_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Event)
+<a href=#3503 id=3503 data-nosnippet>3503</a>            .unwrap();
+<a href=#3504 id=3504 data-nosnippet>3504</a>
+<a href=#3505 id=3505 data-nosnippet>3505</a>        <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json_bytes(<span class="kw-2">&amp;</span>event.payload()).unwrap();
+<a href=#3506 id=3506 data-nosnippet>3506</a>        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap()._dsc, @<span class="string">r###"
+<a href=#3507 id=3507 data-nosnippet>3507</a>        Object(
+<a href=#3508 id=3508 data-nosnippet>3508</a>            {
+<a href=#3509 id=3509 data-nosnippet>3509</a>                "environment": ~,
+<a href=#3510 id=3510 data-nosnippet>3510</a>                "public_key": String(
+<a href=#3511 id=3511 data-nosnippet>3511</a>                    "e12d836b15bb49d7bbf99e64295d995b",
+<a href=#3512 id=3512 data-nosnippet>3512</a>                ),
+<a href=#3513 id=3513 data-nosnippet>3513</a>                "release": ~,
+<a href=#3514 id=3514 data-nosnippet>3514</a>                "replay_id": ~,
+<a href=#3515 id=3515 data-nosnippet>3515</a>                "sample_rate": String(
+<a href=#3516 id=3516 data-nosnippet>3516</a>                    "0.2",
+<a href=#3517 id=3517 data-nosnippet>3517</a>                ),
+<a href=#3518 id=3518 data-nosnippet>3518</a>                "trace_id": String(
+<a href=#3519 id=3519 data-nosnippet>3519</a>                    "00000000000000000000000000000000",
 <a href=#3520 id=3520 data-nosnippet>3520</a>                ),
-<a href=#3521 id=3521 data-nosnippet>3521</a>                "release": ~,
-<a href=#3522 id=3522 data-nosnippet>3522</a>                "replay_id": ~,
-<a href=#3523 id=3523 data-nosnippet>3523</a>                "sample_rate": String(
-<a href=#3524 id=3524 data-nosnippet>3524</a>                    "0.2",
-<a href=#3525 id=3525 data-nosnippet>3525</a>                ),
-<a href=#3526 id=3526 data-nosnippet>3526</a>                "trace_id": String(
-<a href=#3527 id=3527 data-nosnippet>3527</a>                    "00000000000000000000000000000000",
-<a href=#3528 id=3528 data-nosnippet>3528</a>                ),
-<a href=#3529 id=3529 data-nosnippet>3529</a>                "transaction": ~,
-<a href=#3530 id=3530 data-nosnippet>3530</a>            },
-<a href=#3531 id=3531 data-nosnippet>3531</a>        )
-<a href=#3532 id=3532 data-nosnippet>3532</a>        "###</span>);
-<a href=#3533 id=3533 data-nosnippet>3533</a>    }
-<a href=#3534 id=3534 data-nosnippet>3534</a>
-<a href=#3535 id=3535 data-nosnippet>3535</a>    <span class="kw">fn </span>capture_test_event(transaction_name: <span class="kw-2">&amp;</span>str, source: TransactionSource) -&gt; Vec&lt;String&gt; {
-<a href=#3536 id=3536 data-nosnippet>3536</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
-<a href=#3537 id=3537 data-nosnippet>3537</a>            <span class="string">r#"
-<a href=#3538 id=3538 data-nosnippet>3538</a>            {
-<a href=#3539 id=3539 data-nosnippet>3539</a>                "type": "transaction",
-<a href=#3540 id=3540 data-nosnippet>3540</a>                "transaction": "/foo/",
-<a href=#3541 id=3541 data-nosnippet>3541</a>                "timestamp": 946684810.0,
-<a href=#3542 id=3542 data-nosnippet>3542</a>                "start_timestamp": 946684800.0,
-<a href=#3543 id=3543 data-nosnippet>3543</a>                "contexts": {
-<a href=#3544 id=3544 data-nosnippet>3544</a>                    "trace": {
-<a href=#3545 id=3545 data-nosnippet>3545</a>                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-<a href=#3546 id=3546 data-nosnippet>3546</a>                        "span_id": "fa90fdead5f74053",
-<a href=#3547 id=3547 data-nosnippet>3547</a>                        "op": "http.server",
-<a href=#3548 id=3548 data-nosnippet>3548</a>                        "type": "trace"
-<a href=#3549 id=3549 data-nosnippet>3549</a>                    }
-<a href=#3550 id=3550 data-nosnippet>3550</a>                },
-<a href=#3551 id=3551 data-nosnippet>3551</a>                "transaction_info": {
-<a href=#3552 id=3552 data-nosnippet>3552</a>                    "source": "url"
-<a href=#3553 id=3553 data-nosnippet>3553</a>                }
-<a href=#3554 id=3554 data-nosnippet>3554</a>            }
-<a href=#3555 id=3555 data-nosnippet>3555</a>            "#</span>,
-<a href=#3556 id=3556 data-nosnippet>3556</a>        )
-<a href=#3557 id=3557 data-nosnippet>3557</a>        .unwrap();
-<a href=#3558 id=3558 data-nosnippet>3558</a>        <span class="kw">let </span>e = event.value_mut().as_mut().unwrap();
-<a href=#3559 id=3559 data-nosnippet>3559</a>        e.transaction.set_value(<span class="prelude-val">Some</span>(transaction_name.into()));
-<a href=#3560 id=3560 data-nosnippet>3560</a>
-<a href=#3561 id=3561 data-nosnippet>3561</a>        e.transaction_info
-<a href=#3562 id=3562 data-nosnippet>3562</a>            .value_mut()
-<a href=#3563 id=3563 data-nosnippet>3563</a>            .as_mut()
-<a href=#3564 id=3564 data-nosnippet>3564</a>            .unwrap()
-<a href=#3565 id=3565 data-nosnippet>3565</a>            .source
-<a href=#3566 id=3566 data-nosnippet>3566</a>            .set_value(<span class="prelude-val">Some</span>(source));
-<a href=#3567 id=3567 data-nosnippet>3567</a>
-<a href=#3568 id=3568 data-nosnippet>3568</a>        relay_statsd::with_capturing_test_client(|| {
-<a href=#3569 id=3569 data-nosnippet>3569</a>            utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>event, |event| {
-<a href=#3570 id=3570 data-nosnippet>3570</a>                <span class="kw">let </span>config = NormalizationConfig {
-<a href=#3571 id=3571 data-nosnippet>3571</a>                    transaction_name_config: TransactionNameConfig {
-<a href=#3572 id=3572 data-nosnippet>3572</a>                        rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
-<a href=#3573 id=3573 data-nosnippet>3573</a>                            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_owned()),
-<a href=#3574 id=3574 data-nosnippet>3574</a>                            expiry: DateTime::&lt;Utc&gt;::MAX_UTC,
-<a href=#3575 id=3575 data-nosnippet>3575</a>                            redaction: RedactionRule::Replace {
-<a href=#3576 id=3576 data-nosnippet>3576</a>                                substitution: <span class="string">"*"</span>.to_owned(),
-<a href=#3577 id=3577 data-nosnippet>3577</a>                            },
-<a href=#3578 id=3578 data-nosnippet>3578</a>                        }],
-<a href=#3579 id=3579 data-nosnippet>3579</a>                    },
-<a href=#3580 id=3580 data-nosnippet>3580</a>                    ..Default::default()
-<a href=#3581 id=3581 data-nosnippet>3581</a>                };
-<a href=#3582 id=3582 data-nosnippet>3582</a>                relay_event_normalization::normalize_event(event, <span class="kw-2">&amp;</span>config)
-<a href=#3583 id=3583 data-nosnippet>3583</a>            });
-<a href=#3584 id=3584 data-nosnippet>3584</a>        })
-<a href=#3585 id=3585 data-nosnippet>3585</a>    }
-<a href=#3586 id=3586 data-nosnippet>3586</a>
-<a href=#3587 id=3587 data-nosnippet>3587</a>    <span class="attr">#[test]
-<a href=#3588 id=3588 data-nosnippet>3588</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_none() {
-<a href=#3589 id=3589 data-nosnippet>3589</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/nothing"</span>, TransactionSource::Url);
-<a href=#3590 id=3590 data-nosnippet>3590</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
-<a href=#3591 id=3591 data-nosnippet>3591</a>        [
-<a href=#3592 id=3592 data-nosnippet>3592</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
-<a href=#3593 id=3593 data-nosnippet>3593</a>        ]
-<a href=#3594 id=3594 data-nosnippet>3594</a>        "###</span>);
-<a href=#3595 id=3595 data-nosnippet>3595</a>    }
-<a href=#3596 id=3596 data-nosnippet>3596</a>
-<a href=#3597 id=3597 data-nosnippet>3597</a>    <span class="attr">#[test]
-<a href=#3598 id=3598 data-nosnippet>3598</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_rule() {
-<a href=#3599 id=3599 data-nosnippet>3599</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/denver"</span>, TransactionSource::Url);
-<a href=#3600 id=3600 data-nosnippet>3600</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
-<a href=#3601 id=3601 data-nosnippet>3601</a>        [
-<a href=#3602 id=3602 data-nosnippet>3602</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
-<a href=#3603 id=3603 data-nosnippet>3603</a>        ]
-<a href=#3604 id=3604 data-nosnippet>3604</a>        "###</span>);
-<a href=#3605 id=3605 data-nosnippet>3605</a>    }
-<a href=#3606 id=3606 data-nosnippet>3606</a>
-<a href=#3607 id=3607 data-nosnippet>3607</a>    <span class="attr">#[test]
-<a href=#3608 id=3608 data-nosnippet>3608</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_pattern() {
-<a href=#3609 id=3609 data-nosnippet>3609</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/something/12345"</span>, TransactionSource::Url);
-<a href=#3610 id=3610 data-nosnippet>3610</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
-<a href=#3611 id=3611 data-nosnippet>3611</a>        [
-<a href=#3612 id=3612 data-nosnippet>3612</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
-<a href=#3613 id=3613 data-nosnippet>3613</a>        ]
-<a href=#3614 id=3614 data-nosnippet>3614</a>        "###</span>);
-<a href=#3615 id=3615 data-nosnippet>3615</a>    }
-<a href=#3616 id=3616 data-nosnippet>3616</a>
-<a href=#3617 id=3617 data-nosnippet>3617</a>    <span class="attr">#[test]
-<a href=#3618 id=3618 data-nosnippet>3618</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_both() {
-<a href=#3619 id=3619 data-nosnippet>3619</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/12345"</span>, TransactionSource::Url);
-<a href=#3620 id=3620 data-nosnippet>3620</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
-<a href=#3621 id=3621 data-nosnippet>3621</a>        [
-<a href=#3622 id=3622 data-nosnippet>3622</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
-<a href=#3623 id=3623 data-nosnippet>3623</a>        ]
-<a href=#3624 id=3624 data-nosnippet>3624</a>        "###</span>);
-<a href=#3625 id=3625 data-nosnippet>3625</a>    }
-<a href=#3626 id=3626 data-nosnippet>3626</a>
-<a href=#3627 id=3627 data-nosnippet>3627</a>    <span class="attr">#[test]
-<a href=#3628 id=3628 data-nosnippet>3628</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_no_match() {
-<a href=#3629 id=3629 data-nosnippet>3629</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/12345"</span>, TransactionSource::Route);
-<a href=#3630 id=3630 data-nosnippet>3630</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
-<a href=#3631 id=3631 data-nosnippet>3631</a>        [
-<a href=#3632 id=3632 data-nosnippet>3632</a>            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
-<a href=#3633 id=3633 data-nosnippet>3633</a>        ]
-<a href=#3634 id=3634 data-nosnippet>3634</a>        "###</span>);
-<a href=#3635 id=3635 data-nosnippet>3635</a>    }
-<a href=#3636 id=3636 data-nosnippet>3636</a>
-<a href=#3637 id=3637 data-nosnippet>3637</a>    <span class="doccomment">/// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
-<a href=#3638 id=3638 data-nosnippet>3638</a>    /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
-<a href=#3639 id=3639 data-nosnippet>3639</a>    /// cannot be called from relay-metrics.
-<a href=#3640 id=3640 data-nosnippet>3640</a>    </span><span class="attr">#[test]
-<a href=#3641 id=3641 data-nosnippet>3641</a>    </span><span class="kw">fn </span>test_mri_overhead_constant() {
-<a href=#3642 id=3642 data-nosnippet>3642</a>        <span class="kw">let </span>hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
-<a href=#3643 id=3643 data-nosnippet>3643</a>
-<a href=#3644 id=3644 data-nosnippet>3644</a>        <span class="kw">let </span>derived_value = {
-<a href=#3645 id=3645 data-nosnippet>3645</a>            <span class="kw">let </span>name = <span class="string">"foobar"</span>.to_owned();
-<a href=#3646 id=3646 data-nosnippet>3646</a>            <span class="kw">let </span>value = <span class="number">5</span>.into(); <span class="comment">// Arbitrary value.
-<a href=#3647 id=3647 data-nosnippet>3647</a>            </span><span class="kw">let </span>unit = MetricUnit::Duration(DurationUnit::default());
-<a href=#3648 id=3648 data-nosnippet>3648</a>            <span class="kw">let </span>tags = TransactionMeasurementTags {
-<a href=#3649 id=3649 data-nosnippet>3649</a>                measurement_rating: <span class="prelude-val">None</span>,
-<a href=#3650 id=3650 data-nosnippet>3650</a>                universal_tags: CommonTags(BTreeMap::new()),
-<a href=#3651 id=3651 data-nosnippet>3651</a>                score_profile_version: <span class="prelude-val">None</span>,
-<a href=#3652 id=3652 data-nosnippet>3652</a>            };
-<a href=#3653 id=3653 data-nosnippet>3653</a>
-<a href=#3654 id=3654 data-nosnippet>3654</a>            <span class="kw">let </span>measurement = TransactionMetric::Measurement {
-<a href=#3655 id=3655 data-nosnippet>3655</a>                name: name.clone(),
-<a href=#3656 id=3656 data-nosnippet>3656</a>                value,
-<a href=#3657 id=3657 data-nosnippet>3657</a>                unit,
-<a href=#3658 id=3658 data-nosnippet>3658</a>                tags,
-<a href=#3659 id=3659 data-nosnippet>3659</a>            };
-<a href=#3660 id=3660 data-nosnippet>3660</a>
-<a href=#3661 id=3661 data-nosnippet>3661</a>            <span class="kw">let </span>metric: Bucket = measurement.into_metric(UnixTimestamp::now());
-<a href=#3662 id=3662 data-nosnippet>3662</a>            metric.name.len() - unit.to_string().len() - name.len()
-<a href=#3663 id=3663 data-nosnippet>3663</a>        };
-<a href=#3664 id=3664 data-nosnippet>3664</a>        <span class="macro">assert_eq!</span>(
-<a href=#3665 id=3665 data-nosnippet>3665</a>            hardcoded_value, derived_value,
-<a href=#3666 id=3666 data-nosnippet>3666</a>            <span class="string">"Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
-<a href=#3667 id=3667 data-nosnippet>3667</a>        </span>);
-<a href=#3668 id=3668 data-nosnippet>3668</a>    }
-<a href=#3669 id=3669 data-nosnippet>3669</a>
-<a href=#3670 id=3670 data-nosnippet>3670</a>    <span class="attr">#[tokio::test]
-<a href=#3671 id=3671 data-nosnippet>3671</a>    </span><span class="kw">async fn </span>test_process_metrics_bucket_metadata() {
-<a href=#3672 id=3672 data-nosnippet>3672</a>        <span class="kw">let </span><span class="kw-2">mut </span>token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
-<a href=#3673 id=3673 data-nosnippet>3673</a>        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
-<a href=#3674 id=3674 data-nosnippet>3674</a>        <span class="kw">let </span>received_at = Utc::now();
-<a href=#3675 id=3675 data-nosnippet>3675</a>        <span class="kw">let </span>config = Config::default();
-<a href=#3676 id=3676 data-nosnippet>3676</a>
-<a href=#3677 id=3677 data-nosnippet>3677</a>        <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
-<a href=#3678 id=3678 data-nosnippet>3678</a>        <span class="kw">let </span>processor = create_test_processor_with_addrs(
-<a href=#3679 id=3679 data-nosnippet>3679</a>            config,
-<a href=#3680 id=3680 data-nosnippet>3680</a>            Addrs {
-<a href=#3681 id=3681 data-nosnippet>3681</a>                aggregator,
-<a href=#3682 id=3682 data-nosnippet>3682</a>                ..Default::default()
-<a href=#3683 id=3683 data-nosnippet>3683</a>            },
-<a href=#3684 id=3684 data-nosnippet>3684</a>        )
-<a href=#3685 id=3685 data-nosnippet>3685</a>        .<span class="kw">await</span>;
-<a href=#3686 id=3686 data-nosnippet>3686</a>
-<a href=#3687 id=3687 data-nosnippet>3687</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Statsd);
-<a href=#3688 id=3688 data-nosnippet>3688</a>        item.set_payload(
-<a href=#3689 id=3689 data-nosnippet>3689</a>            ContentType::Text,
-<a href=#3690 id=3690 data-nosnippet>3690</a>            <span class="string">"transactions/foo:3182887624:4267882815|s"</span>,
-<a href=#3691 id=3691 data-nosnippet>3691</a>        );
-<a href=#3692 id=3692 data-nosnippet>3692</a>        <span class="kw">for </span>(source, expected_received_at) <span class="kw">in </span>[
-<a href=#3693 id=3693 data-nosnippet>3693</a>            (
-<a href=#3694 id=3694 data-nosnippet>3694</a>                BucketSource::External,
-<a href=#3695 id=3695 data-nosnippet>3695</a>                <span class="prelude-val">Some</span>(UnixTimestamp::from_datetime(received_at).unwrap()),
-<a href=#3696 id=3696 data-nosnippet>3696</a>            ),
-<a href=#3697 id=3697 data-nosnippet>3697</a>            (BucketSource::Internal, <span class="prelude-val">None</span>),
-<a href=#3698 id=3698 data-nosnippet>3698</a>        ] {
-<a href=#3699 id=3699 data-nosnippet>3699</a>            <span class="kw">let </span>message = ProcessMetrics {
-<a href=#3700 id=3700 data-nosnippet>3700</a>                data: MetricData::Raw(<span class="macro">vec!</span>[item.clone()]),
-<a href=#3701 id=3701 data-nosnippet>3701</a>                project_key,
-<a href=#3702 id=3702 data-nosnippet>3702</a>                source,
-<a href=#3703 id=3703 data-nosnippet>3703</a>                received_at,
-<a href=#3704 id=3704 data-nosnippet>3704</a>                sent_at: <span class="prelude-val">Some</span>(Utc::now()),
-<a href=#3705 id=3705 data-nosnippet>3705</a>            };
-<a href=#3706 id=3706 data-nosnippet>3706</a>            processor.handle_process_metrics(<span class="kw-2">&amp;mut </span>token, message);
-<a href=#3707 id=3707 data-nosnippet>3707</a>
-<a href=#3708 id=3708 data-nosnippet>3708</a>            <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
-<a href=#3709 id=3709 data-nosnippet>3709</a>            <span class="kw">let </span>buckets = merge_buckets.buckets;
-<a href=#3710 id=3710 data-nosnippet>3710</a>            <span class="macro">assert_eq!</span>(buckets.len(), <span class="number">1</span>);
-<a href=#3711 id=3711 data-nosnippet>3711</a>            <span class="macro">assert_eq!</span>(buckets[<span class="number">0</span>].metadata.received_at, expected_received_at);
-<a href=#3712 id=3712 data-nosnippet>3712</a>        }
-<a href=#3713 id=3713 data-nosnippet>3713</a>    }
-<a href=#3714 id=3714 data-nosnippet>3714</a>
-<a href=#3715 id=3715 data-nosnippet>3715</a>    <span class="attr">#[tokio::test]
-<a href=#3716 id=3716 data-nosnippet>3716</a>    </span><span class="kw">async fn </span>test_process_batched_metrics() {
-<a href=#3717 id=3717 data-nosnippet>3717</a>        <span class="kw">let </span><span class="kw-2">mut </span>token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
-<a href=#3718 id=3718 data-nosnippet>3718</a>        <span class="kw">let </span>received_at = Utc::now();
-<a href=#3719 id=3719 data-nosnippet>3719</a>        <span class="kw">let </span>config = Config::default();
-<a href=#3720 id=3720 data-nosnippet>3720</a>
-<a href=#3721 id=3721 data-nosnippet>3721</a>        <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
-<a href=#3722 id=3722 data-nosnippet>3722</a>        <span class="kw">let </span>processor = create_test_processor_with_addrs(
-<a href=#3723 id=3723 data-nosnippet>3723</a>            config,
-<a href=#3724 id=3724 data-nosnippet>3724</a>            Addrs {
-<a href=#3725 id=3725 data-nosnippet>3725</a>                aggregator,
-<a href=#3726 id=3726 data-nosnippet>3726</a>                ..Default::default()
-<a href=#3727 id=3727 data-nosnippet>3727</a>            },
-<a href=#3728 id=3728 data-nosnippet>3728</a>        )
-<a href=#3729 id=3729 data-nosnippet>3729</a>        .<span class="kw">await</span>;
+<a href=#3521 id=3521 data-nosnippet>3521</a>                "transaction": ~,
+<a href=#3522 id=3522 data-nosnippet>3522</a>            },
+<a href=#3523 id=3523 data-nosnippet>3523</a>        )
+<a href=#3524 id=3524 data-nosnippet>3524</a>        "###</span>);
+<a href=#3525 id=3525 data-nosnippet>3525</a>    }
+<a href=#3526 id=3526 data-nosnippet>3526</a>
+<a href=#3527 id=3527 data-nosnippet>3527</a>    <span class="kw">fn </span>capture_test_event(transaction_name: <span class="kw-2">&amp;</span>str, source: TransactionSource) -&gt; Vec&lt;String&gt; {
+<a href=#3528 id=3528 data-nosnippet>3528</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
+<a href=#3529 id=3529 data-nosnippet>3529</a>            <span class="string">r#"
+<a href=#3530 id=3530 data-nosnippet>3530</a>            {
+<a href=#3531 id=3531 data-nosnippet>3531</a>                "type": "transaction",
+<a href=#3532 id=3532 data-nosnippet>3532</a>                "transaction": "/foo/",
+<a href=#3533 id=3533 data-nosnippet>3533</a>                "timestamp": 946684810.0,
+<a href=#3534 id=3534 data-nosnippet>3534</a>                "start_timestamp": 946684800.0,
+<a href=#3535 id=3535 data-nosnippet>3535</a>                "contexts": {
+<a href=#3536 id=3536 data-nosnippet>3536</a>                    "trace": {
+<a href=#3537 id=3537 data-nosnippet>3537</a>                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+<a href=#3538 id=3538 data-nosnippet>3538</a>                        "span_id": "fa90fdead5f74053",
+<a href=#3539 id=3539 data-nosnippet>3539</a>                        "op": "http.server",
+<a href=#3540 id=3540 data-nosnippet>3540</a>                        "type": "trace"
+<a href=#3541 id=3541 data-nosnippet>3541</a>                    }
+<a href=#3542 id=3542 data-nosnippet>3542</a>                },
+<a href=#3543 id=3543 data-nosnippet>3543</a>                "transaction_info": {
+<a href=#3544 id=3544 data-nosnippet>3544</a>                    "source": "url"
+<a href=#3545 id=3545 data-nosnippet>3545</a>                }
+<a href=#3546 id=3546 data-nosnippet>3546</a>            }
+<a href=#3547 id=3547 data-nosnippet>3547</a>            "#</span>,
+<a href=#3548 id=3548 data-nosnippet>3548</a>        )
+<a href=#3549 id=3549 data-nosnippet>3549</a>        .unwrap();
+<a href=#3550 id=3550 data-nosnippet>3550</a>        <span class="kw">let </span>e = event.value_mut().as_mut().unwrap();
+<a href=#3551 id=3551 data-nosnippet>3551</a>        e.transaction.set_value(<span class="prelude-val">Some</span>(transaction_name.into()));
+<a href=#3552 id=3552 data-nosnippet>3552</a>
+<a href=#3553 id=3553 data-nosnippet>3553</a>        e.transaction_info
+<a href=#3554 id=3554 data-nosnippet>3554</a>            .value_mut()
+<a href=#3555 id=3555 data-nosnippet>3555</a>            .as_mut()
+<a href=#3556 id=3556 data-nosnippet>3556</a>            .unwrap()
+<a href=#3557 id=3557 data-nosnippet>3557</a>            .source
+<a href=#3558 id=3558 data-nosnippet>3558</a>            .set_value(<span class="prelude-val">Some</span>(source));
+<a href=#3559 id=3559 data-nosnippet>3559</a>
+<a href=#3560 id=3560 data-nosnippet>3560</a>        relay_statsd::with_capturing_test_client(|| {
+<a href=#3561 id=3561 data-nosnippet>3561</a>            utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>event, |event| {
+<a href=#3562 id=3562 data-nosnippet>3562</a>                <span class="kw">let </span>config = NormalizationConfig {
+<a href=#3563 id=3563 data-nosnippet>3563</a>                    transaction_name_config: TransactionNameConfig {
+<a href=#3564 id=3564 data-nosnippet>3564</a>                        rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
+<a href=#3565 id=3565 data-nosnippet>3565</a>                            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_owned()),
+<a href=#3566 id=3566 data-nosnippet>3566</a>                            expiry: DateTime::&lt;Utc&gt;::MAX_UTC,
+<a href=#3567 id=3567 data-nosnippet>3567</a>                            redaction: RedactionRule::Replace {
+<a href=#3568 id=3568 data-nosnippet>3568</a>                                substitution: <span class="string">"*"</span>.to_owned(),
+<a href=#3569 id=3569 data-nosnippet>3569</a>                            },
+<a href=#3570 id=3570 data-nosnippet>3570</a>                        }],
+<a href=#3571 id=3571 data-nosnippet>3571</a>                    },
+<a href=#3572 id=3572 data-nosnippet>3572</a>                    ..Default::default()
+<a href=#3573 id=3573 data-nosnippet>3573</a>                };
+<a href=#3574 id=3574 data-nosnippet>3574</a>                relay_event_normalization::normalize_event(event, <span class="kw-2">&amp;</span>config)
+<a href=#3575 id=3575 data-nosnippet>3575</a>            });
+<a href=#3576 id=3576 data-nosnippet>3576</a>        })
+<a href=#3577 id=3577 data-nosnippet>3577</a>    }
+<a href=#3578 id=3578 data-nosnippet>3578</a>
+<a href=#3579 id=3579 data-nosnippet>3579</a>    <span class="attr">#[test]
+<a href=#3580 id=3580 data-nosnippet>3580</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_none() {
+<a href=#3581 id=3581 data-nosnippet>3581</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/nothing"</span>, TransactionSource::Url);
+<a href=#3582 id=3582 data-nosnippet>3582</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
+<a href=#3583 id=3583 data-nosnippet>3583</a>        [
+<a href=#3584 id=3584 data-nosnippet>3584</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
+<a href=#3585 id=3585 data-nosnippet>3585</a>        ]
+<a href=#3586 id=3586 data-nosnippet>3586</a>        "###</span>);
+<a href=#3587 id=3587 data-nosnippet>3587</a>    }
+<a href=#3588 id=3588 data-nosnippet>3588</a>
+<a href=#3589 id=3589 data-nosnippet>3589</a>    <span class="attr">#[test]
+<a href=#3590 id=3590 data-nosnippet>3590</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_rule() {
+<a href=#3591 id=3591 data-nosnippet>3591</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/denver"</span>, TransactionSource::Url);
+<a href=#3592 id=3592 data-nosnippet>3592</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
+<a href=#3593 id=3593 data-nosnippet>3593</a>        [
+<a href=#3594 id=3594 data-nosnippet>3594</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
+<a href=#3595 id=3595 data-nosnippet>3595</a>        ]
+<a href=#3596 id=3596 data-nosnippet>3596</a>        "###</span>);
+<a href=#3597 id=3597 data-nosnippet>3597</a>    }
+<a href=#3598 id=3598 data-nosnippet>3598</a>
+<a href=#3599 id=3599 data-nosnippet>3599</a>    <span class="attr">#[test]
+<a href=#3600 id=3600 data-nosnippet>3600</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_pattern() {
+<a href=#3601 id=3601 data-nosnippet>3601</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/something/12345"</span>, TransactionSource::Url);
+<a href=#3602 id=3602 data-nosnippet>3602</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
+<a href=#3603 id=3603 data-nosnippet>3603</a>        [
+<a href=#3604 id=3604 data-nosnippet>3604</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
+<a href=#3605 id=3605 data-nosnippet>3605</a>        ]
+<a href=#3606 id=3606 data-nosnippet>3606</a>        "###</span>);
+<a href=#3607 id=3607 data-nosnippet>3607</a>    }
+<a href=#3608 id=3608 data-nosnippet>3608</a>
+<a href=#3609 id=3609 data-nosnippet>3609</a>    <span class="attr">#[test]
+<a href=#3610 id=3610 data-nosnippet>3610</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_both() {
+<a href=#3611 id=3611 data-nosnippet>3611</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/12345"</span>, TransactionSource::Url);
+<a href=#3612 id=3612 data-nosnippet>3612</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
+<a href=#3613 id=3613 data-nosnippet>3613</a>        [
+<a href=#3614 id=3614 data-nosnippet>3614</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
+<a href=#3615 id=3615 data-nosnippet>3615</a>        ]
+<a href=#3616 id=3616 data-nosnippet>3616</a>        "###</span>);
+<a href=#3617 id=3617 data-nosnippet>3617</a>    }
+<a href=#3618 id=3618 data-nosnippet>3618</a>
+<a href=#3619 id=3619 data-nosnippet>3619</a>    <span class="attr">#[test]
+<a href=#3620 id=3620 data-nosnippet>3620</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_no_match() {
+<a href=#3621 id=3621 data-nosnippet>3621</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/12345"</span>, TransactionSource::Route);
+<a href=#3622 id=3622 data-nosnippet>3622</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
+<a href=#3623 id=3623 data-nosnippet>3623</a>        [
+<a href=#3624 id=3624 data-nosnippet>3624</a>            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
+<a href=#3625 id=3625 data-nosnippet>3625</a>        ]
+<a href=#3626 id=3626 data-nosnippet>3626</a>        "###</span>);
+<a href=#3627 id=3627 data-nosnippet>3627</a>    }
+<a href=#3628 id=3628 data-nosnippet>3628</a>
+<a href=#3629 id=3629 data-nosnippet>3629</a>    <span class="attr">#[tokio::test]
+<a href=#3630 id=3630 data-nosnippet>3630</a>    </span><span class="kw">async fn </span>test_process_metrics_bucket_metadata() {
+<a href=#3631 id=3631 data-nosnippet>3631</a>        <span class="kw">let </span><span class="kw-2">mut </span>token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
+<a href=#3632 id=3632 data-nosnippet>3632</a>        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
+<a href=#3633 id=3633 data-nosnippet>3633</a>        <span class="kw">let </span>received_at = Utc::now();
+<a href=#3634 id=3634 data-nosnippet>3634</a>        <span class="kw">let </span>config = Config::default();
+<a href=#3635 id=3635 data-nosnippet>3635</a>
+<a href=#3636 id=3636 data-nosnippet>3636</a>        <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
+<a href=#3637 id=3637 data-nosnippet>3637</a>        <span class="kw">let </span>processor = create_test_processor_with_addrs(
+<a href=#3638 id=3638 data-nosnippet>3638</a>            config,
+<a href=#3639 id=3639 data-nosnippet>3639</a>            Addrs {
+<a href=#3640 id=3640 data-nosnippet>3640</a>                aggregator,
+<a href=#3641 id=3641 data-nosnippet>3641</a>                ..Default::default()
+<a href=#3642 id=3642 data-nosnippet>3642</a>            },
+<a href=#3643 id=3643 data-nosnippet>3643</a>        )
+<a href=#3644 id=3644 data-nosnippet>3644</a>        .<span class="kw">await</span>;
+<a href=#3645 id=3645 data-nosnippet>3645</a>
+<a href=#3646 id=3646 data-nosnippet>3646</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Statsd);
+<a href=#3647 id=3647 data-nosnippet>3647</a>        item.set_payload(
+<a href=#3648 id=3648 data-nosnippet>3648</a>            ContentType::Text,
+<a href=#3649 id=3649 data-nosnippet>3649</a>            <span class="string">"transactions/foo:3182887624:4267882815|s"</span>,
+<a href=#3650 id=3650 data-nosnippet>3650</a>        );
+<a href=#3651 id=3651 data-nosnippet>3651</a>        <span class="kw">for </span>(source, expected_received_at) <span class="kw">in </span>[
+<a href=#3652 id=3652 data-nosnippet>3652</a>            (
+<a href=#3653 id=3653 data-nosnippet>3653</a>                BucketSource::External,
+<a href=#3654 id=3654 data-nosnippet>3654</a>                <span class="prelude-val">Some</span>(UnixTimestamp::from_datetime(received_at).unwrap()),
+<a href=#3655 id=3655 data-nosnippet>3655</a>            ),
+<a href=#3656 id=3656 data-nosnippet>3656</a>            (BucketSource::Internal, <span class="prelude-val">None</span>),
+<a href=#3657 id=3657 data-nosnippet>3657</a>        ] {
+<a href=#3658 id=3658 data-nosnippet>3658</a>            <span class="kw">let </span>message = ProcessMetrics {
+<a href=#3659 id=3659 data-nosnippet>3659</a>                data: MetricData::Raw(<span class="macro">vec!</span>[item.clone()]),
+<a href=#3660 id=3660 data-nosnippet>3660</a>                project_key,
+<a href=#3661 id=3661 data-nosnippet>3661</a>                source,
+<a href=#3662 id=3662 data-nosnippet>3662</a>                received_at,
+<a href=#3663 id=3663 data-nosnippet>3663</a>                sent_at: <span class="prelude-val">Some</span>(Utc::now()),
+<a href=#3664 id=3664 data-nosnippet>3664</a>            };
+<a href=#3665 id=3665 data-nosnippet>3665</a>            processor.handle_process_metrics(<span class="kw-2">&amp;mut </span>token, message);
+<a href=#3666 id=3666 data-nosnippet>3666</a>
+<a href=#3667 id=3667 data-nosnippet>3667</a>            <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
+<a href=#3668 id=3668 data-nosnippet>3668</a>            <span class="kw">let </span>buckets = merge_buckets.buckets;
+<a href=#3669 id=3669 data-nosnippet>3669</a>            <span class="macro">assert_eq!</span>(buckets.len(), <span class="number">1</span>);
+<a href=#3670 id=3670 data-nosnippet>3670</a>            <span class="macro">assert_eq!</span>(buckets[<span class="number">0</span>].metadata.received_at, expected_received_at);
+<a href=#3671 id=3671 data-nosnippet>3671</a>        }
+<a href=#3672 id=3672 data-nosnippet>3672</a>    }
+<a href=#3673 id=3673 data-nosnippet>3673</a>
+<a href=#3674 id=3674 data-nosnippet>3674</a>    <span class="attr">#[tokio::test]
+<a href=#3675 id=3675 data-nosnippet>3675</a>    </span><span class="kw">async fn </span>test_process_batched_metrics() {
+<a href=#3676 id=3676 data-nosnippet>3676</a>        <span class="kw">let </span><span class="kw-2">mut </span>token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
+<a href=#3677 id=3677 data-nosnippet>3677</a>        <span class="kw">let </span>received_at = Utc::now();
+<a href=#3678 id=3678 data-nosnippet>3678</a>        <span class="kw">let </span>config = Config::default();
+<a href=#3679 id=3679 data-nosnippet>3679</a>
+<a href=#3680 id=3680 data-nosnippet>3680</a>        <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
+<a href=#3681 id=3681 data-nosnippet>3681</a>        <span class="kw">let </span>processor = create_test_processor_with_addrs(
+<a href=#3682 id=3682 data-nosnippet>3682</a>            config,
+<a href=#3683 id=3683 data-nosnippet>3683</a>            Addrs {
+<a href=#3684 id=3684 data-nosnippet>3684</a>                aggregator,
+<a href=#3685 id=3685 data-nosnippet>3685</a>                ..Default::default()
+<a href=#3686 id=3686 data-nosnippet>3686</a>            },
+<a href=#3687 id=3687 data-nosnippet>3687</a>        )
+<a href=#3688 id=3688 data-nosnippet>3688</a>        .<span class="kw">await</span>;
+<a href=#3689 id=3689 data-nosnippet>3689</a>
+<a href=#3690 id=3690 data-nosnippet>3690</a>        <span class="kw">let </span>payload = <span class="string">r#"{
+<a href=#3691 id=3691 data-nosnippet>3691</a>    "buckets": {
+<a href=#3692 id=3692 data-nosnippet>3692</a>        "11111111111111111111111111111111": [
+<a href=#3693 id=3693 data-nosnippet>3693</a>            {
+<a href=#3694 id=3694 data-nosnippet>3694</a>                "timestamp": 1615889440,
+<a href=#3695 id=3695 data-nosnippet>3695</a>                "width": 0,
+<a href=#3696 id=3696 data-nosnippet>3696</a>                "name": "d:custom/endpoint.response_time@millisecond",
+<a href=#3697 id=3697 data-nosnippet>3697</a>                "type": "d",
+<a href=#3698 id=3698 data-nosnippet>3698</a>                "value": [
+<a href=#3699 id=3699 data-nosnippet>3699</a>                  68.0
+<a href=#3700 id=3700 data-nosnippet>3700</a>                ],
+<a href=#3701 id=3701 data-nosnippet>3701</a>                "tags": {
+<a href=#3702 id=3702 data-nosnippet>3702</a>                  "route": "user_index"
+<a href=#3703 id=3703 data-nosnippet>3703</a>                }
+<a href=#3704 id=3704 data-nosnippet>3704</a>            }
+<a href=#3705 id=3705 data-nosnippet>3705</a>        ],
+<a href=#3706 id=3706 data-nosnippet>3706</a>        "22222222222222222222222222222222": [
+<a href=#3707 id=3707 data-nosnippet>3707</a>            {
+<a href=#3708 id=3708 data-nosnippet>3708</a>                "timestamp": 1615889440,
+<a href=#3709 id=3709 data-nosnippet>3709</a>                "width": 0,
+<a href=#3710 id=3710 data-nosnippet>3710</a>                "name": "d:custom/endpoint.cache_rate@none",
+<a href=#3711 id=3711 data-nosnippet>3711</a>                "type": "d",
+<a href=#3712 id=3712 data-nosnippet>3712</a>                "value": [
+<a href=#3713 id=3713 data-nosnippet>3713</a>                  36.0
+<a href=#3714 id=3714 data-nosnippet>3714</a>                ]
+<a href=#3715 id=3715 data-nosnippet>3715</a>            }
+<a href=#3716 id=3716 data-nosnippet>3716</a>        ]
+<a href=#3717 id=3717 data-nosnippet>3717</a>    }
+<a href=#3718 id=3718 data-nosnippet>3718</a>}
+<a href=#3719 id=3719 data-nosnippet>3719</a>"#</span>;
+<a href=#3720 id=3720 data-nosnippet>3720</a>        <span class="kw">let </span>message = ProcessBatchedMetrics {
+<a href=#3721 id=3721 data-nosnippet>3721</a>            payload: Bytes::from(payload),
+<a href=#3722 id=3722 data-nosnippet>3722</a>            source: BucketSource::Internal,
+<a href=#3723 id=3723 data-nosnippet>3723</a>            received_at,
+<a href=#3724 id=3724 data-nosnippet>3724</a>            sent_at: <span class="prelude-val">Some</span>(Utc::now()),
+<a href=#3725 id=3725 data-nosnippet>3725</a>        };
+<a href=#3726 id=3726 data-nosnippet>3726</a>        processor.handle_process_batched_metrics(<span class="kw-2">&amp;mut </span>token, message);
+<a href=#3727 id=3727 data-nosnippet>3727</a>
+<a href=#3728 id=3728 data-nosnippet>3728</a>        <span class="kw">let </span>Aggregator::MergeBuckets(mb1) = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
+<a href=#3729 id=3729 data-nosnippet>3729</a>        <span class="kw">let </span>Aggregator::MergeBuckets(mb2) = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
 <a href=#3730 id=3730 data-nosnippet>3730</a>
-<a href=#3731 id=3731 data-nosnippet>3731</a>        <span class="kw">let </span>payload = <span class="string">r#"{
-<a href=#3732 id=3732 data-nosnippet>3732</a>    "buckets": {
-<a href=#3733 id=3733 data-nosnippet>3733</a>        "11111111111111111111111111111111": [
-<a href=#3734 id=3734 data-nosnippet>3734</a>            {
-<a href=#3735 id=3735 data-nosnippet>3735</a>                "timestamp": 1615889440,
-<a href=#3736 id=3736 data-nosnippet>3736</a>                "width": 0,
-<a href=#3737 id=3737 data-nosnippet>3737</a>                "name": "d:custom/endpoint.response_time@millisecond",
-<a href=#3738 id=3738 data-nosnippet>3738</a>                "type": "d",
-<a href=#3739 id=3739 data-nosnippet>3739</a>                "value": [
-<a href=#3740 id=3740 data-nosnippet>3740</a>                  68.0
-<a href=#3741 id=3741 data-nosnippet>3741</a>                ],
-<a href=#3742 id=3742 data-nosnippet>3742</a>                "tags": {
-<a href=#3743 id=3743 data-nosnippet>3743</a>                  "route": "user_index"
-<a href=#3744 id=3744 data-nosnippet>3744</a>                }
-<a href=#3745 id=3745 data-nosnippet>3745</a>            }
-<a href=#3746 id=3746 data-nosnippet>3746</a>        ],
-<a href=#3747 id=3747 data-nosnippet>3747</a>        "22222222222222222222222222222222": [
-<a href=#3748 id=3748 data-nosnippet>3748</a>            {
-<a href=#3749 id=3749 data-nosnippet>3749</a>                "timestamp": 1615889440,
-<a href=#3750 id=3750 data-nosnippet>3750</a>                "width": 0,
-<a href=#3751 id=3751 data-nosnippet>3751</a>                "name": "d:custom/endpoint.cache_rate@none",
-<a href=#3752 id=3752 data-nosnippet>3752</a>                "type": "d",
-<a href=#3753 id=3753 data-nosnippet>3753</a>                "value": [
-<a href=#3754 id=3754 data-nosnippet>3754</a>                  36.0
-<a href=#3755 id=3755 data-nosnippet>3755</a>                ]
-<a href=#3756 id=3756 data-nosnippet>3756</a>            }
-<a href=#3757 id=3757 data-nosnippet>3757</a>        ]
-<a href=#3758 id=3758 data-nosnippet>3758</a>    }
-<a href=#3759 id=3759 data-nosnippet>3759</a>}
-<a href=#3760 id=3760 data-nosnippet>3760</a>"#</span>;
-<a href=#3761 id=3761 data-nosnippet>3761</a>        <span class="kw">let </span>message = ProcessBatchedMetrics {
-<a href=#3762 id=3762 data-nosnippet>3762</a>            payload: Bytes::from(payload),
-<a href=#3763 id=3763 data-nosnippet>3763</a>            source: BucketSource::Internal,
-<a href=#3764 id=3764 data-nosnippet>3764</a>            received_at,
-<a href=#3765 id=3765 data-nosnippet>3765</a>            sent_at: <span class="prelude-val">Some</span>(Utc::now()),
-<a href=#3766 id=3766 data-nosnippet>3766</a>        };
-<a href=#3767 id=3767 data-nosnippet>3767</a>        processor.handle_process_batched_metrics(<span class="kw-2">&amp;mut </span>token, message);
-<a href=#3768 id=3768 data-nosnippet>3768</a>
-<a href=#3769 id=3769 data-nosnippet>3769</a>        <span class="kw">let </span>Aggregator::MergeBuckets(mb1) = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
-<a href=#3770 id=3770 data-nosnippet>3770</a>        <span class="kw">let </span>Aggregator::MergeBuckets(mb2) = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
-<a href=#3771 id=3771 data-nosnippet>3771</a>
-<a href=#3772 id=3772 data-nosnippet>3772</a>        <span class="kw">let </span><span class="kw-2">mut </span>messages = <span class="macro">vec!</span>[mb1, mb2];
-<a href=#3773 id=3773 data-nosnippet>3773</a>        messages.sort_by_key(|mb| mb.project_key);
-<a href=#3774 id=3774 data-nosnippet>3774</a>
-<a href=#3775 id=3775 data-nosnippet>3775</a>        <span class="kw">let </span>actual = messages
-<a href=#3776 id=3776 data-nosnippet>3776</a>            .into_iter()
-<a href=#3777 id=3777 data-nosnippet>3777</a>            .map(|mb| (mb.project_key, mb.buckets))
-<a href=#3778 id=3778 data-nosnippet>3778</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#3779 id=3779 data-nosnippet>3779</a>
-<a href=#3780 id=3780 data-nosnippet>3780</a>        <span class="macro">assert_debug_snapshot!</span>(actual, @<span class="string">r###"
-<a href=#3781 id=3781 data-nosnippet>3781</a>        [
-<a href=#3782 id=3782 data-nosnippet>3782</a>            (
-<a href=#3783 id=3783 data-nosnippet>3783</a>                ProjectKey("11111111111111111111111111111111"),
-<a href=#3784 id=3784 data-nosnippet>3784</a>                [
-<a href=#3785 id=3785 data-nosnippet>3785</a>                    Bucket {
-<a href=#3786 id=3786 data-nosnippet>3786</a>                        timestamp: UnixTimestamp(1615889440),
-<a href=#3787 id=3787 data-nosnippet>3787</a>                        width: 0,
-<a href=#3788 id=3788 data-nosnippet>3788</a>                        name: MetricName(
-<a href=#3789 id=3789 data-nosnippet>3789</a>                            "d:custom/endpoint.response_time@millisecond",
-<a href=#3790 id=3790 data-nosnippet>3790</a>                        ),
-<a href=#3791 id=3791 data-nosnippet>3791</a>                        value: Distribution(
-<a href=#3792 id=3792 data-nosnippet>3792</a>                            [
-<a href=#3793 id=3793 data-nosnippet>3793</a>                                68.0,
-<a href=#3794 id=3794 data-nosnippet>3794</a>                            ],
-<a href=#3795 id=3795 data-nosnippet>3795</a>                        ),
-<a href=#3796 id=3796 data-nosnippet>3796</a>                        tags: {
-<a href=#3797 id=3797 data-nosnippet>3797</a>                            "route": "user_index",
-<a href=#3798 id=3798 data-nosnippet>3798</a>                        },
-<a href=#3799 id=3799 data-nosnippet>3799</a>                        metadata: BucketMetadata {
-<a href=#3800 id=3800 data-nosnippet>3800</a>                            merges: 1,
-<a href=#3801 id=3801 data-nosnippet>3801</a>                            received_at: None,
-<a href=#3802 id=3802 data-nosnippet>3802</a>                            extracted_from_indexed: false,
-<a href=#3803 id=3803 data-nosnippet>3803</a>                        },
-<a href=#3804 id=3804 data-nosnippet>3804</a>                    },
-<a href=#3805 id=3805 data-nosnippet>3805</a>                ],
-<a href=#3806 id=3806 data-nosnippet>3806</a>            ),
-<a href=#3807 id=3807 data-nosnippet>3807</a>            (
-<a href=#3808 id=3808 data-nosnippet>3808</a>                ProjectKey("22222222222222222222222222222222"),
-<a href=#3809 id=3809 data-nosnippet>3809</a>                [
-<a href=#3810 id=3810 data-nosnippet>3810</a>                    Bucket {
-<a href=#3811 id=3811 data-nosnippet>3811</a>                        timestamp: UnixTimestamp(1615889440),
-<a href=#3812 id=3812 data-nosnippet>3812</a>                        width: 0,
-<a href=#3813 id=3813 data-nosnippet>3813</a>                        name: MetricName(
-<a href=#3814 id=3814 data-nosnippet>3814</a>                            "d:custom/endpoint.cache_rate@none",
-<a href=#3815 id=3815 data-nosnippet>3815</a>                        ),
-<a href=#3816 id=3816 data-nosnippet>3816</a>                        value: Distribution(
-<a href=#3817 id=3817 data-nosnippet>3817</a>                            [
-<a href=#3818 id=3818 data-nosnippet>3818</a>                                36.0,
-<a href=#3819 id=3819 data-nosnippet>3819</a>                            ],
-<a href=#3820 id=3820 data-nosnippet>3820</a>                        ),
-<a href=#3821 id=3821 data-nosnippet>3821</a>                        tags: {},
-<a href=#3822 id=3822 data-nosnippet>3822</a>                        metadata: BucketMetadata {
-<a href=#3823 id=3823 data-nosnippet>3823</a>                            merges: 1,
-<a href=#3824 id=3824 data-nosnippet>3824</a>                            received_at: None,
-<a href=#3825 id=3825 data-nosnippet>3825</a>                            extracted_from_indexed: false,
-<a href=#3826 id=3826 data-nosnippet>3826</a>                        },
-<a href=#3827 id=3827 data-nosnippet>3827</a>                    },
-<a href=#3828 id=3828 data-nosnippet>3828</a>                ],
-<a href=#3829 id=3829 data-nosnippet>3829</a>            ),
-<a href=#3830 id=3830 data-nosnippet>3830</a>        ]
-<a href=#3831 id=3831 data-nosnippet>3831</a>        "###</span>);
-<a href=#3832 id=3832 data-nosnippet>3832</a>    }
-<a href=#3833 id=3833 data-nosnippet>3833</a>}
+<a href=#3731 id=3731 data-nosnippet>3731</a>        <span class="kw">let </span><span class="kw-2">mut </span>messages = <span class="macro">vec!</span>[mb1, mb2];
+<a href=#3732 id=3732 data-nosnippet>3732</a>        messages.sort_by_key(|mb| mb.project_key);
+<a href=#3733 id=3733 data-nosnippet>3733</a>
+<a href=#3734 id=3734 data-nosnippet>3734</a>        <span class="kw">let </span>actual = messages
+<a href=#3735 id=3735 data-nosnippet>3735</a>            .into_iter()
+<a href=#3736 id=3736 data-nosnippet>3736</a>            .map(|mb| (mb.project_key, mb.buckets))
+<a href=#3737 id=3737 data-nosnippet>3737</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#3738 id=3738 data-nosnippet>3738</a>
+<a href=#3739 id=3739 data-nosnippet>3739</a>        <span class="macro">assert_debug_snapshot!</span>(actual, @<span class="string">r###"
+<a href=#3740 id=3740 data-nosnippet>3740</a>        [
+<a href=#3741 id=3741 data-nosnippet>3741</a>            (
+<a href=#3742 id=3742 data-nosnippet>3742</a>                ProjectKey("11111111111111111111111111111111"),
+<a href=#3743 id=3743 data-nosnippet>3743</a>                [
+<a href=#3744 id=3744 data-nosnippet>3744</a>                    Bucket {
+<a href=#3745 id=3745 data-nosnippet>3745</a>                        timestamp: UnixTimestamp(1615889440),
+<a href=#3746 id=3746 data-nosnippet>3746</a>                        width: 0,
+<a href=#3747 id=3747 data-nosnippet>3747</a>                        name: MetricName(
+<a href=#3748 id=3748 data-nosnippet>3748</a>                            "d:custom/endpoint.response_time@millisecond",
+<a href=#3749 id=3749 data-nosnippet>3749</a>                        ),
+<a href=#3750 id=3750 data-nosnippet>3750</a>                        value: Distribution(
+<a href=#3751 id=3751 data-nosnippet>3751</a>                            [
+<a href=#3752 id=3752 data-nosnippet>3752</a>                                68.0,
+<a href=#3753 id=3753 data-nosnippet>3753</a>                            ],
+<a href=#3754 id=3754 data-nosnippet>3754</a>                        ),
+<a href=#3755 id=3755 data-nosnippet>3755</a>                        tags: {
+<a href=#3756 id=3756 data-nosnippet>3756</a>                            "route": "user_index",
+<a href=#3757 id=3757 data-nosnippet>3757</a>                        },
+<a href=#3758 id=3758 data-nosnippet>3758</a>                        metadata: BucketMetadata {
+<a href=#3759 id=3759 data-nosnippet>3759</a>                            merges: 1,
+<a href=#3760 id=3760 data-nosnippet>3760</a>                            received_at: None,
+<a href=#3761 id=3761 data-nosnippet>3761</a>                            extracted_from_indexed: false,
+<a href=#3762 id=3762 data-nosnippet>3762</a>                        },
+<a href=#3763 id=3763 data-nosnippet>3763</a>                    },
+<a href=#3764 id=3764 data-nosnippet>3764</a>                ],
+<a href=#3765 id=3765 data-nosnippet>3765</a>            ),
+<a href=#3766 id=3766 data-nosnippet>3766</a>            (
+<a href=#3767 id=3767 data-nosnippet>3767</a>                ProjectKey("22222222222222222222222222222222"),
+<a href=#3768 id=3768 data-nosnippet>3768</a>                [
+<a href=#3769 id=3769 data-nosnippet>3769</a>                    Bucket {
+<a href=#3770 id=3770 data-nosnippet>3770</a>                        timestamp: UnixTimestamp(1615889440),
+<a href=#3771 id=3771 data-nosnippet>3771</a>                        width: 0,
+<a href=#3772 id=3772 data-nosnippet>3772</a>                        name: MetricName(
+<a href=#3773 id=3773 data-nosnippet>3773</a>                            "d:custom/endpoint.cache_rate@none",
+<a href=#3774 id=3774 data-nosnippet>3774</a>                        ),
+<a href=#3775 id=3775 data-nosnippet>3775</a>                        value: Distribution(
+<a href=#3776 id=3776 data-nosnippet>3776</a>                            [
+<a href=#3777 id=3777 data-nosnippet>3777</a>                                36.0,
+<a href=#3778 id=3778 data-nosnippet>3778</a>                            ],
+<a href=#3779 id=3779 data-nosnippet>3779</a>                        ),
+<a href=#3780 id=3780 data-nosnippet>3780</a>                        tags: {},
+<a href=#3781 id=3781 data-nosnippet>3781</a>                        metadata: BucketMetadata {
+<a href=#3782 id=3782 data-nosnippet>3782</a>                            merges: 1,
+<a href=#3783 id=3783 data-nosnippet>3783</a>                            received_at: None,
+<a href=#3784 id=3784 data-nosnippet>3784</a>                            extracted_from_indexed: false,
+<a href=#3785 id=3785 data-nosnippet>3785</a>                        },
+<a href=#3786 id=3786 data-nosnippet>3786</a>                    },
+<a href=#3787 id=3787 data-nosnippet>3787</a>                ],
+<a href=#3788 id=3788 data-nosnippet>3788</a>            ),
+<a href=#3789 id=3789 data-nosnippet>3789</a>        ]
+<a href=#3790 id=3790 data-nosnippet>3790</a>        "###</span>);
+<a href=#3791 id=3791 data-nosnippet>3791</a>    }
+<a href=#3792 id=3792 data-nosnippet>3792</a>}
 </code></pre></div></section></main></body></html>
