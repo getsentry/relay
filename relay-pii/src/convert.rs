@@ -5,8 +5,8 @@ use relay_event_schema::processor::ValueType;
 
 use crate::selector::{SelectorPathItem, SelectorSpec};
 use crate::{
-    DataScrubbingConfig, LazyPattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction,
-    RuleSpec, RuleType, Vars,
+    DataScrubbingConfig, LazyPattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType,
+    Vars,
 };
 
 /// Fields that the legacy data scrubber cannot strip.
@@ -111,9 +111,7 @@ static REPLACE_ONLY_SELECTOR: LazyLock<SelectorSpec> = LazyLock::new(|| {
     .unwrap()
 });
 
-pub fn to_pii_config(
-    datascrubbing_config: &DataScrubbingConfig,
-) -> Result<Option<PiiConfig>, PiiConfigError> {
+pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
     let mut custom_rules = BTreeMap::new();
     let mut applied_rules = Vec::new();
     let mut applications = BTreeMap::new();
@@ -187,7 +185,7 @@ pub fn to_pii_config(
     }
 
     if applied_rules.is_empty() && applications.is_empty() {
-        return Ok(None);
+        return None;
     }
 
     let mut conjunctions = vec![
@@ -226,12 +224,12 @@ pub fn to_pii_config(
         applications.insert(applied_selector, applied_rules);
     }
 
-    Ok(Some(PiiConfig {
+    Some(PiiConfig {
         rules: custom_rules,
         vars: Vars::default(),
         applications,
         ..Default::default()
-    }))
+    })
 }
 
 #[cfg(test)]
