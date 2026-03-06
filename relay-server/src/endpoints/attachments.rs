@@ -9,11 +9,32 @@ use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, Envelope};
 use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
-use crate::utils::ConstrainedMultipart;
+use crate::utils::{
+    AttachmentStrategy, ConstrainedMultipart, FieldSizeExceededAction,
+    read_attachment_bytes_into_item,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct AttachmentPath {
     event_id: EventId,
+}
+
+struct AttachmentsAttachmentStrategy<'a> {
+    config: &'a Config,
+}
+
+impl AttachmentStrategy for AttachmentsAttachmentStrategy<'_> {
+    fn infer_type(&self, _: &multer::Field) -> AttachmentType {
+        AttachmentType::default()
+    }
+
+    fn add_to_item(
+        &mut self,
+        field: multer::Field<'static>,
+        item: crate::envelope::Item,
+    ) -> impl Future<Output = Result<Option<crate::envelope::Item>, multer::Error>> + Send {
+        read_attachment_bytes_into_item(field, item, self.config, FieldSizeExceededAction::Err)
+    }
 }
 
 async fn extract_envelope(
@@ -23,7 +44,7 @@ async fn extract_envelope(
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let items = multipart
-        .items(|_| AttachmentType::default(), config)
+        .items(config, AttachmentsAttachmentStrategy { config })
         .await?;
 
     let mut envelope = Envelope::from_request(Some(path.event_id), meta);

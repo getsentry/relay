@@ -23,7 +23,10 @@ use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
-use crate::utils::{self, ConstrainedMultipart};
+use crate::utils::{
+    self, AttachmentStrategy, ConstrainedMultipart, FieldSizeExceededAction,
+    read_attachment_bytes_into_item,
+};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -137,17 +140,6 @@ fn remove_container_extension(filename: &str) -> &str {
         .unwrap_or(filename)
 }
 
-fn infer_attachment_type(field: &Field) -> AttachmentType {
-    match field.name().unwrap_or("") {
-        MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
-        ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
-        ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
-        ITEM_NAME_EVENT => AttachmentType::EventPayload,
-        VIEW_HIERARCHY_FIELD_NAME => AttachmentType::ViewHierarchy,
-        _ => AttachmentType::Attachment,
-    }
-}
-
 /// Extract a minidump from a nested multipart form.
 ///
 /// This field is not a minidump (i.e. it doesn't start with the minidump magic header). It could be
@@ -176,12 +168,39 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
+struct MinidumpAttachmentStrategy<'a> {
+    config: &'a Config,
+}
+
+impl AttachmentStrategy for MinidumpAttachmentStrategy<'_> {
+    fn add_to_item(
+        &mut self,
+        field: Field<'static>,
+        item: Item,
+    ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
+        read_attachment_bytes_into_item(field, item, self.config, FieldSizeExceededAction::Err)
+    }
+
+    fn infer_type(&self, field: &Field) -> AttachmentType {
+        match field.name().unwrap_or("") {
+            MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
+            ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
+            ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
+            ITEM_NAME_EVENT => AttachmentType::EventPayload,
+            VIEW_HIERARCHY_FIELD_NAME => AttachmentType::ViewHierarchy,
+            _ => AttachmentType::Attachment,
+        }
+    }
+}
+
 async fn extract_multipart(
     multipart: ConstrainedMultipart,
     meta: RequestMeta,
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = multipart.items(infer_attachment_type, config).await?;
+    let mut items = multipart
+        .items(config, MinidumpAttachmentStrategy { config })
+        .await?;
 
     let minidump_item = items
         .iter_mut()
@@ -442,7 +461,7 @@ mod tests {
             utils::multipart_from_request(request, multer::Constraints::new()).unwrap(),
         );
         let items = multipart
-            .items(infer_attachment_type, &config)
+            .items(&config, MinidumpAttachmentStrategy { config: &config })
             .await
             .unwrap();
 

@@ -23,8 +23,8 @@ use crate::service::ServiceState;
 use crate::services::outcome::TrackOutcome;
 use crate::services::upload::Stream;
 use crate::utils::{
-    AttachmentStrategy, BoundedStream, FieldSizeExceededAction, ReadBytesIntoItem,
-    UnconstrainedMultipart,
+    AttachmentStrategy, BoundedStream, FieldSizeExceededAction, UnconstrainedMultipart,
+    read_attachment_bytes_into_item,
 };
 
 /// The extension of a prosperodump in the multipart form-data upload.
@@ -65,13 +65,13 @@ struct Parts {
     upload: &'static [&'static str],
 }
 
-struct AddPlaystationAttachmentToItem<'a> {
+struct PlaystationAttachmentStrategy<'a> {
     scoping: Scoping,
     state: &'a ServiceState,
     request_meta: &'a RequestMeta,
 }
 
-impl<'a> AttachmentStrategy for AddPlaystationAttachmentToItem<'a> {
+impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
     fn infer_type(&self, field: &Field) -> AttachmentType {
         if field
             .file_name()
@@ -102,14 +102,12 @@ impl<'a> AttachmentStrategy for AddPlaystationAttachmentToItem<'a> {
                         quantity,
                     })
                 };
-                ReadBytesIntoItem {
-                    config: self.state.config(),
-                    field_size_exceeded_action: FieldSizeExceededAction::EmitOutcome(Box::new(
-                        emit_outcome,
-                    )),
-                    infer_type: |f: &Field<'_>| self.infer_type(f),
-                }
-                .add_to_item(field, item)
+                read_attachment_bytes_into_item(
+                    field,
+                    item,
+                    self.state.config(),
+                    FieldSizeExceededAction::EmitOutcome(Box::new(emit_outcome)),
+                )
                 .await
             }
             _ => {
@@ -158,7 +156,7 @@ async fn extract_multipart(
     state: &ServiceState,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let scoping = meta.get_partial_scoping().into_scoping();
-    let add_attachment_to_item = AddPlaystationAttachmentToItem {
+    let add_attachment_to_item = PlaystationAttachmentStrategy {
         scoping,
         state,
         request_meta: &meta,
