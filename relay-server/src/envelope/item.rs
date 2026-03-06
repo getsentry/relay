@@ -283,7 +283,22 @@ impl Item {
     /// Returns the attachment type if this item is an attachment.
     pub fn attachment_type(&self) -> Option<AttachmentType> {
         // TODO: consider to replace this with an ItemType?
-        self.headers.get(&ItemHeaderKey::AttachmentType)
+        if let Some(ty) = self.headers.get(&ItemHeaderKey::AttachmentType) {
+            return Some(ty);
+        }
+
+        // Unfortunately when the switch protocol was decided on, it was missed to assign it a new
+        // attachment type, that's why we have to infer it here from the filename and contents.
+        if self.ty() == &ItemType::Attachment
+            && self.filename() == Some(crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME)
+            && self
+                .payload
+                .starts_with(crate::constants::NNSWITCH_SENTRY_MAGIC)
+        {
+            return Some(AttachmentType::NintendoSwitchDyingMessage);
+        }
+
+        None
     }
 
     /// Sets the attachment type of this item.
@@ -625,7 +640,8 @@ impl Item {
                         | AttachmentType::Minidump
                         | AttachmentType::EventPayload
                         | AttachmentType::Prosperodump
-                        | AttachmentType::Breadcrumbs,
+                        | AttachmentType::Breadcrumbs
+                        | AttachmentType::NintendoSwitchDyingMessage,
                     ) => true,
                     Some(
                         AttachmentType::Attachment

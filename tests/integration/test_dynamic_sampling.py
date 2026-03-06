@@ -304,12 +304,16 @@ def test_it_does_not_sample_error(mini_sentry, relay):
         (False, 0.0),
     ],
 )
-def test_it_tags_error(mini_sentry, relay, expected_sampled, sample_rate):
+def test_it_tags_error(
+    mini_sentry, relay_with_processing, events_consumer, expected_sampled, sample_rate
+):
     """
     Tests that it tags an incoming error if the trace connected to it its sampled or not.
     """
+    events_consumer = events_consumer()
+
     project_id = 42
-    relay = relay(mini_sentry, _outcomes_enabled_config())
+    relay = relay_with_processing(_outcomes_enabled_config())
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
@@ -325,18 +329,11 @@ def test_it_tags_error(mini_sentry, relay, expected_sampled, sample_rate):
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
-    # test that error is kept by Relay
-    envelope = mini_sentry.get_captured_envelope()
-    assert envelope is not None
-    # double check that we get back our object
-    # we put the id in extra since Relay overrides the initial event_id
-    items = [item for item in envelope]
-    assert len(items) == 1
-    evt = items[0].payload.json
-    # we check if it is marked as sampled
-    assert evt["contexts"]["trace"]["sampled"] == expected_sampled
-    evt_id = evt.setdefault("extra", {}).get("id")
-    assert evt_id == event_id
+
+    # The event must always be kept, independent of the sampling decision
+    (event, _) = events_consumer.get_event()
+    assert event["contexts"]["trace"]["sampled"] == expected_sampled
+    assert event.setdefault("extra", {}).get("id") == event_id
 
 
 def test_sample_on_parametrized_root_transaction(mini_sentry, relay):

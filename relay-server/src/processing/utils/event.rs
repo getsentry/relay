@@ -32,6 +32,7 @@ use relay_quotas::DataCategory;
 use relay_statsd::metric;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
+use crate::envelope::AttachmentType;
 use crate::envelope::{Envelope, EnvelopeHeaders, Item};
 use crate::processing::Context;
 use crate::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingError};
@@ -100,7 +101,10 @@ pub fn finalize<'a>(
     if config.processing_enabled() {
         let mut metrics = std::mem::take(metrics);
 
-        let attachment_size = attachments.map(|item| item.len() as u64).sum::<u64>();
+        let attachment_size = attachments
+            .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
+            .map(|item| item.len() as u64)
+            .sum::<u64>();
 
         if attachment_size > 0 {
             metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
@@ -346,7 +350,7 @@ pub enum FiltersStatus {
 pub fn filter(
     headers: &EnvelopeHeaders,
     event: &Annotated<Event>,
-    ctx: &Context,
+    ctx: Context,
 ) -> Result<FiltersStatus, FilterStatKey> {
     let event = match event.value() {
         Some(event) => event,
@@ -384,7 +388,7 @@ pub fn filter(
 }
 
 /// New type representing the normalization state of the event.
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct EventFullyNormalized(pub bool);
 
 impl EventFullyNormalized {
