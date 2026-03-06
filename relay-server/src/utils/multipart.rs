@@ -187,8 +187,10 @@ impl IntoResponse for BadMultipart {
     }
 }
 
-pub trait AddAttachmentToItem {
-    fn add(
+pub trait AttachmentStrategy {
+    fn infer_type(&self, field: &Field) -> AttachmentType;
+
+    fn add_to_item(
         &mut self,
         field: Field<'static>,
         item: Item,
@@ -200,13 +202,18 @@ pub enum FieldSizeExceededAction<'a> {
     EmitOutcome(Box<dyn FnMut(Outcome, u32) + Send + 'a>),
 }
 
-pub struct ReadBytesIntoItem<'a> {
+pub struct ReadBytesIntoItem<'a, F = fn(&Field) -> AttachmentType> {
     pub config: &'a Config,
     pub field_size_exceeded_action: FieldSizeExceededAction<'a>,
+    pub infer_type: F,
 }
 
-impl AddAttachmentToItem for ReadBytesIntoItem<'_> {
-    async fn add(
+impl<F: Fn(&Field) -> AttachmentType + Send> AttachmentStrategy for ReadBytesIntoItem<'_, F> {
+    fn infer_type(&self, field: &Field) -> AttachmentType {
+        (self.infer_type)(field)
+    }
+
+    async fn add_to_item(
         &mut self,
         field: Field<'static>,
         mut item: Item,
@@ -251,11 +258,8 @@ impl AddAttachmentToItem for ReadBytesIntoItem<'_> {
 async fn multipart_items(
     mut multipart: Multipart<'static>,
     config: &Config,
-    mut infer_attachment_type: impl FnMut(&Field) -> AttachmentType,
-    mut add_attachment_to_item: impl AddAttachmentToItem,
-) -> Result<Items, multer::Error>
-where
-{
+    mut add_attachment_to_item: impl AttachmentStrategy,
+) -> Result<Items, multer::Error> {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
     let mut attachments_size: usize = 0;
@@ -263,10 +267,10 @@ where
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
             let mut item = Item::new(ItemType::Attachment);
-            let attachment_type = infer_attachment_type(&field);
+            let attachment_type = add_attachment_to_item.infer_type(&field);
             item.set_attachment_type(attachment_type);
             item.set_filename(file_name);
-            let item = add_attachment_to_item.add(field, item).await?;
+            let item = add_attachment_to_item.add_to_item(field, item).await?;
             if let Some(item) = item {
                 attachments_size += item.len();
                 if attachments_size > config.max_attachments_size() {
@@ -390,7 +394,7 @@ impl FromRequest<ServiceState> for ConstrainedMultipart {
 impl ConstrainedMultipart {
     pub async fn items(
         self,
-        infer_attachment_type: impl FnMut(&Field) -> AttachmentType,
+        infer_type: impl Fn(&Field) -> AttachmentType + Send,
         config: &Config,
     ) -> Result<Items, multer::Error> {
         // The emit outcome closure here does nothing since in this code branch we don't want to
@@ -398,10 +402,10 @@ impl ConstrainedMultipart {
         multipart_items(
             self.0,
             config,
-            infer_attachment_type,
             ReadBytesIntoItem {
                 config,
                 field_size_exceeded_action: FieldSizeExceededAction::Err,
+                infer_type,
             },
         )
         .await
@@ -432,19 +436,12 @@ impl FromRequest<ServiceState> for UnconstrainedMultipart {
 impl UnconstrainedMultipart {
     pub async fn items(
         self,
-        infer_attachment_type: impl FnMut(&Field) -> AttachmentType,
         config: &Config,
-        add_attachment_to_item: impl AddAttachmentToItem,
+        add_attachment_to_item: impl AttachmentStrategy,
     ) -> Result<Items, multer::Error> {
         let UnconstrainedMultipart { multipart } = self;
 
-        multipart_items(
-            multipart,
-            config,
-            infer_attachment_type,
-            add_attachment_to_item,
-        )
-        .await
+        multipart_items(multipart, config, add_attachment_to_item).await
     }
 }
 
@@ -566,12 +563,12 @@ mod tests {
         let items = multipart_items(
             multipart,
             &config,
-            |_| AttachmentType::Attachment,
             ReadBytesIntoItem {
                 config: &config,
                 field_size_exceeded_action: FieldSizeExceededAction::EmitOutcome(Box::new(
                     emit_outcome,
                 )),
+                infer_type: |_: &Field<'_>| AttachmentType::Attachment,
             },
         )
         .await
@@ -612,13 +609,13 @@ mod tests {
 
         let result = UnconstrainedMultipart { multipart }
             .items(
-                |_| AttachmentType::Attachment,
                 config,
                 ReadBytesIntoItem {
                     config,
                     field_size_exceeded_action: FieldSizeExceededAction::EmitOutcome(Box::new(
                         |_, _| (),
                     )),
+                    infer_type: |_: &Field<'_>| AttachmentType::Attachment,
                 },
             )
             .await;

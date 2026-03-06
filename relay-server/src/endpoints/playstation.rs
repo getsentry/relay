@@ -23,7 +23,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::TrackOutcome;
 use crate::services::upload::Stream;
 use crate::utils::{
-    AddAttachmentToItem, BoundedStream, FieldSizeExceededAction, ReadBytesIntoItem,
+    AttachmentStrategy, BoundedStream, FieldSizeExceededAction, ReadBytesIntoItem,
     UnconstrainedMultipart,
 };
 
@@ -71,13 +71,24 @@ struct AddPlaystationAttachmentToItem<'a> {
     request_meta: &'a RequestMeta,
 }
 
-impl<'a> AddAttachmentToItem for AddPlaystationAttachmentToItem<'a> {
-    async fn add(
+impl<'a> AttachmentStrategy for AddPlaystationAttachmentToItem<'a> {
+    fn infer_type(&self, field: &Field) -> AttachmentType {
+        if field
+            .file_name()
+            .is_some_and(|f| f.ends_with(PROSPERODUMP_EXTENSION))
+        {
+            AttachmentType::Prosperodump
+        } else {
+            AttachmentType::Attachment
+        }
+    }
+
+    async fn add_to_item(
         &mut self,
         field: Field<'static>,
         mut item: Item,
     ) -> Result<Option<Item>, multer::Error> {
-        let attachment_type = infer_attachment_type(&field);
+        let attachment_type = self.infer_type(&field);
         match attachment_type {
             AttachmentType::Prosperodump => {
                 let emit_outcome = |outcome, quantity| {
@@ -96,8 +107,9 @@ impl<'a> AddAttachmentToItem for AddPlaystationAttachmentToItem<'a> {
                     field_size_exceeded_action: FieldSizeExceededAction::EmitOutcome(Box::new(
                         emit_outcome,
                     )),
+                    infer_type: |f: &Field<'_>| self.infer_type(f),
                 }
-                .add(field, item)
+                .add_to_item(field, item)
                 .await
             }
             _ => {
@@ -140,17 +152,6 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-fn infer_attachment_type(field: &Field) -> AttachmentType {
-    if field
-        .file_name()
-        .is_some_and(|f| f.ends_with(PROSPERODUMP_EXTENSION))
-    {
-        AttachmentType::Prosperodump
-    } else {
-        AttachmentType::Attachment
-    }
-}
-
 async fn extract_multipart(
     multipart: UnconstrainedMultipart,
     meta: RequestMeta,
@@ -163,11 +164,7 @@ async fn extract_multipart(
         request_meta: &meta,
     };
     let mut items = multipart
-        .items(
-            infer_attachment_type,
-            state.config(),
-            add_attachment_to_item,
-        )
+        .items(state.config(), add_attachment_to_item)
         .await?;
 
     let prosperodump_item = items
