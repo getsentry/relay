@@ -419,7 +419,7 @@ mod tests {
         scrubbing_config.scrub_data = true;
         scrubbing_config.scrub_defaults = true;
         scrubbing_config.scrub_ip_addresses = true;
-        scrubbing_config.pii_config_uncached().unwrap().unwrap()
+        scrubbing_config.pii_config_uncached().unwrap()
     }
 
     fn scrubber(config: &PiiConfig) -> RecordingScrubber<'_> {

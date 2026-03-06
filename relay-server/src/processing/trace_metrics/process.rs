@@ -71,12 +71,7 @@ fn expand_trace_metric_container(item: &Item) -> Result<ContainerItems<TraceMetr
 
 /// Applies PII scrubbing to an individual trace metric entry.
 fn scrub_trace_metric(metric: &mut Annotated<TraceMetric>, ctx: Context<'_>) -> Result<()> {
-    let pii_config_from_scrubbing = ctx
-        .project_info
-        .config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| Error::PiiConfig(e.clone()))?;
+    let pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
 
     let state = ProcessingState::root().enter_borrowed("", None, [ValueType::TraceMetric]);
 

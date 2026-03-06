@@ -9,7 +9,7 @@ use relay_quotas::{
 };
 use smallvec::SmallVec;
 
-use crate::envelope::{AttachmentParentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemType};
 use crate::integrations::Integration;
 use crate::managed::{Managed, ManagedEnvelope};
 use crate::services::outcome::Outcome;
@@ -274,9 +274,13 @@ impl EnvelopeSummary {
 
     /// Creates an envelope summary and aggregates the given envelope.
     pub fn compute(envelope: &Envelope) -> Self {
+        Self::compute_items(envelope.items())
+    }
+
+    pub fn compute_items<'a>(items: impl IntoIterator<Item = &'a Item>) -> Self {
         let mut summary = Self::empty();
 
-        for item in envelope.items() {
+        for item in items {
             if item.creates_event() {
                 summary.infer_category(item);
             } else if item.ty() == &ItemType::Attachment {
@@ -310,6 +314,16 @@ impl EnvelopeSummary {
     }
 
     fn add_quantities(&mut self, item: &Item) {
+        // The Nintendo switch item is a special case which should've been modelled like the
+        // `Unreal4Context` as potentially a separate item type which does not have its own data
+        // category.
+        //
+        // Currently there is no outcome category for this item, as it will be dissolved into
+        // multiple different items once processed.
+        if item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage) {
+            return;
+        }
+
         for (category, quantity) in item.quantities() {
             let target_quantity = match category {
                 DataCategory::Attachment => match item.attachment_parent_type() {

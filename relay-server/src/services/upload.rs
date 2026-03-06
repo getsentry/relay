@@ -95,7 +95,7 @@ pub fn create_service(
         objectstore,
     );
     ConcurrentService::new(service)
-        .with_loadshedding()
+        .with_backlog_limit(0)
         .with_concurrency_limit(config.upload().max_concurrent_requests)
 }
 
@@ -139,6 +139,8 @@ impl Service {
             Service::Upstream { addr, timeout } => {
                 let (request, rx) = UploadRequest::create(stream);
                 addr.send(SendRequest(request));
+                // We're already passing `timeout` to the reqwest library, but we also want to
+                // limit the time spent waiting for the upstream service:
                 let response = tokio::time::timeout(*timeout, rx).await???;
                 SignedLocation::try_from_response(response)
             }
@@ -270,6 +272,7 @@ impl SignedLocation {
 /// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
     scoping: Scoping,
+    timeout: Option<Duration>,
     body: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
     sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
@@ -287,6 +290,7 @@ impl UploadRequest {
         (
             Self {
                 scoping,
+                timeout: None, // will be set by `configure()`
                 body: Some(stream),
                 sender,
             },
@@ -315,6 +319,10 @@ impl UpstreamRequest for UploadRequest {
 
     fn route(&self) -> &'static str {
         "upload"
+    }
+
+    fn configure(&mut self, config: &Config) {
+        self.timeout = Some(Duration::from_secs(config.upload().timeout));
     }
 
     fn respond(
@@ -350,6 +358,14 @@ impl UpstreamRequest for UploadRequest {
         for (key, value) in tus::request_headers(upload_length) {
             let Some(key) = key else { continue };
             builder.header(key, value);
+        }
+
+        debug_assert!(
+            self.timeout.is_some(),
+            "timeout should be set by UpstreamRequest::configure()"
+        );
+        if let Some(timeout) = self.timeout {
+            builder.timeout(timeout);
         }
 
         builder.body(reqwest::Body::wrap_stream(body));

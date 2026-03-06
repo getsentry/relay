@@ -2,9 +2,9 @@
 Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Event
 
 from flask import Response
 import pytest
@@ -193,6 +193,53 @@ def test_upload_rate_limited(
     assert request().status_code == 429
 
 
+@pytest.mark.parametrize(
+    "http_timeout, upload_timeout, expected_status_code",
+    [
+        pytest.param(1, 60, 201, id="http"),
+        pytest.param(60, 1, 504, id="upload"),
+    ],
+)
+def test_timeout(
+    mini_sentry,
+    relay,
+    project_config,
+    http_timeout,
+    upload_timeout,
+    expected_status_code,
+):
+    """Ensure that the general HTTP timeout does not affect the upload endpoint"""
+    mini_sentry.allow_chunked = True
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def slow_upload(**opts):
+        time.sleep(2)
+        return Response("", status=201, headers={"Location": "dummy"})
+
+    project_id = 42
+    relay = relay(
+        mini_sentry,
+        options={
+            "http": {"timeout": http_timeout},
+            "upload": {"timeout": upload_timeout},
+        },
+    )
+
+    data = b"hello world"
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+        },
+        data=data,
+    )
+
+    assert response.status_code == expected_status_code, response.text
+
+
 PROCESSING_OPTIONS = {
     "processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}
 }
@@ -274,19 +321,18 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
     """Exceeding upload.max_concurrent_requests results in 503 Service Unavailable."""
 
     project_id = 42
-    max_concurrent = 1
+    timeout = 2
 
     mini_sentry.allow_chunked = True
-    all_uploads_running = Event()
+    relay.capture_logs = True
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
     def slow_upstream(**opts):
-        all_uploads_running.wait(timeout=10)
-        return Response("", status=201, headers={"Location": "dummy"})
+        time.sleep(timeout + 1)
 
     relay = relay(
         mini_sentry,
-        {"upload": {"max_concurrent_requests": 1}},
+        {"upload": {"max_concurrent_requests": 1, "timeout": 1}},
     )
 
     def do_upload():
@@ -301,10 +347,11 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
             data=b"hello",
         )
 
-    with ThreadPoolExecutor(max_workers=max_concurrent + 1) as pool:
-        futures = [pool.submit(do_upload) for _ in range(max_concurrent + 1)]
-        all_uploads_running.set()
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = [pool.submit(do_upload) for _ in range(10)]
         results = [f.result() for f in as_completed(futures)]
 
-    status_codes = sorted(r.status_code for r in results)
-    assert status_codes == [201, 503]
+    status_codes = {r.status_code for r in results}
+
+    # Some requests hit a timeout, the others are loadshed:
+    assert status_codes == {503, 504}

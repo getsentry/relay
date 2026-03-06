@@ -883,6 +883,10 @@ pub struct Http {
     ///
     /// The forward endpoint forwards unknown API requests to the upstream.
     pub forward: bool,
+    /// Enables an async DNS resolver through the `hickory-dns` crate, which uses an LRU cache for
+    /// the resolved entries. This helps to limit the amount of requests made to the upstream DNS
+    /// server (important for K8s infrastructure).
+    pub dns_cache: bool,
 }
 
 impl Default for Http {
@@ -899,6 +903,7 @@ impl Default for Http {
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
             forward: true,
+            dns_cache: true,
         }
     }
 }
@@ -1289,6 +1294,11 @@ pub struct ObjectstoreServiceConfig {
     /// Maximum concurrency of uploads.
     pub max_concurrent_requests: usize,
 
+    /// Maximum size of the service input queue when `max_concurrent_requests` is saturated.
+    ///
+    /// The service will loadshed if this threshold is reached.
+    pub max_backlog: usize,
+
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
     pub timeout: u64,
 }
@@ -1298,6 +1308,7 @@ impl Default for ObjectstoreServiceConfig {
         Self {
             objectstore_url: None,
             max_concurrent_requests: 10,
+            max_backlog: 20,
             timeout: 60,
         }
     }
@@ -2218,6 +2229,11 @@ impl Config {
     /// Returns the failed upstream request retry interval.
     pub fn http_max_retry_interval(&self) -> Duration {
         Duration::from_secs(self.values.http.max_retry_interval.into())
+    }
+
+    /// Returns `true` if relay should use an in-process cache for DNS lookups.
+    pub fn http_dns_cache(&self) -> bool {
+        self.values.http.dns_cache
     }
 
     /// Returns the expiry timeout for cached projects.

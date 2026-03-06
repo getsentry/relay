@@ -3,7 +3,6 @@ use std::sync::Arc;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::TraceMetric;
 use relay_filter::FilterStatKey;
-use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
@@ -23,9 +22,6 @@ mod validate;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Internal error, Pii config could not be loaded.
-    #[error("Pii configuration error")]
-    PiiConfig(PiiConfigError),
     /// Received trace metric exceeds the configured size limit.
     #[error("trace metric exeeds size limit")]
     TooLarge,
@@ -80,7 +76,6 @@ impl crate::managed::OutcomeError for Error {
                 relay_log::error!("internal error: trace metric processing failed");
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
-            Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
