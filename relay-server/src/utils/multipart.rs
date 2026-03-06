@@ -539,7 +539,7 @@ mod tests {
         .unwrap();
 
         struct MockAttachmentStrategy<'a> {
-            mock_outcomes: &'a std::sync::Mutex<Vec<u32>>,
+            mock_outcomes: &'a Mutex<Vec<u32>>,
         }
         impl AttachmentStrategy for MockAttachmentStrategy<'_> {
             fn add_to_item(
