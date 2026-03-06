@@ -252,7 +252,7 @@ async fn multipart_items(
     mut multipart: Multipart<'static>,
     config: &Config,
     mut infer_attachment_type: impl FnMut(&Field) -> AttachmentType,
-    mut attachment_strategy: impl AddAttachmentToItem,
+    mut add_attachment_to_item: impl AddAttachmentToItem,
 ) -> Result<Items, multer::Error>
 where
 {
@@ -266,7 +266,7 @@ where
             let attachment_type = infer_attachment_type(&field);
             item.set_attachment_type(attachment_type);
             item.set_filename(file_name);
-            let item = attachment_strategy.add(field, item).await?;
+            let item = add_attachment_to_item.add(field, item).await?;
             if let Some(item) = item {
                 attachments_size += item.len();
                 if attachments_size > config.max_attachments_size() {
@@ -434,7 +434,7 @@ impl UnconstrainedMultipart {
         self,
         infer_attachment_type: impl FnMut(&Field) -> AttachmentType,
         config: &Config,
-        attachment_strategy: impl AddAttachmentToItem,
+        add_attachment_to_item: impl AddAttachmentToItem,
     ) -> Result<Items, multer::Error> {
         let UnconstrainedMultipart { multipart } = self;
 
@@ -442,7 +442,7 @@ impl UnconstrainedMultipart {
             multipart,
             config,
             infer_attachment_type,
-            attachment_strategy,
+            add_attachment_to_item,
         )
         .await
     }

@@ -65,13 +65,13 @@ struct Parts {
     upload: &'static [&'static str],
 }
 
-struct PlaystationAttachmentStrategy<'a> {
+struct AddPlaystationAttachmentToItem<'a> {
     scoping: Scoping,
     state: &'a ServiceState,
     request_meta: &'a RequestMeta,
 }
 
-impl<'a> AddAttachmentToItem for PlaystationAttachmentStrategy<'a> {
+impl<'a> AddAttachmentToItem for AddPlaystationAttachmentToItem<'a> {
     async fn add(
         &mut self,
         field: Field<'static>,
@@ -157,13 +157,17 @@ async fn extract_multipart(
     state: &ServiceState,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let scoping = meta.get_partial_scoping().into_scoping();
-    let attachment_strategy = PlaystationAttachmentStrategy {
+    let add_attachment_to_item = AddPlaystationAttachmentToItem {
         scoping,
         state,
         request_meta: &meta,
     };
     let mut items = multipart
-        .items(infer_attachment_type, state.config(), attachment_strategy)
+        .items(
+            infer_attachment_type,
+            state.config(),
+            add_attachment_to_item,
+        )
         .await?;
 
     let prosperodump_item = items
