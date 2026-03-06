@@ -15,6 +15,7 @@
 
 - Populate gen_ai.response.model from gen_ai.request.model if not already set. ([#5654](https://github.com/getsentry/relay/pull/5654))
 - Add support for Unix domain sockets for statsd metrics. ([#5668](https://github.com/getsentry/relay/pull/5668))
+- Support `deployment.environment` OTLP resource attribute for setting the Sentry environment. ([#5691](https://github.com/getsentry/relay/pull/5691))
 
 **Internal**:
 
@@ -22,6 +23,7 @@
 - Use new processor architecture to process client reports. ([#5686](https://github.com/getsentry/relay/pull/5686))
 - Prevent timeouts on the `/upload` endpoint. ([#5692](https://github.com/getsentry/relay/pull/5692))
 - Handle traffic bursts in the objectstore service. ([#5689](https://github.com/getsentry/relay/pull/5689))
+- Disable `fetch_materials` on GoCD `pipeline-complete` stages. ([#5697](https://github.com/getsentry/relay/pull/5697))
 
 ## 26.2.1
 
