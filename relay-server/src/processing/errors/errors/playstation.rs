@@ -17,6 +17,10 @@ pub struct Playstation {
 }
 
 impl SentryError for Playstation {
+    fn event_category(&self) -> DataCategory {
+        DataCategory::Error
+    }
+
     #[cfg(not(sentry))]
     fn try_expand(_items: &mut Vec<Item>, _ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         Ok(None)

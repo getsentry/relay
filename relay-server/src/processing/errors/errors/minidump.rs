@@ -10,6 +10,10 @@ use crate::processing::errors::{Error, Result};
 pub struct Minidump(pub Item);
 
 impl SentryError for Minidump {
+    fn event_category(&self) -> DataCategory {
+        DataCategory::Error
+    }
+
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(minidump) = utils::take_item_by(items, |item| {
             item.attachment_type() == Some(AttachmentType::Minidump)

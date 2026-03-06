@@ -10,6 +10,10 @@ use crate::processing::errors::{Error, Result};
 pub struct AppleCrashReport(pub Item);
 
 impl SentryError for AppleCrashReport {
+    fn event_category(&self) -> DataCategory {
+        DataCategory::Error
+    }
+
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(apple_crash_report) = utils::take_item_by(items, |item| {
             item.attachment_type() == Some(AttachmentType::AppleCrashReport)
@@ -57,6 +61,10 @@ impl SentryError for AppleCrashReport {
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         items.push(self.0);
         Ok(())
+    }
+
+    fn minidump_mut(&mut self) -> Option<&mut Item> {
+        None
     }
 }
 

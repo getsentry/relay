@@ -1,7 +1,8 @@
 use relay_quotas::DataCategory;
 
 use crate::envelope::{Item, ItemType};
-use crate::managed::{Counted, Quantities};
+use crate::managed::{Counted, Quantities, RecordKeeper};
+use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 
@@ -28,6 +29,23 @@ impl SentryError for Security {
             metrics,
             fully_normalized: false,
         }))
+    }
+
+    fn apply_rate_limit(
+        &mut self,
+        _category: DataCategory,
+        _limits: relay_quotas::RateLimits,
+        _records: &mut RecordKeeper<'_>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn serialize_into(self, _items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
+        Ok(())
+    }
+
+    fn minidump_mut(&mut self) -> Option<&mut Item> {
+        None
     }
 }
 
