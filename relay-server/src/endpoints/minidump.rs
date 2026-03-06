@@ -172,7 +172,7 @@ struct MinidumpAttachmentStrategy;
 
 impl AttachmentStrategy for MinidumpAttachmentStrategy {
     fn add_to_item(
-        &mut self,
+        &self,
         field: Field<'static>,
         item: Item,
         config: &Config,

@@ -191,7 +191,7 @@ pub trait AttachmentStrategy {
     fn infer_type(&self, field: &Field) -> AttachmentType;
 
     fn add_to_item(
-        &mut self,
+        &self,
         field: Field<'static>,
         item: Item,
         config: &Config,
@@ -248,7 +248,7 @@ pub async fn read_attachment_bytes_into_item(
 async fn multipart_items(
     mut multipart: Multipart<'static>,
     config: &Config,
-    mut attachment_strategy: impl AttachmentStrategy,
+    attachment_strategy: impl AttachmentStrategy,
 ) -> Result<Items, multer::Error> {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
@@ -445,6 +445,7 @@ pub fn multipart_from_request(
 #[cfg(test)]
 mod tests {
     use std::convert::Infallible;
+    use std::sync::Mutex;
 
     use super::*;
 
@@ -538,11 +539,11 @@ mod tests {
         .unwrap();
 
         struct MockAttachmentStrategy<'a> {
-            mock_outcomes: &'a mut Vec<u32>,
+            mock_outcomes: &'a std::sync::Mutex<Vec<u32>>,
         }
         impl AttachmentStrategy for MockAttachmentStrategy<'_> {
             fn add_to_item(
-                &mut self,
+                &self,
                 field: Field<'static>,
                 item: Item,
                 config: &Config,
@@ -552,7 +553,7 @@ mod tests {
                     item,
                     config,
                     FieldSizeExceededAction::EmitOutcome(Box::new(|_, x| {
-                        self.mock_outcomes.push(x)
+                        self.mock_outcomes.lock().unwrap().push(x)
                     })),
                 )
             }
@@ -562,12 +563,12 @@ mod tests {
             }
         }
 
-        let mut mock_outcomes = vec![];
+        let mock_outcomes = Mutex::new(vec![]);
         let items = multipart_items(
             multipart,
             &config,
             MockAttachmentStrategy {
-                mock_outcomes: &mut mock_outcomes,
+                mock_outcomes: &mock_outcomes,
             },
         )
         .await
@@ -578,7 +579,7 @@ mod tests {
         let item = &items[0];
         assert_eq!(item.filename(), Some("small.txt"));
         assert_eq!(item.payload(), Bytes::from("ok"));
-        assert_eq!(mock_outcomes, vec![27]);
+        assert_eq!(mock_outcomes.into_inner().unwrap(), vec![27]);
     }
 
     #[tokio::test]
@@ -609,7 +610,7 @@ mod tests {
         struct MockAttachmentStrategy;
         impl AttachmentStrategy for MockAttachmentStrategy {
             fn add_to_item(
-                &mut self,
+                &self,
                 field: Field<'static>,
                 item: Item,
                 config: &Config,

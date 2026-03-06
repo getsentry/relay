@@ -83,7 +83,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
     }
 
     async fn add_to_item(
-        &mut self,
+        &self,
         field: Field<'static>,
         mut item: Item,
         config: &Config,
