@@ -25,6 +25,7 @@ pub use self::limits::*;
 
 pub mod check_ins;
 pub mod client_reports;
+pub mod errors;
 pub mod logs;
 pub mod profile_chunks;
 pub mod replays;

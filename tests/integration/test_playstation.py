@@ -496,7 +496,9 @@ def test_playstation_attachment_no_feature_flag(
             "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
             "id": "legacy:2019-03-12",
         },
-        "_metrics": {"bytes.ingested.event": 137},
+        "_metrics": {
+            "bytes.ingested.event": 137,
+        },
     }
 
     assert event["attachments"] == (

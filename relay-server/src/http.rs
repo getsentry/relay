@@ -9,6 +9,7 @@
 //! objects and common request objects, it's just that nobody bothers to implement the conversion
 //! logic.
 use std::io;
+use std::time::Duration;
 
 use relay_config::HttpEncoding;
 pub use reqwest::StatusCode;
@@ -93,6 +94,13 @@ impl RequestBuilder {
 
     pub fn content_encoding(&mut self, encoding: HttpEncoding) -> &mut Self {
         self.header_opt("content-encoding", encoding.name())
+    }
+
+    /// Enables a total request timeout.
+    ///
+    /// See [`reqwest::RequestBuilder::timeout`].
+    pub fn timeout(&mut self, timeout: Duration) -> &mut Self {
+        self.build(|builder| builder.timeout(timeout))
     }
 
     pub fn body(&mut self, body: impl Into<reqwest::Body>) -> &mut Self {

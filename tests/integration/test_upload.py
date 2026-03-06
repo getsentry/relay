@@ -193,6 +193,53 @@ def test_upload_rate_limited(
     assert request().status_code == 429
 
 
+@pytest.mark.parametrize(
+    "http_timeout, upload_timeout, expected_status_code",
+    [
+        pytest.param(1, 60, 201, id="http"),
+        pytest.param(60, 1, 504, id="upload"),
+    ],
+)
+def test_timeout(
+    mini_sentry,
+    relay,
+    project_config,
+    http_timeout,
+    upload_timeout,
+    expected_status_code,
+):
+    """Ensure that the general HTTP timeout does not affect the upload endpoint"""
+    mini_sentry.allow_chunked = True
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def slow_upload(**opts):
+        time.sleep(2)
+        return Response("", status=201, headers={"Location": "dummy"})
+
+    project_id = 42
+    relay = relay(
+        mini_sentry,
+        options={
+            "http": {"timeout": http_timeout},
+            "upload": {"timeout": upload_timeout},
+        },
+    )
+
+    data = b"hello world"
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+        },
+        data=data,
+    )
+
+    assert response.status_code == expected_status_code, response.text
+
+
 PROCESSING_OPTIONS = {
     "processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}
 }
