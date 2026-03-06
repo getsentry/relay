@@ -1,12 +1,12 @@
 use std::io;
 
-use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
-use axum::routing::{MethodRouter, post};
+use axum::routing::{post, MethodRouter};
+use axum::RequestExt;
 use bytes::Bytes;
-use futures::TryStreamExt;
 use futures::stream::BoxStream;
+use futures::TryStreamExt;
 use multer::Field;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -77,7 +77,7 @@ impl<'a> AddAttachmentToItem for PlaystationAttachmentStrategy<'a> {
         field: Field<'static>,
         mut item: Item,
     ) -> Result<Option<Item>, multer::Error> {
-        let attachment_type = infer_attachment_type(&field);
+        let attachment_type = item.attachment_type().unwrap_or_default();
         match attachment_type {
             AttachmentType::Prosperodump => {
                 let emit_outcome = |outcome, quantity| {
@@ -108,16 +108,19 @@ impl<'a> AddAttachmentToItem for PlaystationAttachmentStrategy<'a> {
                     scoping: self.scoping,
                     stream,
                 };
-                let result = self.state.upload().send(stream).await;
-                if let Ok(Ok(location)) = result
-                    && let Ok(location) = location.into_header_value()
-                {
-                    let location = location.as_bytes().to_owned();
-                    item.set_payload(ContentType::AttachmentRef, location);
-                    Ok(Some(item))
-                } else {
-                    Ok(None)
-                }
+                let location = self
+                    .state
+                    .upload()
+                    .send(stream)
+                    .await
+                    .map_err(|_| multer::Error::IncompleteStream)?
+                    .map_err(|_| multer::Error::IncompleteStream)?
+                    .into_header_value()
+                    .map_err(|_| multer::Error::IncompleteStream)?;
+
+                let location = location.as_bytes().to_owned();
+                item.set_payload(ContentType::AttachmentRef, location);
+                Ok(Some(item))
             }
         }
     }
