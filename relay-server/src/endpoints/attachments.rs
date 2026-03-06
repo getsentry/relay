@@ -1,12 +1,13 @@
 use axum::extract::Path;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use multer::Field;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::{AttachmentType, Envelope};
+use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
 use crate::utils::{
@@ -19,21 +20,20 @@ pub struct AttachmentPath {
     event_id: EventId,
 }
 
-struct AttachmentsAttachmentStrategy<'a> {
-    config: &'a Config,
-}
+struct AttachmentsAttachmentStrategy;
 
-impl AttachmentStrategy for AttachmentsAttachmentStrategy<'_> {
-    fn infer_type(&self, _: &multer::Field) -> AttachmentType {
+impl AttachmentStrategy for AttachmentsAttachmentStrategy {
+    fn infer_type(&self, _: &Field) -> AttachmentType {
         AttachmentType::default()
     }
 
     fn add_to_item(
         &mut self,
-        field: multer::Field<'static>,
-        item: crate::envelope::Item,
+        field: Field<'static>,
+        item: Item,
+        config: &Config,
     ) -> impl Future<Output = Result<Option<crate::envelope::Item>, multer::Error>> + Send {
-        read_attachment_bytes_into_item(field, item, self.config, FieldSizeExceededAction::Err)
+        read_attachment_bytes_into_item(field, item, config, FieldSizeExceededAction::Err)
     }
 }
 
@@ -44,7 +44,7 @@ async fn extract_envelope(
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let items = multipart
-        .items(config, AttachmentsAttachmentStrategy { config })
+        .items(config, AttachmentsAttachmentStrategy)
         .await?;
 
     let mut envelope = Envelope::from_request(Some(path.event_id), meta);

@@ -168,17 +168,16 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
-struct MinidumpAttachmentStrategy<'a> {
-    config: &'a Config,
-}
+struct MinidumpAttachmentStrategy;
 
-impl AttachmentStrategy for MinidumpAttachmentStrategy<'_> {
+impl AttachmentStrategy for MinidumpAttachmentStrategy {
     fn add_to_item(
         &mut self,
         field: Field<'static>,
         item: Item,
+        config: &Config,
     ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
-        read_attachment_bytes_into_item(field, item, self.config, FieldSizeExceededAction::Err)
+        read_attachment_bytes_into_item(field, item, config, FieldSizeExceededAction::Err)
     }
 
     fn infer_type(&self, field: &Field) -> AttachmentType {
@@ -198,9 +197,7 @@ async fn extract_multipart(
     meta: RequestMeta,
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = multipart
-        .items(config, MinidumpAttachmentStrategy { config })
-        .await?;
+    let mut items = multipart.items(config, MinidumpAttachmentStrategy).await?;
 
     let minidump_item = items
         .iter_mut()
@@ -461,7 +458,7 @@ mod tests {
             utils::multipart_from_request(request, multer::Constraints::new()).unwrap(),
         );
         let items = multipart
-            .items(&config, MinidumpAttachmentStrategy { config: &config })
+            .items(&config, MinidumpAttachmentStrategy)
             .await
             .unwrap();
 

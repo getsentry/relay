@@ -11,7 +11,7 @@ use multer::Field;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::DataCategory;
 use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
@@ -66,7 +66,6 @@ struct Parts {
 }
 
 struct PlaystationAttachmentStrategy<'a> {
-    scoping: Scoping,
     state: &'a ServiceState,
     request_meta: &'a RequestMeta,
 }
@@ -87,6 +86,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         &mut self,
         field: Field<'static>,
         mut item: Item,
+        config: &Config,
     ) -> Result<Option<Item>, multer::Error> {
         let attachment_type = self.infer_type(&field);
         match attachment_type {
@@ -105,7 +105,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                 read_attachment_bytes_into_item(
                     field,
                     item,
-                    self.state.config(),
+                    config,
                     FieldSizeExceededAction::EmitOutcome(Box::new(emit_outcome)),
                 )
                 .await
@@ -113,9 +113,9 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
             _ => {
                 let stream: BoxStream<'static, io::Result<Bytes>> =
                     Box::pin(field.map_err(io::Error::other));
-                let stream = BoundedStream::new(stream, 1, self.state.config().max_upload_size());
+                let stream = BoundedStream::new(stream, 1, config.max_upload_size());
                 let stream = Stream {
-                    scoping: self.scoping,
+                    scoping: self.request_meta.get_partial_scoping().into_scoping(),
                     stream,
                 };
                 let result = self.state.upload().send(stream).await;
@@ -155,15 +155,11 @@ async fn extract_multipart(
     meta: RequestMeta,
     state: &ServiceState,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let scoping = meta.get_partial_scoping().into_scoping();
-    let add_attachment_to_item = PlaystationAttachmentStrategy {
-        scoping,
+    let attachment_strategy = PlaystationAttachmentStrategy {
         state,
         request_meta: &meta,
     };
-    let mut items = multipart
-        .items(state.config(), add_attachment_to_item)
-        .await?;
+    let mut items = multipart.items(state.config(), attachment_strategy).await?;
 
     let prosperodump_item = items
         .iter_mut()

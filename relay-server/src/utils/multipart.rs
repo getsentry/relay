@@ -194,6 +194,7 @@ pub trait AttachmentStrategy {
         &mut self,
         field: Field<'static>,
         item: Item,
+        config: &Config,
     ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send;
 }
 
@@ -247,7 +248,7 @@ pub async fn read_attachment_bytes_into_item(
 async fn multipart_items(
     mut multipart: Multipart<'static>,
     config: &Config,
-    mut add_attachment_to_item: impl AttachmentStrategy,
+    mut attachment_strategy: impl AttachmentStrategy,
 ) -> Result<Items, multer::Error> {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
@@ -256,10 +257,10 @@ async fn multipart_items(
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
             let mut item = Item::new(ItemType::Attachment);
-            let attachment_type = add_attachment_to_item.infer_type(&field);
+            let attachment_type = attachment_strategy.infer_type(&field);
             item.set_attachment_type(attachment_type);
             item.set_filename(file_name);
-            let item = add_attachment_to_item.add_to_item(field, item).await?;
+            let item = attachment_strategy.add_to_item(field, item, config).await?;
             if let Some(item) = item {
                 attachments_size += item.len();
                 if attachments_size > config.max_attachments_size() {
@@ -415,11 +416,11 @@ impl UnconstrainedMultipart {
     pub async fn items(
         self,
         config: &Config,
-        add_attachment_to_item: impl AttachmentStrategy,
+        attachment_strategy: impl AttachmentStrategy,
     ) -> Result<Items, multer::Error> {
         let UnconstrainedMultipart { multipart } = self;
 
-        multipart_items(multipart, config, add_attachment_to_item).await
+        multipart_items(multipart, config, attachment_strategy).await
     }
 }
 
@@ -537,7 +538,6 @@ mod tests {
         .unwrap();
 
         struct MockAttachmentStrategy<'a> {
-            config: &'a Config,
             mock_outcomes: &'a mut Vec<u32>,
         }
         impl AttachmentStrategy for MockAttachmentStrategy<'_> {
@@ -545,11 +545,12 @@ mod tests {
                 &mut self,
                 field: Field<'static>,
                 item: Item,
+                config: &Config,
             ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
                 read_attachment_bytes_into_item(
                     field,
                     item,
-                    self.config,
+                    config,
                     FieldSizeExceededAction::EmitOutcome(Box::new(|_, x| {
                         self.mock_outcomes.push(x)
                     })),
@@ -566,7 +567,6 @@ mod tests {
             multipart,
             &config,
             MockAttachmentStrategy {
-                config: &config,
                 mock_outcomes: &mut mock_outcomes,
             },
         )
@@ -606,19 +606,18 @@ mod tests {
 
         let multipart = Multipart::new(stream, "X-BOUNDARY");
 
-        struct MockAttachmentStrategy<'a> {
-            config: &'a Config,
-        }
-        impl AttachmentStrategy for MockAttachmentStrategy<'_> {
+        struct MockAttachmentStrategy;
+        impl AttachmentStrategy for MockAttachmentStrategy {
             fn add_to_item(
                 &mut self,
                 field: Field<'static>,
                 item: Item,
+                config: &Config,
             ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
                 read_attachment_bytes_into_item(
                     field,
                     item,
-                    self.config,
+                    config,
                     FieldSizeExceededAction::EmitOutcome(Box::new(|_, _| ())),
                 )
             }
@@ -629,7 +628,7 @@ mod tests {
         }
 
         let result = UnconstrainedMultipart { multipart }
-            .items(config, MockAttachmentStrategy { config })
+            .items(config, MockAttachmentStrategy)
             .await;
 
         // Should be warned if the overall stream limit is being breached.
