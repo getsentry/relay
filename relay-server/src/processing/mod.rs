@@ -23,6 +23,7 @@ pub use self::common::*;
 pub use self::forward::*;
 pub use self::limits::*;
 
+pub mod attachments;
 pub mod check_ins;
 pub mod client_reports;
 pub mod errors;
