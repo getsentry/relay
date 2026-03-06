@@ -19,7 +19,7 @@ use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
 
 /// Limit the size of the decompressed data to prevent an invalid frame blowing up memory usage.
-const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
+const MAX_DECOMPRESSED_SIZE: usize = 100 * 1024;
 
 #[derive(Debug)]
 pub enum Nswitch {
