@@ -171,7 +171,7 @@
 <a href=#171 id=171 data-nosnippet>171</a>            ..Default::default()
 <a href=#172 id=172 data-nosnippet>172</a>        };
 <a href=#173 id=173 data-nosnippet>173</a>
-<a href=#174 id=174 data-nosnippet>174</a>        <span class="kw">let </span>scrubbing_config = data_scrubbing_config.pii_config().unwrap();
+<a href=#174 id=174 data-nosnippet>174</a>        <span class="kw">let </span>scrubbing_config = data_scrubbing_config.pii_config();
 <a href=#175 id=175 data-nosnippet>175</a>
 <a href=#176 id=176 data-nosnippet>176</a>        eap::scrub(ValueType::Span, <span class="kw-2">&amp;mut </span>data, <span class="prelude-val">None</span>, scrubbing_config.as_ref()).unwrap();
 <a href=#177 id=177 data-nosnippet>177</a>
@@ -238,7 +238,7 @@
 <a href=#238 id=238 data-nosnippet>238</a>            ..Default::default()
 <a href=#239 id=239 data-nosnippet>239</a>        };
 <a href=#240 id=240 data-nosnippet>240</a>
-<a href=#241 id=241 data-nosnippet>241</a>        <span class="kw">let </span>scrubbing_config = scrubbing_config.pii_config().unwrap();
+<a href=#241 id=241 data-nosnippet>241</a>        <span class="kw">let </span>scrubbing_config = scrubbing_config.pii_config();
 <a href=#242 id=242 data-nosnippet>242</a>
 <a href=#243 id=243 data-nosnippet>243</a>        <span class="kw">let </span>config = serde_json::from_value::&lt;PiiConfig&gt;(<span class="macro">serde_json::json!</span>(
 <a href=#244 id=244 data-nosnippet>244</a>        {
@@ -529,7 +529,7 @@
 <a href=#529 id=529 data-nosnippet>529</a>            ..Default::default()
 <a href=#530 id=530 data-nosnippet>530</a>        };
 <a href=#531 id=531 data-nosnippet>531</a>
-<a href=#532 id=532 data-nosnippet>532</a>        <span class="kw">let </span>scrubbing_config = scrubbing_config.pii_config().unwrap();
+<a href=#532 id=532 data-nosnippet>532</a>        <span class="kw">let </span>scrubbing_config = scrubbing_config.pii_config();
 <a href=#533 id=533 data-nosnippet>533</a>
 <a href=#534 id=534 data-nosnippet>534</a>        eap::scrub(ValueType::Span, <span class="kw-2">&amp;mut </span>data, <span class="prelude-val">None</span>, scrubbing_config.as_ref()).unwrap();
 <a href=#535 id=535 data-nosnippet>535</a>
@@ -628,7 +628,7 @@
 <a href=#628 id=628 data-nosnippet>628</a>            </span>..Default::default()
 <a href=#629 id=629 data-nosnippet>629</a>        };
 <a href=#630 id=630 data-nosnippet>630</a>
-<a href=#631 id=631 data-nosnippet>631</a>        <span class="kw">let </span>scrubbing_config = scrubbing_config.pii_config().unwrap();
+<a href=#631 id=631 data-nosnippet>631</a>        <span class="kw">let </span>scrubbing_config = scrubbing_config.pii_config();
 <a href=#632 id=632 data-nosnippet>632</a>
 <a href=#633 id=633 data-nosnippet>633</a>        eap::scrub(ValueType::Span, <span class="kw-2">&amp;mut </span>data, <span class="prelude-val">None</span>, scrubbing_config.as_ref()).unwrap();
 <a href=#634 id=634 data-nosnippet>634</a>
@@ -718,7 +718,7 @@
 <a href=#718 id=718 data-nosnippet>718</a>            ..Default::default()
 <a href=#719 id=719 data-nosnippet>719</a>        };
 <a href=#720 id=720 data-nosnippet>720</a>
-<a href=#721 id=721 data-nosnippet>721</a>        <span class="kw">let </span>scrubbing_config = scrubbing_config.pii_config().unwrap();
+<a href=#721 id=721 data-nosnippet>721</a>        <span class="kw">let </span>scrubbing_config = scrubbing_config.pii_config();
 <a href=#722 id=722 data-nosnippet>722</a>
 <a href=#723 id=723 data-nosnippet>723</a>        eap::scrub(
 <a href=#724 id=724 data-nosnippet>724</a>            ValueType::OurLog,
@@ -805,7 +805,7 @@
 <a href=#805 id=805 data-nosnippet>805</a>                scrubbing_config.scrub_defaults = <span class="bool-val">false</span>;
 <a href=#806 id=806 data-nosnippet>806</a>                scrubbing_config.scrub_ip_addresses = <span class="bool-val">false</span>;
 <a href=#807 id=807 data-nosnippet>807</a>
-<a href=#808 id=808 data-nosnippet>808</a>                <span class="kw">let </span>scrubbing_config = scrubbing_config.pii_config().unwrap();
+<a href=#808 id=808 data-nosnippet>808</a>                <span class="kw">let </span>scrubbing_config = scrubbing_config.pii_config();
 <a href=#809 id=809 data-nosnippet>809</a>
 <a href=#810 id=810 data-nosnippet>810</a>                <span class="kw">let </span>span_json = <span class="macro">format!</span>(<span class="string">r#"{{
 <a href=#811 id=811 data-nosnippet>811</a>                    "start_timestamp": 1544719859.0,
@@ -2171,7 +2171,7 @@
 <a href=#2171 id=2171 data-nosnippet>2171</a>    "###</span>);
 <a href=#2172 id=2172 data-nosnippet>2172</a>
 <a href=#2173 id=2173 data-nosnippet>2173</a>    <span class="macro">attribute_rule_test!</span>(
-<a href=#2174 id=2174 data-nosnippet>2174</a>        test_scrub_attributes_pii_string_rules_bearer_mask, 
+<a href=#2174 id=2174 data-nosnippet>2174</a>        test_scrub_attributes_pii_string_rules_bearer_mask,
 <a href=#2175 id=2175 data-nosnippet>2175</a>        <span class="string">"@bearer:mask"</span>,
 <a href=#2176 id=2176 data-nosnippet>2176</a>        <span class="string">"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"</span>,
 <a href=#2177 id=2177 data-nosnippet>2177</a>    @<span class="string">r###"

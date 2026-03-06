@@ -71,70 +71,65 @@
 <a href=#71 id=71 data-nosnippet>71</a>
 <a href=#72 id=72 data-nosnippet>72</a><span class="doccomment">/// Applies PII scrubbing to an individual trace metric entry.
 <a href=#73 id=73 data-nosnippet>73</a></span><span class="kw">fn </span>scrub_trace_metric(metric: <span class="kw-2">&amp;mut </span>Annotated&lt;TraceMetric&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#74 id=74 data-nosnippet>74</a>    <span class="kw">let </span>pii_config_from_scrubbing = ctx
-<a href=#75 id=75 data-nosnippet>75</a>        .project_info
-<a href=#76 id=76 data-nosnippet>76</a>        .config
-<a href=#77 id=77 data-nosnippet>77</a>        .datascrubbing_settings
-<a href=#78 id=78 data-nosnippet>78</a>        .pii_config()
-<a href=#79 id=79 data-nosnippet>79</a>        .map_err(|e| Error::PiiConfig(e.clone()))<span class="question-mark">?</span>;
-<a href=#80 id=80 data-nosnippet>80</a>
-<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">let </span>state = ProcessingState::root().enter_borrowed(<span class="string">""</span>, <span class="prelude-val">None</span>, [ValueType::TraceMetric]);
-<a href=#82 id=82 data-nosnippet>82</a>
-<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = ctx.project_info.config.pii_config {
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled())
-<a href=#85 id=85 data-nosnippet>85</a>            <span class="comment">// For advanced rules we want to treat attributes as objects.
-<a href=#86 id=86 data-nosnippet>86</a>            </span>.attribute_mode(AttributeMode::Object);
-<a href=#87 id=87 data-nosnippet>87</a>        process_value(metric, <span class="kw-2">&amp;mut </span>processor, <span class="kw-2">&amp;</span>state)<span class="question-mark">?</span>;
-<a href=#88 id=88 data-nosnippet>88</a>    }
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = pii_config_from_scrubbing {
-<a href=#91 id=91 data-nosnippet>91</a>        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled())
-<a href=#92 id=92 data-nosnippet>92</a>            <span class="comment">// For "legacy" rules we want to identify attributes with their values.
-<a href=#93 id=93 data-nosnippet>93</a>            </span>.attribute_mode(AttributeMode::ValueOnly);
-<a href=#94 id=94 data-nosnippet>94</a>        process_value(metric, <span class="kw-2">&amp;mut </span>processor, <span class="kw-2">&amp;</span>state)<span class="question-mark">?</span>;
-<a href=#95 id=95 data-nosnippet>95</a>    }
-<a href=#96 id=96 data-nosnippet>96</a>
-<a href=#97 id=97 data-nosnippet>97</a>    <span class="prelude-val">Ok</span>(())
-<a href=#98 id=98 data-nosnippet>98</a>}
-<a href=#99 id=99 data-nosnippet>99</a>
-<a href=#100 id=100 data-nosnippet>100</a><span class="doccomment">/// Normalizes an individual trace metric entry.
-<a href=#101 id=101 data-nosnippet>101</a></span><span class="kw">fn </span>normalize_trace_metric(
-<a href=#102 id=102 data-nosnippet>102</a>    metric: <span class="kw-2">&amp;mut </span>Annotated&lt;TraceMetric&gt;,
-<a href=#103 id=103 data-nosnippet>103</a>    headers: <span class="kw-2">&amp;</span>EnvelopeHeaders,
-<a href=#104 id=104 data-nosnippet>104</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#105 id=105 data-nosnippet>105</a>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#106 id=106 data-nosnippet>106</a>    <span class="kw">let </span>meta = headers.meta();
+<a href=#74 id=74 data-nosnippet>74</a>    <span class="kw">let </span>pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
+<a href=#75 id=75 data-nosnippet>75</a>
+<a href=#76 id=76 data-nosnippet>76</a>    <span class="kw">let </span>state = ProcessingState::root().enter_borrowed(<span class="string">""</span>, <span class="prelude-val">None</span>, [ValueType::TraceMetric]);
+<a href=#77 id=77 data-nosnippet>77</a>
+<a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = ctx.project_info.config.pii_config {
+<a href=#79 id=79 data-nosnippet>79</a>        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled())
+<a href=#80 id=80 data-nosnippet>80</a>            <span class="comment">// For advanced rules we want to treat attributes as objects.
+<a href=#81 id=81 data-nosnippet>81</a>            </span>.attribute_mode(AttributeMode::Object);
+<a href=#82 id=82 data-nosnippet>82</a>        process_value(metric, <span class="kw-2">&amp;mut </span>processor, <span class="kw-2">&amp;</span>state)<span class="question-mark">?</span>;
+<a href=#83 id=83 data-nosnippet>83</a>    }
+<a href=#84 id=84 data-nosnippet>84</a>
+<a href=#85 id=85 data-nosnippet>85</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = pii_config_from_scrubbing {
+<a href=#86 id=86 data-nosnippet>86</a>        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled())
+<a href=#87 id=87 data-nosnippet>87</a>            <span class="comment">// For "legacy" rules we want to identify attributes with their values.
+<a href=#88 id=88 data-nosnippet>88</a>            </span>.attribute_mode(AttributeMode::ValueOnly);
+<a href=#89 id=89 data-nosnippet>89</a>        process_value(metric, <span class="kw-2">&amp;mut </span>processor, <span class="kw-2">&amp;</span>state)<span class="question-mark">?</span>;
+<a href=#90 id=90 data-nosnippet>90</a>    }
+<a href=#91 id=91 data-nosnippet>91</a>
+<a href=#92 id=92 data-nosnippet>92</a>    <span class="prelude-val">Ok</span>(())
+<a href=#93 id=93 data-nosnippet>93</a>}
+<a href=#94 id=94 data-nosnippet>94</a>
+<a href=#95 id=95 data-nosnippet>95</a><span class="doccomment">/// Normalizes an individual trace metric entry.
+<a href=#96 id=96 data-nosnippet>96</a></span><span class="kw">fn </span>normalize_trace_metric(
+<a href=#97 id=97 data-nosnippet>97</a>    metric: <span class="kw-2">&amp;mut </span>Annotated&lt;TraceMetric&gt;,
+<a href=#98 id=98 data-nosnippet>98</a>    headers: <span class="kw-2">&amp;</span>EnvelopeHeaders,
+<a href=#99 id=99 data-nosnippet>99</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#100 id=100 data-nosnippet>100</a>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">let </span>meta = headers.meta();
+<a href=#102 id=102 data-nosnippet>102</a>
+<a href=#103 id=103 data-nosnippet>103</a>    eap::time::normalize(
+<a href=#104 id=104 data-nosnippet>104</a>        metric,
+<a href=#105 id=105 data-nosnippet>105</a>        utils::normalize::time_config(headers, |f| f.trace_metric.as_ref(), ctx),
+<a href=#106 id=106 data-nosnippet>106</a>    );
 <a href=#107 id=107 data-nosnippet>107</a>
-<a href=#108 id=108 data-nosnippet>108</a>    eap::time::normalize(
-<a href=#109 id=109 data-nosnippet>109</a>        metric,
-<a href=#110 id=110 data-nosnippet>110</a>        utils::normalize::time_config(headers, |f| f.trace_metric.as_ref(), ctx),
-<a href=#111 id=111 data-nosnippet>111</a>    );
-<a href=#112 id=112 data-nosnippet>112</a>
-<a href=#113 id=113 data-nosnippet>113</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(metric_value) = metric.value_mut() {
-<a href=#114 id=114 data-nosnippet>114</a>        eap::trace_metric::normalize_metric_name(metric_value)<span class="question-mark">?</span>;
-<a href=#115 id=115 data-nosnippet>115</a>        eap::normalize_received(<span class="kw-2">&amp;mut </span>metric_value.attributes, meta.received_at());
-<a href=#116 id=116 data-nosnippet>116</a>        eap::normalize_client_address(<span class="kw-2">&amp;mut </span>metric_value.attributes, meta.client_addr());
-<a href=#117 id=117 data-nosnippet>117</a>        eap::normalize_user_agent(
-<a href=#118 id=118 data-nosnippet>118</a>            <span class="kw-2">&amp;mut </span>metric_value.attributes,
-<a href=#119 id=119 data-nosnippet>119</a>            meta.user_agent(),
-<a href=#120 id=120 data-nosnippet>120</a>            meta.client_hints(),
-<a href=#121 id=121 data-nosnippet>121</a>        );
-<a href=#122 id=122 data-nosnippet>122</a>        eap::normalize_attribute_types(<span class="kw-2">&amp;mut </span>metric_value.attributes);
-<a href=#123 id=123 data-nosnippet>123</a>    };
-<a href=#124 id=124 data-nosnippet>124</a>
-<a href=#125 id=125 data-nosnippet>125</a>    process_value(
-<a href=#126 id=126 data-nosnippet>126</a>        metric,
-<a href=#127 id=127 data-nosnippet>127</a>        <span class="kw-2">&amp;mut </span>SchemaProcessor::new()
-<a href=#128 id=128 data-nosnippet>128</a>            .with_required(RequiredMode::DeleteParent)
-<a href=#129 id=129 data-nosnippet>129</a>            .with_verbose_errors(<span class="macro">relay_log::enabled!</span>(relay_log::Level::DEBUG)),
-<a href=#130 id=130 data-nosnippet>130</a>        ProcessingState::root(),
-<a href=#131 id=131 data-nosnippet>131</a>    )<span class="question-mark">?</span>;
+<a href=#108 id=108 data-nosnippet>108</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(metric_value) = metric.value_mut() {
+<a href=#109 id=109 data-nosnippet>109</a>        eap::trace_metric::normalize_metric_name(metric_value)<span class="question-mark">?</span>;
+<a href=#110 id=110 data-nosnippet>110</a>        eap::normalize_received(<span class="kw-2">&amp;mut </span>metric_value.attributes, meta.received_at());
+<a href=#111 id=111 data-nosnippet>111</a>        eap::normalize_client_address(<span class="kw-2">&amp;mut </span>metric_value.attributes, meta.client_addr());
+<a href=#112 id=112 data-nosnippet>112</a>        eap::normalize_user_agent(
+<a href=#113 id=113 data-nosnippet>113</a>            <span class="kw-2">&amp;mut </span>metric_value.attributes,
+<a href=#114 id=114 data-nosnippet>114</a>            meta.user_agent(),
+<a href=#115 id=115 data-nosnippet>115</a>            meta.client_hints(),
+<a href=#116 id=116 data-nosnippet>116</a>        );
+<a href=#117 id=117 data-nosnippet>117</a>        eap::normalize_attribute_types(<span class="kw-2">&amp;mut </span>metric_value.attributes);
+<a href=#118 id=118 data-nosnippet>118</a>    };
+<a href=#119 id=119 data-nosnippet>119</a>
+<a href=#120 id=120 data-nosnippet>120</a>    process_value(
+<a href=#121 id=121 data-nosnippet>121</a>        metric,
+<a href=#122 id=122 data-nosnippet>122</a>        <span class="kw-2">&amp;mut </span>SchemaProcessor::new()
+<a href=#123 id=123 data-nosnippet>123</a>            .with_required(RequiredMode::DeleteParent)
+<a href=#124 id=124 data-nosnippet>124</a>            .with_verbose_errors(<span class="macro">relay_log::enabled!</span>(relay_log::Level::DEBUG)),
+<a href=#125 id=125 data-nosnippet>125</a>        ProcessingState::root(),
+<a href=#126 id=126 data-nosnippet>126</a>    )<span class="question-mark">?</span>;
+<a href=#127 id=127 data-nosnippet>127</a>
+<a href=#128 id=128 data-nosnippet>128</a>    <span class="kw">if let </span>Annotated(<span class="prelude-val">None</span>, meta) = metric {
+<a href=#129 id=129 data-nosnippet>129</a>        <span class="macro">relay_log::debug!</span>(<span class="string">"empty metric: {meta:?}"</span>);
+<a href=#130 id=130 data-nosnippet>130</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Invalid(DiscardReason::NoData));
+<a href=#131 id=131 data-nosnippet>131</a>    }
 <a href=#132 id=132 data-nosnippet>132</a>
-<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">if let </span>Annotated(<span class="prelude-val">None</span>, meta) = metric {
-<a href=#134 id=134 data-nosnippet>134</a>        <span class="macro">relay_log::debug!</span>(<span class="string">"empty metric: {meta:?}"</span>);
-<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Invalid(DiscardReason::NoData));
-<a href=#136 id=136 data-nosnippet>136</a>    }
-<a href=#137 id=137 data-nosnippet>137</a>
-<a href=#138 id=138 data-nosnippet>138</a>    <span class="prelude-val">Ok</span>(())
-<a href=#139 id=139 data-nosnippet>139</a>}
+<a href=#133 id=133 data-nosnippet>133</a>    <span class="prelude-val">Ok</span>(())
+<a href=#134 id=134 data-nosnippet>134</a>}
 </code></pre></div></section></main></body></html>
