@@ -10,10 +10,7 @@ use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
-use crate::utils::{
-    AttachmentStrategy, ConstrainedMultipart, FieldSizeExceededAction,
-    read_attachment_bytes_into_item,
-};
+use crate::utils::{AttachmentStrategy, ConstrainedMultipart, read_attachment_bytes_into_item};
 
 #[derive(Debug, Deserialize)]
 pub struct AttachmentPath {
@@ -33,7 +30,7 @@ impl AttachmentStrategy for AttachmentsAttachmentStrategy {
         item: Item,
         config: &Config,
     ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
-        read_attachment_bytes_into_item(field, item, config, FieldSizeExceededAction::Err)
+        read_attachment_bytes_into_item(field, item, config)
     }
 }
 

@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
 use crate::extractors::{BadEventMeta, Remote};
 use crate::service::ServiceState;
-use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::utils::ApiErrorResponse;
 
 /// Type used for encoding string lengths.
@@ -198,16 +197,10 @@ pub trait AttachmentStrategy {
     ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send;
 }
 
-pub enum FieldSizeExceededAction<'a> {
-    Err,
-    EmitOutcome(Box<dyn Fn(Outcome, u32) + Send + 'a>),
-}
-
 pub async fn read_attachment_bytes_into_item(
     field: Field<'static>,
     mut item: Item,
     config: &Config,
-    field_size_exceeded_action: FieldSizeExceededAction<'_>,
 ) -> Result<Option<Item>, multer::Error> {
     {
         let content_type = field.content_type().cloned();
@@ -225,22 +218,7 @@ pub async fn read_attachment_bytes_into_item(
                 }
                 Ok(Some(item))
             }
-            Err(err) => {
-                if let multer::Error::FieldSizeExceeded { limit, .. } = err
-                    && let FieldSizeExceededAction::EmitOutcome(emit_outcome) =
-                        field_size_exceeded_action
-                {
-                    emit_outcome(
-                        Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
-                            DiscardAttachmentType::Attachment,
-                        ))),
-                        u32::try_from(limit).unwrap_or(u32::MAX),
-                    );
-                    Ok(None)
-                } else {
-                    Err(err)
-                }
-            }
+            Err(err) => Err(err),
         }
     }
 }
@@ -445,7 +423,6 @@ pub fn multipart_from_request(
 #[cfg(test)]
 mod tests {
     use std::convert::Infallible;
-    use std::sync::Mutex;
 
     use super::*;
 
@@ -538,24 +515,15 @@ mod tests {
         }))
         .unwrap();
 
-        struct MockAttachmentStrategy<'a> {
-            mock_outcomes: &'a Mutex<Vec<u32>>,
-        }
-        impl AttachmentStrategy for MockAttachmentStrategy<'_> {
+        struct MockAttachmentStrategy;
+        impl AttachmentStrategy for MockAttachmentStrategy {
             fn add_to_item(
                 &self,
                 field: Field<'static>,
                 item: Item,
                 config: &Config,
             ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
-                read_attachment_bytes_into_item(
-                    field,
-                    item,
-                    config,
-                    FieldSizeExceededAction::EmitOutcome(Box::new(|_, x| {
-                        self.mock_outcomes.lock().unwrap().push(x)
-                    })),
-                )
+                read_attachment_bytes_into_item(field, item, config)
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {
@@ -563,23 +531,8 @@ mod tests {
             }
         }
 
-        let mock_outcomes = Mutex::new(vec![]);
-        let items = multipart_items(
-            multipart,
-            &config,
-            MockAttachmentStrategy {
-                mock_outcomes: &mock_outcomes,
-            },
-        )
-        .await
-        .unwrap();
-
-        // The large field is skipped so only the small one should make it through.
-        assert_eq!(items.len(), 1);
-        let item = &items[0];
-        assert_eq!(item.filename(), Some("small.txt"));
-        assert_eq!(item.payload(), Bytes::from("ok"));
-        assert_eq!(mock_outcomes.into_inner().unwrap(), vec![27]);
+        let res = multipart_items(multipart, &config, MockAttachmentStrategy).await;
+        assert!(res.is_err());
     }
 
     #[tokio::test]
@@ -615,12 +568,7 @@ mod tests {
                 item: Item,
                 config: &Config,
             ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
-                read_attachment_bytes_into_item(
-                    field,
-                    item,
-                    config,
-                    FieldSizeExceededAction::EmitOutcome(Box::new(|_, _| ())),
-                )
+                read_attachment_bytes_into_item(field, item, config)
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {

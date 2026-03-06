@@ -293,6 +293,7 @@ def test_playstation_max_attachments_size_exceeded(
 
     response = exc_info.value.response
     assert response.status_code == 400, "Expected a 400 status code"
+    assert len(outcomes_consumer.get_outcomes()) == 0
 
 
 def test_playstation_max_attachment_size_exceeded(
@@ -316,8 +317,7 @@ def test_playstation_max_attachment_size_exceeded(
 
     response = exc_info.value.response
     assert response.status_code == 400, "Expected a 400 status code"
-
-    assert len(outcomes_consumer.get_outcomes()) == 1
+    assert len(outcomes_consumer.get_outcomes()) == 0
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])

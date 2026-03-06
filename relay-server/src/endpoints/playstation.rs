@@ -11,7 +11,6 @@ use multer::Field;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
-use relay_quotas::DataCategory;
 use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
@@ -20,11 +19,9 @@ use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::TrackOutcome;
 use crate::services::upload::Stream;
 use crate::utils::{
-    AttachmentStrategy, BoundedStream, FieldSizeExceededAction, UnconstrainedMultipart,
-    read_attachment_bytes_into_item,
+    AttachmentStrategy, BoundedStream, UnconstrainedMultipart, read_attachment_bytes_into_item,
 };
 
 /// The extension of a prosperodump in the multipart form-data upload.
@@ -91,24 +88,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         let attachment_type = self.infer_type(&field);
         match attachment_type {
             AttachmentType::Prosperodump => {
-                let emit_outcome = |outcome, quantity| {
-                    self.state.outcome_aggregator().send(TrackOutcome {
-                        timestamp: self.request_meta.received_at(),
-                        scoping: self.request_meta.get_partial_scoping().into_scoping(),
-                        outcome,
-                        event_id: None,
-                        remote_addr: self.request_meta.remote_addr(),
-                        category: DataCategory::Attachment,
-                        quantity,
-                    })
-                };
-                read_attachment_bytes_into_item(
-                    field,
-                    item,
-                    config,
-                    FieldSizeExceededAction::EmitOutcome(Box::new(emit_outcome)),
-                )
-                .await
+                read_attachment_bytes_into_item(field, item, config).await
             }
             _ => {
                 let stream: BoxStream<'static, io::Result<Bytes>> =

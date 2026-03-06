@@ -24,8 +24,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
 use crate::utils::{
-    self, AttachmentStrategy, ConstrainedMultipart, FieldSizeExceededAction,
-    read_attachment_bytes_into_item,
+    self, AttachmentStrategy, ConstrainedMultipart, read_attachment_bytes_into_item,
 };
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -177,7 +176,7 @@ impl AttachmentStrategy for MinidumpAttachmentStrategy {
         item: Item,
         config: &Config,
     ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
-        read_attachment_bytes_into_item(field, item, config, FieldSizeExceededAction::Err)
+        read_attachment_bytes_into_item(field, item, config)
     }
 
     fn infer_type(&self, field: &Field) -> AttachmentType {
