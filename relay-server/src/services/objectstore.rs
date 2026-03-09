@@ -22,7 +22,7 @@ use crate::managed::{
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
-use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
+use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
 use crate::services::upload;
 use crate::statsd::{RelayCounters, RelayTimers};
 
@@ -31,7 +31,8 @@ use super::outcome::Outcome;
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
     Envelope(StoreEnvelope),
-    Attachment(Managed<StoreAttachment>),
+    TraceAttachment(Managed<StoreTraceAttachment>),
+    EventAttachment(Managed<StoreAttachment>),
     Stream {
         message: upload::Stream,
         sender: Sender<Result<ObjectstoreKey, Error>>,
@@ -42,7 +43,8 @@ impl Objectstore {
     fn ty(&self) -> &str {
         match self {
             Objectstore::Envelope(_) => "envelope",
-            Objectstore::Attachment(_) => "attachment_v2",
+            Objectstore::TraceAttachment(_) => "attachment_v2",
+            Objectstore::EventAttachment(_) => "attachment",
             Objectstore::Stream { .. } => "stream",
         }
     }
@@ -54,7 +56,8 @@ impl Objectstore {
                 .items()
                 .filter(|item| *item.ty() == ItemType::Attachment)
                 .count(),
-            Self::Attachment(_) => 1,
+            Self::TraceAttachment(_) => 1,
+            Self::EventAttachment(_) => 1,
             Self::Stream { .. } => 1,
         }
     }
@@ -70,11 +73,19 @@ impl FromMessage<StoreEnvelope> for Objectstore {
     }
 }
 
+impl FromMessage<Managed<StoreTraceAttachment>> for Objectstore {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreTraceAttachment>, _sender: ()) -> Self {
+        Self::TraceAttachment(message)
+    }
+}
+
 impl FromMessage<Managed<StoreAttachment>> for Objectstore {
     type Response = NoResponse;
 
     fn from_message(message: Managed<StoreAttachment>, _sender: ()) -> Self {
-        Self::Attachment(message)
+        Self::EventAttachment(message)
     }
 }
 
@@ -90,14 +101,14 @@ impl FromMessage<upload::Stream> for Objectstore {
 }
 
 /// An attachment that is ready for upload / EAP storage.
-pub struct StoreAttachment {
+pub struct StoreTraceAttachment {
     /// The body to be uploaded to objectstore.
     pub body: Bytes,
     /// The trace item to be published via Kafka.
     pub trace_item: TraceItem,
 }
 
-impl Counted for StoreAttachment {
+impl Counted for StoreTraceAttachment {
     fn quantities(&self) -> Quantities {
         self.trace_item.quantities()
     }
@@ -215,7 +226,10 @@ impl LoadShed<Objectstore> for ObjectstoreService {
 
                 self.inner.store.send(envelope);
             }
-            Objectstore::Attachment(managed) => {
+            Objectstore::EventAttachment(message) => {
+                self.inner.store.send(message);
+            }
+            Objectstore::TraceAttachment(managed) => {
                 let _ = managed.reject_err(Error::LoadShed);
             }
             Objectstore::Stream { message: _, sender } => {
@@ -239,7 +253,10 @@ impl ObjectstoreServiceInner {
             Objectstore::Envelope(StoreEnvelope { envelope }) => {
                 self.handle_envelope(envelope).await;
             }
-            Objectstore::Attachment(attachment) => self.handle_attachment(attachment).await,
+            Objectstore::TraceAttachment(attachment) => {
+                self.handle_trace_attachment(attachment).await
+            }
+            Objectstore::EventAttachment(attachment) => self.handle_attachment(attachment).await,
             Objectstore::Stream {
                 message: managed,
                 sender,
@@ -301,7 +318,62 @@ impl ObjectstoreServiceInner {
         self.store.send(StoreEnvelope { envelope });
     }
 
-    async fn handle_attachment(&self, managed: Managed<StoreAttachment>) {
+    /// Uploads the attachment.
+    ///
+    /// This mutates the attachment item in-place, setting the `stored_key` field to the key in the
+    /// objectstore.
+    async fn handle_attachment(&self, mut attachment: Managed<StoreAttachment>) {
+        let scoping = attachment.scoping();
+        let session = self
+            .event_attachments
+            .for_project(scoping.organization_id.value(), scoping.project_id.value())
+            .session(&self.objectstore_client);
+
+        match session {
+            Err(error) => {
+                relay_log::error!(error = &error as &dyn std::error::Error, "session error");
+                relay_statsd::metric!(
+                    counter(RelayCounters::AttachmentUpload) += 1,
+                    result = error.to_string().as_str(),
+                    type = "attachment",
+                );
+            }
+            Ok(session) => {
+                // we are not storing zero-size attachments in objectstore
+                if !attachment.attachment.is_empty() {
+                    let result = self
+                        .upload_bytes(
+                            "attachment",
+                            &session,
+                            attachment.attachment.payload(),
+                            None,
+                        )
+                        .await;
+
+                    relay_statsd::metric!(
+                        counter(RelayCounters::AttachmentUpload) += 1,
+                        result = match &result {
+                            Ok(_) => "success",
+                            Err(e) => e.as_str(),
+                        },
+                        type = "attachment",
+                    );
+
+                    if let Ok(stored_key) = result {
+                        attachment.modify(|attachment, _| {
+                            attachment
+                                .attachment
+                                .set_stored_key(stored_key.into_inner());
+                        });
+                    }
+                }
+            }
+        }
+
+        self.store.send(attachment)
+    }
+
+    async fn handle_trace_attachment(&self, managed: Managed<StoreTraceAttachment>) {
         let result = self.do_handle_store_attachment(managed).await;
 
         relay_statsd::metric!(
@@ -316,7 +388,7 @@ impl ObjectstoreServiceInner {
 
     async fn do_handle_store_attachment(
         &self,
-        managed: Managed<StoreAttachment>,
+        managed: Managed<StoreTraceAttachment>,
     ) -> Result<(), Rejected<Error>> {
         let scoping = managed.scoping();
         let session = self
@@ -330,7 +402,7 @@ impl ObjectstoreServiceInner {
 
         // Make sure that the attachment can be converted into a trace item:
         let trace_item = managed.try_map(|attachment, _record_keeper| {
-            let StoreAttachment {
+            let StoreTraceAttachment {
                 trace_item,
                 body: _,
             } = attachment;

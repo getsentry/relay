@@ -2,13 +2,15 @@ use std::sync::Arc;
 
 use relay_quotas::RateLimits;
 
-use crate::Envelope;
 use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
-use crate::processing::{self, CountRateLimited, Forward, Output, QuotaRateLimiter, utils};
+use crate::processing::{self, CountRateLimited, Output, QuotaRateLimiter};
 #[cfg(feature = "processing")]
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
+
+mod forward;
+mod process;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -92,21 +94,10 @@ impl processing::Processor for AttachmentProcessor {
         ctx: processing::Context<'_>,
     ) -> Result<processing::Output<Self::Output>, Rejected<Self::Error>> {
         let mut attachments = self.limiter.enforce_quotas(attachments, ctx).await?;
-        scrub(&mut attachments, ctx)?;
+        process::scrub(&mut attachments, ctx)?;
 
         Ok(Output::just(AttachmentsOutput(attachments)))
     }
-}
-
-/// Runs PiiProcessors on the attachments.
-pub fn scrub(
-    attachments: &mut Managed<SerializedAttachments>,
-    ctx: processing::Context<'_>,
-) -> Result<(), Rejected<Error>> {
-    attachments.try_modify(|attachments, _| {
-        utils::attachments::scrub(attachments.attachments.iter_mut(), ctx.project_info);
-        Ok::<_, Error>(())
-    })
 }
 
 /// Serialized attachments extracted from an envelope.
@@ -131,44 +122,3 @@ impl CountRateLimited for Managed<SerializedAttachments> {
 /// Output produced by the [`AttachmentProcessor`].
 #[derive(Debug)]
 pub struct AttachmentsOutput(Managed<SerializedAttachments>);
-
-impl Forward for AttachmentsOutput {
-    fn serialize_envelope(
-        self,
-        _: processing::ForwardContext<'_>,
-    ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
-        let Self(attachments) = self;
-        Ok(attachments.map(|attachments, _| {
-            Envelope::from_parts(attachments.headers, attachments.attachments)
-        }))
-    }
-
-    #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        s: processing::StoreHandle<'_>,
-        _: processing::ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>> {
-        let Self(attachments) = self;
-
-        let event_id = attachments
-            .headers
-            .event_id()
-            .ok_or_else(|| attachments.reject_err(Error::NoEventId).map(drop))?;
-
-        for attachment in attachments.split(|attachment| attachment.attachments) {
-            let store_attachment = attachment.map(|attachment, _| {
-                use crate::services::store::StoreAttachment;
-                let quantities = attachment.quantities();
-                StoreAttachment {
-                    event_id,
-                    attachment,
-                    quantities,
-                }
-            });
-            s.send_to_store(store_attachment);
-        }
-
-        Ok(())
-    }
-}

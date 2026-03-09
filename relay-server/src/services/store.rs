@@ -188,7 +188,6 @@ pub struct StoreAttachment {
     pub event_id: EventId,
     /// That attachment item.
     pub attachment: Item,
-
     /// Outcome quantities associated with this attachment.
     pub quantities: Quantities,
 }
