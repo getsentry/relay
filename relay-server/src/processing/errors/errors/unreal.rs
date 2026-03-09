@@ -1,5 +1,7 @@
+use relay_quotas::DataCategory;
+
 use crate::envelope::{Item, ItemType};
-use crate::managed::{Counted, Quantities};
+use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
@@ -17,6 +19,10 @@ pub enum Unreal {
 }
 
 impl SentryError for Unreal {
+    fn event_category(&self) -> DataCategory {
+        DataCategory::Error
+    }
+
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(report) = utils::take_item_of_type(items, ItemType::UnrealReport) else {
             return Ok(None);
@@ -110,12 +116,22 @@ impl SentryError for Unreal {
         Ok(Some(expansion))
     }
 
+    #[cfg(not(feature = "processing"))]
+    fn apply_rate_limit(
+        &mut self,
+        _category: relay_quotas::DataCategory,
+        _limits: relay_quotas::RateLimits,
+        _records: &mut RecordKeeper<'_>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
     #[cfg(feature = "processing")]
     fn apply_rate_limit(
         &mut self,
         _category: relay_quotas::DataCategory,
         limits: relay_quotas::RateLimits,
-        records: &mut crate::managed::RecordKeeper<'_>,
+        records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         use crate::processing::errors::Error;
 
