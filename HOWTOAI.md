@@ -5,7 +5,7 @@ Use AI to move faster, not to lower standards. You own every line you submit.
 ## Ground Rules
 
 - **You are responsible for the code.** Do not commit code you do not understand or cannot maintain.
-- **AI output must meet normal standards.** That includes tests, docs, changelog entries, and consistency with existing patterns.
+- **AI output must meet the same standards as human output.** That includes tests, docs, changelog entries, and consistency with existing patterns.
 - **Be transparent.** If AI generated a large part of the change, mention it in the PR and explain how you validated it.
 - **Validate before opening a PR.** Run `make check` and `make test` first. AI-generated code often looks right but fails lint, tests, or full-feature builds.
 - **Review security-sensitive changes carefully.** Be extra cautious in `relay-pii`, `relay-auth`, `relay-quotas`, `relay-event-normalization`, and network-facing code in `relay-server`.
