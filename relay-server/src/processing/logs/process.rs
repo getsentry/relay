@@ -90,12 +90,7 @@ fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerIte
 }
 
 fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
-    let pii_config_from_scrubbing = ctx
-        .project_info
-        .config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| Error::PiiConfig(e.clone()))?;
+    let pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
 
     relay_pii::eap::scrub(
         ValueType::OurLog,

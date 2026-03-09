@@ -3,7 +3,6 @@ use std::sync::Arc;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::OurLog;
 use relay_filter::FilterStatKey;
-use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
@@ -48,9 +47,6 @@ pub enum Error {
     /// The logs are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
-    /// Internal error, Pii config could not be loaded.
-    #[error("Pii configuration error")]
-    PiiConfig(PiiConfigError),
     /// A processor failed to process the logs.
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
@@ -74,7 +70,6 @@ impl OutcomeError for Error {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
-            Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };

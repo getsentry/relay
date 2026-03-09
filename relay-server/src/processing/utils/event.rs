@@ -448,10 +448,7 @@ pub fn scrub(
             let mut processor = PiiProcessor::new(config.compiled());
             processor::process_value(event, &mut processor, ProcessingState::root())?;
         }
-        let pii_config = config
-            .datascrubbing_settings
-            .pii_config()
-            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+        let pii_config = config.datascrubbing_settings.pii_config();
         if let Some(config) = pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
             processor::process_value(event, &mut processor, ProcessingState::root())?;

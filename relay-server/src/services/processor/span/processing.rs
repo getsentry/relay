@@ -523,10 +523,7 @@ fn scrub(
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(annotated_span, &mut processor, ProcessingState::root())?;
     }
-    let pii_config = project_config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+    let pii_config = project_config.datascrubbing_settings.pii_config();
     if let Some(config) = pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(annotated_span, &mut processor, ProcessingState::root())?;
