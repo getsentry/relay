@@ -1,4 +1,3 @@
-#![expect(unused)]
 use std::sync::Once;
 
 use relay_base_schema::project::ProjectId;
@@ -14,7 +13,7 @@ use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::transactions::TransactionExtractor;
 use crate::processing::Context;
-use crate::processing::utils::event::{EventMetricsExtracted, SpansExtracted};
+use crate::processing::utils::event::EventMetricsExtracted;
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 
 /// Creates a span from the transaction and applies tag extraction on it.
@@ -144,7 +143,6 @@ pub fn extract_metrics(
         let transaction_from_dsc = dsc.and_then(|dsc| dsc.transaction.as_deref());
 
         let extractor = TransactionExtractor {
-            config: tx_config,
             generic_config: Some(combined_config),
             transaction_from_dsc,
             sampling_decision,

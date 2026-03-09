@@ -8,10 +8,12 @@ use relay_protocol::Annotated;
 use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
 
+use relay_quotas::DataCategory;
+
 use crate::Envelope;
 use crate::constants::NNSWITCH_SENTRY_MAGIC;
 use crate::envelope::{AttachmentType, EnvelopeError, Item, ItemType};
-use crate::managed::{Counted, Quantities};
+use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
@@ -28,6 +30,10 @@ pub enum Nswitch {
 }
 
 impl SentryError for Nswitch {
+    fn event_category(&self) -> DataCategory {
+        DataCategory::Error
+    }
+
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(dying_message) = utils::take_item_by(items, |item| {
             item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage)
@@ -80,6 +86,15 @@ impl SentryError for Nswitch {
         }))
     }
 
+    fn apply_rate_limit(
+        &mut self,
+        _category: DataCategory,
+        _limits: relay_quotas::RateLimits,
+        _records: &mut RecordKeeper<'_>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         match self {
             Self::Forward { dying_message } => items.push(dying_message),
@@ -87,6 +102,10 @@ impl SentryError for Nswitch {
         }
 
         Ok(())
+    }
+
+    fn minidump_mut(&mut self) -> Option<&mut Item> {
+        None
     }
 }
 
