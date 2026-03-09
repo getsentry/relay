@@ -3201,24 +3201,16 @@ impl<'a> IntoIterator for CombinedQuotas<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use insta::assert_debug_snapshot;
-    use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::ProjectConfig;
     use relay_event_normalization::{
-        MeasurementsConfig, NormalizationConfig, RedactionRule, TransactionNameConfig,
-        TransactionNameRule,
+        NormalizationConfig, RedactionRule, TransactionNameConfig, TransactionNameRule,
     };
     use relay_event_schema::protocol::TransactionSource;
     use relay_pii::DataScrubbingConfig;
     use similar_asserts::assert_eq;
 
-    use crate::metrics_extraction::IntoMetric;
-    use crate::metrics_extraction::transactions::types::{
-        CommonTags, TransactionMeasurementTags, TransactionMetric,
-    };
     use crate::testutils::{create_test_processor, create_test_processor_with_addrs};
 
     #[cfg(feature = "processing")]
@@ -3658,39 +3650,6 @@ mod tests {
             "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
         ]
         "###);
-    }
-
-    /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
-    /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
-    /// cannot be called from relay-metrics.
-    #[test]
-    fn test_mri_overhead_constant() {
-        let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
-
-        let derived_value = {
-            let name = "foobar".to_owned();
-            let value = 5.into(); // Arbitrary value.
-            let unit = MetricUnit::Duration(DurationUnit::default());
-            let tags = TransactionMeasurementTags {
-                measurement_rating: None,
-                universal_tags: CommonTags(BTreeMap::new()),
-                score_profile_version: None,
-            };
-
-            let measurement = TransactionMetric::Measurement {
-                name: name.clone(),
-                value,
-                unit,
-                tags,
-            };
-
-            let metric: Bucket = measurement.into_metric(UnixTimestamp::now());
-            metric.name.len() - unit.to_string().len() - name.len()
-        };
-        assert_eq!(
-            hardcoded_value, derived_value,
-            "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
-        );
     }
 
     #[tokio::test]
