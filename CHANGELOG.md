@@ -10,6 +10,7 @@
 **Bug Fixes**:
 
 - Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
+- Relay Temporarily rejected unknown headers on envelope items. ([#5709](https://github.com/getsentry/relay/pull/5709))
 
 **Features**:
 
