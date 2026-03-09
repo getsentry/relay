@@ -143,11 +143,9 @@ def test_attachments_with_objectstore(
     outcomes_consumer = outcomes_consumer()
 
     chunked_contents = b"heavens no" * 20_000
-    attachments = [
-        ("att_1", "foo.txt", chunked_contents),
-        ("att_2", "foobar.txt", b""),
-    ]
-    relay.send_attachments(project_id, event_id, attachments)
+    relay.send_attachments(
+        project_id, event_id, [("att_1", "foo.txt", chunked_contents)]
+    )
 
     attachment = attachments_consumer.get_individual_attachment()
 
@@ -168,7 +166,32 @@ def test_attachments_with_objectstore(
         "project_id": project_id,
     }
 
-    outcomes_consumer.assert_empty()
+
+def test_empty_attachments_with_objectstore(
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    outcomes_consumer,
+):
+    project_id = 42
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+    mini_sentry.add_full_project_config(project_id)
+
+    options = {
+        "processing": {
+            "attachment_chunk_size": "100KB",
+            "upload": {"objectstore_url": "http://127.0.0.1:8888/"},
+        }
+    }
+    relay = relay_with_processing(options)
+    attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    relay.send_attachments(project_id, event_id, [("att_2", "foobar.txt", b"")])
 
     # An empty attachment
     attachment = attachments_consumer.get_individual_attachment()
