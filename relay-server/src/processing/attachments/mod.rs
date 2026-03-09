@@ -20,7 +20,7 @@ pub enum Error {
 
     /// The envelope did not contain an event ID.
     #[cfg(feature = "processing")]
-    #[error("missing replay ID")]
+    #[error("missing event ID")]
     NoEventId,
 }
 
