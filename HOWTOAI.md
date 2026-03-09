@@ -223,7 +223,7 @@ AI usually forgets this.
 
 - Relay server changes go in `CHANGELOG.md`
 - Python-facing changes go in `py/CHANGELOG.md`
-- Use #skip-changelog only when appropriate
+- Use `#skip-changelog` only when appropriate
 
 Format:
 
@@ -308,7 +308,7 @@ cargo run --all-features --profile dev-debug — run
 3. Let AI draft code, but review every line
 4. Run `make check` and at least `make test-rust-all`
 5. Run `cargo insta review` after schema changes
-6 Add changelog entries
-6. Review security impact before opening the PR
+6. Add changelog entries
+7. Review security impact before opening the PR
 
 AI is useful for speed, but not for ownership. In Relay, correctness, safety, and maintainability matter more than how the code was written.
