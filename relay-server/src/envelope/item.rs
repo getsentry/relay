@@ -1328,6 +1328,36 @@ mod tests {
     }
 
     #[test]
+    fn test_item_headers() {
+        let mut headers: ItemHeaders = serde_json::from_str(
+            r#"{
+            "type":"attachment",
+            "length":42,
+            "content_type": "application/json",
+            "filename":"test.txt"
+        }"#,
+        )
+        .unwrap();
+
+        assert_eq!(headers.ty, ItemType::Attachment);
+        assert!(headers.contains(ItemHeaderKey::Length));
+        assert_eq!(headers.get(ItemHeaderKey::Length), Some(42u32));
+        assert_eq!(headers.get(ItemHeaderKey::Filename), Some("test.txt"));
+        assert_eq!(
+            headers.get(ItemHeaderKey::ContentType),
+            Some("application/json")
+        );
+
+        headers.set_or_remove(ItemHeaderKey::Length, Some(1337u32));
+        assert_eq!(headers.get(ItemHeaderKey::Length), Some(1337));
+        headers.set_or_remove(ItemHeaderKey::Length, None::<u32>);
+        assert!(!headers.contains(ItemHeaderKey::Length));
+
+        let s = serde_json::to_string(&headers).unwrap();
+        insta::assert_snapshot!(s, @r#"{"type":"attachment","content_type":"application/json","filename":"test.txt"}"#);
+    }
+
+    #[test]
     fn test_item_headers_unknown() {
         let (item, _) = Item::parse(Bytes::from_static(
             concat!(
@@ -1367,7 +1397,7 @@ mod tests {
         "#);
 
         // Round trip -> serializes the headers again.
-        let json = serde_json::to_string(&item.headers).unwrap();
-        insta::assert_snapshot!(json, @r#"{"type":"attachment","length":5,"unknown1":"foo","unknown2":"bar"}"#);
+        let s = serde_json::to_string(&item.headers).unwrap();
+        insta::assert_snapshot!(s, @r#"{"type":"attachment","length":5,"unknown1":"foo","unknown2":"bar"}"#);
     }
 }
