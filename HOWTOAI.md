@@ -23,7 +23,6 @@ Relay handles untrusted traffic on the ingest path. Review every change for:
 Useful prompt:
 
 ```
-
 What is the attack surface of this change? Consider untrusted input, PII leakage,
 resource exhaustion, and auth bypass.
 ```
@@ -35,7 +34,6 @@ Then verify the answer yourself.
 Examples:
 
 ```
-
 Here is a Rust compiler error in Relay:
 [paste error]
 
@@ -60,7 +58,6 @@ It runs against a live Relay binary with Redis and Kafka. Help me debug it.
 For debugger-friendly local runs:
 
 ```
-
 cargo run --all-features --profile dev-debug — run
 ```
 
