@@ -249,7 +249,7 @@ async fn multipart_items(
             item.set_filename(file_name);
             let item = attachment_strategy.add_to_item(field, item, config).await?;
             if let Some(item) = item {
-                attachments_size += item.len();
+                attachments_size += item.attachment_body_size();
                 if attachments_size > config.max_attachments_size() {
                     return Err(multer::Error::StreamSizeExceeded {
                         limit: config.max_attachments_size() as u64,

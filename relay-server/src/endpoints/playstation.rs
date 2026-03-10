@@ -12,6 +12,7 @@ use multer::Field;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
+use relay_quotas::Scoping;
 use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
@@ -66,8 +67,8 @@ struct Parts {
 
 struct PlaystationAttachmentStrategy<'a> {
     state: &'a ServiceState,
-    request_meta: &'a RequestMeta,
     project_config: &'a ProjectInfo,
+    scoping: Scoping,
 }
 
 impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
@@ -98,10 +99,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
             let stream = BoundedStream::new(stream, 1, config.max_upload_size());
             let byte_counter = stream.byte_counter();
             let stream = Stream {
-                scoping: self
-                    .project_config
-                    .scoping(self.request_meta.public_key())
-                    .unwrap_or_else(|| self.request_meta.get_partial_scoping().into_scoping()),
+                scoping: self.scoping,
                 stream,
             };
             let result = self.state.upload().send(stream).await;
@@ -151,11 +149,12 @@ async fn extract_multipart(
     meta: RequestMeta,
     state: &ServiceState,
     project_config: &ProjectInfo,
+    scoping: Scoping,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let attachment_strategy = PlaystationAttachmentStrategy {
         state,
-        request_meta: &meta,
         project_config,
+        scoping,
     };
     let mut items = multipart.items(state.config(), attachment_strategy).await?;
 
@@ -198,9 +197,12 @@ async fn handle(
         .clone()
         .enabled()
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let scoping = project_config
+        .scoping(meta.public_key())
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     let multipart = request.extract_with_state(&state).await?;
-    let mut envelope = extract_multipart(multipart, meta, &state, &project_config).await?;
+    let mut envelope = extract_multipart(multipart, meta, &state, &project_config, scoping).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
     let id = envelope.event_id();
