@@ -9,7 +9,7 @@ use std::io;
 
 use axum::body::Body;
 use axum::http::{HeaderMap, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, NoContent, Response};
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use chrono::Utc;
@@ -114,7 +114,7 @@ impl IntoResponse for SignedLocation {
     }
 }
 
-/// Handles TUS upload requests (Creation With Upload).
+/// Handles TUS upload requests (Creation or Creation With Upload).
 ///
 /// This endpoint accepts POST requests with a body containing the complete upload data.
 /// Unlike the full TUS protocol, this implementation only supports uploading all data
@@ -131,7 +131,8 @@ async fn handle_post(
     let tus::ParsedHeaders {
         content_length,
         upload_length,
-    } = tus::validate_headers(&headers, meta.request_trust().is_trusted()).map_err(Error::from)?;
+    } = tus::validate_post_headers(&headers, meta.request_trust().is_trusted())
+        .map_err(Error::from)?;
     let config = state.config();
 
     if upload_length.is_some_and(|len| len > config.max_upload_size()) {
@@ -185,6 +186,52 @@ async fn handle_post(
             .headers_mut()
             .insert(tus::UPLOAD_OFFSET, upload_offset.into());
     }
+
+    Ok(response)
+}
+
+async fn handle_patch(
+    state: ServiceState,
+    meta: RequestMeta,
+    headers: HeaderMap,
+    body: Body,
+) -> axum::response::Result<impl IntoResponse> {
+    relay_log::trace!("Validating headers");
+    let upload_offset = tus::validate_patch_headers(&headers).map_err(Error::from)?;
+
+    // TODO: validate location query params.
+    let location = todo!();
+
+    let config = state.config();
+
+    // There is no real "fast path" for streaming uploads. Always wait for the project config
+    // to be loaded:
+    relay_log::trace!("Awaiting project config");
+    let project = state
+        .project_cache_handle()
+        .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
+        .await
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+
+    relay_log::trace!("Checking request");
+    let scoping = check_request(&state, meta, None, project).await?;
+
+    let stream = body
+        .into_data_stream()
+        .map(|result| result.map_err(io::Error::other))
+        .boxed();
+    let stream = BoundedStream::new(stream, 1, config.max_upload_size());
+    let byte_counter = stream.byte_counter();
+
+    relay_log::trace!("Uploading");
+    let result = upload(&state, scoping, location, stream).await;
+    let upload_offset = byte_counter.get();
+
+    let mut response = NoContent.into_response();
+
+    response
+        .headers_mut()
+        .insert(tus::UPLOAD_OFFSET, upload_offset.into());
 
     Ok(response)
 }
@@ -258,7 +305,9 @@ async fn check_request(
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    post(handle_post).route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
+    post(handle_post)
+        .patch(handle_patch)
+        .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
 }
 
 fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {

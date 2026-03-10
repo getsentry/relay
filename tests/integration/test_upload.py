@@ -342,7 +342,7 @@ def test_create_processing(
     # Use the location to send a PATCH request:
     data = b"hello world"
     response = relay.patch(
-        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        "%s&sentry_key=%s" % (response.headers["Location"], project_key),
         headers={
             "Content-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
