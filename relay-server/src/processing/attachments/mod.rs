@@ -67,10 +67,10 @@ impl processing::Processor for AttachmentProcessor {
         &self,
         envelope: &mut ManagedEnvelope,
     ) -> Option<Managed<Self::UnitOfWork>> {
-        // For now only extract the standalone attachments.
-        if envelope.envelope().items().any(Item::creates_event) {
-            return None;
-        };
+        debug_assert!(
+            !envelope.envelope().items().any(Item::creates_event),
+            "AttachmentProcessor should not receive items that create events"
+        );
 
         let attachments = envelope
             .envelope_mut()
