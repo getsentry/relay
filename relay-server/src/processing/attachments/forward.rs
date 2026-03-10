@@ -7,7 +7,7 @@ impl Forward for AttachmentsOutput {
     fn serialize_envelope(
         self,
         _: processing::ForwardContext<'_>,
-    ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let Self(attachments) = self;
         Ok(attachments.map(|attachments, _| {
             Envelope::from_parts(attachments.headers, attachments.attachments)
