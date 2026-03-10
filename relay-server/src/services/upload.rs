@@ -538,16 +538,13 @@ impl UpstreamRequest for UploadRequest {
     }
 
     fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
-        let body = match &mut self.kind {
-            RequestKind::Create { .. } => None,
-            RequestKind::Upload { stream, .. } => match stream.take() {
-                Some(body) => Some(body),
-                None => {
-                    relay_log::error!("upload request was retried or never initialized");
-                    return Err(HttpError::Misconfigured);
-                }
-            },
-        };
+        if let RequestKind::Upload { stream, .. } = &mut self.kind {
+            let Some(body) = stream.take() else {
+                relay_log::error!("upload request was retried or never initialized");
+                return Err(HttpError::Misconfigured);
+            };
+            builder.body(reqwest::Body::wrap_stream(body));
+        }
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
@@ -562,10 +559,6 @@ impl UpstreamRequest for UploadRequest {
         );
         if let Some(timeout) = self.timeout {
             builder.timeout(timeout);
-        }
-
-        if let Some(body) = body {
-            builder.body(reqwest::Body::wrap_stream(body));
         }
 
         Ok(())
