@@ -9,6 +9,7 @@ use std::str::FromStr;
 
 use axum::http::HeaderMap;
 use http::HeaderValue;
+use http::header::AsHeaderName;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -60,19 +61,32 @@ pub const UPLOAD_OFFSET: &str = "Upload-Offset";
 pub const EXPECTED_CONTENT_TYPE: HeaderValue =
     HeaderValue::from_static("application/offset+octet-stream");
 
+/// Parsed and validated header values.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ParsedHeaders {
+    /// Value of the `Content-Length` header, if given.
+    pub content_length: Option<usize>,
+    /// Value of the `Upload-Length` header, if given.
+    pub upload_length: Option<usize>,
+}
+
 /// Validates TUS protocol headers and returns the expected upload length.
 pub fn validate_headers(
     headers: &HeaderMap,
     allow_defer_length: bool,
-) -> Result<Option<usize>, Error> {
+) -> Result<ParsedHeaders, Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {
         return Err(Error::Version);
     }
 
-    let content_type = headers.get(http::header::CONTENT_TYPE);
-    if content_type != Some(&EXPECTED_CONTENT_TYPE) {
-        return Err(Error::ContentType);
+    let content_length = parse_header(headers, http::header::CONTENT_LENGTH);
+
+    if content_length.is_none_or(|v| v > 0) {
+        let content_type = headers.get(http::header::CONTENT_TYPE);
+        if content_type != Some(&EXPECTED_CONTENT_TYPE) {
+            return Err(Error::ContentType);
+        }
     }
 
     let upload_length: Option<usize> = parse_header(headers, UPLOAD_LENGTH);
@@ -81,12 +95,17 @@ pub fn validate_headers(
     // Exactly one of Upload-Length and Upload-Defer-Length must be present.
     // Upload-Defer-Length is only accepted if its value is 1 (as demanded by the TUS protocol)
     // and `allow_defer_length` is true (i.e. the sender is trusted/internal).
-    match (upload_length, upload_defer_length, allow_defer_length) {
+    let upload_length = match (upload_length, upload_defer_length, allow_defer_length) {
         (Some(u), None, _) => Ok(Some(u)),
         (None, Some(1), true) => Ok(None),
         (None, Some(1), false) => Err(Error::DeferLengthNotAllowed),
         _ => Err(Error::UploadLength),
-    }
+    }?;
+
+    Ok(ParsedHeaders {
+        content_length,
+        upload_length,
+    })
 }
 
 /// Prepares the required TUS request headers for upstream requests.
@@ -110,7 +129,7 @@ pub fn response_headers() -> HeaderMap {
     headers
 }
 
-fn parse_header<T: FromStr>(headers: &HeaderMap, header_name: &str) -> Option<T> {
+fn parse_header<K: AsHeaderName, V: FromStr>(headers: &HeaderMap, header_name: K) -> Option<V> {
     headers.get(header_name)?.to_str().ok()?.parse().ok()
 }
 
@@ -152,7 +171,13 @@ mod tests {
         headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_headers(&headers, false);
-        assert_eq!(result.unwrap().unwrap(), 1024);
+        assert_eq!(
+            result.unwrap(),
+            ParsedHeaders {
+                content_length: None,
+                upload_length: Some(1024)
+            }
+        );
     }
 
     #[test]
@@ -171,7 +196,13 @@ mod tests {
         headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("1"));
         let result = validate_headers(&headers, true);
-        assert!(matches!(result, Ok(None)));
+        assert!(matches!(
+            result,
+            Ok(ParsedHeaders {
+                content_length: None,
+                upload_length: None
+            })
+        ));
     }
 
     #[test]

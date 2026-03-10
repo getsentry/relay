@@ -121,14 +121,17 @@ impl IntoResponse for SignedLocation {
 /// in a single request - partial uploads and resumption are not supported.
 ///
 /// The body is processed as a stream to avoid loading the entire upload into memory.
-async fn handle(
+async fn handle_post(
     state: ServiceState,
     meta: RequestMeta,
     headers: HeaderMap,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    let upload_length =
-        tus::validate_headers(&headers, meta.request_trust().is_trusted()).map_err(Error::from)?;
+    relay_log::trace!("Validating headers");
+    let tus::ParsedHeaders {
+        content_length,
+        upload_length,
+    } = tus::validate_headers(&headers, meta.request_trust().is_trusted()).map_err(Error::from)?;
     let config = state.config();
 
     if upload_length.is_some_and(|len| len > config.max_upload_size()) {
@@ -137,55 +140,81 @@ async fn handle(
 
     // There is no real "fast path" for streaming uploads. Always wait for the project config
     // to be loaded:
+    relay_log::trace!("Awaiting project config");
     let project = state
         .project_cache_handle()
         .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
         .await
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
+    relay_log::trace!("Checking request");
     let scoping = check_request(&state, meta, upload_length, project).await?;
-    let stream = body
-        .into_data_stream()
-        .map(|result| result.map_err(io::Error::other))
-        .boxed();
-    let (lower_bound, upper_bound) = match upload_length {
-        None => (1, config.max_upload_size()),
-        Some(u) => (u, u),
-    };
-    let stream = BoundedStream::new(stream, lower_bound, upper_bound);
-    let byte_counter = stream.byte_counter();
 
-    let result = upload(&state, scoping, stream).await;
-
-    let location = result.inspect_err(|e| {
-        relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
+    // Unconditionally create the upload location:
+    let result = create(&state, scoping, upload_length).await;
+    let mut location = result.inspect_err(|e| {
+        relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
+    let mut upload_offset = None;
+
+    // If we already have bytes, upload them:
+    // TODO ParsedHeader enum
+    if content_length.is_none_or(|v| v > 0) {
+        let stream = body
+            .into_data_stream()
+            .map(|result| result.map_err(io::Error::other))
+            .boxed();
+        let (lower_bound, upper_bound) = match upload_length {
+            None => (1, config.max_upload_size()),
+            Some(u) => (u, u),
+        };
+        let stream = BoundedStream::new(stream, lower_bound, upper_bound);
+        let byte_counter = stream.byte_counter();
+
+        relay_log::trace!("Uploading");
+        let result = upload(&state, scoping, location, stream).await;
+        location = result.inspect_err(|e| {
+            relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
+        })?;
+        upload_offset = Some(byte_counter.get());
+    }
 
     let mut response = location.into_response();
-    response
-        .headers_mut()
-        .insert(tus::UPLOAD_OFFSET, byte_counter.get().into());
+    if let Some(upload_offset) = upload_offset {
+        response
+            .headers_mut()
+            .insert(tus::UPLOAD_OFFSET, upload_offset.into());
+    }
 
     Ok(response)
 }
 
-async fn upload(
+async fn create(
     state: &ServiceState,
     scoping: Scoping,
-    stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
+    upload_length: Option<usize>,
 ) -> Result<SignedLocation, Error> {
     let location = state
         .upload()
         .send(upload::Create {
             scoping,
-            length: stream.length(),
+            length: upload_length,
         })
         .await??;
 
+    Ok(location)
+}
+
+async fn upload(
+    state: &ServiceState,
+    scoping: Scoping,
+    location: SignedLocation,
+    stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
+) -> Result<SignedLocation, Error> {
     let location = state
         .upload()
         .send(upload::Stream {
-            received: Utc::now(), // fake received until we split requests
+            received: Utc::now(),
             scoping,
             location,
             stream,
@@ -229,7 +258,7 @@ async fn check_request(
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    post(handle).route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
+    post(handle_post).route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
 }
 
 fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
