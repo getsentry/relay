@@ -8,18 +8,21 @@
 use std::io;
 
 use axum::body::Body;
+use axum::extract::{Path, Query};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, NoContent, Response};
-use axum::routing::{MethodRouter, post};
+use axum::routing::{MethodRouter, patch, post};
 use bytes::Bytes;
 use chrono::Utc;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use http::header;
+use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_quotas::Scoping;
 use relay_system::SendError;
+use serde::Deserialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
@@ -34,6 +37,14 @@ use crate::services::projects::cache::Project;
 use crate::services::upload::{self, SignedLocation};
 use crate::services::upstream::UpstreamRequestError;
 use crate::utils::{BoundedStream, find_error_source, tus};
+
+pub fn route_post(config: &Config) -> MethodRouter<ServiceState> {
+    post(handle_post).route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
+}
+
+pub fn route_patch(config: &Config) -> MethodRouter<ServiceState> {
+    patch(handle_patch).route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
+}
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -190,17 +201,30 @@ async fn handle_post(
     Ok(response)
 }
 
+#[derive(Debug, Deserialize)]
+struct PatchPath {
+    project_id: ProjectId,
+    key: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PatchQueryParams {
+    length: Option<usize>,
+    signature: String,
+}
+
 async fn handle_patch(
     state: ServiceState,
     meta: RequestMeta,
     headers: HeaderMap,
+    Path(PatchPath { project_id, key }): Path<PatchPath>,
+    Query(PatchQueryParams { length, signature }): Query<PatchQueryParams>,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     relay_log::trace!("Validating headers");
-    let upload_offset = tus::validate_patch_headers(&headers).map_err(Error::from)?;
+    tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
-    // TODO: validate location query params.
-    let location = todo!();
+    let location = SignedLocation::from_parts(project_id, key, length, signature);
 
     let config = state.config();
 
@@ -225,6 +249,10 @@ async fn handle_patch(
 
     relay_log::trace!("Uploading");
     let result = upload(&state, scoping, location, stream).await;
+    result.inspect_err(|e| {
+        relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
+    })?;
+
     let upload_offset = byte_counter.get();
 
     let mut response = NoContent.into_response();
@@ -302,12 +330,6 @@ async fn check_request(
     let scoping = envelope.scoping();
     envelope.accept(|x| x);
     Ok(scoping)
-}
-
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    post(handle_post)
-        .patch(handle_patch)
-        .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
 }
 
 fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {

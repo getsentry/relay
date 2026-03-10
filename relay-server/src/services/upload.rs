@@ -320,6 +320,26 @@ pub struct SignedLocation {
 }
 
 impl SignedLocation {
+    /// Creates an unverified location from path and query params.
+    ///
+    /// Call `verify` to make sure the signature is correct.
+    pub fn from_parts(
+        project_id: ProjectId,
+        key: String,
+        length: Option<usize>,
+        signature: String,
+    ) -> Self {
+        // TODO: forward compat: allow other query params?
+        Self {
+            location: Location {
+                project_id,
+                key,
+                length,
+            },
+            signature: Signature(signature),
+        }
+    }
+
     /// Converts the location into an URI for future reference.
     pub fn into_header_value(self) -> Result<HeaderValue, Error> {
         let Self {
