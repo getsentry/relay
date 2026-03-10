@@ -415,7 +415,6 @@ def test_playstation_large_attachments(
         static_credentials=credentials,
     )
     if use_pop_relay:
-        print("HELLO USE POP")
         relay = relay_with_playstation(relay, credentials=credentials)
     # Video size exceeds attachment size limits - we expect this to be ignored
     video_content = "1" * (len(playstation_dump) + 2 * 1024 * 1024)
