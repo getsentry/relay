@@ -216,8 +216,11 @@ def test_playstation_no_feature_flag(
     outcomes_consumer = outcomes_consumer()
     relay = relay_processing_with_playstation()
 
-    response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
-    assert response.ok
+    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+        _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    response = exc_info.value.response
+
+    assert response.status_code == 403
 
     # Get these outcomes since the feature flag is not enabled:
     outcomes = outcomes_consumer.get_outcomes()
@@ -260,7 +263,7 @@ def test_playstation_wrong_file(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("unreal_crash")
-    mini_sentry.add_full_project_config(PROJECT_ID)
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     relay = relay_processing_with_playstation()
 
@@ -277,7 +280,7 @@ def test_playstation_max_attachments_size_exceeded(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    mini_sentry.add_full_project_config(PROJECT_ID)
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     relay = relay_processing_with_playstation(
         {
@@ -301,7 +304,7 @@ def test_playstation_max_attachment_size_exceeded(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    mini_sentry.add_full_project_config(PROJECT_ID)
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     relay = relay_processing_with_playstation(
         {
@@ -381,6 +384,7 @@ def test_playstation_user_data_extraction(
     assert len(event["attachments"]) == 3
 
 
+@pytest.mark.parametrize("use_pop_relay", [True, False])
 def test_playstation_large_attachments(
     mini_sentry,
     relay_with_playstation,
@@ -389,14 +393,17 @@ def test_playstation_large_attachments(
     objectstore,
     outcomes_consumer,
     attachments_consumer,
+    use_pop_relay,
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
+    config = playstation_project_config()
+    config["config"]["features"].append("projects:relay-playstation-uploads")
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
     credentials = relay_credentials()
-    upstream = relay_processing_with_playstation(
+    relay = relay_processing_with_playstation(
         {
             "processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}},
             # 1 MiB extra for minidump etc.
@@ -407,7 +414,8 @@ def test_playstation_large_attachments(
         },
         static_credentials=credentials,
     )
-    relay = relay_with_playstation(upstream, credentials=credentials)
+    if use_pop_relay:
+        relay = relay_with_playstation(relay, credentials=credentials)
     # Video size exceeds attachment size limits - we expect this to be ignored
     video_content = "1" * (len(playstation_dump) + 2 * 1024 * 1024)
 
