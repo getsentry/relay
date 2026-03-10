@@ -438,6 +438,7 @@ impl UploadRequest {
         (
             Self {
                 scoping,
+                timeout: None, // will be set by `configure()`
                 kind: RequestKind::Create { length },
                 sender,
             },
@@ -563,7 +564,9 @@ impl UpstreamRequest for UploadRequest {
             builder.timeout(timeout);
         }
 
-        builder.body(reqwest::Body::wrap_stream(body));
+        if let Some(body) = body {
+            builder.body(reqwest::Body::wrap_stream(body));
+        }
 
         Ok(())
     }
