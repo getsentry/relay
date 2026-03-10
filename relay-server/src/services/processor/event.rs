@@ -1,223 +1,17 @@
 //! Event processor related code.
 
-use std::error::Error;
-
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_event_schema::protocol::{
-    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
-    SecurityReportType, Values,
+    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, SecurityReportType, Values,
 };
-use relay_protocol::{Annotated, Array, Empty, Object};
-use relay_statsd::metric;
+use relay_protocol::{Annotated, Array, Object};
 use serde_json::Value as SerdeValue;
 
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::envelope::Item;
 use crate::extractors::RequestMeta;
-use crate::managed::TypedEnvelope;
-use crate::services::processor::{
-    EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent, ProcessingError,
-    SpansExtracted, event_type,
-};
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::services::processor::{ExtractedEvent, ProcessingError};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
-
-/// Extracts the primary event payload from an envelope.
-///
-/// The event is obtained from only one source in the following precedence:
-///  1. An explicit event item. This is also the case for JSON uploads.
-///  2. A security report item.
-///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
-///  4. A multipart form data body.
-///  5. If none match, `Annotated::empty()`.
-pub fn extract<Group: EventProcessing>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    metrics: &mut Metrics,
-    event_fully_normalized: EventFullyNormalized,
-    config: &Config,
-) -> Result<Annotated<Event>, ProcessingError> {
-    let envelope = managed_envelope.envelope_mut();
-
-    // Remove all items first, and then process them. After this function returns, only
-    // attachments can remain in the envelope. The event will be added again at the end of
-    // `process_event`.
-    let event_item = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
-    let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
-    let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
-    let user_report_v2_item = envelope.take_item_by(|item| item.ty() == &ItemType::UserReportV2);
-    let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
-    let attachment_item =
-        envelope.take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
-    let breadcrumbs1 =
-        envelope.take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
-    let breadcrumbs2 =
-        envelope.take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
-
-    // Event items can never occur twice in an envelope.
-    if let Some(duplicate) =
-        envelope.get_item_by(|item| is_duplicate(item, config.processing_enabled()))
-    {
-        return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
-    }
-
-    let skip_normalization = config.processing_enabled() && event_fully_normalized.0;
-
-    let (event, event_len) = if let Some(item) = event_item.or(security_item) {
-        relay_log::trace!("processing json event");
-        metric!(timer(RelayTimers::EventProcessingDeserialize), {
-            let (mut annotated_event, len) = event_from_json_payload(item, None)?;
-            // Event items can never include transactions, so retain the event type and let
-            // inference deal with this during normalization.
-            if let Some(event) = annotated_event.value_mut()
-                && !skip_normalization
-            {
-                event.ty.set_value(None);
-            }
-            (annotated_event, len)
-        })
-    } else if let Some(item) = user_report_v2_item {
-        relay_log::trace!("processing user_report_v2");
-        event_from_json_payload(item, Some(EventType::UserReportV2))?
-    } else if let Some(item) = raw_security_item {
-        relay_log::trace!("processing security report");
-        event_from_security_report(item, envelope.meta()).map_err(|error| {
-            if !matches!(error, ProcessingError::UnsupportedSecurityType) {
-                relay_log::debug!(
-                    error = &error as &dyn Error,
-                    "failed to extract security report"
-                );
-            }
-            error
-        })?
-    } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
-        relay_log::trace!("extracting attached event data");
-        event_from_attachments(config, attachment_item, breadcrumbs1, breadcrumbs2)?
-    } else if let Some(item) = form_item {
-        relay_log::trace!("extracting form data");
-        let len = item.len();
-
-        let mut value = SerdeValue::Object(Default::default());
-        merge_formdata(&mut value, &item);
-        let event = Annotated::deserialize_with_meta(value).unwrap_or_default();
-
-        (event, len)
-    } else {
-        relay_log::trace!("no event in envelope");
-        (Annotated::empty(), 0)
-    };
-
-    metrics.bytes_ingested_event = Annotated::new(event_len as u64);
-
-    Ok(event)
-}
-
-pub fn serialize<Group: EventProcessing>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    event: &mut Annotated<Event>,
-    event_fully_normalized: EventFullyNormalized,
-    event_metrics_extracted: EventMetricsExtracted,
-    spans_extracted: SpansExtracted,
-) -> Result<(), ProcessingError> {
-    if event.is_empty() {
-        relay_log::debug!("Cannot serialize empty event");
-        return Ok(());
-    }
-
-    let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
-        event.to_json().map_err(ProcessingError::SerializeFailed)?
-    });
-
-    let event_type = event_type(event).unwrap_or_default();
-    let mut event_item = Item::new(ItemType::from_event_type(event_type));
-    event_item.set_payload(ContentType::Json, data);
-
-    // TODO: The state should simply maintain & update an `ItemHeaders` object.
-    // If transaction metrics were extracted, set the corresponding item header
-    event_item.set_metrics_extracted(event_metrics_extracted.0);
-    event_item.set_spans_extracted(spans_extracted.0);
-    event_item.set_fully_normalized(event_fully_normalized.0);
-    event_item.set_span_count(event.value().and_then(|e| e.spans.value()).map(Vec::len));
-
-    managed_envelope.envelope_mut().add_item(event_item);
-
-    Ok(())
-}
-
-/// Computes and emits metrics for monitoring user feedback (UserReportV2) ingest
-pub fn emit_feedback_metrics(envelope: &Envelope) {
-    let mut has_feedback = false;
-    let mut num_attachments = 0;
-    for item in envelope.items() {
-        match item.ty() {
-            ItemType::UserReportV2 => has_feedback = true,
-            ItemType::Attachment => num_attachments += 1,
-            _ => (),
-        }
-    }
-    if has_feedback {
-        metric!(counter(RelayCounters::FeedbackAttachments) += num_attachments);
-    }
-}
-
-/// Checks for duplicate items in an envelope.
-///
-/// An item is considered duplicate if it was not removed by sanitation in `process_event` and
-/// `extract_event`. This partially depends on the `processing_enabled` flag.
-fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
-    match item.ty() {
-        // These should always be removed by `extract_event`:
-        ItemType::Event => true,
-        ItemType::Transaction => true,
-        ItemType::Security => true,
-        ItemType::FormData => true,
-        ItemType::RawSecurity => true,
-        ItemType::UserReportV2 => true,
-
-        // These should be removed conditionally:
-        ItemType::UnrealReport => processing_enabled,
-
-        // These may be forwarded to upstream / store:
-        ItemType::Attachment => false,
-        ItemType::Nel => false,
-        ItemType::UserReport => false,
-
-        // Aggregate data is never considered as part of deduplication
-        ItemType::Session => false,
-        ItemType::Sessions => false,
-        ItemType::Statsd => false,
-        ItemType::MetricBuckets => false,
-        ItemType::ClientReport => false,
-        ItemType::Profile => false,
-        ItemType::ReplayEvent => false,
-        ItemType::ReplayRecording => false,
-        ItemType::ReplayVideo => false,
-        ItemType::CheckIn => false,
-        ItemType::Log => false,
-        ItemType::TraceMetric => false,
-        ItemType::Span => false,
-        ItemType::ProfileChunk => false,
-        ItemType::Integration => false,
-
-        // Without knowing more, `Unknown` items are allowed to be repeated
-        ItemType::Unknown(_) => false,
-    }
-}
-
-fn event_from_json_payload(
-    item: Item,
-    event_type: Option<EventType>,
-) -> Result<ExtractedEvent, ProcessingError> {
-    let mut event = Annotated::<Event>::from_json_bytes(&item.payload())
-        .map_err(ProcessingError::InvalidJson)?;
-
-    if let Some(event_value) = event.value_mut()
-        && event_type.is_some()
-    {
-        event_value.ty.set_value(event_type);
-    }
-
-    Ok((event, item.len()))
-}
 
 pub fn event_from_security_report(
     item: Item,
@@ -433,6 +227,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use chrono::{DateTime, TimeZone, Utc};
+
+    use crate::envelope::{ContentType, ItemType};
 
     use super::*;
 

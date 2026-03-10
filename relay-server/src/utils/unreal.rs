@@ -13,9 +13,8 @@ use symbolic_unreal::{
 
 use crate::constants::{
     ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, SENTRY_CRASH_PAYLOAD_KEY,
-    UNREAL_USER_HEADER,
 };
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
 use crate::services::processor::ProcessingError;
 
 /// Maximum number of unreal logs to parse for breadcrumbs.
@@ -38,40 +37,6 @@ fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
     let mut item = Item::new(ItemType::Event);
     item.set_payload(ContentType::Json, json);
     Ok(Some(item))
-}
-
-/// Expands Unreal 4 items inside an envelope.
-///
-/// If the envelope does NOT contain an `UnrealReport` item, it doesn't do anything. If the envelope
-/// contains an `UnrealReport` item, it removes it from the envelope and inserts new items for each
-/// of its contents.
-///
-/// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it
-/// processes any other envelopes.
-pub fn expand_unreal_envelope(
-    unreal_item: Item,
-    envelope: &mut Envelope,
-    config: &Config,
-) -> Result<(), ProcessingError> {
-    let has_event = envelope
-        .get_item_by(|item| item.ty() == &ItemType::Event)
-        .is_some();
-
-    let expansion = expand_unreal(unreal_item, config)?;
-
-    if !has_event && let Some(event) = expansion.event {
-        envelope.add_item(event);
-    }
-
-    for attachment in expansion.attachments {
-        envelope.add_item(attachment);
-    }
-
-    if let Err(offender) = super::check_envelope_size_limits(config, envelope) {
-        return Err(ProcessingError::PayloadTooLarge(offender));
-    }
-
-    Ok(())
 }
 
 /// Expands an Unreal 4 item and returns the expanded items.
@@ -364,35 +329,6 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         if let Context::Other(unreal_context) = unreal_context {
             unreal_context.extend(props);
         }
-    }
-}
-
-/// Processes an unreal envelope.
-///
-/// This function returns either the processing error, or a boolean indicating
-/// whether the envelope contained an unreal item.
-pub fn process_unreal_envelope(
-    event: &mut Annotated<Event>,
-    envelope: &mut Envelope,
-) -> Result<bool, Unreal4Error> {
-    let user_header = envelope
-        .get_header(UNREAL_USER_HEADER)
-        .and_then(Value::as_str);
-
-    // the `unwrap_or_default` here can produce an invalid user report if the envelope id
-    // is indeed missing. This should not happen under normal circumstances since the EventId is
-    // created statically.
-    let event_id = envelope.event_id().unwrap_or_default();
-    debug_assert!(!event_id.is_nil());
-
-    match process_unreal(event_id, event, envelope.items(), user_header)? {
-        Some(r) => {
-            for item in r.user_reports {
-                envelope.add_item(item);
-            }
-            Ok(true)
-        }
-        None => Ok(false),
     }
 }
 
