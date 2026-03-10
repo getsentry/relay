@@ -26,7 +26,6 @@ pub fn scrub<'a>(
 ) {
     let _ = record_keeper;
     if let Some(ref config) = project_info.config.pii_config {
-        let mut already_lenient = false;
         let view_hierarchy_scrubbing_enabled = project_info
             .config
             .features
@@ -36,13 +35,16 @@ pub fn scrub<'a>(
             if view_hierarchy_scrubbing_enabled
                 && item.attachment_type() == Some(AttachmentType::ViewHierarchy)
             {
-                if let Some(record_keeper) = record_keeper.as_deref_mut()
-                    && !already_lenient
-                {
-                    record_keeper.lenient(relay_quotas::DataCategory::Attachment);
-                    already_lenient = true;
+                let old_size = item.payload().len();
+                scrub_view_hierarchy(item, config);
+                let new_size = item.payload().len();
+
+                if let Some(record_keeper) = record_keeper.as_mut() {
+                    record_keeper.modify_by(
+                        relay_quotas::DataCategory::Attachment,
+                        new_size as isize - old_size as isize,
+                    );
                 }
-                scrub_view_hierarchy(item, config)
             } else if item.attachment_type() == Some(AttachmentType::Minidump) {
                 scrub_minidump(item, config)
             } else if item.ty() == &ItemType::Attachment && has_simple_attachment_selector(config) {
