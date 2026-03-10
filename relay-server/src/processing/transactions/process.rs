@@ -431,9 +431,9 @@ pub fn scrub(
     work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
-    work.try_map(|mut work, _| {
+    work.try_map(|mut work, records| {
         utils::event::scrub(&mut work.event, ctx.project_info)?;
-        utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
+        utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info, Some(records));
         Ok::<_, Error>(work)
     })
 }

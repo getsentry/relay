@@ -5,6 +5,7 @@ use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::managed::RecordKeeper;
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
@@ -15,8 +16,17 @@ use relay_dynamic_config::Feature;
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: &ProjectInfo) {
+///
+/// Requires `record_keeper` since scrubbing a view hierarchy might change the size of it and hence
+/// modifies the attachment quantity.
+pub fn scrub<'a>(
+    attachments: impl Iterator<Item = &'a mut Item>,
+    project_info: &ProjectInfo,
+    mut record_keeper: Option<&mut RecordKeeper>,
+) {
+    let _ = record_keeper;
     if let Some(ref config) = project_info.config.pii_config {
+        let mut already_lenient = false;
         let view_hierarchy_scrubbing_enabled = project_info
             .config
             .features
@@ -26,6 +36,12 @@ pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: 
             if view_hierarchy_scrubbing_enabled
                 && item.attachment_type() == Some(AttachmentType::ViewHierarchy)
             {
+                if let Some(record_keeper) = record_keeper.as_deref_mut()
+                    && !already_lenient
+                {
+                    record_keeper.lenient(relay_quotas::DataCategory::Attachment);
+                    already_lenient = true;
+                }
                 scrub_view_hierarchy(item, config)
             } else if item.attachment_type() == Some(AttachmentType::Minidump) {
                 scrub_minidump(item, config)
