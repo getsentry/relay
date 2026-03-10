@@ -378,10 +378,8 @@ impl ProcessingGroup {
 
         // Extract the standalone attachments
         if !envelope.items().any(Item::creates_event) {
-            let standalone_attachments = envelope.take_items_by(|i| {
-                i.requires_event()
-                    && matches!(i.attachment_type(), Some(AttachmentType::Attachment))
-            });
+            let standalone_attachments = envelope
+                .take_items_by(|i| i.requires_event() && matches!(i.ty(), ItemType::Attachment));
             if !standalone_attachments.is_empty() {
                 grouped_envelopes.push((
                     ProcessingGroup::StandaloneAttachments,
