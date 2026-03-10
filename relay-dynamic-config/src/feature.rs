@@ -86,6 +86,14 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling-beta-ingest`.
     #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
     ContinuousProfilingBetaIngest,
+    /// Enable Perfetto binary trace processing for continuous profiling.
+    ///
+    /// When enabled, compound profile chunk items with `content_type: "perfetto"` are
+    /// expanded from binary Perfetto format into the Sample v2 JSON format.
+    ///
+    /// Serialized as `organizations:continuous-profiling-perfetto`.
+    #[serde(rename = "organizations:continuous-profiling-perfetto")]
+    ContinuousProfilingPerfetto,
     /// Enable log ingestion for our log product (this is not internal logging).
     ///
     /// Serialized as `organizations:ourlogs-ingestion`.

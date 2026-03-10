@@ -1,3 +1,4 @@
+use relay_dynamic_config::Feature;
 use relay_profiling::ProfileType;
 use relay_quotas::DataCategory;
 
@@ -116,6 +117,10 @@ fn process_compound_item(
     match content_type.as_deref() {
         Some("perfetto") => {}
         _ => return Err(relay_profiling::ProfileError::PlatformNotSupported.into()),
+    }
+
+    if ctx.should_filter(Feature::ContinuousProfilingPerfetto) {
+        return Err(relay_profiling::ProfileError::PlatformNotSupported.into());
     }
 
     let expanded = relay_profiling::expand_perfetto(raw_profile, meta_json)?;
