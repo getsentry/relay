@@ -158,7 +158,6 @@ async fn handle(
     let result = upload(&state, scoping, stream).await;
 
     let location = result.inspect_err(|e| {
-        dbg!(e);
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
 

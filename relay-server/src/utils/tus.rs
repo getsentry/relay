@@ -36,7 +36,7 @@ pub const TUS_RESUMABLE: &str = "Tus-Resumable";
 /// See <https://tus.io/protocols/resumable-upload#tus-extension>.
 const TUS_EXTENSION: &str = "Tus-Extension";
 
-const SUPPORTED_EXTENSIONS: HeaderValue = HeaderValue::from_static("creation-with-upload");
+const SUPPORTED_EXTENSIONS: HeaderValue = HeaderValue::from_static("creation,creation-with-upload");
 
 /// TUS protocol version supported by this endpoint.
 pub const TUS_VERSION: HeaderValue = HeaderValue::from_static("1.0.0");

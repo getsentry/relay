@@ -264,7 +264,7 @@ PROCESSING_OPTIONS = {
 @pytest.mark.parametrize(
     "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
 )
-def test_upload_processing(
+def test_create_with_upload_processing(
     mini_sentry, relay, relay_with_processing, chain, project_config
 ):
     """Upload via processing relay stores the blob in objectstore."""
@@ -307,6 +307,53 @@ def test_upload_processing(
     assert PublicKey.parse(processing_relay.public_key).verify(
         unsigned_uri.encode(), signature
     )
+
+
+@pytest.mark.parametrize(
+    "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
+)
+def test_create_processing(
+    mini_sentry, relay, relay_with_processing, chain, project_config
+):
+    """Create and separate upload via processing relay stores the blob in objectstore."""
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    processing_relay = relay_with_processing(PROCESSING_OPTIONS)
+    if chain:
+        relay = relay(processing_relay)
+    else:
+        relay = processing_relay
+
+    data = b"hello world"
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert "Upload-Offset" not in response.headers
+
+    # Use the location to send a PATCH request:
+    data = b"hello world"
+    response = relay.patch(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+
+    assert response.status_code == 204
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert response.headers["Upload-Offset"] == str(len(data))
 
 
 @pytest.mark.parametrize("defer_length_value", ["1", "2"])
