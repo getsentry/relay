@@ -19,6 +19,7 @@ use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, Sender, SimpleService,
 };
+use serde::Deserialize;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 use uuid::Uuid;
@@ -312,6 +313,20 @@ impl Location {
     }
 }
 
+/// Path parameters for the upload endpoint (`/api/:project_id/upload/:key/`).
+#[derive(Debug, Deserialize)]
+pub struct LocationPath {
+    pub project_id: ProjectId,
+    pub key: String,
+}
+
+/// Query parameters for the upload endpoint.
+#[derive(Debug, Deserialize)]
+pub struct LocationQueryParams {
+    pub length: Option<usize>,
+    pub signature: String,
+}
+
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
 #[derive(Debug)]
 pub struct SignedLocation {
@@ -391,45 +406,26 @@ impl SignedLocation {
     }
 
     fn try_from_str(uri: &str) -> Option<Self> {
-        // TODO: use axum parser instead.
-        // Parse path segments: /api/{project_id}/upload/{key}/
-        let path = uri.split('?').next().unwrap_or(uri);
-        let mut segments = path.split('/').filter(|s| !s.is_empty());
-        expect(&mut segments, "api")?;
-        let project_id = segments.next()?;
-        expect(&mut segments, "upload")?;
-        let key = segments.next()?;
-        if !(key.len() == 32 && key.bytes().all(|c| c.is_ascii_hexdigit())) {
-            return None;
-        }
-        let project_id: ProjectId = project_id.parse().ok()?;
+        static ROUTER: std::sync::LazyLock<matchit::Router<()>> = std::sync::LazyLock::new(|| {
+            let mut router = matchit::Router::new();
+            router
+                .insert("/api/:project_id/upload/:key/", ())
+                .expect("valid route pattern");
+            router
+        });
 
-        // Parse query parameters: length and signature.
-        let query = uri.split('?').nth(1)?;
-        let mut length = None;
-        let mut signature = None;
-        for param in query.split('&') {
-            if let Some(v) = param.strip_prefix("length=") {
-                length = Some(v.parse().ok()?);
-            } else if let Some(v) = param.strip_prefix("signature=") {
-                signature = Some(Signature(v.to_owned()));
-            }
-        }
-        let signature = signature?;
+        let (path, query) = uri.split_once('?')?;
+        let matched = ROUTER.at(path).ok()?;
+        let LocationPath { project_id, key } = LocationPath {
+            project_id: matched.params.get("project_id")?.parse().ok()?,
+            key: matched.params.get("key")?.to_owned(),
+        };
 
-        Some(SignedLocation {
-            location: Location {
-                project_id,
-                key: key.to_owned(),
-                length,
-            },
-            signature,
-        })
+        // Parse query parameters.
+        let LocationQueryParams { length, signature } = serde_urlencoded::from_str(query).ok()?;
+
+        Some(Self::from_parts(project_id, key, length, signature))
     }
-}
-
-fn expect<'a, I: Iterator<Item = &'a str>>(it: &mut I, expected_value: &str) -> Option<()> {
-    (it.next()? == expected_value).then_some(())
 }
 
 enum RequestKind {

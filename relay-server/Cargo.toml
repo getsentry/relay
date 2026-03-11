@@ -56,6 +56,7 @@ itertools = { workspace = true }
 json-forensics = { workspace = true }
 libc = { workspace = true }
 liblzma = { workspace = true }
+matchit = { workspace = true }
 mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
@@ -110,6 +111,7 @@ serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
 serde_path_to_error = { workspace = true }
+serde_urlencoded = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
 socket2 = { workspace = true, features = ["all"] }
 sqlx = { workspace = true, features = [

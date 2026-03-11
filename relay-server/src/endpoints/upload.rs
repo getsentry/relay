@@ -17,12 +17,10 @@ use chrono::Utc;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use http::header;
-use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_quotas::Scoping;
 use relay_system::SendError;
-use serde::Deserialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
@@ -208,24 +206,12 @@ async fn handle_post(
     Ok(response)
 }
 
-#[derive(Debug, Deserialize)]
-struct PatchPath {
-    project_id: ProjectId,
-    key: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct PatchQueryParams {
-    length: Option<usize>,
-    signature: String,
-}
-
 async fn handle_patch(
     state: ServiceState,
     meta: RequestMeta,
     headers: HeaderMap,
-    Path(PatchPath { project_id, key }): Path<PatchPath>,
-    Query(PatchQueryParams { length, signature }): Query<PatchQueryParams>,
+    Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
+    Query(upload::LocationQueryParams { length, signature }): Query<upload::LocationQueryParams>,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     relay_log::trace!("Validating headers");
