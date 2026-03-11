@@ -1,6 +1,5 @@
 //! Utilities for uploading large files.
 
-use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
@@ -33,6 +32,9 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::utils::{BoundedStream, tus};
+
+/// The URL template for uploading bytes to a known location.
+pub const UPLOAD_PATCH_PATH: &str = "/api/{project_id}/upload/{key}/";
 
 /// An error that occurs during upload.
 #[derive(Debug, thiserror::Error)]
@@ -410,7 +412,7 @@ impl SignedLocation {
         static ROUTER: std::sync::LazyLock<matchit::Router<()>> = std::sync::LazyLock::new(|| {
             let mut router = matchit::Router::new();
             router
-                .insert("/api/{project_id}/upload/{key}/", ())
+                .insert(UPLOAD_PATCH_PATH, ())
                 .expect("valid route pattern");
             router
         });

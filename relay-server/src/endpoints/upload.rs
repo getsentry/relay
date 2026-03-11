@@ -172,7 +172,6 @@ async fn handle_post(
     let mut upload_offset = None;
 
     // If we already have bytes, upload them:
-    // TODO ParsedHeader enum
     if content_length.is_none_or(|v| v > 0) {
         let stream = body
             .into_data_stream()
