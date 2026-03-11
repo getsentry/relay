@@ -215,24 +215,22 @@ pub async fn read_attachment_bytes_into_item(
     mut item: Item,
     config: &Config,
 ) -> Result<Option<Item>, multer::Error> {
-    {
-        let content_type = field.content_type().cloned();
-        let field = LimitedField::new(field, config.max_attachment_size());
-        match field.bytes().await {
-            Ok(bytes) => {
-                if let Some(content_type) = content_type {
-                    let ct = content_type
-                        .as_ref()
-                        .parse()
-                        .unwrap_or(ContentType::OctetStream);
-                    item.set_payload(ct, bytes);
-                } else {
-                    item.set_payload_without_content_type(bytes);
-                }
-                Ok(Some(item))
+    let content_type = field.content_type().cloned();
+    let field = LimitedField::new(field, config.max_attachment_size());
+    match field.bytes().await {
+        Ok(bytes) => {
+            if let Some(content_type) = content_type {
+                let ct = content_type
+                    .as_ref()
+                    .parse()
+                    .unwrap_or(ContentType::OctetStream);
+                item.set_payload(ct, bytes);
+            } else {
+                item.set_payload_without_content_type(bytes);
             }
-            Err(err) => Err(err),
+            Ok(Some(item))
         }
+        Err(err) => Err(err),
     }
 }
 
