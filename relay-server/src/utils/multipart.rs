@@ -159,6 +159,7 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
         .and_then(|slice| std::str::from_utf8(&slice[2..]).ok())
 }
 
+#[cfg_attr(not(sentry), allow(dead_code))]
 #[derive(Debug, thiserror::Error)]
 pub enum BadMultipart {
     #[error("event metadata error: {0}")]
@@ -214,6 +215,7 @@ pub async fn read_attachment_bytes_into_item(
     field: Field<'static>,
     mut item: Item,
     config: &Config,
+    ignore_size_exceeded: bool,
 ) -> Result<Option<Item>, multer::Error> {
     let content_type = field.content_type().cloned();
     let field = LimitedField::new(field, config.max_attachment_size());
@@ -230,11 +232,12 @@ pub async fn read_attachment_bytes_into_item(
             }
             Ok(Some(item))
         }
+        Err(multer::Error::FieldSizeExceeded { .. }) if ignore_size_exceeded => Ok(None),
         Err(err) => Err(err),
     }
 }
 
-async fn multipart_items(
+pub async fn multipart_items(
     mut multipart: Multipart<'static>,
     config: &Config,
     attachment_strategy: impl AttachmentStrategy,
@@ -351,16 +354,19 @@ impl futures::Stream for LimitedField<'_> {
     }
 }
 
-/// Wrapper around [`multer::Multipart`] that checks each field is smaller than
-/// `max_attachment_size` and that the combined size of all fields is smaller than
-/// 'max_attachments_size'.
+/// Wrapper around [`multer::Multipart`] that prevents the total stream size from exceeding
+/// [`Config::max_attachments_size`].
+///
+/// Although [`LimitedField`] prevents reading large fields into memory, it still reads
+/// the entire field before returning an error. This led to the incident described in PR
+/// [#4836](https://github.com/getsentry/relay/pull/4836) which necessitated introducing
+/// [`ConstrainedMultipart`]'s stream size limit.
 pub struct ConstrainedMultipart(pub Multipart<'static>);
 
 impl FromRequest<ServiceState> for ConstrainedMultipart {
     type Rejection = Remote<multer::Error>;
 
     async fn from_request(request: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
-        // Still want to enforce multer limits here so that we avoid parsing large fields.
         let limits =
             multer::SizeLimit::new().whole_stream(state.config().max_attachments_size() as u64);
 
@@ -377,39 +383,6 @@ impl ConstrainedMultipart {
         attachment_strategy: impl AttachmentStrategy,
     ) -> Result<Items, multer::Error> {
         multipart_items(self.0, config, attachment_strategy).await
-    }
-}
-
-/// Wrapper around [`multer::Multipart`] that skips over fields which are larger than
-/// `max_attachment_size`. These fields are also not taken into account when checking that the
-/// combined size of all fields is smaller than `max_attachments_size`.
-#[allow(dead_code)]
-pub struct UnconstrainedMultipart {
-    multipart: Multipart<'static>,
-}
-
-impl FromRequest<ServiceState> for UnconstrainedMultipart {
-    type Rejection = BadMultipart;
-
-    async fn from_request(
-        request: Request,
-        _state: &ServiceState,
-    ) -> Result<Self, Self::Rejection> {
-        let multipart = multipart_from_request(request, multer::Constraints::new())?;
-        Ok(UnconstrainedMultipart { multipart })
-    }
-}
-
-#[cfg_attr(not(any(test, sentry)), expect(dead_code))]
-impl UnconstrainedMultipart {
-    pub async fn items(
-        self,
-        config: &Config,
-        attachment_strategy: impl AttachmentStrategy,
-    ) -> Result<Items, multer::Error> {
-        let UnconstrainedMultipart { multipart } = self;
-
-        multipart_items(multipart, config, attachment_strategy).await
     }
 }
 
@@ -534,7 +507,7 @@ mod tests {
                 item: Item,
                 config: &Config,
             ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
-                read_attachment_bytes_into_item(field, item, config)
+                read_attachment_bytes_into_item(field, item, config, false)
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {
@@ -579,7 +552,7 @@ mod tests {
                 item: Item,
                 config: &Config,
             ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
-                read_attachment_bytes_into_item(field, item, config)
+                read_attachment_bytes_into_item(field, item, config, true)
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {
@@ -587,9 +560,7 @@ mod tests {
             }
         }
 
-        let result = UnconstrainedMultipart { multipart }
-            .items(config, MockAttachmentStrategy)
-            .await;
+        let result = multipart_items(multipart, config, MockAttachmentStrategy).await;
 
         // Should be warned if the overall stream limit is being breached.
         assert!(result.is_err_and(|x| matches!(x, multer::Error::StreamSizeExceeded { limit: _ })));

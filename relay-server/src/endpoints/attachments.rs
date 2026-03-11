@@ -30,7 +30,7 @@ impl AttachmentStrategy for AttachmentsAttachmentStrategy {
         item: Item,
         config: &Config,
     ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
-        read_attachment_bytes_into_item(field, item, config)
+        read_attachment_bytes_into_item(field, item, config, false)
     }
 }
 

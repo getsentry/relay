@@ -176,7 +176,7 @@ impl AttachmentStrategy for MinidumpAttachmentStrategy {
         item: Item,
         config: &Config,
     ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
-        read_attachment_bytes_into_item(field, item, config)
+        read_attachment_bytes_into_item(field, item, config, false)
     }
 
     fn infer_type(&self, field: &Field) -> AttachmentType {

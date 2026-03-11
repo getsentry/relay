@@ -1,7 +1,6 @@
 use std::io;
 use std::str::FromStr;
 
-use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
@@ -9,7 +8,7 @@ use bytes::Bytes;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use http::StatusCode;
-use multer::Field;
+use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
@@ -26,9 +25,8 @@ use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectInfo;
 use crate::services::upload::{Stream, Upload};
-use crate::utils::{
-    AttachmentStrategy, BoundedStream, UnconstrainedMultipart, read_attachment_bytes_into_item,
-};
+use crate::utils;
+use crate::utils::{AttachmentStrategy, BadMultipart, BoundedStream};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -93,7 +91,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
     ) -> Result<Option<Item>, multer::Error> {
         let upload = match self.upload_service {
             Some(upload) if self.infer_type(&field) != AttachmentType::Prosperodump => upload,
-            _ => return read_attachment_bytes_into_item(field, item, config).await,
+            _ => return utils::read_attachment_bytes_into_item(field, item, config, true).await,
         };
         let content_type = field.content_type().cloned();
         let stream: BoxStream<'static, io::Result<Bytes>> =
@@ -143,7 +141,7 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
 }
 
 async fn extract_multipart(
-    multipart: UnconstrainedMultipart,
+    multipart: Multipart<'static>,
     meta: RequestMeta,
     state: &ServiceState,
     project_config: &ProjectInfo,
@@ -158,7 +156,7 @@ async fn extract_multipart(
         scoping,
         upload_service,
     };
-    let mut items = multipart.items(state.config(), attachment_strategy).await?;
+    let mut items = utils::multipart_items(multipart, state.config(), attachment_strategy).await?;
 
     let prosperodump_item = items
         .iter_mut()
@@ -200,7 +198,8 @@ async fn handle(
         .enabled()
         .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
 
-    let multipart = request.extract_with_state(&state).await?;
+    let multipart = utils::multipart_from_request(request, multer::Constraints::new())
+        .map_err(BadMultipart::Multipart)?;
     let mut envelope = extract_multipart(multipart, meta, &state, &project_config).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
