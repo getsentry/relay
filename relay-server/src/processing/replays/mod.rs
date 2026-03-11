@@ -156,14 +156,11 @@ impl ReplaysProcessor {
 }
 
 impl processing::Processor for ReplaysProcessor {
-    type UnitOfWork = SerializedReplays;
+    type Input = SerializedReplays;
     type Output = ReplaysOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
         let events = envelope
             .envelope_mut()
@@ -194,7 +191,7 @@ impl processing::Processor for ReplaysProcessor {
 
     async fn process(
         &self,
-        replays: Managed<Self::UnitOfWork>,
+        replays: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let replays = filter::feature_flag(replays, ctx)?;

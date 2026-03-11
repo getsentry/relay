@@ -102,14 +102,11 @@ impl TraceMetricsProcessor {
 }
 
 impl processing::Processor for TraceMetricsProcessor {
-    type UnitOfWork = SerializedTraceMetrics;
+    type Input = SerializedTraceMetrics;
     type Output = TraceMetricOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
         let metrics = envelope
@@ -127,7 +124,7 @@ impl processing::Processor for TraceMetricsProcessor {
 
     async fn process(
         &self,
-        metrics: Managed<Self::UnitOfWork>,
+        metrics: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
         validate::container(&metrics)?;

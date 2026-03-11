@@ -72,14 +72,11 @@ impl ErrorsProcessor {
 }
 
 impl processing::Processor for ErrorsProcessor {
-    type UnitOfWork = SerializedError;
+    type Input = SerializedError;
     type Output = ErrorOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let has_transaction = envelope
             .envelope()
             .items()
@@ -107,7 +104,7 @@ impl processing::Processor for ErrorsProcessor {
 
     async fn process(
         &self,
-        error: Managed<Self::UnitOfWork>,
+        error: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let mut error = process::expand(error, ctx)?;

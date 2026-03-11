@@ -59,14 +59,11 @@ impl CheckInsProcessor {
 }
 
 impl processing::Processor for CheckInsProcessor {
-    type UnitOfWork = SerializedCheckIns;
+    type Input = SerializedCheckIns;
     type Output = CheckInsOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
         let check_ins = envelope
@@ -80,7 +77,7 @@ impl processing::Processor for CheckInsProcessor {
 
     async fn process(
         &self,
-        mut check_ins: Managed<Self::UnitOfWork>,
+        mut check_ins: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         if ctx.is_processing() {

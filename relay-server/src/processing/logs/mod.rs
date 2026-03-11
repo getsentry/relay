@@ -100,14 +100,11 @@ impl LogsProcessor {
 }
 
 impl processing::Processor for LogsProcessor {
-    type UnitOfWork = SerializedLogs;
+    type Input = SerializedLogs;
     type Output = LogOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
         let logs = envelope
@@ -135,7 +132,7 @@ impl processing::Processor for LogsProcessor {
 
     async fn process(
         &self,
-        logs: Managed<Self::UnitOfWork>,
+        logs: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
         validate::container(&logs).reject(&logs)?;
