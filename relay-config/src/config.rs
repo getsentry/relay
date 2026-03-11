@@ -1281,6 +1281,17 @@ impl Default for OutcomeAggregatorConfig {
     }
 }
 
+/// Configuration options for objectstore's auth scheme.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ObjectstoreAuthConfig {
+    /// Identifier for the private key used to sign objectstore's tokens. Must correspond to a
+    /// public key configured in objectstore.
+    pub key_id: String,
+
+    /// EdDSA private key used to sign Objectstore's tokens, in PEM format.
+    pub signing_key: String,
+}
+
 /// Configuration values for the objectstore service.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -1301,6 +1312,9 @@ pub struct ObjectstoreServiceConfig {
 
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
     pub timeout: u64,
+
+    /// Configuration values for objectstore's auth scheme.
+    pub auth: Option<ObjectstoreAuthConfig>,
 }
 
 impl Default for ObjectstoreServiceConfig {
@@ -1310,6 +1324,7 @@ impl Default for ObjectstoreServiceConfig {
             max_concurrent_requests: 10,
             max_backlog: 20,
             timeout: 60,
+            auth: None,
         }
     }
 }
