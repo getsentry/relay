@@ -45,6 +45,7 @@ pub enum ContentType {
 
 /// Represents the payload of an [attachment placeholder item](
 /// https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-placeholder-item).
+#[cfg_attr(not(sentry), expect(unused))]
 #[derive(Serialize)]
 pub struct AttachmentPlaceholder<'a> {
     pub location: &'a str,
