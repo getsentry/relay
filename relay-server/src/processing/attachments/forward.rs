@@ -24,10 +24,9 @@ impl Forward for AttachmentsOutput {
 
         let Self(attachments) = self;
 
-        let event_id = attachments
-            .headers
-            .event_id()
-            .ok_or_else(|| attachments.reject_err(Error::NoEventId).map(drop))?;
+        let Some(event_id) = attachments.headers.event_id() else {
+            return Err(attachments.reject_err(Error::NoEventId).map(drop));
+        };
 
         let use_objectstore = {
             let options = &ctx.global_config.options;
