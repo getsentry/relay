@@ -186,18 +186,22 @@ impl IntoResponse for BadMultipart {
     }
 }
 
-// Strategy for how to infer attachment type and add a multipart attachment to an envelope item.
-// This enables different endpoints to have different ways of dealing with multipart attachments,
-// for instance, one endpoint can upload attachments and add a ref to the item, while another
-// endpoint can add attachments to items directly.
+/// Strategy for how to infer attachment type and add a multipart attachment to an envelope item.
+///
+/// This enables different endpoints to have different ways of dealing with multipart attachments,
+/// for instance, one endpoint can upload attachments and add a ref to the item, while another
+/// endpoint can add attachments to items directly.
 pub trait AttachmentStrategy {
     fn infer_type(&self, field: &Field) -> AttachmentType;
 
-    // Return values:
-    //  Ok(Some(item)) if everything was successful.
-    //  Ok(None) if there was an error adding the attachment, but the error was expected and should
-    //  be ignored
-    //  Err(..) if there was an unexpected error adding the attachment
+    /// Defines how individual multipart items should be handled.
+    ///
+    /// Returns
+    ///  - `Ok(Some(item))` if everything was successful.
+    ///  - `Ok(None)` if there was an error adding the attachment, but the rest of the request
+    ///    should still be handled.
+    ///  - `Err(..)` if there was an unexpected error adding the attachment and the request should
+    ///    be cancelled.
     fn add_to_item(
         &self,
         field: Field<'static>,

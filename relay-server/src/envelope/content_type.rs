@@ -1,5 +1,7 @@
 use std::fmt;
 
+use serde::Serialize;
+
 use crate::integrations::Integration;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
@@ -39,6 +41,15 @@ pub enum ContentType {
     AttachmentRef,
     /// All integration content types.
     Integration(Integration),
+}
+
+/// Represents the payload of an [attachment placeholder item](
+/// https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-placeholder-item).
+#[derive(Serialize)]
+pub struct AttachmentPlaceholder<'a> {
+    pub location: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<ContentType>,
 }
 
 impl ContentType {

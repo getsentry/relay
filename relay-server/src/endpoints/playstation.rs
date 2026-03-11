@@ -1,4 +1,5 @@
 use std::io;
+use std::str::FromStr;
 
 use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
@@ -12,16 +13,19 @@ use multer::Field;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
+use relay_quotas::Scoping;
+use relay_system::Addr;
 use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::{self, OctetStream};
-use crate::envelope::{AttachmentType, Envelope, Item};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
+use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectInfo;
-use crate::services::upload::Stream;
+use crate::services::upload::{Stream, Upload};
 use crate::utils::{
     AttachmentStrategy, BoundedStream, UnconstrainedMultipart, read_attachment_bytes_into_item,
 };
@@ -65,9 +69,8 @@ struct Parts {
 }
 
 struct PlaystationAttachmentStrategy<'a> {
-    state: &'a ServiceState,
-    request_meta: &'a RequestMeta,
-    project_config: &'a ProjectInfo,
+    upload_service: Option<&'a Addr<Upload>>,
+    scoping: Scoping,
 }
 
 impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
@@ -88,43 +91,36 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         mut item: Item,
         config: &Config,
     ) -> Result<Option<Item>, multer::Error> {
-        let attachment_type = self.infer_type(&field);
-        if self.project_config.has_feature(Feature::PlaystationUploads)
-            && attachment_type != AttachmentType::Prosperodump
+        let upload = match self.upload_service {
+            Some(upload) if self.infer_type(&field) != AttachmentType::Prosperodump => upload,
+            _ => return read_attachment_bytes_into_item(field, item, config).await,
+        };
+        let content_type = field.content_type().cloned();
+        let stream: BoxStream<'static, io::Result<Bytes>> =
+            Box::pin(field.map_err(io::Error::other));
+        let stream = BoundedStream::new(stream, 1, config.max_upload_size());
+        let byte_counter = stream.byte_counter();
+        let stream = Stream {
+            scoping: self.scoping,
+            stream,
+        };
+        let result = upload.send(stream).await;
+        if let Ok(result) = result
+            && let Ok(location) = result.inspect_err(|e| {
+                relay_log::warn!(error = e as &dyn std::error::Error, "Upload failed");
+            })
+            && let Ok(location) = location.into_header_value()
+            && let Ok(location) = location.to_str()
+            && let Ok(payload) = serde_json::to_vec(&AttachmentPlaceholder {
+                location,
+                content_type: content_type.and_then(|ct| ContentType::from_str(ct.as_ref()).ok()),
+            })
         {
-            let content_type = field.content_type().cloned();
-            let stream: BoxStream<'static, io::Result<Bytes>> =
-                Box::pin(field.map_err(io::Error::other));
-            let stream = BoundedStream::new(stream, 1, config.max_upload_size());
-            let byte_counter = stream.byte_counter();
-            let stream = Stream {
-                scoping: self
-                    .project_config
-                    .scoping(self.request_meta.public_key())
-                    .unwrap_or_else(|| self.request_meta.get_partial_scoping().into_scoping()),
-                stream,
-            };
-            let result = self.state.upload().send(stream).await;
-            if let Ok(result) = result
-                && let Ok(location) = result.inspect_err(|e| {
-                    relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
-                })
-                && let Ok(location) = location.into_header_value()
-                && let Ok(location) = location.to_str()
-            {
-                let mut payload = serde_json::json!({"location": location});
-                if let Some(content_type) = content_type {
-                    payload["content_type"] = serde_json::Value::String(content_type.to_string());
-                }
-                let payload = payload.to_string().into_bytes();
-                item.set_payload(ContentType::AttachmentRef, payload);
-                item.set_attachment_length(byte_counter.get());
-                Ok(Some(item))
-            } else {
-                Ok(None)
-            }
+            item.set_payload(ContentType::AttachmentRef, payload);
+            item.set_attachment_length(byte_counter.get());
+            Ok(Some(item))
         } else {
-            read_attachment_bytes_into_item(field, item, config).await
+            Ok(None)
         }
     }
 }
@@ -152,10 +148,15 @@ async fn extract_multipart(
     state: &ServiceState,
     project_config: &ProjectInfo,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
+    let scoping = project_config
+        .scoping(meta.public_key())
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+    let upload_service = project_config
+        .has_feature(Feature::PlaystationUploads)
+        .then_some(state.upload());
     let attachment_strategy = PlaystationAttachmentStrategy {
-        state,
-        request_meta: &meta,
-        project_config,
+        scoping,
+        upload_service,
     };
     let mut items = multipart.items(state.config(), attachment_strategy).await?;
 
@@ -197,7 +198,7 @@ async fn handle(
         .state()
         .clone()
         .enabled()
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
 
     let multipart = request.extract_with_state(&state).await?;
     let mut envelope = extract_multipart(multipart, meta, &state, &project_config).await?;
