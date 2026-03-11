@@ -536,7 +536,6 @@ def test_span_ingestion_with_performance_scores(
         ],
     }
     project_config["config"]["features"] = [
-        "organizations:performance-calculate-score-relay",
         "organizations:standalone-span-ingestion",
     ]
     project_config["config"]["txNameRules"] = [

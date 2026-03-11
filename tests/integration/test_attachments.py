@@ -590,19 +590,31 @@ def test_view_hierarchy_processing(
     outcomes_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("use_objectstore", [False, True])
 def test_event_with_attachment(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
     transactions_consumer,
+    use_objectstore,
+    objectstore,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     mini_sentry.add_full_project_config(project_id)
-    relay = relay_with_processing()
+
+    if use_objectstore:
+        mini_sentry.global_config["options"][
+            "relay.objectstore-attachments.sample-rate"
+        ] = 1.0
+
+    relay = relay_with_processing(
+        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
+    )
     attachments_consumer = attachments_consumer()
     transactions_consumer = transactions_consumer()
+    objectstore = objectstore("attachments", project_id)
 
     # event attachments are always sent as chunks, and added to events
     envelope = Envelope(headers=[["event_id", event_id]])
@@ -616,8 +628,9 @@ def test_event_with_attachment(
 
     relay.send_envelope(project_id, envelope)
 
-    chunk, _ = attachments_consumer.get_attachment_chunk()
-    assert chunk == b"event attachment"
+    if not use_objectstore:
+        chunk, _ = attachments_consumer.get_attachment_chunk()
+        assert chunk == b"event attachment"
 
     _, event_message = attachments_consumer.get_event()
 
@@ -629,9 +642,13 @@ def test_event_with_attachment(
             "content_type": "application/octet-stream",
             "attachment_type": "event.attachment",
             "size": len(b"event attachment"),
-            "chunks": 1,
+            **({"stored_id": mock.ANY} if use_objectstore else {"chunks": 1}),
         }
     ]
+
+    if use_objectstore:
+        stored_id = event_message["attachments"][0]["stored_id"]
+        assert objectstore.get(stored_id).payload.read() == b"event attachment"
 
     # transaction attachments are sent as individual attachments,
     # either using chunks by default, or contents inlined
@@ -652,11 +669,20 @@ def test_event_with_attachment(
         "content_type": "application/octet-stream",
         "attachment_type": "event.attachment",
         "size": len(b"transaction attachment"),
-        "data": b"transaction attachment",
+        **(
+            {"stored_id": mock.ANY}
+            if use_objectstore
+            else {"data": b"transaction attachment"}
+        ),
     }
 
     attachment = attachments_consumer.get_individual_attachment()
     assert attachment["attachment"].pop("id")
+
+    if use_objectstore:
+        stored_id = attachment["attachment"]["stored_id"]
+        assert objectstore.get(stored_id).payload.read() == b"transaction attachment"
+
     assert attachment == {
         "type": "attachment",
         "attachment": expected_attachment,
