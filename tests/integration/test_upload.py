@@ -13,6 +13,10 @@ import urllib
 from sentry_relay.auth import PublicKey
 
 
+UPLOAD_PATH = "/api/42/upload/019cdc82ed6c7761ba21fd34b86481c2/"
+UPLOAD_LOCATION = f"{UPLOAD_PATH}?length=11&signature=z_fUMhT0EZqJz6OQtwGHqTlOOLPpTVpvPa-rYTg18FVWZM1OGny-LeVJB5H-sSR_5e--I1xt-FlCmRG2bsmcAQ.eyJ0IjoiMjAyNi0wMy0xMVQxMDo0ODoxMy45NDM1ODNaIn0"
+
+
 @pytest.fixture
 def dummy_upload(mini_sentry):
     mini_sentry.allow_chunked = True
@@ -22,9 +26,7 @@ def dummy_upload(mini_sentry):
         return Response(
             "",
             status=201,
-            headers={
-                "Location": "/api/42/upload/9ec79c33ec9942ab8353589fcb2e04dc/?length=666&signature=fake"
-            },
+            headers={"Location": UPLOAD_LOCATION},
         )
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
@@ -32,9 +34,7 @@ def dummy_upload(mini_sentry):
         return Response(
             "",
             status=204,
-            headers={
-                "Location": "/api/42/upload/9ec79c33ec9942ab8353589fcb2e04dc/?length=666&signature=fake"
-            },
+            headers={"Location": UPLOAD_LOCATION},
         )
 
 
@@ -226,14 +226,11 @@ def test_timeout(
 ):
     """Ensure that the general HTTP timeout does not affect the upload endpoint"""
     mini_sentry.allow_chunked = True
-    location = "/api/42/upload/019cdc82ed6c7761ba21fd34b86481c2/?length=11&signature=z_fUMhT0EZqJz6OQtwGHqTlOOLPpTVpvPa-rYTg18FVWZM1OGny-LeVJB5H-sSR_5e--I1xt-FlCmRG2bsmcAQ.eyJ0IjoiMjAyNi0wMy0xMVQxMDo0ODoxMy45NDM1ODNaIn0"
 
-    @mini_sentry.app.route(
-        "/api/<project>/upload/019cdc82ed6c7761ba21fd34b86481c2/", methods=["PATCH"]
-    )
+    @mini_sentry.app.route(UPLOAD_PATH, methods=["PATCH"])
     def slow_upload(**opts):
         time.sleep(2)
-        return Response("", status=204, headers={"Location": location})
+        return Response("", status=204, headers={"Location": UPLOAD_LOCATION})
 
     project_id = 42
     relay = relay(
@@ -246,7 +243,8 @@ def test_timeout(
 
     data = b"hello world"
     response = relay.patch(
-        "%s&sentry_key=%s" % (location, mini_sentry.get_dsn_public_key(project_id)),
+        "%s&sentry_key=%s"
+        % (UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",

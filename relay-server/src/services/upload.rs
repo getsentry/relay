@@ -1,5 +1,6 @@
 //! Utilities for uploading large files.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
@@ -409,7 +410,7 @@ impl SignedLocation {
         static ROUTER: std::sync::LazyLock<matchit::Router<()>> = std::sync::LazyLock::new(|| {
             let mut router = matchit::Router::new();
             router
-                .insert("/api/:project_id/upload/:key/", ())
+                .insert("/api/{project_id}/upload/{key}/", ())
                 .expect("valid route pattern");
             router
         });
