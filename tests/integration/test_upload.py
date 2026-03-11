@@ -212,7 +212,7 @@ def test_upload_rate_limited(
 @pytest.mark.parametrize(
     "http_timeout, upload_timeout, expected_status_code",
     [
-        pytest.param(1, 60, 201, id="http"),
+        pytest.param(1, 60, 204, id="http"),
         pytest.param(60, 1, 504, id="upload"),
     ],
 )
@@ -226,11 +226,14 @@ def test_timeout(
 ):
     """Ensure that the general HTTP timeout does not affect the upload endpoint"""
     mini_sentry.allow_chunked = True
+    location = "/api/42/upload/019cdc82ed6c7761ba21fd34b86481c2/?length=11&signature=z_fUMhT0EZqJz6OQtwGHqTlOOLPpTVpvPa-rYTg18FVWZM1OGny-LeVJB5H-sSR_5e--I1xt-FlCmRG2bsmcAQ.eyJ0IjoiMjAyNi0wMy0xMVQxMDo0ODoxMy45NDM1ODNaIn0"
 
-    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    @mini_sentry.app.route(
+        "/api/<project>/upload/019cdc82ed6c7761ba21fd34b86481c2/", methods=["PATCH"]
+    )
     def slow_upload(**opts):
         time.sleep(2)
-        return Response("", status=201, headers={"Location": "dummy"})
+        return Response("", status=204, headers={"Location": location})
 
     project_id = 42
     relay = relay(
@@ -242,12 +245,11 @@ def test_timeout(
     )
 
     data = b"hello world"
-    response = relay.post(
-        "/api/%s/upload/?sentry_key=%s"
-        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+    response = relay.patch(
+        "%s&sentry_key=%s" % (location, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(len(data)),
+            "Upload-Offset": "0",
             "Content-Type": "application/offset+octet-stream",
         },
         data=data,
@@ -353,6 +355,7 @@ def test_create_processing(
     )
 
     assert response.status_code == 204
+    print(response.headers["Location"])
     assert response.headers["Tus-Resumable"] == "1.0.0"
     assert response.headers["Upload-Offset"] == str(len(data))
 
