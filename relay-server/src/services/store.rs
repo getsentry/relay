@@ -771,7 +771,7 @@ impl StoreService {
                 attachment.event_id,
                 scoping.project_id,
                 &attachment.attachment,
-                // Hardcoded to `true` since it standalone attachments are 'individual attachments'.
+                // Hardcoded to `true` since standalone attachments are 'individual attachments'.
                 true,
             );
             debug_assert!(matches!(result, Err(_) | Ok(None)));
