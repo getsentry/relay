@@ -1,5 +1,3 @@
-use relay_quotas::DataCategory;
-
 use crate::managed::{Managed, Rejected};
 use crate::processing::attachments::{Error, SerializedAttachments};
 use crate::processing::{self, utils};
