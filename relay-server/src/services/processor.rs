@@ -1421,7 +1421,7 @@ impl EnvelopeProcessorService {
             .envelope_mut()
             .items_mut()
             .filter(|i| i.ty() == &ItemType::Attachment);
-        processing::utils::attachments::scrub(attachments, ctx.project_info);
+        processing::utils::attachments::scrub(attachments, ctx.project_info, None);
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(

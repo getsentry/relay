@@ -326,6 +326,55 @@ def test_view_hierarchy_scrubbing(mini_sentry, relay, feature_flags, expected):
         ),
     ],
 )
+def test_attachment_scrubbing_with_event_with_fallback(
+    mini_sentry, relay, feature_flags, expected
+):
+    """
+    Like test_attachment_scrubbing_with_fallback, but goes through the ErrorsProcessor
+    """
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(feature_flags)
+    project_config["config"]["piiConfig"] = {
+        "rules": {"0": {"type": "password", "redaction": {"method": "remove"}}},
+        "applications": {
+            "$string": ["@password:remove"],
+            "$attachments.'view-hierarchy.json'": ["0"],
+        },
+    }
+    relay = relay(mini_sentry)
+    json_payload = {
+        "rendering_system": "UIKIT",
+        "password": "hunter42",
+    }
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_event({"message": "Hello, World!"})
+    envelope.add_item(
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]],
+            type="attachment",
+            payload=PayloadRef(json=json_payload),
+            filename="view-hierarchy.json",
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+    envelope = mini_sentry.get_captured_envelope()
+    attachment = next(item for item in envelope.items if item.type == "attachment")
+    payload = attachment.payload.bytes
+    assert payload == expected
+
+
+@pytest.mark.parametrize(
+    "feature_flags, expected",
+    [
+        ([], b"**************************************************"),
+        (
+            ["organizations:view-hierarchy-scrubbing"],
+            b'{"rendering_system":"UIKIT","password":""}',
+        ),
+    ],
+)
 def test_attachment_scrubbing_with_fallback(
     mini_sentry, relay, feature_flags, expected
 ):

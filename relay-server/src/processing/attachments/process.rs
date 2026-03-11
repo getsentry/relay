@@ -10,10 +10,11 @@ pub fn scrub(
     ctx: processing::Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     attachments.try_modify(|attachments, records| {
-        // This is needed since scrubbing a view hierarchy might change its length and thus also the
-        // attachment quantity.
-        records.lenient(DataCategory::Attachment);
-        utils::attachments::scrub(attachments.attachments.iter_mut(), ctx.project_info);
+        utils::attachments::scrub(
+            attachments.attachments.iter_mut(),
+            ctx.project_info,
+            Some(records),
+        );
         Ok::<_, Error>(())
     })
 }
