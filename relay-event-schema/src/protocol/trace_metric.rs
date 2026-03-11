@@ -81,6 +81,8 @@ impl FromValue for StrictMetricUnit {
     }
 }
 
+impl ProcessValue for StrictMetricUnit {}
+
 impl IntoValue for StrictMetricUnit {
     fn into_value(self) -> Value
     where
