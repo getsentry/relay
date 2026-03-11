@@ -324,6 +324,12 @@ impl ObjectstoreServiceInner {
     /// This mutates the attachment item in-place, setting the `stored_key` field to the key in the
     /// objectstore.
     async fn handle_attachment(&self, mut attachment: Managed<StoreAttachment>) {
+        // we are not storing zero-size attachments in objectstore
+        if attachment.attachment.is_empty() {
+            self.store.send(attachment);
+            return;
+        }
+
         let scoping = attachment.scoping();
         let session = self
             .event_attachments
@@ -340,33 +346,30 @@ impl ObjectstoreServiceInner {
                 );
             }
             Ok(session) => {
-                // we are not storing zero-size attachments in objectstore
-                if !attachment.attachment.is_empty() {
-                    let result = self
-                        .upload_bytes(
-                            "attachment",
-                            &session,
-                            attachment.attachment.payload(),
-                            None,
-                        )
-                        .await;
+                let result = self
+                    .upload_bytes(
+                        "attachment",
+                        &session,
+                        attachment.attachment.payload(),
+                        None,
+                    )
+                    .await;
 
-                    relay_statsd::metric!(
-                        counter(RelayCounters::AttachmentUpload) += 1,
-                        result = match &result {
-                            Ok(_) => "success",
-                            Err(e) => e.as_str(),
-                        },
-                        type = "attachment",
-                    );
+                relay_statsd::metric!(
+                    counter(RelayCounters::AttachmentUpload) += 1,
+                    result = match &result {
+                        Ok(_) => "success",
+                        Err(e) => e.as_str(),
+                    },
+                    type = "attachment",
+                );
 
-                    if let Ok(stored_key) = result {
-                        attachment.modify(|attachment, _| {
-                            attachment
-                                .attachment
-                                .set_stored_key(stored_key.into_inner());
-                        });
-                    }
+                if let Ok(stored_key) = result {
+                    attachment.modify(|attachment, _| {
+                        attachment
+                            .attachment
+                            .set_stored_key(stored_key.into_inner());
+                    });
                 }
             }
         }
