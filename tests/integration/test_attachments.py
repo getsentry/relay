@@ -144,16 +144,22 @@ def test_attachments_with_objectstore(
 
     chunked_contents = b"heavens no" * 20_000
     relay.send_attachments(
-        project_id, event_id, [("att_1", "foo.txt", chunked_contents)]
+        project_id,
+        event_id,
+        [("att_1", "foo.txt", chunked_contents), ("att_2", "foobar.txt", b"")],
     )
 
-    attachment = attachments_consumer.get_individual_attachment()
+    attachments_by_name = {}
+    for _ in range(2):
+        att = attachments_consumer.get_individual_attachment()
+        attachments_by_name[att["attachment"]["name"]] = att
 
-    objectstore_key = attachment["attachment"].pop("stored_id")
+    # Large attachments are stored in objectstore
+    stored = attachments_by_name["foo.txt"]
+    objectstore_key = stored["attachment"].pop("stored_id")
     objectstore = objectstore("attachments", project_id)
     assert objectstore.get(objectstore_key).payload.read() == chunked_contents
-
-    assert attachment == {
+    assert stored == {
         "type": "attachment",
         "attachment": {
             "id": mock.ANY,
@@ -166,36 +172,10 @@ def test_attachments_with_objectstore(
         "project_id": project_id,
     }
 
-
-def test_empty_attachments_with_objectstore(
-    mini_sentry,
-    relay_with_processing,
-    attachments_consumer,
-    outcomes_consumer,
-):
-    project_id = 42
-    event_id = "515539018c9b4260a6f999572f1661ee"
-
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
-    mini_sentry.add_full_project_config(project_id)
-
-    options = {
-        "processing": {
-            "attachment_chunk_size": "100KB",
-            "upload": {"objectstore_url": "http://127.0.0.1:8888/"},
-        }
-    }
-    relay = relay_with_processing(options)
-    attachments_consumer = attachments_consumer()
-    outcomes_consumer = outcomes_consumer()
-
-    relay.send_attachments(project_id, event_id, [("att_2", "foobar.txt", b"")])
-
-    # An empty attachment
-    attachment = attachments_consumer.get_individual_attachment()
-    assert attachment == {
+    # Empty attachments are still transmitted with zero chunks,
+    # and not stored on objectstore
+    empty = attachments_by_name["foobar.txt"]
+    assert empty == {
         "type": "attachment",
         "attachment": {
             "id": mock.ANY,
@@ -203,8 +183,6 @@ def test_empty_attachments_with_objectstore(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
-            # empty attachments are still transmitted with zero chunks,
-            # and not stored on objectstore
             "chunks": 0,
         },
         "event_id": event_id,
