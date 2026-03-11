@@ -257,7 +257,9 @@ impl ObjectstoreServiceInner {
             Objectstore::TraceAttachment(attachment) => {
                 self.handle_trace_attachment(attachment).await
             }
-            Objectstore::EventAttachment(attachment) => self.handle_attachment(attachment).await,
+            Objectstore::EventAttachment(attachment) => {
+                self.handle_event_attachment(attachment).await
+            }
             Objectstore::Stream {
                 message: managed,
                 sender,
@@ -323,7 +325,7 @@ impl ObjectstoreServiceInner {
     ///
     /// This mutates the attachment item in-place, setting the `stored_key` field to the key in the
     /// objectstore.
-    async fn handle_attachment(&self, mut attachment: Managed<StoreAttachment>) {
+    async fn handle_event_attachment(&self, mut attachment: Managed<StoreAttachment>) {
         // we are not storing zero-size attachments in objectstore
         if attachment.attachment.is_empty() {
             self.store.send(attachment);
