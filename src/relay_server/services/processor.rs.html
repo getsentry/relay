@@ -1400,7 +1400,7 @@
 <a href=#1400 id=1400 data-nosnippet>1400</a>            .envelope_mut()
 <a href=#1401 id=1401 data-nosnippet>1401</a>            .items_mut()
 <a href=#1402 id=1402 data-nosnippet>1402</a>            .filter(|i| i.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#1403 id=1403 data-nosnippet>1403</a>        processing::utils::attachments::scrub(attachments, ctx.project_info);
+<a href=#1403 id=1403 data-nosnippet>1403</a>        processing::utils::attachments::scrub(attachments, ctx.project_info, <span class="prelude-val">None</span>);
 <a href=#1404 id=1404 data-nosnippet>1404</a>
 <a href=#1405 id=1405 data-nosnippet>1405</a>        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; !event_fully_normalized.<span class="number">0 </span>{
 <a href=#1406 id=1406 data-nosnippet>1406</a>            <span class="macro">relay_log::error!</span>(
@@ -1450,7 +1450,7 @@
 <a href=#1450 id=1450 data-nosnippet>1450</a>            .envelope_mut()
 <a href=#1451 id=1451 data-nosnippet>1451</a>            .items_mut()
 <a href=#1452 id=1452 data-nosnippet>1452</a>            .filter(|i| i.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#1453 id=1453 data-nosnippet>1453</a>        processing::utils::attachments::scrub(attachments, ctx.project_info);
+<a href=#1453 id=1453 data-nosnippet>1453</a>        processing::utils::attachments::scrub(attachments, ctx.project_info, <span class="prelude-val">None</span>);
 <a href=#1454 id=1454 data-nosnippet>1454</a>
 <a href=#1455 id=1455 data-nosnippet>1455</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
 <a href=#1456 id=1456 data-nosnippet>1456</a>    }

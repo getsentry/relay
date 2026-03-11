@@ -431,9 +431,9 @@
 <a href=#431 id=431 data-nosnippet>431</a>    work: Managed&lt;Box&lt;ExpandedTransaction&gt;&gt;,
 <a href=#432 id=432 data-nosnippet>432</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#433 id=433 data-nosnippet>433</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Managed&lt;Box&lt;ExpandedTransaction&gt;&gt;, Rejected&lt;Error&gt;&gt; {
-<a href=#434 id=434 data-nosnippet>434</a>    work.try_map(|<span class="kw-2">mut </span>work, <span class="kw">_</span>| {
+<a href=#434 id=434 data-nosnippet>434</a>    work.try_map(|<span class="kw-2">mut </span>work, records| {
 <a href=#435 id=435 data-nosnippet>435</a>        utils::event::scrub(<span class="kw-2">&amp;mut </span>work.event, ctx.project_info)<span class="question-mark">?</span>;
-<a href=#436 id=436 data-nosnippet>436</a>        utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
+<a href=#436 id=436 data-nosnippet>436</a>        utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info, <span class="prelude-val">Some</span>(records));
 <a href=#437 id=437 data-nosnippet>437</a>        Ok::&lt;<span class="kw">_</span>, Error&gt;(work)
 <a href=#438 id=438 data-nosnippet>438</a>    })
 <a href=#439 id=439 data-nosnippet>439</a>}
