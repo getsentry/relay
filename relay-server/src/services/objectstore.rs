@@ -227,6 +227,7 @@ impl LoadShed<Objectstore> for ObjectstoreService {
                 self.inner.store.send(envelope);
             }
             Objectstore::EventAttachment(message) => {
+                // Event attachments can still go the old route.
                 self.inner.store.send(message);
             }
             Objectstore::TraceAttachment(managed) => {
