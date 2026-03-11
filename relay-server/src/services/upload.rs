@@ -9,7 +9,7 @@ use chrono::DateTime;
 #[cfg(feature = "processing")]
 use chrono::Utc;
 use futures::stream::BoxStream;
-use http::{HeaderValue, Method, StatusCode};
+use http::{HeaderValue, Method, header};
 use relay_auth::Signature;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
@@ -42,9 +42,9 @@ pub enum Error {
     #[error("request timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("upstream response: {0}")]
-    Upstream(StatusCode),
-    #[error("upstream provided invalid location")]
-    InvalidLocation,
+    Upstream(#[source] reqwest::Error),
+    #[error("upstream provided invalid location: {0:?}")]
+    InvalidLocation(Option<HeaderValue>),
     #[error("failed to sign location")]
     SigningFailed,
     #[error("invalid signature")]
@@ -211,7 +211,7 @@ impl Service {
                 } = location.verify(received, config)?;
 
                 debug_assert_eq!(scoping.project_id, project_id);
-                debug_assert_eq!(stream.length(), length);
+                debug_assert!(stream.length().is_none_or(|l| Some(l) == length));
                 let byte_counter = stream.byte_counter();
 
                 let key = addr
@@ -342,17 +342,19 @@ impl SignedLocation {
 
     /// Converts the location into an URI for future reference.
     pub fn into_header_value(self) -> Result<HeaderValue, Error> {
+        HeaderValue::from_str(&self.as_uri()).map_err(|_| Error::Internal)
+    }
+
+    fn as_uri(&self) -> String {
         let Self {
             location,
             signature,
         } = self;
-
         let mut uri = location.as_uri();
         uri.push(if location.length.is_some() { '&' } else { '?' }); // TODO: brittle.
         uri.push_str("signature=");
         uri.push_str(&signature.to_string());
-
-        HeaderValue::from_str(&uri).map_err(|_| Error::Internal)
+        uri
     }
 
     /// Converts the signed location into a location object.
@@ -373,20 +375,23 @@ impl SignedLocation {
     }
 
     fn try_from_response(response: Response) -> Result<Self, Error> {
-        match response.status() {
-            status if status.is_success() => {
+        match response.0.error_for_status() {
+            Ok(response) => {
                 let header = response
                     .headers()
                     .get(hyper::header::LOCATION)
-                    .ok_or(Error::InvalidLocation)?;
-                let uri = header.to_str().map_err(|_| Error::InvalidLocation)?;
-                Self::try_from_str(uri).ok_or(Error::InvalidLocation)
+                    .ok_or(Error::InvalidLocation(None))?;
+                let uri = header
+                    .to_str()
+                    .map_err(|_| Error::InvalidLocation(Some(header.clone())))?;
+                Self::try_from_str(uri).ok_or(Error::InvalidLocation(Some(header.clone())))
             }
-            status => Err(Error::Upstream(status)),
+            Err(e) => Err(Error::Upstream(e)),
         }
     }
 
     fn try_from_str(uri: &str) -> Option<Self> {
+        // TODO: use axum parser instead.
         // Parse path segments: /api/{project_id}/upload/{key}/
         let path = uri.split('?').next().unwrap_or(uri);
         let mut segments = path.split('/').filter(|s| !s.is_empty());
@@ -515,7 +520,7 @@ impl UpstreamRequest for UploadRequest {
     fn method(&self) -> Method {
         match self.kind {
             RequestKind::Create { .. } => Method::POST,
-            RequestKind::Upload { .. } => Method::PATCH, // TODO: allow method
+            RequestKind::Upload { .. } => Method::PATCH,
         }
     }
 
@@ -523,7 +528,7 @@ impl UpstreamRequest for UploadRequest {
         let project_id = self.scoping.project_id;
         match &self.kind {
             RequestKind::Create { .. } => format!("/api/{project_id}/upload/"),
-            RequestKind::Upload { location, .. } => location.location.as_uri(),
+            RequestKind::Upload { location, .. } => location.as_uri(),
         }
         .into()
     }
@@ -563,7 +568,13 @@ impl UpstreamRequest for UploadRequest {
                 relay_log::error!("upload request was retried or never initialized");
                 return Err(HttpError::Misconfigured);
             };
+            // Required header, always 0 until we enable retries / chunking.
+            builder.header(tus::UPLOAD_OFFSET, "0");
             builder.body(reqwest::Body::wrap_stream(body));
+        } else {
+            // Set an explicit content length so the upstream does not try to parse the body.
+            // This can be removed once we disallow "Creation-With-Upload".
+            builder.header(header::CONTENT_LENGTH, "0");
         }
 
         let project_key = self.scoping.project_key;

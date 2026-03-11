@@ -349,6 +349,7 @@ def test_create_processing(
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
         },
+        data=data,
     )
 
     assert response.status_code == 204

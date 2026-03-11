@@ -79,8 +79,12 @@ impl IntoResponse for Error {
                     _ => return e.into_response(),
                 },
                 upload::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
-                upload::Error::Upstream(status) => status,
-                upload::Error::InvalidLocation | upload::Error::SigningFailed => {
+                upload::Error::Upstream(error) => match error.status() {
+                    _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
+                    Some(status) => status,
+                    None => StatusCode::INTERNAL_SERVER_ERROR,
+                },
+                upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
                 upload::Error::InvalidSignature => StatusCode::BAD_REQUEST,
@@ -192,6 +196,9 @@ async fn handle_post(
     }
 
     let mut response = location.into_response();
+    response
+        .headers_mut()
+        .insert(tus::TUS_RESUMABLE, tus::TUS_VERSION);
     if let Some(upload_offset) = upload_offset {
         response
             .headers_mut()
@@ -249,7 +256,7 @@ async fn handle_patch(
 
     relay_log::trace!("Uploading");
     let result = upload(&state, scoping, location, stream).await;
-    result.inspect_err(|e| {
+    let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
 
@@ -257,6 +264,16 @@ async fn handle_patch(
 
     let mut response = NoContent.into_response();
 
+    // Not required by TUS, but we respond with the location header:
+    response.headers_mut().insert(
+        header::LOCATION,
+        location
+            .into_header_value()
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+    );
+    response
+        .headers_mut()
+        .insert(tus::TUS_RESUMABLE, tus::TUS_VERSION);
     response
         .headers_mut()
         .insert(tus::UPLOAD_OFFSET, upload_offset.into());

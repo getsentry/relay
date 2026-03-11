@@ -19,9 +19,9 @@ pub enum Error {
     /// The `Upload-Length` and `Upload-Defer-Length` headers are both missing, incorrect, or cannot be parsed.
     #[error("Invalid Upload-Length")]
     UploadLength,
-    /// The `Upload-Offest` header is missing or invalid
-    #[error("Invalid Upload-Offset")]
-    UploadOffset,
+    /// The `Upload-Offset` header is missing or invalid
+    #[error("Invalid Upload-Offset: {0:?}")]
+    UploadOffset(Option<usize>),
     /// The `Upload-Defer-Length` header is not allowed for external/untrusted requests.
     #[error("Upload-Defer-Length not allowed")]
     DeferLengthNotAllowed,
@@ -123,10 +123,11 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(), Error> {
         return Err(Error::ContentType);
     }
 
-    let upload_offset: usize = parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset)?;
+    let upload_offset: usize =
+        parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset(None))?;
     if upload_offset != 0 {
         // Only allow full uploads for now.
-        return Err(Error::UploadOffset);
+        return Err(Error::UploadOffset(Some(upload_offset)));
     }
 
     Ok(())
