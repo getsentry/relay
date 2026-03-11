@@ -217,6 +217,10 @@ pub enum DataCategory {
     ///
     /// This is the data category to count the number of trace metric items.
     TraceMetric = 33,
+    /// TraceMetricByte
+    ///
+    /// This is the category for trace metrics for which we store total bytes for users.
+    TraceMetricByte = 37,
     /// SeerUser
     ///
     /// This is the data category to count the number of Seer users.
@@ -289,6 +293,7 @@ impl DataCategory {
             "size_analysis" => Self::SizeAnalysis,
             "installable_build" => Self::InstallableBuild,
             "trace_metric" => Self::TraceMetric,
+            "trace_metric_byte" => Self::TraceMetricByte,
             "seer_user" => Self::SeerUser,
             "profile_backend" => Self::ProfileBackend,
             "profile_ui" => Self::ProfileUi,
@@ -333,6 +338,7 @@ impl DataCategory {
             Self::SizeAnalysis => "size_analysis",
             Self::InstallableBuild => "installable_build",
             Self::TraceMetric => "trace_metric",
+            Self::TraceMetricByte => "trace_metric_byte",
             Self::SeerUser => "seer_user",
             Self::ProfileBackend => "profile_backend",
             Self::ProfileUi => "profile_ui",
@@ -442,6 +448,7 @@ impl TryFrom<u8> for DataCategory {
             32 => Ok(Self::InstallableBuild),
             33 => Ok(Self::TraceMetric),
             34 => Ok(Self::SeerUser),
+            37 => Ok(Self::TraceMetricByte),
             35 => Ok(Self::ProfileBackend),
             36 => Ok(Self::ProfileUi),
             other => Err(UnknownDataCategory(other as u32)),
@@ -544,7 +551,9 @@ impl CategoryUnit {
             | DataCategory::ProfileBackend
             | DataCategory::ProfileUi => Some(Self::Count),
 
-            DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
+            DataCategory::Attachment | DataCategory::LogByte | DataCategory::TraceMetricByte => {
+                Some(Self::Bytes)
+            }
 
             DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
                 Some(Self::Milliseconds)
@@ -578,8 +587,11 @@ mod tests {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
-        assert_eq!(DataCategory::try_from(36u8), Ok(DataCategory::ProfileUi));
-        assert_eq!(DataCategory::try_from(37u8), Err(UnknownDataCategory(37)));
+        assert_eq!(
+            DataCategory::try_from(37u8),
+            Ok(DataCategory::TraceMetricByte)
+        );
+        assert_eq!(DataCategory::try_from(38u8), Err(UnknownDataCategory(38)));
     }
 
     #[test]
