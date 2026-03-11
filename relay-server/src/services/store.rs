@@ -774,7 +774,9 @@ impl StoreService {
                 // Hardcoded to `true` since standalone attachments are 'individual attachments'.
                 true,
             );
-            debug_assert!(matches!(result, Err(_) | Ok(None)));
+            // Since we are sending an 'individual attachment' this function should never return a
+            // `ChunkedAttachment`.
+            debug_assert!(!matches!(result, Ok(Some(_))));
             result
         });
     }
