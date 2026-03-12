@@ -143,19 +143,23 @@ def test_attachments_with_objectstore(
     outcomes_consumer = outcomes_consumer()
 
     chunked_contents = b"heavens no" * 20_000
-    attachments = [
-        ("att_1", "foo.txt", chunked_contents),
-        ("att_2", "foobar.txt", b""),
-    ]
-    relay.send_attachments(project_id, event_id, attachments)
+    relay.send_attachments(
+        project_id,
+        event_id,
+        [("att_1", "foo.txt", chunked_contents), ("att_2", "foobar.txt", b"")],
+    )
 
-    attachment = attachments_consumer.get_individual_attachment()
+    attachments_by_name = {}
+    for _ in range(2):
+        att = attachments_consumer.get_individual_attachment()
+        attachments_by_name[att["attachment"]["name"]] = att
 
-    objectstore_key = attachment["attachment"].pop("stored_id")
+    # Large attachments are stored in objectstore
+    stored = attachments_by_name["foo.txt"]
+    objectstore_key = stored["attachment"].pop("stored_id")
     objectstore = objectstore("attachments", project_id)
     assert objectstore.get(objectstore_key).payload.read() == chunked_contents
-
-    assert attachment == {
+    assert stored == {
         "type": "attachment",
         "attachment": {
             "id": mock.ANY,
@@ -168,11 +172,10 @@ def test_attachments_with_objectstore(
         "project_id": project_id,
     }
 
-    outcomes_consumer.assert_empty()
-
-    # An empty attachment
-    attachment = attachments_consumer.get_individual_attachment()
-    assert attachment == {
+    # Empty attachments are still transmitted with zero chunks,
+    # and not stored on objectstore
+    empty = attachments_by_name["foobar.txt"]
+    assert empty == {
         "type": "attachment",
         "attachment": {
             "id": mock.ANY,
@@ -180,8 +183,6 @@ def test_attachments_with_objectstore(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
-            # empty attachments are still transmitted with zero chunks,
-            # and not stored on objectstore
             "chunks": 0,
         },
         "event_id": event_id,
