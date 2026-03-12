@@ -226,6 +226,11 @@ impl IntoResponse for UpstreamRequestError {
                     StatusCode::BAD_GATEWAY.into_response()
                 }
             }
+            // Proxy the upstream status code so clients receive the actual error (e.g. a 403
+            // from GitHub) rather than a generic 500.
+            Self::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS.into_response(),
+            Self::ResponseError(status, _) => status.into_response(),
+            // NoCredentials, ChannelClosed, and AuthDenied are all internal errors.
             _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
