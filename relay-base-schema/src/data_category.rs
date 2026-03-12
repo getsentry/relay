@@ -217,10 +217,6 @@ pub enum DataCategory {
     ///
     /// This is the data category to count the number of trace metric items.
     TraceMetric = 33,
-    /// TraceMetricByte
-    ///
-    /// This is the category for trace metrics for which we store total bytes for users.
-    TraceMetricByte = 37,
     /// SeerUser
     ///
     /// This is the data category to count the number of Seer users.
@@ -245,6 +241,10 @@ pub enum DataCategory {
     ///
     /// SDK rate limiting behavior: optional, apply to transaction profiles on "ui platforms".
     ProfileUi = 36,
+    /// TraceMetricByte
+    ///
+    /// This is the category for trace metrics for which we store total bytes for users.
+    TraceMetricByte = 37,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
