@@ -254,6 +254,9 @@ pub async fn multipart_items(
             item.set_filename(file_name);
             let item = attachment_strategy.add_to_item(field, item, config).await?;
             if let Some(item) = item {
+                // This increases the attachments byte count even if the item is an attachment ref.
+                // This is by design as the total number of bytes read into memory should be
+                // constrained.
                 attachments_size += item.len();
                 if attachments_size > config.max_attachments_size() {
                     return Err(multer::Error::StreamSizeExceeded {
