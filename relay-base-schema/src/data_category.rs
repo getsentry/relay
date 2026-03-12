@@ -448,9 +448,9 @@ impl TryFrom<u8> for DataCategory {
             32 => Ok(Self::InstallableBuild),
             33 => Ok(Self::TraceMetric),
             34 => Ok(Self::SeerUser),
-            37 => Ok(Self::TraceMetricByte),
             35 => Ok(Self::ProfileBackend),
             36 => Ok(Self::ProfileUi),
+            37 => Ok(Self::TraceMetricByte),
             other => Err(UnknownDataCategory(other as u32)),
         }
     }
