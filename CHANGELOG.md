@@ -9,6 +9,7 @@
 
 **Bug Fixes**:
 
+- Normalize custom metric units to `none` on trace metrics during processing. ([#5718](https://github.com/getsentry/relay/pull/5718))
 - Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
 - Relay Temporarily rejected unknown headers on envelope items. ([#5709](https://github.com/getsentry/relay/pull/5709))
 
@@ -183,7 +184,6 @@
 
 **Bug Fixes**:
 
-- Normalize custom metric units to `none` on trace metrics during processing. ([#5718](https://github.com/getsentry/relay/pull/5718))
 - Relay would record an invalid internal outcome when there should be no outcome. ([#5372](https://github.com/getsentry/relay/pull/5372))
 - Redis pools being sized too small by default. ([#5358](https://github.com/getsentry/relay/pull/5358))
 - Fix array attributes not being applied to standalone spans. ([#5337](https://github.com/getsentry/relay/pull/5337))
