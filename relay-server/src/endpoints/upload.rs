@@ -236,7 +236,11 @@ async fn handle_patch(
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
-    let stream = BoundedStream::new(stream, 1, config.max_upload_size());
+    let (lower_bound, upper_bound) = match length {
+        None => (1, config.max_upload_size()),
+        Some(u) => (u, u),
+    };
+    let stream = BoundedStream::new(stream, lower_bound, upper_bound);
     let byte_counter = stream.byte_counter();
 
     relay_log::trace!("Uploading");
