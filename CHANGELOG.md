@@ -18,6 +18,7 @@
 - Add support for Unix domain sockets for statsd metrics. ([#5668](https://github.com/getsentry/relay/pull/5668))
 - Support `deployment.environment` OTLP resource attribute for setting the Sentry environment. ([#5691](https://github.com/getsentry/relay/pull/5691))
 - Allow users to opt-out of DNS caching. ([#5700](https://github.com/getsentry/relay/pull/5700))
+- Update device classification for new iPad and iPhone models. ([#5704](https://github.com/getsentry/relay/pull/5704))
 
 **Internal**:
 
