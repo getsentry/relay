@@ -8,6 +8,7 @@ use crate::processing::{self, CountRateLimited, Output, QuotaRateLimiter};
 #[cfg(feature = "processing")]
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
+use crate::statsd::RelayCounters;
 
 mod forward;
 mod process;
@@ -93,6 +94,19 @@ impl processing::Processor for AttachmentProcessor {
         attachments: Managed<Self::UnitOfWork>,
         ctx: processing::Context<'_>,
     ) -> Result<processing::Output<Self::Output>, Rejected<Self::Error>> {
+        for item in &attachments.attachments {
+            let attachment_type_tag = match item.attachment_type() {
+                Some(t) => &t.to_string(),
+                None => "",
+            };
+            relay_statsd::metric!(
+                counter(RelayCounters::StandaloneItem) += 1,
+                processor = "new",
+                item_type = item.ty().name(),
+                attachment_type = attachment_type_tag,
+            );
+        }
+
         let mut attachments = self.limiter.enforce_quotas(attachments, ctx).await?;
         process::scrub(&mut attachments, ctx)?;
 

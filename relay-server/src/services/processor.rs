@@ -1447,6 +1447,7 @@ impl EnvelopeProcessorService {
             };
             relay_statsd::metric!(
                 counter(RelayCounters::StandaloneItem) += 1,
+                processor = "old",
                 item_type = item.ty().name(),
                 attachment_type = attachment_type_tag,
             );
