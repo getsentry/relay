@@ -46,6 +46,7 @@ use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope}
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::errors::{ErrorsProcessor, SwitchProcessingError};
@@ -186,7 +187,7 @@ processing_group!(ErrorGroup, Error);
 impl EventProcessing for ErrorGroup {}
 
 processing_group!(SessionGroup, Session);
-processing_group!(StandaloneGroup, Standalone);
+processing_group!(StandaloneGroup, Standalone, StandaloneAttachments);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
@@ -222,6 +223,10 @@ pub enum ProcessingGroup {
     /// Standalone items which can be sent alone without any event attached to it in the current
     /// envelope e.g. some attachments, user reports.
     Standalone,
+    /// Standalone attachments
+    ///
+    /// Attachments that are send without an item that creates an event in the same envelope.
+    StandaloneAttachments,
     /// Outcomes.
     ClientReport,
     /// Replays and ReplayRecordings.
@@ -371,6 +376,18 @@ impl ProcessingGroup {
             ))
         }
 
+        // Extract the standalone attachments
+        if !envelope.items().any(Item::creates_event) {
+            let standalone_attachments = envelope
+                .take_items_by(|i| i.requires_event() && matches!(i.ty(), ItemType::Attachment));
+            if !standalone_attachments.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::StandaloneAttachments,
+                    Envelope::from_parts(headers.clone(), standalone_attachments),
+                ))
+            }
+        }
+
         // Extract all standalone items.
         //
         // Note: only if there are no items in the envelope which can create events, otherwise they
@@ -447,6 +464,7 @@ impl ProcessingGroup {
             ProcessingGroup::Error => "error",
             ProcessingGroup::Session => "session",
             ProcessingGroup::Standalone => "standalone",
+            ProcessingGroup::StandaloneAttachments => "standalone_attachment",
             ProcessingGroup::ClientReport => "client_report",
             ProcessingGroup::Replay => "replay",
             ProcessingGroup::CheckIn => "check_in",
@@ -471,6 +489,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Error => AppFeature::Errors,
             ProcessingGroup::Session => AppFeature::Sessions,
             ProcessingGroup::Standalone => AppFeature::UnattributedEnvelope,
+            ProcessingGroup::StandaloneAttachments => AppFeature::UnattributedEnvelope,
             ProcessingGroup::ClientReport => AppFeature::ClientReports,
             ProcessingGroup::Replay => AppFeature::Replays,
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
@@ -1148,6 +1167,7 @@ struct Processing {
     trace_attachments: TraceAttachmentsProcessor,
     replays: ReplaysProcessor,
     client_reports: ClientReportsProcessor,
+    attachments: AttachmentProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1239,8 +1259,9 @@ impl EnvelopeProcessorService {
                 ),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
-                replays: ReplaysProcessor::new(quota_limiter, geoip_lookup.clone()),
+                replays: ReplaysProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 client_reports: ClientReportsProcessor::new(outcome_aggregator),
+                attachments: AttachmentProcessor::new(quota_limiter),
             },
             geoip_lookup,
             config,
@@ -1400,7 +1421,7 @@ impl EnvelopeProcessorService {
             .envelope_mut()
             .items_mut()
             .filter(|i| i.ty() == &ItemType::Attachment);
-        processing::utils::attachments::scrub(attachments, ctx.project_info);
+        processing::utils::attachments::scrub(attachments, ctx.project_info, None);
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
@@ -1426,6 +1447,7 @@ impl EnvelopeProcessorService {
             };
             relay_statsd::metric!(
                 counter(RelayCounters::StandaloneItem) += 1,
+                processor = "old",
                 item_type = item.ty().name(),
                 attachment_type = attachment_type_tag,
             );
@@ -1446,11 +1468,6 @@ impl EnvelopeProcessorService {
         .await?;
 
         report::process_user_reports(managed_envelope);
-        let attachments = managed_envelope
-            .envelope_mut()
-            .items_mut()
-            .filter(|i| i.ty() == &ItemType::Attachment);
-        processing::utils::attachments::scrub(attachments, ctx.project_info);
 
         Ok(Some(extracted_metrics))
     }
@@ -1658,6 +1675,14 @@ impl EnvelopeProcessorService {
                     .await
             }
             ProcessingGroup::Standalone => run!(process_standalone, ctx),
+            ProcessingGroup::StandaloneAttachments => {
+                self.process_with_processor(
+                    &self.inner.processing.attachments,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
+            }
             ProcessingGroup::ClientReport => {
                 if ctx
                     .project_info

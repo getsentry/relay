@@ -126,11 +126,19 @@ pub fn normalize(
 }
 
 pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(), Rejected<Error>> {
-    error.try_modify(|error, _| {
+    error.try_modify(|error, records| {
         processing::utils::event::scrub(&mut error.event, ctx.project_info)?;
-        processing::utils::attachments::scrub(error.attachments.iter_mut(), ctx.project_info);
+        processing::utils::attachments::scrub(
+            error.attachments.iter_mut(),
+            ctx.project_info,
+            Some(records),
+        );
         if let Some(minidump) = error.data.minidump_mut() {
-            processing::utils::attachments::scrub(std::iter::once(minidump), ctx.project_info);
+            processing::utils::attachments::scrub(
+                std::iter::once(minidump),
+                ctx.project_info,
+                Some(records),
+            );
         }
 
         Ok::<_, Error>(())
