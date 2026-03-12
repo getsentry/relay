@@ -18,12 +18,14 @@
 - Add support for Unix domain sockets for statsd metrics. ([#5668](https://github.com/getsentry/relay/pull/5668))
 - Support `deployment.environment` OTLP resource attribute for setting the Sentry environment. ([#5691](https://github.com/getsentry/relay/pull/5691))
 - Allow users to opt-out of DNS caching. ([#5700](https://github.com/getsentry/relay/pull/5700))
+- Update device classification for new iPad and iPhone models. ([#5704](https://github.com/getsentry/relay/pull/5704))
 
 **Internal**:
 
 - Strip performance metric specs from extraction while keeping extraction interfaces intact. ([#5674](https://github.com/getsentry/relay/pull/5674))
 - Allow deferred lengths to the `/upload` endpoint when the sender is trusted. ([#5658](https://github.com/getsentry/relay/pull/5658))
 - Use new processor architecture to process client reports. ([#5686](https://github.com/getsentry/relay/pull/5686))
+- Use new processor architecture to process standalone attachments. ([#5703](https://github.com/getsentry/relay/pull/5703))
 - Prevent timeouts on the `/upload` endpoint. ([#5692](https://github.com/getsentry/relay/pull/5692))
 - Handle traffic bursts in the objectstore service. ([#5689](https://github.com/getsentry/relay/pull/5689))
 - Disable `fetch_materials` on GoCD `pipeline-complete` stages. ([#5697](https://github.com/getsentry/relay/pull/5697))
