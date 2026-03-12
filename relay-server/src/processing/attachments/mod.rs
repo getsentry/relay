@@ -60,14 +60,11 @@ impl AttachmentProcessor {
 }
 
 impl processing::Processor for AttachmentProcessor {
-    type UnitOfWork = SerializedAttachments;
+    type Input = SerializedAttachments;
     type Output = AttachmentsOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         debug_assert!(
             !envelope.envelope().items().any(Item::creates_event),
             "AttachmentProcessor should not receive items that create events"
@@ -91,7 +88,7 @@ impl processing::Processor for AttachmentProcessor {
 
     async fn process(
         &self,
-        attachments: Managed<Self::UnitOfWork>,
+        attachments: Managed<Self::Input>,
         ctx: processing::Context<'_>,
     ) -> Result<processing::Output<Self::Output>, Rejected<Self::Error>> {
         for item in &attachments.attachments {
