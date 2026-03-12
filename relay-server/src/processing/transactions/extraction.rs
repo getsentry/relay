@@ -13,7 +13,7 @@ use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::transactions::TransactionExtractor;
 use crate::processing::Context;
-use crate::processing::utils::event::{EventMetricsExtracted, SpansExtracted};
+use crate::processing::utils::event::EventMetricsExtracted;
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 
 /// Creates a span from the transaction and applies tag extraction on it.
@@ -36,13 +36,13 @@ pub fn extract_segment_span(
 pub struct ExtractMetricsContext<'a> {
     pub dsc: Option<&'a DynamicSamplingContext>,
     pub project_id: ProjectId,
-    pub ctx: &'a Context<'a>,
+    pub ctx: Context<'a>,
     pub sampling_decision: SamplingDecision,
-    pub event_metrics_extracted: EventMetricsExtracted,
-    pub spans_extracted: SpansExtracted,
+    pub metrics_extracted: bool,
+    pub extract_span_metrics: bool,
 }
 
-/// Extract transaction metrics.
+/// Extracts metrics from a transaction and its spans.
 pub fn extract_metrics(
     event: &mut Annotated<Event>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
@@ -53,15 +53,18 @@ pub fn extract_metrics(
         project_id,
         ctx,
         sampling_decision,
-        event_metrics_extracted,
-        spans_extracted,
+        metrics_extracted,
+        extract_span_metrics,
     } = ctx;
+    // TODO(follow-up): this function should always extract metrics. Dynamic sampling should validate
+    // the full metrics extraction config and skip sampling if it is incomplete.
 
-    if event_metrics_extracted.0 {
-        return Ok(event_metrics_extracted);
+    if metrics_extracted {
+        return Ok(EventMetricsExtracted(true));
     }
     let Some(event) = event.value_mut() else {
-        return Ok(event_metrics_extracted);
+        // Nothing to extract, but metrics extraction was called.
+        return Ok(EventMetricsExtracted(true));
     };
 
     // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
@@ -70,7 +73,7 @@ pub fn extract_metrics(
     let combined_config = {
         let config = match &ctx.project_info.config.metric_extraction {
             ErrorBoundary::Ok(config) if config.is_supported() => config,
-            _ => return Ok(event_metrics_extracted),
+            _ => return Ok(EventMetricsExtracted(false)),
         };
         let global_config = match &ctx.global_config.metric_extraction {
             ErrorBoundary::Ok(global_config) => global_config,
@@ -85,7 +88,7 @@ pub fn extract_metrics(
                     // If there's an error with global metrics extraction, it is safe to assume that this
                     // Relay instance is not up-to-date, and we should skip extraction.
                     relay_log::debug!("Failed to parse global extraction config: {e}");
-                    return Ok(event_metrics_extracted);
+                    return Ok(EventMetricsExtracted(false));
                 }
             }
         };
@@ -97,11 +100,11 @@ pub fn extract_metrics(
         Some(ErrorBoundary::Ok(tx_config)) => tx_config,
         Some(ErrorBoundary::Err(e)) => {
             relay_log::debug!("Failed to parse legacy transaction metrics config: {e}");
-            return Ok(event_metrics_extracted);
+            return Ok(EventMetricsExtracted(false));
         }
         None => {
             relay_log::debug!("Legacy transaction metrics config is missing");
-            return Ok(event_metrics_extracted);
+            return Ok(EventMetricsExtracted(false));
         }
     };
 
@@ -116,18 +119,8 @@ pub fn extract_metrics(
                 }
             });
 
-        return Ok(event_metrics_extracted);
+        return Ok(EventMetricsExtracted(false));
     }
-
-    // If spans were already extracted for an event, we rely on span processing to extract metrics.
-    let extract_spans = !spans_extracted.0
-        && crate::utils::sample(
-            ctx.global_config
-                .options
-                .span_extraction_sample_rate
-                .unwrap_or(1.0),
-        )
-        .is_keep();
 
     let metrics = crate::metrics_extraction::event::extract_metrics(
         event,
@@ -139,7 +132,7 @@ pub fn extract_metrics(
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
                 .max_tag_value_length,
-            extract_spans,
+            extract_spans: extract_span_metrics,
             transaction_from_dsc: dsc.and_then(|dsc| dsc.transaction.as_deref()),
         },
     );
@@ -150,7 +143,6 @@ pub fn extract_metrics(
         let transaction_from_dsc = dsc.and_then(|dsc| dsc.transaction.as_deref());
 
         let extractor = TransactionExtractor {
-            config: tx_config,
             generic_config: Some(combined_config),
             transaction_from_dsc,
             sampling_decision,

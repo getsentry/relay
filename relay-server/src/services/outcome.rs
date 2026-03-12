@@ -112,9 +112,6 @@ trait TrackOutcomeLike {
     /// Returns the number of items for that outcome.
     fn quantity(&self) -> Option<u32>;
 
-    /// The project id for the outcomes.
-    fn project_id(&self) -> ProjectId;
-
     /// The category for the outcome.
     fn category(&self) -> DataCategory;
 }
@@ -151,10 +148,6 @@ impl TrackOutcomeLike for TrackOutcome {
 
     fn quantity(&self) -> Option<u32> {
         Some(self.quantity)
-    }
-
-    fn project_id(&self) -> ProjectId {
-        self.scoping.project_id
     }
 
     fn category(&self) -> DataCategory {
@@ -376,9 +369,6 @@ pub enum DiscardReason {
     /// (Relay) The store request was missing an event payload.
     NoData,
 
-    /// (Relay) The envelope contains no items.
-    EmptyEnvelope,
-
     /// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.
     TooLarge(DiscardItemType),
 
@@ -475,6 +465,7 @@ pub enum DiscardReason {
     InvalidReplayEventPii,
     InvalidReplayRecordingEvent,
     InvalidReplayVideoEvent,
+    InvalidReplayMissingRecording,
 
     /// (Relay) Profiling related discard reasons
     Profiling(&'static str),
@@ -487,6 +478,12 @@ pub enum DiscardReason {
 
     /// (Relay) A span is not valid after normalization.
     InvalidSpan,
+
+    /// (Relay) A span attachment that has invalid item headers or attachment meta-data.
+    InvalidSpanAttachment,
+
+    /// (Relay) A trace attachment that has invalid item headers or attachment meta-data.
+    InvalidTraceAttachment,
 
     /// (Relay) A required feature is not enabled.
     FeatureDisabled(Feature),
@@ -546,16 +543,18 @@ impl DiscardReason {
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
             DiscardReason::TransactionSampled => "transaction_sampled",
-            DiscardReason::EmptyEnvelope => "empty_envelope",
             DiscardReason::InvalidReplayEvent => "invalid_replay",
             DiscardReason::InvalidReplayEventNoPayload => "invalid_replay_no_payload",
             DiscardReason::InvalidReplayEventPii => "invalid_replay_pii_scrubber_failed",
             DiscardReason::InvalidReplayRecordingEvent => "invalid_replay_recording",
             DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
+            DiscardReason::InvalidReplayMissingRecording => "invalid_replay_missing_recording",
             DiscardReason::Profiling(reason) => reason,
             DiscardReason::InvalidLog => "invalid_log",
             DiscardReason::InvalidTraceMetric => "invalid_trace_metric",
             DiscardReason::InvalidSpan => "invalid_span",
+            DiscardReason::InvalidSpanAttachment => "invalid_span_attachment",
+            DiscardReason::InvalidTraceAttachment => "invalid_trace_attachment",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
             DiscardReason::TransactionAttachment => "transaction_attachment",
             DiscardReason::InvalidCheckIn => "invalid_check_in",
@@ -654,10 +653,12 @@ impl DiscardItemType {
             Self::Attachment(DiscardAttachmentType::EventPayload) => "attachment:event_payload",
             Self::Attachment(DiscardAttachmentType::Breadcrumbs) => "attachment:breadcrumbs",
             Self::Attachment(DiscardAttachmentType::Prosperodump) => "attachment:prosperodump",
+            Self::Attachment(DiscardAttachmentType::NnswitchDyingMessage) => {
+                "attachment:nnswitch_dying_message"
+            }
             Self::Attachment(DiscardAttachmentType::UnrealContext) => "attachment:unreal_context",
             Self::Attachment(DiscardAttachmentType::UnrealLogs) => "attachment:unreal_logs",
             Self::Attachment(DiscardAttachmentType::ViewHierarchy) => "attachment:view_hierarchy",
-            Self::Attachment(DiscardAttachmentType::Unknown) => "attachment:unknown",
             Self::FormData => "form_data",
             Self::RawSecurity => "raw_security",
             Self::Nel => "nel",
@@ -749,6 +750,8 @@ pub enum DiscardAttachmentType {
     EventPayload,
     /// A msgpack-encoded list of payloads.
     Breadcrumbs,
+    /// A Nintendo switch dying message.
+    NnswitchDyingMessage,
     // A prosperodump crash report (binary data)
     Prosperodump,
     /// Binary attachment present in Unreal 4 events containing event context information.
@@ -757,8 +760,6 @@ pub enum DiscardAttachmentType {
     UnrealLogs,
     /// An application UI view hierarchy (json payload).
     ViewHierarchy,
-    /// Unknown attachment type, forwarded for compatibility.
-    Unknown,
 }
 
 impl From<&AttachmentType> for DiscardAttachmentType {
@@ -770,10 +771,10 @@ impl From<&AttachmentType> for DiscardAttachmentType {
             AttachmentType::EventPayload => Self::EventPayload,
             AttachmentType::Breadcrumbs => Self::Breadcrumbs,
             AttachmentType::Prosperodump => Self::Prosperodump,
+            AttachmentType::NintendoSwitchDyingMessage => Self::NnswitchDyingMessage,
             AttachmentType::UnrealContext => Self::UnrealContext,
             AttachmentType::UnrealLogs => Self::UnrealLogs,
             AttachmentType::ViewHierarchy => Self::ViewHierarchy,
-            AttachmentType::Unknown(_) => Self::Unknown,
         }
     }
 }
@@ -877,10 +878,6 @@ impl TrackOutcomeLike for TrackRawOutcome {
 
     fn quantity(&self) -> Option<u32> {
         self.quantity
-    }
-
-    fn project_id(&self) -> ProjectId {
-        self.project_id
     }
 
     fn category(&self) -> DataCategory {
@@ -1163,9 +1160,7 @@ impl FromMessage<TrackRawOutcome> for OutcomeProducer {
 fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
     if let Some(quantity) = message.quantity() {
         metric!(
-            counter(RelayCounters::OutcomeQuantity) += quantity,
-            hc.project_id = message.project_id().to_string().as_str(),
-            hc.reason = message.reason().as_deref().unwrap_or(""),
+            counter(RelayCounters::OutcomeQuantity) += quantity.into(),
             category = message.category().name(),
             outcome = message.tag_name(),
             to = to,
@@ -1174,8 +1169,6 @@ fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
     metric!(
         counter(RelayCounters::Outcomes) += 1,
         reason = message.reason().as_deref().unwrap_or(""),
-        hc.category = message.category().name(),
-        hc.project_id = message.project_id().to_string().as_str(),
         outcome = message.tag_name(),
         to = to,
     );

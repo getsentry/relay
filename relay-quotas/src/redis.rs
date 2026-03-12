@@ -1,15 +1,20 @@
 use std::fmt::{self, Debug};
+use std::sync::Arc;
 
+use itertools::Itertools;
+use relay_base_schema::metrics::MetricNamespace;
+use relay_base_schema::organization::OrganizationId;
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
-use relay_redis::redis::Script;
+use relay_redis::redis::{self, FromRedisValue, ParsingError, Script};
 use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 use thiserror::Error;
 
-use crate::REJECT_ALL_SECS;
-use crate::global::GlobalLimiter;
+use crate::cache::OpportunisticQuotaCache;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
+use crate::statsd::{QuotaCounters, QuotaTimers};
+use crate::{REJECT_ALL_SECS, cache};
 
 /// The `grace` period allows accommodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -18,19 +23,12 @@ const GRACE: u64 = 60;
 
 /// An error returned by [`RedisRateLimiter`].
 #[derive(Debug, Error)]
-pub enum RateLimitingError {
-    /// Failed to communicate with Redis.
-    #[error("failed to communicate with redis")]
-    Redis(
-        #[from]
-        #[source]
-        RedisError,
-    ),
-
-    /// Failed to check global rate limits via the service.
-    #[error("failed to check global rate limits")]
-    UnreachableGlobalRateLimits,
-}
+#[error("failed to communicate with redis")]
+pub struct RateLimitingError(
+    #[from]
+    #[source]
+    pub RedisError,
+);
 
 /// Creates a refund key for a given counter key.
 ///
@@ -63,9 +61,11 @@ pub struct OwnedRedisQuota {
     /// Scopes of the item being tracked.
     scoping: ItemScoping,
     /// The Redis key prefix mapped from the quota id.
-    prefix: String,
-    /// The redis window in seconds mapped from the quota.
+    prefix: Arc<str>,
+    /// The Redis window in seconds mapped from the quota.
     window: u64,
+    /// The quantity being checked.
+    quantity: u64,
     /// The ingestion timestamp determining the rate limiting bucket.
     timestamp: UnixTimestamp,
 }
@@ -76,8 +76,9 @@ impl OwnedRedisQuota {
         RedisQuota {
             quota: &self.quota,
             scoping: self.scoping,
-            prefix: &self.prefix,
+            prefix: Arc::clone(&self.prefix),
             window: self.window,
+            quantity: self.quantity,
             timestamp: self.timestamp,
         }
     }
@@ -91,9 +92,11 @@ pub struct RedisQuota<'a> {
     /// Scopes of the item being tracked.
     scoping: ItemScoping,
     /// The Redis key prefix mapped from the quota id.
-    prefix: &'a str,
-    /// The redis window in seconds mapped from the quota.
+    prefix: Arc<str>,
+    /// The Redis window in seconds mapped from the quota.
     window: u64,
+    /// The quantity being checked.
+    quantity: u64,
     /// The ingestion timestamp determining the rate limiting bucket.
     timestamp: UnixTimestamp,
 }
@@ -104,15 +107,21 @@ impl<'a> RedisQuota<'a> {
     /// Returns `None` if the quota cannot be tracked in Redis because it's missing
     /// required fields (ID or window). This allows forward compatibility with
     /// future quota types.
-    pub fn new(quota: &'a Quota, scoping: ItemScoping, timestamp: UnixTimestamp) -> Option<Self> {
+    pub fn new(
+        quota: &'a Quota,
+        quantity: u64,
+        scoping: ItemScoping,
+        timestamp: UnixTimestamp,
+    ) -> Option<Self> {
         // These fields indicate that we *can* track this quota.
-        let prefix = quota.id.as_deref()?;
+        let prefix = quota.id.clone()?;
         let window = quota.window?;
 
         Some(Self {
             quota,
             scoping,
             prefix,
+            quantity,
             window,
             timestamp,
         })
@@ -124,8 +133,9 @@ impl<'a> RedisQuota<'a> {
         OwnedRedisQuota {
             quota: self.quota.clone(),
             scoping: self.scoping,
-            prefix: self.prefix.to_owned(),
+            prefix: Arc::clone(&self.prefix),
             window: self.window,
+            quantity: self.quantity,
             timestamp: self.timestamp,
         }
     }
@@ -136,8 +146,13 @@ impl<'a> RedisQuota<'a> {
     }
 
     /// Returns the prefix of the quota used for Redis key generation.
-    pub fn prefix(&self) -> &'a str {
-        self.prefix
+    pub fn prefix(&self) -> &str {
+        &self.prefix
+    }
+
+    /// Returns the quantity to rate limit.
+    pub fn quantity(&self) -> u64 {
+        self.quantity
     }
 
     /// Returns the limit value formatted for Redis.
@@ -152,11 +167,7 @@ impl<'a> RedisQuota<'a> {
     }
 
     fn shift(&self) -> u64 {
-        if self.quota.scope == QuotaScope::Global {
-            0
-        } else {
-            self.scoping.organization_id.value() % self.window
-        }
+        self.scoping.organization_id.value() % self.window
     }
 
     /// Returns the current time slot of the quota based on the timestamp.
@@ -185,25 +196,31 @@ impl<'a> RedisQuota<'a> {
     /// The key includes the quota ID, organization ID, and other scoping information
     /// based on the quota's scope type. Keys are structured to ensure proper isolation
     /// between different organizations and scopes.
-    pub fn key(&self) -> String {
+    pub fn key(&self) -> QuotaCacheKey {
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         let subscope = match self.quota.scope {
-            QuotaScope::Global => None,
             QuotaScope::Organization => None,
             scope => self.scoping.scope_id(scope),
         };
 
-        let org = self.scoping.organization_id;
+        QuotaCacheKey {
+            id: Arc::clone(&self.prefix),
+            org: self.scoping.organization_id,
+            subscope,
+            namespace: self.namespace,
+            slot: self.slot(),
+        }
+    }
 
-        format!(
-            "quota:{id}{{{org}}}{subscope}{namespace}:{slot}",
-            id = self.prefix,
-            org = org,
-            subscope = OptionalDisplay(subscope),
-            namespace = OptionalDisplay(self.namespace),
-            slot = self.slot(),
-        )
+    /// Returns a [`cache::Quota`] built from this [`RedisQuota`].
+    fn for_cache(&self) -> cache::Quota<QuotaCacheKey> {
+        cache::Quota {
+            limit: self.limit(),
+            window: self.window,
+            key: self.key(),
+            expiry: UnixTimestamp::from_secs(self.key_expiry()),
+        }
     }
 }
 
@@ -212,6 +229,34 @@ impl std::ops::Deref for RedisQuota<'_> {
 
     fn deref(&self) -> &Self::Target {
         self.quota
+    }
+}
+
+/// A key which uniquely identifies a quota.
+///
+/// Can be used as a Redis cache key by using the [`fmt::Display`] trait.
+///
+/// See also: [`RedisQuota::key`].
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct QuotaCacheKey {
+    id: Arc<str>,
+    org: OrganizationId,
+    subscope: Option<u64>,
+    namespace: Option<MetricNamespace>,
+    slot: u64,
+}
+
+impl fmt::Display for QuotaCacheKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "quota:{id}{{{org}}}{subscope}{namespace}:{slot}",
+            id = self.id,
+            org = self.org,
+            subscope = OptionalDisplay(self.subscope),
+            namespace = OptionalDisplay(self.namespace),
+            slot = self.slot,
+        )
     }
 }
 
@@ -226,21 +271,21 @@ impl std::ops::Deref for RedisQuota<'_> {
 ///
 /// Requires the `redis` feature.
 #[derive(Clone)]
-pub struct RedisRateLimiter<T> {
+pub struct RedisRateLimiter {
     client: AsyncRedisClient,
+    cache: Option<Arc<OpportunisticQuotaCache<QuotaCacheKey>>>,
     script: &'static Script,
     max_limit: Option<u64>,
-    global_limiter: T,
 }
 
-impl<T: GlobalLimiter> RedisRateLimiter<T> {
+impl RedisRateLimiter {
     /// Creates a new [`RedisRateLimiter`] instance.
-    pub fn new(client: AsyncRedisClient, global_limiter: T) -> Self {
+    pub fn new(client: AsyncRedisClient) -> Self {
         RedisRateLimiter {
             client,
+            cache: None,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
-            global_limiter,
         }
     }
 
@@ -250,6 +295,22 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
     /// If a maximum rate limit is set, the returned rate limit will be bounded by this value.
     pub fn max_limit(mut self, max_limit: Option<u64>) -> Self {
         self.max_limit = max_limit;
+        self
+    }
+
+    /// Enables an opportunistic cache for quotas.
+    ///
+    /// The opportunistic cache, opportunistically serves quotas from a local cache, reducing the
+    /// load on Redis heavily.
+    ///
+    /// Caching considers a ratio of the remaining quota to be available and periodically
+    /// synchronizes with Redis.
+    pub fn cache(mut self, cache_ratio: Option<f32>, max: Option<f32>) -> Self {
+        self.cache = cache_ratio
+            .map(OpportunisticQuotaCache::new)
+            .map(|c| c.with_max(max))
+            .map(Arc::new);
+
         self
     }
 
@@ -281,7 +342,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
         let mut tracked_quotas = Vec::new();
         let mut rate_limits = RateLimits::new();
 
-        let mut global_quotas = vec![];
+        let quantity = u64::try_from(quantity).unwrap_or(u64::MAX);
 
         for quota in quotas {
             if !quota.matches(item_scoping) {
@@ -292,24 +353,29 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
                 // behave as well).
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
                 rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
-            } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
-                if quota.scope == QuotaScope::Global {
-                    global_quotas.push(quota);
-                } else {
-                    let key = quota.key();
-                    // Remaining quotas are expected to be trackable in Redis.
-                    let refund_key = get_refunded_quota_key(&key);
-
-                    invocation.key(key);
-                    invocation.key(refund_key);
-
-                    invocation.arg(quota.limit());
-                    invocation.arg(quota.key_expiry());
-                    invocation.arg(quantity);
-                    invocation.arg(over_accept_once);
-
-                    tracked_quotas.push(quota);
+            } else if let Some(mut quota) =
+                RedisQuota::new(quota, quantity, item_scoping, timestamp)
+            {
+                if let Some(cache) = &self.cache {
+                    quota.quantity = match cache.check_quota(quota.for_cache(), quantity) {
+                        cache::Action::Accept => continue,
+                        cache::Action::Check(quantity) => quantity,
+                    };
                 }
+
+                let redis_key = quota.key().to_string();
+                // Remaining quotas are expected to be track-able in Redis.
+                let refund_key = get_refunded_quota_key(&redis_key);
+
+                invocation.key(redis_key);
+                invocation.key(refund_key);
+
+                invocation.arg(quota.limit());
+                invocation.arg(quota.key_expiry());
+                invocation.arg(quota.quantity);
+                invocation.arg(over_accept_once);
+
+                tracked_quotas.push(quota);
             } else {
                 // This quota is neither a static reject-all, nor can it be tracked in Redis due to
                 // missing fields. We're skipping this for forward-compatibility.
@@ -320,41 +386,49 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
             }
         }
 
-        // We check the global rate limits before the other limits. This step must be separate from
-        // checking the other rate limits, since those are checked with a Redis script that works
-        // under the invariant that all keys are within the same Redis instance (given their partitioning).
-        // Global keys on the other hand are always on the same instance, so if they were to be mixed
-        // with normal keys the script will end up referencing keys from multiple instances, making it
-        // impossible for the script to work.
-        let rate_limited_global_quotas = self
-            .global_limiter
-            .check_global_rate_limits(&global_quotas, quantity)
-            .await?;
-
-        for quota in rate_limited_global_quotas {
-            let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-            rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
-        }
-
         // Either there are no quotas to run against Redis, or we already have a rate limit from a
         // zero-sized quota. In either cases, skip invoking the script and return early.
         if tracked_quotas.is_empty() || rate_limits.is_limited() {
             return Ok(rate_limits);
         }
 
-        // We get the redis client after the global rate limiting since we don't want to hold the
-        // client across await points, otherwise it might be held for too long, and we will run out
-        // of connections.
         let mut connection = self.client.get_connection().await?;
-        let rejections: Vec<bool> = invocation
+        let result: ScriptResult = invocation
             .invoke_async(&mut connection)
             .await
             .map_err(RedisError::Redis)?;
 
-        for (quota, is_rejected) in tracked_quotas.iter().zip(rejections) {
-            if is_rejected {
+        for (quota, state) in tracked_quotas.iter().zip(result.0) {
+            if state.is_rejected {
+                // We can calculate the error by comparing how much the cache added to the
+                // quantity with remaining difference of the consumption and limit.
+                let cache_error = {
+                    let remaining = quota.limit().saturating_sub(state.consumed).max(0) as u64;
+                    let cache_quantity = quota.quantity.saturating_sub(quantity);
+
+                    cache_quantity.saturating_sub(remaining)
+                };
+                relay_statsd::metric!(
+                    counter(QuotaCounters::CacheError) += cache_error,
+                    category = item_scoping.category.name(),
+                );
+
                 let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
                 rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
+            } else if let Some(cache) = &self.cache {
+                // Only update the cache if it's really necessary. Quotas which are being rejected,
+                // will not be able to be handled from the cache anyways.
+                cache.set_quota(quota.for_cache(), state.consumed);
+            }
+        }
+        drop(connection);
+
+        if let Some(cache) = &self.cache {
+            let vacuum_start = std::time::Instant::now();
+            if cache.try_vacuum(timestamp) {
+                relay_statsd::metric!(
+                    timer(QuotaTimers::CacheVacuumDuration) = vacuum_start.elapsed()
+                );
             }
         }
 
@@ -373,57 +447,69 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
     }
 }
 
+/// The result returned from the rate limiting Redis script.
+#[derive(Debug)]
+struct ScriptResult(Vec<QuotaState>);
+
+impl FromRedisValue for ScriptResult {
+    fn from_redis_value(v: redis::Value) -> Result<Self, ParsingError> {
+        let seq = v.into_sequence().map_err(|v| {
+            format!("Expected a sequence from the rate limiting script (value was: {v:?})")
+        })?;
+
+        if !seq.len().is_multiple_of(2) {
+            return Err(format!(
+                "Expected an even number of values from the rate limiting script (value was: {seq:?})"
+            ).into());
+        }
+
+        let mut quotas = Vec::with_capacity(seq.len() / 2);
+        for (is_rejected, consumed) in seq.into_iter().tuples() {
+            quotas.push(QuotaState {
+                is_rejected: bool::from_redis_value(is_rejected)?,
+                consumed: i64::from_redis_value(consumed)?,
+            });
+        }
+
+        Ok(Self(quotas))
+    }
+}
+
+/// The state returned from the rate limiting script for a single quota.
+#[derive(Debug)]
+struct QuotaState {
+    /// Whether the quota rejects the request.
+    is_rejected: bool,
+    /// How much of the quota has already been consumed.
+    consumed: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
+    use crate::MetricNamespaceScoping;
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
-    use crate::{GlobalRateLimiter, MetricNamespaceScoping};
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::RedisConfigOptions;
     use relay_redis::redis::AsyncCommands;
     use smallvec::smallvec;
-    use tokio::sync::Mutex;
 
-    struct MockGlobalLimiter {
-        client: AsyncRedisClient,
-        global_rate_limiter: Mutex<GlobalRateLimiter>,
-    }
-
-    impl GlobalLimiter for MockGlobalLimiter {
-        async fn check_global_rate_limits<'a>(
-            &self,
-            global_quotas: &'a [RedisQuota<'a>],
-            quantity: usize,
-        ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
-            self.global_rate_limiter
-                .lock()
-                .await
-                .filter_rate_limited(&self.client, global_quotas, quantity)
-                .await
-        }
-    }
-
-    fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
+    fn build_rate_limiter() -> RedisRateLimiter {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
         let client =
             AsyncRedisClient::single("test", &url, &RedisConfigOptions::default()).unwrap();
 
-        let global_limiter = MockGlobalLimiter {
-            client: client.clone(),
-            global_rate_limiter: Mutex::new(GlobalRateLimiter::default()),
-        };
-
         RedisRateLimiter {
             client,
+            cache: None,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
-            global_limiter,
         }
     }
 
@@ -441,7 +527,7 @@ mod tests {
                 namespace: None,
             },
             Quota {
-                id: Some("42".to_owned()),
+                id: Some("42".into()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
@@ -484,11 +570,11 @@ mod tests {
 
     /// Tests that a quota with and without namespace are counted separately.
     #[tokio::test]
-    async fn test_non_global_namespace_quota() {
+    async fn test_namespace_quota() {
         let quota_limit = 5;
         let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
             Quota {
-                id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
+                id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4()).into()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
@@ -557,7 +643,7 @@ mod tests {
     #[tokio::test]
     async fn test_simple_quota() {
         let quotas = &[Quota {
-            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
+            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -606,60 +692,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_simple_global_quota() {
-        let quotas = &[Quota {
-            id: Some(format!("test_simple_global_quota_{}", uuid::Uuid::new_v4())),
-            categories: DataCategories::new(),
-            scope: QuotaScope::Global,
-            scope_id: None,
-            limit: Some(5),
-            window: Some(60),
-            reason_code: Some(ReasonCode::new("get_lost")),
-            namespace: None,
-        }];
-
-        let scoping = ItemScoping {
-            category: DataCategory::Error,
-            scoping: Scoping {
-                organization_id: OrganizationId::new(42),
-                project_id: ProjectId::new(43),
-                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                key_id: Some(44),
-            },
-            namespace: MetricNamespaceScoping::None,
-        };
-
-        let rate_limiter = build_rate_limiter();
-
-        for i in 0..10 {
-            let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas, scoping, 1, false)
-                .await
-                .expect("rate limiting failed")
-                .into_iter()
-                .collect();
-
-            if i >= 5 {
-                assert_eq!(
-                    rate_limits,
-                    vec![RateLimit {
-                        categories: DataCategories::new(),
-                        scope: RateLimitScope::Global,
-                        reason_code: Some(ReasonCode::new("get_lost")),
-                        retry_after: rate_limits[0].retry_after,
-                        namespaces: smallvec![],
-                    }]
-                );
-            } else {
-                assert_eq!(rate_limits, vec![]);
-            }
-        }
-    }
-
-    #[tokio::test]
     async fn test_quantity_0() {
         let quotas = &[Quota {
-            id: Some(format!("test_quantity_0_{}", uuid::Uuid::new_v4())),
+            id: Some(format!("test_quantity_0_{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -722,7 +757,7 @@ mod tests {
     #[tokio::test]
     async fn test_quota_go_over() {
         let quotas = &[Quota {
-            id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4())),
+            id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -805,7 +840,7 @@ mod tests {
     async fn test_limited_with_unlimited_quota() {
         let quotas = &[
             Quota {
-                id: Some("q0".to_owned()),
+                id: Some("q0".into()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
@@ -815,7 +850,7 @@ mod tests {
                 namespace: None,
             },
             Quota {
-                id: Some("q1".to_owned()),
+                id: Some("q1".into()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
@@ -867,7 +902,7 @@ mod tests {
     #[tokio::test]
     async fn test_quota_with_quantity() {
         let quotas = &[Quota {
-            id: Some(format!("test_quantity_quota_{}", uuid::Uuid::new_v4())),
+            id: Some(format!("test_quantity_quota_{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -918,10 +953,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_redis_key_scoped() {
         let quota = Quota {
-            id: Some("foo".to_owned()),
+            id: Some("foo".into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Project,
-            scope_id: Some("42".to_owned()),
+            scope_id: Some("42".into()),
             window: Some(2),
             limit: Some(0),
             reason_code: None,
@@ -940,14 +975,14 @@ mod tests {
         };
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
-        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
-        assert_eq!(redis_quota.key(), "quota:foo{69420}42:61561561");
+        let redis_quota = RedisQuota::new(&quota, 0, scoping, timestamp).unwrap();
+        assert_eq!(redis_quota.key().to_string(), "quota:foo{69420}42:61561561");
     }
 
     #[tokio::test]
     async fn test_get_redis_key_unscoped() {
         let quota = Quota {
-            id: Some("foo".to_owned()),
+            id: Some("foo".into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -969,14 +1004,14 @@ mod tests {
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
-        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
-        assert_eq!(redis_quota.key(), "quota:foo{69420}:23453");
+        let redis_quota = RedisQuota::new(&quota, 0, scoping, timestamp).unwrap();
+        assert_eq!(redis_quota.key().to_string(), "quota:foo{69420}:23453");
     }
 
     #[tokio::test]
     async fn test_large_redis_limit_large() {
         let quota = Quota {
-            id: Some("foo".to_owned()),
+            id: Some("foo".into()),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -998,12 +1033,11 @@ mod tests {
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
-        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
+        let redis_quota = RedisQuota::new(&quota, 0, scoping, timestamp).unwrap();
         assert_eq!(redis_quota.limit(), -1);
     }
 
     #[tokio::test]
-    #[allow(clippy::disallowed_names, clippy::let_unit_value)]
     async fn test_is_rate_limited_script() {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -1024,6 +1058,17 @@ mod tests {
 
         let script = RedisScripts::load_is_rate_limited();
 
+        macro_rules! assert_invocation {
+            ($invocation:expr, $($tt:tt)*) => {{
+                let result = $invocation
+                    .invoke_async::<ScriptResult>(&mut conn)
+                    .await
+                    .unwrap();
+
+                insta::assert_debug_snapshot!(result, $($tt)*);
+            }};
+        }
+
         let mut invocation = script.prepare_invoke();
         invocation
             .key(&foo) // key
@@ -1039,34 +1084,111 @@ mod tests {
             .arg(1) // quantity
             .arg(false); // over accept once
 
-        // The item should not be rate limited by either key.
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<bool>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![false, false]
+        // Craft a new invocation similar to the previous one, but it only applies to the quota
+        // with a higher limit (2).
+        let mut invocation2 = script.prepare_invoke();
+        invocation2
+            .key(&bar) // key
+            .key(&r_bar) // refund key
+            .arg(2) // limit
+            .arg(now + 120) // expiry
+            .arg(1) // quantity
+            .arg(false); // over accept once
+
+        // 1 quantity used from both quotas.
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 1,
+                },
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
         );
 
-        // The item should be rate limited by the first key (1).
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<bool>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![true, false]
+        // This invocation fails the rate limit on the first quota.
+        // -> No changes are made to the counters.
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 1,
+                },
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
         );
 
-        // The item should still be rate limited by the first key (1), but *not*
-        // rate limited by the second key (2) even though this is the third time
-        // we've checked the quotas. This ensures items that are rejected by a lower
-        // quota don't affect unrelated items that share a parent quota.
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<bool>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![true, false]
+        // Another call, same result as before, just making sure there were no changes applied.
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 1,
+                },
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
+        );
+
+        // Using the second invocation which only considers a quota with a higher limit, usage for
+        // that quota is now 2.
+        assert_invocation!(invocation2, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 2,
+                },
+            ],
+        )
+        "
+        );
+
+        // Same invocation, but this time the limit is reached, quota should not increase.
+        assert_invocation!(invocation2, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 2,
+                },
+            ],
+        )
+        "
+        );
+
+        // Check again with the original invocation, this now yields `[1, 2]`.
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 1,
+                },
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 2,
+                },
+            ],
+        )
+        "
         );
 
         assert_eq!(conn.get::<_, String>(&foo).await.unwrap(), "1");
@@ -1074,7 +1196,7 @@ mod tests {
         assert!(ttl >= 59);
         assert!(ttl <= 60);
 
-        assert_eq!(conn.get::<_, String>(&bar).await.unwrap(), "1");
+        assert_eq!(conn.get::<_, String>(&bar).await.unwrap(), "2");
         let ttl: u64 = conn.ttl(&bar).await.unwrap();
         assert!(ttl >= 119);
         assert!(ttl <= 120);
@@ -1095,22 +1217,43 @@ mod tests {
             .arg(1) // quantity
             .arg(false);
 
-        // increment
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<bool>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![false]
+        // increment, current quota usage is 1.
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: false,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
         );
 
-        // test that it's rate limited without refund
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<bool>>(&mut conn)
-                .await
-                .unwrap(),
-            vec![true]
+        // test that it's rate limited without refund.
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
+        );
+
+        // Make sure, the counter wasn't incremented.
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: true,
+                    consumed: 1,
+                },
+            ],
+        )
+        "
         );
 
         let mut invocation = script.prepare_invoke();
@@ -1123,12 +1266,151 @@ mod tests {
             .arg(false);
 
         // test that refund key is used
-        assert_eq!(
-            invocation
-                .invoke_async::<Vec<bool>>(&mut conn)
+        assert_invocation!(invocation, @r"
+        ScriptResult(
+            [
+                QuotaState {
+                    is_rejected: false,
+                    consumed: -3,
+                },
+            ],
+        )
+        "
+        );
+    }
+
+    /// Usual rate limiting with a cache should just work as expected.
+    #[tokio::test]
+    async fn test_quota_with_cache() {
+        let quotas = &[Quota {
+            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4()).into()),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(50),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        // For this test, with only a single rate limiter accessing Redis and always a quantity of
+        // `1`, the parameters for the cache should not make any difference.
+        let rate_limiter = build_rate_limiter().cache(Some(0.1), Some(0.9));
+
+        for _ in 0..50 {
+            let rate_limits = rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
                 .await
-                .unwrap(),
-            vec![false]
+                .unwrap();
+
+            assert!(rate_limits.is_empty());
+        }
+
+        let rate_limits: Vec<RateLimit> = rate_limiter
+            .is_rate_limited(quotas, scoping, 1, false)
+            .await
+            .expect("rate limiting failed")
+            .into_iter()
+            .collect();
+
+        assert_eq!(
+            rate_limits,
+            vec![RateLimit {
+                categories: DataCategories::new(),
+                scope: RateLimitScope::Organization(OrganizationId::new(42)),
+                reason_code: Some(ReasonCode::new("get_lost")),
+                retry_after: rate_limits[0].retry_after,
+                namespaces: smallvec![],
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_quota_with_cache_slightly_over_account() {
+        let window = 60;
+        let limit = 50 * window;
+
+        let quotas = &[Quota {
+            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4()).into()),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(limit),
+            window: Some(window),
+            reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        // 10% Quota cache.
+        let rate_limiter1 = build_rate_limiter().cache(Some(0.1), None);
+        let rate_limiter2 = build_rate_limiter().cache(Some(0.1), None);
+
+        // Prime the cache.
+        let rate_limits = rate_limiter1
+            .is_rate_limited(quotas, scoping, 1, false)
+            .await
+            .unwrap();
+        assert!(rate_limits.is_empty());
+        // Reserve 3 out 5 in the cache.
+        let rate_limits = rate_limiter1
+            .is_rate_limited(quotas, scoping, 3, false)
+            .await
+            .unwrap();
+        assert!(rate_limits.is_empty());
+
+        // Consume right up to the limit on the other limiter
+        let rate_limits = rate_limiter2
+            .is_rate_limited(quotas, scoping, limit as usize - 1, false)
+            .await
+            .unwrap();
+        assert!(rate_limits.is_empty());
+
+        // There is still one more slot in the cache.
+        let rate_limits = rate_limiter1
+            .is_rate_limited(quotas, scoping, 1, false)
+            .await
+            .unwrap();
+        assert!(rate_limits.is_empty());
+
+        // This should now rate limit, as the cache is exhausted and Redis is checked.
+        let rate_limits: Vec<RateLimit> = rate_limiter1
+            .is_rate_limited(quotas, scoping, 1, false)
+            .await
+            .unwrap()
+            .into_iter()
+            .collect();
+
+        assert_eq!(
+            rate_limits,
+            vec![RateLimit {
+                categories: DataCategories::new(),
+                scope: RateLimitScope::Organization(OrganizationId::new(42)),
+                reason_code: Some(ReasonCode::new("get_lost")),
+                retry_after: rate_limits[0].retry_after,
+                namespaces: smallvec![],
+            }]
         );
     }
 }

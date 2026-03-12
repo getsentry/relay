@@ -248,7 +248,8 @@ struct CspRaw {
     #[serde(
         skip_serializing_if = "Option::is_none",
         alias = "scriptSample",
-        alias = "script-sample"
+        alias = "script-sample",
+        alias = "sample"
     )]
     script_sample: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1454,6 +1455,30 @@ mod tests {
           }
         }
         "###);
+    }
+
+    #[test]
+    fn test_csp_sample_alias() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src http://cdn.example.com",
+                "effective-directive": "style-src",
+                "sample": "console.log(\"lo\")"
+            }
+    }"#;
+
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
+        assert_annotated_snapshot!(event.csp, @r#"
+        {
+          "effective_directive": "style-src",
+          "blocked_uri": "self",
+          "document_uri": "http://example.com/foo",
+          "violated_directive": "style-src http://cdn.example.com",
+          "script_sample": "console.log(\"lo\")"
+        }
+        "#);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use crate::ProfileError;
 
-pub fn discard_reason(err: ProfileError) -> &'static str {
+pub fn discard_reason(err: &ProfileError) -> &'static str {
     match err {
         ProfileError::CannotSerializePayload => "profiling_failed_serialization",
         ProfileError::ExceedSizeLimit => "profiling_exceed_size_limit",

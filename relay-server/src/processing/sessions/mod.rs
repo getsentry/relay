@@ -81,7 +81,7 @@ impl processing::Processor for SessionsProcessor {
             updates,
             aggregates,
         };
-        Some(Managed::from_envelope(envelope, work))
+        Some(Managed::with_meta_from(envelope, work))
     }
 
     async fn process(
@@ -101,9 +101,9 @@ impl processing::Processor for SessionsProcessor {
 
         process::normalize(&mut sessions, ctx);
 
-        self.limiter.enforce_quotas(&mut sessions, ctx).await?;
+        let sessions = self.limiter.enforce_quotas(sessions, ctx).await?;
 
-        let sessions = process::extract(sessions, ctx);
+        let sessions = process::extract_metrics(sessions, ctx);
         Ok(Output::metrics(sessions))
     }
 }
@@ -123,7 +123,7 @@ impl Forward for SessionsOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        _: &relay_system::Addr<crate::services::store::Store>,
+        _: processing::forward::StoreHandle<'_>,
         _: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let SessionsOutput(sessions) = self;

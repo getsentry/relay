@@ -19,10 +19,12 @@ mod nel;
 mod playstation;
 mod project_configs;
 mod public_keys;
+mod register;
 mod security_report;
 mod statics;
 mod store;
 mod unreal;
+mod upload;
 
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{Router, any, get, post};
@@ -56,7 +58,6 @@ pub fn internal_routes(_: &Config) -> Router<ServiceState>{
 /// Relay's public routes.
 ///
 /// Routes which are public API and must be exposed.
-#[expect(unused, reason = "temporarily unused")]
 pub fn public_routes(config: &Config) -> Router<ServiceState> {
     // Exclude internal routes, they must be configured separately.
     public_routes_raw(config).route("/api/relay/{*not_found}", any(statics::not_found))
@@ -68,6 +69,8 @@ fn public_routes_raw(config: &Config) -> Router<ServiceState> {
     let web_routes = Router::new()
         .route("/api/0/relays/projectconfigs/", post(project_configs::handle))
         .route("/api/0/relays/publickeys/", post(public_keys::handle))
+        .route("/api/0/relays/register/challenge/", post(register::challenge))
+        .route("/api/0/relays/register/response/", post(register::response))
         // Network connectivity check for downstream Relays, same as the internal health check.
         .route("/api/0/relays/live/", get(health_check::handle_live))
         .route_layer(DefaultBodyLimit::max(crate::constants::MAX_JSON_SIZE));
@@ -96,7 +99,8 @@ fn public_routes_raw(config: &Config) -> Router<ServiceState> {
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))
         .route("/api/{project_id}/events/{event_id}/attachments/", post(attachments::handle))
-        .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config));
+        .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
+        .route("/api/{project_id}/upload/", upload::route(config));
 
     #[cfg(sentry)]
     let store_routes = store_routes.route("/api/{project_id}/playstation/", playstation::route(config));

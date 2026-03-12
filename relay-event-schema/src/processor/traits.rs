@@ -15,6 +15,12 @@ pub enum ProcessingAction {
     #[error("value should be hard-deleted (unreachable, should not surface as error!)")]
     DeleteValueHard,
 
+    /// Discards the value entirely, but leaves a remark.
+    ///
+    /// The contained string is used as the "rule id" in the remark.
+    #[error("value should be hard-deleted (unreachable, should not surface as error!)")]
+    DeleteValueWithRemark(&'static str),
+
     /// Discards the value and moves it into meta's `original_value`.
     #[error("value should be hard-deleted (unreachable, should not surface as error!)")]
     DeleteValueSoft,

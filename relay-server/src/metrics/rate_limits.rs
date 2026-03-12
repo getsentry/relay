@@ -218,14 +218,13 @@ mod tests {
     use relay_metrics::{BucketMetadata, BucketValue, UnixTimestamp};
     use relay_quotas::QuotaScope;
     use relay_system::Addr;
-    use smallvec::smallvec;
 
     use super::*;
 
     fn deny(category: DataCategory) -> Vec<Quota> {
         vec![Quota {
             id: None,
-            categories: smallvec![category],
+            categories: [category].into(),
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: Some(0),

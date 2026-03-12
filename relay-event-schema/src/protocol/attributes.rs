@@ -16,7 +16,7 @@ pub struct Attribute {
     pub value: AttributeValue,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, trim = false)]
     pub other: Object<Value>,
 }
 
@@ -92,6 +92,21 @@ impl_from!(i64, AttributeType::Integer);
 impl_from!(f64, AttributeType::Double);
 impl_from!(bool, AttributeType::Boolean);
 
+impl From<Annotated<&str>> for AttributeValue {
+    fn from(value: Annotated<&str>) -> Self {
+        Self {
+            ty: Annotated::new(AttributeType::String),
+            value: value.map_value(Into::into),
+        }
+    }
+}
+
+impl From<&str> for AttributeValue {
+    fn from(value: &str) -> Self {
+        Self::from(Annotated::new(value))
+    }
+}
+
 /// Determines the `Pii` value for an attribute (or, more exactly, the
 /// attribute's `value` field) by looking it up in `relay-conventions`.
 ///
@@ -120,10 +135,29 @@ pub fn attribute_pii_from_conventions(state: &ProcessingState) -> Pii {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeType {
+    /// A boolean.
+    ///
+    /// The respective value must be of type [`Value::Bool`].
     Boolean,
+    /// An integer type.
+    ///
+    /// The respective value must be of type [`Value::I64`] or [`Value::U64`].
     Integer,
+    /// A floating point/double type.
+    ///
+    /// The respective value must be of type [`Value::F64`].
     Double,
+    /// A string type.
+    ///
+    /// The respective value must be of type [`Value::String`].
     String,
+    /// A string type.
+    ///
+    /// The respective value must be of type [`Value::Array`].
+    Array,
+    /// An unknown type.
+    ///
+    /// Kept for forward compatibility.
     Unknown(String),
 }
 
@@ -136,6 +170,7 @@ impl AttributeType {
             Self::Integer => "integer",
             Self::Double => "double",
             Self::String => "string",
+            Self::Array => "array",
             Self::Unknown(value) => value,
         }
     }
@@ -158,6 +193,7 @@ impl From<String> for AttributeType {
             "integer" => Self::Integer,
             "double" => Self::Double,
             "string" => Self::String,
+            "array" => Self::Array,
             _ => Self::Unknown(value),
         }
     }
@@ -303,6 +339,9 @@ impl<const N: usize> From<[(String, Annotated<Attribute>); N]> for Attributes {
     }
 }
 
+// We need to manually implement `ProcessValue` for `Attributes`.
+// Deriving it, even with `process_func`, causes both `process_value`
+// and `process_child_values` to be called because it's a newtype struct.
 impl ProcessValue for Attributes {
     #[inline]
     fn value_type(&self) -> EnumSet<ValueType> {

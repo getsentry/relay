@@ -2,6 +2,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .test_replay_recordings import recording_payload
 from .test_replay_events import generate_replay_sdk_event
+
 import json
 
 
@@ -9,7 +10,6 @@ def test_replay_combined_with_processing(
     mini_sentry,
     relay_with_processing,
     replay_recordings_consumer,
-    replay_events_consumer,
 ):
     project_id = 42
     replay_id = "515539018c9b4260a6f999572f1661ee"
@@ -19,7 +19,6 @@ def test_replay_combined_with_processing(
         extra={"config": {"features": ["organizations:session-replay"]}},
     )
     replay_recordings_consumer = replay_recordings_consumer()
-    replay_events_consumer = replay_events_consumer(timeout=10)
 
     envelope = Envelope(
         headers=[
@@ -51,7 +50,31 @@ def test_replay_combined_with_processing(
 
     assert replay_event["replay_id"] == replay_id
 
-    replay_event, replay_event_message = replay_events_consumer.get_replay_event()
-    assert replay_event["type"] == "replay_event"
-    assert replay_event["replay_id"] == replay_id
-    assert replay_event_message["retention_days"] == 90
+
+def test_standalone_recording_from_faulty_sdk(
+    mini_sentry,
+    relay_with_processing,
+    replay_recordings_consumer,
+):
+    project_id = 42
+    replay_id = "515539018c9b4260a6f999572f1661ee"
+    relay = relay_with_processing()
+
+    mini_sentry.add_basic_project_config(
+        project_id,
+        extra={"config": {"features": ["organizations:session-replay"]}},
+    )
+
+    replay_recordings_consumer = replay_recordings_consumer()
+
+    envelope = Envelope(headers=[["event_id", replay_id]])
+    payload = recording_payload(b"[]")
+
+    envelope.add_item(Item(payload=PayloadRef(bytes=payload), type="replay_recording"))
+
+    relay.send_envelope(project_id, envelope)
+
+    replay_recording = replay_recordings_consumer.get_not_chunked_replay(timeout=10)
+    assert replay_recording["replay_id"] == replay_id
+    assert replay_recording["payload"] == payload
+    assert replay_recording["replay_event"] is None

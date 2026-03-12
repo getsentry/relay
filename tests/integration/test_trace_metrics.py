@@ -4,7 +4,10 @@ from unittest import mock
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta
+from .asserts import time_within_delta, only_items
+
+import pytest
+import json
 
 
 TEST_CONFIG = {
@@ -52,13 +55,14 @@ def test_trace_metric_extraction(
         "timestamp": start.timestamp(),
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
-        "name": "http.request.duration",
+        "name": "http.request.duration seconds",
         "type": "distribution",
         "value": 123.45,
         "unit": "millisecond",
         "attributes": {
             "http.method": {"value": "GET", "type": "string"},
             "http.status_code": {"value": 200, "type": "integer"},
+            "http.some.headers": {"value": ["foo", "bar"], "type": "array"},
             "sentry.client_sample_rate": {"value": 0.25, "type": "double"},
         },
     }
@@ -69,7 +73,12 @@ def test_trace_metric_extraction(
     item = items_consumer.get_item()
     assert item == {
         "attributes": {
-            "sentry.metric_name": {"stringValue": "http.request.duration"},
+            "http.some.headers": {
+                "arrayValue": {
+                    "values": [{"stringValue": "foo"}, {"stringValue": "bar"}]
+                }
+            },
+            "sentry.metric_name": {"stringValue": "http.request.duration_seconds"},
             "sentry.metric_type": {"stringValue": "distribution"},
             "sentry.metric_unit": {"stringValue": "millisecond"},
             "sentry.value": {"doubleValue": 123.45},
@@ -95,7 +104,7 @@ def test_trace_metric_extraction(
             "sentry.browser.version": {"stringValue": mock.ANY},
             "http.method": {"stringValue": "GET"},
             "http.status_code": {"intValue": "200"},
-            "sentry._internal.cooccuring.name.http.request.duration": {
+            "sentry._internal.cooccuring.name.http.request.duration_seconds": {
                 "boolValue": True
             },
             "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
@@ -263,3 +272,117 @@ def test_trace_metric_pii_scrubbing(
             "quantity": 1,
         }
     ]
+
+
+def test_trace_metric_size_limits(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+
+    relay = relay(
+        mini_sentry, options={"limits": {"max_trace_metric_size": 600}, **TEST_CONFIG}
+    )
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {},
+        },
+        # Specifically crafted that attributes + name + value breach the limit
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "a" * 200,
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "b" * 300: {"value": "c" * 100, "type": "string"},
+            },
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_captured_envelope() == only_items("trace_metric")
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 33,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:trace_metric",
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    "delta,error",
+    [
+        (-timedelta(days=2), "past_timestamp"),
+        (timedelta(days=2), "future_timestamp"),
+    ],
+)
+def test_time_corrections(mini_sentry, relay, delta, error):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:tracemetrics-ingestion"]
+    project_config["config"]["retentions"] = {
+        "traceMetric": {"standard": 1, "downsampled": 100},
+    }
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": (ts + delta).timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "name": "http.request.duration",
+            "type": "distribution",
+            "value": 123.45,
+            "unit": "millisecond",
+        }
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    assert item_payload["items"][0] == {
+        "_meta": {
+            "timestamp": {
+                "": {
+                    "err": [
+                        [
+                            error,
+                            {
+                                "sdk_time": time_within_delta(ts + delta),
+                                "server_time": time_within_delta(ts),
+                            },
+                        ]
+                    ]
+                }
+            }
+        },
+        "attributes": mock.ANY,
+        "name": "http.request.duration",
+        "type": "distribution",
+        "value": 123.45,
+        "unit": "millisecond",
+        "span_id": "eee19b7ec3c1b175",
+        "timestamp": time_within_delta(ts),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+    }

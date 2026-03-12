@@ -6,12 +6,14 @@
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
+use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::response::IntoResponse;
 use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{
@@ -34,8 +36,8 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
-use crate::statsd::{RelayHistograms, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
+use crate::statsd::{RelayDistributions, RelayTimers};
+use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff, find_error_source};
 
 /// Rate limits returned by the upstream.
 ///
@@ -193,12 +195,46 @@ impl UpstreamRequestError {
             UpstreamRequestError::Http(HttpError::Json(_)) => "invalid_json",
             UpstreamRequestError::Http(HttpError::Reqwest(_)) => "reqwest_error",
             UpstreamRequestError::Http(HttpError::Overflow) => "overflow",
+            UpstreamRequestError::Http(HttpError::Misconfigured) => "misconfigured",
             UpstreamRequestError::RateLimited(_) => "rate_limited",
             UpstreamRequestError::ResponseError(_, _) => "response_error",
             UpstreamRequestError::ChannelClosed => "channel_closed",
             UpstreamRequestError::AuthDenied => "auth_denied",
         }
     }
+}
+
+impl IntoResponse for UpstreamRequestError {
+    fn into_response(self) -> axum::response::Response {
+        match self {
+            Self::Http(e) => match e {
+                HttpError::Overflow => StatusCode::PAYLOAD_TOO_LARGE.into_response(),
+                HttpError::Reqwest(error) => error
+                    .status()
+                    .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+                    .into_response(),
+                HttpError::Io(_) => StatusCode::BAD_GATEWAY.into_response(),
+                HttpError::Json(_) => StatusCode::BAD_REQUEST.into_response(),
+                HttpError::Misconfigured => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            },
+            Self::SendFailed(e) => {
+                if find_error_source(&e, is_length_limit_error).is_some() {
+                    StatusCode::PAYLOAD_TOO_LARGE.into_response()
+                } else if e.is_timeout() {
+                    StatusCode::GATEWAY_TIMEOUT.into_response()
+                } else {
+                    StatusCode::BAD_GATEWAY.into_response()
+                }
+            }
+            _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        }
+    }
+}
+
+fn is_length_limit_error(error: &(dyn Error + 'static)) -> bool {
+    error
+        .downcast_ref::<http_body_util::LengthLimitError>()
+        .is_some()
 }
 
 /// Checks the authentication state with the upstream.
@@ -570,7 +606,7 @@ where
         let body = self.body()?;
 
         relay_statsd::metric!(
-            histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() as u64
+            distribution(RelayDistributions::UpstreamQueryBodySize) = body.len() as u64
         );
 
         builder
@@ -705,7 +741,7 @@ fn emit_response_metrics(
     );
 
     relay_statsd::metric!(
-        histogram(RelayHistograms::UpstreamRetries) = entry.retries as u64,
+        distribution(RelayDistributions::UpstreamRetries) = entry.retries as u64,
         result = description,
         status_code = status_str,
         route = entry.request.route(),
@@ -826,10 +862,7 @@ impl SharedClient {
             // In the forward endpoint, this means that content negotiation is done twice, and the
             // response body is first decompressed by the client, then re-compressed by the server.
             .gzip(true)
-            // Enables async resolver through the `hickory-dns` crate, which uses an LRU cache for
-            // the resolved entries. This helps to limit the amount of requests made to upstream DNS
-            // server (important for K8s infrastructure).
-            .hickory_dns(true)
+            .hickory_dns(config.http_dns_cache())
             .build()
             .unwrap();
 
@@ -1043,7 +1076,7 @@ impl UpstreamQueue {
             RequestPriority::Low => self.low.push_back(entry),
         }
         relay_statsd::metric!(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
+            distribution(RelayDistributions::UpstreamMessageQueueSize) = self.len() as u64,
             priority = priority.name(),
             attempt = "first"
         );
@@ -1065,7 +1098,7 @@ impl UpstreamQueue {
         self.next_retry = Instant::now() + self.retry_interval;
 
         relay_statsd::metric!(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
+            distribution(RelayDistributions::UpstreamMessageQueueSize) = self.len() as u64,
             priority = priority.name(),
             attempt = "retry"
         );

@@ -122,11 +122,13 @@ def test_error_message_filters_are_applied(
 
 
 @pytest.mark.parametrize(
-    "is_processing_relay", (False, True), ids=["external relay", "processing relay"]
+    "is_processing_relay",
+    [False, True],
+    ids=["external relay", "processing relay"],
 )
 @pytest.mark.parametrize(
     "enable_filters",
-    (False, True),
+    [False, True],
     ids=["events from extensions not filtered", "events from extensions filtered"],
 )
 def test_browser_extension_filters_are_applied(
@@ -155,12 +157,13 @@ def test_browser_extension_filters_are_applied(
         "exception": {
             "values": [
                 {
+                    "value": "test",
                     "stacktrace": {
                         "frames": [
                             {"filename": "a/different.file"},
                             {"filename": "chrome-extension://blablabla"},
                         ]
-                    }
+                    },
                 }
             ]
         }
@@ -315,7 +318,7 @@ def test_client_ip_filters_are_applied(
         {"reason": "ip-address", "category": "error", "quantity": 1}
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
@@ -353,7 +356,7 @@ def test_localhost_filter_with_headers(mini_sentry, relay, headers):
         {"reason": "localhost", "category": "error", "quantity": 1}
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
@@ -383,7 +386,7 @@ def test_localhost_filter_user_ip_resolved(mini_sentry, relay, headers):
         {"reason": "localhost", "category": "error", "quantity": 1}
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
@@ -413,7 +416,7 @@ def test_localhost_filter_no_local_header_ips(mini_sentry, relay, headers):
     event = {"user": {"ip_address": None}, "request": {"headers": headers}}
     relay.send_event(project_id, event)
 
-    event = mini_sentry.get_captured_event().get_event()
+    event = mini_sentry.get_captured_envelope().get_event()
     assert event is not None
 
 

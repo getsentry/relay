@@ -1,272 +1,375 @@
-//! Service that uploads attachments.
+//! Utilities for uploading large files.
+
+use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::stream::FuturesUnordered;
-use futures::{FutureExt, StreamExt};
-use relay_config::UploadServiceConfig;
-use relay_quotas::DataCategory;
-use relay_system::{FromMessage, Interface, NoResponse, Receiver, Recipient, Service};
-use smallvec::smallvec;
-use tokio::sync::Notify;
-use uuid::Uuid;
+#[cfg(feature = "processing")]
+use chrono::Utc;
+use futures::stream::BoxStream;
+use http::{HeaderValue, Method, StatusCode};
+use relay_auth::Signature;
+#[cfg(feature = "processing")]
+use relay_auth::SignatureHeader;
+use relay_base_schema::project::ProjectId;
+use relay_config::Config;
+use relay_quotas::Scoping;
+use relay_system::{
+    Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, Sender, SimpleService,
+};
+use tokio::sync::oneshot;
+use tokio::sync::oneshot::error::RecvError;
 
-use crate::managed::{Counted, Managed, OutcomeError, Quantities, Rejected};
-use crate::services::outcome::DiscardReason;
-use crate::statsd::{RelayCounters, RelayGauges};
+use crate::http::{HttpError, RequestBuilder, Response};
 
-use super::outcome::Outcome;
+#[cfg(feature = "processing")]
+use crate::services::objectstore::{self, Objectstore};
+use crate::services::upstream::{
+    SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+};
+use crate::utils::{BoundedStream, tus};
 
-/// Message that requests an attachment upload.
-pub struct UploadAttachment {
-    /// The attachment to be uploaded.
-    pub attachment: Managed<Attachment>,
-
-    /// The return address in case of a successful upload.
-    pub respond_to: Recipient<Managed<UploadedAttachment>, NoResponse>,
+/// An error that occurs during upload.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("send failed: {0}")]
+    Send(#[from] RecvError),
+    #[error("request failed: {0}")]
+    UpstreamRequest(#[from] UpstreamRequestError),
+    #[error("request timeout: {0}")]
+    Timeout(#[from] tokio::time::error::Elapsed),
+    #[error("upstream response: {0}")]
+    Upstream(StatusCode),
+    #[error("upstream provided invalid location")]
+    InvalidLocation,
+    #[error("failed to sign location")]
+    SigningFailed,
+    #[error("service unavailable")]
+    ServiceUnavailable,
+    #[cfg(feature = "processing")]
+    #[error("objectstore service: {0}")]
+    Objectstore(#[from] objectstore::Error),
+    #[error("loadshed")]
+    LoadShed,
+    #[error("internal error")]
+    Internal,
 }
 
+/// The message interface for this service.
 pub enum Upload {
-    Attachment(UploadAttachment),
+    /// Upload a stream of bytes for a project.
+    ///
+    /// Returns the trusted identifier of the upload.
+    Stream(Stream, Sender<Result<SignedLocation, Error>>),
 }
 
 impl Interface for Upload {}
 
-impl FromMessage<UploadAttachment> for Upload {
-    type Response = NoResponse;
+/// A stream of bytes to be uploaded to objectstore or the upstream.
+pub struct Stream {
+    /// The organization and project the stream belongs to.
+    pub scoping: Scoping,
+    /// The body to be uploaded to objectstore, with length validation.
+    pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
+}
 
-    fn from_message(message: UploadAttachment, sender: ()) -> Self {
-        Self::Attachment(message)
+impl FromMessage<Stream> for Upload {
+    type Response = AsyncResponse<Result<SignedLocation, Error>>;
+
+    fn from_message(message: Stream, sender: Sender<Result<SignedLocation, Error>>) -> Self {
+        Self::Stream(message, sender)
     }
 }
 
-/// The attachment to upload.
-#[derive(Clone, Debug)]
-pub struct Attachment {
-    /// Attachment metadata.
-    pub meta: AttachmentMeta,
-    /// The attachment body.
-    payload: Bytes,
+/// Creates a new upload service.
+pub fn create_service(
+    config: &Arc<Config>,
+    upstream: &Addr<UpstreamRelay>,
+    #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
+) -> ConcurrentService<Service> {
+    let service = create_service_inner(
+        config,
+        upstream,
+        #[cfg(feature = "processing")]
+        objectstore,
+    );
+    ConcurrentService::new(service)
+        .with_backlog_limit(0)
+        .with_concurrency_limit(config.upload().max_concurrent_requests)
 }
 
-impl Counted for Attachment {
-    fn quantities(&self) -> Quantities {
-        smallvec![
-            (DataCategory::Attachment, self.payload.len()),
-            (DataCategory::AttachmentItem, 1),
-        ]
+fn create_service_inner(
+    config: &Arc<Config>,
+    upstream: &Addr<UpstreamRelay>,
+    #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
+) -> Service {
+    #[cfg(feature = "processing")]
+    if let Some(addr) = objectstore.as_ref() {
+        return Service::Objectstore {
+            addr: addr.clone(),
+            config: config.clone(),
+        };
+    }
+    Service::Upstream {
+        addr: upstream.clone(),
+        timeout: Duration::from_secs(config.upload().timeout),
     }
 }
 
-/// The result of a successful attachment upload.
+/// A dispatcher for uploading large files.
 ///
-/// This is tracked so that the recipient of the success message can emit outcomes for the
-/// attachment.
-#[derive(Clone, Debug)]
-pub struct UploadedAttachment {
-    meta: AttachmentMeta,
-    uploaded_bytes: usize,
+/// Uploads go to either the upstream relay or objectstore.
+#[derive(Debug, Clone)]
+pub enum Service {
+    Upstream {
+        addr: Addr<UpstreamRelay>,
+        timeout: Duration,
+    },
+    #[cfg(feature = "processing")]
+    Objectstore {
+        addr: Addr<Objectstore>,
+        config: Arc<Config>,
+    },
 }
 
-impl Counted for UploadedAttachment {
-    fn quantities(&self) -> Quantities {
-        smallvec![
-            (DataCategory::Attachment, self.uploaded_bytes),
-            (DataCategory::AttachmentItem, 1),
-        ]
-    }
-}
-
-/// Metadata of the attachment (stub).
-#[derive(Clone, Debug)]
-pub struct AttachmentMeta {
-    attachment_id: Option<String>,
-    // TODO: more fields
-}
-
-/// Errors that can occur when trying to upload an attachment.
-#[derive(Debug)]
-pub enum Error {
-    LoadShed,
-    Timeout,
-    UploadFailed,
-    KeyMismatch,
-}
-
-impl Error {
-    fn as_str(&self) -> &'static str {
+impl Service {
+    async fn upload(&self, stream: Stream) -> Result<SignedLocation, Error> {
         match self {
-            Error::LoadShed => "load_shed",
-            Error::Timeout => "timeout",
-            Error::UploadFailed => "upload_failed",
-            Error::KeyMismatch => "key_mismatch",
+            Service::Upstream { addr, timeout } => {
+                let (request, rx) = UploadRequest::create(stream);
+                addr.send(SendRequest(request));
+                // We're already passing `timeout` to the reqwest library, but we also want to
+                // limit the time spent waiting for the upstream service:
+                let response = tokio::time::timeout(*timeout, rx).await???;
+                SignedLocation::try_from_response(response)
+            }
+            #[cfg(feature = "processing")]
+            Service::Objectstore { addr, config } => {
+                let project_id = stream.scoping.project_id;
+                let byte_counter = stream.stream.byte_counter();
+                let key = addr
+                    .send(stream)
+                    .await
+                    .map_err(|_send_error| Error::ServiceUnavailable)??
+                    .into_inner();
+                let length = byte_counter.get();
+
+                Location {
+                    project_id,
+                    key,
+                    length,
+                }
+                .try_sign(config)
+            }
         }
     }
 }
 
-impl OutcomeError for Error {
-    type Error = Self;
-
-    fn consume(self) -> (Option<Outcome>, Self::Error) {
-        (Some(Outcome::Invalid(DiscardReason::Internal)), self)
-    }
-}
-
-/// The service that uploads the attachments.
-///
-/// Accepts upload requests and maintains a list of concurrent uploads.
-pub struct UploadService {
-    pending_requests: FuturesUnordered<BoxFuture<'static, Result<(), Rejected<Error>>>>,
-    max_concurrent_requests: usize,
-    timeout: Duration,
-}
-
-impl UploadService {
-    pub fn new(config: &UploadServiceConfig) -> Self {
-        let UploadServiceConfig {
-            max_concurrent_requests,
-            timeout,
-        } = config;
-        Self {
-            pending_requests: FuturesUnordered::new(),
-            max_concurrent_requests: *max_concurrent_requests,
-            timeout: Duration::from_secs(*timeout),
-        }
-    }
-
-    fn handle_message(&mut self, message: Upload) {
-        let Upload::Attachment(UploadAttachment {
-            attachment,
-            respond_to,
-        }) = message;
-        if self.pending_requests.len() >= self.max_concurrent_requests {
-            // Load shed to prevent backlogging in the service queue and affecting other parts of Relay.
-            // We might want to have a less aggressive mechanism in the future.
-            count_upload(Err(attachment.reject_err(Error::LoadShed)));
-            return;
-        }
-
-        self.pending_requests
-            .push(handle_upload(self.timeout, attachment, respond_to).boxed());
-    }
-}
-
-impl Service for UploadService {
+impl SimpleService for Service {
     type Interface = Upload;
 
-    async fn run(mut self, mut rx: Receiver<Self::Interface>) {
-        relay_log::info!("Upload service started");
-        loop {
-            relay_log::trace!("Upload loop iteration");
-            tokio::select! {
-                //Bias towards handling responses so that there's space for new incoming requests.
-                biased;
+    async fn handle_message(&self, message: Upload) {
+        let Upload::Stream(stream, tx) = message;
+        tx.send(self.upload(stream).await)
+    }
+}
 
-                Some(result) = self.pending_requests.next() => {
-                    relay_log::trace!("One upload has finished");
-                    count_upload(result);
-                }
-                Some(message) = rx.recv() => self.handle_message(message),
+impl LoadShed<Upload> for Service {
+    fn handle_loadshed(&self, Upload::Stream(_, tx): Upload) {
+        tx.send(Err(Error::LoadShed));
+    }
+}
 
-                else => break,
-            }
-            relay_statsd::metric!(
-                gauge(RelayGauges::ConcurrentAttachmentUploads) =
-                    self.pending_requests.len() as u64
+/// An identifier for the upload.
+///
+/// The location can be converted into a URI to be put in the `Location` HTTP header
+/// used by the TUS protocol.
+///
+/// Calling [`Self::try_sign`] appends a `&signature=` query parameter that can later be used
+/// to validate whether the URI (especially the length) has been tempered with.
+#[derive(Debug)]
+pub struct Location {
+    pub project_id: ProjectId,
+    pub key: String,
+    pub length: usize,
+}
+
+impl Location {
+    fn as_uri(&self) -> String {
+        let Location {
+            project_id,
+            key,
+            length,
+        } = self;
+        format!("/api/{project_id}/upload/{key}/?length={length}")
+    }
+
+    #[cfg(feature = "processing")]
+    fn try_sign(self, config: &Config) -> Result<SignedLocation, Error> {
+        let uri = self.as_uri();
+        let signature = config
+            .credentials()
+            .ok_or(Error::SigningFailed)?
+            .secret_key
+            .sign_with_header(
+                uri.as_bytes(),
+                &SignatureHeader {
+                    timestamp: Some(Utc::now()),
+                    signature_algorithm: None,
+                },
             );
-        }
-        relay_log::info!("Upload service stopped");
-    }
-}
 
-fn count_upload(result: Result<(), Rejected<Error>>) {
-    let result_msg = match result {
-        Ok(()) => "success",
-        Err(e) => e.into_inner().as_str(),
-    };
-    relay_statsd::metric!(
-        counter(RelayCounters::AttachmentUpload) += 1,
-        result = result_msg
-    );
-}
-
-/// Spend a limited time trying to upload an attachment, and emit outcomes if this fails.
-///
-/// Returns an [`UploadedAttachment`] if the upload was successful.
-async fn handle_upload(
-    timeout: Duration,
-    attachment: Managed<Attachment>,
-    respond_to: Recipient<Managed<UploadedAttachment>, NoResponse>,
-) -> Result<(), Rejected<Error>> {
-    relay_log::trace!("Starting upload");
-    let key = attachment.meta.attachment_id.as_deref();
-    let new_key = tokio::time::timeout(timeout, async { upload(key, &attachment.payload).await })
-        .await
-        .map_err(|_elapsed| attachment.reject_err(Error::Timeout))?
-        .map_err(|_error| attachment.reject_err(Error::UploadFailed))?;
-
-    if key.is_some_and(|key| key != new_key) {
-        return Err(attachment.reject_err(Error::KeyMismatch));
-    }
-
-    let uploaded_attachment = attachment.map(|Attachment { mut meta, payload }, _| {
-        meta.attachment_id = Some(new_key);
-        UploadedAttachment {
-            meta,
-            uploaded_bytes: payload.len(),
-        }
-    });
-
-    respond_to.send(uploaded_attachment);
-    relay_log::trace!("Finished upload");
-    Ok(())
-}
-
-/// Uploads the payload to the objectstore and returns the key under which it is stored.
-///
-/// - If `key` is `None`, the objectstore will assign a key.
-/// - If `key` is not `None`, write to objectstore with the given key.
-async fn upload(key: Option<&str>, payload: &[u8]) -> Result<String, ()> {
-    // TODO: call objectstore
-    Ok(key.unwrap_or_default().to_owned())
-}
-
-#[cfg(test)]
-mod tests {
-    use relay_redis::redis::FromRedisValue;
-    use relay_system::Addr;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test_basic() {
-        let upload_service = UploadService::new(&UploadServiceConfig {
-            max_concurrent_requests: 2,
-            timeout: 1,
+        Ok(SignedLocation::Local {
+            location: self,
+            signature,
         })
-        .start_detached();
+    }
+}
 
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+/// A verifiable [`Location`] signed by this Relay or an upstream Relay.
+#[derive(Debug)]
+pub enum SignedLocation {
+    FromUpstream(HeaderValue),
+    Local {
+        location: Location,
+        signature: Signature,
+    },
+}
 
-        let (attachment, mut managed_handle) = Managed::for_test(Attachment {
-            meta: AttachmentMeta {
-                attachment_id: Some("my_key".to_owned()),
+impl SignedLocation {
+    /// Converts the location into an URI for future reference.
+    pub fn into_header_value(self) -> Result<HeaderValue, Error> {
+        let header = match self {
+            SignedLocation::FromUpstream(value) => value,
+            SignedLocation::Local {
+                location,
+                signature,
+            } => {
+                let mut uri = location.as_uri();
+                uri.push_str("&signature=");
+                uri.push_str(&signature.to_string());
+                HeaderValue::from_str(&uri).map_err(|_| Error::Internal)?
+            }
+        };
+        Ok(header)
+    }
+
+    fn try_from_response(response: Response) -> Result<Self, Error> {
+        match response.status() {
+            status if status.is_success() => {
+                let location = response
+                    .headers()
+                    .get(hyper::header::LOCATION)
+                    .ok_or(Error::InvalidLocation)?;
+                Ok(Self::FromUpstream(location.clone()))
+            }
+            status => Err(Error::Upstream(status)),
+        }
+    }
+}
+
+/// An upstream request made to the `/upload` endpoint.
+struct UploadRequest {
+    scoping: Scoping,
+    timeout: Option<Duration>,
+    body: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
+    sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
+}
+
+impl UploadRequest {
+    fn create(
+        stream: Stream,
+    ) -> (
+        Self,
+        oneshot::Receiver<Result<Response, UpstreamRequestError>>,
+    ) {
+        let (sender, rx) = oneshot::channel();
+        let Stream { scoping, stream } = stream;
+
+        (
+            Self {
+                scoping,
+                timeout: None, // will be set by `configure()`
+                body: Some(stream),
+                sender,
             },
-            payload: Bytes::from("hello world"),
+            rx,
+        )
+    }
+}
+
+impl fmt::Debug for UploadRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UploadRequest")
+            .field("scoping", &self.scoping)
+            .finish()
+    }
+}
+
+impl UpstreamRequest for UploadRequest {
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> std::borrow::Cow<'_, str> {
+        let project_id = self.scoping.project_id;
+        format!("/api/{project_id}/upload/").into()
+    }
+
+    fn route(&self) -> &'static str {
+        "upload"
+    }
+
+    fn configure(&mut self, config: &Config) {
+        self.timeout = Some(Duration::from_secs(config.upload().timeout));
+    }
+
+    fn respond(
+        self: Box<Self>,
+        result: Result<Response, UpstreamRequestError>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+        Box::pin(async move {
+            let _ = self.sender.send(result);
         })
-        .build();
+    }
 
-        upload_service.send(UploadAttachment {
-            attachment,
-            respond_to: Recipient::<_, NoResponse>::new(tx),
-        });
-        let uploaded = rx.recv().await.unwrap();
-        assert_eq!(uploaded.meta.attachment_id.as_deref(), Some("my_key"));
-        uploaded.accept(|_| {});
+    fn retry(&self) -> bool {
+        false
+    }
 
-        drop(upload_service);
-        assert!(rx.recv().await.is_none());
+    fn intercept_status_errors(&self) -> bool {
+        false // same as ForwardRequest
+    }
+
+    fn set_relay_id(&self) -> bool {
+        true // needed for trusted requests with `Upload-Defer-Length: 1`
+    }
+
+    fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
+        let Some(body) = self.body.take() else {
+            relay_log::error!("upload request was retried or never initialized");
+            return Err(HttpError::Misconfigured);
+        };
+
+        let project_key = self.scoping.project_key;
+        builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
+        let upload_length = (body.lower_bound == body.upper_bound).then_some(body.lower_bound);
+        for (key, value) in tus::request_headers(upload_length) {
+            let Some(key) = key else { continue };
+            builder.header(key, value);
+        }
+
+        debug_assert!(
+            self.timeout.is_some(),
+            "timeout should be set by UpstreamRequest::configure()"
+        );
+        if let Some(timeout) = self.timeout {
+            builder.timeout(timeout);
+        }
+
+        builder.body(reqwest::Body::wrap_stream(body));
+
+        Ok(())
     }
 }

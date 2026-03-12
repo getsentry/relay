@@ -1,4 +1,11 @@
+#[cfg(feature = "processing")]
+use std::time::Duration;
+
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
+
+/// Name of the custom tag in the crash user data for Sentry event payloads.
+#[cfg(feature = "processing")]
+pub const SENTRY_CRASH_PAYLOAD_KEY: &str = "__sentry";
 
 /// Name of the event attachment.
 ///
@@ -31,3 +38,13 @@ pub const MAX_JSON_SIZE: usize = 262_144;
 
 /// The default client used for check ins whenever the incoming request has no client set.
 pub const DEFAULT_CHECK_IN_CLIENT: &str = "relay-http";
+
+/// The default retention for attachment, which defaults to 30 days currently.
+#[cfg(feature = "processing")]
+pub const DEFAULT_ATTACHMENT_RETENTION: Duration = Duration::from_hours(24 * 30);
+
+/// Magic number indicating the dying message file is encoded by sentry-switch SDK.
+pub const NNSWITCH_SENTRY_MAGIC: &[u8] = b"sntr";
+
+/// The file name that Nintendo uses to in the events they forward.
+pub const NNSWITCH_DYING_MESSAGE_FILENAME: &str = "dying_message.dat";

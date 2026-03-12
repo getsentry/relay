@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from opentelemetry.proto.common.v1.common_pb2 import (
     AnyValue,
     InstrumentationScope,
@@ -10,21 +12,38 @@ from opentelemetry.proto.trace.v1.trace_pb2 import (
     ResourceSpans,
     ScopeSpans,
     Span,
+    SpanFlags,
     TracesData,
 )
+from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within
 
 
+@pytest.mark.parametrize(
+    "eap_span_outcomes_rollout_rate",
+    [
+        pytest.param(0.0, id="relay_emits_accepted_outcome"),
+        pytest.param(1.0, id="eap_emits_accepted_outcome"),
+    ],
+)
 def test_span_ingestion(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
+    outcomes_consumer,
+    eap_span_outcomes_rollout_rate,
 ):
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    mini_sentry.global_config["options"][
+        "relay.eap-span-outcomes.rollout-rate"
+    ] = eap_span_outcomes_rollout_rate
+    relay_emits_accepted_outcome = eap_span_outcomes_rollout_rate == 0.0
 
     relay = relay(relay_with_processing())
 
@@ -33,7 +52,6 @@ def test_span_ingestion(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "organizations:relay-otlp-traces-endpoint",
-        "projects:span-v2-experimental-processing",
     ]
 
     ts = datetime.now(timezone.utc)
@@ -45,6 +63,8 @@ def test_span_ingestion(
         name="A Proto Span",
         start_time_unix_nano=int((ts.timestamp() - 1.0) * 1e9),
         end_time_unix_nano=int((ts.timestamp() - 0.5) * 1e9),
+        flags=SpanFlags.SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK
+        | SpanFlags.SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK,
         kind=Span.SPAN_KIND_SERVER,
         attributes=[
             KeyValue(
@@ -93,16 +113,20 @@ def test_span_ingestion(
             "resource.company": {"type": "string", "value": "Relay Corp"},
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.category": {"type": "string", "value": "ui"},
+            "sentry.is_remote": {"type": "boolean", "value": True},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.op": {"type": "string", "value": "default"},
             "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
             "sentry.kind": {"type": "string", "value": "server"},
             "ui.component_name": {"type": "string", "value": "MyComponent"},
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts.timestamp() - 0.5),
+        "is_segment": True,
         "key_id": 123,
         "links": [
             {
@@ -120,6 +144,7 @@ def test_span_ingestion(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": relay_emits_accepted_outcome,
         "span_id": "f0b809703e783d00",
         "start_timestamp": time_within(ts.timestamp() - 1.0),
         "status": "ok",
@@ -133,7 +158,11 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_within_delta(),
             "retention_days": 90,
-            "tags": {"decision": "keep", "target_project_id": "42"},
+            "tags": {
+                "decision": "keep",
+                "is_segment": "true",
+                "target_project_id": "42",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
@@ -144,9 +173,21 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_within_delta(),
             "retention_days": 90,
-            "tags": {},
+            "tags": {"is_segment": "true", "was_transaction": "false"},
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
         },
     ]
+
+    if relay_emits_accepted_outcome:
+        assert outcomes_consumer.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            }
+        ]

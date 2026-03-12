@@ -31,10 +31,10 @@ pub mod autoscaling;
 pub mod buffer;
 pub mod cogs;
 pub mod global_config;
-#[cfg(feature = "processing")]
-pub mod global_rate_limits;
 pub mod health_check;
 pub mod metrics;
+#[cfg(feature = "processing")]
+pub mod objectstore;
 pub mod outcome;
 pub mod outcome_aggregator;
 pub mod processor;
@@ -45,7 +45,5 @@ pub mod server;
 pub mod stats;
 #[cfg(feature = "processing")]
 pub mod store;
-#[cfg(feature = "processing")]
-#[expect(unused)]
 pub mod upload;
 pub mod upstream;

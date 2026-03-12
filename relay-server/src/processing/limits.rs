@@ -6,12 +6,8 @@ use crate::managed::OutcomeError;
 use crate::processing::{Context, Counted, Managed, Rejected};
 
 #[cfg(feature = "processing")]
-use crate::services::{
-    global_rate_limits::GlobalRateLimitsServiceHandle, projects::cache::ProjectCacheHandle,
-};
-
-#[cfg(feature = "processing")]
-type Redis = relay_quotas::RedisRateLimiter<GlobalRateLimitsServiceHandle>;
+use crate::services::projects::cache::ProjectCacheHandle;
+use crate::statsd::RelayTimers;
 
 /// A quota based rate limiter for Relay's new processing pipeline.
 ///
@@ -21,13 +17,16 @@ pub struct QuotaRateLimiter {
     #[cfg(feature = "processing")]
     project_cache: ProjectCacheHandle,
     #[cfg(feature = "processing")]
-    redis: Option<Redis>,
+    redis: Option<relay_quotas::RedisRateLimiter>,
 }
 
 impl QuotaRateLimiter {
     /// Creates a new [`Self`].
     #[cfg(feature = "processing")]
-    pub fn new(project_cache: ProjectCacheHandle, redis: Option<Redis>) -> Self {
+    pub fn new(
+        project_cache: ProjectCacheHandle,
+        redis: Option<relay_quotas::RedisRateLimiter>,
+    ) -> Self {
         Self {
             project_cache,
             redis,
@@ -43,9 +42,9 @@ impl QuotaRateLimiter {
     /// Enforces quotas for the passed item.
     pub async fn enforce_quotas<T>(
         &self,
-        data: &mut Managed<T>,
+        data: Managed<T>,
         ctx: Context<'_>,
-    ) -> Result<(), Rejected<<Managed<T> as RateLimited>::Error>>
+    ) -> Result<<Managed<T> as RateLimited>::Output, Rejected<<Managed<T> as RateLimited>::Error>>
     where
         T: Counted,
         Managed<T>: RateLimited,
@@ -71,7 +70,21 @@ impl QuotaRateLimiter {
             redis::CombinedRateLimiter(limiter, redis)
         };
 
-        data.enforce(limiter, ctx).await
+        let ty = match self.has_redis() {
+            true => "consistent",
+            false => "cached",
+        };
+        relay_statsd::metric!(timer(RelayTimers::EventProcessingRateLimiting), type = ty, unit = std::any::type_name::<T>(), {
+            data.enforce(limiter, ctx).await
+        })
+    }
+
+    fn has_redis(&self) -> bool {
+        #[cfg(feature = "processing")]
+        if self.redis.is_some() {
+            return true;
+        }
+        false
     }
 }
 
@@ -97,6 +110,8 @@ pub trait RateLimiter {
 ///
 /// A [`RateLimiter`] is usually created by the [`QuotaRateLimiter`].
 pub trait RateLimited {
+    /// The new item returned after (partially) accepting the item.
+    type Output;
     /// Error returned when rejecting the entire item.
     type Error;
 
@@ -104,13 +119,13 @@ pub trait RateLimited {
     ///
     /// The implementation must check the quotas and already discard the necessary items
     /// as well as emit the correct outcomes.
-    async fn enforce<T>(
-        &mut self,
-        rate_limiter: T,
+    async fn enforce<R>(
+        self,
+        rate_limiter: R,
         ctx: Context<'_>,
-    ) -> Result<(), Rejected<Self::Error>>
+    ) -> Result<Self::Output, Rejected<Self::Error>>
     where
-        T: RateLimiter;
+        R: RateLimiter;
 }
 
 impl<T> RateLimiter for Option<T>
@@ -138,13 +153,14 @@ where
     Managed<T>: CountRateLimited,
     T: Counted,
 {
+    type Output = Self;
     type Error = <<Managed<T> as CountRateLimited>::Error as OutcomeError>::Error;
 
     async fn enforce<R>(
-        &mut self,
+        self,
         mut rate_limiter: R,
         _ctx: Context<'_>,
-    ) -> Result<(), Rejected<Self::Error>>
+    ) -> Result<Self::Output, Rejected<Self::Error>>
     where
         R: RateLimiter,
     {
@@ -161,7 +177,7 @@ where
             }
         }
 
-        Ok(())
+        Ok(self)
     }
 }
 
@@ -182,20 +198,16 @@ mod redis {
     use crate::services::projects::cache::Project;
 
     use super::*;
-    use relay_quotas::GlobalLimiter;
 
     /// A [`RateLimiter`] implementation which enforces quotas with Redis.
-    pub struct RedisRateLimiter<'a, T> {
-        pub redis: &'a relay_quotas::RedisRateLimiter<T>,
+    pub struct RedisRateLimiter<'a> {
+        pub redis: &'a relay_quotas::RedisRateLimiter,
         pub quotas: CombinedQuotas<'a>,
         pub limits: RateLimits,
         pub project: Project<'a>,
     }
 
-    impl<T> RateLimiter for RedisRateLimiter<'_, T>
-    where
-        T: GlobalLimiter,
-    {
+    impl RateLimiter for RedisRateLimiter<'_> {
         async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits {
             let limits = self
                 .redis
@@ -216,7 +228,7 @@ mod redis {
         }
     }
 
-    impl<T> Drop for RedisRateLimiter<'_, T> {
+    impl Drop for RedisRateLimiter<'_> {
         fn drop(&mut self) {
             let limits = std::mem::take(&mut self.limits);
             self.project.rate_limits().merge(limits);

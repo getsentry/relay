@@ -37,6 +37,9 @@ for more information.
 
 ## Development
 
+>[!NOTE]
+> Relay project has strict rules for AI usage. Please see the [HOWTOAI.md](./HOWTOAI.md).
+
 To build Relay, we require the **latest stable Rust** (install via [rustup](https://rustup.rs/)). The crate is split into a
 workspace with multiple features, so when running building or running tests
 always make sure to pass the `--all` and `--all-features` flags.
@@ -143,8 +146,8 @@ create a virtualenv, build the Relay binary with processing enabled, and run
 a set of integration tests:
 
 ```bash
-# Make sure that kafka and redis are running
-devservices up kafka redis
+# Make sure that all dependencies are running
+devservices up relay
 
 # Create a new virtualenv, build Relay and run integration tests
 make test-integration
@@ -170,7 +173,7 @@ cargo insta review
 ```
 
 Make sure to run the command if you've made any changes to the event schema/protocol.
-For more information see https://insta.rs/docs/.
+For more information see <https://insta.rs/docs/>.
 
 ### Linting
 
@@ -274,7 +277,7 @@ http://<key>@localhost:3001/<id>
 We use GitHub actions to release new versions.
 There are two separate projects to publish:
 
-- **Relay binary** is automatically released using [Calendar Versioning](https://calver.org/) on a monthly basis together with `sentry` (see https://develop.sentry.dev/self-hosted/releases/), so there should be no reason to create a release manually. That said, manual releases are possible with the ["Release" action](https://github.com/getsentry/relay/actions/workflows/release_binary.yml). Make sure that [`CHANGELOG.md`](./CHANGELOG.md) is up-to-date before running the action.
+- **Relay binary** is automatically released using [Calendar Versioning](https://calver.org/) on a monthly basis together with `sentry` (see <https://develop.sentry.dev/self-hosted/releases/>), so there should be no reason to create a release manually. That said, manual releases are possible with the ["Release" action](https://github.com/getsentry/relay/actions/workflows/release_binary.yml). Make sure that [`CHANGELOG.md`](./CHANGELOG.md) is up-to-date before running the action.
 
 - **Relay Python library** along with the C-ABI are released with the ["Release Library" action](https://github.com/getsentry/relay/actions/workflows/release_library.yml). Make sure that [`py/CHANGELOG.md`](./py/CHANGELOG.md) is up-to-date before running the action. Press "Run workflow" and choose a new version. We use [Semantic Versioning](https://semver.org/) and release during the development cycle.
 

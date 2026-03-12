@@ -108,16 +108,21 @@ async fn handle_post(
     meta: RequestMeta,
     content_type: RawContentType,
     body: Bytes,
-) -> Result<impl IntoResponse, BadStoreRequest> {
+) -> axum::response::Result<impl IntoResponse> {
     let envelope = match content_type.as_ref() {
-        envelope::CONTENT_TYPE => Envelope::parse_request(body, meta)?,
+        envelope::CONTENT_TYPE => {
+            Envelope::parse_request(body, meta).map_err(BadStoreRequest::InvalidEnvelope)?
+        }
         _ => parse_event(body, meta, state.config())?,
     };
     if envelope.is_internal() {
-        return Err(BadStoreRequest::InternalEnvelope);
+        return Err(BadStoreRequest::InternalEnvelope.into());
     }
 
-    let id = common::handle_envelope(&state, envelope).await?;
+    let id = common::handle_envelope(&state, envelope)
+        .await?
+        .check_rate_limits()?;
+
     Ok(axum::Json(PostResponse { id }).into_response())
 }
 
@@ -140,9 +145,11 @@ async fn handle_get(
     state: ServiceState,
     meta: RequestMeta,
     Query(query): Query<GetQuery>,
-) -> Result<impl IntoResponse, BadStoreRequest> {
+) -> axum::response::Result<impl IntoResponse> {
     let envelope = parse_event(query.sentry_data.into(), meta, state.config())?;
-    common::handle_envelope(&state, envelope).await?;
+    common::handle_envelope(&state, envelope)
+        .await?
+        .check_rate_limits()?;
     Ok(([(header::CONTENT_TYPE, "image/gif")], PIXEL))
 }
 

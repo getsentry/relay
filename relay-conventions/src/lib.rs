@@ -95,18 +95,18 @@ mod tests {
     fn test_http_response_content_length() {
         let info = attribute_info("http.response_content_length").unwrap();
 
-        insta::assert_debug_snapshot!(info, @r###"
+        insta::assert_debug_snapshot!(info, @r#"
         AttributeInfo {
             write_behavior: BothNames(
                 "http.response.body.size",
             ),
-            pii: False,
+            pii: Maybe,
             aliases: [
                 "http.response.body.size",
                 "http.response.header.content-length",
             ],
         }
-        "###);
+        "#);
     }
 
     #[test]

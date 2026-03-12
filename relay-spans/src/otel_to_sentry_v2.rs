@@ -5,9 +5,11 @@ use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_conventions::IS_REMOTE;
 use relay_conventions::ORIGIN;
+use relay_conventions::PLATFORM;
 use relay_conventions::SPAN_KIND;
 use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
+use relay_otel::otel_resource_to_platform;
 use relay_otel::otel_value_to_attribute;
 use relay_protocol::ErrorKind;
 
@@ -68,6 +70,11 @@ pub fn otel_to_sentry_span(
     relay_otel::otel_scope_into_attributes(&mut sentry_attributes, resource, scope);
 
     sentry_attributes.insert(ORIGIN, "auto.otlp.spans".to_owned());
+    if let Some(resource) = resource
+        && let Some(platform) = otel_resource_to_platform(resource)
+    {
+        sentry_attributes.insert(PLATFORM, platform.to_owned());
+    }
 
     let mut name = if name.is_empty() { None } else { Some(name) };
     for (key, value) in attributes.into_iter().flat_map(|attribute| {
@@ -113,19 +120,17 @@ pub fn otel_to_sentry_span(
         otel_to_sentry_kind(kind).map_value(|v| v.to_string()),
     );
 
-    // A remote span is a segment span, but not every segment span is remote:
-    let is_segment = match is_remote {
-        Some(true) => Some(true),
-        _ => None,
-    }
-    .into();
+    // A remote span is a segment span, but not every segment span is remote.
+    // A span is also a segment if it has no parent span (i.e., it's a root span).
+    let is_root_span = parent_span_id.value().is_none();
+    let is_segment = is_root_span || is_remote.unwrap_or(false);
 
     SentrySpanV2 {
         name: name.into(),
         trace_id,
         span_id,
         parent_span_id,
-        is_segment,
+        is_segment: is_segment.into(),
         start_timestamp: Timestamp(start_timestamp).into(),
         end_timestamp: Timestamp(end_timestamp).into(),
         status: status
@@ -264,6 +269,9 @@ mod tests {
             "attributes": [{
                 "key": "service.name",
                 "value": {"stringValue": "test-service"},
+            }, {
+              "key": "telemetry.sdk.language",
+              "value": {"stringValue": "nodejs"},
             }]
         }))
         .unwrap();
@@ -285,6 +293,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "middleware - fastify -> @fastify/multipart",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -313,6 +322,10 @@ mod tests {
               "type": "string",
               "value": "test-service"
             },
+            "resource.telemetry.sdk.language": {
+              "type": "string",
+              "value": "nodejs"
+            },
             "sentry.environment": {
               "type": "string",
               "value": "test"
@@ -332,6 +345,10 @@ mod tests {
             "sentry.parentSampled": {
               "type": "boolean",
               "value": true
+            },
+            "sentry.platform": {
+              "type": "string",
+              "value": "node"
             },
             "sentry.sample_rate": {
               "type": "integer",
@@ -375,6 +392,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "middleware - fastify -> @fastify/multipart",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -437,6 +455,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "database query",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -513,6 +532,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "database query",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -581,6 +601,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "http client request",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -749,6 +770,7 @@ mod tests {
           "span_id": "fa90fdead5f74052",
           "name": "myname",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -766,8 +788,8 @@ mod tests {
               "value": "prod"
             },
             "sentry.metrics_summary.some_metric": {
-              "type": "string",
-              "value": "[]"
+              "type": "array",
+              "value": []
             },
             "sentry.op": {
               "type": "string",
@@ -866,6 +888,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -874,6 +897,36 @@ mod tests {
               "type": "boolean",
               "value": false
             },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn span_is_segment_if_it_has_no_parent() {
+        let json = r#"{
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000"
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span, None, None);
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        {
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "span_id": "e342abb1214ca181",
+          "status": "ok",
+          "is_segment": true,
+          "start_timestamp": 123.0,
+          "end_timestamp": 123.5,
+          "links": [],
+          "attributes": {
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
@@ -902,6 +955,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -967,6 +1021,7 @@ mod tests {
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "span_id": "e342abb1214ca181",
           "status": "ok",
+          "is_segment": true,
           "start_timestamp": 0.0,
           "end_timestamp": 0.0,
           "links": [
@@ -1022,6 +1077,7 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "span_id": "e342abb1214ca181",
           "status": "error",
+          "is_segment": true,
           "start_timestamp": 0.0,
           "end_timestamp": 0.0,
           "links": [],

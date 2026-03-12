@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
+use itertools::Either;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
@@ -39,6 +40,14 @@ pub trait OutcomeError {
 }
 
 impl OutcomeError for Outcome {
+    type Error = ();
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        (self, ()).consume()
+    }
+}
+
+impl OutcomeError for Option<Outcome> {
     type Error = ();
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
@@ -119,6 +128,15 @@ where
     }
 }
 
+impl<T> axum::response::IntoResponse for Rejected<T>
+where
+    T: axum::response::IntoResponse,
+{
+    fn into_response(self) -> axum::response::Response {
+        self.0.into_response()
+    }
+}
+
 /// The [`Managed`] wrapper ensures outcomes are correctly emitted for the contained item.
 pub struct Managed<T: Counted> {
     value: T,
@@ -126,12 +144,27 @@ pub struct Managed<T: Counted> {
     done: AtomicBool,
 }
 
+impl Managed<Box<Envelope>> {
+    /// Creates a managed instance from an unmanaged envelope.
+    pub fn from_envelope(envelope: Box<Envelope>, outcome_aggregator: Addr<TrackOutcome>) -> Self {
+        let meta = Arc::new(Meta {
+            outcome_aggregator,
+            received_at: envelope.received_at(),
+            scoping: envelope.meta().get_partial_scoping().into_scoping(),
+            event_id: envelope.event_id(),
+            remote_addr: envelope.meta().remote_addr(),
+        });
+
+        Self::from_parts(envelope, meta)
+    }
+}
+
 impl<T: Counted> Managed<T> {
-    /// Creates a new managed instance with a `value` from a [`ManagedEnvelope`].
+    /// Creates new [`Managed`] instance with the provided `value` and metadata from a [`ManagedEnvelope`].
     ///
     /// The [`Managed`] instance, inherits all metadata from the passed [`ManagedEnvelope`],
     /// like received time or scoping.
-    pub fn from_envelope(envelope: &ManagedEnvelope, value: T) -> Self {
+    pub fn with_meta_from(envelope: &ManagedEnvelope, value: T) -> Self {
         Self::from_parts(
             value,
             Arc::new(Meta {
@@ -152,6 +185,11 @@ impl<T: Counted> Managed<T> {
         Managed::from_parts(other, Arc::clone(&self.meta))
     }
 
+    /// Boxes the contained value.
+    pub fn boxed(self) -> Managed<Box<T>> {
+        self.map(|value, _| Box::new(value))
+    }
+
     /// Original received timestamp.
     pub fn received_at(&self) -> DateTime<Utc> {
         self.meta.received_at
@@ -162,6 +200,20 @@ impl<T: Counted> Managed<T> {
         self.meta.scoping
     }
 
+    /// Updates the scoping stored in this context.
+    ///
+    /// Special care has to be taken when items contained in the managed instance also store a
+    /// scoping. Such a scoping will **not** be updated.
+    ///
+    /// Conversions between `Managed<Box<Envelope>>` and `ManagedEnvelope` transfer the scoping
+    /// correctly.
+    ///
+    /// See also: [`ManagedEnvelope::scope`].
+    pub fn scope(&mut self, scoping: Scoping) {
+        let meta = Arc::make_mut(&mut self.meta);
+        meta.scoping = scoping;
+    }
+
     /// Splits [`Self`] into two other [`Managed`] items.
     ///
     /// The two resulting managed instances together are expected to have the same outcomes as the original instance..
@@ -169,25 +221,22 @@ impl<T: Counted> Managed<T> {
     /// quantities are transferred to, there may be new additional data categories created.
     pub fn split_once<F, S, U>(self, f: F) -> (Managed<S>, Managed<U>)
     where
-        F: FnOnce(T) -> (S, U),
+        F: FnOnce(T, &mut RecordKeeper) -> (S, U),
         S: Counted,
         U: Counted,
     {
         debug_assert!(!self.is_done());
 
         let (value, meta) = self.destructure();
-        #[cfg(debug_assertions)]
         let quantities = value.quantities();
 
-        let (a, b) = f(value);
+        let mut records = RecordKeeper::new(&meta, quantities);
 
-        #[cfg(debug_assertions)]
-        debug::Quantities::from(&quantities)
-            // Instead of `assert_only_extra`, used for extracted metrics also counting
-            // in the `metric bucket` category, it may make sense to give the mapping function
-            // control over which categories to ignore, similar to the record keeper's lenient
-            // method.
-            .assert_only_extra(debug::Quantities::from(&a) + debug::Quantities::from(&b));
+        let (a, b) = f(value, &mut records);
+
+        let mut quantities = a.quantities();
+        quantities.extend(b.quantities());
+        records.success(quantities);
 
         (
             Managed::from_parts(a, Arc::clone(&meta)),
@@ -522,6 +571,9 @@ impl<T: Counted> Managed<T> {
     /// De-structures this managed instance into its own parts.
     ///
     /// While de-structured no outcomes will be emitted on drop.
+    ///
+    /// Currently no `Managed`, which already has outcomes emitted, should be de-structured
+    /// as this status is lost.
     fn destructure(self) -> (T, Arc<Meta>) {
         // SAFETY: this follows an approach mentioned in the RFC
         // <https://github.com/rust-lang/rfcs/pull/3466> to move fields out of
@@ -533,8 +585,18 @@ impl<T: Counted> Managed<T> {
         // And the original type is forgotten, de-structuring the original type
         // without running its drop implementation.
         let this = ManuallyDrop::new(self);
-        let value = unsafe { std::ptr::read(&this.value) };
-        let meta = unsafe { std::ptr::read(&this.meta) };
+        let Managed { value, meta, done } = &*this;
+
+        let value = unsafe { std::ptr::read(value) };
+        let meta = unsafe { std::ptr::read(meta) };
+        let done = unsafe { std::ptr::read(done) };
+        // This is a current invariant, if we ever need to change the invariant,
+        // the done status should be preserved and returned instead.
+        debug_assert!(
+            !done.load(Ordering::Relaxed),
+            "a `done` managed should never be destructured"
+        );
+
         (value, meta)
     }
 
@@ -572,6 +634,25 @@ impl<T: Counted + fmt::Debug> fmt::Debug for Managed<T> {
     }
 }
 
+impl<T: Counted> Managed<Option<T>> {
+    /// Turns a managed option into an optional [`Managed`].
+    pub fn transpose(self) -> Option<Managed<T>> {
+        let (o, meta) = self.destructure();
+        o.map(|t| Managed::from_parts(t, meta))
+    }
+}
+
+impl<L: Counted, R: Counted> Managed<Either<L, R>> {
+    /// Turns a managed [`Either`] into an [`Either`] of [`Managed`].
+    pub fn transpose(self) -> Either<Managed<L>, Managed<R>> {
+        let (either, meta) = self.destructure();
+        match either {
+            Either::Left(value) => Either::Left(Managed::from_parts(value, meta)),
+            Either::Right(value) => Either::Right(Managed::from_parts(value, meta)),
+        }
+    }
+}
+
 impl From<Managed<Box<Envelope>>> for ManagedEnvelope {
     fn from(value: Managed<Box<Envelope>>) -> Self {
         let (value, meta) = value.destructure();
@@ -596,6 +677,7 @@ impl<T: Counted> std::ops::Deref for Managed<T> {
 }
 
 /// Internal metadata attached with a [`Managed`] instance.
+#[derive(Debug, Clone)]
 struct Meta {
     /// Outcome aggregator service.
     outcome_aggregator: Addr<TrackOutcome>,

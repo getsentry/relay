@@ -9,10 +9,12 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+use opentelemetry_proto::tonic::common::v1::any_value;
 use opentelemetry_proto::tonic::{
     common::v1::{InstrumentationScope, any_value::Value as OtelValue},
     resource::v1::Resource,
 };
+use opentelemetry_semantic_conventions::attribute as otel_semconv;
 use relay_event_schema::protocol::{Attribute, AttributeType, Attributes};
 use relay_protocol::{Annotated, Value};
 
@@ -35,31 +37,26 @@ pub fn otel_value_to_attribute(otel_value: OtelValue) -> Option<Attribute> {
             (AttributeType::String, Value::String(s))
         }
         OtelValue::ArrayValue(array) => {
-            // Filter out nested arrays and key-value lists for safety.
-            // This is not usually allowed by the OTLP protocol, but we filter
-            // these values out before serializing for robustness.
-            let safe_values: Vec<serde_json::Value> = array
+            let values: Vec<Annotated<Value>> = array
                 .values
                 .into_iter()
-                .filter_map(|v| match v.value? {
-                    OtelValue::StringValue(s) => Some(serde_json::Value::String(s)),
-                    OtelValue::BoolValue(b) => Some(serde_json::Value::Bool(b)),
-                    OtelValue::IntValue(i) => {
-                        Some(serde_json::Value::Number(serde_json::Number::from(i)))
-                    }
-                    OtelValue::DoubleValue(d) => {
-                        serde_json::Number::from_f64(d).map(serde_json::Value::Number)
-                    }
-                    OtelValue::BytesValue(bytes) => {
-                        String::from_utf8(bytes).ok().map(serde_json::Value::String)
-                    }
-                    // Skip nested complex types for safety
-                    OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => None,
+                .filter_map(|v| {
+                    Some(match v.value? {
+                        OtelValue::StringValue(s) => Value::String(s),
+                        OtelValue::BoolValue(b) => Value::Bool(b),
+                        OtelValue::IntValue(i) => Value::I64(i),
+                        OtelValue::DoubleValue(d) => Value::F64(d),
+                        OtelValue::BytesValue(bytes) => {
+                            Value::String(String::from_utf8(bytes).ok()?)
+                        }
+                        // Currently not supported.
+                        OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => return None,
+                    })
                 })
+                .map(Annotated::new)
                 .collect();
 
-            let json = serde_json::to_string(&safe_values).ok()?;
-            (AttributeType::String, Value::String(json))
+            (AttributeType::Array, Value::Array(values))
         }
         OtelValue::KvlistValue(kvlist) => {
             // Convert key-value list to JSON object and serialize as string.
@@ -127,6 +124,32 @@ pub fn otel_scope_into_attributes(
         attributes.insert("instrumentation.name".to_owned(), scope.name.clone());
         attributes.insert("instrumentation.version".to_owned(), scope.version.clone());
     }
+}
+
+/// Returns the telemetry language SDK from the resource, mapped into a `sentry.platform` value.
+pub fn otel_resource_to_platform(resource: &Resource) -> Option<&str> {
+    let any_value::Value::StringValue(language) = resource
+        .attributes
+        .iter()
+        .find(|attr| attr.key == otel_semconv::TELEMETRY_SDK_LANGUAGE)?
+        .value
+        .as_ref()?
+        .value
+        .as_ref()?
+    else {
+        return None;
+    };
+
+    // Smooth out some naming differences between OTel
+    // (https://opentelemetry.io/docs/specs/semconv/resource/#telemetry-sdk)
+    // and Sentry
+    // (https://github.com/getsentry/relay/blob/8e6c963cdd79dc9ba2bebc21518a3553f70feeb3/relay-event-schema/src/protocol/event.rs#L251-L253).
+    Some(match language.as_str() {
+        "dotnet" => "csharp",
+        "nodejs" => "node",
+        "webjs" => "javascript",
+        _ => language,
+    })
 }
 
 #[cfg(test)]
@@ -198,10 +221,18 @@ mod tests {
         let attr = otel_value_to_attribute(otel_value).unwrap();
 
         let value = &attr.value.value;
-        assert_eq!(
-            get_value!(value!),
-            &Value::String("[\"item1\",42]".to_owned())
-        );
+        insta::assert_debug_snapshot!(value, @r#"
+        Array(
+            [
+                String(
+                    "item1",
+                ),
+                I64(
+                    42,
+                ),
+            ],
+        )
+        "#);
     }
 
     #[test]
@@ -287,5 +318,35 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_otel_resource_to_attribute_without_language() {
+        let resource = serde_json::from_value(serde_json::json!({"attributes": []})).unwrap();
+        assert_eq!(otel_resource_to_platform(&resource), None);
+    }
+
+    #[test]
+    fn test_otel_resource_to_attribute_with_unmapped_language() {
+        let resource = serde_json::from_value(serde_json::json!({
+            "attributes": [{
+                "key": "telemetry.sdk.language",
+                "value": {"stringValue": "foo"},
+            },
+        ]}))
+        .unwrap();
+        assert_eq!(otel_resource_to_platform(&resource), Some("foo"));
+    }
+
+    #[test]
+    fn test_otel_resource_to_attribute_with_mapped_language() {
+        let resource = serde_json::from_value(serde_json::json!({
+            "attributes": [{
+                "key": "telemetry.sdk.language",
+                "value": {"stringValue": "nodejs"},
+            },
+        ]}))
+        .unwrap();
+        assert_eq!(otel_resource_to_platform(&resource), Some("node"));
     }
 }

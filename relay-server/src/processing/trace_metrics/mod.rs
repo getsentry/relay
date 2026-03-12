@@ -3,7 +3,6 @@ use std::sync::Arc;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::TraceMetric;
 use relay_filter::FilterStatKey;
-use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
@@ -11,7 +10,7 @@ use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
 use crate::envelope::{ContainerWriteError, ItemContainer};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use smallvec::smallvec;
 
 mod filter;
@@ -23,9 +22,12 @@ mod validate;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Internal error, Pii config could not be loaded.
-    #[error("Pii configuration error")]
-    PiiConfig(PiiConfigError),
+    /// Received trace metric exceeds the configured size limit.
+    #[error("trace metric exeeds size limit")]
+    TooLarge,
+    /// The metric name is not valid.
+    #[error("trace metric name is not valid")]
+    InvalidMetricName,
     /// The trace metrics are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
@@ -52,6 +54,12 @@ impl From<RateLimits> for Error {
     }
 }
 
+impl From<relay_event_normalization::eap::trace_metric::InvalidMetricName> for Error {
+    fn from(_: relay_event_normalization::eap::trace_metric::InvalidMetricName) -> Self {
+        Self::InvalidMetricName
+    }
+}
+
 impl crate::managed::OutcomeError for Error {
     type Error = Self;
 
@@ -60,11 +68,14 @@ impl crate::managed::OutcomeError for Error {
             Self::FilterFeatureFlag => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
+                DiscardItemType::TraceMetric,
+            ))),
+            Self::InvalidMetricName => Some(Outcome::Invalid(DiscardReason::InvalidTraceMetric)),
             Self::ProcessingFailed(_) => {
                 relay_log::error!("internal error: trace metric processing failed");
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
-            Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
@@ -111,7 +122,7 @@ impl processing::Processor for TraceMetricsProcessor {
         }
 
         let work = SerializedTraceMetrics { headers, metrics };
-        Some(Managed::from_envelope(envelope, work))
+        Some(Managed::with_meta_from(envelope, work))
     }
 
     async fn process(
@@ -125,12 +136,13 @@ impl processing::Processor for TraceMetricsProcessor {
         filter::feature_flag(ctx).reject(&metrics)?;
 
         let mut metrics = process::expand(metrics);
+        validate::size(&mut metrics, ctx);
         validate::validate(&mut metrics);
         process::normalize(&mut metrics, ctx);
         filter::filter(&mut metrics, ctx);
         process::scrub(&mut metrics, ctx);
 
-        self.limiter.enforce_quotas(&mut metrics, ctx).await?;
+        let metrics = self.limiter.enforce_quotas(metrics, ctx).await?;
 
         Ok(Output::just(TraceMetricOutput(metrics)))
     }
@@ -161,7 +173,7 @@ impl Forward for TraceMetricOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(metrics) = self;
@@ -174,7 +186,7 @@ impl Forward for TraceMetricOutput {
 
         for metric in metrics.split(|metrics| metrics.metrics) {
             if let Ok(metric) = metric.try_map(|metric, _| store::convert(metric, &ctx)) {
-                s.send(metric);
+                s.send_to_store(metric);
             }
         }
 
@@ -196,7 +208,13 @@ pub struct SerializedTraceMetrics {
 
 impl Counted for SerializedTraceMetrics {
     fn quantities(&self) -> Quantities {
-        smallvec![(DataCategory::TraceMetric, self.metrics.len())]
+        let count = self
+            .metrics
+            .iter()
+            .map(|item| item.item_count().unwrap_or(1) as usize)
+            .sum();
+
+        smallvec![(DataCategory::TraceMetric, count)]
     }
 }
 

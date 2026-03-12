@@ -194,7 +194,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_chunk_load_error() {
+    fn test_filter_chunk_load_error_webpack() {
         let errors = [
             "Error: Uncaught (in promise): ChunkLoadError: Loading chunk 175 failed.",
             "Uncaught (in promise): ChunkLoadError: Loading chunk 175 failed.",
@@ -222,5 +222,55 @@ mod tests {
                 Err(FilterStatKey::ErrorMessage)
             );
         }
+    }
+
+    #[test]
+    fn test_filter_chunk_load_error_turbopack() {
+        let errors = [
+            "Error: Uncaught (in promise): ChunkLoadError: Failed to load chunk 175.",
+            "Uncaught (in promise): ChunkLoadError: Failed to load chunk 175.",
+            "ChunkLoadError: Failed to load chunk 552.",
+        ];
+
+        let config = ErrorMessagesFilterConfig {
+            patterns: TypedPatterns::from([
+                "ChunkLoadError: Failed to load chunk *".to_owned(),
+                "*Uncaught *: ChunkLoadError: Failed to load chunk *".to_owned(),
+            ]),
+        };
+
+        for error in errors {
+            let event = Event {
+                logentry: Annotated::new(LogEntry {
+                    formatted: Annotated::new(error.to_owned().into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+
+            assert_eq!(
+                should_filter(&event, &config),
+                Err(FilterStatKey::ErrorMessage)
+            );
+        }
+
+        // Test exception-based matching for Turbopack
+        let exception_config = ErrorMessagesFilterConfig {
+            patterns: TypedPatterns::from(["ChunkLoadError: Failed to load chunk *".to_owned()]),
+        };
+
+        let exception_event = Event {
+            exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
+                ty: Annotated::new("ChunkLoadError".to_owned()),
+                value: Annotated::new("Failed to load chunk 123.".to_owned().into()),
+                ..Default::default()
+            })])),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            should_filter(&exception_event, &exception_config),
+            Err(FilterStatKey::ErrorMessage)
+        );
     }
 }

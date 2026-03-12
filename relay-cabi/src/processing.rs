@@ -267,9 +267,8 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         max_tag_value_length: usize::MAX,
         span_description_rules: None,
         performance_score: None,
-        geoip_lookup: None,          // only supported in relay
-        ai_model_costs: None,        // only supported in relay
-        ai_operation_type_map: None, // only supported in relay
+        geoip_lookup: None,   // only supported in relay
+        ai_model_costs: None, // only supported in relay
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
         normalize_spans: config.normalize_spans,
@@ -329,10 +328,8 @@ pub unsafe extern "C" fn relay_validate_pii_config(value: *const RelayStr) -> Re
 pub unsafe extern "C" fn relay_convert_datascrubbing_config(config: *const RelayStr) -> RelayStr {
     let config: DataScrubbingConfig = serde_json::from_str(unsafe { (*config).as_str() })?;
     match config.pii_config() {
-        Ok(Some(config)) => RelayStr::from_string(serde_json::to_string(config)?),
-        Ok(None) => RelayStr::new("{}"),
-        // NOTE: Callers of this function must be able to handle this error.
-        Err(e) => RelayStr::from_string(e.to_string()),
+        Some(config) => RelayStr::from_string(serde_json::to_string(config)?),
+        None => RelayStr::new("{}"),
     }
 }
 
@@ -387,6 +384,22 @@ pub unsafe extern "C" fn relay_compare_versions(a: *const RelayStr, b: *const Re
     let ver_a = sentry_release_parser::Version::parse(unsafe { (*a).as_str() })?;
     let ver_b = sentry_release_parser::Version::parse(unsafe { (*b).as_str() })?;
     match ver_a.cmp(&ver_b) {
+        Ordering::Less => -1,
+        Ordering::Equal => 0,
+        Ordering::Greater => 1,
+    }
+}
+
+/// Compares two versions, ignoring build code via semver 1.0's `cmp_precedence`.
+#[unsafe(no_mangle)]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_compare_versions_semver_precedence(
+    a: *const RelayStr,
+    b: *const RelayStr,
+) -> i32 {
+    let ver_a = sentry_release_parser::Version::parse(unsafe { (*a).as_str() })?;
+    let ver_b = sentry_release_parser::Version::parse(unsafe { (*b).as_str() })?;
+    match ver_a.as_semver1().cmp_precedence(&ver_b.as_semver1()) {
         Ordering::Less => -1,
         Ordering::Equal => 0,
         Ordering::Greater => 1,
@@ -528,6 +541,43 @@ mod tests {
             assert_eq!(
                 relay_validate_pii_config(&RelayStr::from(config)).as_str(),
                 ""
+            );
+        }
+    }
+
+    #[test]
+    fn test_compare_versions_semver_precedence() {
+        unsafe {
+            // Build codes should be ignored
+            assert_eq!(
+                relay_compare_versions_semver_precedence(
+                    &RelayStr::from("1.0.0+200"),
+                    &RelayStr::from("1.0.0+100")
+                ),
+                0
+            );
+            assert_eq!(
+                relay_compare_versions_semver_precedence(
+                    &RelayStr::from("1.0.0+abc"),
+                    &RelayStr::from("1.0.0+xyz")
+                ),
+                0
+            );
+
+            // Other comparisons should still work
+            assert_eq!(
+                relay_compare_versions_semver_precedence(
+                    &RelayStr::from("2.0.0"),
+                    &RelayStr::from("1.0.0")
+                ),
+                1
+            );
+            assert_eq!(
+                relay_compare_versions_semver_precedence(
+                    &RelayStr::from("1.0.0"),
+                    &RelayStr::from("1.0.0-rc1")
+                ),
+                1
             );
         }
     }

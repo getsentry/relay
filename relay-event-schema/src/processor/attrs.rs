@@ -117,6 +117,15 @@ pub enum PiiMode {
     Dynamic(fn(&ProcessingState) -> Pii),
 }
 
+/// A static or dynamic Option<`usize`> value.
+///
+/// Used for the fields `max_chars` and `max_bytes`.
+#[derive(Debug, Clone, Copy)]
+pub enum SizeMode {
+    Static(Option<usize>),
+    Dynamic(fn(&ProcessingState) -> Option<usize>),
+}
+
 /// Meta information about a field.
 #[derive(Debug, Clone, Copy)]
 pub struct FieldAttrs {
@@ -131,13 +140,21 @@ pub struct FieldAttrs {
     /// A set of allowed or denied character ranges for this string.
     pub characters: Option<CharacterSet>,
     /// The maximum char length of this field.
-    pub max_chars: Option<usize>,
+    pub max_chars: SizeMode,
     /// The extra char length allowance on top of max_chars.
     pub max_chars_allowance: usize,
     /// The maximum depth of this field.
     pub max_depth: Option<usize>,
     /// The maximum number of bytes of this field.
-    pub max_bytes: Option<usize>,
+    pub max_bytes: SizeMode,
+    /// How this item's size is computed.
+    ///
+    /// There are two axes to this:
+    /// * `Static`/`Dynamic` denotes whether the value is fixed or computed based
+    ///   on the `ProcessingState`;
+    /// * `None` means a processor should use its default method to compute/estimate the size,
+    ///   `Some(size)` means the item should count as `size` bytes.
+    pub bytes_size: SizeMode,
     /// The type of PII on the field.
     pub pii: PiiMode,
     /// Whether additional properties should be retained during normalization.
@@ -177,13 +194,14 @@ impl FieldAttrs {
             nonempty: false,
             trim_whitespace: false,
             characters: None,
-            max_chars: None,
+            max_chars: SizeMode::Static(None),
             max_chars_allowance: 0,
             max_depth: None,
-            max_bytes: None,
+            max_bytes: SizeMode::Static(None),
             pii: PiiMode::Static(Pii::False),
             retain: false,
             trim: true,
+            bytes_size: SizeMode::Static(None),
         }
     }
 
@@ -193,7 +211,7 @@ impl FieldAttrs {
         self
     }
 
-    /// Sets whether this field can have an empty value.
+    /// Sets whether this field's value must be nonempty.
     ///
     /// This is distinct from `required`. An empty string (`""`) passes the "required" check but not the
     /// "nonempty" one.
@@ -221,8 +239,32 @@ impl FieldAttrs {
     }
 
     /// Sets the maximum number of characters allowed in the field.
-    pub const fn max_chars(mut self, max_chars: usize) -> Self {
-        self.max_chars = Some(max_chars);
+    pub const fn max_chars(mut self, max_chars: Option<usize>) -> Self {
+        self.max_chars = SizeMode::Static(max_chars);
+        self
+    }
+
+    /// Sets the maximum number of characters allowed in the field dynamically based on the current state.
+    pub const fn max_chars_dynamic(
+        mut self,
+        max_chars: fn(&ProcessingState) -> Option<usize>,
+    ) -> Self {
+        self.max_chars = SizeMode::Dynamic(max_chars);
+        self
+    }
+
+    /// Sets the maximum number of bytes allowed in the field.
+    pub const fn max_bytes(mut self, max_bytes: Option<usize>) -> Self {
+        self.max_bytes = SizeMode::Static(max_bytes);
+        self
+    }
+
+    /// Sets the maximum number of bytes allowed in the field dynamically based on the current state.
+    pub const fn max_bytes_dynamic(
+        mut self,
+        max_bytes: fn(&ProcessingState) -> Option<usize>,
+    ) -> Self {
+        self.max_bytes = SizeMode::Dynamic(max_bytes);
         self
     }
 
@@ -313,6 +355,96 @@ impl<T> Deref for BoxCow<'_, T> {
     }
 }
 
+/// A builder for root [`ProcessingStates`](ProcessingState).
+///
+/// This is created by [`ProcessingState::root_builder`].
+#[derive(Debug, Clone)]
+pub struct ProcessingStateBuilder {
+    attrs: Option<FieldAttrs>,
+    value_type: EnumSet<ValueType>,
+}
+
+impl ProcessingStateBuilder {
+    /// Modifies the attributes of the root field.
+    pub fn attrs<F: FnOnce(FieldAttrs) -> FieldAttrs>(mut self, f: F) -> Self {
+        let attrs = self.attrs.take().unwrap_or_default();
+        self.attrs = Some(f(attrs));
+        self
+    }
+
+    /// Sets whether a value in the root field is required.
+    pub fn required(self, required: bool) -> Self {
+        self.attrs(|attrs| attrs.required(required))
+    }
+
+    /// Sets whether the root field's value must be nonempty.
+    ///
+    /// This is distinct from `required`. An empty string (`""`) passes the "required" check but not the
+    /// "nonempty" one.
+    pub fn nonempty(self, nonempty: bool) -> Self {
+        self.attrs(|attrs| attrs.nonempty(nonempty))
+    }
+
+    /// Sets whether whitespace should be trimmed on the root field before validation.
+    pub fn trim_whitespace(self, trim_whitespace: bool) -> Self {
+        self.attrs(|attrs| attrs.trim_whitespace(trim_whitespace))
+    }
+
+    /// Sets whether the root field contains PII.
+    pub fn pii(self, pii: Pii) -> Self {
+        self.attrs(|attrs| attrs.pii(pii))
+    }
+
+    /// Sets whether the root field contains PII dynamically based on the current state.
+    pub fn pii_dynamic(self, pii: fn(&ProcessingState) -> Pii) -> Self {
+        self.attrs(|attrs| attrs.pii_dynamic(pii))
+    }
+
+    /// Sets the maximum number of chars allowed in the root field.
+    pub fn max_chars(self, max_chars: impl Into<Option<usize>>) -> Self {
+        self.attrs(|attrs| attrs.max_chars(max_chars.into()))
+    }
+
+    /// Sets the maximum number of characters allowed in the root field dynamically based on the current state.
+    pub fn max_chars_dynamic(self, max_chars: fn(&ProcessingState) -> Option<usize>) -> Self {
+        self.attrs(|attrs| attrs.max_chars_dynamic(max_chars))
+    }
+
+    /// Sets the maximum number of bytes allowed in the root field.
+    pub fn max_bytes(self, max_bytes: impl Into<Option<usize>>) -> Self {
+        self.attrs(|attrs| attrs.max_bytes(max_bytes.into()))
+    }
+
+    /// Sets the maximum number of bytes allowed in the root field dynamically based on the current state.
+    pub fn max_bytes_dynamic(self, max_bytes: fn(&ProcessingState) -> Option<usize>) -> Self {
+        self.attrs(|attrs| attrs.max_bytes_dynamic(max_bytes))
+    }
+
+    /// Sets whether additional properties should be retained during normalization.
+    pub fn retain(self, retain: bool) -> Self {
+        self.attrs(|attrs| attrs.retain(retain))
+    }
+
+    /// Sets the value type for the root state.
+    pub fn value_type(mut self, value_type: EnumSet<ValueType>) -> Self {
+        self.value_type = value_type;
+        self
+    }
+
+    /// Consumes the builder and returns a root [`ProcessingState`] with
+    /// the configured attributes and value type.
+    pub fn build(self) -> ProcessingState<'static> {
+        let Self { attrs, value_type } = self;
+        ProcessingState {
+            parent: None,
+            path_item: None,
+            attrs: attrs.map(Cow::Owned),
+            value_type,
+            depth: 0,
+        }
+    }
+}
+
 /// An event's processing state.
 ///
 /// The processing state describes an item in an event which is being processed, an example
@@ -360,6 +492,25 @@ impl<'a> ProcessingState<'a> {
             attrs,
             value_type: value_type.into_iter().collect(),
             depth: 0,
+        }
+    }
+
+    /// Creates a builder that can be used to easily create
+    /// a custom root state.
+    ///
+    /// # Example
+    /// ```
+    /// use relay_event_schema::processor::ProcessingState;
+    ///
+    /// let root = ProcessingState::root_builder()
+    ///   .max_bytes(50)
+    ///   .retain(true)
+    ///   .build();
+    /// ```
+    pub fn root_builder() -> ProcessingStateBuilder {
+        ProcessingStateBuilder {
+            attrs: None,
+            value_type: EnumSet::empty(),
         }
     }
 
@@ -459,6 +610,42 @@ impl<'a> ProcessingState<'a> {
         match self.attrs().pii {
             PiiMode::Static(pii) => pii,
             PiiMode::Dynamic(pii_fn) => pii_fn(self),
+        }
+    }
+
+    /// Returns the max bytes for this state.
+    ///
+    /// If the state's `FieldAttrs` contain a fixed `max_bytes` value,
+    /// it is returned. If they contain a dynamic `max_bytes` value (a function),
+    /// it is applied to this state and the output returned.
+    pub fn max_bytes(&self) -> Option<usize> {
+        match self.attrs().max_bytes {
+            SizeMode::Static(n) => n,
+            SizeMode::Dynamic(max_bytes_fn) => max_bytes_fn(self),
+        }
+    }
+
+    /// Returns the bytes size for this state.
+    ///
+    /// If the state's `FieldAttrs` contain a fixed `bytes_size` value,
+    /// it is returned. If they contain a dynamic `bytes_size` value (a function),
+    /// it is applied to this state and the output returned.
+    pub fn bytes_size(&self) -> Option<usize> {
+        match self.attrs().bytes_size {
+            SizeMode::Static(n) => n,
+            SizeMode::Dynamic(bytes_size_fn) => bytes_size_fn(self),
+        }
+    }
+
+    /// Returns the max chars for this state.
+    ///
+    /// If the state's `FieldAttrs` contain a fixed `max_chars` value,
+    /// it is returned. If they contain a dynamic `max_chars` value (a function),
+    /// it is applied to this state and the output returned.
+    pub fn max_chars(&self) -> Option<usize> {
+        match self.attrs().max_chars {
+            SizeMode::Static(n) => n,
+            SizeMode::Dynamic(max_chars_fn) => max_chars_fn(self),
         }
     }
 
@@ -628,13 +815,21 @@ mod tests {
         }
     }
 
+    fn max_chars_from_item_name(state: &ProcessingState) -> Option<usize> {
+        match state.path_item().and_then(|p| p.key()) {
+            Some("short_item") => Some(10),
+            Some("long_item") => Some(20),
+            _ => None,
+        }
+    }
+
     #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
     #[metastructure(pii = "pii_from_item_name")]
-    struct TestValue(String);
+    struct TestValue(#[metastructure(max_chars = "max_chars_from_item_name")] String);
 
-    struct TestProcessor;
+    struct TestPiiProcessor;
 
-    impl Processor for TestProcessor {
+    impl Processor for TestPiiProcessor {
         fn process_string(
             &mut self,
             value: &mut String,
@@ -645,6 +840,22 @@ mod tests {
                 Pii::True => *value = "true".to_owned(),
                 Pii::False => *value = "false".to_owned(),
                 Pii::Maybe => *value = "maybe".to_owned(),
+            }
+            Ok(())
+        }
+    }
+
+    struct TestTrimmingProcessor;
+
+    impl Processor for TestTrimmingProcessor {
+        fn process_string(
+            &mut self,
+            value: &mut String,
+            _meta: &mut relay_protocol::Meta,
+            state: &ProcessingState<'_>,
+        ) -> crate::processor::ProcessingResult where {
+            if let Some(n) = state.max_chars() {
+                value.truncate(n);
             }
             Ok(())
         }
@@ -663,13 +874,37 @@ mod tests {
         )
         .unwrap();
 
-        process_value(&mut object, &mut TestProcessor, &ROOT_STATE).unwrap();
+        process_value(&mut object, &mut TestPiiProcessor, &ROOT_STATE).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&object), @r###"
         {
           "false_item": "false",
           "other_item": "maybe",
           "true_item": "true"
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_dynamic_max_chars() {
+        let mut object: Annotated<Object<TestValue>> = Annotated::from_json(
+            r#"
+        {
+          "short_item": "Should be shortened to 10",
+          "long_item": "Should be shortened to 20",
+          "other_item": "Should not be shortened at all"
+        }
+        "#,
+        )
+        .unwrap();
+
+        process_value(&mut object, &mut TestTrimmingProcessor, &ROOT_STATE).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&object), @r###"
+        {
+          "long_item": "Should be shortened ",
+          "other_item": "Should not be shortened at all",
+          "short_item": "Should be "
         }
         "###);
     }

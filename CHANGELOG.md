@@ -2,6 +2,170 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Use a more mature (dog)statsd backend, with proper support for unix sockets and reservoir sampling.
+  Due to the new backend, all sampling and tag filtering configuration options have been removed. ([#5675](https://github.com/getsentry/relay/pull/5675))
+
+**Bug Fixes**:
+
+- Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
+- Relay Temporarily rejected unknown headers on envelope items. ([#5709](https://github.com/getsentry/relay/pull/5709))
+
+**Features**:
+
+- Populate gen_ai.response.model from gen_ai.request.model if not already set. ([#5654](https://github.com/getsentry/relay/pull/5654))
+- Add support for Unix domain sockets for statsd metrics. ([#5668](https://github.com/getsentry/relay/pull/5668))
+- Support `deployment.environment` OTLP resource attribute for setting the Sentry environment. ([#5691](https://github.com/getsentry/relay/pull/5691))
+- Allow users to opt-out of DNS caching. ([#5700](https://github.com/getsentry/relay/pull/5700))
+- Update device classification for new iPad and iPhone models. ([#5704](https://github.com/getsentry/relay/pull/5704))
+
+**Internal**:
+
+- Strip performance metric specs from extraction while keeping extraction interfaces intact. ([#5674](https://github.com/getsentry/relay/pull/5674))
+- Allow deferred lengths to the `/upload` endpoint when the sender is trusted. ([#5658](https://github.com/getsentry/relay/pull/5658))
+- Use new processor architecture to process client reports. ([#5686](https://github.com/getsentry/relay/pull/5686))
+- Prevent timeouts on the `/upload` endpoint. ([#5692](https://github.com/getsentry/relay/pull/5692))
+- Handle traffic bursts in the objectstore service. ([#5689](https://github.com/getsentry/relay/pull/5689))
+- Disable `fetch_materials` on GoCD `pipeline-complete` stages. ([#5697](https://github.com/getsentry/relay/pull/5697))
+
+## 26.2.1
+
+**Bug Fixes**:
+
+- Return status code 200 instead of 202 for OTLP endpoints. ([#5645](https://github.com/getsentry/relay/pull/5645))
+
+**Features**:
+
+- Add experimental `/upload` endpoint for large file uploads. ([#5638](https://github.com/getsentry/relay/pull/5638))
+
+**Internal**:
+
+- Introduce additional and separate data categories for backend and ui transaction profiles. ([#5648](https://github.com/getsentry/relay/pull/5648))
+
+## 26.2.0
+
+**Bug Fixes**:
+
+- Emit outcomes for spans trimmed from a transaction. ([#5410](https://github.com/getsentry/relay/pull/5410))
+- Support `sample` alias in CSP reports. ([#5554](https://github.com/getsentry/relay/pull/5554))
+- Fix inconsistencies with Insights' expected attributes. ([#5561](https://github.com/getsentry/relay/pull/5561))
+- Emit outcomes for dropped standalone `replay_event` items. ([#5634](https://github.com/getsentry/relay/pull/5634))
+- Validate that EAP integer attributes fit into `i64`. ([#5621](https://github.com/getsentry/relay/pull/5621))
+
+**Features**:
+
+- Add new frame fields for MetricKit flamegraphs. ([#5539](https://github.com/getsentry/relay/pull/5539))
+- Apply clock drift correction to logs and trace metrics. ([#5609](https://github.com/getsentry/relay/pull/5609))
+- Add Culture context to event schema. ([#5615](https://github.com/getsentry/relay/pull/5615))
+- Trim spans with a new EAP trimming processor. ([#5616](https://github.com/getsentry/relay/pull/5616))
+- Forwarded requests are now streamed instead of buffered in-memory. ([#5624](https://github.com/getsentry/relay/pull/5624))
+- Scrub `_vercel_jwt` cookie by default as part of PII scrubbing. ([#5643](https://github.com/getsentry/relay/pull/5643))
+
+**Internal**:
+
+- Add EAP double-write for session data. ([#5588](https://github.com/getsentry/relay/pull/5588))
+- Always process OTLP spans with the span streaming pipeline. ([#5631](https://github.com/getsentry/relay/pull/5631))
+- Embed AI operation type mappings into Relay. ([#5555](https://github.com/getsentry/relay/pull/5555))
+- Apply continuous profiling rate limits to transaction profiles. ([#5614](https://github.com/getsentry/relay/pull/5614)
+- Use new processor architecture to process transactions. ([#5379](https://github.com/getsentry/relay/pull/5379))
+- Add `gen_ai_response_time_to_first_token` as a `SpanData` attribute. ([#5575](https://github.com/getsentry/relay/pull/5575))
+- Add sampling to expensive envelope buffer statsd metrics. ([#5576](https://github.com/getsentry/relay/pull/5576))
+- Use new processor architecture to process replays. ([#5580](https://github.com/getsentry/relay/pull/5580))
+- Add `gen_ai.cost_calculation.result` metric to track AI cost calculation outcomes by integration and platform. ([#5560](https://github.com/getsentry/relay/pull/5560))
+- Normalizes and validates trace metric names. ([#5589](https://github.com/getsentry/relay/pull/5589))
+- Add manual category to cost calculation metric origin tag ([#5603](https://github.com/getsentry/relay/pull/5603))
+- Remove the `ReplayEvents` Kafka topic and the `replay.relay-snuba-publishing-disabled.sample-rate` option. ([#5629](https://github.com/getsentry/relay/pull/5629))
+
+## 26.1.0
+
+**Breaking Changes**:
+
+- Return status code `413` if a request is rejected due to size limits. ([#5474](https://github.com/getsentry/relay/pull/5474))
+
+**Features**:
+
+- Updates `rdkafka` to 2.10 which fixes some protocol incompatibilities with Kafka 4. ([#5523](https://github.com/getsentry/relay/pull/5523))
+- Add sentry.category normalization for V2 spans. ([#5533](https://github.com/getsentry/relay/pull/5533))
+- Include cache write token cost in cost calculation for gen_ai spans. ([#5530](https://github.com/getsentry/relay/pull/5530))
+
+**Bug Fixes**:
+
+- Write item IDs of logs, metrics and trace attachments in correct byte order. ([#5526](https://github.com/getsentry/relay/pull/5526))
+- Reworked AI span extraction to also take trace context into account. ([#5515](https://github.com/getsentry/relay/pull/5515))
+- Mark root spans (spans without a parent) as segments in OTEL conversion. ([#5532](https://github.com/getsentry/relay/pull/5532))
+
+**Internal**:
+
+- Release Docker image to GHCR and DockerHub via Craft. ([#5509](https://github.com/getsentry/relay/pull/5509))
+- Tag span `usage` and `count_per_root_project` metrics with segment information. ([#5511](https://github.com/getsentry/relay/pull/5511))
+- Experimental support for loading configuration values from files. ([#5531](https://github.com/getsentry/relay/pull/5531))
+- Remove support for global quotas. ([#5534](https://github.com/getsentry/relay/pull/5534))
+
+## 25.12.1
+
+**Features**:
+
+- Double write to legacy attributes for backwards compatibility. ([#5490](https://github.com/getsentry/relay/pull/5490))
+- Enables basic array support for logs, trace metrics and spans. ([#5394](https://github.com/getsentry/relay/pull/5394))
+
+**Internal**:
+
+- Moves profile chunk processing to the new internal processing pipeline. ([#5505](https://github.com/getsentry/relay/pull/5505))
+
+## 25.12.0
+
+**Features**:
+
+- Updates Legacy Browser inbound filters. ([#5326](https://github.com/getsentry/relay/pull/5326))
+- Increases log size limits to better support log drains. ([#5441](https://github.com/getsentry/relay/pull/5441))
+- Add functionality to process and store span attachments. ([#5423](https://github.com/getsentry/relay/pull/5423), [#5363](https://github.com/getsentry/relay/pull/5363))
+- Apply existing cookie rules to `http.request.header.cookie.<key>` fields. ([#5456](https://github.com/getsentry/relay/pull/5456))
+- Add functionality to process and store trace attachments. ([#5457](https://github.com/getsentry/relay/pull/5457))
+- Lower default memory utilization threshold for disk spooling from 90% to 80%. When Relay hits 80% memory utilization, it will start spooling envelopes to disk instead of processing them. ([#5472](https://github.com/getsentry/relay/pull/5472))
+- Add http attribute normalization. ([#5479](https://github.com/getsentry/relay/pull/5479))
+
+**Bug Fixes**:
+
+- Fix parsing of data categories/quotas when using an aliased data category name. ([#5435](https://github.com/getsentry/relay/pull/5435))
+
+**Internal**:
+
+- Revise trace metric and log size limits. ([#5440](https://github.com/getsentry/relay/pull/5440))
+- Update `is_ai_span` and `infer_ai_operation_type` to use `gen_ai.operation.name`. ([#5433](https://github.com/getsentry/relay/pull/5433))
+- Add project_id to profile item kafka headers. ([#5458](https://github.com/getsentry/relay/pull/5458))
+- Remove `recycle_check_frequency` from Redis configuration. ([#5476](https://github.com/getsentry/relay/pull/5476))
+- Remove `gen_ai_usage_total_cost` attribute and stop double writing costs. ([#5471](https://github.com/getsentry/relay/pull/5471))
+
+## 25.11.1
+
+**Breaking Changes**:
+
+- Switch Statsd histogram metrics to distribution metrics. ([#5378](https://github.com/getsentry/relay/pull/5378))
+
+**Features**:
+
+- Support comparing release versions without build code. ([#5376](https://github.com/getsentry/relay/pull/5376))
+- Support uploading attachments directly to objectstore. ([#5367](https://github.com/getsentry/relay/pull/5367))
+- Add `span_count` item header to the envelope protocol. ([#5392](https://github.com/getsentry/relay/pull/5392))
+- Add `event.name` attribute to OTLP logs. ([#5396](https://github.com/getsentry/relay/pull/5396))
+- Remove feature flag for Vercel Log Drain endpoint. ([#5406](https://github.com/getsentry/relay/pull/5406))
+- Add `http.request.header.cookie` to fields scrubbed by cookie rules. ([#5408](https://github.com/getsentry/relay/pull/5408))
+- Map `request_id` to `trace_id` in vercel log drain transform. ([#5333](https://github.com/getsentry/relay/pull/5333))
+- Populate `sentry.platform` during OTLP ingestion. ([#5411](https://github.com/getsentry/relay/pull/5411))
+- Implement optional opportunistic caching for quotas. ([#5416](https://github.com/getsentry/relay/pull/5416))
+- Add db attribute normalization to V2 spans. ([#5399](https://github.com/getsentry/relay/pull/5399))
+
+**Internal**:
+
+- Derive the rate limiting decision in Relay from consumed quota. ([#5390](https://github.com/getsentry/relay/pull/5390))
+
+## 25.11.0
+
+**Breaking Changes**:
+
+- Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
+
 **Features**:
 
 - Only apply non-destructive PII rules to log bodies by default. ([#5272](https://github.com/getsentry/relay/pull/5272))
@@ -14,10 +178,8 @@
 - Remove the profile context from transactions if profiles are currently rate limited. ([#5346](https://github.com/getsentry/relay/pull/5346))
 - Replace `is_remote` with `is_segment` on the Span V2 schema. ([#5306](https://github.com/getsentry/relay/pull/5306))
 - Add `response_timeout` config setting for Redis. ([#5329](https://github.com/getsentry/relay/pull/5329))
-
-**Breaking Changes**:
-
-- Simplify proxy mode to forward without processing. ([#5165](https://github.com/getsentry/relay/pull/5165))
+- Remove `projects:discard-transaction` feature flag. ([#5307](https://github.com/getsentry/relay/pull/5307))
+- Add SEER_USER data category. ([#5383](https://github.com/getsentry/relay/pull/5383))
 
 **Bug Fixes**:
 

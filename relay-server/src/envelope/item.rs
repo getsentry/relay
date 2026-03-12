@@ -1,19 +1,18 @@
 use relay_profiling::ProfileType;
-use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::AddAssign;
 use uuid::Uuid;
 
 use bytes::Bytes;
-use relay_event_schema::protocol::EventType;
-use relay_protocol::Value;
+use relay_event_schema::protocol::{EventType, SpanId};
 use relay_quotas::DataCategory;
 use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
+use crate::statsd::RelayTimers;
 
 #[derive(Clone, Debug)]
 pub struct Item {
@@ -27,21 +26,11 @@ impl Item {
         Self {
             headers: ItemHeaders {
                 ty,
-                length: Some(0),
-                item_count: None,
-                attachment_type: None,
-                content_type: None,
-                filename: None,
-                routing_hint: None,
+                stored_key: None,
                 rate_limited: false,
                 source_quantities: None,
-                other: BTreeMap::new(),
-                metrics_extracted: false,
-                spans_extracted: false,
-                sampled: true,
-                fully_normalized: false,
-                profile_type: None,
-                platform: None,
+                routing_hint: None,
+                inner: BTreeMap::new(),
             },
             payload: Bytes::new(),
         }
@@ -75,9 +64,13 @@ impl Item {
         // The last header does not require a trailing newline, so `payload_start` may point
         // past the end of the buffer.
         let payload_start = std::cmp::min(headers_end + 1, bytes.len());
-        let payload_end = match headers.length {
+
+        let length = headers
+            .try_get::<usize>(ItemHeaderKey::Length)
+            .map_err(EnvelopeError::InvalidItemHeader)?;
+        let payload_end = match length {
             Some(len) => {
-                let payload_end = payload_start + len as usize;
+                let payload_end = payload_start + len;
                 if bytes.len() < payload_end {
                     // NB: `Bytes::slice` panics if the indices are out of range.
                     return Err(EnvelopeError::UnexpectedEof);
@@ -107,17 +100,29 @@ impl Item {
 
         match self.ty() {
             ItemType::Event => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Transaction => smallvec![
-                (DataCategory::Transaction, item_count),
-                (DataCategory::TransactionIndexed, item_count),
-            ],
+            ItemType::Transaction => {
+                let mut quantities = smallvec![
+                    (DataCategory::Transaction, item_count),
+                    (DataCategory::TransactionIndexed, item_count),
+                ];
+                if !self.spans_extracted() {
+                    quantities.extend([
+                        (DataCategory::Span, item_count + self.span_count() as usize),
+                        (
+                            DataCategory::SpanIndexed,
+                            item_count + self.span_count() as usize,
+                        ),
+                    ]);
+                }
+                quantities
+            }
             ItemType::Security | ItemType::RawSecurity => {
                 smallvec![(DataCategory::Security, item_count)]
             }
             ItemType::Nel => smallvec![],
             ItemType::UnrealReport => smallvec![(DataCategory::Error, item_count)],
             ItemType::Attachment => smallvec![
-                (DataCategory::Attachment, self.len().max(1)),
+                (DataCategory::Attachment, self.attachment_body_size()),
                 (DataCategory::AttachmentItem, item_count),
             ],
             ItemType::Session | ItemType::Sessions => {
@@ -132,10 +137,33 @@ impl Item {
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![(DataCategory::UserReportV2, item_count)],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, item_count)],
-            ItemType::Profile => smallvec![
-                (DataCategory::Profile, item_count),
-                (DataCategory::ProfileIndexed, item_count)
-            ],
+            ItemType::Profile => match self.profile_type() {
+                Some(ProfileType::Backend) => smallvec![
+                    (DataCategory::Profile, item_count),
+                    (DataCategory::ProfileIndexed, item_count),
+                    (DataCategory::ProfileBackend, item_count),
+                ],
+                Some(ProfileType::Ui) => smallvec![
+                    (DataCategory::Profile, item_count),
+                    (DataCategory::ProfileIndexed, item_count),
+                    (DataCategory::ProfileUi, item_count)
+                ],
+                // Note: parsing the profile type (and validity) requires parsing the payload,
+                // which makes this semantically wrong but it is too expensive here to parse the
+                // payload.
+                None => smallvec![
+                    (DataCategory::Profile, item_count),
+                    (DataCategory::ProfileIndexed, item_count),
+                ],
+            },
+            ItemType::ProfileChunk => match self.profile_type() {
+                Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
+                Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
+                // Note: parsing the profile type (and validity) requires parsing the payload,
+                // which makes this semantically wrong but it is too expensive here to parse the
+                // payload.
+                None => smallvec![],
+            },
             ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
                 smallvec![(DataCategory::Replay, item_count)]
             }
@@ -145,12 +173,6 @@ impl Item {
                 (DataCategory::Span, item_count),
                 (DataCategory::SpanIndexed, item_count),
             ],
-            // NOTE: semantically wrong, but too expensive to parse.
-            ItemType::ProfileChunk => match self.profile_type() {
-                Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
-                Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
-                None => smallvec![],
-            },
             ItemType::Integration => match self.integration() {
                 Some(Integration::Logs(LogsIntegration::OtelV1 { .. })) => smallvec![
                     (DataCategory::LogByte, self.len().max(1)),
@@ -185,15 +207,61 @@ impl Item {
     /// This method can be safely used to generate outcomes.
     pub fn item_count(&self) -> Option<u32> {
         match self.ty().can_support_container() {
-            true => self.headers.item_count,
+            true => self.headers.get(ItemHeaderKey::ItemCount),
             false => None,
+        }
+    }
+
+    /// Returns the number of spans in the `event.spans` array.
+    ///
+    /// Should always be 0 except for transaction items.
+    ///
+    /// When a transaction is dropped before spans were extracted from a transaction,
+    /// this number is used to emit correct outcomes for the spans category.
+    ///
+    /// This number does *not* count the transaction itself.
+    pub fn span_count(&self) -> u32 {
+        self.headers.get(ItemHeaderKey::SpanCount).unwrap_or(0)
+    }
+
+    /// Sets the number of spans in the transaction payload.
+    pub fn set_span_count(&mut self, value: Option<usize>) {
+        self.headers.set_or_remove(ItemHeaderKey::SpanCount, value);
+    }
+
+    /// Sets the `span_count` item header by shallow parsing the event.
+    ///
+    /// Returns the recomputed count.
+    fn refresh_span_count(&mut self) -> usize {
+        let count = self.parse_span_count();
+        self.set_span_count(count);
+        count.unwrap_or(0)
+    }
+
+    /// Returns the `span_count`` header, and computes it if it has not yet been set.
+    pub fn ensure_span_count(&mut self) -> usize {
+        match self.headers.get(ItemHeaderKey::SpanCount) {
+            Some(count) => count,
+            None => self.refresh_span_count(),
         }
     }
 
     /// Returns the content type of this item's payload.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-    pub fn content_type(&self) -> Option<&ContentType> {
-        self.headers.content_type.as_ref()
+    pub fn content_type(&self) -> Option<ContentType> {
+        self.headers.get(ItemHeaderKey::ContentType)
+    }
+
+    /// Returns the raw (unparsed) content type, as specified by the SDK.
+    pub fn raw_content_type(&self) -> Option<&str> {
+        self.headers.get(ItemHeaderKey::ContentType)
+    }
+
+    /// Sets the content type if there isn't already one set.
+    pub fn set_default_content_type(&mut self, content_type: ContentType) {
+        if !self.headers.contains(ItemHeaderKey::ContentType) {
+            self.headers.set(ItemHeaderKey::ContentType, content_type);
+        }
     }
 
     /// Returns the [`Integration`] the item belongs.
@@ -203,7 +271,7 @@ impl Item {
         }
 
         match self.content_type() {
-            Some(ContentType::Integration(integration)) => Some(*integration),
+            Some(ContentType::Integration(integration)) => Some(integration),
             _ => {
                 // This is a bug which should never happen.
                 debug_assert!(false, "integration item, but no integration content type");
@@ -213,14 +281,30 @@ impl Item {
     }
 
     /// Returns the attachment type if this item is an attachment.
-    pub fn attachment_type(&self) -> Option<&AttachmentType> {
+    pub fn attachment_type(&self) -> Option<AttachmentType> {
         // TODO: consider to replace this with an ItemType?
-        self.headers.attachment_type.as_ref()
+        if let Some(ty) = self.headers.get(ItemHeaderKey::AttachmentType) {
+            return Some(ty);
+        }
+
+        // Unfortunately when the switch protocol was decided on, it was missed to assign it a new
+        // attachment type, that's why we have to infer it here from the filename and contents.
+        if self.ty() == &ItemType::Attachment
+            && self.filename() == Some(crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME)
+            && self
+                .payload
+                .starts_with(crate::constants::NNSWITCH_SENTRY_MAGIC)
+        {
+            return Some(AttachmentType::NintendoSwitchDyingMessage);
+        }
+
+        None
     }
 
     /// Sets the attachment type of this item.
     pub fn set_attachment_type(&mut self, attachment_type: AttachmentType) {
-        self.headers.attachment_type = Some(attachment_type);
+        self.headers
+            .set(ItemHeaderKey::AttachmentType, attachment_type);
     }
 
     /// Returns the payload of this item.
@@ -242,7 +326,7 @@ impl Item {
         let length = std::cmp::min(u32::MAX as usize, payload.len());
         payload.truncate(length);
 
-        self.headers.length = Some(length as u32);
+        self.headers.set(ItemHeaderKey::Length, length);
         self.payload = payload;
     }
 
@@ -252,7 +336,7 @@ impl Item {
     where
         B: Into<Bytes>,
     {
-        self.headers.content_type = Some(content_type);
+        self.headers.set(ItemHeaderKey::ContentType, content_type);
         self.set_payload_without_content_type(payload);
     }
 
@@ -265,15 +349,16 @@ impl Item {
     ) where
         B: Into<Bytes>,
     {
-        self.headers.content_type = Some(content_type);
-        self.headers.item_count = Some(item_count);
+        self.headers
+            .set(ItemHeaderKey::ContentType, content_type)
+            .set(ItemHeaderKey::ItemCount, item_count);
         self.set_payload_without_content_type(payload);
     }
 
     /// Returns the file name of this item, if it is an attachment.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn filename(&self) -> Option<&str> {
-        self.headers.filename.as_deref()
+        self.headers.get(ItemHeaderKey::Filename)
     }
 
     /// Sets the file name of this item.
@@ -281,7 +366,17 @@ impl Item {
     where
         S: Into<String>,
     {
-        self.headers.filename = Some(filename.into());
+        self.headers.set(ItemHeaderKey::Filename, filename.into());
+    }
+
+    /// Returns the objectstore key, if it is an attachment stored in objectstore.
+    pub fn stored_key(&self) -> Option<&str> {
+        self.headers.stored_key.as_deref()
+    }
+
+    /// Sets the objectstore key of this attachment item.
+    pub fn set_stored_key(&mut self, stored_key: String) {
+        self.headers.stored_key = Some(stored_key);
     }
 
     /// Returns the routing_hint of this item.
@@ -316,84 +411,211 @@ impl Item {
 
     /// Returns the metrics extracted flag.
     pub fn metrics_extracted(&self) -> bool {
-        self.headers.metrics_extracted
+        self.headers
+            .get(ItemHeaderKey::MetricsExtracted)
+            .unwrap_or_default()
     }
 
     /// Sets the metrics extracted flag.
     pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
-        self.headers.metrics_extracted = metrics_extracted;
+        self.headers
+            .set(ItemHeaderKey::MetricsExtracted, metrics_extracted);
     }
 
     /// Returns the spans extracted flag.
     pub fn spans_extracted(&self) -> bool {
-        self.headers.spans_extracted
+        self.headers
+            .get(ItemHeaderKey::SpansExtracted)
+            .unwrap_or_default()
     }
 
     /// Sets the spans extracted flag.
     pub fn set_spans_extracted(&mut self, spans_extracted: bool) {
-        self.headers.spans_extracted = spans_extracted;
+        self.headers
+            .set(ItemHeaderKey::SpansExtracted, spans_extracted);
     }
 
     /// Returns the fully normalized flag.
     pub fn fully_normalized(&self) -> bool {
-        self.headers.fully_normalized
+        self.headers
+            .get(ItemHeaderKey::FullyNormalized)
+            .unwrap_or_default()
     }
 
     /// Sets the fully normalized flag.
     pub fn set_fully_normalized(&mut self, fully_normalized: bool) {
-        self.headers.fully_normalized = fully_normalized;
+        self.headers
+            .set(ItemHeaderKey::FullyNormalized, fully_normalized);
     }
 
     /// Returns the associated platform.
     ///
     /// Note: this is currently only used for [`ItemType::ProfileChunk`].
     pub fn platform(&self) -> Option<&str> {
-        self.headers.platform.as_deref()
+        self.headers.get(ItemHeaderKey::Platform)
+    }
+
+    /// Set the associated platform.
+    ///
+    /// Note: this is currently only used for [`ItemType::ProfileChunk`].
+    pub fn set_platform(&mut self, platform: String) {
+        self.headers.set(ItemHeaderKey::Platform, platform);
     }
 
     /// Returns the associated profile type of a profile chunk.
     ///
-    /// This primarily uses the profile type set via [`Self::set_profile_type`],
-    /// but if not set, it infers the [`ProfileType`] from the [`Self::platform`].
-    ///
-    /// Returns `None`, if neither source is available.
+    /// Infers the [`ProfileType`] from [`Self::platform`].
     pub fn profile_type(&self) -> Option<ProfileType> {
-        self.headers
-            .profile_type
-            .or_else(|| self.platform().map(ProfileType::from_platform))
-    }
-
-    /// Set the profile type of the profile chunk.
-    pub fn set_profile_type(&mut self, profile_type: ProfileType) {
-        self.headers.profile_type = Some(profile_type);
+        self.platform().map(ProfileType::from_platform)
     }
 
     /// Gets the `sampled` flag.
     pub fn sampled(&self) -> bool {
-        self.headers.sampled
+        self.headers.get(ItemHeaderKey::Sampled).unwrap_or(true)
     }
 
     /// Sets the `sampled` flag.
     pub fn set_sampled(&mut self, sampled: bool) {
-        self.headers.sampled = sampled;
+        self.headers.set(ItemHeaderKey::Sampled, sampled);
     }
 
-    /// Returns the specified header value, if present.
-    pub fn get_header<K>(&self, name: &K) -> Option<&Value>
-    where
-        String: Borrow<K>,
-        K: Ord + ?Sized,
-    {
-        self.headers.other.get(name)
+    /// Returns the length of the item.
+    pub fn meta_length(&self) -> Option<u32> {
+        self.headers.get(ItemHeaderKey::MetaLength)
     }
 
-    /// Sets the specified header value, returning the previous one if present.
-    pub fn set_header<S, V>(&mut self, name: S, value: V) -> Option<Value>
-    where
-        S: Into<String>,
-        V: Into<Value>,
-    {
-        self.headers.other.insert(name.into(), value.into())
+    /// Sets the length of the optional meta segment.
+    ///
+    /// Only applicable if the item is an attachment.
+    pub fn set_meta_length(&mut self, meta_length: u32) {
+        self.headers.set(ItemHeaderKey::MetaLength, meta_length);
+    }
+
+    /// Sets the length of the attachment referenced by this item.
+    ///
+    /// Only applicable if the item is an attachment with [`ContentType::AttachmentRef`].
+    pub fn set_attachment_length(&mut self, original_length: u64) {
+        debug_assert!(self.is_attachment_ref());
+        self.headers
+            .set(ItemHeaderKey::AttachmentLength, original_length);
+    }
+
+    /// Retrieves the sentry release from an item header.
+    pub fn sentry_release(&self) -> Option<&str> {
+        self.headers.get(ItemHeaderKey::SentryRelease)
+    }
+
+    /// Sets the sentry release on an item header.
+    pub fn set_sentry_release(&mut self, release: String) {
+        self.headers.set(ItemHeaderKey::SentryRelease, release);
+    }
+
+    /// Retrieves the sentry environment from an item header.
+    pub fn sentry_environment(&self) -> Option<&str> {
+        self.headers.get(ItemHeaderKey::SentryEnvironment)
+    }
+
+    /// Sets the sentry environment on an item header.
+    pub fn set_sentry_environment(&mut self, environment: String) {
+        self.headers
+            .set(ItemHeaderKey::SentryEnvironment, environment);
+    }
+
+    /// Returns the parent entity that this item is associated with, if any.
+    ///
+    /// Only applicable if the item is an attachment.
+    pub fn parent_id(&self) -> Option<ParentId> {
+        // Currently only `span_id` supported in `ParentId`.
+        let span_id = self.headers.get(ItemHeaderKey::SpanId)?;
+        Some(ParentId::SpanId(span_id))
+    }
+
+    /// Sets the parent entity that this item is associated with.
+    pub fn set_parent_id(&mut self, parent_id: Option<ParentId>) {
+        let span_id = parent_id.map(|p| match p {
+            ParentId::SpanId(span_id) => span_id,
+        });
+        self.headers.set_or_remove(ItemHeaderKey::SpanId, span_id);
+    }
+
+    /// Returns `true` if this item is an attachment with AttachmentV2 content type.
+    fn is_attachment_v2(&self) -> bool {
+        self.ty() == &ItemType::Attachment
+            && self.content_type() == Some(ContentType::TraceAttachment)
+    }
+
+    /// Returns `true` if this item is a V2 attachment owned by spans.
+    pub fn is_span_attachment(&self) -> bool {
+        self.is_attachment_v2() && matches!(self.parent_id(), Some(ParentId::SpanId(_)))
+    }
+
+    /// Returns `true` if this item is a V2 attachment without any span/log/etc. association.
+    pub fn is_trace_attachment(&self) -> bool {
+        self.is_attachment_v2() && self.parent_id().is_none()
+    }
+
+    /// Returns `true` if this item is an attachment placeholder.
+    fn is_attachment_ref(&self) -> bool {
+        self.ty() == &ItemType::Attachment
+            && self.content_type() == Some(ContentType::AttachmentRef)
+    }
+
+    /// Returns the [`AttachmentParentType`] of an attachment.
+    ///
+    /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
+    pub fn attachment_parent_type(&self) -> AttachmentParentType {
+        let is_attachment = self.ty() == &ItemType::Attachment;
+        debug_assert!(
+            is_attachment,
+            "function should only be called on attachments"
+        );
+        let is_trace_attachment = self.content_type() == Some(ContentType::TraceAttachment);
+
+        if is_trace_attachment {
+            match self.parent_id() {
+                Some(ParentId::SpanId(_)) => AttachmentParentType::Span,
+                None => AttachmentParentType::Trace,
+            }
+        } else {
+            AttachmentParentType::Event
+        }
+    }
+
+    /// Returns the attachment payload size.
+    ///
+    /// - For trace attachments, returns only the size of the actual payload, excluding the attachment meta.
+    /// - For attachment placeholders, returns the size represented by the placeholder.
+    /// - For Attachment, returns the size of entire payload.
+    ///
+    /// **Note:** This relies on the `meta_length` header which might not be correct as such this
+    /// is best effort.
+    pub fn attachment_body_size(&self) -> usize {
+        if self.is_attachment_v2() {
+            self.len()
+                .saturating_sub(self.meta_length().unwrap_or(0) as usize)
+        } else if self.is_attachment_ref() {
+            self.headers
+                .get(ItemHeaderKey::AttachmentLength)
+                .unwrap_or(0)
+        } else {
+            self.len()
+        }
+        .max(1)
+    }
+
+    /// Returns `true` if this item contains a payload which is unknown to this version of Relay.
+    pub fn is_unknown(&self) -> bool {
+        if matches!(self.ty(), ItemType::Unknown(_)) {
+            return true;
+        }
+        if self
+            .headers
+            .try_get::<AttachmentType>(ItemHeaderKey::AttachmentType)
+            .is_err()
+        {
+            return true;
+        }
+        false
     }
 
     /// Determines whether the given item creates an event.
@@ -412,20 +634,25 @@ impl Item {
             // Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
             ItemType::Attachment => {
-                match self.attachment_type().unwrap_or(&AttachmentType::default()) {
-                    AttachmentType::AppleCrashReport
-                    | AttachmentType::Minidump
-                    | AttachmentType::EventPayload
-                    | AttachmentType::Prosperodump
-                    | AttachmentType::Breadcrumbs => true,
-                    AttachmentType::Attachment
-                    | AttachmentType::UnrealContext
-                    | AttachmentType::UnrealLogs
-                    | AttachmentType::ViewHierarchy => false,
+                match self.attachment_type() {
+                    Some(
+                        AttachmentType::AppleCrashReport
+                        | AttachmentType::Minidump
+                        | AttachmentType::EventPayload
+                        | AttachmentType::Prosperodump
+                        | AttachmentType::Breadcrumbs
+                        | AttachmentType::NintendoSwitchDyingMessage,
+                    ) => true,
+                    Some(
+                        AttachmentType::Attachment
+                        | AttachmentType::UnrealContext
+                        | AttachmentType::UnrealLogs
+                        | AttachmentType::ViewHierarchy,
+                    ) => false,
                     // When an outdated Relay instance forwards an unknown attachment type for compatibility,
                     // we assume that the attachment does not create a new event. This will make it hard
                     // to introduce new attachment types which _do_ create a new event.
-                    AttachmentType::Unknown(_) => false,
+                    None => false,
                 }
             }
 
@@ -510,6 +737,23 @@ impl Item {
     /// Determines if this item is an `ItemContainer` based on its content type.
     pub fn is_container(&self) -> bool {
         self.content_type().is_some_and(ContentType::is_container)
+    }
+
+    fn parse_span_count(&self) -> Option<usize> {
+        #[derive(Debug, serde::Deserialize)]
+        struct PartialEvent {
+            spans: crate::utils::SeqCount,
+        }
+
+        if self.headers.ty != ItemType::Transaction || self.spans_extracted() {
+            return None;
+        }
+
+        let event = relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
+            serde_json::from_slice::<PartialEvent>(&self.payload()).ok()?
+        });
+
+        Some(event.spans.0)
     }
 }
 
@@ -739,40 +983,28 @@ impl std::str::FromStr for ItemType {
 
 relay_common::impl_str_serde!(ItemType, "an envelope item type (see sentry develop docs)");
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ItemHeaders {
-    /// The type of the item.
-    #[serde(rename = "type")]
-    ty: ItemType,
-
+/// AN item header stored in [`ItemHeaders`].
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ItemHeaderKey {
     /// Content length of the item.
     ///
     /// Can be omitted if the item does not contain new lines. In this case, the item payload is
     /// parsed until the first newline is encountered.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    length: Option<u32>,
-
+    Length,
     /// The amount of contained items.
     ///
     /// This header is required for all items that are transmitted in an envelope [`super::ItemContainer`].
     /// The amount specified must match the amount of items contained in the container exactly.
     ///
     /// Failing to specify the count or a mismatching count will be treated as an invalid envelope.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    item_count: Option<u32>,
-
+    ItemCount,
     /// If this is an attachment item, this may contain the attachment type.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    attachment_type: Option<AttachmentType>,
-
+    AttachmentType,
     /// Content type of the payload.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    content_type: Option<ContentType>,
-
+    ContentType,
     /// If this is an attachment item, this may contain the original file name.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    filename: Option<String>,
-
+    Filename,
     /// The platform this item was produced for.
     ///
     /// Currently only used for [`ItemType::ProfileChunk`].
@@ -781,17 +1013,83 @@ pub struct ItemHeaders {
     ///
     /// This is currently considered optional for profile chunks, but may change
     /// to required in the future.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    platform: Option<String>,
-
-    /// The routing_hint may be used to specify how the envelpope should be routed in when
-    /// published to kafka.
+    Platform,
+    /// Flag indicating if metrics have already been extracted from the item.
     ///
-    /// XXX(epurkhiser): This is currently ONLY used for [`ItemType::CheckIn`]'s when publishing
-    /// the envelope into kafka.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    routing_hint: Option<Uuid>,
+    /// In order to only extract metrics once from an item while through a
+    /// chain of Relays, a Relay that extracts metrics from an item (typically
+    /// the first Relay) MUST set this flat to true so that upstream Relays do
+    /// not extract the metric again causing double counting of the metric.
+    MetricsExtracted,
+    /// Whether or not spans and span metrics have been extracted from a transaction.
+    ///
+    /// This header is set to `true` after both span extraction and span metrics extraction,
+    /// and can be used to skip extraction.
+    ///
+    /// NOTE: This header is also set to `true` for transactions that are themselves extracted
+    /// from spans (the opposite direction), to prevent going in circles.
+    SpansExtracted,
+    /// The number of spans in the `event.spans` array.
+    ///
+    /// Should never be set except for transaction items.
+    ///
+    /// When a transaction is dropped before spans were extracted from a transaction,
+    /// this number is used to emit correct outcomes for the spans category.
+    ///
+    /// This number does *not* count the transaction itself.
+    SpanCount,
+    /// Whether the event has been _fully_ normalized.
+    ///
+    /// If the event has been partially normalized, this flag is false. By
+    /// default, all Relays run some normalization.
+    ///
+    /// Currently only used for events.
+    FullyNormalized,
+    /// `false` if the sampling decision is "drop".
+    ///
+    /// In the most common use case, the item is dropped when the sampling decision is "drop".
+    /// For profiles with the feature enabled, however, we keep all profile items and mark the ones
+    /// for which the transaction was dropped as `sampled: false`.
+    Sampled,
+    /// Content length of an optional meta segment that might be contained in the item.
+    ///
+    /// For the time being such an meta segment is only present for trace attachments.
+    MetaLength,
+    /// Parent span entity that this item is associated with, if any.
+    ///
+    /// For the time being only applicable if the item is a trace attachment.
+    SpanId,
+    /// Size of the attachment that an attachment placeholder represents.
+    ///
+    /// Only valid in combination with [`ContentType::AttachmentRef`]. This untrusted header is used
+    /// to emit negative outcomes, but must not be used for consistent rate limiting.
+    AttachmentLength,
+    /// The Sentry release stored in a header.
+    SentryRelease,
+    /// The Sentry environment stored in a header.
+    SentryEnvironment,
+}
 
+/// The value of an item header.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ItemHeaderValue(serde_json::Value);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ItemHeaders {
+    /// The type of the item.
+    #[serde(rename = "type")]
+    ty: ItemType,
+
+    /// If this is an attachment item, this may contain the storage key in case it is uploaded to objectstore.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    stored_key: Option<String>,
+    /// The routing_hint may be used to specify how the envelpope should be routed in when
+    /// published to Kafka.
+    #[serde(default, skip)]
+    routing_hint: Option<Uuid>,
     /// Indicates that this item is being rate limited.
     ///
     /// By default, rate limited items are immediately removed from Envelopes. For processing,
@@ -802,7 +1100,6 @@ pub struct ItemHeaders {
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
     rate_limited: bool,
-
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -815,51 +1112,68 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     source_quantities: Option<SourceQuantities>,
 
-    /// Flag indicating if metrics have already been extracted from the item.
-    ///
-    /// In order to only extract metrics once from an item while through a
-    /// chain of Relays, a Relay that extracts metrics from an item (typically
-    /// the first Relay) MUST set this flat to true so that upstream Relays do
-    /// not extract the metric again causing double counting of the metric.
-    #[serde(default, skip_serializing_if = "is_false")]
-    metrics_extracted: bool,
-
-    /// Whether or not spans and span metrics have been extracted from a transaction.
-    ///
-    /// This header is set to `true` after both span extraction and span metrics extraction,
-    /// and can be used to skip extraction.
-    ///
-    /// NOTE: This header is also set to `true` for transactions that are themselves extracted
-    /// from spans (the opposite direction), to prevent going in circles.
-    #[serde(default, skip_serializing_if = "is_false")]
-    spans_extracted: bool,
-
-    /// Whether the event has been _fully_ normalized.
-    ///
-    /// If the event has been partially normalized, this flag is false. By
-    /// default, all Relays run some normalization.
-    ///
-    /// Currently only used for events.
-    #[serde(default, skip_serializing_if = "is_false")]
-    fully_normalized: bool,
-
-    /// `false` if the sampling decision is "drop".
-    ///
-    /// In the most common use case, the item is dropped when the sampling decision is "drop".
-    /// For profiles with the feature enabled, however, we keep all profile items and mark the ones
-    /// for which the transaction was dropped as `sampled: false`.
-    #[serde(default = "default_true", skip_serializing_if = "is_true")]
-    sampled: bool,
-
-    /// Tracks whether the item is a backend or ui profile chunk.
-    ///
-    /// NOTE: This is internal-only and not exposed into the Envelope.
-    #[serde(default, skip)]
-    profile_type: Option<ProfileType>,
-
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
-    other: BTreeMap<String, Value>,
+    inner: BTreeMap<MaybeKnown<ItemHeaderKey>, ItemHeaderValue>,
+}
+
+impl ItemHeaders {
+    fn contains(&self, key: ItemHeaderKey) -> bool {
+        self.inner.contains_key(&MaybeKnown::Known(key))
+    }
+
+    fn get<'a, T>(&'a self, key: ItemHeaderKey) -> Option<T>
+    where
+        T: Deserialize<'a>,
+    {
+        self.inner
+            .get(&MaybeKnown::Known(key))
+            .and_then(|v| T::deserialize(&v.0).ok())
+    }
+
+    fn try_get<'a, T>(&'a self, key: ItemHeaderKey) -> Result<Option<T>, serde_json::Error>
+    where
+        T: Deserialize<'a>,
+    {
+        self.inner
+            .get(&MaybeKnown::Known(key))
+            .map(|v| T::deserialize(&v.0))
+            .transpose()
+    }
+
+    fn set<T>(&mut self, key: ItemHeaderKey, value: T) -> &mut Self
+    where
+        T: Serialize,
+    {
+        let value = serde_json::to_value(value).expect("header value must be json serializable");
+        self.inner
+            .insert(MaybeKnown::Known(key), ItemHeaderValue(value));
+        self
+    }
+
+    fn set_or_remove<T>(&mut self, key: ItemHeaderKey, value: Option<T>) -> &mut Self
+    where
+        T: Serialize,
+    {
+        if let Some(value) = value {
+            self.set(key, value);
+        } else {
+            self.inner.remove(&MaybeKnown::Known(key));
+        }
+        self
+    }
+}
+
+/// An item key which is potentially known to Relay.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum MaybeKnown<T> {
+    /// An item known to this Relay.
+    Known(T),
+    /// An unknown item.
+    ///
+    /// Kept for forward compatibility.
+    Unknown(String),
 }
 
 /// Container for item quantities that the item was derived from.
@@ -871,8 +1185,6 @@ pub struct SourceQuantities {
     pub transactions: usize,
     /// Spans quantity.
     pub spans: usize,
-    /// Profile quantity.
-    pub profiles: usize,
     /// Total number of buckets.
     pub buckets: usize,
 }
@@ -882,26 +1194,49 @@ impl AddAssign for SourceQuantities {
         let Self {
             transactions,
             spans,
-            profiles,
             buckets,
         } = self;
         *transactions += other.transactions;
         *spans += other.spans;
-        *profiles += other.profiles;
         *buckets += other.buckets;
     }
 }
 
-fn is_false(val: &bool) -> bool {
-    !*val
+/// Parent identifier for an attachment-v2.
+///
+/// Attachments can be associated with different types of parent entities (only spans for now).
+///
+/// SpanId(None) indicates that the item is a span-attachment that is associated with no specific
+/// span.
+#[derive(Clone, Debug)]
+pub enum ParentId {
+    SpanId(Option<SpanId>),
 }
 
-fn default_true() -> bool {
-    true
+impl ParentId {
+    /// Converts the ID to a span ID (if applicable).
+    pub fn as_span_id(&self) -> Option<SpanId> {
+        match self {
+            ParentId::SpanId(span_id) => *span_id,
+        }
+    }
 }
 
-fn is_true(value: &bool) -> bool {
-    *value
+/// The type of parent entity an attachment is associated with.
+///
+/// This is used to route attachments to different rate limiting buckets, since
+/// depending on the parent the limiting logic is different. E.g. if the attachment has
+/// [`AttachmentParentType::Span`] than it should be dropped if there are span limits.
+///
+/// See [`Item::attachment_parent_type`] for how this is determined from an item.
+#[derive(Debug)]
+pub enum AttachmentParentType {
+    /// The parent type for all V1 attachments (e.g. minidumps)
+    Event,
+    /// The parent type for all span V2 attachments.
+    Span,
+    /// The parent type for all trace V2 attachments.
+    Trace,
 }
 
 #[cfg(test)]
@@ -934,16 +1269,7 @@ mod tests {
         assert!(!item.is_empty());
 
         // Meta data
-        assert_eq!(item.content_type(), Some(&ContentType::Json));
-    }
-
-    #[test]
-    fn test_item_set_header() {
-        let mut item = Item::new(ItemType::Event);
-        item.set_header("custom", 42u64);
-
-        assert_eq!(item.get_header("custom"), Some(&Value::from(42u64)));
-        assert_eq!(item.get_header("anything"), None);
+        assert_eq!(item.content_type(), Some(ContentType::Json));
     }
 
     #[test]
@@ -982,7 +1308,7 @@ mod tests {
 
         assert_eq!(
             item.content_type(),
-            Some(&ContentType::Integration(Integration::Logs(
+            Some(ContentType::Integration(Integration::Logs(
                 LogsIntegration::OtelV1 {
                     format: OtelFormat::Json
                 }
@@ -999,5 +1325,79 @@ mod tests {
         assert_eq!(ItemType::Unknown("test".to_owned()).as_str(), "test");
         assert_eq!(&ItemType::Span.to_string(), "span");
         assert_eq!(&ItemType::Unknown("test".to_owned()).to_string(), "test");
+    }
+
+    #[test]
+    fn test_item_headers() {
+        let mut headers: ItemHeaders = serde_json::from_str(
+            r#"{
+            "type":"attachment",
+            "length":42,
+            "content_type": "application/json",
+            "filename":"test.txt"
+        }"#,
+        )
+        .unwrap();
+
+        assert_eq!(headers.ty, ItemType::Attachment);
+        assert!(headers.contains(ItemHeaderKey::Length));
+        assert_eq!(headers.get(ItemHeaderKey::Length), Some(42u32));
+        assert_eq!(headers.get(ItemHeaderKey::Filename), Some("test.txt"));
+        assert_eq!(
+            headers.get(ItemHeaderKey::ContentType),
+            Some("application/json")
+        );
+
+        headers.set_or_remove(ItemHeaderKey::Length, Some(1337u32));
+        assert_eq!(headers.get(ItemHeaderKey::Length), Some(1337));
+        headers.set_or_remove(ItemHeaderKey::Length, None::<u32>);
+        assert!(!headers.contains(ItemHeaderKey::Length));
+
+        let s = serde_json::to_string(&headers).unwrap();
+        insta::assert_snapshot!(s, @r#"{"type":"attachment","content_type":"application/json","filename":"test.txt"}"#);
+    }
+
+    #[test]
+    fn test_item_headers_unknown() {
+        let (item, _) = Item::parse(Bytes::from_static(
+            concat!(
+                r#"{"type":"attachment","unknown1":"foo","unknown2":"bar","length":5}"#,
+                "\n",
+                "12345"
+            )
+            .as_bytes(),
+        ))
+        .unwrap();
+
+        insta::assert_debug_snapshot!(&item.headers, @r#"
+        ItemHeaders {
+            ty: Attachment,
+            stored_key: None,
+            routing_hint: None,
+            rate_limited: false,
+            source_quantities: None,
+            inner: {
+                Known(
+                    Length,
+                ): ItemHeaderValue(
+                    Number(5),
+                ),
+                Unknown(
+                    "unknown1",
+                ): ItemHeaderValue(
+                    String("foo"),
+                ),
+                Unknown(
+                    "unknown2",
+                ): ItemHeaderValue(
+                    String("bar"),
+                ),
+            },
+        }
+        "#);
+
+        // Round trip -> serializes the headers again.
+        let s = serde_json::to_string(&item.headers).unwrap();
+        insta::assert_snapshot!(s, @r#"{"type":"attachment","length":5,"unknown1":"foo","unknown2":"bar"}"#);
     }
 }

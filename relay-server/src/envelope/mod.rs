@@ -196,9 +196,28 @@ impl<M> EnvelopeHeaders<M> {
         }
     }
 
+    /// Overrides the dynamic sampling context in envelope headers.
+    pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
+        self.trace = Some(ErrorBoundary::Ok(dsc));
+    }
+
+    /// Removes the dynamic sampling context from envelope headers.
+    pub fn remove_dsc(&mut self) {
+        self.trace = None;
+    }
+
     /// Returns the timestamp when the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.sent_at
+    }
+
+    /// Returns the specified header value, if present.
+    pub fn get_header<K>(&self, name: &K) -> Option<&Value>
+    where
+        String: Borrow<K>,
+        K: Ord + ?Sized,
+    {
+        self.other.get(name)
     }
 }
 
@@ -441,12 +460,12 @@ impl Envelope {
 
     /// Overrides the dynamic sampling context in envelope headers.
     pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
-        self.headers.trace = Some(ErrorBoundary::Ok(dsc));
+        self.headers.set_dsc(dsc);
     }
 
     /// Removes the dynamic sampling context from envelope headers.
     pub fn remove_dsc(&mut self) {
-        self.headers.trace = None;
+        self.headers.remove_dsc();
     }
 
     /// Features required to process this envelope.
@@ -466,7 +485,7 @@ impl Envelope {
         String: Borrow<K>,
         K: Ord + ?Sized,
     {
-        self.headers.other.get(name)
+        self.headers.get_header(name)
     }
 
     /// Sets the specified header value, returning the previous one if present.
@@ -894,7 +913,7 @@ mod tests {
             items[0].payload(),
             Bytes::from(&b"\xef\xbb\xbfHello\r\n"[..])
         );
-        assert_eq!(items[0].content_type(), Some(&ContentType::Text));
+        assert_eq!(items[0].content_type(), Some(ContentType::Text));
 
         assert_eq!(items[1].ty(), &ItemType::Event);
         assert_eq!(items[1].len(), 41);
@@ -902,7 +921,7 @@ mod tests {
             items[1].payload(),
             Bytes::from("{\"message\":\"hello world\",\"level\":\"error\"}")
         );
-        assert_eq!(items[1].content_type(), Some(&ContentType::Json));
+        assert_eq!(items[1].content_type(), Some(ContentType::Json));
         assert_eq!(items[1].filename(), Some("application.log"));
     }
 
@@ -972,7 +991,7 @@ mod tests {
         assert_eq!(items[0].ty(), &ItemType::Attachment);
         assert_eq!(
             items[0].attachment_type(),
-            Some(&AttachmentType::ViewHierarchy)
+            Some(AttachmentType::ViewHierarchy)
         );
     }
 

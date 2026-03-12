@@ -210,7 +210,10 @@ pub fn process_user_reports<Group>(managed_envelope: &mut TypedEnvelope<Group>) 
         let report = match serde_json::from_slice::<UserReport>(payload) {
             Ok(report) => report,
             Err(error) => {
-                relay_log::error!(error = &error as &dyn Error, "failed to store user report");
+                relay_log::debug!(
+                    error = &error as &dyn Error,
+                    "failed to deserialize user report"
+                );
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
             }
         };
@@ -266,10 +269,8 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
 
 #[cfg(test)]
 mod tests {
-    use relay_cogs::Token;
     use relay_config::Config;
     use relay_event_schema::protocol::EventId;
-    use relay_sampling::evaluation::ReservoirCounters;
 
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
@@ -330,13 +331,9 @@ mod tests {
                 config: &config,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
-        let envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap();
+        let envelope = processor.process(message).await.unwrap();
         assert!(envelope.is_none());
     }
 
@@ -390,12 +387,9 @@ mod tests {
                 config: &config,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
+        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
             panic!();
         };
         let item = new_envelope.envelope().items().next().unwrap();
@@ -458,13 +452,9 @@ mod tests {
                 config: &config,
                 ..processing::Context::for_test()
             },
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
-        let envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap();
+        let envelope = processor.process(message).await.unwrap();
         assert!(envelope.is_none());
     }
 
@@ -501,12 +491,9 @@ mod tests {
             group,
             envelope,
             ctx: processing::Context::for_test(),
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
+        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
             panic!();
         };
         let new_envelope = new_envelope.envelope();
@@ -552,12 +539,9 @@ mod tests {
             group,
             envelope,
             ctx: processing::Context::for_test(),
-            reservoir_counters: &ReservoirCounters::default(),
         };
 
-        let Ok(Some(Submit::Envelope(new_envelope))) =
-            processor.process(&mut Token::noop(), message).await
-        else {
+        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
             panic!();
         };
         let new_envelope = new_envelope.envelope();

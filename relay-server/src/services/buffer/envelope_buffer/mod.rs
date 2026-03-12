@@ -20,7 +20,7 @@ use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
-use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayDistributions, RelayGauges, RelayTimers};
 use crate::utils::MemoryChecker;
 
 /// Polymorphic envelope buffering interface.
@@ -79,7 +79,7 @@ impl PolymorphicEnvelopeBuffer {
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopeBodySize) =
+            distribution(RelayDistributions::BufferEnvelopeBodySize) =
                 envelope.items().map(Item::len).sum::<usize>() as u64,
             partition_id = self.partition_tag()
         );
@@ -91,10 +91,9 @@ impl PolymorphicEnvelopeBuffer {
                 match self {
                     Self::Sqlite(buffer) => buffer.push(envelope).await,
                     Self::InMemory(buffer) => buffer.push(envelope).await,
-                }?;
+                }
             }
-        );
-        Ok(())
+        )
     }
 
     /// Returns a reference to the next-in-line envelope.
@@ -113,17 +112,16 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Pops the next-in-line envelope.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let envelope = relay_statsd::metric!(
+        relay_statsd::metric!(
             timer(RelayTimers::BufferPop),
             partition_id = self.partition_tag(),
             {
                 match self {
                     Self::Sqlite(buffer) => buffer.pop().await,
                     Self::InMemory(buffer) => buffer.pop().await,
-                }?
+                }
             }
-        );
-        Ok(envelope)
+        )
     }
 
     /// Marks a project as ready or not ready.
@@ -576,7 +574,7 @@ where
             false => "false",
         };
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesCount) = total_count,
+            gauge(RelayGauges::BufferEnvelopesCount) = total_count,
             initialized = initialized,
             stack_type = self.stack_provider.stack_type(),
             partition_id = &self.partition_tag

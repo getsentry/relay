@@ -67,7 +67,7 @@ def test_event_with_span_link_in_transaction(relay, mini_sentry):
 
     relay.send_envelope(42, envelope)
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert envelope
     assert envelope.items[0].payload.json["contexts"] == {
         "trace": {
@@ -118,4 +118,4 @@ def test_event_with_span_link_in_transaction(relay, mini_sentry):
         },
     ]
 
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()

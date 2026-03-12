@@ -1,7 +1,6 @@
 import zlib
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-import pytest
 
 from .test_replay_events import generate_replay_sdk_event
 
@@ -20,42 +19,40 @@ def test_replay_recordings(mini_sentry, relay_chain):
     envelope.add_item(
         Item(payload=PayloadRef(bytes=b"{}\n[]"), type="replay_recording")
     )
+    envelope.add_item(
+        Item(payload=PayloadRef(json=generate_replay_sdk_event()), type="replay_event")
+    )
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_event()
-    assert len(envelope.items) == 1
+    envelope = mini_sentry.get_captured_envelope()
+    assert len(envelope.items) == 2
+    assert {item.type for item in envelope.items} == {
+        "replay_recording",
+        "replay_event",
+    }
 
-    session_item = envelope.items[0]
-    assert session_item.type == "replay_recording"
-
-    replay_recording = session_item.get_bytes()
+    recording_item = next(
+        item for item in envelope.items if item.type == "replay_recording"
+    )
+    replay_recording = recording_item.get_bytes()
     assert replay_recording.startswith(b"{}\n")  # The body is compressed
 
 
-@pytest.mark.parametrize("value,expected", [(1.0, True), (None, False), (0.0, False)])
 def test_nonchunked_replay_recordings_processing(
     mini_sentry,
     relay_with_processing,
-    replay_events_consumer,
     replay_recordings_consumer,
     outcomes_consumer,
-    value,
-    expected,
 ):
     project_id = 42
     org_id = 0
     replay_id = "515539018c9b4260a6f999572f1661ee"
 
-    if value is not None:
-        mini_sentry.global_config["options"][
-            "replay.relay-snuba-publishing-disabled.sample-rate"
-        ] = value
     mini_sentry.add_basic_project_config(
         project_id, extra={"config": {"features": ["organizations:session-replay"]}}
     )
     relay = relay_with_processing()
-    replay_events_consumer = replay_events_consumer(timeout=10)
     replay_recordings_consumer = replay_recordings_consumer()
     outcomes_consumer = outcomes_consumer()
 
@@ -85,14 +82,7 @@ def test_nonchunked_replay_recordings_processing(
     assert replay_recording["retention_days"] == 90
     assert replay_recording["payload"] == payload
     assert replay_recording["type"] == "replay_recording_not_chunked"
-    assert replay_recording["relay_snuba_publish_disabled"] is expected
-
-    if expected is True:
-        # Nothing produced.
-        with pytest.raises(AssertionError):
-            replay_events_consumer.get_replay_event()
-    else:
-        assert replay_events_consumer.get_replay_event() is not None
+    assert replay_recording["relay_snuba_publish_disabled"]
 
     outcomes_consumer.assert_empty()
 

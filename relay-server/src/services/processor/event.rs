@@ -4,13 +4,11 @@ use std::error::Error;
 
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
     SecurityReportType, Values,
 };
-use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Array, Empty, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Object};
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
 
@@ -21,17 +19,8 @@ use crate::services::processor::{
     EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent, ProcessingError,
     SpansExtracted, event_type,
 };
-use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
-
-/// Result of the extraction of the primary event payload from an envelope.
-#[derive(Debug)]
-pub struct ExtractionResult {
-    pub event: Annotated<Event>,
-    pub event_metrics_extracted: Option<EventMetricsExtracted>,
-    pub spans_extracted: Option<SpansExtracted>,
-}
 
 /// Extracts the primary event payload from an envelope.
 ///
@@ -46,24 +35,23 @@ pub fn extract<Group: EventProcessing>(
     metrics: &mut Metrics,
     event_fully_normalized: EventFullyNormalized,
     config: &Config,
-) -> Result<ExtractionResult, ProcessingError> {
+) -> Result<Annotated<Event>, ProcessingError> {
     let envelope = managed_envelope.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
     // `process_event`.
     let event_item = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
-    let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
     let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
     let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
     let user_report_v2_item = envelope.take_item_by(|item| item.ty() == &ItemType::UserReportV2);
     let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
     let attachment_item =
-        envelope.take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
+        envelope.take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
     let breadcrumbs1 =
-        envelope.take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
+        envelope.take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
     let breadcrumbs2 =
-        envelope.take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
+        envelope.take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
 
     // Event items can never occur twice in an envelope.
     if let Some(duplicate) =
@@ -74,8 +62,6 @@ pub fn extract<Group: EventProcessing>(
 
     let skip_normalization = config.processing_enabled() && event_fully_normalized.0;
 
-    let mut event_metrics_extracted = None;
-    let mut spans_extracted = None;
     let (event, event_len) = if let Some(item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
@@ -89,17 +75,6 @@ pub fn extract<Group: EventProcessing>(
             }
             (annotated_event, len)
         })
-    } else if let Some(item) = transaction_item {
-        relay_log::trace!("processing json transaction");
-
-        event_metrics_extracted = Some(EventMetricsExtracted(item.metrics_extracted()));
-        spans_extracted = Some(SpansExtracted(item.spans_extracted()));
-
-        metric!(timer(RelayTimers::EventProcessingDeserialize), {
-            // Transaction items can only contain transaction events. Force the event type to
-            // hint to normalization that we're dealing with a transaction now.
-            event_from_json_payload(item, Some(EventType::Transaction))?
-        })
     } else if let Some(item) = user_report_v2_item {
         relay_log::trace!("processing user_report_v2");
         event_from_json_payload(item, Some(EventType::UserReportV2))?
@@ -107,7 +82,7 @@ pub fn extract<Group: EventProcessing>(
         relay_log::trace!("processing security report");
         event_from_security_report(item, envelope.meta()).map_err(|error| {
             if !matches!(error, ProcessingError::UnsupportedSecurityType) {
-                relay_log::error!(
+                relay_log::debug!(
                     error = &error as &dyn Error,
                     "failed to extract security report"
                 );
@@ -122,7 +97,7 @@ pub fn extract<Group: EventProcessing>(
         let len = item.len();
 
         let mut value = SerdeValue::Object(Default::default());
-        merge_formdata(&mut value, item);
+        merge_formdata(&mut value, &item);
         let event = Annotated::deserialize_with_meta(value).unwrap_or_default();
 
         (event, len)
@@ -133,44 +108,7 @@ pub fn extract<Group: EventProcessing>(
 
     metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
-    Ok(ExtractionResult {
-        event,
-        event_metrics_extracted,
-        spans_extracted,
-    })
-}
-
-/// Apply data privacy rules to the event payload.
-///
-/// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-pub fn scrub(
-    event: &mut Annotated<Event>,
-    project_info: &ProjectInfo,
-) -> Result<(), ProcessingError> {
-    let config = &project_info.config;
-
-    if config.datascrubbing_settings.scrub_data
-        && let Some(event) = event.value_mut()
-    {
-        relay_pii::scrub_graphql(event);
-    }
-
-    metric!(timer(RelayTimers::EventProcessingPii), {
-        if let Some(ref config) = config.pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-        let pii_config = config
-            .datascrubbing_settings
-            .pii_config()
-            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
-        if let Some(config) = pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-    });
-
-    Ok(())
+    Ok(event)
 }
 
 pub fn serialize<Group: EventProcessing>(
@@ -181,7 +119,7 @@ pub fn serialize<Group: EventProcessing>(
     spans_extracted: SpansExtracted,
 ) -> Result<(), ProcessingError> {
     if event.is_empty() {
-        relay_log::error!("Cannot serialize empty event");
+        relay_log::debug!("Cannot serialize empty event");
         return Ok(());
     }
 
@@ -198,6 +136,7 @@ pub fn serialize<Group: EventProcessing>(
     event_item.set_metrics_extracted(event_metrics_extracted.0);
     event_item.set_spans_extracted(spans_extracted.0);
     event_item.set_fully_normalized(event_fully_normalized.0);
+    event_item.set_span_count(event.value().and_then(|e| e.spans.value()).map(Vec::len));
 
     managed_envelope.envelope_mut().add_item(event_item);
 
@@ -280,7 +219,7 @@ fn event_from_json_payload(
     Ok((event, item.len()))
 }
 
-fn event_from_security_report(
+pub fn event_from_security_report(
     item: Item,
     meta: &RequestMeta,
 ) -> Result<ExtractedEvent, ProcessingError> {
@@ -318,14 +257,11 @@ fn event_from_security_report(
         return Err(ProcessingError::InvalidSecurityReport(json_error));
     }
 
-    if let Some(release) = item.get_header("sentry_release").and_then(Value::as_str) {
+    if let Some(release) = item.sentry_release() {
         event.release = Annotated::from(LenientString(release.to_owned()));
     }
 
-    if let Some(env) = item
-        .get_header("sentry_environment")
-        .and_then(Value::as_str)
-    {
+    if let Some(env) = item.sentry_environment() {
         event.environment = Annotated::from(env.to_owned());
     }
 
@@ -402,7 +338,7 @@ fn parse_msgpack_breadcrumbs(
     Ok(breadcrumbs)
 }
 
-fn event_from_attachments(
+pub fn event_from_attachments(
     config: &Config,
     event_item: Option<Item>,
     breadcrumbs_item1: Option<Item>,
@@ -454,7 +390,7 @@ fn event_from_attachments(
     Ok((event, len))
 }
 
-fn merge_formdata(target: &mut SerdeValue, item: Item) {
+pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
     let payload = item.payload();
     let mut aggregator = ChunkedFormDataAggregator::new();
 

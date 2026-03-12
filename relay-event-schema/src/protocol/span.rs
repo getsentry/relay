@@ -164,6 +164,7 @@ impl Getter for Span {
                 "parent_span_id" => self.parent_span_id.value()?.into(),
                 "trace_id" => self.trace_id.value()?.deref().into(),
                 "status" => self.status.as_str()?.into(),
+                "is_segment" => self.is_segment.value()?.into(),
                 "origin" => self.origin.as_str()?.into(),
                 "duration" => {
                     let start_timestamp = *self.start_timestamp.value()?;
@@ -540,10 +541,6 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.request.model", legacy_alias = "ai.model_id")]
     pub gen_ai_request_model: Annotated<Value>,
 
-    /// The total cost for the tokens used
-    #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
-    pub gen_ai_usage_total_cost: Annotated<Value>,
-
     /// The total cost for the tokens used (duplicate field for migration)
     #[metastructure(field = "gen_ai.cost.total_tokens", pii = "maybe")]
     pub gen_ai_cost_total_tokens: Annotated<Value>,
@@ -614,6 +611,10 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.response.tokens_per_second", pii = "maybe")]
     pub gen_ai_response_tokens_per_second: Annotated<Value>,
 
+    /// Time to first token from the LLM response
+    #[metastructure(field = "gen_ai.response.time_to_first_token", pii = "maybe")]
+    pub gen_ai_response_time_to_first_token: Annotated<Value>,
+
     /// The available tools for a request to an LLM
     #[metastructure(
         field = "gen_ai.request.available_tools",
@@ -666,6 +667,14 @@ pub struct SpanData {
     /// The GenAI system identifier
     #[metastructure(field = "gen_ai.system", legacy_alias = "ai.model.provider")]
     pub gen_ai_system: Annotated<Value>,
+
+    /// The system instructions passed to the model.
+    #[metastructure(
+        field = "gen_ai.system_instructions",
+        legacy_alias = "gen_ai.system.message",
+        pii = "maybe"
+    )]
+    pub gen_ai_system_instructions: Annotated<Value>,
 
     /// The name of the tool being called
     #[metastructure(
@@ -1011,7 +1020,6 @@ impl Getter for SpanData {
             "environment" => self.environment.as_str()?.into(),
             "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
-            "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
             "gen_ai\\.cost\\.total_tokens" => self.gen_ai_cost_total_tokens.value()?.into(),
             "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
             "gen_ai\\.cost\\.output_tokens" => self.gen_ai_cost_output_tokens.value()?.into(),
@@ -1484,7 +1492,6 @@ mod tests {
             gen_ai_usage_output_tokens_prediction_rejected: ~,
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
-            gen_ai_usage_total_cost: ~,
             gen_ai_cost_total_tokens: ~,
             gen_ai_cost_input_tokens: ~,
             gen_ai_cost_output_tokens: ~,
@@ -1497,6 +1504,7 @@ mod tests {
             gen_ai_response_object: ~,
             gen_ai_response_streaming: ~,
             gen_ai_response_tokens_per_second: ~,
+            gen_ai_response_time_to_first_token: ~,
             gen_ai_request_available_tools: ~,
             gen_ai_request_frequency_penalty: ~,
             gen_ai_request_presence_penalty: ~,
@@ -1507,6 +1515,7 @@ mod tests {
             gen_ai_response_finish_reason: ~,
             gen_ai_response_id: ~,
             gen_ai_system: ~,
+            gen_ai_system_instructions: ~,
             gen_ai_tool_name: ~,
             gen_ai_operation_name: ~,
             gen_ai_operation_type: ~,

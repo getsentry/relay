@@ -5,8 +5,8 @@ use relay_event_schema::processor::ValueType;
 
 use crate::selector::{SelectorPathItem, SelectorSpec};
 use crate::{
-    DataScrubbingConfig, LazyPattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction,
-    RuleSpec, RuleType, Vars,
+    DataScrubbingConfig, LazyPattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType,
+    Vars,
 };
 
 /// Fields that the legacy data scrubber cannot strip.
@@ -27,35 +27,49 @@ static KNOWN_IP_FIELDS: LazyLock<SelectorSpec> = LazyLock::new(|| {
 });
 
 static SENSITIVE_COOKIES: LazyLock<SelectorSpec> = LazyLock::new(|| {
-    [
+    let sensitive_cookies = [
         // Common session cookie names for popular web frameworks
-        "*.cookies.sentrysid", // Sentry default session cookie name
-        "*.cookies.sudo",      // Sentry default sudo cookie name
-        "*.cookies.su",        // Sentry superuser cookie name
-        "*.cookies.session",
-        "*.cookies.__session",
-        "*.cookies.sessionid",
-        "*.cookies.user_session",
-        "*.cookies.symfony",
-        "*.cookies.phpsessid",
-        "*.cookies.fasthttpsessionid",
-        "*.cookies.mysession",
-        "*.cookies.irissessionid",
+        "sentrysid", // Sentry default session cookie name
+        "sudo",      // Sentry default sudo cookie name
+        "su",        // Sentry superuser cookie name
+        "session",
+        "__session",
+        "sessionid",
+        "user_session",
+        "symfony",
+        "phpsessid",
+        "fasthttpsessionid",
+        "mysession",
+        "irissessionid",
+        "_vercel_jwt",
         // Common CSRF/XSRF cookie names for popular web frameworks
-        "*.cookies.csrf",
-        "*.cookies.xsrf",
-        "*.cookies._xsrf",
-        "*.cookies._csrf",
-        "*.cookies.csrf-token",
-        "*.cookies.csrf_token",
-        "*.cookies.xsrf-token",
-        "*.cookies.xsrf_token",
-        "*.cookies.fastcsrf",
-        "*.cookies._iris_csrf",
-    ]
-    .join("|")
-    .parse()
-    .unwrap()
+        "csrf",
+        "xsrf",
+        "_xsrf",
+        "_csrf",
+        "csrf-token",
+        "csrf_token",
+        "xsrf-token",
+        "xsrf_token",
+        "fastcsrf",
+        "_iris_csrf",
+    ];
+
+    // Scrub `http.request.header.cookie` in span data/attributes because all cookies
+    // may be sent in one blob
+    let mut selectors = vec!["*.'http.request.header.cookie'".parse().unwrap()];
+    for name in sensitive_cookies {
+        // Scrub each sensitive cookie both in the cookies object and
+        // as a header on span data/attributes
+        selectors.push(format!("*.cookies.{name}").parse().unwrap());
+        selectors.push(
+            format!("*.'http.request.header.cookie.{name}'")
+                .parse()
+                .unwrap(),
+        );
+    }
+
+    SelectorSpec::Or(selectors)
 });
 
 /// Certain fields in payloads are very important to the product and ideally are not destroyed by
@@ -97,9 +111,7 @@ static REPLACE_ONLY_SELECTOR: LazyLock<SelectorSpec> = LazyLock::new(|| {
     .unwrap()
 });
 
-pub fn to_pii_config(
-    datascrubbing_config: &DataScrubbingConfig,
-) -> Result<Option<PiiConfig>, PiiConfigError> {
+pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
     let mut custom_rules = BTreeMap::new();
     let mut applied_rules = Vec::new();
     let mut applications = BTreeMap::new();
@@ -173,7 +185,7 @@ pub fn to_pii_config(
     }
 
     if applied_rules.is_empty() && applications.is_empty() {
-        return Ok(None);
+        return None;
     }
 
     let mut conjunctions = vec![
@@ -212,12 +224,12 @@ pub fn to_pii_config(
         applications.insert(applied_selector, applied_rules);
     }
 
-    Ok(Some(PiiConfig {
+    Some(PiiConfig {
         rules: custom_rules,
         vars: Vars::default(),
         applications,
         ..Default::default()
-    }))
+    })
 }
 
 #[cfg(test)]
@@ -227,7 +239,7 @@ mod tests {
     use relay_protocol::{FromValue, assert_annotated_snapshot};
     use similar_asserts::assert_eq;
 
-    use crate::PiiProcessor;
+    use crate::{AttributeMode, PiiProcessor};
 
     use super::to_pii_config as to_pii_config_impl;
     use super::*;
@@ -236,7 +248,7 @@ mod tests {
     // has an equivalent testcase in Python.
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
-        let rv = to_pii_config_impl(datascrubbing_config).unwrap();
+        let rv = to_pii_config_impl(datascrubbing_config);
         if let Some(ref config) = rv {
             let roundtrip: PiiConfig =
                 serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
@@ -300,6 +312,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         "fasthttpsessionid": "my fasthttpsessionid",
         "mysession": "my mysession",
         "irissessionid": "my irissessionid",
+        "_vercel_jwt": "my _vercel_jwt",
         // Common CSRF/XSRF cookie names for popular web frameworks
         "csrf": "my csrf",
         "xsrf": "my xsrf",
@@ -352,7 +365,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:replace",
               "@bearer:replace"
             ],
-            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+            "*.'http.request.header.cookie' || *.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf'": [
               "@anything:filter"
             ]
           }
@@ -384,7 +397,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:replace",
               "@bearer:replace"
             ],
-            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+            "*.'http.request.header.cookie' || *.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf'": [
               "@anything:filter"
             ]
           }
@@ -427,7 +440,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:replace",
               "@bearer:replace"
             ],
-            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+            "*.'http.request.header.cookie' || *.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf'": [
               "@anything:filter"
             ]
           }
@@ -459,7 +472,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:replace",
               "@bearer:replace"
             ],
-            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+            "*.'http.request.header.cookie' || *.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf'": [
               "@anything:filter"
             ]
           }
@@ -1380,7 +1393,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:replace",
               "@bearer:replace"
             ],
-            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+            "*.'http.request.header.cookie' || *.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf'": [
               "@anything:filter"
             ]
           }
@@ -1604,6 +1617,120 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         .unwrap();
 
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_span_cookie() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+              "contexts": {
+                  "trace": {
+                    "data": {
+                        "http.request.header.cookie": "session=foobar",
+                        "http.request.header.cookie.sentrysid": "foobar",
+                        "http.request.header.cookie.sudo": "foobar",
+                        "http.request.header.cookie.su": "foobar",
+                        "http.request.header.cookie.session": "foobar",
+                        "http.request.header.cookie.__session": "foobar",
+                        "http.request.header.cookie.sessionid": "foobar",
+                        "http.request.header.cookie.user_session": "foobar",
+                        "http.request.header.cookie.symfony": "foobar",
+                        "http.request.header.cookie.phpsessid": "foobar",
+                        "http.request.header.cookie.fasthttpsessionid": "foobar",
+                        "http.request.header.cookie.mysession": "foobar",
+                        "http.request.header.cookie.irissessionid": "foobar",
+                        "http.request.header.cookie.csrf": "foobar",
+                        "http.request.header.cookie.xsrf": "foobar",
+                        "http.request.header.cookie._xsrf": "foobar",
+                        "http.request.header.cookie._csrf": "foobar",
+                        "http.request.header.cookie.csrf-token": "foobar",
+                        "http.request.header.cookie.csrf_token": "foobar",
+                        "http.request.header.cookie.xsrf-token": "foobar",
+                        "http.request.header.cookie.xsrf_token": "foobar",
+                        "http.request.header.cookie.fastcsrf": "foobar",
+                        "http.request.header.cookie._iris_csrf": "foobar",
+                        "http.request.header.cookie.dark-mode": "foobar",
+                },
+                    "type": "trace"
+                  }
+              },
+              "spans": [{
+                "data": {
+                    "http.request.header.cookie": "session=foobar",
+                    "http.request.header.cookie.sentrysid": "foobar",
+                    "http.request.header.cookie.sudo": "foobar",
+                    "http.request.header.cookie.su": "foobar",
+                    "http.request.header.cookie.session": "foobar",
+                    "http.request.header.cookie.__session": "foobar",
+                    "http.request.header.cookie.sessionid": "foobar",
+                    "http.request.header.cookie.user_session": "foobar",
+                    "http.request.header.cookie.symfony": "foobar",
+                    "http.request.header.cookie.phpsessid": "foobar",
+                    "http.request.header.cookie.fasthttpsessionid": "foobar",
+                    "http.request.header.cookie.mysession": "foobar",
+                    "http.request.header.cookie.irissessionid": "foobar",
+                    "http.request.header.cookie.csrf": "foobar",
+                    "http.request.header.cookie.xsrf": "foobar",
+                    "http.request.header.cookie._xsrf": "foobar",
+                    "http.request.header.cookie._csrf": "foobar",
+                    "http.request.header.cookie.csrf-token": "foobar",
+                    "http.request.header.cookie.csrf_token": "foobar",
+                    "http.request.header.cookie.xsrf-token": "foobar",
+                    "http.request.header.cookie.xsrf_token": "foobar",
+                    "http.request.header.cookie.fastcsrf": "foobar",
+                    "http.request.header.cookie._iris_csrf": "foobar",
+                    "http.request.header.cookie.dark-mode": "foobar",
+                },
+              }]
+            })
+            .into(),
+        );
+
+        let config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_span_v2_cookie() {
+        let mut data = SpanV2::from_value(
+            serde_json::json!({
+              "attributes": {
+                "http.request.header.cookie": {"value": "session=foobar"},
+                "http.request.header.cookie.sentrysid": {"value": "foobar"},
+                "http.request.header.cookie.sudo": {"value": "foobar"},
+                "http.request.header.cookie.su": {"value": "foobar"},
+                "http.request.header.cookie.session": {"value": "foobar"},
+                "http.request.header.cookie.__session": {"value": "foobar"},
+                "http.request.header.cookie.sessionid": {"value": "foobar"},
+                "http.request.header.cookie.user_session": {"value": "foobar"},
+                "http.request.header.cookie.symfony": {"value": "foobar"},
+                "http.request.header.cookie.phpsessid": {"value": "foobar"},
+                "http.request.header.cookie.fasthttpsessionid": {"value": "foobar"},
+                "http.request.header.cookie.mysession": {"value": "foobar"},
+                "http.request.header.cookie.irissessionid": {"value": "foobar"},
+                "http.request.header.cookie.csrf": {"value": "foobar"},
+                "http.request.header.cookie.xsrf": {"value": "foobar"},
+                "http.request.header.cookie._xsrf": {"value": "foobar"},
+                "http.request.header.cookie._csrf": {"value": "foobar"},
+                "http.request.header.cookie.csrf-token": {"value": "foobar"},
+                "http.request.header.cookie.csrf_token": {"value": "foobar"},
+                "http.request.header.cookie.xsrf-token": {"value": "foobar"},
+                "http.request.header.cookie.xsrf_token": {"value": "foobar"},
+                "http.request.header.cookie.fastcsrf": {"value": "foobar"},
+                "http.request.header.cookie._iris_csrf": {"value": "foobar"},
+                "http.request.header.cookie.dark-mode": {"value": "foobar"},
+              }
+            })
+            .into(),
+        );
+
+        let config = simple_enabled_pii_config();
+        let mut pii_processor =
+            PiiProcessor::new(config.compiled()).attribute_mode(AttributeMode::ValueOnly);
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
     }

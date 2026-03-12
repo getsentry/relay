@@ -1,11 +1,27 @@
 from datetime import datetime, timezone
 from unittest import mock
 
+import pytest
+
+from sentry_relay.consts import DataCategory
+
 from .asserts import time_within_delta
 
 
+@pytest.mark.parametrize(
+    "eap_span_outcomes_rollout_rate",
+    [
+        pytest.param(0.0, id="relay_emits_accepted_outcome"),
+        pytest.param(1.0, id="eap_emits_accepted_outcome"),
+    ],
+)
 def test_ai_spans_example_transaction(
-    mini_sentry, relay, relay_with_processing, spans_consumer
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    outcomes_consumer,
+    eap_span_outcomes_rollout_rate,
 ):
     """
     Asserts the span output of an example AI agent workflow.
@@ -14,6 +30,7 @@ def test_ai_spans_example_transaction(
     The example was taken from a test application with a real agentic workflow.
     """
     spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
@@ -26,25 +43,14 @@ def test_ai_spans_example_transaction(
                 "outputPerToken": 0.02,
                 "outputReasoningPerToken": 0.03,
                 "inputCachedPerToken": 0.0,
+                "inputCacheWritePerToken": 0.0,
             },
         },
     }
-    mini_sentry.global_config["aiOperationTypeMap"] = {
-        "version": 1,
-        "operationTypes": {
-            "ai.run.generateText": "agent",
-            "ai.run.generateObject": "agent",
-            "gen_ai.invoke_agent": "agent",
-            "ai.pipeline.generate_text": "agent",
-            "ai.pipeline.generate_object": "agent",
-            "ai.pipeline.stream_text": "agent",
-            "ai.pipeline.stream_object": "agent",
-            "gen_ai.create_agent": "agent",
-            "gen_ai.execute_tool": "tool",
-            "gen_ai.handoff": "handoff",
-            "*": "ai_client",
-        },
-    }
+    mini_sentry.global_config["options"][
+        "relay.eap-span-outcomes.rollout-rate"
+    ] = eap_span_outcomes_rollout_rate
+    relay_emits_accepted_outcome = eap_span_outcomes_rollout_rate == 0.0
 
     relay = relay(relay_with_processing())
 
@@ -55,10 +61,14 @@ def test_ai_spans_example_transaction(
             "trace": {
                 "span_id": "657cf984a6a4e59b",
                 "trace_id": "a9351cd574f092f6acad48e250981f11",
+                "op": "gen_ai.invoke_agent",
                 "data": {
                     "sentry.source": "custom",
                     "sentry.sample_rate": 1,
                     "sentry.origin": "manual",
+                    "gen_ai.operation.name": "gen_ai.invoke_agent",
+                    "gen_ai.usage.input_tokens": 245,
+                    "gen_ai.usage.output_tokens": 65,
                 },
                 "origin": "manual",
                 "status": "ok",
@@ -391,7 +401,6 @@ def test_ai_spans_example_transaction(
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 130.0},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 245},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 65},
-                "gen_ai.usage.total_cost": {"type": "double", "value": 3.75},
                 "gen_ai.usage.total_tokens": {"type": "integer", "value": 310},
                 "operation.name": {
                     "type": "string",
@@ -414,6 +423,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "vercel.ai.model.id": {"type": "string", "value": "gpt-4o"},
                 "vercel.ai.model.provider": {
                     "type": "string",
@@ -449,6 +462,7 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "13e7c1ffd66981f0",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -495,7 +509,6 @@ def test_ai_spans_example_transaction(
                 "gen_ai.system": {"type": "string", "value": "openai.responses"},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 37},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 46},
-                "gen_ai.usage.total_cost": {"type": "double", "value": 1.29},
                 "gen_ai.usage.total_tokens": {"type": "integer", "value": 83},
                 "operation.name": {
                     "type": "string",
@@ -518,6 +531,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "vercel.ai.model.id": {"type": "string", "value": "gpt-4o"},
                 "vercel.ai.model.provider": {
                     "type": "string",
@@ -577,6 +594,7 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "af7b547f4d5f4f49",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -617,6 +635,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "server.address": {"type": "string", "value": "api.openai.com"},
                 "server.port": {"type": "integer", "value": 443},
                 "url": {
@@ -647,6 +669,7 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "5ff84ff6bf512012",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -694,6 +717,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "vercel.ai.operationId": {"type": "string", "value": "ai.toolCall"},
                 "vercel.ai.telemetry.functionId": {
                     "type": "string",
@@ -711,6 +738,7 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "d2fd68d7cf6eb933",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -756,6 +784,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "server.address": {"type": "string", "value": "wttr.in"},
                 "server.port": {"type": "integer", "value": 443},
                 "url": {"type": "string", "value": "https://wttr.in/San%20Francisco"},
@@ -779,6 +811,7 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "672681a999129905",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -823,6 +856,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "vercel.ai.operationId": {"type": "string", "value": "ai.toolCall"},
                 "vercel.ai.telemetry.functionId": {
                     "type": "string",
@@ -840,6 +877,7 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "e5bb8f1d156e7649",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -885,6 +923,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "server.address": {"type": "string", "value": "wttr.in"},
                 "server.port": {"type": "integer", "value": 443},
                 "url": {"type": "string", "value": "https://wttr.in/London"},
@@ -908,6 +950,7 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "3d755d9884113eba",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -957,7 +1000,6 @@ def test_ai_spans_example_transaction(
                 "gen_ai.system": {"type": "string", "value": "openai.responses"},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 208},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 19},
-                "gen_ai.usage.total_cost": {"type": "double", "value": 2.46},
                 "gen_ai.usage.total_tokens": {"type": "integer", "value": 227},
                 "operation.name": {
                     "type": "string",
@@ -980,6 +1022,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "vercel.ai.model.id": {"type": "string", "value": "gpt-4o"},
                 "vercel.ai.model.provider": {
                     "type": "string",
@@ -1036,6 +1082,7 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "bdf1648756367ee5",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -1076,6 +1123,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "server.address": {"type": "string", "value": "api.openai.com"},
                 "server.port": {"type": "integer", "value": 443},
                 "url": {
@@ -1106,6 +1157,7 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "203e925b464ad87b",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -1113,11 +1165,20 @@ def test_ai_spans_example_transaction(
         },
         {
             "attributes": {
+                "gen_ai.operation.name": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
+                "gen_ai.operation.type": {"type": "string", "value": "agent"},
+                "gen_ai.response.tokens_per_second": {"type": "double", "value": 130.0},
+                "gen_ai.usage.input_tokens": {"type": "integer", "value": 245},
+                "gen_ai.usage.output_tokens": {"type": "integer", "value": 65},
+                "gen_ai.usage.total_tokens": {"type": "double", "value": 310.0},
                 "sentry.description": {"type": "string", "value": "main"},
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 0.0},
                 "sentry.is_remote": {"type": "boolean", "value": True},
-                "sentry.op": {"type": "string", "value": "default"},
+                "sentry.op": {"type": "string", "value": "gen_ai.invoke_agent"},
                 "sentry.origin": {"type": "string", "value": "manual"},
                 "sentry.platform": {"type": "string", "value": "node"},
                 "sentry.sample_rate": {"type": "integer", "value": 1},
@@ -1129,6 +1190,10 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},
+                "sentry.transaction.op": {
+                    "type": "string",
+                    "value": "gen_ai.invoke_agent",
+                },
                 "sentry.was_transaction": {"type": "boolean", "value": True},
                 "server_name": {"type": "string", "value": "some_machine.local"},
             },
@@ -1137,14 +1202,27 @@ def test_ai_spans_example_transaction(
             "event_id": mock.ANY,
             "is_segment": True,
             "key_id": 123,
-            "name": "default",
+            "name": "Generative AI agent operation",
             "organization_id": 1,
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "657cf984a6a4e59b",
             "start_timestamp": time_within_delta(),
             "status": "ok",
             "trace_id": "a9351cd574f092f6acad48e250981f11",
         },
     ]
+
+    if relay_emits_accepted_outcome:
+        assert outcomes_consumer.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 10,
+            }
+        ]

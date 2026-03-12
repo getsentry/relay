@@ -1,6 +1,7 @@
-use std::collections::HashMap;
 use std::hash::Hash;
+use std::{collections::HashMap, sync::LazyLock};
 
+use regex::Regex;
 use relay_base_schema::metrics::MetricUnit;
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
 use relay_pattern::Pattern;
@@ -266,19 +267,91 @@ impl ModelCosts {
             return None;
         }
 
+        let normalized_model_id = normalize_ai_model_name(model_id);
+
         // First try exact match by creating a Pattern from the model_id
-        if let Some(value) = self.models.get(model_id) {
+        if let Some(value) = self.models.get(normalized_model_id) {
             return Some(value);
         }
 
         // if there is not a direct match, try to find the match using a pattern
+        // since the name is already normalized, there are still patterns where the
+        // model name can have a prefix e.g. "us.antrophic.claude-sonnet-4" and this
+        // will be matched via glob "*claude-sonnet-4"
         self.models.iter().find_map(|(key, value)| {
-            if key.is_match(model_id) {
+            if key.is_match(normalized_model_id) {
                 Some(value)
             } else {
                 None
             }
         })
+    }
+}
+
+/// Regex that matches version and/or date patterns at the end of a model name.
+///
+/// Examples matched:
+/// - "-20250805-v1:0" in "claude-opus-4-1-20250805-v1:0" (both)
+/// - "-20250514-v1:0" in "claude-sonnet-4-20250514-v1:0" (both)
+/// - "_v2" in "model_v2" (version only)
+/// - "-v1.0" in "gpt-4-v1.0" (version only)
+/// - "-20250522" in "claude-4-sonnet-20250522" (date only)
+/// - "-2025-06-10" in "o3-pro-2025-06-10" (date only)
+/// - "@20241022" in "claude-3-5-haiku@20241022" (date only)
+static VERSION_AND_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?x)
+        (
+            ([-_@])                                    # Required separator before date (-, _, or @)
+            (\d{4}[-/.]\d{2}[-/.]\d{2}|\d{8})          # Date: YYYY-MM-DD/YYYY/MM/DD/YYYY.MM.DD or YYYYMMDD
+        )?                                              # Date is optional
+        (
+            [-_]                                        # Required separator before version (- or _)
+            v\d+[:.]?\d*                                # Version: v1, v1.0, v1:0
+            ([-:].*)?                                   # Optional trailing content
+        )?                                              # Version is optional
+        $  # Must be at the end of the string
+        ",
+    )
+    .unwrap()
+});
+
+/// Normalizes an AI model name by stripping date and version patterns.
+///
+/// This function converts specific model versions into normalized names suitable for matching
+/// against cost configurations, ensuring that different versions of the same model can share
+/// cost information.
+///
+/// The normalization strips version and/or date patterns from the end of the string in a single pass.
+///
+/// Examples:
+/// - "claude-4-sonnet-20250522" -> "claude-4-sonnet"
+/// - "o3-pro-2025-06-10" -> "o3-pro"
+/// - "claude-3-5-haiku@20241022" -> "claude-3-5-haiku"
+/// - "claude-opus-4-1-20250805-v1:0" -> "claude-opus-4-1"
+/// - "us.anthropic.claude-sonnet-4-20250514-v1:0" -> "us.anthropic.claude-sonnet-4"
+/// - "gpt-4-v1.0" -> "gpt-4"
+/// - "gpt-4-v1:0" -> "gpt-4"
+/// - "model_v2" -> "model"
+///
+/// Version patterns:
+/// - Must start with 'v': v1, v1.0, v1:0 (requires -, _ separator)
+///
+/// Date patterns:
+/// - YYYYMMDD: 20250522
+/// - YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD: 2025-06-10
+///
+/// Args:
+///     model_id: The original model ID
+///
+/// Returns:
+///     The normalized model name without date and version patterns
+fn normalize_ai_model_name(model_id: &str) -> &str {
+    if let Some(captures) = VERSION_AND_DATE_REGEX.captures(model_id) {
+        let match_idx = captures.get(0).map(|m| m.start()).unwrap_or(model_id.len());
+        &model_id[..match_idx]
+    } else {
+        model_id
     }
 }
 
@@ -294,71 +367,10 @@ pub struct ModelCostV2 {
     pub output_reasoning_per_token: f64,
     /// The cost per input cached token
     pub input_cached_per_token: f64,
+    /// The cost per input cache write token
+    pub input_cache_write_per_token: f64,
 }
 
-/// A mapping of AI operation types from span.op to gen_ai.operation.type.
-///
-/// This struct uses a dictionary-based mapping structure with pattern-based span operation keys
-/// and corresponding AI operation type values.
-///
-/// Example JSON:
-/// ```json
-/// {
-///   "version": 1,
-///   "operation_types": {
-///     "gen_ai.execute_tool": "tool",
-///     "gen_ai.handoff": "handoff",
-///     "gen_ai.invoke_agent": "agent",
-///   }
-/// }
-/// ```
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiOperationTypeMap {
-    /// The version of the operation type mapping struct
-    pub version: u16,
-
-    /// The mappings of span.op => gen_ai.operation.type as a dictionary
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub operation_types: HashMap<Pattern, String>,
-}
-
-impl AiOperationTypeMap {
-    const SUPPORTED_VERSION: u16 = 1;
-
-    /// `true` if the operation type mapping is empty and the version is supported.
-    pub fn is_empty(&self) -> bool {
-        self.operation_types.is_empty() || !self.is_enabled()
-    }
-
-    /// `false` if operation type mapping should be skipped.
-    pub fn is_enabled(&self) -> bool {
-        self.version == Self::SUPPORTED_VERSION
-    }
-
-    /// Gets the AI operation type for the given span operation, if defined.
-    pub fn get_operation_type(&self, span_op: &str) -> Option<&str> {
-        if !self.is_enabled() {
-            return None;
-        }
-
-        // try first direct match with span_op
-        if let Some(value) = self.operation_types.get(span_op) {
-            return Some(value.as_str());
-        }
-
-        // if there is not a direct match, try to find the match using a pattern
-        let operation_type = self.operation_types.iter().find_map(|(key, value)| {
-            if key.is_match(span_op) {
-                Some(value)
-            } else {
-                None
-            }
-        });
-
-        operation_type.map(String::as_str)
-    }
-}
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
@@ -390,7 +402,7 @@ mod tests {
     #[test]
     fn test_model_cost_version_sent_as_number() {
         // Test integer version 2
-        let original_v2 = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
+        let original_v2 = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015,"inputCacheWritePerToken":0.0}}}"#;
         let deserialized_v2: ModelCosts = serde_json::from_str(original_v2).unwrap();
         assert_debug_snapshot!(
             deserialized_v2,
@@ -413,6 +425,7 @@ mod tests {
                     output_per_token: 0.06,
                     output_reasoning_per_token: 0.12,
                     input_cached_per_token: 0.015,
+                    input_cache_write_per_token: 0.0,
                 },
             },
         }
@@ -428,7 +441,7 @@ mod tests {
 
     #[test]
     fn test_model_cost_config_v2() {
-        let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
+        let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015,"inputCacheWritePerToken":0.0}}}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
         assert_debug_snapshot!(deserialized, @r#"
         ModelCosts {
@@ -449,6 +462,7 @@ mod tests {
                     output_per_token: 0.06,
                     output_reasoning_per_token: 0.12,
                     input_cached_per_token: 0.015,
+                    input_cache_write_per_token: 0.0,
                 },
             },
         }
@@ -469,6 +483,7 @@ mod tests {
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
                 input_cached_per_token: 0.015,
+                input_cache_write_per_token: 0.0,
             },
         );
         let v2_config = ModelCosts {
@@ -484,6 +499,7 @@ mod tests {
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
                 input_cached_per_token: 0.015,
+                input_cache_write_per_token: 0.0,
             }
         );
     }
@@ -499,6 +515,7 @@ mod tests {
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
                 input_cached_per_token: 0.015,
+                input_cache_write_per_token: 0.0,
             },
         );
         models_map.insert(
@@ -508,6 +525,7 @@ mod tests {
                 output_per_token: 0.0008,
                 output_reasoning_per_token: 0.0016,
                 input_cached_per_token: 0.00035,
+                input_cache_write_per_token: 0.0,
             },
         );
 
@@ -526,6 +544,7 @@ mod tests {
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
                 input_cached_per_token: 0.015,
+                input_cache_write_per_token: 0.0,
             }
         );
 
@@ -537,6 +556,7 @@ mod tests {
                 output_per_token: 0.0008,
                 output_reasoning_per_token: 0.0016,
                 input_cached_per_token: 0.00035,
+                input_cache_write_per_token: 0.0,
             }
         );
 
@@ -546,7 +566,7 @@ mod tests {
     #[test]
     fn test_model_cost_unknown_version() {
         // Test that unknown versions are handled properly
-        let unknown_version_json = r#"{"version":3,"models":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005}}}"#;
+        let unknown_version_json = r#"{"version":3,"models":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005,"inputCacheWritePerToken":0.0}}}"#;
         let deserialized: ModelCosts = serde_json::from_str(unknown_version_json).unwrap();
         assert_eq!(deserialized.version, 3);
         assert!(!deserialized.is_enabled());
@@ -560,58 +580,47 @@ mod tests {
     }
 
     #[test]
-    fn test_ai_operation_type_map_serialization() {
-        // Test serialization and deserialization with patterns
-        let mut operation_types = HashMap::new();
-        operation_types.insert(
-            Pattern::new("gen_ai.chat*").unwrap(),
-            "Inference".to_owned(),
-        );
-        operation_types.insert(
-            Pattern::new("gen_ai.execute_tool").unwrap(),
-            "Tool".to_owned(),
-        );
-
-        let original = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
-
-        let json = serde_json::to_string(&original).unwrap();
-        let deserialized: AiOperationTypeMap = serde_json::from_str(&json).unwrap();
-
-        assert!(deserialized.is_enabled());
+    fn test_normalize_ai_model_name() {
+        // Test date patterns
         assert_eq!(
-            deserialized.get_operation_type("gen_ai.chat.completions"),
-            Some("Inference")
+            normalize_ai_model_name("claude-4-sonnet-20250522"),
+            "claude-4-sonnet"
+        );
+        assert_eq!(normalize_ai_model_name("o3-pro-2025-06-10"), "o3-pro");
+        assert_eq!(
+            normalize_ai_model_name("claude-3-5-haiku@20241022"),
+            "claude-3-5-haiku"
+        );
+
+        // Test date with version patterns
+        assert_eq!(
+            normalize_ai_model_name("claude-opus-4-1-20250805-v1:0"),
+            "claude-opus-4-1"
         );
         assert_eq!(
-            deserialized.get_operation_type("gen_ai.execute_tool"),
-            Some("Tool")
+            normalize_ai_model_name("us.anthropic.claude-sonnet-4-20250514-v1:0"),
+            "us.anthropic.claude-sonnet-4"
         );
-        assert_eq!(deserialized.get_operation_type("unknown_op"), None);
-    }
 
-    #[test]
-    fn test_ai_operation_type_map_pattern_matching() {
-        let mut operation_types = HashMap::new();
-        operation_types.insert(Pattern::new("gen_ai.*").unwrap(), "default".to_owned());
-        operation_types.insert(Pattern::new("gen_ai.chat").unwrap(), "chat".to_owned());
+        // Test standalone version patterns with 'v' prefix
+        assert_eq!(normalize_ai_model_name("gpt-4-v1.0"), "gpt-4");
+        assert_eq!(normalize_ai_model_name("gpt-4-v1:0"), "gpt-4");
+        assert_eq!(normalize_ai_model_name("gpt-4-v1"), "gpt-4");
+        assert_eq!(normalize_ai_model_name("model_v2"), "model");
 
-        let map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
+        // Test that version patterns WITHOUT 'v' prefix are NOT stripped
+        assert_eq!(normalize_ai_model_name("gpt-4.5"), "gpt-4.5");
 
-        let result = map.get_operation_type("gen_ai.chat");
-        assert!(Some("chat") == result);
+        // Test that if version without 'v' comes after date, nothing is stripped
+        // (date regex requires end of string, so date won't match if followed by version)
+        assert_eq!(
+            normalize_ai_model_name("anthropic.claude-3-5-sonnet-20241022-v2:0"),
+            "anthropic.claude-3-5-sonnet"
+        );
 
-        let result = map.get_operation_type("gen_ai.chat.completions");
-        assert!(Some("default") == result);
-
-        assert_eq!(map.get_operation_type("gen_ai.other"), Some("default"));
-
-        assert_eq!(map.get_operation_type("other.operation"), None);
+        // Test no pattern (should return original)
+        assert_eq!(normalize_ai_model_name("gpt-4"), "gpt-4");
+        assert_eq!(normalize_ai_model_name("claude-3-opus"), "claude-3-opus");
     }
 
     #[test]

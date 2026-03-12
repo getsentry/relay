@@ -3,7 +3,6 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use relay_config::Config;
-use relay_dynamic_config::Feature;
 
 use crate::endpoints::common;
 use crate::envelope::ContentType;
@@ -29,23 +28,24 @@ mod logs {
         state: ServiceState,
         builder: IntegrationBuilder,
     ) -> axum::response::Result<impl IntoResponse> {
-        let format = match ContentType::from(content_type.as_ref()) {
-            ContentType::Json => VercelLogDrainFormat::Json,
-            ContentType::NdJson => VercelLogDrainFormat::NdJson,
+        let format = match content_type.as_ref().parse::<ContentType>() {
+            Ok(ContentType::Json) => VercelLogDrainFormat::Json,
+            Ok(ContentType::NdJson) => VercelLogDrainFormat::NdJson,
             _ => return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE),
         };
 
         let envelope = builder
             .with_type(LogsIntegration::VercelDrainLog { format })
-            .with_required_feature(Feature::VercelLogDrainEndpoint)
             .build();
 
-        common::handle_envelope(&state, envelope).await?;
+        common::handle_envelope(&state, envelope)
+            .await?
+            .check_rate_limits()?;
 
         Ok(StatusCode::ACCEPTED)
     }
 
     pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-        post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
+        post(handle).route_layer(DefaultBodyLimit::max(config.max_logs_integration_size()))
     }
 }

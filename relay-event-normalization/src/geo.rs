@@ -28,7 +28,7 @@ impl GeoIpLookup {
         P: AsRef<Path>,
     {
         #[cfg(feature = "mmap")]
-        let reader = maxminddb::Reader::open_mmap(path)?;
+        let reader = unsafe { maxminddb::Reader::open_mmap(path)? };
         #[cfg(not(feature = "mmap"))]
         let reader = maxminddb::Reader::open_readfile(path)?;
         Ok(GeoIpLookup(Some(Arc::new(reader))))
@@ -45,37 +45,22 @@ impl GeoIpLookup {
             return Ok(None);
         };
 
-        let city: maxminddb::geoip2::City = match reader.lookup(ip_address) {
-            Ok(Some(x)) => x,
-            Ok(None) => return Ok(None),
-            Err(e) => return Err(e),
+        let Some(city) = reader
+            .lookup(ip_address)?
+            .decode::<maxminddb::geoip2::City>()?
+        else {
+            return Ok(None);
         };
 
         Ok(Some(Geo {
-            country_code: Annotated::from(
-                city.country
-                    .as_ref()
-                    .and_then(|country| Some(country.iso_code.as_ref()?.to_string())),
+            country_code: Annotated::from(city.country.iso_code.map(String::from)),
+            city: Annotated::from(city.city.names.english.map(String::from)),
+            subdivision: Annotated::from(
+                city.subdivisions
+                    .first()
+                    .and_then(|subdivision| subdivision.names.english.map(String::from)),
             ),
-            city: Annotated::from(
-                city.city
-                    .as_ref()
-                    .and_then(|city| Some(city.names.as_ref()?.get("en")?.to_string())),
-            ),
-            subdivision: Annotated::from(city.subdivisions.as_ref().and_then(|subdivisions| {
-                subdivisions.first().and_then(|subdivision| {
-                    subdivision.names.as_ref().and_then(|subdivision_names| {
-                        subdivision_names
-                            .get("en")
-                            .map(|subdivision_name| subdivision_name.to_string())
-                    })
-                })
-            })),
-            region: Annotated::from(
-                city.country
-                    .as_ref()
-                    .and_then(|country| Some(country.names.as_ref()?.get("en")?.to_string())),
-            ),
+            region: Annotated::from(city.country.names.english.map(String::from)),
             ..Default::default()
         }))
     }

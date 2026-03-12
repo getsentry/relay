@@ -2,16 +2,22 @@ use crate::Envelope;
 use crate::managed::{Managed, Rejected};
 use crate::processing::ForwardContext;
 use crate::processing::check_ins::CheckInsProcessor;
+use crate::processing::errors::ErrorsProcessor;
 use crate::processing::logs::LogsProcessor;
+use crate::processing::profile_chunks::ProfileChunksProcessor;
+use crate::processing::replays::ReplaysProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
+use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
+use crate::processing::transactions::TransactionProcessor;
 use crate::processing::{Forward, Processor};
 
 macro_rules! outputs {
     ($($variant:ident => $ty:ty,)*) => {
         /// All known [`Processor`] outputs.
         #[derive(Debug)]
+        #[allow(clippy::large_enum_variant)]
         pub enum Outputs {
             $(
                 $variant(<$ty as Processor>::Output)
@@ -30,7 +36,7 @@ macro_rules! outputs {
             #[cfg(feature = "processing")]
             fn forward_store(
                 self,
-                s: &relay_system::Addr<crate::services::store::Store>,
+                s: crate::processing::StoreHandle<'_>,
                 ctx: ForwardContext<'_>,
             ) -> Result<(), Rejected<()>> {
                 match self {
@@ -53,8 +59,13 @@ macro_rules! outputs {
 
 outputs!(
     CheckIns => CheckInsProcessor,
+    Errors => ErrorsProcessor,
     Logs => LogsProcessor,
-    TraceMetrics => TraceMetricsProcessor,
-    Spans => SpansProcessor,
+    ProfileChunks => ProfileChunksProcessor,
     Sessions => SessionsProcessor,
+    Transactions => TransactionProcessor,
+    Spans => SpansProcessor,
+    TraceAttachments => TraceAttachmentsProcessor,
+    TraceMetrics => TraceMetricsProcessor,
+    Replays => ReplaysProcessor,
 );

@@ -61,11 +61,6 @@ pub enum Feature {
     /// Serialized as `organizations:relay-otel-logs-endpoint`.
     #[serde(rename = "organizations:relay-otel-logs-endpoint")]
     OtelLogsEndpoint,
-    /// Enable logs ingestion via the Vercel Log Drain endpoint.
-    ///
-    /// Serialized as `organizations:relay-vercel-log-drain-endpoint`.
-    #[serde(rename = "organizations:relay-vercel-log-drain-endpoint")]
-    VercelLogDrainEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.
@@ -122,6 +117,27 @@ pub enum Feature {
     /// Enables the experimental Span V2 processing pipeline in Relay.
     #[serde(rename = "projects:span-v2-experimental-processing")]
     SpanV2ExperimentalProcessing,
+    /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
+    #[serde(rename = "projects:span-v2-attachment-processing")]
+    SpanV2AttachmentProcessing,
+    /// Enable the experimental Trace Attachment pipeline in Relay.
+    #[serde(rename = "projects:trace-attachment-processing")]
+    TraceAttachmentProcessing,
+    /// Enable the upload endpoint for attachments.
+    #[serde(rename = "projects:relay-upload-endpoint")]
+    UploadEndpoint,
+    /// Enable the new Error processing pipeline in Relay.
+    #[serde(rename = "organizations:relay-new-error-processing")]
+    NewErrorProcessing,
+    /// Enable the new Client Reports pipeline in Relay.
+    #[serde(rename = "organizations:new-client-report-processing")]
+    NewClientReportProcessing,
+
+    /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
+    ///
+    /// This is now the default behaviour of Relay.
+    #[serde(rename = "organizations:span-v2-otlp-processing")]
+    DeprecatedSpanV2OtlpProcessing,
     /// This feature has deprecated and is kept for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction")]

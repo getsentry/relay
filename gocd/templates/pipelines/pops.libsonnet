@@ -2,44 +2,34 @@ local utils = import '../libs/utils.libsonnet';
 local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
 local canary_region_pops = {
-  de: [
-    'de-pop-1',
-    'de-pop-2',
-    'de-pop-3',
-    'de-pop-4',
-  ],
-  us: [
-    'us-pop-1',
-    'us-pop-2',
-    'us-pop-3',
-    'us-pop-4',
-    'us-pop-5',
-    'us-pop-6',
-    'us-pop-7',
-    'us-pop-8',
-    'us-pop-9',
-  ],
+  us: [],
 };
 
 local region_pops = {
-  de: [
-    'de-pop-1',
-    'de-pop-2',
-    'de-pop-3',
-    'de-pop-4',
-  ],
-  us: [
-    'us-pop-1',
-    'us-pop-2',
-    'us-pop-3',
-    'us-pop-4',
-    'us-pop-5',
-    'us-pop-6',
-    'us-pop-7',
-    'us-pop-8',
-    'us-pop-9',
-  ],
+  us: [],
   s4s: [],
+};
+
+// List of datadog monitors to check during the soak time in the different regions
+local soak_monitors = {
+  // (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
+  s4s: '165839949 237862998',
+  // (Retry Count for a Single Event is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
+  us: '165839953 165839955 237862996',
+  default: '',
+};
+
+// List of datadog monitors to check during the canary deployment in the different regions
+local canary_monitors = {
+  // (S4S Service Queues are Backlogging), (CrashLoopBackoff Count is High)
+  s4s: '165839949 237862998',
+  // (Retry Count for a Single Event is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
+  us: '165839953 165839955 237862996',
+  // (CrashLoopBackoff Count is High)
+  de: '237862984',
+  // (CrashLoopBackoff Count is High)
+  ly: '237862992',
+  default: '',
 };
 
 // The purpose of this stage is to let the deployment soak for a while and
@@ -54,15 +44,15 @@ local soak_time(region) =
               environment_variables: {
                 SENTRY_REGION: region,
                 GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}',
-                SENTRY_AUTH_TOKEN: if region == 's4s' then '{{SECRET:[devinfra-sentryst][token]}}' else '{{SECRET:[devinfra-sentrymysentry][token]}}',
+                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
-                DATADOG_MONITOR_IDS: '165839953 165839955 165839949 165839921',
+                DATADOG_MONITOR_IDS: if std.objectHas(soak_monitors, region) then soak_monitors[region] else soak_monitors.default,
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
-                SENTRY_PROJECTS: if region == 's4s' then '1513938:sentry-for-sentry:relay' else '9:pop-relay:relay-pop 4:relay:relay',
-                SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
-                SENTRY_BASE: if region == 's4s' then 'https://sentry.io/api/0' else 'https://sentry.my.sentry.io/api/0',
+                SENTRY_PROJECTS: '4510703820210272:relay:relay',
+                SENTRY_SINGLE_TENANT: 'false',
+                SENTRY_BASE: 'https://sentry.io/api/0',
                 // TODO: Set a proper error limit
                 ERROR_LIMIT: 500,
                 PAUSE_MESSAGE: 'Detecting issues in the deployment. Pausing pipeline.',
@@ -94,15 +84,15 @@ local deploy_pop_canary_job(region) =
     environment_variables: {
       SENTRY_REGION: region,
       GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}',
-      SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-sentrymysentry][token]}}',
+      SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
       DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
       DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
       // Datadog monitor IDs for the canary deployment
-      DATADOG_MONITOR_IDS: '165839953 165839955 165839949 165839921',
+      DATADOG_MONITOR_IDS: if std.objectHas(canary_monitors, region) then canary_monitors[region] else canary_monitors.default,
       // Sentry projects to check for errors <project_id>:<project_slug>:<service>
-      SENTRY_PROJECTS: '9:pop-relay:relay-pop 4:relay:relay',
+      SENTRY_PROJECTS: '4510703820210272:relay:relay',
       SENTRY_SINGLE_TENANT: 'false',
-      SENTRY_BASE: 'https://sentry.my.sentry.io/api/0',
+      SENTRY_BASE: 'https://sentry.io/api/0',
       // TODO: Set a proper error limit
       ERROR_LIMIT: 500,
       PAUSE_MESSAGE: 'Pausing pipeline due to canary failure.',
@@ -150,16 +140,15 @@ local deploy_canary_pops_stage(region) =
           timeout: 1200,
           elastic_profile_id: 'relay',
           environment_variables: {
-            SENTRY_ORG: 'sentry',
-            SENTRY_PROJECT: 'pop-relay',
-            SENTRY_URL: 'https://sentry.my.sentry.io/',
+            SENTRY_ORG: 'sentry-s4s2',
+            SENTRY_PROJECT: 'relay',
+            SENTRY_URL: 'https://sentry-s4s2.sentry.io/',
             // Temporary; self-service encrypted secrets aren't implemented yet.
             // This should really be rotated to an internal integration token.
-            SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
-            SENTRY_ENVIRONMENT: 'canary',
+            SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
           },
           tasks: [
-            gocdtasks.script(importstr '../bash/create-sentry-relay-release.sh'),
+            gocdtasks.script(importstr '../bash/create-sentry-relay-pop-release.sh'),
           ],
         },
       },
@@ -189,12 +178,12 @@ local deploy_pops_stage(region) =
           timeout: 1200,
           elastic_profile_id: 'relay',
           environment_variables: {
-            SENTRY_ORG: if region == 's4s' then 'sentry-st' else 'sentry',
-            SENTRY_PROJECT: if region == 's4s' then 'sentry-for-sentry' else 'pop-relay',
-            SENTRY_URL: if region == 's4s' then 'https://sentry-st.sentry.io/' else 'https://sentry.my.sentry.io/',
+            SENTRY_ORG: 'sentry-s4s2',
+            SENTRY_PROJECT: 'relay',
+            SENTRY_URL: 'https://sentry-s4s2.sentry.io/',
             // Temporary; self-service encrypted secrets aren't implemented yet.
             // This should really be rotated to an internal integration token.
-            SENTRY_AUTH_TOKEN: if region == 's4s' then '{{SECRET:[devinfra-temp][relay_sentry_st_auth_token]}}' else '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
+            SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
           },
           tasks: [
             gocdtasks.script(importstr '../bash/create-sentry-relay-pop-release.sh'),

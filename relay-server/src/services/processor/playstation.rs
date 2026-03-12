@@ -12,6 +12,7 @@ use relay_event_schema::protocol::{Event, TagEntry};
 use relay_prosperoconv::{self, ProsperoDump};
 use relay_protocol::{Annotated, Empty, Object};
 
+use crate::constants::SENTRY_CRASH_PAYLOAD_KEY;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::managed::TypedEnvelope;
 use crate::services::processor::metric;
@@ -19,9 +20,6 @@ use crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingErr
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
 use crate::utils;
-
-/// Name of the custom tag in the UserData for Sentry event payloads.
-const SENTRY_PAYLOAD_KEY: &str = "__sentry";
 
 pub fn expand(
     managed_envelope: &mut TypedEnvelope<ErrorGroup>,
@@ -36,7 +34,7 @@ pub fn expand(
     // Get instead of take as we want to keep the dump as an attachment
     if let Some(item) = envelope.get_item_by(|item| {
         item.ty() == &ItemType::Attachment
-            && item.attachment_type() == Some(&AttachmentType::Prosperodump)
+            && item.attachment_type() == Some(AttachmentType::Prosperodump)
     }) {
         let data = relay_prosperoconv::extract_data(&item.payload()).map_err(|err| {
             ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
@@ -48,7 +46,7 @@ pub fn expand(
             ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {err}"))
         })?;
 
-        if let Some(json) = prospero_dump.userdata.get(SENTRY_PAYLOAD_KEY) {
+        if let Some(json) = prospero_dump.userdata.get(SENTRY_CRASH_PAYLOAD_KEY) {
             let event = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
             let event_item = merge_or_create_event_item(json, event);
             envelope.add_item(event_item);
@@ -75,7 +73,7 @@ pub fn process(
 
     if let Some(item) = envelope.get_item_by(|item| {
         item.ty() == &ItemType::Attachment
-            && item.attachment_type() == Some(&AttachmentType::Prosperodump)
+            && item.attachment_type() == Some(AttachmentType::Prosperodump)
     }) {
         metric!(counter(RelayCounters::PlaystationProcessing) += 1);
         let event = event.get_or_insert_with(Event::default);
@@ -92,7 +90,10 @@ pub fn process(
 
         // If "__sentry" is not a key in the userdata do the legacy extraction.
         // This should be removed once all customers migrated to the new format.
-        if !&prospero_dump.userdata.contains_key(SENTRY_PAYLOAD_KEY) {
+        if !&prospero_dump
+            .userdata
+            .contains_key(SENTRY_CRASH_PAYLOAD_KEY)
+        {
             legacy_userdata_extraction(event, &prospero_dump);
         }
         merge_playstation_context(event, &prospero_dump);
@@ -134,7 +135,7 @@ fn add_attachments(
     }
 }
 
-fn legacy_userdata_extraction(event: &mut Event, prospero: &ProsperoDump) {
+pub fn legacy_userdata_extraction(event: &mut Event, prospero: &ProsperoDump) {
     let contexts = event.contexts.get_or_insert_with(Contexts::default);
     let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
     macro_rules! add_tag {
@@ -203,7 +204,7 @@ fn legacy_userdata_extraction(event: &mut Event, prospero: &ProsperoDump) {
     }
 }
 
-fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
+pub fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
     let contexts = event.contexts.get_or_insert_with(Contexts::default);
     let platform = "PS5";
 
@@ -270,7 +271,7 @@ fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
     });
 }
 
-fn infer_content_type(filename: &str) -> ContentType {
+pub fn infer_content_type(filename: &str) -> ContentType {
     // Since we only receive a limited selection of files through this mechanism this simple logic
     // should be enough.
     let extension = filename.rsplit('.').next().map(str::to_lowercase);

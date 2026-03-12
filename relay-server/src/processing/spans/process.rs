@@ -1,44 +1,92 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 
-use relay_event_normalization::{
-    GeoIpLookup, RequiredMode, SchemaProcessor, TimestampProcessor, TrimmingProcessor, eap,
-};
+use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{Span, SpanV2};
+use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, WithHeader};
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
 use crate::managed::Managed;
-use crate::processing::Context;
-use crate::processing::spans::{self, Error, ExpandedSpans, Result, SampledSpans};
+use crate::processing::spans::{
+    self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SerializedSpans,
+};
+use crate::processing::{Context, trace_attachments, utils};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized spans.
 ///
 /// Individual, invalid spans are discarded.
-pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
+pub fn expand(spans: Managed<SerializedSpans>) -> Managed<ExpandedSpans> {
     spans.map(|spans, records| {
+        let SerializedSpans {
+            headers,
+            spans,
+            legacy,
+            integrations,
+            attachments,
+        } = spans;
+
         let mut all_spans = Vec::new();
 
-        for item in &spans.inner.spans {
+        for item in &spans {
             let expanded = expand_span_container(item);
             let expanded = records.or_default(expanded, item);
             all_spans.extend(expanded);
         }
 
-        for item in &spans.inner.legacy {
+        for item in &legacy {
             match expand_legacy_span(item) {
                 Ok(span) => all_spans.push(span),
                 Err(err) => drop(records.reject_err(err, item)),
             }
         }
 
-        spans::integrations::expand_into(&mut all_spans, records, spans.inner.integrations);
+        spans::integrations::expand_into(&mut all_spans, records, integrations);
+
+        let mut span_id_mapping: BTreeMap<_, _> = BTreeMap::new();
+        for span in all_spans {
+            if let Some(id) = span.value().and_then(|span| span.span_id.value().copied()) {
+                // Although span_ids should be unique it could be that they collied in which case we
+                // want to drop one of the offending spans.
+                if let Some(old_span) = span_id_mapping.insert(id, ExpandedSpan::new(span)) {
+                    relay_log::debug!("span id collision");
+                    records.reject_err(Error::Invalid(DiscardReason::Duplicate), old_span);
+                }
+            } else {
+                relay_log::debug!("failed to extract span id from span");
+                records.reject_err(Error::Invalid(DiscardReason::InvalidSpan), span);
+            }
+        }
+
+        let mut stand_alone_attachments: Vec<ExpandedAttachment> = Vec::new();
+        for attachment in attachments {
+            match parse_and_validate_span_attachment(&attachment) {
+                Ok((None, attachment)) => {
+                    stand_alone_attachments.push(attachment);
+                }
+                Ok((Some(span_id), attachment)) => {
+                    if let Some(entry) = span_id_mapping.get_mut(&span_id) {
+                        entry.attachments.push(attachment);
+                    } else {
+                        relay_log::debug!("span attachment invalid associated span id");
+                        records.reject_err(
+                            Error::Invalid(DiscardReason::InvalidSpanAttachment),
+                            attachment,
+                        );
+                    }
+                }
+                Err(err) => {
+                    records.reject_err(err, attachment);
+                }
+            }
+        }
 
         ExpandedSpans {
-            headers: spans.inner.headers,
-            server_sample_rate: spans.server_sample_rate,
-            spans: all_spans,
+            headers,
+            spans: span_id_mapping.into_values().collect(),
+            server_sample_rate: None,
+            stand_alone_attachments,
             category: spans::TotalAndIndexed,
         }
     })
@@ -68,12 +116,28 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
     Ok(WithHeader::new(span))
 }
 
+/// Parses and validates a span attachment, converting it into a structured type.
+fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, ExpandedAttachment)> {
+    let associated_span_id = match item.parent_id() {
+        Some(ParentId::SpanId(span_id)) => span_id,
+        None => {
+            relay_log::debug!("span attachment missing associated span id");
+            return Err(Error::Invalid(DiscardReason::InvalidSpanAttachment));
+        }
+    };
+
+    let expanded_attachment =
+        trace_attachments::process::parse_and_validate(item).map_err(Error::Invalid)?;
+
+    Ok((associated_span_id, expanded_attachment))
+}
+
 /// Normalizes individual spans.
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
     spans.retain_with_context(
         |spans| (&mut spans.spans, &spans.headers),
         |span, headers, _| {
-            normalize_span(span, headers, geo_lookup, ctx).inspect_err(|err| {
+            normalize_span(&mut span.span, headers, geo_lookup, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize span: {err}");
             })
         },
@@ -86,16 +150,26 @@ fn normalize_span(
     geo_lookup: &GeoIpLookup,
     ctx: Context<'_>,
 ) -> Result<()> {
-    process_value(span, &mut TimestampProcessor, ProcessingState::root())?;
+    let meta = headers.meta();
+
+    eap::time::normalize(
+        span,
+        utils::normalize::time_config(headers, |f| f.span.as_ref(), ctx),
+    );
 
     if let Some(span) = span.value_mut() {
-        let meta = headers.meta();
         let dsc = headers.dsc();
         let duration = span_duration(span);
         let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
+        let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
         validate_timestamps(span)?;
 
+        // normalize_sentry_op must be called before normalize_span_category
+        // because category derivation depends on having the sentry.op attribute
+        // available.
+        eap::normalize_sentry_op(&mut span.attributes);
+        eap::normalize_span_category(&mut span.attributes);
         eap::normalize_attribute_types(&mut span.attributes);
         eap::normalize_attribute_names(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());
@@ -107,13 +181,34 @@ fn normalize_span(
         if matches!(span.is_segment.value(), Some(true)) {
             eap::normalize_dsc(&mut span.attributes, dsc);
         }
-        eap::normalize_ai(&mut span.attributes, duration, model_costs);
+        if ctx.is_processing() {
+            eap::normalize_ai(&mut span.attributes, duration, model_costs);
+        }
+        eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
+        eap::write_legacy_attributes(&mut span.attributes);
     };
 
-    process_value(span, &mut TrimmingProcessor::new(), ProcessingState::root())?;
+    // Set a max_bytes value on the root state if it's defined in the project config.
+    // This causes the whole item to be trimmed down to the limit.
+    let max_bytes = ctx
+        .project_info
+        .config()
+        .trimming
+        .span
+        .map(|cfg| cfg.max_size as usize);
+    let trimming_root = ProcessingState::root_builder().max_bytes(max_bytes).build();
+
     process_value(
         span,
-        &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+        &mut eap::TrimmingProcessor::new(ctx.config.max_removed_attribute_key_size()),
+        &trimming_root,
+    )?;
+
+    process_value(
+        span,
+        &mut SchemaProcessor::new()
+            .with_required(RequiredMode::DeleteParent)
+            .with_verbose_errors(relay_log::enabled!(relay_log::Level::DEBUG)),
         ProcessingState::root(),
     )?;
 
@@ -139,20 +234,39 @@ fn validate_timestamps(span: &SpanV2) -> Result<()> {
 pub fn scrub(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
     spans.retain(
         |spans| &mut spans.spans,
-        |span, _| {
-            scrub_span(span, ctx)
-                .inspect_err(|err| relay_log::debug!("failed to scrub pii from span: {err}"))
+        |span, r| {
+            scrub_span(&mut span.span, ctx)
+                .inspect_err(|err| relay_log::debug!("failed to scrub pii from span: {err}"))?;
+
+            span.attachments.retain_mut(|attachment| {
+                match trace_attachments::process::scrub_attachment(attachment, ctx) {
+                    Ok(()) => true,
+                    Err(err) => {
+                        relay_log::debug!("failed to scrub pii from span attachment: {err}");
+                        r.reject_err(Error::from(err), &*attachment);
+                        false
+                    }
+                }
+            });
+
+            Ok::<(), Error>(())
+        },
+    );
+
+    spans.retain(
+        |spans| &mut spans.stand_alone_attachments,
+        |attachment, _| {
+            trace_attachments::process::scrub_attachment(attachment, ctx)
+                .inspect_err(|err| {
+                    relay_log::debug!("failed to scrub pii from span attachment: {err}")
+                })
+                .map_err(Error::from)
         },
     );
 }
 
 fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
-    let pii_config_from_scrubbing = ctx
-        .project_info
-        .config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| Error::PiiConfig(e.clone()))?;
+    let pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
 
     relay_pii::eap::scrub(
         ValueType::Span,
@@ -173,37 +287,19 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use chrono::DateTime;
-    use relay_pii::{DataScrubbingConfig, PiiConfig};
+    use relay_conventions::{
+        DB_QUERY_TEXT, DB_SYSTEM, DB_SYSTEM_NAME, DESCRIPTION, HTTP_REQUEST_METHOD, OP,
+        SENTRY_ACTION, SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_NORMALIZED_DESCRIPTION, URL_FULL,
+    };
+    use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
+    use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;
 
+    use crate::Envelope;
+    use crate::extractors::RequestMeta;
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
-
-    fn make_context(
-        scrubbing_config: DataScrubbingConfig,
-        pii_config: Option<PiiConfig>,
-    ) -> Context<'static> {
-        let config = Box::leak(Box::new(relay_config::Config::default()));
-        let global_config = Box::leak(Box::new(relay_dynamic_config::GlobalConfig::default()));
-        let project_info = Box::leak(Box::new(ProjectInfo {
-            config: relay_dynamic_config::ProjectConfig {
-                pii_config,
-                datascrubbing_settings: scrubbing_config,
-                ..Default::default()
-            },
-            ..Default::default()
-        }));
-        let rate_limits = Box::leak(Box::new(relay_quotas::RateLimits::default()));
-
-        Context {
-            config,
-            global_config,
-            project_info,
-            rate_limits,
-            sampling_project_info: None,
-        }
-    }
 
     #[test]
     fn test_scrub_span_pii_default_rules_links() {
@@ -240,17 +336,26 @@ mod tests {
 
         let mut data = Annotated::<SpanV2>::from_json(json).unwrap();
 
-        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
-        scrubbing_config.scrub_data = true;
-        scrubbing_config.scrub_defaults = true;
-        scrubbing_config.scrub_ip_addresses = true;
-        scrubbing_config.sensitive_fields = vec![
+        let mut datascrubbing_settings = relay_pii::DataScrubbingConfig::default();
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = true;
+        datascrubbing_settings.scrub_ip_addresses = true;
+        datascrubbing_settings.sensitive_fields = vec![
             "value".to_owned(), // Make sure the inner 'value' of the attribute object isn't scrubbed.
             "very_sensitive_data".to_owned(),
         ];
-        scrubbing_config.exclude_fields = vec!["public_data".to_owned()];
+        datascrubbing_settings.exclude_fields = vec!["public_data".to_owned()];
 
-        let ctx = make_context(scrubbing_config, None);
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    datascrubbing_settings,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
         scrub_span(&mut data, ctx).unwrap();
 
         let link = data.value().unwrap().links.value().unwrap()[0]
@@ -353,10 +458,10 @@ mod tests {
 
         let mut data = Annotated::<SpanV2>::from_json(json).unwrap();
 
-        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
-        scrubbing_config.scrub_data = true;
-        scrubbing_config.scrub_defaults = false;
-        scrubbing_config.scrub_ip_addresses = false;
+        let mut datascrubbing_settings = relay_pii::DataScrubbingConfig::default();
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = false;
+        datascrubbing_settings.scrub_ip_addresses = false;
 
         let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
         {
@@ -449,7 +554,17 @@ mod tests {
         ))
         .unwrap();
 
-        let ctx = make_context(scrubbing_config, Some(config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(config),
+                    datascrubbing_settings,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
         scrub_span(&mut data, ctx).unwrap();
         let link = data.value().unwrap().links.value().unwrap()[0]
             .value()
@@ -666,5 +781,195 @@ mod tests {
             ..Default::default()
         });
         assert!(r.is_err());
+    }
+
+    fn prepare_normalize_span_params(
+        string_attributes: &[(&str, &str)],
+        float_attributes: &[(&str, f64)],
+    ) -> (
+        Annotated<SpanV2>,
+        EnvelopeHeaders,
+        GeoIpLookup,
+        Context<'static>,
+    ) {
+        let mut attributes = Attributes::new();
+        string_attributes
+            .iter()
+            .for_each(|(key, value)| attributes.insert(*key, value.to_owned()));
+        float_attributes
+            .iter()
+            .for_each(|(key, value)| attributes.insert(*key, *value));
+        let attrs_json =
+            serde_json::to_string(&SerializableAnnotated(&Annotated::new(attributes))).unwrap();
+        let span_json = format!(
+            r#"{{
+             "trace_id": "5b8efff798038103d269b633813fc60c",
+             "span_id": "eee19b7ec3c1b175",
+             "start_timestamp": 1715000000.0,
+             "end_timestamp": 1715000001.0,
+             "name": "test",
+             "status": "ok",
+             "attributes": {attrs_json}
+         }}"#
+        );
+        let span = Annotated::<SpanV2>::from_json(&span_json).unwrap();
+
+        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let meta = RequestMeta::new(dsn);
+        let envelope = Envelope::from_request(Some(EventId::new()), meta);
+        let headers = envelope.headers().to_owned();
+
+        (span, headers, GeoIpLookup::empty(), Context::for_test())
+    }
+
+    fn assert_attributes_contains(
+        span: &Annotated<SpanV2>,
+        string_attributes: &[(&str, &str)],
+        float_attributes: &[(&str, f64)],
+    ) {
+        let attrs = span.value().unwrap().attributes.value().unwrap();
+        string_attributes.iter().for_each(|(key, value)| {
+            assert_eq!(attrs.get_value(*key).and_then(|v| v.as_str()), Some(*value),)
+        });
+        float_attributes.iter().for_each(|(key, value)| {
+            assert_eq!(attrs.get_value(*key).and_then(|v| v.as_f64()), Some(*value),)
+        });
+    }
+
+    #[test]
+    fn test_insights_backend_queries_support_modern() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                (DB_SYSTEM_NAME, "postgresql"),
+                (DB_QUERY_TEXT, "select * from users where id = 1"),
+            ],
+            &[],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (DESCRIPTION, "select * from users where id = 1"),
+                (
+                    SENTRY_NORMALIZED_DESCRIPTION,
+                    "SELECT * FROM users WHERE id = %s",
+                ),
+                (SENTRY_CATEGORY, "db"),
+                (DB_SYSTEM, "postgresql"),
+                (SENTRY_ACTION, "SELECT"),
+                (SENTRY_DOMAIN, ",users,"),
+            ],
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_insights_backend_queries_support_legacy() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                (DB_SYSTEM, "postgresql"),
+                (DESCRIPTION, "select * from users where id = 1"),
+            ],
+            &[],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (DESCRIPTION, "select * from users where id = 1"),
+                (
+                    SENTRY_NORMALIZED_DESCRIPTION,
+                    "SELECT * FROM users WHERE id = %s",
+                ),
+                (SENTRY_CATEGORY, "db"),
+                (DB_SYSTEM, "postgresql"),
+                (SENTRY_ACTION, "SELECT"),
+                (SENTRY_DOMAIN, ",users,"),
+            ],
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_insights_backend_outbound_api_requests_support_modern() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                ("sentry.kind", SpanKind::Client.as_str()),
+                (HTTP_REQUEST_METHOD, "GET"),
+                (URL_FULL, "https://www.example.com/path?param=value"),
+            ],
+            &[("http.response.status_code", 502.)],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (SENTRY_CATEGORY, "http"),
+                (OP, "http.client"),
+                (DESCRIPTION, "GET https://www.example.com/path?param=value"),
+                (SENTRY_ACTION, "GET"),
+                (SENTRY_DOMAIN, "*.example.com"),
+            ],
+            &[("sentry.status_code", 502.)],
+        );
+    }
+
+    #[test]
+    fn test_insights_backend_outbound_api_requests_support_legacy_absolute() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                (OP, "http.client"),
+                (DESCRIPTION, "GET https://www.example.com/path?param=value"),
+            ],
+            &[("http.response.status_code", 502.)],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (SENTRY_CATEGORY, "http"),
+                (OP, "http.client"),
+                (DESCRIPTION, "GET https://www.example.com/path?param=value"),
+                (SENTRY_ACTION, "GET"),
+                (SENTRY_DOMAIN, "*.example.com"),
+            ],
+            &[("sentry.status_code", 502.)],
+        );
+    }
+
+    #[test]
+    fn test_insights_backend_outbound_api_requests_support_legacy_relative() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                (OP, "http.client"),
+                (DESCRIPTION, "GET /path?param=value"),
+                ("server.address", "www.example.com"),
+            ],
+            &[("http.response.status_code", 502.)],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (SENTRY_CATEGORY, "http"),
+                (OP, "http.client"),
+                (DESCRIPTION, "GET /path?param=value"),
+                (SENTRY_ACTION, "GET"),
+                (SENTRY_DOMAIN, "*.example.com"),
+            ],
+            &[("sentry.status_code", 502.)],
+        );
     }
 }

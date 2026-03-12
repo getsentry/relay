@@ -32,12 +32,6 @@ pub struct RedisConfigOptions {
     /// If a command exceeds this timeout, the connection will be recycled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_timeout: Option<u64>,
-    /// Sets the number of times after which the connection will check whether it is active when
-    /// being recycled.
-    ///
-    /// A frequency of 1, means that the connection will check whether it is active every time it
-    /// is recycled.
-    pub recycle_check_frequency: usize,
 }
 
 impl Default for RedisConfigOptions {
@@ -49,7 +43,6 @@ impl Default for RedisConfigOptions {
             recycle_timeout: Some(2),
             wait_timeout: None,
             response_timeout: Some(30),
-            recycle_check_frequency: 100,
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr};
 use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -171,7 +171,16 @@ trait ConfigObject: DeserializeOwned + Serialize {
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, &path))?;
         let f = io::BufReader::new(f);
 
-        let mut source = serde_vars::EnvSource::default();
+        let mut source = {
+            let file = serde_vars::FileSource::default()
+                .with_variable_prefix("${file:")
+                .with_variable_suffix("}")
+                .with_base_path(base);
+            let env = serde_vars::EnvSource::default()
+                .with_variable_prefix("${")
+                .with_variable_suffix("}");
+            (file, env)
+        };
         match Self::format() {
             ConfigFormat::Yaml => {
                 serde_vars::deserialize(serde_yaml::Deserializer::from_reader(f), &mut source)
@@ -548,6 +557,10 @@ pub struct Metrics {
     ///
     /// Defaults to `None`.
     pub statsd: Option<String>,
+    /// Buffer size used for metrics sent to the statsd socket.
+    ///
+    /// Defaults to `None`.
+    pub statsd_buffer_size: Option<usize>,
     /// Common prefix that should be added to all metrics.
     ///
     /// Defaults to `"sentry.relay"`.
@@ -556,41 +569,22 @@ pub struct Metrics {
     pub default_tags: BTreeMap<String, String>,
     /// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
     pub hostname_tag: Option<String>,
-    /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
-    ///
-    /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
-    /// Defaults to `1.0` (100%).
-    pub sample_rate: f32,
     /// Interval for periodic metrics emitted from Relay.
     ///
     /// Setting it to `0` seconds disables the periodic metrics.
     /// Defaults to 5 seconds.
     pub periodic_secs: u64,
-    /// Whether local metric aggregation using statdsproxy should be enabled.
-    ///
-    /// Defaults to `true`.
-    pub aggregate: bool,
-    /// Allows emission of metrics with high cardinality tags.
-    ///
-    /// High cardinality tags are dynamic values attached to metrics,
-    /// such as project IDs. When enabled, these tags will be included
-    /// in the emitted metrics. When disabled, the tags will be omitted.
-    ///
-    /// Defaults to `false`.
-    pub allow_high_cardinality_tags: bool,
 }
 
 impl Default for Metrics {
     fn default() -> Self {
         Metrics {
             statsd: None,
+            statsd_buffer_size: None,
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
-            sample_rate: 1.0,
             periodic_secs: 5,
-            aggregate: true,
-            allow_high_cardinality_tags: false,
         }
     }
 }
@@ -611,6 +605,8 @@ pub struct Limits {
     pub max_event_size: ByteSize,
     /// The maximum size for each attachment.
     pub max_attachment_size: ByteSize,
+    /// The maximum size for a TUS upload request body.
+    pub max_upload_size: ByteSize,
     /// The maximum combined size for all attachments in an envelope or request.
     pub max_attachments_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
@@ -621,12 +617,6 @@ pub struct Limits {
     pub max_envelope_size: ByteSize,
     /// The maximum number of session items per envelope.
     pub max_session_count: usize,
-    /// The maximum number of standalone span items per envelope.
-    pub max_span_count: usize,
-    /// The maximum number of log items per envelope.
-    pub max_log_count: usize,
-    /// The maximum number of trace metrics per envelope.
-    pub max_trace_metric_count: usize,
     /// The maximum payload size for general API requests.
     pub max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
@@ -654,6 +644,16 @@ pub struct Limits {
     max_replay_uncompressed_size: ByteSize,
     /// The maximum size for a replay recording Kafka message.
     pub max_replay_message_size: ByteSize,
+    /// The byte size limit up to which Relay will retain
+    /// keys of invalid/removed attributes.
+    ///
+    /// This is only relevant for EAP items (spans, logs, …).
+    /// In principle, we want to record all deletions of attributes,
+    /// but we have to institute some limit to protect our infrastructure
+    /// against excessive metadata sizes.
+    ///
+    /// Defaults to 10KiB.
+    pub max_removed_attribute_key_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
@@ -706,14 +706,12 @@ impl Default for Limits {
             max_concurrent_queries: 5,
             max_event_size: ByteSize::mebibytes(1),
             max_attachment_size: ByteSize::mebibytes(200),
+            max_upload_size: ByteSize::mebibytes(1024),
             max_attachments_size: ByteSize::mebibytes(200),
             max_client_reports_size: ByteSize::kibibytes(4),
             max_check_in_size: ByteSize::kibibytes(100),
             max_envelope_size: ByteSize::mebibytes(200),
             max_session_count: 100,
-            max_span_count: 1000,
-            max_log_count: 1000,
-            max_trace_metric_count: 1000,
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
@@ -721,7 +719,7 @@ impl Default for Limits {
             max_trace_metric_size: ByteSize::kibibytes(2),
             max_log_size: ByteSize::mebibytes(1),
             max_span_size: ByteSize::mebibytes(1),
-            max_container_size: ByteSize::mebibytes(3),
+            max_container_size: ByteSize::mebibytes(12),
             max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
             max_replay_compressed_size: ByteSize::mebibytes(10),
@@ -735,6 +733,7 @@ impl Default for Limits {
             idle_timeout: None,
             max_connections: None,
             tcp_listen_backlog: 1024,
+            max_removed_attribute_key_size: ByteSize::kibibytes(10),
         }
     }
 }
@@ -880,6 +879,14 @@ pub struct Http {
     ///
     /// This option does not have any effect on processing mode.
     pub global_metrics: bool,
+    /// Controls whether the forward endpoint is enabled.
+    ///
+    /// The forward endpoint forwards unknown API requests to the upstream.
+    pub forward: bool,
+    /// Enables an async DNS resolver through the `hickory-dns` crate, which uses an LRU cache for
+    /// the resolved entries. This helps to limit the amount of requests made to the upstream DNS
+    /// server (important for K8s infrastructure).
+    pub dns_cache: bool,
 }
 
 impl Default for Http {
@@ -895,6 +902,8 @@ impl Default for Http {
             project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
+            forward: true,
+            dns_cache: true,
         }
     }
 }
@@ -928,14 +937,9 @@ fn spool_disk_usage_refresh_frequency_ms() -> u64 {
     100
 }
 
-/// Default bounded buffer size for handling backpressure.
-fn spool_max_backpressure_envelopes() -> usize {
-    500
-}
-
 /// Default max memory usage for unspooling.
 fn spool_max_backpressure_memory_percent() -> f32 {
-    0.9
+    0.8
 }
 
 /// Default number of partitions for the buffer.
@@ -981,11 +985,6 @@ pub struct EnvelopeSpool {
     /// Defaults to 100ms.
     #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
     pub disk_usage_refresh_frequency_ms: u64,
-    /// The amount of envelopes that the envelope buffer can push to its output queue.
-    ///
-    /// Defaults to 500.
-    #[serde(default = "spool_max_backpressure_envelopes")]
-    pub max_backpressure_envelopes: usize,
     /// The relative memory usage above which the buffer service will stop dequeueing envelopes.
     ///
     /// Only applies when [`Self::path`] is set.
@@ -1035,7 +1034,6 @@ impl Default for EnvelopeSpool {
             batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
-            max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
         }
@@ -1193,9 +1191,27 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
-    /// Configuration for attachment uploads.
-    #[serde(default)]
-    pub upload: UploadServiceConfig,
+    /// Configures the quota cache ratio between `0.0` and `1.0`.
+    ///
+    /// The quota cache, caches the specified ratio of remaining quota in memory to reduce the
+    /// amount of synchronizations required with Redis.
+    ///
+    /// The ratio is applied to the (per second) rate of the quota, not the total limit.
+    /// For example a quota with limit 100 with a 10 second window is treated equally to a quota of
+    /// 10 with a 1 second window.
+    ///
+    /// By default quota caching is disabled.
+    pub quota_cache_ratio: Option<f32>,
+    /// Relative amount of the total quota limit to which quota caching is applied.
+    ///
+    /// If exceeded, the rate limiter will no longer cache the quota and sync with Redis on every call instead.
+    /// Lowering this value reduces the probability of incorrectly over-accepting.
+    ///
+    /// Must be between `0.0` and `1.0`, by default there is no limit configured.
+    pub quota_cache_max: Option<f32>,
+    /// Configuration for the objectstore service.
+    #[serde(default, alias = "upload")]
+    pub objectstore: ObjectstoreServiceConfig,
 }
 
 impl Default for Processing {
@@ -1214,7 +1230,9 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
-            upload: UploadServiceConfig::default(),
+            quota_cache_ratio: None,
+            quota_cache_max: None,
+            objectstore: ObjectstoreServiceConfig::default(),
         }
     }
 }
@@ -1263,21 +1281,34 @@ impl Default for OutcomeAggregatorConfig {
     }
 }
 
-/// Configuration values for attachment uploads.
+/// Configuration values for the objectstore service.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-pub struct UploadServiceConfig {
+pub struct ObjectstoreServiceConfig {
+    /// The base URL for the objectstore service.
+    ///
+    /// This defaults to [`None`], which means that the service will be disabled,
+    /// unless a proper configuration is provided.
+    pub objectstore_url: Option<String>,
+
     /// Maximum concurrency of uploads.
     pub max_concurrent_requests: usize,
+
+    /// Maximum size of the service input queue when `max_concurrent_requests` is saturated.
+    ///
+    /// The service will loadshed if this threshold is reached.
+    pub max_backlog: usize,
 
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
     pub timeout: u64,
 }
 
-impl Default for UploadServiceConfig {
+impl Default for ObjectstoreServiceConfig {
     fn default() -> Self {
         Self {
-            max_concurrent_requests: 100,
+            objectstore_url: None,
+            max_concurrent_requests: 10,
+            max_backlog: 20,
             timeout: 60,
         }
     }
@@ -1603,6 +1634,28 @@ impl Default for Cogs {
     }
 }
 
+/// Configuration for the upload service.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Upload {
+    /// Maximum number of uploads that the service accepts.
+    ///
+    /// Additional uploads will be rejected.
+    pub max_concurrent_requests: usize,
+    /// Maximum time spent trying to upload, in seconds.
+    /// Currently only used by non-processing relays, as the objectstore service has its own timeout.
+    pub timeout: u64,
+}
+
+impl Default for Upload {
+    fn default() -> Self {
+        Self {
+            max_concurrent_requests: 10,
+            timeout: 60,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1643,6 +1696,8 @@ struct ConfigValues {
     health: Health,
     #[serde(default)]
     cogs: Cogs,
+    #[serde(default)]
+    upload: Upload,
 }
 
 impl ConfigObject for ConfigValues {
@@ -2067,6 +2122,11 @@ impl Config {
         self.values.http.global_metrics
     }
 
+    /// Returns `true` if Relay supports forwarding unknown API requests.
+    pub fn http_forward(&self) -> bool {
+        self.values.http.forward
+    }
+
     /// Returns whether this Relay should emit outcomes.
     ///
     /// This is `true` either if `outcomes.emit_outcomes` is explicitly enabled, or if this Relay is
@@ -2121,20 +2181,14 @@ impl Config {
         &self.values.sentry
     }
 
-    /// Returns the socket addresses for statsd.
-    ///
-    /// If stats is disabled an empty vector is returned.
-    pub fn statsd_addrs(&self) -> anyhow::Result<Vec<SocketAddr>> {
-        if let Some(ref addr) = self.values.metrics.statsd {
-            let addrs = addr
-                .as_str()
-                .to_socket_addrs()
-                .with_context(|| ConfigError::file(ConfigErrorKind::InvalidValue, &self.path))?
-                .collect();
-            Ok(addrs)
-        } else {
-            Ok(vec![])
-        }
+    /// Returns the addresses for statsd metrics.
+    pub fn statsd_addr(&self) -> Option<&str> {
+        self.values.metrics.statsd.as_deref()
+    }
+
+    /// Returns the addresses for statsd metrics.
+    pub fn statsd_buffer_size(&self) -> Option<usize> {
+        self.values.metrics.statsd_buffer_size
     }
 
     /// Return the prefix for statsd metrics.
@@ -2150,21 +2204,6 @@ impl Config {
     /// Returns the name of the hostname tag that should be attached to each outgoing metric.
     pub fn metrics_hostname_tag(&self) -> Option<&str> {
         self.values.metrics.hostname_tag.as_deref()
-    }
-
-    /// Returns the global sample rate for all metrics.
-    pub fn metrics_sample_rate(&self) -> f32 {
-        self.values.metrics.sample_rate
-    }
-
-    /// Returns whether local metric aggregation should be enabled.
-    pub fn metrics_aggregate(&self) -> bool {
-        self.values.metrics.aggregate
-    }
-
-    /// Returns whether high cardinality tags should be removed before sending metrics.
-    pub fn metrics_allow_high_cardinality_tags(&self) -> bool {
-        self.values.metrics.allow_high_cardinality_tags
     }
 
     /// Returns the interval for periodic metrics emitted from Relay.
@@ -2190,6 +2229,11 @@ impl Config {
     /// Returns the failed upstream request retry interval.
     pub fn http_max_retry_interval(&self) -> Duration {
         Duration::from_secs(self.values.http.max_retry_interval.into())
+    }
+
+    /// Returns `true` if relay should use an in-process cache for DNS lookups.
+    pub fn http_dns_cache(&self) -> bool {
+        self.values.http.dns_cache
     }
 
     /// Returns the expiry timeout for cached projects.
@@ -2304,11 +2348,6 @@ impl Config {
         Duration::from_millis(self.values.spool.envelopes.disk_usage_refresh_frequency_ms)
     }
 
-    /// Returns the maximum number of envelopes that can be put in the bounded buffer.
-    pub fn spool_max_backpressure_envelopes(&self) -> usize {
-        self.values.spool.envelopes.max_backpressure_envelopes
-    }
-
     /// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
     pub fn spool_max_backpressure_memory_percent(&self) -> f32 {
         self.values.spool.envelopes.max_backpressure_memory_percent
@@ -2327,6 +2366,11 @@ impl Config {
     /// Returns the maximum size of each attachment.
     pub fn max_attachment_size(&self) -> usize {
         self.values.limits.max_attachment_size.as_bytes()
+    }
+
+    /// Returns the maximum size of a TUS upload request body.
+    pub fn max_upload_size(&self) -> usize {
+        self.values.limits.max_upload_size.as_bytes()
     }
 
     /// Returns the maximum combined size of attachments or payloads containing attachments
@@ -2360,6 +2404,18 @@ impl Config {
         self.values.limits.max_container_size.as_bytes()
     }
 
+    /// Returns the maximum payload size for logs integration items in bytes.
+    pub fn max_logs_integration_size(&self) -> usize {
+        // Not explicitly configured, inherited from the maximum size of a log container.
+        self.max_container_size()
+    }
+
+    /// Returns the maximum payload size for spans integration items in bytes.
+    pub fn max_spans_integration_size(&self) -> usize {
+        // Not explicitly configured, inherited from the maximum size of a span container.
+        self.max_container_size()
+    }
+
     /// Returns the maximum size of an envelope payload in bytes.
     ///
     /// Individual item size limits still apply.
@@ -2370,21 +2426,6 @@ impl Config {
     /// Returns the maximum number of sessions per envelope.
     pub fn max_session_count(&self) -> usize {
         self.values.limits.max_session_count
-    }
-
-    /// Returns the maximum number of standalone spans per envelope.
-    pub fn max_span_count(&self) -> usize {
-        self.values.limits.max_span_count
-    }
-
-    /// Returns the maximum number of logs per envelope.
-    pub fn max_log_count(&self) -> usize {
-        self.values.limits.max_log_count
-    }
-
-    /// Returns the maximum number of trace metrics per envelope.
-    pub fn max_trace_metric_count(&self) -> usize {
-        self.values.limits.max_trace_metric_count
     }
 
     /// Returns the maximum payload size of a statsd metric in bytes.
@@ -2449,6 +2490,11 @@ impl Config {
     /// Returns the maximum number of active queries
     pub fn max_concurrent_queries(&self) -> usize {
         self.values.limits.max_concurrent_queries
+    }
+
+    /// Returns the maximum combined size of keys of invalid attributes.
+    pub fn max_removed_attribute_key_size(&self) -> usize {
+        self.values.limits.max_removed_attribute_key_size.as_bytes()
     }
 
     /// The maximum number of seconds a query is allowed to take across retries.
@@ -2556,9 +2602,14 @@ impl Config {
         &self.values.processing.topics.unused
     }
 
-    /// Configuration of the attachment upload service.
-    pub fn upload(&self) -> &UploadServiceConfig {
-        &self.values.processing.upload
+    /// Configuration of the objectstore service.
+    pub fn objectstore(&self) -> &ObjectstoreServiceConfig {
+        &self.values.processing.objectstore
+    }
+
+    /// Configuration of the upload service.
+    pub fn upload(&self) -> &Upload {
+        &self.values.upload
     }
 
     /// Redis servers to connect to for project configs, cardinality limits,
@@ -2592,6 +2643,16 @@ impl Config {
     /// Maximum rate limit to report to clients in seconds.
     pub fn max_rate_limit(&self) -> Option<u64> {
         self.values.processing.max_rate_limit.map(u32::into)
+    }
+
+    /// Amount of remaining quota which is cached in memory.
+    pub fn quota_cache_ratio(&self) -> Option<f32> {
+        self.values.processing.quota_cache_ratio
+    }
+
+    /// Maximum limit (ratio) for the in memory quota cache.
+    pub fn quota_cache_max(&self) -> Option<f32> {
+        self.values.processing.quota_cache_max
     }
 
     /// Cache vacuum interval for the cardinality limiter in memory cache.

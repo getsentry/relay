@@ -1,4 +1,3 @@
-import contextlib
 import json
 import signal
 import time
@@ -16,7 +15,6 @@ from .consts import (
 
 import pytest
 import requests
-from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
@@ -274,6 +272,8 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
         [
             DataCategory.TRANSACTION,
             DataCategory.TRANSACTION_INDEXED,
+            DataCategory.SPAN,
+            DataCategory.SPAN_INDEXED,
         ]
         if event_type == "transaction"
         else [DataCategory.ERROR]
@@ -300,7 +300,7 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
     assert outcomes == expected_outcomes
 
     # no events received since all have been for an invalid project id
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
     assert mini_sentry.captured_outcomes.empty()
 
 
@@ -403,7 +403,7 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
     assert len(outcomes) == batch_size
 
     # no events received since all have been for an invalid project id
-    assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_outcome_source(relay, mini_sentry):
@@ -481,7 +481,8 @@ def test_outcome_forwarding(
 
     _send_event(downstream_relay, event_type=event_type)
 
-    expected_categories = [1] if event_type == "error" else [2, 9]
+    expected_categories = [1] if event_type == "error" else [2, 9, 12, 16]
+
     outcomes = outcomes_consumer.get_outcomes(n=len(expected_categories))
     outcomes.sort(key=lambda x: x["category"])
 
@@ -966,7 +967,7 @@ def test_filtered_event_outcome_kafka(relay, mini_sentry):
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
-    assert mini_sentry.captured_events.qsize() == 0
+    assert mini_sentry.captured_envelopes.qsize() == 0
 
     outcomes = outcomes_batch.get("outcomes")
     assert len(outcomes) == 1
@@ -1475,8 +1476,7 @@ def test_profile_outcomes_invalid(
     ]
 
     # Make sure the profile will not be counted as accepted:
-    metrics = metrics_by_name(metrics_consumer, 7)
-    assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
+    metrics = metrics_by_name(metrics_consumer, 6)
     assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 
 
@@ -1577,12 +1577,17 @@ def test_profile_outcomes_too_many(
     assert profiles_consumer.get_profile()
 
 
-@pytest.mark.parametrize("quota_category", ["transaction", "profile"])
+@pytest.mark.parametrize(
+    "quota_category",
+    ["transaction", "profile", "profile_ui"],
+)
+@pytest.mark.parametrize("with_platform_header", [True, False])
 def test_profile_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
     quota_category,
+    with_platform_header,
 ):
     """
     Profiles that are rate limited before metrics extraction should count towards `Profile`.
@@ -1606,15 +1611,12 @@ def test_profile_outcomes_rate_limited(
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
             "aggregator": {
                 "bucket_interval": 1,
                 "flush_interval": 1,
             },
-        },
+        }
     }
-
     upstream = relay_with_processing(config)
 
     with open(
@@ -1632,16 +1634,27 @@ def test_profile_outcomes_rate_limited(
             type="transaction",
         )
     )
-    envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=profile),
+            type="profile",
+            headers=dict(platform="cocoa") if with_platform_header else dict(),
+        )
+    )
     upstream.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
-    outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_categories = [
         (DataCategory.PROFILE, 1),
         (DataCategory.PROFILE_INDEXED, 1),
     ]
+    # If the platform header is set, the outcome can be emitted in the fast path, for all limits,
+    # if the header is missing, it can only be enforced with consistent rate limiting, which only
+    # happens for the `profile_ui` category (as the rate limit can't be enforced in the fast path).
+    if with_platform_header or quota_category == "profile_ui":
+        expected_categories.append((DataCategory.PROFILE_UI, 1))
+
     if quota_category == "transaction":
         # Transaction got rate limited as well:
         expected_categories += [
@@ -1650,7 +1663,6 @@ def test_profile_outcomes_rate_limited(
             (DataCategory.SPAN, 2),
             (DataCategory.SPAN_INDEXED, 2),
         ]
-    expected_categories.sort()
 
     expected_outcomes = [
         {
@@ -1666,7 +1678,7 @@ def test_profile_outcomes_rate_limited(
         for (category, quantity) in expected_categories
     ]
 
-    if quota_category == "profile":
+    if quota_category != "transaction":
         expected_outcomes.append(
             {
                 "category": DataCategory.SPAN_INDEXED,
@@ -1678,6 +1690,9 @@ def test_profile_outcomes_rate_limited(
                 "timestamp": time_within_delta(),
             }
         )
+
+    outcomes.sort(key=lambda o: sorted(o.items()))
+    expected_outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1711,10 +1726,6 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
                 "flush_interval": 0,
             },
         },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
-        },
     }
 
     relay = relay(mini_sentry, options=config)
@@ -1743,92 +1754,13 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
         assert outcome2["category"] == DataCategory.PROFILE_INDEXED
         assert outcome2["quantity"] == 1
 
-        assert mini_sentry.captured_events.empty()
+        assert mini_sentry.captured_envelopes.empty()
     else:
         # Do not rate limit if there is only a transaction_indexed quota.
-        envelope = mini_sentry.get_captured_event()
+        envelope = mini_sentry.get_captured_envelope()
         assert envelope.items[0].headers["type"] == "profile"
 
         assert mini_sentry.captured_outcomes.empty()
-
-
-def test_global_rate_limit(
-    mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
-):
-    metrics_consumer = metrics_consumer()
-    outcomes_consumer = outcomes_consumer()
-
-    bucket_interval = 1  # second
-    relay = relay_with_processing(
-        {
-            "processing": {"max_rate_limit": 2 * 86400},
-            "aggregator": {
-                "bucket_interval": bucket_interval,
-                "initial_delay": 0,
-            },
-        }
-    )
-
-    metric_bucket_limit = 9
-
-    project_id = 42
-    projectconfig = mini_sentry.add_full_project_config(project_id)
-    mini_sentry.add_dsn_key_to_project(project_id)
-
-    now = datetime.now(UTC).timestamp()
-
-    projectconfig["config"]["quotas"] = [
-        {
-            "id": "test_rate_limiting" + str(uuid.uuid4()),
-            "scope": "global",
-            "categories": ["metric_bucket"],
-            "limit": metric_bucket_limit,
-            # Ensures we begin at the start of a slot so we don't go to next slot in the middle of the test
-            "window": int(now),
-            "reasonCode": "global rate limit hit",
-        }
-    ]
-
-    def send_buckets(n):
-        buckets = [
-            {
-                "org_id": 1,
-                "project_id": project_id,
-                "timestamp": now,
-                "name": "d:transactions/measurements.lcp@millisecond",
-                "type": "d",
-                "value": [1.0],
-                "width": bucket_interval,
-                "tags": {"foo": str(i)},
-            }
-            for i in range(n)
-        ]
-
-        relay.send_metrics_buckets(project_id, buckets)
-        time.sleep(5)
-
-    def assert_metrics_outcomes(n_metrics, n_outcomes):
-        produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
-        outcomes = outcomes_consumer.get_outcomes()
-
-        assert len(produced_buckets) == n_metrics
-        assert len(outcomes) == n_outcomes
-
-        for outcome in outcomes:
-            assert outcome["reason"] == "global rate limit hit"
-
-    # Send the exact amount allowed
-    send_buckets(metric_bucket_limit)
-    assert_metrics_outcomes(metric_bucket_limit, 0)
-
-    # Send more once the limit is hit and make sure they are rejected.
-    send_buckets(1)
-    assert_metrics_outcomes(0, 1)
-
-    # Subsequent requests should expose the rate limit via 429
-    with pytest.raises(HTTPError, match="429 Client Error"):
-        send_buckets(1)
-    assert_metrics_outcomes(0, 1)
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
@@ -2029,7 +1961,7 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=4)
+    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=6)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == [
@@ -2039,143 +1971,20 @@ def test_span_outcomes_invalid(
             "org_id": 1,
             "outcome": 3,  # Invalid
             "project_id": 42,
-            "quantity": 1,
+            "quantity": quantity,
             "reason": reason,
             "source": "pop-relay",
             "timestamp": time_within_delta(),
         }
-        for (category, reason) in [
-            (DataCategory.TRANSACTION, "invalid_transaction"),
-            (DataCategory.TRANSACTION_INDEXED, "invalid_transaction"),
-            (DataCategory.SPAN, "invalid_span"),
-            (DataCategory.SPAN_INDEXED, "invalid_span"),
+        for (category, quantity, reason) in [
+            (DataCategory.TRANSACTION, 1, "invalid_transaction"),
+            (DataCategory.TRANSACTION_INDEXED, 1, "invalid_transaction"),
+            (DataCategory.SPAN, 1, "invalid_span"),
+            (DataCategory.SPAN, 2, "invalid_transaction"),
+            (DataCategory.SPAN_INDEXED, 1, "invalid_span"),
+            (DataCategory.SPAN_INDEXED, 2, "invalid_transaction"),
         ]
     ]
-
-
-def test_global_rate_limit_by_namespace(
-    mini_sentry, relay_with_processing, outcomes_consumer, metrics_consumer
-):
-    """
-    Checks that we can hit a namespace quota first, and then have more quota left for the global limit.
-    """
-    outcomes_consumer = outcomes_consumer()
-    metrics_consumer = metrics_consumer()
-
-    bucket_interval = 1  # second
-    relay = relay_with_processing(
-        {
-            "processing": {"max_rate_limit": 2 * 86400},
-            "aggregator": {
-                "bucket_interval": bucket_interval,
-                "initial_delay": 0,
-            },
-        }
-    )
-
-    metric_bucket_limit = 9
-    transaction_limit = 5
-
-    project_id = 42
-    projectconfig = mini_sentry.add_full_project_config(project_id)
-    mini_sentry.add_dsn_key_to_project(project_id)
-
-    global_reason_code = "global rate limit hit"
-    transaction_reason_code = "global rate limit for transactions hit"
-    expect_429 = False
-
-    unique_id = str(uuid.uuid4())
-    projectconfig["config"]["quotas"] = [
-        {
-            "id": "testlimit" + unique_id,
-            "scope": "global",
-            "categories": ["metric_bucket"],
-            "limit": metric_bucket_limit,
-            "window": int(datetime.now(UTC).timestamp()) - 1,
-            "reasonCode": global_reason_code,
-        },
-        {
-            "id": "testlimit" + unique_id,
-            "scope": "global",
-            "categories": ["metric_bucket"],
-            "limit": transaction_limit,
-            "namespace": "transactions",
-            "window": int(datetime.now(UTC).timestamp()) - 1,
-            "reasonCode": transaction_reason_code,
-        },
-    ]
-
-    # Truncate the timestamp and add a slight offset to never be on the border of the rate limiting window.
-    ts = datetime.now(UTC).timestamp()
-
-    def send_buckets(n, name, value, ty):
-        for i in range(n):
-            bucket = [
-                {
-                    "org_id": 1,
-                    "project_id": project_id,
-                    "timestamp": ts,
-                    "name": name,
-                    "type": ty,
-                    "value": value,
-                    "width": bucket_interval,
-                    "tags": {"foo": str(i)},
-                }
-            ]
-
-            envelope = Envelope()
-            envelope.add_item(
-                Item(payload=PayloadRef(json=bucket), type="metric_buckets")
-            )
-
-            maybe_raises = (
-                pytest.raises(HTTPError, match="429 Client Error")
-                if expect_429
-                else contextlib.nullcontext()
-            )
-            with maybe_raises:
-                relay.send_envelope(project_id, envelope)
-
-        time.sleep(3)
-
-    transaction_name = "d:transactions/measurements.lcp@millisecond"
-    transaction_value = [1.0]
-
-    session_name = "s:sessions/user@none"
-    session_value = [12345423]
-
-    # Send as many transactions as we can.
-    send_buckets(transaction_limit, transaction_name, transaction_value, "d")
-
-    metrics = metrics_consumer.get_metrics(timeout=10, n=5)
-    assert len(metrics) == 5
-
-    # The next request will trigger a rate limit, AFTER this request we should get 429s
-    send_buckets(1, transaction_name, transaction_value, "d")
-    expect_429 = True
-
-    # assert we hit the transaction throughput limit configured.
-    outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
-    assert len(outcomes) == 1
-    assert outcomes[0]["reason"] == transaction_reason_code
-    metrics_consumer.assert_empty()
-
-    # Fill up the global limit
-    global_quota_remaining = metric_bucket_limit - transaction_limit
-    send_buckets(global_quota_remaining, session_name, session_value, "s")
-
-    # Assert we didn't get ratelimited
-    metrics = metrics_consumer.get_metrics(timeout=10, n=4)
-    assert len(metrics) == 4
-    outcomes_consumer.assert_empty()
-
-    # Send more than we have of global quota.
-    send_buckets(1, session_name, session_value, "s")
-
-    # Assert we hit the global limit
-    outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
-    assert len(outcomes) == 1
-    assert outcomes[0]["reason"] == global_reason_code
 
 
 def test_replay_outcomes_item_failed(

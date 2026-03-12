@@ -17,9 +17,7 @@ use tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
-use crate::middlewares::{
-    self, BodyTimingLayer, CatchPanicLayer, NormalizePath, RequestDecompressionLayer,
-};
+use crate::middlewares::{self, CatchPanicLayer, NormalizePath, RequestDecompressionLayer};
 use crate::service::ServiceState;
 use crate::statsd::{RelayCounters, RelayGauges};
 
@@ -64,7 +62,6 @@ fn make_app(service: ServiceState, f: impl FnOnce(&Config) -> axum::Router<Servi
     //  - Requests go from top to bottom
     //  - Responses go from bottom to top
     let middleware = ServiceBuilder::new()
-        .layer(BodyTimingLayer)
         .layer(axum::middleware::from_fn(middlewares::metrics))
         .layer(CatchPanicLayer::custom(middlewares::handle_panic))
         .layer(SetResponseHeaderLayer::overriding(
@@ -111,7 +108,7 @@ async fn serve(listener: TcpListener, app: App, config: &Config) -> std::io::Res
         .tcp_keepalive(config.keepalive_timeout(), KEEPALIVE_RETRIES)
         .idle_timeout(config.idle_timeout());
 
-    let mut server = axum_server::from_tcp(listener)
+    let mut server = axum_server::from_tcp(listener)?
         .acceptor(acceptor)
         .handle(handle.clone());
 
@@ -211,7 +208,7 @@ impl Service for HttpServer {
         relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
         if let Some(internal_listener) = internal_listener {
-            let public = make_app(service.clone(), crate::endpoints::all_routes);
+            let public = make_app(service.clone(), crate::endpoints::public_routes);
             let internal = make_app(service, crate::endpoints::internal_routes);
 
             tokio::try_join!(
@@ -227,7 +224,7 @@ impl Service for HttpServer {
     }
 }
 
-async fn emit_active_connections_metric(interval: Option<Duration>, handle: Handle) {
+async fn emit_active_connections_metric(interval: Option<Duration>, handle: Handle<SocketAddr>) {
     let Some(mut ticker) = interval.map(tokio::time::interval) else {
         return;
     };

@@ -1,7 +1,5 @@
 use std::fmt;
 
-use serde::Serialize;
-
 use crate::integrations::Integration;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
@@ -9,7 +7,7 @@ pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 /// Payload content types.
 ///
 /// This is an optimized enum intended to reduce allocations for common content types.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ContentType {
     /// `text/plain`
     Text,
@@ -35,15 +33,17 @@ pub enum ContentType {
     SpanV2Container,
     /// `application/vnd.sentry.items.trace-metric+json`
     TraceMetricContainer,
+    /// `application/vnd.sentry.trace-attachment`
+    TraceAttachment,
+    /// `application/vnd.sentry.attachment-ref`
+    AttachmentRef,
     /// All integration content types.
     Integration(Integration),
-    /// Any arbitrary content type not listed explicitly.
-    Other(String),
 }
 
 impl ContentType {
     #[inline]
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Self::Text => "text/plain",
             Self::Json => "application/json",
@@ -57,13 +57,14 @@ impl ContentType {
             Self::LogContainer => "application/vnd.sentry.items.log+json",
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
             Self::TraceMetricContainer => "application/vnd.sentry.items.trace-metric+json",
+            Self::TraceAttachment => "application/vnd.sentry.trace-attachment",
+            Self::AttachmentRef => "application/vnd.sentry.attachment-ref",
             Self::Integration(integration) => integration.as_content_type(),
-            Self::Other(other) => other,
         }
     }
 
     /// Returns `true` if this is the content type of an [`ItemContainer`](crate::envelope::ItemContainer).
-    pub fn is_container(&self) -> bool {
+    pub fn is_container(self) -> bool {
         matches!(
             self,
             ContentType::LogContainer
@@ -99,6 +100,12 @@ impl ContentType {
             Some(Self::SpanV2Container)
         } else if ct.eq_ignore_ascii_case(Self::TraceMetricContainer.as_str()) {
             Some(Self::TraceMetricContainer)
+        } else if ct.eq_ignore_ascii_case(Self::TraceAttachment.as_str())
+            || ct.eq_ignore_ascii_case("application/vnd.sentry.attachment.v2")
+        {
+            Some(Self::TraceAttachment)
+        } else if ct.eq_ignore_ascii_case(Self::AttachmentRef.as_str()) {
+            Some(Self::AttachmentRef)
         } else {
             Integration::from_content_type(ct).map(Self::Integration)
         }
@@ -111,33 +118,20 @@ impl fmt::Display for ContentType {
     }
 }
 
-impl From<String> for ContentType {
-    fn from(mut content_type: String) -> Self {
-        Self::from_str(&content_type).unwrap_or_else(|| {
-            content_type.make_ascii_lowercase();
-            ContentType::Other(content_type)
-        })
-    }
-}
-
-impl From<&'_ str> for ContentType {
-    fn from(content_type: &str) -> Self {
-        Self::from_str(content_type)
-            .unwrap_or_else(|| ContentType::Other(content_type.to_ascii_lowercase()))
-    }
-}
-
 impl From<Integration> for ContentType {
     fn from(value: Integration) -> Self {
         Self::Integration(value)
     }
 }
 
+#[derive(Debug)]
+pub struct UnknownContentType;
+
 impl std::str::FromStr for ContentType {
-    type Err = std::convert::Infallible;
+    type Err = UnknownContentType;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(s.into())
+        Self::from_str(s).ok_or(UnknownContentType)
     }
 }
 
@@ -182,7 +176,7 @@ impl PartialEq<ContentType> for String {
     }
 }
 
-impl Serialize for ContentType {
+impl serde::Serialize for ContentType {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

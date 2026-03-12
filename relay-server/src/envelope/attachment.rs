@@ -3,7 +3,7 @@ use std::fmt;
 /// The type of an event attachment.
 ///
 /// These item types must align with the Sentry processing pipeline.
-#[derive(Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
 pub enum AttachmentType {
     /// A regular attachment without special meaning.
     #[default]
@@ -31,6 +31,9 @@ pub enum AttachmentType {
     // A prosperodump crash report (binary data)
     Prosperodump,
 
+    /// A Nintendo Switch dying message.
+    NintendoSwitchDyingMessage,
+
     /// This is a binary attachment present in Unreal 4 events containing event context information.
     ///
     /// This can be deserialized using the `symbolic` crate see
@@ -49,10 +52,6 @@ pub enum AttachmentType {
 
     /// An application UI view hierarchy (json payload).
     ViewHierarchy,
-
-    /// Unknown attachment type, forwarded for compatibility.
-    /// Attachments with this type will be dropped if `accept_unknown_items` is set to false.
-    Unknown(String),
 }
 
 impl fmt::Display for AttachmentType {
@@ -64,16 +63,19 @@ impl fmt::Display for AttachmentType {
             AttachmentType::EventPayload => write!(f, "event.payload"),
             AttachmentType::Prosperodump => write!(f, "playstation.prosperodump"),
             AttachmentType::Breadcrumbs => write!(f, "event.breadcrumbs"),
+            AttachmentType::NintendoSwitchDyingMessage => write!(f, "nswitch.dying_message"),
             AttachmentType::UnrealContext => write!(f, "unreal.context"),
             AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
             AttachmentType::ViewHierarchy => write!(f, "event.view_hierarchy"),
-            AttachmentType::Unknown(s) => s.fmt(f),
         }
     }
 }
 
+#[derive(Debug)]
+pub struct UnknownAttachmentType;
+
 impl std::str::FromStr for AttachmentType {
-    type Err = std::convert::Infallible;
+    type Err = UnknownAttachmentType;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
@@ -82,11 +84,12 @@ impl std::str::FromStr for AttachmentType {
             "event.applecrashreport" => AttachmentType::AppleCrashReport,
             "event.payload" => AttachmentType::EventPayload,
             "playstation.prosperodump" => AttachmentType::Prosperodump,
+            "nswitch.dying_message" => AttachmentType::NintendoSwitchDyingMessage,
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
             "event.view_hierarchy" => AttachmentType::ViewHierarchy,
             "unreal.context" => AttachmentType::UnrealContext,
             "unreal.logs" => AttachmentType::UnrealLogs,
-            other => AttachmentType::Unknown(other.to_owned()),
+            _ => return Err(UnknownAttachmentType),
         })
     }
 }

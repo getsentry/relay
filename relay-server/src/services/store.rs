@@ -12,7 +12,7 @@ use futures::FutureExt;
 use futures::future::BoxFuture;
 use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::value::RawValue;
 use uuid::Uuid;
 
@@ -33,16 +33,17 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::managed::{Counted, Managed, OutcomeError, Quantities, TypedEnvelope};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, TypedEnvelope};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
-use crate::services::upload::Upload;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
+
+mod sessions;
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -90,7 +91,7 @@ impl Producer {
     }
 }
 
-/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
+/// Publishes an [`Envelope`](crate::envelope::Envelope) to the Sentry core application through Kafka topics.
 #[derive(Debug)]
 pub struct StoreEnvelope {
     pub envelope: TypedEnvelope<Processed>,
@@ -109,16 +110,11 @@ pub struct StoreMetrics {
 pub struct StoreTraceItem {
     /// The final trace item which will be produced to Kafka.
     pub trace_item: TraceItem,
-    /// Outcomes to be emitted when successfully producing the item to Kafka.
-    ///
-    /// Note: this is only a temporary measure, long term these outcomes will be part of the trace
-    /// item and emitted by Snuba to guarantee a delivery to storage.
-    pub quantities: Quantities,
 }
 
 impl Counted for StoreTraceItem {
     fn quantities(&self) -> Quantities {
-        self.quantities.clone()
+        self.trace_item.quantities()
     }
 }
 
@@ -138,6 +134,50 @@ pub struct StoreSpanV2 {
 impl Counted for StoreSpanV2 {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
+    }
+}
+
+/// Publishes a singular profile chunk to Kafka.
+#[derive(Debug)]
+pub struct StoreProfileChunk {
+    /// Default retention of the span.
+    pub retention_days: u16,
+    /// The serialized profile chunk payload.
+    pub payload: Bytes,
+    /// Outcome quantities associated with this profile.
+    ///
+    /// Quantities are different for backend and ui profile chunks.
+    pub quantities: Quantities,
+}
+
+impl Counted for StoreProfileChunk {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
+/// A replay to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreReplay {
+    /// The event ID.
+    pub event_id: EventId,
+    /// Number of days to retain.
+    pub retention_days: u16,
+    /// The recording payload (rrweb data).
+    pub recording: Bytes,
+    /// Optional replay event payload (JSON).
+    pub event: Option<Bytes>,
+    /// Optional replay video.
+    pub video: Option<Bytes>,
+    /// Outcome quantities associated with this replay.
+    ///
+    /// Quantities are different for web and native replays.
+    pub quantities: Quantities,
+}
+
+impl Counted for StoreReplay {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
     }
 }
 
@@ -161,6 +201,10 @@ pub enum Store {
     TraceItem(Managed<StoreTraceItem>),
     /// A singular Span.
     Span(Managed<Box<StoreSpanV2>>),
+    /// A singular profile chunk.
+    ProfileChunk(Managed<StoreProfileChunk>),
+    /// A singular replay.
+    Replay(Managed<StoreReplay>),
 }
 
 impl Store {
@@ -169,8 +213,10 @@ impl Store {
         match self {
             Store::Envelope(_) => "envelope",
             Store::Metrics(_) => "metrics",
-            Store::TraceItem(_) => "log",
+            Store::TraceItem(_) => "trace_item",
             Store::Span(_) => "span",
+            Store::ProfileChunk(_) => "profile_chunk",
+            Store::Replay(_) => "replay",
         }
     }
 }
@@ -209,6 +255,22 @@ impl FromMessage<Managed<Box<StoreSpanV2>>> for Store {
     }
 }
 
+impl FromMessage<Managed<StoreProfileChunk>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreProfileChunk>, _: ()) -> Self {
+        Self::ProfileChunk(message)
+    }
+}
+
+impl FromMessage<Managed<StoreReplay>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreReplay>, _: ()) -> Self {
+        Self::Replay(message)
+    }
+}
+
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     pool: StoreServicePool,
@@ -216,8 +278,6 @@ pub struct StoreService {
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
     metric_outcomes: MetricOutcomes,
-    #[expect(unused)]
-    upload: Addr<Upload>,
     producer: Producer,
 }
 
@@ -228,7 +288,6 @@ impl StoreService {
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
         metric_outcomes: MetricOutcomes,
-        upload: Addr<Upload>,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
@@ -237,7 +296,6 @@ impl StoreService {
             global_config,
             outcome_aggregator,
             metric_outcomes,
-            upload,
             producer,
         })
     }
@@ -250,22 +308,20 @@ impl StoreService {
                 Store::Metrics(message) => self.handle_store_metrics(message),
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
                 Store::Span(message) => self.handle_store_span(message),
+                Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
+                Store::Replay(message) => self.handle_store_replay(message),
             }
         })
     }
 
     fn handle_store_envelope(&self, message: StoreEnvelope) {
-        let StoreEnvelope {
-            envelope: mut managed,
-        } = message;
+        let StoreEnvelope { mut envelope } = message;
 
-        let scoping = managed.scoping();
-        let envelope = managed.take_envelope();
-
-        match self.store_envelope(envelope, managed.received_at(), scoping) {
-            Ok(()) => managed.accept(),
+        let scoping = envelope.scoping();
+        match self.store_envelope(&mut envelope) {
+            Ok(()) => envelope.accept(),
             Err(error) => {
-                managed.reject(Outcome::Invalid(DiscardReason::Internal));
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
                 relay_log::error!(
                     error = &error as &dyn Error,
                     tags.project_key = %scoping.project_key,
@@ -275,12 +331,11 @@ impl StoreService {
         }
     }
 
-    fn store_envelope(
-        &self,
-        mut envelope: Box<Envelope>,
-        received_at: DateTime<Utc>,
-        scoping: Scoping,
-    ) -> Result<(), StoreError> {
+    fn store_envelope(&self, managed_envelope: &mut ManagedEnvelope) -> Result<(), StoreError> {
+        let mut envelope = managed_envelope.take_envelope();
+        let received_at = managed_envelope.received_at();
+        let scoping = managed_envelope.scoping();
+
         let retention = envelope.retention();
         let downsampled_retention = envelope.downsampled_retention();
 
@@ -307,17 +362,6 @@ impl StoreService {
         let send_individual_attachments = matches!(event_type, None | Some(&ItemType::Transaction));
 
         let mut attachments = Vec::new();
-        let mut replay_event = None;
-        let mut replay_recording = None;
-
-        // Whether Relay will submit the replay-event to snuba or not.
-        let replay_relay_snuba_publish_disabled = utils::sample(
-            self.global_config
-                .current()
-                .options
-                .replay_relay_snuba_publish_disabled_sample_rate,
-        )
-        .is_keep();
 
         for item in envelope.items() {
             let content_type = item.content_type();
@@ -359,35 +403,11 @@ impl StoreService {
                     retention,
                     item,
                 )?,
-                ItemType::ReplayVideo => {
-                    self.produce_replay_video(
-                        event_id,
-                        scoping,
-                        item.payload(),
-                        received_at,
-                        retention,
-                        replay_relay_snuba_publish_disabled,
-                    )?;
-                }
-                ItemType::ReplayRecording => {
-                    replay_recording = Some(item);
-                }
-                ItemType::ReplayEvent => {
-                    replay_event = Some(item);
-                    self.produce_replay_event(
-                        event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.project_id,
-                        received_at,
-                        retention,
-                        &item.payload(),
-                        replay_relay_snuba_publish_disabled,
-                    )?;
-                }
                 ItemType::CheckIn => {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span if content_type == Some(&ContentType::Json) => self.produce_span(
+                ItemType::Span if content_type == Some(ContentType::Json) => self.produce_span(
                     scoping,
                     received_at,
                     event_id,
@@ -406,13 +426,6 @@ impl StoreService {
                         "StoreService received unsupported item type '{ty}' in envelope"
                     );
                 }
-                ItemType::ProfileChunk => self.produce_profile_chunk(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    received_at,
-                    retention,
-                    item,
-                )?,
                 other => {
                     let event_type = event_item.as_ref().map(|item| item.ty().as_str());
                     let item_types = envelope
@@ -452,25 +465,6 @@ impl StoreService {
             }
         }
 
-        if let Some(recording) = replay_recording {
-            // If a recording item type was seen we produce it to Kafka with the replay-event
-            // payload (should it have been provided).
-            //
-            // The replay_video value is always specified as `None`. We do not allow separate
-            // item types for `ReplayVideo` events.
-            let replay_event = replay_event.map(|rv| rv.payload());
-            self.produce_replay_recording(
-                event_id,
-                scoping,
-                &recording.payload(),
-                replay_event.as_deref(),
-                None,
-                received_at,
-                retention,
-                replay_relay_snuba_publish_disabled,
-            )?;
-        }
-
         if let Some(event_item) = event_item {
             let event_id = event_id.ok_or(StoreError::NoEventId)?;
             let project_id = scoping.project_id;
@@ -506,6 +500,12 @@ impl StoreService {
 
         let global_config = self.global_config.current();
         let mut encoder = BucketEncoder::new(&global_config);
+
+        let emit_sessions_to_eap = utils::is_rolled_out(
+            scoping.organization_id.value(),
+            global_config.options.sessions_eap_rollout_rate,
+        )
+        .is_keep();
 
         let now = UnixTimestamp::now();
         let mut delay_stats = ByNamespace::<(u64, u64, u64)>::default();
@@ -550,6 +550,13 @@ impl StoreService {
 
                 self.metric_outcomes.track(scoping, &[view], outcome);
             }
+
+            if emit_sessions_to_eap
+                && let Some(trace_item) = sessions::to_trace_item(scoping, bucket, retention)
+            {
+                let message = KafkaMessage::for_item(scoping, trace_item);
+                let _ = self.produce(KafkaTopic::Items, message);
+            }
         }
 
         if let Some(error) = error {
@@ -582,27 +589,31 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
-        let quantities = message.try_accept(|item| {
-            let item_type = item.trace_item.item_type();
-            let message = KafkaMessage::Item {
-                headers: BTreeMap::from([
-                    ("project_id".to_owned(), scoping.project_id.to_string()),
-                    ("item_type".to_owned(), (item_type as i32).to_string()),
-                ]),
-                message: item.trace_item,
-                item_type,
+        let eap_emits_outcomes = utils::is_rolled_out(
+            scoping.organization_id.value(),
+            self.global_config
+                .current()
+                .options
+                .eap_outcomes_rollout_rate,
+        )
+        .is_keep();
+
+        let outcomes = message.try_accept(|mut item| {
+            let outcomes = match eap_emits_outcomes {
+                true => None,
+                false => item.trace_item.outcomes.take(),
             };
 
-            self.produce(KafkaTopic::Items, message)
-                .map(|()| item.quantities)
+            let message = KafkaMessage::for_item(scoping, item.trace_item);
+            self.produce(KafkaTopic::Items, message).map(|()| outcomes)
         });
 
         // Accepted outcomes when items have been successfully produced to rdkafka.
         //
         // This is only a temporary measure, long term these outcomes will be part of the trace
         // item and emitted by Snuba to guarantee a delivery to storage.
-        if let Ok(quantities) = quantities {
-            for (category, quantity) in quantities {
+        if let Ok(Some(outcomes)) = outcomes {
+            for (category, quantity) in outcomes.quantities() {
                 self.outcome_aggregator.send(TrackOutcome {
                     category,
                     event_id: None,
@@ -620,6 +631,15 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
+        let relay_emits_accepted_outcome = !utils::is_rolled_out(
+            scoping.organization_id.value(),
+            self.global_config
+                .current()
+                .options
+                .eap_span_outcomes_rollout_rate,
+        )
+        .is_keep();
+
         let meta = SpanMeta {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
@@ -628,6 +648,7 @@ impl StoreService {
             retention_days: message.retention_days,
             downsampled_retention_days: message.downsampled_retention_days,
             received: datetime_to_timestamp(received_at),
+            accepted_outcome_emitted: relay_emits_accepted_outcome,
         };
 
         let result = message.try_accept(|span| {
@@ -647,13 +668,13 @@ impl StoreService {
             self.produce(KafkaTopic::Spans, message)
         });
 
-        match result {
-            Ok(()) => {
-                relay_statsd::metric!(
-                    counter(RelayCounters::SpanV2Produced) += 1,
-                    via = "processing"
-                );
+        if result.is_ok() {
+            relay_statsd::metric!(
+                counter(RelayCounters::SpanV2Produced) += 1,
+                via = "processing"
+            );
 
+            if relay_emits_accepted_outcome {
                 // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
                 // or the segments consumer, depending on which will produce outcomes later.
                 self.outcome_aggregator.send(TrackOutcome {
@@ -666,14 +687,52 @@ impl StoreService {
                     timestamp: received_at,
                 });
             }
-            Err(error) => {
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    tags.project_key = %scoping.project_key,
-                    "failed to store span"
-                );
-            }
         }
+    }
+
+    fn handle_store_profile_chunk(&self, message: Managed<StoreProfileChunk>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let _ = message.try_accept(|message| {
+            let message = ProfileChunkKafkaMessage {
+                organization_id: scoping.organization_id,
+                project_id: scoping.project_id,
+                received: safe_timestamp(received_at),
+                retention_days: message.retention_days,
+                headers: BTreeMap::from([(
+                    "project_id".to_owned(),
+                    scoping.project_id.to_string(),
+                )]),
+                payload: message.payload,
+            };
+
+            self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))
+        });
+    }
+
+    fn handle_store_replay(&self, message: Managed<StoreReplay>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let _ = message.try_accept(|replay| {
+            let kafka_msg =
+                KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
+                    replay_id: replay.event_id,
+                    key_id: scoping.key_id,
+                    org_id: scoping.organization_id,
+                    project_id: scoping.project_id,
+                    received: safe_timestamp(received_at),
+                    retention_days: replay.retention_days,
+                    payload: &replay.recording,
+                    replay_event: replay.event.as_deref(),
+                    replay_video: replay.video.as_deref(),
+                    // Hardcoded to `true` to indicate to the consumer that it should always publish the
+                    // replay_event as relay no longer does it.
+                    relay_snuba_publish_disabled: true,
+                });
+            self.produce(KafkaTopic::ReplayRecordings, kafka_msg)
+        });
     }
 
     fn create_metric_message<'a>(
@@ -720,7 +779,18 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         relay_log::trace!("Sending kafka message of type {}", message.variant());
 
-        let topic_name = self.producer.client.send_message(topic, &message)?;
+        let topic_name = self
+            .producer
+            .client
+            .send_message(topic, &message)
+            .inspect_err(|err| {
+                relay_log::error!(
+                    error = err as &dyn Error,
+                    tags.topic = ?topic,
+                    tags.message = message.variant(),
+                    "failed to produce to Kafka"
+                )
+            })?;
 
         match &message {
             KafkaMessage::Metric {
@@ -780,12 +850,14 @@ impl StoreService {
         let size = item.len();
         let max_chunk_size = self.config.attachment_chunk_size();
 
-        // When sending individual attachments, and we have a single chunk, we want to send the
-        // `data` inline in the `attachment` message.
-        // This avoids a needless roundtrip through the attachments cache on the Sentry side.
         let payload = if size == 0 {
             AttachmentPayload::Chunked(0)
+        } else if let Some(stored_key) = item.stored_key() {
+            AttachmentPayload::Stored(stored_key.into())
         } else if send_individual_attachments && size < max_chunk_size {
+            // When sending individual attachments, and we have a single chunk, we want to send the
+            // `data` inline in the `attachment` message.
+            // This avoids a needless roundtrip through the attachments cache on the Sentry side.
             AttachmentPayload::Inline(payload)
         } else {
             let mut chunk_index = 0;
@@ -822,10 +894,8 @@ impl StoreService {
                 None => UNNAMED_ATTACHMENT.to_owned(),
             },
             rate_limited: item.rate_limited(),
-            content_type: item
-                .content_type()
-                .map(|content_type| content_type.as_str().to_owned()),
-            attachment_type: item.attachment_type().cloned().unwrap_or_default(),
+            content_type: item.raw_content_type().map(|s| s.to_ascii_lowercase()),
+            attachment_type: item.attachment_type().unwrap_or_default(),
             size,
             payload,
         };
@@ -895,8 +965,8 @@ impl StoreService {
             }
             _ => KafkaTopic::MetricsGeneric,
         };
-        let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
 
+        let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
         self.produce(topic, KafkaMessage::Metric { headers, message })?;
         Ok(())
     }
@@ -916,151 +986,17 @@ impl StoreService {
             key_id,
             received: safe_timestamp(received_at),
             retention_days,
-            headers: BTreeMap::from([(
-                "sampled".to_owned(),
-                if item.sampled() { "true" } else { "false" }.to_owned(),
-            )]),
+            headers: BTreeMap::from([
+                (
+                    "sampled".to_owned(),
+                    if item.sampled() { "true" } else { "false" }.to_owned(),
+                ),
+                ("project_id".to_owned(), project_id.to_string()),
+            ]),
             payload: item.payload(),
         };
         self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
         Ok(())
-    }
-
-    fn produce_replay_event(
-        &self,
-        replay_id: EventId,
-        project_id: ProjectId,
-        received_at: DateTime<Utc>,
-        retention_days: u16,
-        payload: &[u8],
-        relay_snuba_publish_disabled: bool,
-    ) -> Result<(), StoreError> {
-        if relay_snuba_publish_disabled {
-            return Ok(());
-        }
-
-        let message = ReplayEventKafkaMessage {
-            replay_id,
-            project_id,
-            retention_days,
-            start_time: safe_timestamp(received_at),
-            payload,
-        };
-        self.produce(KafkaTopic::ReplayEvents, KafkaMessage::ReplayEvent(message))?;
-        Ok(())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn produce_replay_recording(
-        &self,
-        event_id: Option<EventId>,
-        scoping: Scoping,
-        payload: &[u8],
-        replay_event: Option<&[u8]>,
-        replay_video: Option<&[u8]>,
-        received_at: DateTime<Utc>,
-        retention: u16,
-        relay_snuba_publish_disabled: bool,
-    ) -> Result<(), StoreError> {
-        // Maximum number of bytes accepted by the consumer.
-        let max_payload_size = self.config.max_replay_message_size();
-
-        // Size of the consumer message. We can be reasonably sure this won't overflow because
-        // of the request size validation provided by Nginx and Relay.
-        let mut payload_size = 2000; // Reserve 2KB for the message metadata.
-        payload_size += replay_event.as_ref().map_or(0, |b| b.len());
-        payload_size += replay_video.as_ref().map_or(0, |b| b.len());
-        payload_size += payload.len();
-
-        // If the recording payload can not fit in to the message do not produce and quit early.
-        if payload_size >= max_payload_size {
-            relay_log::debug!("replay_recording over maximum size.");
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::Replay,
-                event_id,
-                outcome: Outcome::Invalid(DiscardReason::TooLarge(
-                    DiscardItemType::ReplayRecording,
-                )),
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
-            return Ok(());
-        }
-
-        let message =
-            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
-                replay_id: event_id.ok_or(StoreError::NoEventId)?,
-                project_id: scoping.project_id,
-                key_id: scoping.key_id,
-                org_id: scoping.organization_id,
-                received: safe_timestamp(received_at),
-                retention_days: retention,
-                payload,
-                replay_event,
-                replay_video,
-                relay_snuba_publish_disabled,
-            });
-
-        self.produce(KafkaTopic::ReplayRecordings, message)?;
-
-        Ok(())
-    }
-
-    fn produce_replay_video(
-        &self,
-        event_id: Option<EventId>,
-        scoping: Scoping,
-        payload: Bytes,
-        received_at: DateTime<Utc>,
-        retention: u16,
-        relay_snuba_publish_disabled: bool,
-    ) -> Result<(), StoreError> {
-        #[derive(Deserialize)]
-        struct VideoEvent<'a> {
-            replay_event: &'a [u8],
-            replay_recording: &'a [u8],
-            replay_video: &'a [u8],
-        }
-
-        let Ok(VideoEvent {
-            replay_video,
-            replay_event,
-            replay_recording,
-        }) = rmp_serde::from_slice::<VideoEvent>(&payload)
-        else {
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::Replay,
-                event_id,
-                outcome: Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
-            return Ok(());
-        };
-
-        self.produce_replay_event(
-            event_id.ok_or(StoreError::NoEventId)?,
-            scoping.project_id,
-            received_at,
-            retention,
-            replay_event,
-            relay_snuba_publish_disabled,
-        )?;
-
-        self.produce_replay_recording(
-            event_id,
-            scoping,
-            replay_recording,
-            Some(replay_event),
-            Some(replay_video),
-            received_at,
-            retention,
-            relay_snuba_publish_disabled,
-        )
     }
 
     fn produce_check_in(
@@ -1096,7 +1032,7 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         debug_assert_eq!(item.ty(), &ItemType::Span);
-        debug_assert_eq!(item.content_type(), Some(&ContentType::Json));
+        debug_assert_eq!(item.content_type(), Some(ContentType::Json));
 
         let Scoping {
             organization_id,
@@ -1104,6 +1040,15 @@ impl StoreService {
             project_key: _,
             key_id,
         } = scoping;
+
+        let relay_emits_accepted_outcome = !utils::is_rolled_out(
+            scoping.organization_id.value(),
+            self.global_config
+                .current()
+                .options
+                .eap_span_outcomes_rollout_rate,
+        )
+        .is_keep();
 
         let payload = item.payload();
         let message = SpanKafkaMessageRaw {
@@ -1115,6 +1060,7 @@ impl StoreService {
                 retention_days,
                 downsampled_retention_days,
                 received: datetime_to_timestamp(received_at),
+                accepted_outcome_emitted: relay_emits_accepted_outcome,
             },
             span: serde_json::from_slice(&payload)
                 .map_err(|e| StoreError::EncodingFailed(e.into()))?,
@@ -1139,37 +1085,20 @@ impl StoreService {
             },
         )?;
 
-        // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
-        // or the segments consumer, depending on which will produce outcomes later.
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::SpanIndexed,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: 1,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
+        if relay_emits_accepted_outcome {
+            // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
+            // or the segments consumer, depending on which will produce outcomes later.
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::SpanIndexed,
+                event_id: None,
+                outcome: Outcome::Accepted,
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: received_at,
+            });
+        }
 
-        Ok(())
-    }
-
-    fn produce_profile_chunk(
-        &self,
-        organization_id: OrganizationId,
-        project_id: ProjectId,
-        received_at: DateTime<Utc>,
-        retention_days: u16,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        let message = ProfileChunkKafkaMessage {
-            organization_id,
-            project_id,
-            received: safe_timestamp(received_at),
-            retention_days,
-            payload: item.payload(),
-        };
-        self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))?;
         Ok(())
     }
 }
@@ -1211,7 +1140,6 @@ enum AttachmentPayload {
 
     /// The attachment has already been stored into the objectstore, with the given Id.
     #[serde(rename = "stored_id")]
-    #[allow(unused)] // TODO: actually storing it in objectstore first is still WIP
     Stored(String),
 }
 
@@ -1280,20 +1208,6 @@ struct EventKafkaMessage {
     remote_addr: Option<String>,
     /// Attachments that are potentially relevant for processing.
     attachments: Vec<ChunkedAttachment>,
-}
-
-#[derive(Debug, Serialize)]
-struct ReplayEventKafkaMessage<'a> {
-    /// Raw event payload.
-    payload: &'a [u8],
-    /// Time at which the event was received by Relay.
-    start_time: u64,
-    /// The event id.
-    replay_id: EventId,
-    /// The project id for the current event.
-    project_id: ProjectId,
-    // Number of days to retain.
-    retention_days: u16,
 }
 
 /// Container payload for chunks of attachments.
@@ -1480,6 +1394,8 @@ struct SpanMeta {
     retention_days: u16,
     /// Number of days until the downsampled version of this data should be deleted.
     downsampled_retention_days: u16,
+    /// Indicates whether Relay already emitted an accepted outcome or if EAP still needs to emit it.
+    accepted_outcome_emitted: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1488,6 +1404,8 @@ struct ProfileChunkKafkaMessage {
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
+    #[serde(skip)]
+    headers: BTreeMap<String, String>,
     payload: Bytes,
 }
 
@@ -1536,8 +1454,22 @@ enum KafkaMessage<'a> {
     Profile(ProfileKafkaMessage),
     ProfileChunk(ProfileChunkKafkaMessage),
 
-    ReplayEvent(ReplayEventKafkaMessage<'a>),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
+}
+
+impl KafkaMessage<'_> {
+    /// Creates a [`KafkaMessage`] for a [`TraceItem`].
+    fn for_item(scoping: Scoping, item: TraceItem) -> KafkaMessage<'static> {
+        let item_type = item.item_type();
+        KafkaMessage::Item {
+            headers: BTreeMap::from([
+                ("project_id".to_owned(), scoping.project_id.to_string()),
+                ("item_type".to_owned(), (item_type as i32).to_string()),
+            ]),
+            message: item,
+            item_type,
+        }
+    }
 }
 
 impl Message for KafkaMessage<'_> {
@@ -1562,7 +1494,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Profile(_) => "profile",
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
 
-            KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
         }
     }
@@ -1582,7 +1513,6 @@ impl Message for KafkaMessage<'_> {
 
             Self::Attachment(message) => Some(message.event_id.0),
             Self::AttachmentChunk(message) => Some(message.event_id.0),
-            Self::ReplayEvent(message) => Some(message.replay_id.0),
 
             // Random partitioning
             Self::Metric { .. }
@@ -1601,15 +1531,14 @@ impl Message for KafkaMessage<'_> {
             | KafkaMessage::SpanRaw { headers, .. }
             | KafkaMessage::SpanV2 { headers, .. }
             | KafkaMessage::Item { headers, .. }
-            | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) => Some(headers),
+            | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. })
+            | KafkaMessage::ProfileChunk(ProfileChunkKafkaMessage { headers, .. }) => Some(headers),
 
             KafkaMessage::Event(_)
             | KafkaMessage::UserReport(_)
             | KafkaMessage::CheckIn(_)
             | KafkaMessage::Attachment(_)
             | KafkaMessage::AttachmentChunk(_)
-            | KafkaMessage::ProfileChunk(_)
-            | KafkaMessage::ReplayEvent(_)
             | KafkaMessage::ReplayRecordingNotChunked(_) => None,
         }
     }
@@ -1617,7 +1546,6 @@ impl Message for KafkaMessage<'_> {
     fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
         match self {
             KafkaMessage::Metric { message, .. } => serialize_as_json(message),
-            KafkaMessage::ReplayEvent(message) => serialize_as_json(message),
             KafkaMessage::SpanRaw { message, .. } => serialize_as_json(message),
             KafkaMessage::SpanV2 { message, .. } => serialize_as_json(message),
             KafkaMessage::Item { message, .. } => {

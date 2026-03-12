@@ -75,7 +75,7 @@ impl processing::Processor for CheckInsProcessor {
             .into_vec();
 
         let work = SerializedCheckIns { headers, check_ins };
-        Some(Managed::from_envelope(envelope, work))
+        Some(Managed::with_meta_from(envelope, work))
     }
 
     async fn process(
@@ -87,7 +87,7 @@ impl processing::Processor for CheckInsProcessor {
             process::normalize(&mut check_ins);
         }
 
-        self.limiter.enforce_quotas(&mut check_ins, ctx).await?;
+        let check_ins = self.limiter.enforce_quotas(check_ins, ctx).await?;
 
         Ok(Output::just(CheckInsOutput(check_ins)))
     }
@@ -112,13 +112,13 @@ impl Forward for CheckInsOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let envelope = self.serialize_envelope(ctx)?;
         let envelope = ManagedEnvelope::from(envelope).into_processed();
 
-        s.send(crate::services::store::StoreEnvelope { envelope });
+        s.send_to_store(crate::services::store::StoreEnvelope { envelope });
 
         Ok(())
     }

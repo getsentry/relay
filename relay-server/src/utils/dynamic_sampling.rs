@@ -2,11 +2,8 @@
 use std::ops::ControlFlow;
 
 use chrono::Utc;
-use relay_base_schema::events::EventType;
-use relay_base_schema::project::ProjectKey;
-use relay_event_schema::protocol::{Event, TraceContext};
 use relay_sampling::config::{RuleType, SamplingConfig};
-use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
+use relay_sampling::dsc::DynamicSamplingContext;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator, SamplingMatch};
 
 use crate::services::outcome::Outcome;
@@ -97,47 +94,10 @@ pub async fn is_trace_fully_sampled(
     Some(SamplingResult::from(evaluation).decision().is_keep())
 }
 
-/// Computes a dynamic sampling context from a transaction event.
-///
-/// Returns `None` if the passed event is not a transaction event, or if it does not contain a
-/// trace ID in its trace context. All optional fields in the dynamic sampling context are
-/// populated with the corresponding attributes from the event payload if they are available.
-///
-/// Since sampling information is not available in the event payload, the `sample_rate` field
-/// cannot be set when computing the dynamic sampling context from a transaction event.
-pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSamplingContext> {
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return None;
-    }
-
-    let trace = event.context::<TraceContext>()?;
-    let trace_id = *trace.trace_id.value()?;
-    let user = event.user.value();
-
-    Some(DynamicSamplingContext {
-        trace_id,
-        public_key,
-        release: event.release.as_str().map(str::to_owned),
-        environment: event.environment.value().cloned(),
-        transaction: event.transaction.value().cloned(),
-        replay_id: None,
-        sample_rate: None,
-        user: TraceUserContext {
-            user_segment: user
-                .and_then(|u| u.segment.value().cloned())
-                .unwrap_or_default(),
-            user_id: user
-                .and_then(|u| u.id.as_str())
-                .unwrap_or_default()
-                .to_owned(),
-        },
-        sampled: None,
-        other: Default::default(),
-    })
-}
-
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::events::EventType;
+    use relay_event_schema::protocol::Event;
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;

@@ -35,7 +35,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: recursive
 
@@ -69,12 +69,12 @@ jobs:
           # we just cache the venv-dir directly in action-setup-venv
           enable-cache: false
 
-      - uses: getsentry/action-setup-venv@0958463ee0e02b9e8aa8f8e031afae1f84b80881 # v3.0.0
+      - uses: getsentry/action-setup-venv@5a80476d175edf56cb205b08bc58986fa99d1725 # v3.2.0
         with:
           cache-dependency-path: uv.lock
           install-cmd: uv sync --frozen --only-dev --active
 
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.cache/pre-commit
           key: cache-epoch-1|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml', 'uv.lock') }}
@@ -107,7 +107,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: recursive
 
@@ -128,7 +128,7 @@ jobs:
     outputs:
       devservices-files-changed: ${{ steps.changes.outputs.devservices-files-changed }}
     steps:
-      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.1.7
+      - uses: actions/checkout@v6.0.2
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         name: Check for file changes
         id: changes
@@ -157,7 +157,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: recursive
 
@@ -176,7 +176,11 @@ jobs:
           key: ${{ github.job }}
 
       - name: Run Cargo Tests
-        run: cargo test --workspace
+        env:
+          # Faster compilation on slower CI runners.
+          CARGO_PROFILE_DEV_OPT_LEVEL: 0
+        run: |
+          cargo test --workspace
 
   test_all:
     needs: build-setup
@@ -200,10 +204,6 @@ jobs:
         image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
         ports:
           - 6379:6379
-      redis_secondary:
-        image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
-        ports:
-          - 6380:6379
 
     steps:
       - name: Install libcurl-dev
@@ -211,7 +211,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v5.0.0
+      - name: Start objectstore
+        run: |
+          docker run -d \
+            --name objectstore \
+            -p 8888:8888 \
+            ghcr.io/getsentry/objectstore:nightly \
+            run
+
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: recursive
 
@@ -229,6 +237,9 @@ jobs:
           key: ${{ github.job }}
 
       - name: Run Cargo Tests
+        env:
+          # Faster compilation on slower CI runners.
+          CARGO_PROFILE_DEV_OPT_LEVEL: 0
         run: cargo test --workspace --all-features
 
   test_py:
@@ -239,7 +250,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: recursive
 
@@ -256,7 +267,7 @@ jobs:
           # we just cache the venv-dir directly in action-setup-venv
           enable-cache: false
 
-      - uses: getsentry/action-setup-venv@0958463ee0e02b9e8aa8f8e031afae1f84b80881 # v3.0.0
+      - uses: getsentry/action-setup-venv@5a80476d175edf56cb205b08bc58986fa99d1725 # v3.2.0
         with:
           cache-dependency-path: uv.lock
           install-cmd: uv sync --frozen --active
@@ -348,13 +359,13 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm curl
+          sudo apt-get install -y llvm curl libcurl4-openssl-dev
 
       - name: Install sentry-cli
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
 
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: recursive
 
@@ -382,7 +393,7 @@ jobs:
           cp "${RELAY_BIN}"{,-debug.zip,.src.zip} "artifacts/${DOCKER_PLATFORM}"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           retention-days: 1
           name: ${{ matrix.image_name }}@${{ matrix.target }}
@@ -424,13 +435,13 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm curl
+          sudo apt-get install -y llvm curl libcurl4-openssl-dev
 
       - name: Install sentry-cli
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
 
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: recursive
 
@@ -468,7 +479,7 @@ jobs:
           done
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           retention-days: 1
           name: internal-${{ matrix.image_name }}@${{ matrix.target }}
@@ -495,12 +506,12 @@ jobs:
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.2
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: "${{ matrix.image_name }}@*"
           merge-multiple: true
@@ -532,7 +543,7 @@ jobs:
 
       - name: Upload docker image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           retention-days: 1
           name: ${{ matrix.image_name }}-docker-image
@@ -561,10 +572,10 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.2
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
 
       # Logic taken from: publish-to-gcr
       - name: Google Auth
@@ -579,7 +590,7 @@ jobs:
           gcloud auth configure-docker us-central1-docker.pkg.dev
 
       # Logic taken from: build-docker
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: "internal-${{ matrix.image_name }}@*"
           merge-multiple: true
@@ -699,7 +710,7 @@ jobs:
           # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
           version: ">= 390.0.0"
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: "internal-${{ matrix.image_name }}@*"
           merge-multiple: true
@@ -742,21 +753,20 @@ jobs:
         image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
         ports:
           - 6379:6379
-      redis_secondary:
-        image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
-        ports:
-          - 6380:6379
-
-      zookeeper:
-        image: ghcr.io/getsentry/image-mirror-confluentinc-cp-zookeeper:6.2.0
-        env:
-          ZOOKEEPER_CLIENT_PORT: 2181
 
       kafka:
-        image: ghcr.io/getsentry/image-mirror-confluentinc-cp-kafka:6.2.0
+        image: ghcr.io/getsentry/image-mirror-confluentinc-cp-kafka:7.5.0
         env:
-          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
+          # KRaft mode configuration (no Zookeeper)
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1001@127.0.0.1:29093
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_NODE_ID: 1001
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:29092,EXTERNAL://127.0.0.1:9092
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
           KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
           KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
         ports:
@@ -768,7 +778,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v5.0.0
+      - name: Start objectstore
+        run: |
+          docker run -d \
+            --name objectstore \
+            -p 8888:8888 \
+            ghcr.io/getsentry/objectstore:nightly \
+            run
+
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: recursive
 
@@ -792,7 +810,7 @@ jobs:
           # we just cache the venv-dir directly in action-setup-venv
           enable-cache: false
 
-      - uses: getsentry/action-setup-venv@0958463ee0e02b9e8aa8f8e031afae1f84b80881 # v3.0.0
+      - uses: getsentry/action-setup-venv@5a80476d175edf56cb205b08bc58986fa99d1725 # v3.2.0
         with:
           cache-dependency-path: uv.lock
           install-cmd: uv sync --frozen --only-dev --active
@@ -817,7 +835,7 @@ jobs:
     steps:
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@v6.0.2
         with:
           repository: getsentry/sentry
           path: sentry
@@ -841,7 +859,7 @@ jobs:
 
       - name: Download Docker Image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: relay-docker-image
 
@@ -887,7 +905,7 @@ jobs:
     needs: devservices-files-changed
     if: needs.devservices-files-changed.outputs.devservices-files-changed == 'true'
     steps:
-    - uses: actions/checkout@v5.0.0
+    - uses: actions/checkout@v6.0.2
       name: Checkout repository
 
     - name: Get devservices version

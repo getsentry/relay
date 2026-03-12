@@ -124,7 +124,9 @@ def test_profile_chunk_outcomes(
     # No outcome is emitted in Relay since it's a successful ingestion.
     # However, we will emit the outcome for PROFILE_DURATION in sentry.
     outcomes_consumer.assert_empty()
-    assert profiles_consumer.get_profile()
+    profile, headers = profiles_consumer.get_profile()
+    assert headers == [("project_id", b"42")]
+    assert profile
 
 
 def test_profile_chunk_outcomes_invalid(
@@ -304,14 +306,14 @@ def test_profile_chunk_outcomes_rate_limited_fast(
     upstream.send_envelope(project_id, envelope)
 
     if platform is None:
-        envelope = mini_sentry.get_captured_event()
+        envelope = mini_sentry.get_captured_envelope()
         assert [item.type for item in envelope.items] == ["profile_chunk"]
     else:
         outcome = mini_sentry.get_client_report()
         assert outcome["rate_limited_events"] == [
             {"category": category, "quantity": 1, "reason": "profile_chunks_exceeded"}
         ]
-        assert mini_sentry.captured_events.empty()
+        assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
@@ -381,7 +383,7 @@ def test_profile_chunk_limited_transaction_context_removed(
         },
     )
 
-    event = mini_sentry.get_captured_event().get_transaction_event()
+    event = mini_sentry.get_captured_envelope().get_transaction_event()
     if filter_context:
         assert "profile" not in event["contexts"]
     else:

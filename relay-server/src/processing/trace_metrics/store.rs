@@ -3,17 +3,19 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
 use relay_base_schema::metrics::MetricUnit;
-use relay_conventions::CLIENT_SAMPLE_RATE;
 use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
-use relay_protocol::{Annotated, IntoValue, Value};
+use relay_protocol::{Annotated, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 use uuid::Uuid;
 
 use crate::envelope::WithHeader;
 use crate::processing::trace_metrics::{Error, Result};
-use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes};
-use crate::processing::{Counted, Retention};
+use crate::processing::utils::store::{
+    extract_client_sample_rate, extract_meta_attributes, quantities_to_trace_item_outcomes,
+    uuid_to_item_id,
+};
+use crate::processing::{self, Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
 
@@ -70,16 +72,14 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         downsampled_retention_days: ctx.retention.downsampled.into(),
         timestamp: Some(ts(timestamp.0)),
         trace_id: required!(metric.trace_id).to_string(),
-        item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
+        item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
         attributes: attributes(meta, attrs, fields),
         client_sample_rate,
         server_sample_rate: 1.0,
+        outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
     };
 
-    Ok(StoreTraceItem {
-        trace_item,
-        quantities,
-    })
+    Ok(StoreTraceItem { trace_item })
 }
 
 fn ts(dt: DateTime<Utc>) -> Timestamp {
@@ -107,54 +107,16 @@ fn extract_numeric_value(value: Value) -> Result<f64> {
     }
 }
 
-fn extract_client_sample_rate(attributes: &Attributes) -> Option<f64> {
-    attributes
-        .get_value(CLIENT_SAMPLE_RATE)
-        .and_then(|value| value.as_f64())
-        .filter(|v| *v > 0.0)
-        .filter(|v| *v <= 1.0)
-}
-
 fn attributes(
     meta: HashMap<String, AnyValue>,
     attributes: Attributes,
     fields: FieldAttributes,
 ) -> HashMap<String, AnyValue> {
     let mut result = meta;
-    result.reserve(attributes.0.len() + 5);
+    // +N, one for each field attribute added and some extra for potential meta.
+    result.reserve(attributes.0.len() + 15);
 
-    for (name, attribute) in attributes {
-        let meta = AttributeMeta {
-            meta: IntoValue::extract_meta_tree(&attribute),
-        };
-        if let Some(meta) = meta.to_any_value() {
-            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
-        }
-
-        let value = attribute
-            .into_value()
-            .and_then(|v| v.value.value.into_value());
-
-        let Some(value) = value else {
-            continue;
-        };
-
-        let Some(value) = (match value {
-            Value::Bool(v) => Some(any_value::Value::BoolValue(v)),
-            Value::I64(v) => Some(any_value::Value::IntValue(v)),
-            Value::U64(v) => i64::try_from(v).ok().map(any_value::Value::IntValue),
-            Value::F64(v) => Some(any_value::Value::DoubleValue(v)),
-            Value::String(v) => Some(any_value::Value::StringValue(v)),
-            Value::Array(_) | Value::Object(_) => {
-                debug_assert!(false, "unsupported trace metric value");
-                None
-            }
-        }) else {
-            continue;
-        };
-
-        result.insert(name, AnyValue { value: Some(value) });
-    }
+    processing::utils::store::convert_attributes_into(&mut result, attributes);
 
     let FieldAttributes {
         metric_name,
@@ -249,6 +211,9 @@ mod tests {
     use relay_event_schema::protocol::{Attribute, AttributeType, AttributeValue};
     use relay_protocol::FromValue;
     use relay_protocol::Object;
+    use relay_quotas::Scoping;
+
+    use crate::processing::Retention;
 
     use super::*;
 

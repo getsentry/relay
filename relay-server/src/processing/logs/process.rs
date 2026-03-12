@@ -4,10 +4,10 @@ use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, Item, ItemContainer};
-use crate::extractors::{RequestMeta, RequestTrust};
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
+use crate::extractors::RequestTrust;
 use crate::processing::logs::{self, Error, ExpandedLogs, Result, SerializedLogs};
-use crate::processing::{Context, Managed};
+use crate::processing::{Context, Managed, utils};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized logs into their [`ExpandedLogs`] representation.
@@ -39,11 +39,11 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
 ///
 /// Normalization must happen before any filters are applied or other procedures which rely on the
 /// presence and well-formedness of attributes and fields.
-pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
+pub fn normalize(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     logs.retain_with_context(
-        |logs| (&mut logs.logs, logs.headers.meta()),
-        |log, meta, _| {
-            normalize_log(log, meta).inspect_err(|err| {
+        |logs| (&mut logs.logs, &logs.headers),
+        |log, headers, _| {
+            normalize_log(log, headers, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
             })
         },
@@ -90,12 +90,7 @@ fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerIte
 }
 
 fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
-    let pii_config_from_scrubbing = ctx
-        .project_info
-        .config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| Error::PiiConfig(e.clone()))?;
+    let pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
 
     relay_pii::eap::scrub(
         ValueType::OurLog,
@@ -107,7 +102,18 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     Ok(())
 }
 
-fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
+fn normalize_log(
+    log: &mut Annotated<OurLog>,
+    headers: &EnvelopeHeaders,
+    ctx: Context<'_>,
+) -> Result<()> {
+    let meta = headers.meta();
+
+    eap::time::normalize(
+        log,
+        utils::normalize::time_config(headers, |f| f.log.as_ref(), ctx),
+    );
+
     if let Some(log) = log.value_mut() {
         eap::normalize_attribute_types(&mut log.attributes);
         eap::normalize_attribute_names(&mut log.attributes);
@@ -118,7 +124,9 @@ fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> 
 
     process_value(
         log,
-        &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+        &mut SchemaProcessor::new()
+            .with_required(RequiredMode::DeleteParent)
+            .with_verbose_errors(relay_log::enabled!(relay_log::Level::DEBUG)),
         ProcessingState::root(),
     )?;
 
@@ -132,37 +140,12 @@ fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> 
 
 #[cfg(test)]
 mod tests {
-    use relay_pii::{DataScrubbingConfig, PiiConfig};
+    use relay_pii::PiiConfig;
     use relay_protocol::assert_annotated_snapshot;
 
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
-
-    fn make_context(
-        scrubbing_config: DataScrubbingConfig,
-        pii_config: Option<PiiConfig>,
-    ) -> Context<'static> {
-        let config = Box::leak(Box::new(relay_config::Config::default()));
-        let global_config = Box::leak(Box::new(relay_dynamic_config::GlobalConfig::default()));
-        let project_info = Box::leak(Box::new(ProjectInfo {
-            config: relay_dynamic_config::ProjectConfig {
-                pii_config,
-                datascrubbing_settings: scrubbing_config,
-                ..Default::default()
-            },
-            ..Default::default()
-        }));
-        let rate_limits = Box::leak(Box::new(relay_quotas::RateLimits::default()));
-
-        Context {
-            config,
-            global_config,
-            project_info,
-            rate_limits,
-            sampling_project_info: None,
-        }
-    }
 
     #[test]
     fn test_scrub_log_base_fields() {
@@ -179,12 +162,23 @@ mod tests {
 
         let mut data = Annotated::<OurLog>::from_json(json).unwrap();
 
-        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
-        scrubbing_config.scrub_data = true;
-        scrubbing_config.scrub_defaults = true;
+        let mut datascrubbing_settings = relay_pii::DataScrubbingConfig::default();
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = true;
 
-        let ctx = make_context(scrubbing_config, None);
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    datascrubbing_settings,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
         scrub_log(&mut data, ctx).unwrap();
+
         assert_annotated_snapshot!(data, @r#"
         {
           "timestamp": 1544719860.0,
@@ -249,7 +243,17 @@ mod tests {
         }))
         .unwrap();
 
-        let ctx = make_context(DataScrubbingConfig::default(), Some(deep_wildcard_config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(deep_wildcard_config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
         scrub_log(&mut data, ctx).unwrap();
 
         assert_annotated_snapshot!(data, @r#"
@@ -306,7 +310,17 @@ mod tests {
         }))
         .unwrap();
 
-        let ctx = make_context(DataScrubbingConfig::default(), Some(config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
         scrub_log(&mut data, ctx).unwrap();
 
         assert_annotated_snapshot!(data, @r###"
@@ -362,7 +376,17 @@ mod tests {
         }))
         .unwrap();
 
-        let ctx = make_context(DataScrubbingConfig::default(), Some(config));
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
         scrub_log(&mut data, ctx).unwrap();
 
         assert_annotated_snapshot!(data, @r#"

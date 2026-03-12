@@ -12,3 +12,5 @@ pub mod metrics;
 pub mod organization;
 pub mod project;
 pub mod spans;
+
+pub use data_category::{CategoryUnit, DataCategory};

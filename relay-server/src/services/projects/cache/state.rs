@@ -2,6 +2,8 @@ use futures::StreamExt;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Notify;
+use tokio::sync::futures::Notified;
 use tokio::time::Instant;
 
 use arc_swap::ArcSwap;
@@ -12,7 +14,7 @@ use relay_statsd::metric;
 
 use crate::services::projects::project::{ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;
-use crate::statsd::{RelayHistograms, RelayTimers};
+use crate::statsd::{RelayDistributions, RelayTimers};
 use crate::utils::{RetryBackoff, UniqueScheduledQueue};
 
 /// The backing storage for a project cache.
@@ -90,11 +92,12 @@ impl ProjectStore {
         };
 
         metric!(
-            histogram(RelayHistograms::ProjectStateCacheSize) = self.shared.projects.len() as u64,
+            distribution(RelayDistributions::ProjectStateCacheSize) =
+                self.shared.projects.len() as u64,
             storage = "shared"
         );
         metric!(
-            histogram(RelayHistograms::ProjectStateCacheSize) = self.private.len() as u64,
+            distribution(RelayDistributions::ProjectStateCacheSize) = self.private.len() as u64,
             storage = "private"
         );
 
@@ -297,16 +300,20 @@ impl Shared {
     /// The caller must ensure that the project cache is instructed to
     /// [`super::ProjectCache::Fetch`] the retrieved project.
     pub fn get_or_create(&self, project_key: ProjectKey) -> SharedProject {
+        self.get_or_create_inner(project_key).to_shared_project()
+    }
+
+    fn get_or_create_inner(&self, project_key: ProjectKey) -> SharedProjectState {
         // The fast path, we expect the project to exist.
         let projects = self.projects.pin();
         if let Some(project) = projects.get(&project_key) {
-            return project.to_shared_project();
+            return project.clone();
         }
 
         // The slow path, try to attempt to insert, somebody else may have been faster, but that's okay.
         match projects.try_insert(project_key, Default::default()) {
-            Ok(inserted) => inserted.to_shared_project(),
-            Err(occupied) => occupied.current.to_shared_project(),
+            Ok(inserted) => inserted.clone(),
+            Err(occupied) => occupied.current.clone(),
         }
     }
 }
@@ -360,6 +367,13 @@ impl SharedProject {
     /// Returns a reference to the contained [`ReservoirCounters`].
     pub fn reservoir_counters(&self) -> &ReservoirCounters {
         &self.0.reservoir_counters
+    }
+
+    /// Waits for the event of a changed project state, triggered by [`SharedProjectState::set_project_state`].
+    ///
+    /// Note that the content of this instance does not change when the event is triggered.
+    pub fn outdated(&self) -> Notified<'_> {
+        self.0.notify.notified()
     }
 }
 
@@ -602,6 +616,7 @@ impl SharedProjectState {
             state: state.clone(),
             rate_limits: Arc::clone(&stored.rate_limits),
             reservoir_counters: Arc::clone(&stored.reservoir_counters),
+            notify: Arc::clone(&stored.notify),
         });
 
         // Try clean expired reservoir counters.
@@ -619,6 +634,9 @@ impl SharedProjectState {
                 }
             }
         }
+
+        // Finally, notify listeners:
+        prev.notify.notify_waiters();
     }
 
     /// Extracts and clones the revision from the contained project state.
@@ -641,6 +659,7 @@ struct SharedProjectStateInner {
     state: ProjectState,
     rate_limits: Arc<CachedRateLimits>,
     reservoir_counters: ReservoirCounters,
+    notify: Arc<Notify>,
 }
 
 /// Current fetch state for a project.
@@ -1315,5 +1334,35 @@ mod tests {
         store.evict(eviction);
 
         assert!(store.refresh(refresh).is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_ready_state() {
+        let shared = SharedProjectState::default();
+
+        let shared_project = shared.to_shared_project();
+        assert!(shared_project.project_state().is_pending());
+        let mut listener = std::pin::pin!(shared_project.outdated());
+
+        // After five seconds, project state is still pending:
+        let result = tokio::time::timeout(Duration::from_secs(5), listener.as_mut()).await;
+        assert!(result.is_err()); // timed out before notify
+        assert!(shared.to_shared_project().project_state().is_pending());
+
+        // Change the state:
+        shared.set_project_state(ProjectState::Disabled);
+
+        // The listener gets notified immediately:
+        let result = tokio::time::timeout(Duration::from_secs(1), listener).await;
+        assert!(result.is_ok()); // notified before timeout
+
+        // The old snapshot is still pending:
+        assert!(shared_project.project_state().is_pending());
+
+        // The up-to-date snapshot is Disabled:
+        assert!(matches!(
+            shared.to_shared_project().project_state(),
+            &ProjectState::Disabled
+        ));
     }
 }

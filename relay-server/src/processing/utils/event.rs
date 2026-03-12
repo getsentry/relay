@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
+use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_config::NormalizationLevel;
 use relay_dynamic_config::Feature;
@@ -24,17 +25,20 @@ use relay_event_schema::protocol::IpAddr;
 use relay_event_schema::protocol::{Event, Metrics, OtelContext, RelayInfo};
 use relay_filter::FilterStatKey;
 use relay_metrics::MetricNamespace;
+use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
 use relay_protocol::Empty;
 use relay_quotas::DataCategory;
 use relay_statsd::metric;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
+use crate::envelope::AttachmentType;
 use crate::envelope::{Envelope, EnvelopeHeaders, Item};
 use crate::processing::Context;
 use crate::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingError};
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self};
+use crate::services::projects::project::ProjectInfo;
+use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
+use crate::utils;
 
 /// Returns the data category if there is an event.
 ///
@@ -97,7 +101,10 @@ pub fn finalize<'a>(
     if config.processing_enabled() {
         let mut metrics = std::mem::take(metrics);
 
-        let attachment_size = attachments.map(|item| item.len() as u64).sum::<u64>();
+        let attachment_size = attachments
+            .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
+            .map(|item| item.len() as u64)
+            .sum::<u64>();
 
         if attachment_size > 0 {
             metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
@@ -127,7 +134,7 @@ pub fn finalize<'a>(
 
             let span_count = inner_event.spans.value().map(Vec::len).unwrap_or(0) as u64;
             metric!(
-                histogram(RelayHistograms::EventSpans) = span_count,
+                distribution(RelayDistributions::EventSpans) = span_count,
                 sdk = client_name,
                 platform = platform,
             );
@@ -185,7 +192,8 @@ pub fn normalize(
     headers: &EnvelopeHeaders,
     event: &mut Annotated<Event>,
     mut event_fully_normalized: EventFullyNormalized,
-    ctx: &Context,
+    project_id: ProjectId,
+    ctx: Context,
     geoip_lookup: &GeoIpLookup,
 ) -> Result<EventFullyNormalized, ProcessingError> {
     if event.value().is_empty() {
@@ -215,7 +223,6 @@ pub fn normalize(
         .aggregator_config_for(MetricNamespace::Transactions);
 
     let ai_model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
-    let ai_operation_type_map = ctx.global_config.ai_operation_type_map.as_ref().ok();
     let http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
     let project_info = ctx.project_info;
@@ -244,13 +251,6 @@ pub fn normalize(
             );
         }
 
-        // TODO: duplicated from `EnvelopeProcessorService::process`. We should pass project_id
-        // in the Context instead since it's already guaranteed to exist at this point.
-        let project_id = ctx
-            .project_info
-            .project_id
-            .or_else(|| headers.meta().project_id())
-            .ok_or(ProcessingError::MissingProjectId)?;
         let normalization_config = NormalizationConfig {
             project_id: Some(project_id.value()),
             client: request_meta.client().map(str::to_owned),
@@ -291,7 +291,6 @@ pub fn normalize(
             span_description_rules: project_info.config.span_description_rules.as_ref(),
             geoip_lookup: Some(geoip_lookup),
             ai_model_costs,
-            ai_operation_type_map,
             enable_trimming: true,
             measurements: Some(CombinedMeasurementsConfig::new(
                 ctx.project_info.config().measurements.as_ref(),
@@ -350,10 +349,10 @@ pub enum FiltersStatus {
 
 pub fn filter(
     headers: &EnvelopeHeaders,
-    event: &mut Annotated<Event>,
-    ctx: &Context,
+    event: &Annotated<Event>,
+    ctx: Context,
 ) -> Result<FiltersStatus, FilterStatKey> {
-    let event = match event.value_mut() {
+    let event = match event.value() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
         // exist at this point in non-processing relays.
@@ -389,7 +388,7 @@ pub fn filter(
 }
 
 /// New type representing the normalization state of the event.
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct EventFullyNormalized(pub bool);
 
 impl EventFullyNormalized {
@@ -427,6 +426,36 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     } else {
         false
     }
+}
+
+/// Apply data privacy rules to the event payload.
+///
+/// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
+pub fn scrub(
+    event: &mut Annotated<Event>,
+    project_info: &ProjectInfo,
+) -> Result<(), ProcessingError> {
+    let config = &project_info.config;
+
+    if config.datascrubbing_settings.scrub_data
+        && let Some(event) = event.value_mut()
+    {
+        relay_pii::scrub_graphql(event);
+    }
+
+    metric!(timer(RelayTimers::EventProcessingPii), {
+        if let Some(ref config) = config.pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            processor::process_value(event, &mut processor, ProcessingState::root())?;
+        }
+        let pii_config = config.datascrubbing_settings.pii_config();
+        if let Some(config) = pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            processor::process_value(event, &mut processor, ProcessingState::root())?;
+        }
+    });
+
+    Ok(())
 }
 
 #[cfg(feature = "processing")]

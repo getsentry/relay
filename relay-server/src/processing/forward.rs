@@ -1,11 +1,51 @@
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
-#[cfg(feature = "processing")]
 use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
+#[cfg(feature = "processing")]
+use relay_system::{Addr, FromMessage};
 
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
+#[cfg(feature = "processing")]
+use crate::services::objectstore::Objectstore;
 use crate::services::projects::project::ProjectInfo;
+#[cfg(feature = "processing")]
+use crate::services::store::Store;
+
+/// A transparent handle that dispatches between store-like services.
+#[cfg(feature = "processing")]
+#[derive(Debug, Clone, Copy)]
+pub struct StoreHandle<'a> {
+    store: &'a Addr<Store>,
+    objectstore: Option<&'a Addr<Objectstore>>,
+}
+
+#[cfg(feature = "processing")]
+impl<'a> StoreHandle<'a> {
+    pub fn new(store: &'a Addr<Store>, objectstore: Option<&'a Addr<Objectstore>>) -> Self {
+        Self { store, objectstore }
+    }
+
+    /// Sends a message to the [`Store`] service.
+    pub fn send_to_store<M>(&self, message: M)
+    where
+        Store: FromMessage<M>,
+    {
+        self.store.send(message);
+    }
+
+    /// Sends a message to the [`Objectstore`] service.
+    pub fn send_to_objectstore<M>(&self, message: M)
+    where
+        Objectstore: FromMessage<M>,
+    {
+        if let Some(objectstore) = self.objectstore {
+            objectstore.send(message);
+        } else {
+            relay_log::error!("Objectstore service not configured. Dropping message.");
+        }
+    }
+}
 
 /// A processor output which can be forwarded to a different destination.
 pub trait Forward {
@@ -21,11 +61,8 @@ pub trait Forward {
     ///
     /// This function must only be called when Relay is configured to be in processing mode.
     #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        s: &relay_system::Addr<crate::services::store::Store>,
-        ctx: ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>>;
+    fn forward_store(self, s: StoreHandle<'_>, ctx: ForwardContext<'_>)
+    -> Result<(), Rejected<()>>;
 }
 
 /// Context passed to [`Forward`].
@@ -34,17 +71,14 @@ pub trait Forward {
 #[derive(Copy, Clone, Debug)]
 pub struct ForwardContext<'a> {
     /// The Relay configuration.
-    #[expect(unused, reason = "not yet used")]
     pub config: &'a Config,
     /// A view of the currently active global configuration.
-    #[expect(unused, reason = "not yet used")]
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub global_config: &'a GlobalConfig,
     /// Project configuration associated with the unit of work.
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub project_info: &'a ProjectInfo,
 }
 
-#[cfg(feature = "processing")]
 impl ForwardContext<'_> {
     /// Returns the [`Retention`] for a specific type/product.
     pub fn retention<F>(&self, f: F) -> Retention
@@ -55,6 +89,14 @@ impl ForwardContext<'_> {
             return Retention::from(*retention);
         }
 
+        self.event_retention()
+    }
+
+    /// Returns the event [`Retention`].
+    ///
+    /// This retention is also often used for older products and can be considered a default
+    /// retention for products which do not define their own retention.
+    pub fn event_retention(&self) -> Retention {
         Retention::from(RetentionConfig {
             standard: self
                 .project_info
@@ -80,11 +122,7 @@ impl Forward for Nothing {
     }
 
     #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        _: &relay_system::Addr<crate::services::store::Store>,
-        _: ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>> {
+    fn forward_store(self, _: StoreHandle<'_>, _: ForwardContext<'_>) -> Result<(), Rejected<()>> {
         match self {}
     }
 }
@@ -97,15 +135,14 @@ impl From<Nothing> for crate::processing::Outputs {
 
 /// Full retention settings to apply to specific payloads.
 #[derive(Debug, Copy, Clone)]
-#[cfg(feature = "processing")]
 pub struct Retention {
     /// Standard / full fidelity retention policy in days.
     pub standard: u16,
     /// Downsampled retention policy in days.
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub downsampled: u16,
 }
 
-#[cfg(feature = "processing")]
 impl From<RetentionConfig> for Retention {
     fn from(value: RetentionConfig) -> Self {
         Self {

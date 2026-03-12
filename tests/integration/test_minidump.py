@@ -6,6 +6,8 @@ import pytest
 from requests import HTTPError
 from uuid import UUID
 
+from sentry_relay.consts import DataCategory
+
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
 BREADCRUMB_ATTACHMENT_NAME1 = "__sentry-breadcrumb1"
@@ -53,7 +55,7 @@ def test_minidump(mini_sentry, relay):
     event_id = UUID(body)
     assert str(event_id) == body
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert envelope
 
     # the event id from the response should match the envelope
@@ -89,7 +91,7 @@ def test_minidump_attachments(mini_sentry, relay):
     ]
 
     relay.send_minidump(project_id=project_id, files=attachments)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
     assert envelope
 
     # Check that the envelope assumes the given event id
@@ -144,7 +146,7 @@ def test_minidump_multipart(mini_sentry, relay):
     ]
 
     relay.send_minidump(project_id=project_id, files=attachments, params=params)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -173,7 +175,7 @@ def test_minidump_sentry_json(mini_sentry, relay):
     ]
 
     relay.send_minidump(project_id=project_id, files=attachments, params=params)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -201,7 +203,7 @@ def test_minidump_sentry_namespace_json(mini_sentry, relay):
     params = [("sentry", event_json), ("sentry___global", namespace_json)]
 
     relay.send_minidump(project_id=project_id, files=attachments, params=params)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -233,7 +235,7 @@ def test_minidump_sentry_json_chunked(mini_sentry, relay):
     response = relay.send_minidump(
         project_id=project_id, files=attachments, params=params
     )
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -264,7 +266,7 @@ def test_minidump_invalid_json(mini_sentry, relay):
     ]
 
     relay.send_minidump(project_id=project_id, files=attachments, params=params)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -313,7 +315,7 @@ def test_minidump_raw(mini_sentry, relay, content_type):
         data="MDMP content",
     )
 
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope)
@@ -335,7 +337,7 @@ def test_minidump_nested_formdata(mini_sentry, relay, test_file_name):
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", dmp_file)]
 
     relay.send_minidump(project_id=project_id, files=attachments)
-    envelope = mini_sentry.get_captured_event()
+    envelope = mini_sentry.get_captured_envelope()
 
     assert envelope
     assert_only_minidump(envelope, assert_payload=False)
@@ -360,23 +362,28 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "rate_limit,minidump_filename",
+    "rate_limit,minidump_filename,use_objectstore",
     [
-        (None, "minidump.dmp"),
-        ("attachment", "minidump.dmp"),
-        ("transaction", "minidump.dmp"),
-        (None, "minidump.dmp.gz"),
-        (None, "minidump.dmp.xz"),
-        (None, "minidump.dmp.bz2"),
-        (None, "minidump.dmp.zst"),
+        (None, "minidump.dmp", True),
+        (None, "minidump.dmp", False),
+        ("attachment", "minidump.dmp", True),
+        ("attachment", "minidump.dmp", False),
+        ("transaction", "minidump.dmp", False),
+        (None, "minidump.dmp.gz", False),
+        (None, "minidump.dmp.xz", False),
+        (None, "minidump.dmp.bz2", False),
+        (None, "minidump.dmp.zst", False),
     ],
 )
 def test_minidump_with_processing(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
+    outcomes_consumer,
     rate_limit,
     minidump_filename,
+    use_objectstore,
+    objectstore,
 ):
     dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
     with open(dmp_path, "rb") as f:
@@ -390,11 +397,20 @@ def test_minidump_with_processing(
         with open(compressed_dmp_path, "rb") as f:
             compressed_content = f.read()
 
-    relay = relay_with_processing()
-
+    if use_objectstore:
+        mini_sentry.global_config["options"][
+            "relay.objectstore-attachments.sample-rate"
+        ] = 1.0
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 50000
+
+    options = (
+        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
+        if use_objectstore
+        else None
+    )
+    relay = relay_with_processing(options)
 
     # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
     # will modify the minidump since it contains user paths in the module list.  This breaks
@@ -414,6 +430,7 @@ def test_minidump_with_processing(
         ]
 
     attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     # if we test a compressed minidump fixture we upload the compressed content
     # but retrieve the uncompressed minidump content from the `attachments_consumer` below.
@@ -431,11 +448,12 @@ def test_minidump_with_processing(
     num_chunks = 0
     attachment_id = None
 
-    while attachment != content:
-        chunk, message = attachments_consumer.get_attachment_chunk()
-        attachment_id = attachment_id or message["id"]
-        attachment += chunk
-        num_chunks += 1
+    if not use_objectstore:
+        while attachment != content:
+            chunk, message = attachments_consumer.get_attachment_chunk()
+            attachment_id = attachment_id or message["id"]
+            attachment += chunk
+            num_chunks += 1
 
     event, message = attachments_consumer.get_event()
 
@@ -451,19 +469,57 @@ def test_minidump_with_processing(
     # Check that the SDK name is correctly detected
     assert event["sdk"]["name"] == "minidump.unknown"
 
-    assert list(message["attachments"]) == [
-        {
-            "id": attachment_id,
+    if not use_objectstore:
+        assert list(message["attachments"]) == [
+            {
+                "id": attachment_id,
+                "name": "minidump.dmp",
+                "rate_limited": rate_limit == "attachment",
+                "attachment_type": "event.minidump",
+                "content_type": "application/x-dmp",
+                "size": len(content),
+                "chunks": num_chunks,
+            }
+        ]
+    else:
+        (attachment,) = message["attachments"]
+
+        objectstore_key = attachment.pop("stored_id")
+        objectstore = objectstore("attachments", project_id)
+        assert objectstore.get(objectstore_key).payload.read() == content
+
+        assert attachment.pop("id")
+        assert attachment == {
             "name": "minidump.dmp",
             "rate_limited": rate_limit == "attachment",
             "attachment_type": "event.minidump",
             "content_type": "application/x-dmp",
             "size": len(content),
-            "chunks": num_chunks,
         }
-    ]
 
     assert "errors" not in event
+
+    if rate_limit == "attachment":
+        assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
+            {
+                "category": DataCategory.ATTACHMENT.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 2,
+                "project_id": 42,
+                "quantity": len(content),
+                "reason": "static_disabled_quota",
+            },
+            {
+                "category": DataCategory.ATTACHMENT_ITEM.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 2,
+                "project_id": 42,
+                "quantity": 1,
+                "reason": "static_disabled_quota",
+            },
+        ]
 
 
 def test_minidump_with_processing_invalid(
@@ -545,12 +601,7 @@ def test_crashpad_annotations(mini_sentry, relay_with_processing, attachments_co
     with open(dmp_path, "rb") as f:
         content = f.read()
 
-    relay = relay_with_processing(
-        {
-            # Prevent normalization from overwriting the minidump timestamp
-            "processing": {"max_secs_in_past": 2**32 - 1}
-        }
-    )
+    relay = relay_with_processing()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -585,12 +636,7 @@ def test_chromium_stability_report(
     with open(dmp_path, "rb") as f:
         content = f.read()
 
-    relay = relay_with_processing(
-        {
-            # Prevent normalization from overwriting the minidump timestamp
-            "processing": {"max_secs_in_past": 2**32 - 1}
-        }
-    )
+    relay = relay_with_processing()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)

@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.10.0"
+version = "26.2.1"
 edition = "2024"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -48,6 +48,8 @@ either = { workspace = true }
 flate2 = { workspace = true }
 futures = { workspace = true, features = ["async-await"] }
 hashbrown = { workspace = true }
+http = { workspace = true }
+http-body-util = { workspace = true }
 hyper = { workspace = true }
 hyper-util = { workspace = true }
 itertools = { workspace = true }
@@ -57,6 +59,7 @@ liblzma = { workspace = true }
 mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
+objectstore-client = { workspace = true }
 opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
@@ -119,6 +122,7 @@ symbolic-common = { workspace = true, optional = true, default-features = false 
 symbolic-unreal = { workspace = true, optional = true, default-features = false, features = [
   "serde",
 ] }
+sync_wrapper = { workspace = true }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time"] }
@@ -135,6 +139,7 @@ tower-http = { workspace = true, default-features = false, features = [
   "decompression-deflate",
   "decompression-gzip",
   "decompression-zstd",
+  "limit",
   "set-header",
   "trace",
 ] }
@@ -142,9 +147,9 @@ url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { workspace = true }
 
+
 [dev-dependencies]
 criterion = { workspace = true }
-http = { workspace = true }
 insta = { workspace = true }
 relay-protocol = { workspace = true, features = ["test"] }
 relay-system = { workspace = true, features = ["test"] }

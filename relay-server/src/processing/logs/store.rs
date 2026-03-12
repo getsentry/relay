@@ -1,17 +1,18 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-use prost_types::Timestamp;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId};
-use relay_protocol::{Annotated, IntoValue, Value};
+use relay_protocol::Annotated;
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 use uuid::Uuid;
 
 use crate::envelope::WithHeader;
 use crate::processing::logs::{Error, Result};
-use crate::processing::utils::store::{AttributeMeta, extract_meta_attributes};
-use crate::processing::{Counted, Retention};
+use crate::processing::utils::store::{
+    extract_meta_attributes, proto_timestamp, quantities_to_trace_item_outcomes, uuid_to_item_id,
+};
+use crate::processing::{self, Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
 
@@ -66,28 +67,19 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         item_type: TraceItemType::Log.into(),
         organization_id: ctx.scoping.organization_id.value(),
         project_id: ctx.scoping.project_id.value(),
-        received: Some(ts(ctx.received_at)),
+        received: Some(proto_timestamp(ctx.received_at)),
         retention_days: ctx.retention.standard.into(),
         downsampled_retention_days: ctx.retention.downsampled.into(),
-        timestamp: Some(ts(timestamp.0)),
+        timestamp: Some(proto_timestamp(timestamp.0)),
         trace_id: required!(log.trace_id).to_string(),
-        item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
+        item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
         attributes: attributes(meta, attrs, fields),
         client_sample_rate: 1.0,
         server_sample_rate: 1.0,
+        outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
     };
 
-    Ok(StoreTraceItem {
-        trace_item,
-        quantities,
-    })
-}
-
-fn ts(dt: DateTime<Utc>) -> Timestamp {
-    Timestamp {
-        seconds: dt.timestamp(),
-        nanos: i32::try_from(dt.timestamp_subsec_nanos()).unwrap_or(0),
-    }
+    Ok(StoreTraceItem { trace_item })
 }
 
 /// Fields on the log message which are stored as fields.
@@ -122,42 +114,7 @@ fn attributes(
     // +N, one for each field attribute added and some extra for potential meta.
     result.reserve(attributes.0.len() + 5 + 3);
 
-    for (name, attribute) in attributes {
-        let meta = AttributeMeta {
-            meta: IntoValue::extract_meta_tree(&attribute),
-        };
-        if let Some(meta) = meta.to_any_value() {
-            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
-        }
-
-        let value = attribute
-            .into_value()
-            .and_then(|v| v.value.value.into_value());
-
-        let Some(value) = value else {
-            // Meta has already been handled, no value -> skip.
-            // There are also no current plans to handle `null` in EAP.
-            continue;
-        };
-
-        let Some(value) = (match value {
-            Value::Bool(v) => Some(any_value::Value::BoolValue(v)),
-            Value::I64(v) => Some(any_value::Value::IntValue(v)),
-            Value::U64(v) => i64::try_from(v).ok().map(any_value::Value::IntValue),
-            Value::F64(v) => Some(any_value::Value::DoubleValue(v)),
-            Value::String(v) => Some(any_value::Value::StringValue(v)),
-            // These cases do not happen, as they are not valid attributes
-            // and they should have been filtered out before already.
-            Value::Array(_) | Value::Object(_) => {
-                debug_assert!(false, "unsupported log value");
-                None
-            }
-        }) else {
-            continue;
-        };
-
-        result.insert(name, AnyValue { value: Some(value) });
-    }
+    processing::utils::store::convert_attributes_into(&mut result, attributes);
 
     let FieldAttributes {
         level,

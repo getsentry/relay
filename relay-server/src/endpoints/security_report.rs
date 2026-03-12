@@ -36,11 +36,11 @@ impl SecurityReportParams {
         report_item.set_payload(ContentType::Json, item);
 
         if let Some(sentry_release) = &query.sentry_release {
-            report_item.set_header("sentry_release", sentry_release.clone());
+            report_item.set_sentry_release(sentry_release.clone());
         }
 
         if let Some(sentry_environment) = &query.sentry_environment {
-            report_item.set_header("sentry_environment", sentry_environment.clone());
+            report_item.set_sentry_environment(sentry_environment.clone());
         }
 
         report_item
@@ -95,13 +95,16 @@ async fn handle(
     state: ServiceState,
     mime: Mime,
     params: SecurityReportParams,
-) -> Result<impl IntoResponse, BadStoreRequest> {
+) -> axum::response::Result<impl IntoResponse> {
     if !is_security_mime(mime) {
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
     }
 
     let envelope = params.extract_envelope()?;
-    common::handle_envelope(&state, envelope).await?;
+    common::handle_envelope(&state, envelope)
+        .await?
+        .ignore_rate_limits();
+
     Ok(().into_response())
 }
 

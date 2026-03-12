@@ -166,6 +166,7 @@ def test_lcp_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": True,
         "span_id": "9fd17741416e8e4e",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -183,11 +184,12 @@ def test_lcp_span(
             "timestamp": time_within_delta(ts),
             "tags": {
                 "decision": "keep",
+                "is_segment": "false",
                 "target_project_id": "42",
                 "transaction": "/insights/projects/",
             },
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
         {
             "org_id": 1,
@@ -196,34 +198,10 @@ def test_lcp_span(
             "type": "c",
             "value": 1.0,
             "timestamp": time_within_delta(ts),
-            "tags": {},
+            "tags": {"is_segment": "false"},
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
-        # No metric extraction in the SpanV2 pipeline.
-        *(
-            [
-                {
-                    "org_id": 1,
-                    "project_id": 42,
-                    "name": "d:transactions/measurements.lcp@millisecond",
-                    "type": "d",
-                    "value": [548.0],
-                    "timestamp": time_within_delta(ts),
-                    "tags": {
-                        "browser.name": "Chrome",
-                        "environment": "prod",
-                        "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
-                        "span.op": "ui.webvital.lcp",
-                        "transaction": "/insights/projects/",
-                    },
-                    "retention_days": 90,
-                    "received_at": time_within(ts),
-                }
-            ]
-            if mode == "legacy"
-            else []
-        ),
     ]
 
 
@@ -341,6 +319,7 @@ def test_cls_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": True,
         "span_id": "be6fa380c55f2fcb",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -358,11 +337,12 @@ def test_cls_span(
             "timestamp": time_within_delta(ts),
             "tags": {
                 "decision": "keep",
+                "is_segment": "false",
                 "target_project_id": "42",
                 "transaction": "/insights/projects/",
             },
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
         {
             "org_id": 1,
@@ -371,34 +351,10 @@ def test_cls_span(
             "type": "c",
             "value": 1.0,
             "timestamp": time_within_delta(ts),
-            "tags": {},
+            "tags": {"is_segment": "false"},
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
-        # No metric extraction in the SpanV2 pipeline.
-        *(
-            [
-                {
-                    "org_id": 1,
-                    "project_id": 42,
-                    "name": "d:transactions/measurements.cls@none",
-                    "type": "d",
-                    "value": [0.1],
-                    "timestamp": time_within_delta(ts),
-                    "tags": {
-                        "browser.name": "Chrome",
-                        "environment": "prod",
-                        "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
-                        "span.op": "ui.webvital.cls",
-                        "transaction": "/insights/projects/",
-                    },
-                    "retention_days": 90,
-                    "received_at": time_within(ts),
-                }
-            ]
-            if mode == "legacy"
-            else []
-        ),
     ]
 
 
@@ -500,6 +456,7 @@ def test_inp_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": True,
         "span_id": "a6f029fbe0e2389a",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -517,11 +474,12 @@ def test_inp_span(
             "timestamp": time_within_delta(ts),
             "tags": {
                 "decision": "keep",
+                "is_segment": "false",
                 "target_project_id": "42",
                 "transaction": "/insights/projects/",
             },
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
         {
             "org_id": 1,
@@ -530,32 +488,8 @@ def test_inp_span(
             "type": "c",
             "value": 1.0,
             "timestamp": time_within_delta(ts),
-            "tags": {},
+            "tags": {"is_segment": "false"},
             "retention_days": 90,
-            "received_at": time_within(ts),
+            "received_at": time_within(ts, precision="s"),
         },
-        # No metric extraction in the SpanV2 pipeline.
-        *(
-            [
-                {
-                    "org_id": 1,
-                    "project_id": 42,
-                    "name": "d:spans/webvital.inp@millisecond",
-                    "type": "d",
-                    "value": [104.0],
-                    "timestamp": time_within_delta(ts),
-                    "tags": {
-                        "browser.name": "Chrome",
-                        "environment": "prod",
-                        "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
-                        "span.op": "ui.interaction.click",
-                        "transaction": "/insights/projects/",
-                    },
-                    "retention_days": 90,
-                    "received_at": time_within(ts),
-                }
-            ]
-            if mode == "legacy"
-            else []
-        ),
     ]

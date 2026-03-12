@@ -4,6 +4,7 @@ from google.protobuf.json_format import MessageToDict
 import msgpack
 import uuid
 
+from objectstore_client import Client, Usecase
 import pytest
 import os
 import confluent_kafka as kafka
@@ -61,7 +62,6 @@ def processing_config(get_topic_name):
                 "outcomes_billing": outcomes_topic,
                 "metrics_sessions": metrics_topic,
                 "metrics_generic": metrics_topic,
-                "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
                 "spans": get_topic_name("spans"),
@@ -126,6 +126,16 @@ def relay_with_playstation(mini_sentry, relay):
     except Exception:
         pytest.skip("Test requires Relay compiled with PlayStation support")
     return relay
+
+
+@pytest.fixture
+def objectstore():
+    def inner(usecase: str, project_id: int):
+        return Client("http://127.0.0.1:8888/").session(
+            Usecase(usecase), org=1, project=project_id
+        )
+
+    return inner
 
 
 def kafka_producer(options):
@@ -195,11 +205,11 @@ class ConsumerBase:
         self.consumer = consumer
         self.test_producer = kafka_producer(options)
         self.topic_name = topic_name
-        self.timeout = timeout or 5
+        self.timeout = timeout or 10
 
         # Connect to the topic and poll a first test message.
         # First poll takes forever, the next ones are fast.
-        self.assert_empty(timeout=5)
+        self.assert_empty()
 
     def poll(self, timeout=None):
         if timeout is None:
@@ -302,7 +312,7 @@ class OutcomesConsumer(ConsumerBase):
         key_id=None,
         categories=None,
         quantity=None,
-        timeout=1,
+        timeout=None,
         ignore_other=False,
     ):
         expected_categories = (
@@ -398,11 +408,6 @@ def replay_recordings_consumer(consumer_fixture):
 
 
 @pytest.fixture
-def replay_events_consumer(consumer_fixture):
-    yield from consumer_fixture(ReplayEventsConsumer, "replay_events")
-
-
-@pytest.fixture
 def feedback_consumer(consumer_fixture):
     yield from consumer_fixture(FeedbackConsumer, "feedback")
 
@@ -440,10 +445,15 @@ class MetricsConsumer(ConsumerBase):
 
         for message in self.poll_many(timeout=timeout, n=n):
             assert message.error() is None
+            value = json.loads(message.value())
+            try:
+                value["value"].sort()
+            except AttributeError:
+                pass
             if with_headers:
-                metrics.append((json.loads(message.value()), message.headers()))
+                metrics.append((value, message.headers()))
             else:
-                metrics.append(json.loads(message.value()))
+                metrics.append(value)
 
         def _sort(m):
             if with_headers:

@@ -4,13 +4,14 @@ use std::marker::PhantomData;
 
 use relay_profiling::ProfileType;
 use relay_quotas::{
-    DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
-    ReasonCode, Scoping,
+    DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
+    Scoping,
 };
+use smallvec::SmallVec;
 
-use crate::envelope::{Envelope, Item, ItemType};
+use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemType};
 use crate::integrations::Integration;
-use crate::managed::ManagedEnvelope;
+use crate::managed::{Managed, ManagedEnvelope};
 use crate::services::outcome::Outcome;
 
 /// Name of the rate limits header.
@@ -68,12 +69,13 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
             None => continue,
         };
 
-        let mut categories = DataCategories::new();
-        for category in components.next().unwrap_or("").split(';') {
-            if !category.is_empty() {
-                categories.push(DataCategory::from_name(category));
-            }
-        }
+        let categories = components
+            .next()
+            .unwrap_or("")
+            .split(';')
+            .filter(|category| !category.is_empty())
+            .map(DataCategory::from_name)
+            .collect();
 
         let quota_scope = QuotaScope::from_name(components.next().unwrap_or(""));
         let scope = RateLimitScope::for_quota(*scoping, quota_scope);
@@ -141,6 +143,64 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
     }
 }
 
+/// Quantity metrics for a single category of attachments.
+///
+/// Tracks both the count of attachments and size in bytes.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AttachmentQuantity {
+    /// Number of attachment items.
+    pub count: usize,
+    /// Total size of attachments in bytes.
+    pub bytes: usize,
+}
+
+impl AttachmentQuantity {
+    pub fn is_empty(&self) -> bool {
+        self.count == 0 && self.bytes == 0
+    }
+}
+
+/// Aggregated attachment quantities grouped by [`AttachmentParentType`].
+///
+/// This separation is necessary since rate limiting logic varies by [`AttachmentParentType`].
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AttachmentQuantities {
+    /// Quantities of Event Attachments.
+    ///
+    /// See also: [`AttachmentParentType::Event`].
+    pub event: AttachmentQuantity,
+    /// Quantities of trace V2 Attachments.
+    pub trace: AttachmentQuantity,
+    /// Quantities of span V2 Attachments.
+    pub span: AttachmentQuantity,
+}
+
+impl AttachmentQuantities {
+    /// Returns the total count of all attachments across all parent types.
+    pub fn count(&self) -> usize {
+        let AttachmentQuantities { event, trace, span } = self;
+        event.count + trace.count + span.count
+    }
+
+    /// Returns the total size in bytes of all attachments across all parent types.
+    pub fn bytes(&self) -> usize {
+        let AttachmentQuantities { event, trace, span } = self;
+        event.bytes + trace.bytes + span.bytes
+    }
+}
+
+/// Collection of all transaction profile quantities.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ProfileQuantities {
+    /// All transaction profiles in the backend category.
+    pub backend: usize,
+    /// All transaction profiles in the ui category.
+    pub ui: usize,
+    /// All transaction profiles, includes profiles in the backend and ui categories as well as
+    /// profiles which are in neither category.
+    pub total: usize,
+}
+
 /// A summary of `Envelope` contents.
 ///
 /// Summarizes the contained event, size of attachments, session updates, and whether there are
@@ -151,17 +211,14 @@ pub struct EnvelopeSummary {
     /// The data category of the event in the envelope. `None` if there is no event.
     pub event_category: Option<DataCategory>,
 
-    /// The quantity of all attachments combined in bytes.
-    pub attachment_quantity: usize,
-
-    /// The number of attachments.
-    pub attachment_item_quantity: usize,
+    /// The quantities of all attachments combined.
+    pub attachment_quantities: AttachmentQuantities,
 
     /// The number of all session updates.
     pub session_quantity: usize,
 
     /// The number of profiles.
-    pub profile_quantity: usize,
+    pub profile_quantity: ProfileQuantities,
 
     /// The number of replays.
     pub replay_quantity: usize,
@@ -217,9 +274,13 @@ impl EnvelopeSummary {
 
     /// Creates an envelope summary and aggregates the given envelope.
     pub fn compute(envelope: &Envelope) -> Self {
+        Self::compute_items(envelope.items())
+    }
+
+    pub fn compute_items<'a>(items: impl IntoIterator<Item = &'a Item>) -> Self {
         let mut summary = Self::empty();
 
-        for item in envelope.items() {
+        for item in items {
             if item.creates_event() {
                 summary.infer_category(item);
             } else if item.ty() == &ItemType::Attachment {
@@ -236,14 +297,11 @@ impl EnvelopeSummary {
             if let Some(source_quantities) = item.source_quantities() {
                 summary.secondary_transaction_quantity += source_quantities.transactions;
                 summary.secondary_span_quantity += source_quantities.spans;
-                summary.profile_quantity += source_quantities.profiles;
             }
 
             summary.payload_size += item.len();
 
-            for (category, quantity) in item.quantities() {
-                summary.add_quantity(category, quantity);
-            }
+            summary.add_quantities(item);
 
             // Special case since v1 and v2 share a data category.
             // Adding this in add_quantity would include v2 in the count.
@@ -255,25 +313,47 @@ impl EnvelopeSummary {
         summary
     }
 
-    fn add_quantity(&mut self, category: DataCategory, quantity: usize) {
-        let target_quantity = match category {
-            DataCategory::Attachment => &mut self.attachment_quantity,
-            DataCategory::AttachmentItem => &mut self.attachment_item_quantity,
-            DataCategory::Session => &mut self.session_quantity,
-            DataCategory::Profile => &mut self.profile_quantity,
-            DataCategory::Replay => &mut self.replay_quantity,
-            DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
-            DataCategory::Monitor => &mut self.monitor_quantity,
-            DataCategory::Span => &mut self.span_quantity,
-            DataCategory::TraceMetric => &mut self.trace_metric_quantity,
-            DataCategory::LogItem => &mut self.log_item_quantity,
-            DataCategory::LogByte => &mut self.log_byte_quantity,
-            DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
-            DataCategory::ProfileChunkUi => &mut self.profile_chunk_ui_quantity,
-            // TODO: This catch-all return looks dangerous
-            _ => return,
-        };
-        *target_quantity += quantity;
+    fn add_quantities(&mut self, item: &Item) {
+        // The Nintendo switch item is a special case which should've been modelled like the
+        // `Unreal4Context` as potentially a separate item type which does not have its own data
+        // category.
+        //
+        // Currently there is no outcome category for this item, as it will be dissolved into
+        // multiple different items once processed.
+        if item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage) {
+            return;
+        }
+
+        for (category, quantity) in item.quantities() {
+            let target_quantity = match category {
+                DataCategory::Attachment => match item.attachment_parent_type() {
+                    AttachmentParentType::Span => &mut self.attachment_quantities.span.bytes,
+                    AttachmentParentType::Trace => &mut self.attachment_quantities.trace.bytes,
+                    AttachmentParentType::Event => &mut self.attachment_quantities.event.bytes,
+                },
+                DataCategory::AttachmentItem => match item.attachment_parent_type() {
+                    AttachmentParentType::Span => &mut self.attachment_quantities.span.count,
+                    AttachmentParentType::Trace => &mut self.attachment_quantities.trace.count,
+                    AttachmentParentType::Event => &mut self.attachment_quantities.event.count,
+                },
+                DataCategory::Session => &mut self.session_quantity,
+                DataCategory::Profile => &mut self.profile_quantity.total,
+                DataCategory::ProfileBackend => &mut self.profile_quantity.backend,
+                DataCategory::ProfileUi => &mut self.profile_quantity.ui,
+                DataCategory::Replay => &mut self.replay_quantity,
+                DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
+                DataCategory::Monitor => &mut self.monitor_quantity,
+                DataCategory::Span => &mut self.span_quantity,
+                DataCategory::TraceMetric => &mut self.trace_metric_quantity,
+                DataCategory::LogItem => &mut self.log_item_quantity,
+                DataCategory::LogByte => &mut self.log_byte_quantity,
+                DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
+                DataCategory::ProfileChunkUi => &mut self.profile_chunk_ui_quantity,
+                // TODO: This catch-all looks dangerous
+                _ => continue,
+            };
+            *target_quantity += quantity;
+        }
     }
 
     /// Infers the appropriate [`DataCategory`] for the envelope [`Item`].
@@ -287,14 +367,24 @@ impl EnvelopeSummary {
             self.event_category = Some(category);
         }
     }
+
+    /// Returns `true` if the envelope contains items that depend on spans.
+    ///
+    /// This is used to determined if we should be checking span quota, as the quota should be
+    /// checked both if there are spans or if there are span dependent items (e.g. span attachments).
+    pub fn has_span_dependent_items(&self) -> bool {
+        !self.attachment_quantities.span.is_empty()
+    }
 }
 
 /// Rate limiting information for a data category.
-#[derive(Debug)]
+#[derive(Debug, Default, PartialEq)]
 #[cfg_attr(test, derive(Clone))]
 pub struct CategoryLimit {
     /// The limited data category.
-    category: DataCategory,
+    category: Option<DataCategory>,
+    /// Additional and optional data categories in which outcomes will be produced.
+    extra_outcome_categories: SmallVec<[DataCategory; 1]>,
     /// The total rate limited quantity across all items.
     ///
     /// This will be `0` if nothing was rate limited.
@@ -308,16 +398,23 @@ pub struct CategoryLimit {
 impl CategoryLimit {
     /// Creates a new `CategoryLimit`.
     ///
-    /// Returns an inactive limit if `quantity` is `0` or `rate_limit` is `None`.
+    /// Returns an inactive limit if `rate_limit` is `None`.
     fn new(category: DataCategory, quantity: usize, rate_limit: Option<&RateLimit>) -> Self {
         match rate_limit {
             Some(limit) => Self {
-                category,
+                category: Some(category),
                 quantity,
+                extra_outcome_categories: Default::default(),
                 reason_code: limit.reason_code.clone(),
             },
             None => Self::default(),
         }
+    }
+
+    /// Adds an additional outcome in the specified category to the limit.
+    pub fn add_outcome_category(mut self, category: DataCategory) -> Self {
+        self.extra_outcome_categories.push(category);
+        self
     }
 
     /// Recreates the category limit, if active, for a new category with the same reason.
@@ -327,7 +424,8 @@ impl CategoryLimit {
         }
 
         Self {
-            category,
+            category: Some(category),
+            extra_outcome_categories: Default::default(),
             quantity,
             reason_code: self.reason_code.clone(),
         }
@@ -335,21 +433,63 @@ impl CategoryLimit {
 
     /// Returns `true` if this is an active limit.
     ///
-    /// This indicates that the category is limited and a certain quantity is removed from the
-    /// Envelope. If the limit is inactive, there is no change.
+    /// Inactive limits are placeholders with no category set.
     pub fn is_active(&self) -> bool {
-        self.quantity > 0
+        self.category.is_some()
+    }
+
+    fn outcomes(self) -> impl Iterator<Item = (Outcome, DataCategory, usize)> {
+        let Self {
+            category,
+            extra_outcome_categories,
+            quantity,
+            reason_code,
+        } = self;
+
+        if category.is_none() || quantity == 0 {
+            return either::Either::Left(std::iter::empty());
+        }
+
+        let outcomes = std::iter::chain(category, extra_outcome_categories).map(move |category| {
+            (
+                Outcome::RateLimited(reason_code.clone()),
+                category,
+                quantity,
+            )
+        });
+
+        either::Either::Right(outcomes)
     }
 }
 
-impl Default for CategoryLimit {
-    fn default() -> Self {
-        Self {
-            category: DataCategory::Default,
-            quantity: 0,
-            reason_code: None,
-        }
+/// Rate limiting information for a single category of attachments.
+#[derive(Default, Debug)]
+#[cfg_attr(test, derive(Clone))]
+pub struct AttachmentLimits {
+    /// Rate limit applied to attachment bytes ([`DataCategory::Attachment`]).
+    pub bytes: CategoryLimit,
+    /// Rate limit applied to attachment item count ([`DataCategory::AttachmentItem`]).
+    pub count: CategoryLimit,
+}
+
+impl AttachmentLimits {
+    fn is_active(&self) -> bool {
+        self.bytes.is_active() || self.count.is_active()
     }
+}
+
+/// Rate limiting information for attachments grouped by [`AttachmentParentType`].
+///
+/// See [`AttachmentQuantities`] for the corresponding quantity tracking.
+#[derive(Default, Debug)]
+#[cfg_attr(test, derive(Clone))]
+pub struct AttachmentsLimits {
+    /// Limits for V1 Attachments.
+    pub event: AttachmentLimits,
+    /// Limits for trace V2 Attachments.
+    pub trace: AttachmentLimits,
+    /// Limits for span V2 Attachments.
+    pub span: AttachmentLimits,
 }
 
 /// Information on the limited quantities returned by [`EnvelopeLimiter::compute`].
@@ -360,14 +500,19 @@ pub struct Enforcement {
     pub event: CategoryLimit,
     /// The rate limit for the indexed category of the event.
     pub event_indexed: CategoryLimit,
-    /// The combined attachment bytes rate limit.
-    pub attachments: CategoryLimit,
-    /// The combined attachment item rate limit.
-    pub attachment_items: CategoryLimit,
+    /// The attachments limits
+    pub attachments_limits: AttachmentsLimits,
     /// The combined session item rate limit.
     pub sessions: CategoryLimit,
-    /// The combined profile item rate limit.
+    /// The combined transaction profile item rate limits, for all transaction profiles.
+    ///
+    /// This is at least the sum of [`Self::profiles_backend`] and [`Self::profiles_ui`],
+    /// potentially more if there are profiles without a known platform.
     pub profiles: CategoryLimit,
+    /// The combined backend transaction profile item rate limit.
+    pub profiles_backend: CategoryLimit,
+    /// The combined ui transaction profile item rate limit.
+    pub profiles_ui: CategoryLimit,
     /// The rate limit for the indexed profiles category.
     pub profiles_indexed: CategoryLimit,
     /// The combined replay item rate limit.
@@ -416,10 +561,28 @@ impl Enforcement {
         let Self {
             event,
             event_indexed,
-            attachments,
-            attachment_items,
+            attachments_limits:
+                AttachmentsLimits {
+                    event:
+                        AttachmentLimits {
+                            bytes: event_attachment_bytes,
+                            count: event_attachment_item,
+                        },
+                    trace:
+                        AttachmentLimits {
+                            bytes: trace_attachment_bytes,
+                            count: trace_attachment_item,
+                        },
+                    span:
+                        AttachmentLimits {
+                            bytes: span_attachment_bytes,
+                            count: span_attachment_item,
+                        },
+                },
             sessions: _, // Do not report outcomes for sessions.
             profiles,
+            profiles_backend,
+            profiles_ui,
             profiles_indexed,
             replays,
             check_ins,
@@ -436,9 +599,15 @@ impl Enforcement {
         let limits = [
             event,
             event_indexed,
-            attachments,
-            attachment_items,
+            event_attachment_bytes,
+            event_attachment_item,
+            trace_attachment_bytes,
+            trace_attachment_item,
+            span_attachment_bytes,
+            span_attachment_item,
             profiles,
+            profiles_backend,
+            profiles_ui,
             profiles_indexed,
             replays,
             check_ins,
@@ -452,16 +621,7 @@ impl Enforcement {
             trace_metrics,
         ];
 
-        limits
-            .into_iter()
-            .filter(move |limit| limit.is_active())
-            .map(move |limit| {
-                (
-                    Outcome::RateLimited(limit.reason_code),
-                    limit.category,
-                    limit.quantity,
-                )
-            })
+        limits.into_iter().flat_map(|limit| limit.outcomes())
     }
 
     /// Applies the [`Enforcement`] on the [`Envelope`] by removing all items that were rate limited
@@ -506,6 +666,32 @@ impl Enforcement {
         self.track_outcomes(envelope);
     }
 
+    /// Applies the [`Enforcement`] on the [`Envelope`] by removing all items that were rate limited
+    /// and emits outcomes for each rate limited category.
+    ///
+    /// Works exactly like [`Self::apply_with_outcomes`], but instead operates on [`Managed`]
+    /// instead of [`ManagedEnvelope`].
+    pub fn apply_to_managed(self, envelope: &mut Managed<Box<Envelope>>) {
+        envelope.modify(|envelope, records| {
+            envelope.retain_items(|item| self.retain_item(item));
+
+            // Sessions currently do not emit any outcomes, but may be dropped.
+            records.lenient(DataCategory::Session);
+            // This is an existing bug in how user reports handle rate limits and emit outcomes.
+            //
+            // User report v1 and v2 (feedback) are counting into the same category, but that is not
+            // completely consistent leading to some mismatches when emitting outcomes from rate
+            // limiting vs how outcomes are counted on the `Managed` instance.
+            //
+            // Issue: <https://github.com/getsentry/relay/issues/5524>.
+            records.lenient(DataCategory::UserReportV2);
+
+            for (outcome, category, quantity) in self.get_outcomes() {
+                records.reject_err(outcome, (category, quantity))
+            }
+        });
+    }
+
     /// Returns `true` when an [`Item`] can be retained, `false` otherwise.
     fn retain_item(&self, item: &mut Item) -> bool {
         // Remove event items and all items that depend on this event
@@ -518,18 +704,35 @@ impl Enforcement {
         // to determine whether an item is limited.
         match item.ty() {
             ItemType::Attachment => {
-                if !(self.attachments.is_active() || self.attachment_items.is_active()) {
-                    return true;
-                }
-                if item.creates_event() {
-                    item.set_rate_limited(true);
-                    true
-                } else {
-                    false
+                match item.attachment_parent_type() {
+                    AttachmentParentType::Span => !self.attachments_limits.span.is_active(),
+                    AttachmentParentType::Trace => !self.attachments_limits.trace.is_active(),
+                    AttachmentParentType::Event => {
+                        if !self.attachments_limits.event.is_active() {
+                            return true;
+                        }
+                        if item.creates_event() {
+                            item.set_rate_limited(true);
+                            true
+                        } else {
+                            false
+                        }
+                    }
                 }
             }
             ItemType::Session => !self.sessions.is_active(),
-            ItemType::Profile => !self.profiles_indexed.is_active(),
+            ItemType::Profile => {
+                if self.profiles_indexed.is_active() {
+                    false
+                } else if let Some(platform) = item.profile_type() {
+                    match platform {
+                        ProfileType::Backend => !self.profiles_backend.is_active(),
+                        ProfileType::Ui => !self.profiles_ui.is_active(),
+                    }
+                } else {
+                    true
+                }
+            }
             ItemType::ReplayEvent => !self.replays.is_active(),
             ItemType::ReplayVideo => !self.replays.is_active(),
             ItemType::ReplayRecording => !self.replays.is_active(),
@@ -666,7 +869,7 @@ where
     ///   clients are allowed to continue sending them.
     pub async fn compute(
         mut self,
-        envelope: &mut Envelope,
+        envelope: &Envelope,
         scoping: &'a Scoping,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut summary = EnvelopeSummary::compute(envelope);
@@ -704,52 +907,119 @@ where
             rate_limits.merge(event_limits);
         }
 
+        // Handle spans.
+        if enforcement.is_event_active() {
+            enforcement.spans = enforcement
+                .event
+                .clone_for(DataCategory::Span, summary.span_quantity);
+
+            enforcement.spans_indexed = enforcement
+                .event_indexed
+                .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
+        } else if summary.span_quantity > 0 || summary.has_span_dependent_items() {
+            let mut span_limits = self
+                .check
+                .apply(scoping.item(DataCategory::Span), summary.span_quantity)
+                .await?;
+            enforcement.spans = CategoryLimit::new(
+                DataCategory::Span,
+                summary.span_quantity,
+                span_limits.longest(),
+            );
+
+            if span_limits.is_empty() {
+                span_limits.merge(
+                    self.check
+                        .apply(
+                            scoping.item(DataCategory::SpanIndexed),
+                            summary.span_quantity,
+                        )
+                        .await?,
+                );
+            }
+
+            enforcement.spans_indexed = CategoryLimit::new(
+                DataCategory::SpanIndexed,
+                summary.span_quantity,
+                span_limits.longest(),
+            );
+
+            rate_limits.merge(span_limits);
+        }
+
+        // Handle span attachments
+        if enforcement.spans_indexed.is_active() {
+            enforcement.attachments_limits.span.bytes = enforcement.spans_indexed.clone_for(
+                DataCategory::Attachment,
+                summary.attachment_quantities.span.bytes,
+            );
+            enforcement.attachments_limits.span.count = enforcement.spans_indexed.clone_for(
+                DataCategory::AttachmentItem,
+                summary.attachment_quantities.span.count,
+            );
+        } else if !summary.attachment_quantities.span.is_empty() {
+            // While we could combine this check with the check that we do for event and trace
+            // attachments, this would complicate the logic so we opted against doing that.
+            // In practice the performance impact should be negligible since different types
+            // of attachments should rarely be send together.
+            enforcement.attachments_limits.span = self
+                .check_attachment_limits(scoping, &summary.attachment_quantities.span)
+                .await?;
+        }
+
         // Handle attachments.
         if let Some(limit) = enforcement.active_event() {
-            let limit1 = limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
+            let limit1 = limit.clone_for(
+                DataCategory::Attachment,
+                summary.attachment_quantities.event.bytes,
+            );
             let limit2 = limit.clone_for(
                 DataCategory::AttachmentItem,
-                summary.attachment_item_quantity,
+                summary.attachment_quantities.event.count,
             );
-            enforcement.attachments = limit1;
-            enforcement.attachment_items = limit2;
+
+            enforcement.attachments_limits.event.bytes = limit1;
+            enforcement.attachments_limits.event.count = limit2;
         } else {
             let mut attachment_limits = RateLimits::new();
-            if summary.attachment_quantity > 0 {
+            if summary.attachment_quantities.event.bytes > 0 {
                 let item_scoping = scoping.item(DataCategory::Attachment);
 
                 let attachment_byte_limits = self
                     .check
-                    .apply(item_scoping, summary.attachment_quantity)
+                    .apply(item_scoping, summary.attachment_quantities.event.bytes)
                     .await?;
 
-                enforcement.attachments = CategoryLimit::new(
+                enforcement.attachments_limits.event.bytes = CategoryLimit::new(
                     DataCategory::Attachment,
-                    summary.attachment_quantity,
+                    summary.attachment_quantities.event.bytes,
                     attachment_byte_limits.longest(),
                 );
-                enforcement.attachment_items = enforcement.attachments.clone_for(
-                    DataCategory::AttachmentItem,
-                    summary.attachment_item_quantity,
-                );
+                enforcement.attachments_limits.event.count =
+                    enforcement.attachments_limits.event.bytes.clone_for(
+                        DataCategory::AttachmentItem,
+                        summary.attachment_quantities.event.count,
+                    );
                 attachment_limits.merge(attachment_byte_limits);
             }
-            if !attachment_limits.is_limited() && summary.attachment_item_quantity > 0 {
+            if !attachment_limits.is_limited() && summary.attachment_quantities.event.count > 0 {
                 let item_scoping = scoping.item(DataCategory::AttachmentItem);
 
                 let attachment_item_limits = self
                     .check
-                    .apply(item_scoping, summary.attachment_item_quantity)
+                    .apply(item_scoping, summary.attachment_quantities.event.count)
                     .await?;
 
-                enforcement.attachment_items = CategoryLimit::new(
+                enforcement.attachments_limits.event.count = CategoryLimit::new(
                     DataCategory::AttachmentItem,
-                    summary.attachment_item_quantity,
+                    summary.attachment_quantities.event.count,
                     attachment_item_limits.longest(),
                 );
-                enforcement.attachments = enforcement
-                    .attachment_items
-                    .clone_for(DataCategory::Attachment, summary.attachment_quantity);
+                enforcement.attachments_limits.event.bytes =
+                    enforcement.attachments_limits.event.count.clone_for(
+                        DataCategory::Attachment,
+                        summary.attachment_quantities.event.bytes,
+                    );
                 attachment_limits.merge(attachment_item_limits);
             }
 
@@ -759,6 +1029,13 @@ where
             if summary.has_plain_attachments {
                 rate_limits.merge(attachment_limits);
             }
+        }
+
+        // Handle trace attachments.
+        if !summary.attachment_quantities.trace.is_empty() {
+            enforcement.attachments_limits.trace = self
+                .check_attachment_limits(scoping, &summary.attachment_quantities.trace)
+                .await?;
         }
 
         // Handle sessions.
@@ -823,17 +1100,24 @@ where
         if enforcement.is_event_active() {
             enforcement.profiles = enforcement
                 .event
-                .clone_for(DataCategory::Profile, summary.profile_quantity);
-
+                .clone_for(DataCategory::Profile, summary.profile_quantity.total);
             enforcement.profiles_indexed = enforcement
                 .event_indexed
-                .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity)
-        } else if summary.profile_quantity > 0 {
+                .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity.total);
+
+            enforcement.profiles_backend = enforcement.event.clone_for(
+                DataCategory::ProfileBackend,
+                summary.profile_quantity.backend,
+            );
+            enforcement.profiles_ui = enforcement
+                .event
+                .clone_for(DataCategory::ProfileUi, summary.profile_quantity.ui);
+        } else if summary.profile_quantity.total > 0 {
             let mut profile_limits = self
                 .check
                 .apply(
                     scoping.item(DataCategory::Profile),
-                    summary.profile_quantity,
+                    summary.profile_quantity.total,
                 )
                 .await?;
 
@@ -848,26 +1132,90 @@ where
 
             enforcement.profiles = CategoryLimit::new(
                 DataCategory::Profile,
-                summary.profile_quantity,
+                summary.profile_quantity.total,
                 profile_limits.longest(),
             );
 
-            if profile_limits.is_empty() {
-                profile_limits.merge(
-                    self.check
+            if enforcement.profiles.quantity == 0 {
+                if summary.profile_quantity.backend > 0 {
+                    let limit = self
+                        .check
                         .apply(
-                            scoping.item(DataCategory::ProfileIndexed),
-                            summary.profile_quantity,
+                            scoping.item(DataCategory::ProfileBackend),
+                            summary.profile_quantity.backend,
                         )
-                        .await?,
+                        .await?;
+
+                    enforcement.profiles_backend = CategoryLimit::new(
+                        DataCategory::ProfileBackend,
+                        summary.profile_quantity.backend,
+                        limit.longest(),
+                    )
+                    .add_outcome_category(DataCategory::Profile);
+
+                    profile_limits.merge(limit);
+                }
+                if summary.profile_quantity.ui > 0 {
+                    let limit = self
+                        .check
+                        .apply(
+                            scoping.item(DataCategory::ProfileUi),
+                            summary.profile_quantity.ui,
+                        )
+                        .await?;
+
+                    enforcement.profiles_ui = CategoryLimit::new(
+                        DataCategory::ProfileUi,
+                        summary.profile_quantity.ui,
+                        limit.longest(),
+                    )
+                    .add_outcome_category(DataCategory::Profile);
+
+                    profile_limits.merge(limit);
+                }
+            } else {
+                enforcement.profiles_backend = CategoryLimit::new(
+                    DataCategory::ProfileBackend,
+                    summary.profile_quantity.backend,
+                    profile_limits.longest(),
+                );
+                enforcement.profiles_ui = CategoryLimit::new(
+                    DataCategory::ProfileUi,
+                    summary.profile_quantity.ui,
+                    profile_limits.longest(),
                 );
             }
 
-            enforcement.profiles_indexed = CategoryLimit::new(
-                DataCategory::ProfileIndexed,
-                summary.profile_quantity,
-                profile_limits.longest(),
-            );
+            if enforcement.profiles.quantity > 0 {
+                enforcement.profiles_indexed = enforcement
+                    .profiles
+                    .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity.total);
+            } else {
+                let limit = self
+                    .check
+                    .apply(
+                        scoping.item(DataCategory::ProfileIndexed),
+                        summary.profile_quantity.total,
+                    )
+                    .await?;
+
+                if !limit.is_empty() {
+                    enforcement.profiles_indexed = CategoryLimit::new(
+                        DataCategory::ProfileIndexed,
+                        summary.profile_quantity.total,
+                        limit.longest(),
+                    );
+
+                    profile_limits.merge(limit);
+                } else {
+                    enforcement.profiles_backend = enforcement
+                        .profiles_backend
+                        .add_outcome_category(DataCategory::ProfileIndexed);
+                    enforcement.profiles_ui = enforcement
+                        .profiles_ui
+                        .add_outcome_category(DataCategory::ProfileIndexed);
+                }
+            }
 
             rate_limits.merge(profile_limits);
         }
@@ -917,46 +1265,6 @@ where
             rate_limits.merge(checkin_limits);
         }
 
-        // Handle spans.
-        if enforcement.is_event_active() {
-            enforcement.spans = enforcement
-                .event
-                .clone_for(DataCategory::Span, summary.span_quantity);
-
-            enforcement.spans_indexed = enforcement
-                .event_indexed
-                .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
-        } else if summary.span_quantity > 0 {
-            let mut span_limits = self
-                .check
-                .apply(scoping.item(DataCategory::Span), summary.span_quantity)
-                .await?;
-            enforcement.spans = CategoryLimit::new(
-                DataCategory::Span,
-                summary.span_quantity,
-                span_limits.longest(),
-            );
-
-            if span_limits.is_empty() {
-                span_limits.merge(
-                    self.check
-                        .apply(
-                            scoping.item(DataCategory::SpanIndexed),
-                            summary.span_quantity,
-                        )
-                        .await?,
-                );
-            }
-
-            enforcement.spans_indexed = CategoryLimit::new(
-                DataCategory::SpanIndexed,
-                summary.span_quantity,
-                span_limits.longest(),
-            );
-
-            rate_limits.merge(span_limits);
-        }
-
         // Handle profile chunks.
         if summary.profile_chunk_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::ProfileChunk);
@@ -988,6 +1296,40 @@ where
 
         Ok((enforcement, rate_limits))
     }
+
+    async fn check_attachment_limits(
+        &mut self,
+        scoping: &Scoping,
+        quantities: &AttachmentQuantity,
+    ) -> Result<AttachmentLimits, E> {
+        let mut attachment_limits = self
+            .check
+            .apply(scoping.item(DataCategory::Attachment), quantities.bytes)
+            .await?;
+
+        // Note: The check here is taken from the attachments logic for consistency I think just
+        // checking `is_empty` should be fine?
+        if !attachment_limits.is_limited() && quantities.count > 0 {
+            attachment_limits.merge(
+                self.check
+                    .apply(scoping.item(DataCategory::AttachmentItem), quantities.count)
+                    .await?,
+            );
+        }
+
+        Ok(AttachmentLimits {
+            bytes: CategoryLimit::new(
+                DataCategory::Attachment,
+                quantities.bytes,
+                attachment_limits.longest(),
+            ),
+            count: CategoryLimit::new(
+                DataCategory::AttachmentItem,
+                quantities.count,
+                attachment_limits.longest(),
+            ),
+        })
+    }
 }
 
 impl<F, E, R> fmt::Debug for EnvelopeLimiter<F, E, R> {
@@ -1013,10 +1355,19 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
+    use crate::envelope::ParentId;
     use crate::{
         envelope::{AttachmentType, ContentType, SourceQuantities},
         extractors::RequestMeta,
     };
+
+    struct RateLimitTestCase {
+        name: &'static str,
+        denied_categories: &'static [DataCategory],
+        expect_attachment_limit_active: bool,
+        expected_limiter_calls: &'static [(DataCategory, usize)],
+        expected_outcomes: &'static [(DataCategory, usize)],
+    }
 
     #[tokio::test]
     async fn test_format_rate_limits() {
@@ -1024,7 +1375,7 @@ mod tests {
 
         // Add a generic rate limit for all categories.
         rate_limits.add(RateLimit {
-            categories: DataCategories::new(),
+            categories: Default::default(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
@@ -1033,7 +1384,7 @@ mod tests {
 
         // Add a more specific rate limit for just one category.
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction, DataCategory::Security],
+            categories: [DataCategory::Transaction, DataCategory::Security].into(),
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(4711),
@@ -1051,7 +1402,7 @@ mod tests {
 
         // Rate limit with reason code and namespace.
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::MetricBucket],
+            categories: [DataCategory::MetricBucket].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
@@ -1060,7 +1411,7 @@ mod tests {
 
         // Rate limit without reason code.
         rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::MetricBucket],
+            categories: [DataCategory::MetricBucket].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(42),
@@ -1105,18 +1456,19 @@ mod tests {
             rate_limits,
             vec![
                 RateLimit {
-                    categories: DataCategories::new(),
+                    categories: Default::default(),
                     scope: RateLimitScope::Organization(OrganizationId::new(42)),
                     reason_code: Some(ReasonCode::new("my_limit")),
                     retry_after: rate_limits[0].retry_after,
                     namespaces: smallvec![],
                 },
                 RateLimit {
-                    categories: smallvec![
+                    categories: [
                         DataCategory::Unknown,
                         DataCategory::Transaction,
                         DataCategory::Security,
-                    ],
+                    ]
+                    .into(),
                     scope: RateLimitScope::Project(ProjectId::new(21)),
                     reason_code: None,
                     retry_after: rate_limits[1].retry_after,
@@ -1145,7 +1497,7 @@ mod tests {
         assert_eq!(
             rate_limits,
             vec![RateLimit {
-                categories: smallvec![DataCategory::MetricBucket],
+                categories: [DataCategory::MetricBucket].into(),
                 scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
@@ -1171,7 +1523,7 @@ mod tests {
         assert_eq!(
             rate_limits,
             vec![RateLimit {
-                categories: smallvec![DataCategory::MetricBucket],
+                categories: [DataCategory::MetricBucket].into(),
                 scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: Some(ReasonCode::new("some_reason")),
                 retry_after: rate_limits[0].retry_after,
@@ -1196,7 +1548,7 @@ mod tests {
         assert_eq!(
             rate_limits,
             vec![RateLimit {
-                categories: smallvec![DataCategory::Unknown, DataCategory::Unknown],
+                categories: [DataCategory::Unknown, DataCategory::Unknown].into(),
                 scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
@@ -1235,12 +1587,19 @@ mod tests {
 
     fn rate_limit(category: DataCategory) -> RateLimit {
         RateLimit {
-            categories: vec![category].into(),
+            categories: [category].into(),
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(60),
             namespaces: smallvec![],
         }
+    }
+
+    fn trace_attachment_item(bytes: usize, parent_id: Option<ParentId>) -> Item {
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_payload(ContentType::TraceAttachment, "0".repeat(bytes));
+        item.set_parent_id(parent_id);
+        item
     }
 
     #[derive(Debug, Default)]
@@ -1338,9 +1697,9 @@ mod tests {
         (enforcement, limits)
     }
 
-    fn mock_limiter(category: Option<DataCategory>) -> Arc<Mutex<MockLimiter>> {
+    fn mock_limiter(categories: &[DataCategory]) -> Arc<Mutex<MockLimiter>> {
         let mut mock = MockLimiter::default();
-        if let Some(category) = category {
+        for &category in categories {
             mock = mock.deny(category);
         }
 
@@ -1351,7 +1710,7 @@ mod tests {
     async fn test_enforce_pass_empty() {
         let mut envelope = envelope![];
 
-        let mock = mock_limiter(None);
+        let mock = mock_limiter(&[]);
         let (_, limits) = enforce_and_apply(mock, &mut envelope, None).await;
 
         assert!(!limits.is_limited());
@@ -1362,7 +1721,7 @@ mod tests {
     async fn test_enforce_limit_error_event() {
         let mut envelope = envelope![Event];
 
-        let mock = mock_limiter(Some(DataCategory::Error));
+        let mock = mock_limiter(&[DataCategory::Error]);
         let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1374,7 +1733,7 @@ mod tests {
     async fn test_enforce_limit_error_with_attachments() {
         let mut envelope = envelope![Event, Attachment];
 
-        let mock = mock_limiter(Some(DataCategory::Error));
+        let mock = mock_limiter(&[DataCategory::Error]);
         let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1386,7 +1745,7 @@ mod tests {
     async fn test_enforce_limit_minidump() {
         let mut envelope = envelope![Attachment::Minidump];
 
-        let mock = mock_limiter(Some(DataCategory::Error));
+        let mock = mock_limiter(&[DataCategory::Error]);
         let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1398,7 +1757,7 @@ mod tests {
     async fn test_enforce_limit_attachments() {
         let mut envelope = envelope![Attachment::Minidump, Attachment];
 
-        let mock = mock_limiter(Some(DataCategory::Attachment));
+        let mock = mock_limiter(&[DataCategory::Attachment]);
         let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         // Attachments would be limited, but crash reports create events and are thus allowed.
@@ -1413,7 +1772,7 @@ mod tests {
     async fn test_enforce_limit_profiles() {
         let mut envelope = envelope![Profile, Profile];
 
-        let mock = mock_limiter(Some(DataCategory::Profile));
+        let mock = mock_limiter(&[DataCategory::Profile]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1436,12 +1795,12 @@ mod tests {
         // should not be rate limited.
         let mut envelope = envelope![ProfileChunk, ProfileChunk];
 
-        let mock = mock_limiter(Some(DataCategory::ProfileChunk));
+        let mock = mock_limiter(&[DataCategory::ProfileChunk]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
         assert!(!limits.is_limited());
         assert_eq!(get_outcomes(enforcement), vec![]);
 
-        let mock = mock_limiter(Some(DataCategory::ProfileChunkUi));
+        let mock = mock_limiter(&[DataCategory::ProfileChunkUi]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
         assert!(!limits.is_limited());
         assert_eq!(get_outcomes(enforcement), vec![]);
@@ -1454,13 +1813,13 @@ mod tests {
         let mut envelope = envelope![];
 
         let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_profile_type(ProfileType::Backend);
+        item.set_platform("python".to_owned());
         envelope.envelope_mut().add_item(item);
         let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_profile_type(ProfileType::Ui);
+        item.set_platform("javascript".to_owned());
         envelope.envelope_mut().add_item(item);
 
-        let mock = mock_limiter(Some(DataCategory::ProfileChunkUi));
+        let mock = mock_limiter(&[DataCategory::ProfileChunkUi]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1481,13 +1840,13 @@ mod tests {
         let mut envelope = envelope![];
 
         let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_profile_type(ProfileType::Backend);
+        item.set_platform("python".to_owned());
         envelope.envelope_mut().add_item(item);
         let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_profile_type(ProfileType::Ui);
+        item.set_platform("javascript".to_owned());
         envelope.envelope_mut().add_item(item);
 
-        let mock = mock_limiter(Some(DataCategory::ProfileChunk));
+        let mock = mock_limiter(&[DataCategory::ProfileChunk]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1508,7 +1867,7 @@ mod tests {
     async fn test_enforce_limit_replays() {
         let mut envelope = envelope![ReplayEvent, ReplayRecording, ReplayVideo];
 
-        let mock = mock_limiter(Some(DataCategory::Replay));
+        let mock = mock_limiter(&[DataCategory::Replay]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1523,7 +1882,7 @@ mod tests {
     async fn test_enforce_limit_monitor_checkins() {
         let mut envelope = envelope![CheckIn];
 
-        let mock = mock_limiter(Some(DataCategory::Monitor));
+        let mock = mock_limiter(&[DataCategory::Monitor]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1537,7 +1896,7 @@ mod tests {
     async fn test_enforce_pass_minidump() {
         let mut envelope = envelope![Attachment::Minidump];
 
-        let mock = mock_limiter(Some(DataCategory::Attachment));
+        let mock = mock_limiter(&[DataCategory::Attachment]);
         let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         // If only crash report attachments are present, we don't emit a rate limit.
@@ -1556,7 +1915,7 @@ mod tests {
         item.set_rate_limited(true);
         envelope.envelope_mut().add_item(item);
 
-        let mock = mock_limiter(Some(DataCategory::Error));
+        let mock = mock_limiter(&[DataCategory::Error]);
         let (_, limits) = enforce_and_apply(mock, &mut envelope, None).await;
 
         assert!(!limits.is_limited()); // No new rate limits applied.
@@ -1567,7 +1926,7 @@ mod tests {
     async fn test_enforce_pass_sessions() {
         let mut envelope = envelope![Session, Session, Session];
 
-        let mock = mock_limiter(Some(DataCategory::Error));
+        let mock = mock_limiter(&[DataCategory::Error]);
         let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         // If only crash report attachments are present, we don't emit a rate limit.
@@ -1580,7 +1939,7 @@ mod tests {
     async fn test_enforce_limit_sessions() {
         let mut envelope = envelope![Session, Session, Event];
 
-        let mock = mock_limiter(Some(DataCategory::Session));
+        let mock = mock_limiter(&[DataCategory::Session]);
         let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         // If only crash report attachments are present, we don't emit a rate limit.
@@ -1595,7 +1954,7 @@ mod tests {
     async fn test_enforce_limit_assumed_event() {
         let mut envelope = envelope![];
 
-        let mock = mock_limiter(Some(DataCategory::Transaction));
+        let mock = mock_limiter(&[DataCategory::Transaction]);
         let (_, limits) =
             enforce_and_apply(mock.clone(), &mut envelope, Some(DataCategory::Transaction)).await;
 
@@ -1609,7 +1968,7 @@ mod tests {
     async fn test_enforce_limit_assumed_attachments() {
         let mut envelope = envelope![Attachment, Attachment];
 
-        let mock = mock_limiter(Some(DataCategory::Error));
+        let mock = mock_limiter(&[DataCategory::Error]);
         let (_, limits) =
             enforce_and_apply(mock.clone(), &mut envelope, Some(DataCategory::Error)).await;
 
@@ -1622,7 +1981,7 @@ mod tests {
     async fn test_enforce_transaction() {
         let mut envelope = envelope![Transaction];
 
-        let mock = mock_limiter(Some(DataCategory::Transaction));
+        let mock = mock_limiter(&[DataCategory::Transaction]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1635,6 +1994,8 @@ mod tests {
             vec![
                 (DataCategory::Transaction, 1),
                 (DataCategory::TransactionIndexed, 1),
+                (DataCategory::Span, 1),
+                (DataCategory::SpanIndexed, 1),
             ]
         );
     }
@@ -1644,7 +2005,7 @@ mod tests {
         let mut envelope = envelope![Transaction, Profile];
         let scoping = envelope.scoping();
 
-        let mock = mock_limiter(Some(DataCategory::TransactionIndexed));
+        let mock = mock_limiter(&[DataCategory::TransactionIndexed]);
 
         let mock_clone = mock.clone();
         let limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, move |s, q| {
@@ -1665,15 +2026,18 @@ mod tests {
         assert!(!enforcement.event.is_active());
         assert!(!enforcement.profiles_indexed.is_active());
         assert!(!enforcement.profiles.is_active());
+        assert!(!enforcement.spans.is_active());
+        assert!(!enforcement.spans_indexed.is_active());
         mock.lock().await.assert_call(DataCategory::Transaction, 1);
         mock.lock().await.assert_call(DataCategory::Profile, 1);
+        mock.lock().await.assert_call(DataCategory::Span, 1);
     }
 
     #[tokio::test]
     async fn test_enforce_transaction_no_indexing_quota() {
         let mut envelope = envelope![Transaction];
 
-        let mock = mock_limiter(Some(DataCategory::TransactionIndexed));
+        let mock = mock_limiter(&[DataCategory::TransactionIndexed]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1689,11 +2053,11 @@ mod tests {
     async fn test_enforce_transaction_attachment_enforced() {
         let mut envelope = envelope![Transaction, Attachment];
 
-        let mock = mock_limiter(Some(DataCategory::Transaction));
+        let mock = mock_limiter(&[DataCategory::Transaction]);
         let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(enforcement.event.is_active());
-        assert!(enforcement.attachments.is_active());
+        assert!(enforcement.attachments_limits.event.is_active());
         mock.lock().await.assert_call(DataCategory::Transaction, 1);
     }
 
@@ -1708,7 +2072,7 @@ mod tests {
     async fn test_enforce_transaction_profile_enforced() {
         let mut envelope = envelope![Transaction, Profile];
 
-        let mock = mock_limiter(Some(DataCategory::Transaction));
+        let mock = mock_limiter(&[DataCategory::Transaction]);
         let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(enforcement.event.is_active());
@@ -1722,6 +2086,8 @@ mod tests {
                 (DataCategory::TransactionIndexed, 1),
                 (DataCategory::Profile, 1),
                 (DataCategory::ProfileIndexed, 1),
+                (DataCategory::Span, 1),
+                (DataCategory::SpanIndexed, 1),
             ]
         );
     }
@@ -1731,7 +2097,7 @@ mod tests {
         // When the transaction is sampled, the profile survives as standalone.
         let mut envelope = envelope![Profile];
 
-        let mock = mock_limiter(Some(DataCategory::Transaction));
+        let mock = mock_limiter(&[DataCategory::Transaction]);
         let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(enforcement.profiles.is_active());
@@ -1752,13 +2118,12 @@ mod tests {
         let mut envelope = envelope![Transaction, Attachment];
         set_extracted(envelope.envelope_mut(), ItemType::Transaction);
 
-        let mock = mock_limiter(Some(DataCategory::TransactionIndexed));
+        let mock = mock_limiter(&[DataCategory::TransactionIndexed]);
         let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(!enforcement.event.is_active());
         assert!(enforcement.event_indexed.is_active());
-        assert!(enforcement.attachments.is_active());
-        assert!(enforcement.attachment_items.is_active());
+        assert!(enforcement.attachments_limits.event.is_active());
         mock.lock().await.assert_call(DataCategory::Transaction, 1);
         mock.lock()
             .await
@@ -1769,7 +2134,8 @@ mod tests {
             vec![
                 (DataCategory::TransactionIndexed, 1),
                 (DataCategory::Attachment, 10),
-                (DataCategory::AttachmentItem, 1)
+                (DataCategory::AttachmentItem, 1),
+                (DataCategory::SpanIndexed, 1),
             ]
         );
     }
@@ -1778,7 +2144,7 @@ mod tests {
     async fn test_enforce_span() {
         let mut envelope = envelope![Span, Span];
 
-        let mock = mock_limiter(Some(DataCategory::Span));
+        let mock = mock_limiter(&[DataCategory::Span]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1796,7 +2162,7 @@ mod tests {
     async fn test_enforce_span_no_indexing_quota() {
         let mut envelope = envelope![Span, Span];
 
-        let mock = mock_limiter(Some(DataCategory::SpanIndexed));
+        let mock = mock_limiter(&[DataCategory::SpanIndexed]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1816,7 +2182,7 @@ mod tests {
         let mut envelope = envelope![Span, Span];
         set_extracted(envelope.envelope_mut(), ItemType::Span);
 
-        let mock = mock_limiter(Some(DataCategory::SpanIndexed));
+        let mock = mock_limiter(&[DataCategory::SpanIndexed]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1844,7 +2210,6 @@ mod tests {
         item.set_source_quantities(SourceQuantities {
             transactions: 5,
             spans: 0,
-            profiles: 2,
             buckets: 5,
         });
         envelope.add_item(item);
@@ -1853,14 +2218,12 @@ mod tests {
         item.set_source_quantities(SourceQuantities {
             transactions: 2,
             spans: 0,
-            profiles: 0,
             buckets: 3,
         });
         envelope.add_item(item);
 
         let summary = EnvelopeSummary::compute(&envelope);
 
-        assert_eq!(summary.profile_quantity, 2);
         assert_eq!(summary.secondary_transaction_quantity, 7);
     }
 
@@ -1868,7 +2231,7 @@ mod tests {
     async fn test_enforce_limit_logs_count() {
         let mut envelope = envelope![Log, Log];
 
-        let mock = mock_limiter(Some(DataCategory::LogItem));
+        let mock = mock_limiter(&[DataCategory::LogItem]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1883,7 +2246,7 @@ mod tests {
     async fn test_enforce_limit_logs_bytes() {
         let mut envelope = envelope![Log, Log];
 
-        let mock = mock_limiter(Some(DataCategory::LogByte));
+        let mock = mock_limiter(&[DataCategory::LogByte]);
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
@@ -1892,5 +2255,455 @@ mod tests {
         mock.lock().await.assert_call(DataCategory::LogByte, 20);
 
         assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogByte, 20)]);
+    }
+
+    #[tokio::test]
+    async fn test_enforce_standalone_span_attachment() {
+        let test_cases = &[
+            RateLimitTestCase {
+                name: "span_limit",
+                denied_categories: &[DataCategory::Span],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Span, 0)],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "span_indexed_limit",
+                denied_categories: &[DataCategory::SpanIndexed],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Span, 0), (DataCategory::SpanIndexed, 0)],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "attachment_limit",
+                denied_categories: &[DataCategory::Attachment],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 0),
+                    (DataCategory::SpanIndexed, 0),
+                    (DataCategory::Attachment, 7),
+                ],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "attachment_indexed_limit",
+                denied_categories: &[DataCategory::AttachmentItem],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 0),
+                    (DataCategory::SpanIndexed, 0),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "transaction_limit",
+                denied_categories: &[DataCategory::Transaction],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 0),
+                    (DataCategory::SpanIndexed, 0),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
+            RateLimitTestCase {
+                name: "error_limit",
+                denied_categories: &[DataCategory::Error],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 0),
+                    (DataCategory::SpanIndexed, 0),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
+            RateLimitTestCase {
+                name: "no_limits",
+                denied_categories: &[],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 0),
+                    (DataCategory::SpanIndexed, 0),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
+        ];
+
+        for RateLimitTestCase {
+            name,
+            denied_categories,
+            expect_attachment_limit_active,
+            expected_limiter_calls,
+            expected_outcomes,
+        } in test_cases
+        {
+            let mut envelope = envelope![];
+            envelope
+                .envelope_mut()
+                .add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
+
+            let mock = mock_limiter(denied_categories);
+            let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+
+            for &(category, quantity) in *expected_limiter_calls {
+                mock.lock().await.assert_call(category, quantity);
+            }
+
+            assert_eq!(
+                enforcement.attachments_limits.span.bytes.is_active(),
+                *expect_attachment_limit_active,
+                "{name}: span_attachment byte limit mismatch"
+            );
+            assert_eq!(
+                enforcement.attachments_limits.span.count.is_active(),
+                *expect_attachment_limit_active,
+                "{name}: span_attachment count limit mismatch"
+            );
+
+            assert_eq!(
+                get_outcomes(enforcement),
+                *expected_outcomes,
+                "{name}: outcome mismatch"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_enforce_span_with_span_attachment() {
+        let test_cases = &[
+            RateLimitTestCase {
+                name: "span_limit",
+                denied_categories: &[DataCategory::Span, DataCategory::Attachment], // Attachment here has no effect
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Span, 1)],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "span_indexed_limit",
+                denied_categories: &[DataCategory::SpanIndexed, DataCategory::Attachment],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                    (DataCategory::SpanIndexed, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "attachment_limit",
+                denied_categories: &[DataCategory::Attachment],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                    (DataCategory::Attachment, 7),
+                ],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "attachment_indexed_limit",
+                denied_categories: &[DataCategory::AttachmentItem],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "transaction_limit",
+                denied_categories: &[DataCategory::Transaction],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
+            RateLimitTestCase {
+                name: "error_limit",
+                denied_categories: &[DataCategory::Error],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
+            RateLimitTestCase {
+                name: "no_limits",
+                denied_categories: &[],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
+        ];
+
+        for RateLimitTestCase {
+            name,
+            denied_categories,
+            expect_attachment_limit_active,
+            expected_limiter_calls,
+            expected_outcomes,
+        } in test_cases
+        {
+            let mut envelope = envelope![Span];
+            envelope
+                .envelope_mut()
+                .add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
+
+            let mock = mock_limiter(denied_categories);
+            let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+
+            for &(category, quantity) in *expected_limiter_calls {
+                mock.lock().await.assert_call(category, quantity);
+            }
+
+            assert_eq!(
+                enforcement.attachments_limits.span.bytes.is_active(),
+                *expect_attachment_limit_active,
+                "{name}: span_attachment byte limit mismatch"
+            );
+            assert_eq!(
+                enforcement.attachments_limits.span.count.is_active(),
+                *expect_attachment_limit_active,
+                "{name}: span_attachment count limit mismatch"
+            );
+
+            assert_eq!(
+                get_outcomes(enforcement),
+                *expected_outcomes,
+                "{name}: outcome mismatch"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_enforce_transaction_span_attachment() {
+        let test_cases = &[
+            RateLimitTestCase {
+                name: "span_limit",
+                denied_categories: &[DataCategory::Span],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
+                    (DataCategory::Transaction, 1),
+                    (DataCategory::TransactionIndexed, 1),
+                    (DataCategory::Span, 1),
+                ],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "transaction_limit",
+                denied_categories: &[DataCategory::Transaction],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Transaction, 1)],
+                expected_outcomes: &[
+                    (DataCategory::Transaction, 1),
+                    (DataCategory::TransactionIndexed, 1),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "error_limit",
+                denied_categories: &[DataCategory::Error],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Transaction, 1),
+                    (DataCategory::TransactionIndexed, 1),
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
+            RateLimitTestCase {
+                name: "no_limits",
+                denied_categories: &[],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Transaction, 1),
+                    (DataCategory::TransactionIndexed, 1),
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
+        ];
+
+        for RateLimitTestCase {
+            name,
+            denied_categories,
+            expect_attachment_limit_active,
+            expected_limiter_calls,
+            expected_outcomes,
+        } in test_cases
+        {
+            let mut envelope = envelope![Transaction];
+            envelope
+                .envelope_mut()
+                .add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
+
+            let mock = mock_limiter(denied_categories);
+            let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+
+            for &(category, quantity) in *expected_limiter_calls {
+                mock.lock().await.assert_call(category, quantity);
+            }
+
+            assert_eq!(
+                enforcement.attachments_limits.span.bytes.is_active(),
+                *expect_attachment_limit_active,
+                "{name}: span_attachment byte limit mismatch"
+            );
+            assert_eq!(
+                enforcement.attachments_limits.span.count.is_active(),
+                *expect_attachment_limit_active,
+                "{name}: span_attachment count limit mismatch"
+            );
+
+            assert_eq!(
+                get_outcomes(enforcement),
+                *expected_outcomes,
+                "{name}: outcome mismatch"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_enforce_standalone_trace_attachment() {
+        let test_cases = &[
+            RateLimitTestCase {
+                name: "attachment_limit",
+                denied_categories: &[DataCategory::Attachment],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Attachment, 7)],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "attachment_limit_and_attachment_item_limit",
+                denied_categories: &[DataCategory::Attachment, DataCategory::AttachmentItem],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[(DataCategory::Attachment, 7)],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "attachment_item_limit",
+                denied_categories: &[DataCategory::AttachmentItem],
+                expect_attachment_limit_active: true,
+                expected_limiter_calls: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            },
+            RateLimitTestCase {
+                name: "no_limits",
+                denied_categories: &[],
+                expect_attachment_limit_active: false,
+                expected_limiter_calls: &[
+                    (DataCategory::Attachment, 7),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+                expected_outcomes: &[],
+            },
+        ];
+
+        for RateLimitTestCase {
+            name,
+            denied_categories,
+            expect_attachment_limit_active,
+            expected_limiter_calls,
+            expected_outcomes,
+        } in test_cases
+        {
+            let mut envelope = envelope![];
+            envelope
+                .envelope_mut()
+                .add_item(trace_attachment_item(7, None));
+
+            let mock = mock_limiter(denied_categories);
+            let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+
+            for &(category, quantity) in *expected_limiter_calls {
+                mock.lock().await.assert_call(category, quantity);
+            }
+
+            assert_eq!(
+                enforcement.attachments_limits.trace.bytes.is_active(),
+                *expect_attachment_limit_active,
+                "{name}: trace_attachment byte limit mismatch"
+            );
+            assert_eq!(
+                enforcement.attachments_limits.trace.count.is_active(),
+                *expect_attachment_limit_active,
+                "{name}: trace_attachment count limit mismatch"
+            );
+
+            assert_eq!(
+                get_outcomes(enforcement),
+                *expected_outcomes,
+                "{name}: outcome mismatch"
+            );
+        }
     }
 }

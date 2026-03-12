@@ -39,7 +39,7 @@ class Sentry(SentryLike):
         self.app = app
         self.project_configs = {}
         self.global_config = copy.deepcopy(GLOBAL_CONFIG)
-        self.captured_events = Queue()
+        self.captured_envelopes = Queue()
         self.captured_outcomes = Queue()
         self.captured_metrics = Queue()
         self.test_failures = Queue()
@@ -49,8 +49,9 @@ class Sentry(SentryLike):
         self.request_log = []
         self.project_config_simulate_pending = False
         self.project_config_ignore_revision = False
+        self.allow_chunked = False
 
-        self.timeout = 5
+        self.timeout = 10
 
     @property
     def internal_error_dsn(self):
@@ -145,6 +146,7 @@ class Sentry(SentryLike):
                         "$object": ["@password"],
                     },
                 },
+                "transactionMetrics": {"version": 3},
             },
         }
 
@@ -179,6 +181,7 @@ class Sentry(SentryLike):
                 },
                 "blacklistedIps": ["127.43.33.22"],
                 "trustedRelays": [],
+                "features": ["organizations:relay-new-error-processing"],
             },
         }
 
@@ -203,11 +206,11 @@ class Sentry(SentryLike):
         # must be called before initializing relay fixture
         self.global_config["options"][option_name] = value
 
-    def get_captured_event(self, *, timeout=None):
-        return self.captured_events.get(timeout=timeout or self.timeout)
+    def get_captured_envelope(self, *, timeout=None):
+        return self.captured_envelopes.get(timeout=timeout or self.timeout)
 
     def get_client_report(self, timeout=None):
-        envelope = self.get_captured_event(timeout=timeout)
+        envelope = self.get_captured_envelope(timeout=timeout)
         items = envelope.items
         assert len(items) == 1
         item = items[0]
@@ -216,14 +219,14 @@ class Sentry(SentryLike):
         return json.loads(item.payload.bytes)
 
     def get_metrics(self, timeout=None):
-        envelope = self.get_captured_event(timeout=timeout)
+        envelope = self.get_captured_envelope(timeout=timeout)
         items = envelope.items
         assert len(items) == 1
         item = items[0]
         assert item.headers["type"] == "metric_buckets"
 
         return sorted(
-            item.payload.json,
+            json.loads(item.payload.get_bytes()),
             key=lambda m: (
                 m["name"],
                 sorted(m.get("tags", {}).items()),
@@ -251,6 +254,7 @@ class Sentry(SentryLike):
                 ).get("outcomes")
                 timeout = 0.1  # only wait the first time
                 for outcome in outcomes:
+                    del outcome["timestamp"]
                     quantity = outcome.pop("quantity")
                     aggregated[tuple(sorted(outcome.items()))] += quantity
         except Empty:
@@ -298,14 +302,18 @@ def mini_sentry(request):  # noqa
     def count_hits():
         # Consume POST body even if we don't like this request
         # to no clobber the socket and buffers
-        _ = flask_request.data
+        try:
+            _ = flask_request.data
+        except Exception:
+            # stream might be invalid
+            pass
 
         if flask_request.url_rule:
             sentry.hit(flask_request.url_rule.rule)
 
         # Store endpoints theoretically support chunked transfer encoding,
         # but for now, we're conservative and don't allow that anywhere.
-        if flask_request.headers.get("transfer-encoding"):
+        if not sentry.allow_chunked and flask_request.headers.get("transfer-encoding"):
             abort(400, "transfer encoding not supported")
 
         sentry.request_log.append((flask_request.headers, flask_request.url))
@@ -377,22 +385,13 @@ def mini_sentry(request):  # noqa
         ), "Relay sent us non-envelope data to store"
 
         envelope = Envelope.deserialize(data)
-        sentry.captured_events.put(envelope)
+        sentry.captured_envelopes.put(envelope)
         return jsonify({"event_id": uuid.uuid4().hex})
 
     @app.route("/api/<project>/store/", methods=["POST"])
     @app.route("/api/<project>/envelope/", methods=["POST"])
     def store_event_catchall(project):
         raise AssertionError(f"Unknown project: {project}")
-
-    @app.route("/api/0/relays/projectids/", methods=["POST"])
-    def get_project_ids():
-        project_ids = {}
-        for public_key in flask_request.json["publicKeys"]:
-            project_ids[public_key] = _get_project_id(
-                public_key, sentry.project_configs
-            )
-        return jsonify(projectIds=project_ids)
 
     @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
     def get_project_config():
@@ -516,7 +515,7 @@ def mini_sentry(request):  # noqa
 
     @app.errorhandler(500)
     def fail(e):
-        sentry.test_failures.append((flask_request.url, e))
+        sentry.test_failures.put((flask_request.url, e))
         raise e
 
     def reraise_test_failures():

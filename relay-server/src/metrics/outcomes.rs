@@ -36,14 +36,12 @@ impl MetricOutcomes {
             let SourceQuantities {
                 transactions,
                 spans,
-                profiles,
                 buckets,
             } = extract_quantities(buckets);
 
             let categories = [
                 (DataCategory::Transaction, transactions as u32),
                 (DataCategory::Span, spans as u32),
-                (DataCategory::Profile, profiles as u32),
                 (DataCategory::MetricBucket, buckets as u32),
             ];
 

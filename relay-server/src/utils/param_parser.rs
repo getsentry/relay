@@ -31,22 +31,23 @@ where
     }
 }
 
-/// Merge two serde values.
+/// Merge two [`serde_json::Value`] items.
+///
+/// Fills the value `a` with values from `b`. This does not overwrite values from `a` with `b`.
 ///
 /// Taken (with small changes) from stack overflow answer:
 /// <https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust>.
 pub fn merge_values(a: &mut Value, b: Value) {
     match (a, b) {
-        //recursively merge dicts
-        (a @ &mut Value::Object(_), Value::Object(b)) => {
-            let a = a.as_object_mut().unwrap();
+        // Recursively merge dicts
+        (Value::Object(a), Value::Object(b)) => {
             for (k, v) in b {
                 merge_values(a.entry(k).or_insert(Value::Null), v);
             }
         }
-        //fill in missing left values
+        // Fill in missing left values
         (a @ &mut Value::Null, b) => *a = b,
-        //do not override existing values that are not maps
+        // Do not override existing values that are not maps
         (_a, _b) => {}
     }
 }

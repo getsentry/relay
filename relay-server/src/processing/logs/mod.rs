@@ -3,7 +3,6 @@ use std::sync::Arc;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::OurLog;
 use relay_filter::FilterStatKey;
-use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
@@ -17,7 +16,7 @@ use crate::managed::{
 use crate::processing::{
     self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter, Rejected,
 };
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 
 mod filter;
 mod integrations;
@@ -36,6 +35,9 @@ pub enum Error {
     /// A duplicated item container for logs.
     #[error("duplicate log container")]
     DuplicateContainer,
+    /// Received log exceeds the configured size limit.
+    #[error("log exeeds size limit")]
+    TooLarge,
     /// Logs filtered because of a missing feature flag.
     #[error("logs feature flag missing")]
     FilterFeatureFlag,
@@ -45,9 +47,6 @@ pub enum Error {
     /// The logs are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
-    /// Internal error, Pii config could not be loaded.
-    #[error("Pii configuration error")]
-    PiiConfig(PiiConfigError),
     /// A processor failed to process the logs.
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
@@ -62,13 +61,15 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
+                DiscardItemType::Log,
+            ))),
             Self::FilterFeatureFlag => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
-            Self::PiiConfig(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
             Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
@@ -129,7 +130,7 @@ impl processing::Processor for LogsProcessor {
             logs,
             integrations,
         };
-        Some(Managed::from_envelope(envelope, work))
+        Some(Managed::with_meta_from(envelope, work))
     }
 
     async fn process(
@@ -138,15 +139,19 @@ impl processing::Processor for LogsProcessor {
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
         validate::container(&logs).reject(&logs)?;
+        validate::dsc(&logs);
 
         // Fast filters, which do not need expanded logs.
         filter::feature_flag(ctx).reject(&logs)?;
 
         let mut logs = process::expand(logs);
-        process::normalize(&mut logs);
+
+        validate::size(&mut logs, ctx);
+
+        process::normalize(&mut logs, ctx);
         filter::filter(&mut logs, ctx);
 
-        self.limiter.enforce_quotas(&mut logs, ctx).await?;
+        let mut logs = self.limiter.enforce_quotas(logs, ctx).await?;
 
         process::scrub(&mut logs, ctx);
 
@@ -174,7 +179,7 @@ impl Forward for LogOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: &relay_system::Addr<crate::services::store::Store>,
+        s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(logs) = self;
@@ -187,7 +192,7 @@ impl Forward for LogOutput {
 
         for log in logs.split(|logs| logs.logs) {
             if let Ok(log) = log.try_map(|log, _| store::convert(log, &ctx)) {
-                s.send(log)
+                s.send_to_store(log)
             };
         }
 

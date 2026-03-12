@@ -7,6 +7,8 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 def test_standalone_user_report(
     relay_with_processing, mini_sentry, attachments_consumer
 ):
+    attachments_consumer = attachments_consumer()
+
     project_id = 42
     relay = relay_with_processing()
     mini_sentry.add_full_project_config(project_id)
@@ -23,7 +25,6 @@ def test_standalone_user_report(
         report_payload,
     )
 
-    attachments_consumer = attachments_consumer()
     report = attachments_consumer.get_user_report(timeout=5)
     assert json.loads(report["payload"]) == report_payload
 

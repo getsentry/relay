@@ -78,7 +78,7 @@ impl ProjectSource {
                 //
                 // If it is pending, we must fallback to fetching from the upstream.
                 Ok(SourceProjectState::New(state)) => {
-                    let state = state.sanitized();
+                    let state = state.sanitized(self.config.processing_enabled());
                     if !state.is_pending() {
                         return Ok(state.into());
                     }
@@ -102,10 +102,13 @@ impl ProjectSource {
                 current_revision,
                 no_cache,
             })
-            .await?;
+            .await
+            .map_err(|_| ProjectSourceError::FatalUpstream)??;
 
         Ok(match state {
-            SourceProjectState::New(state) => SourceProjectState::New(state.sanitized()),
+            SourceProjectState::New(state) => {
+                SourceProjectState::New(state.sanitized(self.config.processing_enabled()))
+            }
             SourceProjectState::NotModified => SourceProjectState::NotModified,
         })
     }
@@ -113,12 +116,15 @@ impl ProjectSource {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectSourceError {
-    #[error("redis permit error {0}")]
-    RedisPermit(#[from] tokio::sync::AcquireError),
-    #[error("redis join error {0}")]
-    RedisJoin(#[from] tokio::task::JoinError),
-    #[error("upstream error {0}")]
-    Upstream(#[from] relay_system::SendError),
+    /// Error returned from the upstream.
+    #[error("upstream error: {0}")]
+    Upstream(#[from] upstream::Error),
+    /// Upstream did not return a result.
+    ///
+    /// This happens when the upstream does not reply to the request.
+    /// This should never happen.
+    #[error("fatal upstream error")]
+    FatalUpstream,
 }
 
 impl From<Infallible> for ProjectSourceError {

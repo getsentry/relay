@@ -32,9 +32,9 @@ mod traces {
         state: ServiceState,
         builder: IntegrationBuilder,
     ) -> axum::response::Result<impl IntoResponse> {
-        let format = match ContentType::from(content_type.as_ref()) {
-            ContentType::Json => OtelFormat::Json,
-            ContentType::Protobuf => OtelFormat::Protobuf,
+        let format = match content_type.as_ref().parse::<ContentType>() {
+            Ok(ContentType::Json) => OtelFormat::Json,
+            Ok(ContentType::Protobuf) => OtelFormat::Protobuf,
             _ => return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE),
         };
 
@@ -43,13 +43,15 @@ mod traces {
             .with_required_feature(Feature::OtelTracesEndpoint)
             .build();
 
-        common::handle_envelope(&state, envelope).await?;
+        common::handle_envelope(&state, envelope)
+            .await?
+            .check_rate_limits()?;
 
-        Ok(StatusCode::ACCEPTED)
+        Ok(StatusCode::OK)
     }
 
     pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-        post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
+        post(handle).route_layer(DefaultBodyLimit::max(config.max_spans_integration_size()))
     }
 }
 
@@ -61,9 +63,9 @@ mod logs {
         state: ServiceState,
         builder: IntegrationBuilder,
     ) -> axum::response::Result<impl IntoResponse> {
-        let format = match ContentType::from(content_type.as_ref()) {
-            ContentType::Json => OtelFormat::Json,
-            ContentType::Protobuf => OtelFormat::Protobuf,
+        let format = match content_type.as_ref().parse::<ContentType>() {
+            Ok(ContentType::Json) => OtelFormat::Json,
+            Ok(ContentType::Protobuf) => OtelFormat::Protobuf,
             _ => return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE),
         };
 
@@ -72,12 +74,14 @@ mod logs {
             .with_required_feature(Feature::OtelLogsEndpoint)
             .build();
 
-        common::handle_envelope(&state, envelope).await?;
+        common::handle_envelope(&state, envelope)
+            .await?
+            .ignore_rate_limits();
 
-        Ok(StatusCode::ACCEPTED)
+        Ok(StatusCode::OK)
     }
 
     pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-        post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
+        post(handle).route_layer(DefaultBodyLimit::max(config.max_logs_integration_size()))
     }
 }

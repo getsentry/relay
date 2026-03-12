@@ -1,5 +1,8 @@
+from datetime import datetime, timezone
 from unittest import mock
 import json
+
+from .asserts import time_within_delta
 
 from sentry_relay.consts import DataCategory
 
@@ -9,7 +12,7 @@ VERCEL_LOG_1 = {
     "deploymentId": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD",
     "source": "build",
     "host": "my-app-abc123.vercel.app",
-    "timestamp": 1573817187330,
+    "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
     "projectId": "gdufoJxB6b9b1fEqr1jUtFkyavUU",
     "level": "info",
     "message": "Build completed successfully",
@@ -24,7 +27,7 @@ VERCEL_LOG_2 = {
     "deploymentId": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD",
     "source": "lambda",
     "host": "my-app-abc123.vercel.app",
-    "timestamp": 1573817250283,
+    "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
     "projectId": "gdufoJxB6b9b1fEqr1jUtFkyavUU",
     "level": "info",
     "message": "API request processed",
@@ -73,7 +76,9 @@ EXPECTED_ITEMS = [
             "vercel.project_name": {"stringValue": "my-app"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
-            "sentry.timestamp_precise": {"intValue": "1573817187330000000"},
+            "sentry.timestamp_precise": {
+                "intValue": time_within_delta(expect_resolution="ns")
+            },
             "vercel.build_id": {"stringValue": "bld_cotnkcr76"},
             "sentry.payload_size_bytes": {"intValue": "436"},
             "sentry.browser.name": {"stringValue": "Python Requests"},
@@ -126,7 +131,9 @@ EXPECTED_ITEMS = [
             "sentry.body": {"stringValue": "API request processed"},
             "vercel.proxy.status_code": {"intValue": "200"},
             "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
-            "sentry.timestamp_precise": {"intValue": "1573817250283000000"},
+            "sentry.timestamp_precise": {
+                "intValue": time_within_delta(expect_resolution="ns")
+            },
             "sentry.payload_size_bytes": {"intValue": "889"},
             "vercel.proxy.region": {"stringValue": "sfo1"},
         },
@@ -147,10 +154,7 @@ def test_vercel_logs_json_array(
     outcomes_consumer = outcomes_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:ourlogs-ingestion",
-        "organizations:relay-vercel-log-drain-endpoint",
-    ]
+    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
 
     relay = relay(relay_with_processing())
 
@@ -197,10 +201,7 @@ def test_vercel_logs_ndjson(
     outcomes_consumer = outcomes_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:ourlogs-ingestion",
-        "organizations:relay-vercel-log-drain-endpoint",
-    ]
+    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
 
     relay = relay(relay_with_processing())
 
