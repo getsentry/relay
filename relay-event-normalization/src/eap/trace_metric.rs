@@ -3,7 +3,9 @@
 use std::{borrow::Cow, sync::LazyLock};
 
 use regex::Regex;
+use relay_base_schema::metrics::MetricUnit;
 use relay_event_schema::protocol::TraceMetric;
+use relay_protocol::Annotated;
 
 /// Returned by [`normalize_metric_name`].
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -29,6 +31,15 @@ pub fn normalize_metric_name(metric: &mut TraceMetric) -> Result<(), InvalidMetr
     }
 
     Ok(())
+}
+
+/// Strips custom metric units, replacing them with [`MetricUnit::None`].
+///
+/// Only known unit families (duration, information, fraction) are allowed.
+pub fn normalize_metric_unit(metric: &mut TraceMetric) {
+    if let Some(MetricUnit::Custom(_)) = metric.unit.value() {
+        metric.unit = Annotated::new(MetricUnit::None);
+    }
 }
 
 #[cfg(test)]
@@ -72,5 +83,28 @@ mod tests {
         assert_metric_name!("foo!@#bar", "foo_bar");
         assert_metric_name!("   foo.bar    ", "_foo.bar_");
         assert_metric_name!("unicøøde", "unic_de");
+    }
+
+    #[test]
+    fn test_normalize_metric_unit_strips_custom() {
+        use relay_base_schema::metrics::DurationUnit;
+
+        let mut m = metric("test");
+        m.unit = Annotated::new(MetricUnit::Custom("customunit".into()));
+        normalize_metric_unit(&mut m);
+        assert_eq!(m.unit.value(), Some(&MetricUnit::None));
+
+        let mut m = metric("test");
+        m.unit = Annotated::new(MetricUnit::Duration(DurationUnit::Second));
+        normalize_metric_unit(&mut m);
+        assert_eq!(
+            m.unit.value(),
+            Some(&MetricUnit::Duration(DurationUnit::Second))
+        );
+
+        let mut m = metric("test");
+        m.unit = Annotated::new(MetricUnit::None);
+        normalize_metric_unit(&mut m);
+        assert_eq!(m.unit.value(), Some(&MetricUnit::None));
     }
 }

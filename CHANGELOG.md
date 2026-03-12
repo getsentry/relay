@@ -183,7 +183,7 @@
 
 **Bug Fixes**:
 
-- Add `StrictMetricUnit` for trace metrics that does not allow custom units. ([#5718](https://github.com/getsentry/relay/pull/5718))
+- Normalize custom metric units to `none` on trace metrics during processing. ([#5718](https://github.com/getsentry/relay/pull/5718))
 - Relay would record an invalid internal outcome when there should be no outcome. ([#5372](https://github.com/getsentry/relay/pull/5372))
 - Redis pools being sized too small by default. ([#5358](https://github.com/getsentry/relay/pull/5358))
 - Fix array attributes not being applied to standalone spans. ([#5337](https://github.com/getsentry/relay/pull/5337))

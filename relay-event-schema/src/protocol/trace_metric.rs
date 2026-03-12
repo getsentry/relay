@@ -3,102 +3,11 @@ use relay_protocol::{
 };
 use std::fmt::{self, Display};
 
-#[allow(unused_imports)]
-use relay_base_schema::metrics::{DurationUnit, FractionUnit, InformationUnit, MetricUnit};
+use relay_base_schema::metrics::MetricUnit;
 use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{Attributes, SpanId, Timestamp, TraceId};
-
-/// Strict version of [`MetricUnit`] that does not allow custom units.
-///
-/// This enum mirrors the structure of [`MetricUnit`] but excludes the `Custom` variant.
-/// When converting from [`MetricUnit`], any custom units are mapped to [`StrictMetricUnit::None`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
-pub enum StrictMetricUnit {
-    /// A time duration, defaulting to `"millisecond"`.
-    Duration(DurationUnit),
-    /// Size of information derived from bytes, defaulting to `"byte"`.
-    Information(InformationUnit),
-    /// Fractions such as percentages, defaulting to `"ratio"`.
-    Fraction(FractionUnit),
-    /// Untyped value without a unit (`""`).
-    #[default]
-    None,
-}
-
-impl StrictMetricUnit {
-    pub fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
-
-    pub fn as_str(&self) -> &str {
-        match self {
-            StrictMetricUnit::Duration(u) => u.as_str(),
-            StrictMetricUnit::Information(u) => u.as_str(),
-            StrictMetricUnit::Fraction(u) => u.as_str(),
-            StrictMetricUnit::None => "none",
-        }
-    }
-}
-
-impl From<MetricUnit> for StrictMetricUnit {
-    fn from(unit: MetricUnit) -> Self {
-        match unit {
-            MetricUnit::Duration(u) => StrictMetricUnit::Duration(u),
-            MetricUnit::Information(u) => StrictMetricUnit::Information(u),
-            MetricUnit::Fraction(u) => StrictMetricUnit::Fraction(u),
-            MetricUnit::Custom(_) => StrictMetricUnit::None,
-            MetricUnit::None => StrictMetricUnit::None,
-        }
-    }
-}
-
-impl Display for StrictMetricUnit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StrictMetricUnit::Duration(u) => u.fmt(f),
-            StrictMetricUnit::Information(u) => u.fmt(f),
-            StrictMetricUnit::Fraction(u) => u.fmt(f),
-            StrictMetricUnit::None => f.write_str("none"),
-        }
-    }
-}
-
-impl Empty for StrictMetricUnit {
-    #[inline]
-    fn is_empty(&self) -> bool {
-        false
-    }
-}
-
-impl FromValue for StrictMetricUnit {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        match MetricUnit::from_value(value) {
-            Annotated(Some(unit), meta) => Annotated(Some(unit.into()), meta),
-            Annotated(None, meta) => Annotated(None, meta),
-        }
-    }
-}
-
-impl ProcessValue for StrictMetricUnit {}
-
-impl IntoValue for StrictMetricUnit {
-    fn into_value(self) -> Value
-    where
-        Self: Sized,
-    {
-        Value::String(self.to_string())
-    }
-
-    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
-    where
-        Self: Sized,
-        S: Serializer,
-    {
-        Serialize::serialize(self.as_str(), s)
-    }
-}
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[metastructure(process_func = "process_trace_metric", value_type = "TraceMetric")]
@@ -125,7 +34,7 @@ pub struct TraceMetric {
 
     /// The metric unit.
     #[metastructure(required = false)]
-    pub unit: Annotated<StrictMetricUnit>,
+    pub unit: Annotated<MetricUnit>,
 
     /// The metric value.
     ///
@@ -281,22 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn test_strict_metric_unit_serialization() {
-        let unit = StrictMetricUnit::Duration(DurationUnit::Second);
-        assert_eq!(unit.to_string(), "second");
-
-        let unit = StrictMetricUnit::Information(InformationUnit::Byte);
-        assert_eq!(unit.to_string(), "byte");
-
-        let unit = StrictMetricUnit::Fraction(FractionUnit::Percent);
-        assert_eq!(unit.to_string(), "percent");
-
-        let unit = StrictMetricUnit::None;
-        assert_eq!(unit.to_string(), "none");
-    }
-
-    #[test]
-    fn test_trace_metric_with_custom_unit() {
+    fn test_trace_metric_with_custom_unit_preserved() {
         let json = r#"{
             "timestamp": 1544719860.0,
             "trace_id": "5b8efff798038103d269b633813fc60c",
@@ -309,6 +203,9 @@ mod tests {
         let data = Annotated::<TraceMetric>::from_json(json).unwrap();
         let trace_metric = data.value().unwrap();
 
-        assert_eq!(trace_metric.unit.value(), Some(&StrictMetricUnit::None));
+        assert_eq!(
+            trace_metric.unit.value(),
+            Some(&MetricUnit::Custom("customunit".into()))
+        );
     }
 }
