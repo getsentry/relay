@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use chrono::DateTime;
-#[cfg(feature = "processing")]
 use chrono::Utc;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method, header};
@@ -22,6 +21,7 @@ use relay_system::{
 use serde::Deserialize;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
+#[cfg(feature = "processing")]
 use uuid::Uuid;
 
 use crate::http::{HttpError, RequestBuilder, Response};
@@ -177,6 +177,7 @@ impl Service {
                 let response = tokio::time::timeout(*timeout, rx).await???;
                 SignedLocation::try_from_response(response)
             }
+            #[cfg(feature = "processing")]
             Self::Objectstore { addr: _, config } => {
                 // We can create & sign a location right here, no need to query the objectstore service.
                 let key = Uuid::now_v7().as_simple().to_string();
@@ -378,6 +379,7 @@ impl SignedLocation {
     /// Converts the signed location into a location object.
     ///
     /// Fails if the signature is outdated or incorrect.
+    #[cfg(feature = "processing")]
     fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location, Error> {
         let public_key = config.public_key().ok_or(Error::SigningFailed)?;
         let is_valid = self.signature.verify(
