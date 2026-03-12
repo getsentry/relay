@@ -230,7 +230,7 @@ async fn handle_patch(
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     relay_log::trace!("Checking request");
-    let scoping = check_request(&state, meta, None, project).await?;
+    let scoping = check_request(&state, meta, length, project).await?;
 
     let stream = body
         .into_data_stream()
