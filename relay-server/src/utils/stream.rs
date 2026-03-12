@@ -52,6 +52,13 @@ impl<S> BoundedStream<S> {
         }
     }
 
+    /// Returns the exact length of the stream.
+    ///
+    /// Returns `None` if `lower_bound != upper_bound`.
+    pub fn length(&self) -> Option<usize> {
+        (self.lower_bound == self.upper_bound).then_some(self.lower_bound)
+    }
+
     /// Returns a shared handle to read the byte count after the stream is consumed.
     pub fn byte_counter(&self) -> ByteCounter {
         self.byte_counter.clone()
@@ -66,16 +73,23 @@ where
     type Item = io::Result<Bytes>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        relay_log::trace!("poll_next");
         let this = self.get_mut();
         let Some(inner) = &mut this.inner else {
+            relay_log::trace!("inner is gone");
             return Poll::Ready(None);
         };
         let inner = Pin::new(inner.get_mut());
 
         match inner.poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
+                relay_log::trace!("got some bytes: {}", bytes.len());
                 let bytes_received = this.byte_counter.add(bytes.len());
                 if bytes_received > this.upper_bound {
+                    relay_log::trace!(
+                        "more than upper bound: {bytes_received} > {}",
+                        this.upper_bound
+                    );
                     this.inner = None;
                     Poll::Ready(Some(Err(io::Error::new(
                         io::ErrorKind::FileTooLarge,
@@ -85,11 +99,16 @@ where
                         ),
                     ))))
                 } else {
+                    relay_log::trace!("returning bytes: {}", bytes.len());
                     Poll::Ready(Some(Ok(bytes)))
                 }
             }
-            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e.into()))),
+            Poll::Ready(Some(Err(e))) => {
+                relay_log::trace!("got an error");
+                Poll::Ready(Some(Err(e.into())))
+            }
             Poll::Ready(None) => {
+                relay_log::trace!("got no more bytes");
                 let bytes_received = this.byte_counter.get();
                 if bytes_received < this.lower_bound {
                     this.inner = None;
@@ -104,7 +123,10 @@ where
                     Poll::Ready(None)
                 }
             }
-            Poll::Pending => Poll::Pending,
+            Poll::Pending => {
+                relay_log::trace!("still pending");
+                Poll::Pending
+            }
         }
     }
 }

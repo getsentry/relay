@@ -32,6 +32,7 @@ use relay_config::Config;
 
 use crate::middlewares;
 use crate::service::ServiceState;
+use crate::services::upload::UPLOAD_PATCH_PATH;
 
 /// Size limit for internal batch endpoints.
 const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
@@ -100,7 +101,8 @@ fn public_routes_raw(config: &Config) -> Router<ServiceState> {
         .route("/api/{project_id}/minidump/", minidump::route(config))
         .route("/api/{project_id}/events/{event_id}/attachments/", post(attachments::handle))
         .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
-        .route("/api/{project_id}/upload/", upload::route(config));
+        .route("/api/{project_id}/upload/", upload::route_post(config))
+        .route(UPLOAD_PATCH_PATH, upload::route_patch(config));
 
     #[cfg(sentry)]
     let store_routes = store_routes.route("/api/{project_id}/playstation/", playstation::route(config));

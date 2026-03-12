@@ -6,13 +6,15 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use futures::StreamExt;
+use futures::stream::BoxStream;
 use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
+use relay_base_schema::organization::OrganizationId;
+use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
-use uuid::Uuid;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::ItemType;
@@ -23,8 +25,8 @@ use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
-use crate::services::upload;
 use crate::statsd::{RelayCounters, RelayTimers};
+use crate::utils::BoundedStream;
 
 use super::outcome::Outcome;
 
@@ -32,10 +34,7 @@ use super::outcome::Outcome;
 pub enum Objectstore {
     Envelope(StoreEnvelope),
     Attachment(Managed<StoreAttachment>),
-    Stream {
-        message: upload::Stream,
-        sender: Sender<Result<ObjectstoreKey, Error>>,
-    },
+    Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
 impl Objectstore {
@@ -78,14 +77,19 @@ impl FromMessage<Managed<StoreAttachment>> for Objectstore {
     }
 }
 
-impl FromMessage<upload::Stream> for Objectstore {
+/// A stream that can be uploaded to objectstore.
+pub struct Stream {
+    pub organization_id: OrganizationId,
+    pub project_id: ProjectId,
+    pub key: String,
+    pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
+}
+
+impl FromMessage<Stream> for Objectstore {
     type Response = AsyncResponse<Result<ObjectstoreKey, Error>>;
 
-    fn from_message(
-        message: upload::Stream,
-        sender: Sender<Result<ObjectstoreKey, Error>>,
-    ) -> Self {
-        Self::Stream { message, sender }
+    fn from_message(message: Stream, sender: Sender<Result<ObjectstoreKey, Error>>) -> Self {
+        Self::Stream(message, sender)
     }
 }
 
@@ -218,7 +222,7 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::Attachment(managed) => {
                 let _ = managed.reject_err(Error::LoadShed);
             }
-            Objectstore::Stream { message: _, sender } => {
+            Objectstore::Stream(_, sender) => {
                 sender.send(Err(Error::LoadShed));
             }
         }
@@ -240,10 +244,7 @@ impl ObjectstoreServiceInner {
                 self.handle_envelope(envelope).await;
             }
             Objectstore::Attachment(attachment) => self.handle_attachment(attachment).await,
-            Objectstore::Stream {
-                message: managed,
-                sender,
-            } => self.handle_stream(managed, sender).await,
+            Objectstore::Stream(stream, sender) => self.handle_stream(stream, sender).await,
         }
     }
 
@@ -364,14 +365,16 @@ impl ObjectstoreServiceInner {
         Ok(())
     }
 
-    async fn handle_stream(
-        &self,
-        upload::Stream { scoping, stream }: upload::Stream,
-        sender: Sender<Result<ObjectstoreKey, Error>>,
-    ) {
+    async fn handle_stream(&self, stream: Stream, sender: Sender<Result<ObjectstoreKey, Error>>) {
+        let Stream {
+            organization_id,
+            project_id,
+            key,
+            stream,
+        } = stream;
         let session = match self
             .event_attachments
-            .for_project(scoping.organization_id.value(), scoping.project_id.value())
+            .for_project(organization_id.value(), project_id.value())
             .session(&self.objectstore_client)
         {
             Ok(session) => session,
@@ -386,11 +389,7 @@ impl ObjectstoreServiceInner {
             }
         };
 
-        let request = session
-            .put_stream(stream.boxed())
-            // generate ID here to drop the hyphens and be consistent with other attachment uploads.
-            .key(Uuid::now_v7().as_simple().to_string());
-
+        let request = session.put_stream(stream.boxed()).key(key);
         let result = self.upload("stream", request).await;
 
         relay_statsd::metric!(

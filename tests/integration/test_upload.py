@@ -13,13 +13,29 @@ import urllib
 from sentry_relay.auth import PublicKey
 
 
+UPLOAD_PATH = "/api/42/upload/019cdc82ed6c7761ba21fd34b86481c2/"
+UPLOAD_LOCATION = f"{UPLOAD_PATH}?length=11&signature=z_fUMhT0EZqJz6OQtwGHqTlOOLPpTVpvPa-rYTg18FVWZM1OGny-LeVJB5H-sSR_5e--I1xt-FlCmRG2bsmcAQ.eyJ0IjoiMjAyNi0wMy0xMVQxMDo0ODoxMy45NDM1ODNaIn0"
+
+
 @pytest.fixture
 def dummy_upload(mini_sentry):
     mini_sentry.allow_chunked = True
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
-    def dummy_upload(**opts):
-        return Response("", status=201, headers={"Location": "dummy"})
+    def create(**opts):
+        return Response(
+            "",
+            status=201,
+            headers={"Location": UPLOAD_LOCATION},
+        )
+
+    @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
+    def upload(**opts):
+        return Response(
+            "",
+            status=204,
+            headers={"Location": UPLOAD_LOCATION},
+        )
 
 
 @pytest.fixture
@@ -196,7 +212,7 @@ def test_upload_rate_limited(
 @pytest.mark.parametrize(
     "http_timeout, upload_timeout, expected_status_code",
     [
-        pytest.param(1, 60, 201, id="http"),
+        pytest.param(1, 60, 204, id="http"),
         pytest.param(60, 1, 504, id="upload"),
     ],
 )
@@ -211,10 +227,10 @@ def test_timeout(
     """Ensure that the general HTTP timeout does not affect the upload endpoint"""
     mini_sentry.allow_chunked = True
 
-    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    @mini_sentry.app.route(UPLOAD_PATH, methods=["PATCH"])
     def slow_upload(**opts):
         time.sleep(2)
-        return Response("", status=201, headers={"Location": "dummy"})
+        return Response("", status=204, headers={"Location": UPLOAD_LOCATION})
 
     project_id = 42
     relay = relay(
@@ -226,12 +242,12 @@ def test_timeout(
     )
 
     data = b"hello world"
-    response = relay.post(
-        "/api/%s/upload/?sentry_key=%s"
-        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+    response = relay.patch(
+        "%s&sentry_key=%s"
+        % (UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(len(data)),
+            "Upload-Offset": "0",
             "Content-Type": "application/offset+octet-stream",
         },
         data=data,
@@ -248,7 +264,7 @@ PROCESSING_OPTIONS = {
 @pytest.mark.parametrize(
     "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
 )
-def test_upload_processing(
+def test_create_with_upload_processing(
     mini_sentry, relay, relay_with_processing, chain, project_config
 ):
     """Upload via processing relay stores the blob in objectstore."""
@@ -291,6 +307,55 @@ def test_upload_processing(
     assert PublicKey.parse(processing_relay.public_key).verify(
         unsigned_uri.encode(), signature
     )
+
+
+@pytest.mark.parametrize(
+    "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
+)
+def test_create_processing(
+    mini_sentry, relay, relay_with_processing, chain, project_config
+):
+    """Create and separate upload via processing relay stores the blob in objectstore."""
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    processing_relay = relay_with_processing(PROCESSING_OPTIONS)
+    if chain:
+        relay = relay(processing_relay)
+    else:
+        relay = processing_relay
+
+    data = b"hello world"
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert "Upload-Offset" not in response.headers
+
+    # Use the location to send a PATCH request:
+    data = b"hello world"
+    response = relay.patch(
+        f"{response.headers['Location']}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
+
+    assert response.status_code == 204
+    print(response.headers["Location"])
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert response.headers["Upload-Offset"] == str(len(data))
 
 
 @pytest.mark.parametrize("defer_length_value", ["1", "2"])
