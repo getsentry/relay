@@ -56,14 +56,11 @@ impl SessionsProcessor {
 }
 
 impl processing::Processor for SessionsProcessor {
-    type UnitOfWork = SerializedSessions;
+    type Input = SerializedSessions;
     type Output = SessionsOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
         let updates = envelope
@@ -86,7 +83,7 @@ impl processing::Processor for SessionsProcessor {
 
     async fn process(
         &self,
-        sessions: Managed<Self::UnitOfWork>,
+        sessions: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let mut sessions = match process::expand(sessions, ctx) {

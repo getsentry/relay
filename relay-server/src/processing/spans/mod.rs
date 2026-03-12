@@ -113,14 +113,11 @@ impl SpansProcessor {
 }
 
 impl processing::Processor for SpansProcessor {
-    type UnitOfWork = SerializedSpans;
+    type Input = SerializedSpans;
     type Output = SpanOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
         let spans = envelope
@@ -155,7 +152,7 @@ impl processing::Processor for SpansProcessor {
 
     async fn process(
         &self,
-        spans: Managed<Self::UnitOfWork>,
+        spans: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let spans = filter::feature_flag_attachment(spans, ctx);
