@@ -17,11 +17,10 @@ use uuid::Uuid;
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::ItemType;
 use crate::managed::{
-    Counted, Managed, ManagedResult, OutcomeError, Quantities, Rejected, TypedEnvelope,
+    Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
-use crate::services::processor::Processed;
 use crate::services::store::{Store, StoreEnvelope, StoreTraceItem};
 use crate::services::upload;
 use crate::statsd::{RelayCounters, RelayTimers};
@@ -251,7 +250,7 @@ impl ObjectstoreServiceInner {
     ///
     /// This mutates the attachment items in-place, setting their `stored_key` field to the key
     /// in objectstore.
-    async fn handle_envelope(&self, mut envelope: TypedEnvelope<Processed>) -> () {
+    async fn handle_envelope(&self, mut envelope: ManagedEnvelope) -> () {
         let scoping = envelope.scoping();
         let session = self
             .event_attachments

@@ -2039,18 +2039,16 @@ impl EnvelopeProcessorService {
             use crate::processing::StoreHandle;
 
             let objectstore = self.inner.addrs.objectstore.as_ref();
-            let handle = StoreHandle::new(store_forwarder, objectstore);
+            let global_config = &self.inner.global_config.current();
+            let handle = StoreHandle::new(store_forwarder, objectstore, global_config);
 
             match submit {
-                Submit::Envelope(envelope) => {
-                    let global_config = &self.inner.global_config.current();
-                    // Once check-ins and errors are fully moved to the new pipeline, this is only
-                    // used for metrics forwarding.
-                    //
-                    // Metrics forwarding will n_never_ forward an envelope in processing, making
-                    // this branch here unused.
-                    processing::utils::store::forward_envelope(envelope, handle, global_config);
-                }
+                // Once check-ins and errors are fully moved to the new pipeline, this is only
+                // used for metrics forwarding.
+                //
+                // Metrics forwarding will n_never_ forward an envelope in processing, making
+                // this branch here unused.
+                Submit::Envelope(envelope) => handle.send_envelope(envelope.into_inner()),
                 Submit::Output { output, ctx } => output
                     .forward_store(handle, ctx)
                     .unwrap_or_else(|err| err.into_inner()),

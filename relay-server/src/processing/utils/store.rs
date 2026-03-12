@@ -3,7 +3,6 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use relay_conventions::CLIENT_SAMPLE_RATE;
-use relay_dynamic_config::GlobalConfig;
 use relay_event_schema::protocol::Attributes;
 use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 
@@ -12,10 +11,7 @@ use sentry_protos::snuba::v1::{AnyValue, ArrayValue, CategoryCount, Outcomes, an
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::envelope::ItemType;
-use crate::managed::{Quantities, TypedEnvelope};
-use crate::processing;
-use crate::services::processor::Processed;
+use crate::managed::Quantities;
 
 /// Represents metadata extracted from Relay's annotated model.
 ///
@@ -242,31 +238,5 @@ pub fn quantities_to_trace_item_outcomes(q: Quantities, scoping: Scoping) -> Out
     Outcomes {
         category_count,
         key_id: scoping.key_id.unwrap_or(0),
-    }
-}
-
-/// Helper which forwards envelopes to be stored.
-///
-/// This manages the dispatch logic between object store and Kafka. This is a temporary measure
-/// until objectstore is available and used in all environments, including Self Hosted.
-pub fn forward_envelope(
-    envelope: TypedEnvelope<Processed>,
-    s: processing::StoreHandle<'_>,
-    global_config: &GlobalConfig,
-) {
-    let has_attachments = envelope
-        .envelope()
-        .items()
-        .any(|item| item.ty() == &ItemType::Attachment);
-
-    let use_objectstore = || {
-        crate::utils::sample(global_config.options.objectstore_attachments_sample_rate).is_keep()
-    };
-
-    let message = crate::services::store::StoreEnvelope { envelope };
-    if has_attachments && use_objectstore() {
-        s.send_to_objectstore(message);
-    } else {
-        s.send_to_store(message);
     }
 }

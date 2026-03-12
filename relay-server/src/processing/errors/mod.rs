@@ -344,8 +344,7 @@ impl Forward for ErrorOutput {
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let envelope = self.serialize_envelope(ctx)?;
-        let envelope = ManagedEnvelope::from(envelope).into_processed();
-        processing::utils::store::forward_envelope(envelope, s, ctx.global_config);
+        s.send_envelope(ManagedEnvelope::from(envelope));
         Ok(())
     }
 }
