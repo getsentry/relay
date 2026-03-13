@@ -9,6 +9,7 @@
 
 **Bug Fixes**:
 
+- Normalize custom metric units to `none` on trace metrics during processing. ([#5718](https://github.com/getsentry/relay/pull/5718))
 - Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
 - Relay Temporarily rejected unknown headers on envelope items. ([#5709](https://github.com/getsentry/relay/pull/5709))
 
