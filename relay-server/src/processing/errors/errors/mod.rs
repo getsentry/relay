@@ -60,11 +60,7 @@ pub trait SentryError: Counted {
     /// The event category this error/event counts in.
     ///
     /// This category is used for outcomes and rate-limiting.
-    ///
-    /// This defaults to [`DataCategory::Error`].
-    fn event_category(&self) -> DataCategory {
-        DataCategory::Error
-    }
+    fn event_category(&self) -> DataCategory;
 
     /// Attempts to parse this error from the passed `items`.
     ///
@@ -82,40 +78,15 @@ pub trait SentryError: Counted {
         category: DataCategory,
         limits: RateLimits,
         records: &mut RecordKeeper<'_>,
-    ) -> Result<()> {
-        debug_assert!(
-            false,
-            "{} has quantities but does not implement `apply_rate_limit`",
-            std::any::type_name_of_val(&self),
-        );
-        let _ = category;
-        let _ = limits;
-        let _ = records;
-
-        Ok(())
-    }
+    ) -> Result<()>;
 
     /// Serializes the error back into items, ready to be attached to an envelope.
-    ///
-    /// The default implementation does not serialize any data.
     fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()>
     where
-        Self: Sized,
-    {
-        debug_assert!(
-            self.quantities().is_empty(),
-            "{} has quantities but does not implement `serialize_into`",
-            std::any::type_name_of_val(&self),
-        );
-        let _ = items;
-        let _ = ctx;
-        Ok(())
-    }
+        Self: Sized;
 
     /// Returns a minidump item if this error holds a minidump.
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
-        None
-    }
+    fn minidump_mut(&mut self) -> Option<&mut Item>;
 }
 
 macro_rules! gen_error_kind {

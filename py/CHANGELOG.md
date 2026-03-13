@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- feat(tracemetric): Add TraceMetricByte datacategory ([#5719](https://github.com/getsentry/relay/pull/5719))
+
 ## 0.9.24
 
 ### Bug Fixes 🐛
