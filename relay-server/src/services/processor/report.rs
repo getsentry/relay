@@ -63,7 +63,6 @@ fn trim_whitespaces(data: &[u8]) -> &[u8] {
 
 #[cfg(test)]
 mod tests {
-    use relay_config::Config;
     use relay_event_schema::protocol::EventId;
     use relay_system::Addr;
 
