@@ -1472,32 +1472,6 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
-    /// Processes user and client reports.
-    async fn process_client_reports(
-        &self,
-        managed_envelope: &mut TypedEnvelope<ClientReportGroup>,
-        ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            ctx,
-        )
-        .await?;
-
-        report::process_client_reports(
-            managed_envelope,
-            ctx.config,
-            ctx.project_info,
-            self.inner.addrs.outcome_aggregator.clone(),
-        );
-
-        Ok(Some(extracted_metrics))
-    }
-
     async fn process_nel(
         &self,
         mut managed_envelope: ManagedEnvelope,
@@ -1684,19 +1658,12 @@ impl EnvelopeProcessorService {
                 .await
             }
             ProcessingGroup::ClientReport => {
-                if ctx
-                    .project_info
-                    .has_feature(Feature::NewClientReportProcessing)
-                {
-                    self.process_with_processor(
-                        &self.inner.processing.client_reports,
-                        managed_envelope,
-                        ctx,
-                    )
-                    .await
-                } else {
-                    run!(process_client_reports, ctx)
-                }
+                self.process_with_processor(
+                    &self.inner.processing.client_reports,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
             }
             ProcessingGroup::Replay => {
                 self.process_with_processor(&self.inner.processing.replays, managed_envelope, ctx)
