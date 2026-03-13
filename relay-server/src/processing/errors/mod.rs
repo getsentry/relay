@@ -341,23 +341,7 @@ impl Forward for ErrorOutput {
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         let envelope = self.serialize_envelope(ctx)?;
-        let envelope = ManagedEnvelope::from(envelope).into_processed();
-
-        let has_attachments = envelope
-            .envelope()
-            .items()
-            .any(|item| item.ty() == &ItemType::Attachment);
-        let use_objectstore = || {
-            let options = &ctx.global_config.options;
-            crate::utils::sample(options.objectstore_attachments_sample_rate).is_keep()
-        };
-
-        if has_attachments && use_objectstore() {
-            s.send_to_objectstore(crate::services::store::StoreEnvelope { envelope });
-        } else {
-            s.send_to_store(crate::services::store::StoreEnvelope { envelope });
-        }
-
+        s.send_envelope(ManagedEnvelope::from(envelope));
         Ok(())
     }
 }
