@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["normalize_metric_name"],"struct":["InvalidMetricName"]};
+window.SIDEBAR_ITEMS = {"fn":["normalize_metric_name","normalize_metric_unit"],"struct":["InvalidMetricName"]};
