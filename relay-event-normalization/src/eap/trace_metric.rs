@@ -90,7 +90,7 @@ mod tests {
         use relay_base_schema::metrics::DurationUnit;
 
         let mut m = metric("test");
-        m.unit = Annotated::new(MetricUnit::Custom("customunit".into()));
+        m.unit = Annotated::new(MetricUnit::Custom("customunit".parse().unwrap()));
         normalize_metric_unit(&mut m);
         assert_eq!(m.unit.value(), Some(&MetricUnit::None));
 

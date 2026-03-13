@@ -205,7 +205,7 @@ mod tests {
 
         assert_eq!(
             trace_metric.unit.value(),
-            Some(&MetricUnit::Custom("customunit".into()))
+            Some(&MetricUnit::Custom("customunit".parse().unwrap()))
         );
     }
 }
