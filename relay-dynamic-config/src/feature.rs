@@ -129,9 +129,6 @@ pub enum Feature {
     /// Enable the new Error processing pipeline in Relay.
     #[serde(rename = "organizations:relay-new-error-processing")]
     NewErrorProcessing,
-    /// Enable the new Client Reports pipeline in Relay.
-    #[serde(rename = "organizations:new-client-report-processing")]
-    NewClientReportProcessing,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///
