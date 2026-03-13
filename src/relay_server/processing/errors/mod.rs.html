@@ -341,24 +341,8 @@
 <a href=#341 id=341 data-nosnippet>341</a>        ctx: processing::ForwardContext&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#342 id=342 data-nosnippet>342</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;()&gt;&gt; {
 <a href=#343 id=343 data-nosnippet>343</a>        <span class="kw">let </span>envelope = <span class="self">self</span>.serialize_envelope(ctx)<span class="question-mark">?</span>;
-<a href=#344 id=344 data-nosnippet>344</a>        <span class="kw">let </span>envelope = ManagedEnvelope::from(envelope).into_processed();
-<a href=#345 id=345 data-nosnippet>345</a>
-<a href=#346 id=346 data-nosnippet>346</a>        <span class="kw">let </span>has_attachments = envelope
-<a href=#347 id=347 data-nosnippet>347</a>            .envelope()
-<a href=#348 id=348 data-nosnippet>348</a>            .items()
-<a href=#349 id=349 data-nosnippet>349</a>            .any(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#350 id=350 data-nosnippet>350</a>        <span class="kw">let </span>use_objectstore = || {
-<a href=#351 id=351 data-nosnippet>351</a>            <span class="kw">let </span>options = <span class="kw-2">&amp;</span>ctx.global_config.options;
-<a href=#352 id=352 data-nosnippet>352</a>            <span class="kw">crate</span>::utils::sample(options.objectstore_attachments_sample_rate).is_keep()
-<a href=#353 id=353 data-nosnippet>353</a>        };
-<a href=#354 id=354 data-nosnippet>354</a>
-<a href=#355 id=355 data-nosnippet>355</a>        <span class="kw">if </span>has_attachments &amp;&amp; use_objectstore() {
-<a href=#356 id=356 data-nosnippet>356</a>            s.send_to_objectstore(<span class="kw">crate</span>::services::store::StoreEnvelope { envelope });
-<a href=#357 id=357 data-nosnippet>357</a>        } <span class="kw">else </span>{
-<a href=#358 id=358 data-nosnippet>358</a>            s.send_to_store(<span class="kw">crate</span>::services::store::StoreEnvelope { envelope });
-<a href=#359 id=359 data-nosnippet>359</a>        }
-<a href=#360 id=360 data-nosnippet>360</a>
-<a href=#361 id=361 data-nosnippet>361</a>        <span class="prelude-val">Ok</span>(())
-<a href=#362 id=362 data-nosnippet>362</a>    }
-<a href=#363 id=363 data-nosnippet>363</a>}
+<a href=#344 id=344 data-nosnippet>344</a>        s.send_envelope(ManagedEnvelope::from(envelope));
+<a href=#345 id=345 data-nosnippet>345</a>        <span class="prelude-val">Ok</span>(())
+<a href=#346 id=346 data-nosnippet>346</a>    }
+<a href=#347 id=347 data-nosnippet>347</a>}
 </code></pre></div></section></main></body></html>
