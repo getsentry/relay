@@ -129,6 +129,9 @@ pub enum Feature {
     /// Enable the new Error processing pipeline in Relay.
     #[serde(rename = "organizations:relay-new-error-processing")]
     NewErrorProcessing,
+    /// Upload non-prosperodmp playstation attachments via the upload-endpoint.
+    #[serde(rename = "projects:relay-playstation-uploads")]
+    PlaystationUploads,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///

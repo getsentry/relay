@@ -494,7 +494,7 @@ impl Item {
     /// Sets the length of the attachment referenced by this item.
     ///
     /// Only applicable if the item is an attachment with [`ContentType::AttachmentRef`].
-    pub fn set_attachment_length(&mut self, original_length: u64) {
+    pub fn set_attachment_length(&mut self, original_length: usize) {
         debug_assert!(self.is_attachment_ref());
         self.headers
             .set(ItemHeaderKey::AttachmentLength, original_length);
