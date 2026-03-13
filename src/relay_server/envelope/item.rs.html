@@ -494,7 +494,7 @@
 <a href=#494 id=494 data-nosnippet>494</a>    <span class="doccomment">/// Sets the length of the attachment referenced by this item.
 <a href=#495 id=495 data-nosnippet>495</a>    ///
 <a href=#496 id=496 data-nosnippet>496</a>    /// Only applicable if the item is an attachment with [`ContentType::AttachmentRef`].
-<a href=#497 id=497 data-nosnippet>497</a>    </span><span class="kw">pub fn </span>set_attachment_length(<span class="kw-2">&amp;mut </span><span class="self">self</span>, original_length: u64) {
+<a href=#497 id=497 data-nosnippet>497</a>    </span><span class="kw">pub fn </span>set_attachment_length(<span class="kw-2">&amp;mut </span><span class="self">self</span>, original_length: usize) {
 <a href=#498 id=498 data-nosnippet>498</a>        <span class="macro">debug_assert!</span>(<span class="self">self</span>.is_attachment_ref());
 <a href=#499 id=499 data-nosnippet>499</a>        <span class="self">self</span>.headers
 <a href=#500 id=500 data-nosnippet>500</a>            .set(ItemHeaderKey::AttachmentLength, original_length);
