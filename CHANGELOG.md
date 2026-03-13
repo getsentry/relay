@@ -6,6 +6,7 @@
 
 - Use a more mature (dog)statsd backend, with proper support for unix sockets and reservoir sampling.
   Due to the new backend, all sampling and tag filtering configuration options have been removed. ([#5675](https://github.com/getsentry/relay/pull/5675))
+- Remove unused `outcomes.emit_client_outcomes` configuration option. ([#5722](https://github.com/getsentry/relay/pull/5722))
 
 **Bug Fixes**:
 
