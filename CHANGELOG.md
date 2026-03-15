@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 26.3.0
 
 **Breaking Changes**:
 
