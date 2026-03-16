@@ -1,3 +1,6 @@
+//! Implements the PlayStation crash uploading endpoint.
+//!
+//! Crashes are received as multipart uploads in this [format](https://game.develop.playstation.net/resources/documents/SDK/12.000/Core_Dump_System-Overview/ps5-core-dump-file-set-sending-format.html).
 use std::io;
 use std::str::FromStr;
 
