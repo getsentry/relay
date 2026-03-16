@@ -8,7 +8,7 @@ use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
 use futures::stream::BoxStream;
-use http::{HeaderValue, Method, header};
+use http::{HeaderValue, Method};
 use relay_auth::Signature;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
@@ -573,21 +573,14 @@ impl UpstreamRequest for UploadRequest {
                 relay_log::error!("upload request was retried or never initialized");
                 return Err(HttpError::Misconfigured);
             };
-            // Required header, always 0 until we enable retries / chunking.
-            builder.header(tus::UPLOAD_OFFSET, "0");
+            tus::add_upload_headers(builder);
             builder.body(reqwest::Body::wrap_stream(body));
         } else {
-            // Set an explicit content length so the upstream does not try to parse the body.
-            // This can be removed once we disallow "Creation-With-Upload".
-            builder.header(header::CONTENT_LENGTH, "0");
+            tus::add_creation_headers(upload_length, builder);
         }
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
-        for (key, value) in tus::request_headers(upload_length) {
-            let Some(key) = key else { continue };
-            builder.header(key, value);
-        }
 
         debug_assert!(
             self.timeout.is_some(),

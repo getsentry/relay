@@ -142,7 +142,7 @@ async fn handle_post(
 ) -> axum::response::Result<impl IntoResponse> {
     relay_log::trace!("Validating headers");
     let tus::ParsedHeaders {
-        body_type,
+        has_upload,
         upload_length,
     } = tus::validate_post_headers(&headers, meta.request_trust().is_trusted())
         .map_err(Error::from)?;
@@ -172,7 +172,7 @@ async fn handle_post(
     let mut upload_offset = None;
 
     // If we already have bytes, upload them:
-    if body_type.has_bytes() {
+    if has_upload {
         let stream = body
             .into_data_stream()
             .map(|result| result.map_err(io::Error::other))

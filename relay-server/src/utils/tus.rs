@@ -8,8 +8,10 @@
 use std::str::FromStr;
 
 use axum::http::HeaderMap;
+use http::HeaderValue;
 use http::header::AsHeaderName;
-use http::{HeaderValue, header};
+
+use crate::http::RequestBuilder;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -67,42 +69,10 @@ pub const EXPECTED_CONTENT_TYPE: HeaderValue =
 /// Parsed and validated header values.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParsedHeaders {
-    /// Body type inferred from headers.
-    pub body_type: BodyType,
+    /// Whether the request has bytes to be uploaded. Defered from `Content-Type` header.
+    pub has_upload: bool,
     /// Value of the `Upload-Length` header, if given.
     pub upload_length: Option<usize>,
-}
-
-/// Body type inferred from `Content-Length` and `Transfer-Encoding` headers.
-#[derive(Debug, PartialEq, Eq)]
-pub enum BodyType {
-    /// Content-Length: X
-    Sized(usize),
-    /// Transfer-Encoding: Chunked
-    Chunked,
-    /// An empty body.
-    Empty,
-}
-
-impl BodyType {
-    /// Whether the body has bytes to stream.
-    pub fn has_bytes(&self) -> bool {
-        !matches!(self, Self::Empty)
-    }
-
-    fn parse(headers: &HeaderMap) -> Result<Self, Error> {
-        let content_length: Option<usize> = parse_header(headers, http::header::CONTENT_LENGTH);
-        let transfer_encoding = headers
-            .get(header::TRANSFER_ENCODING)
-            .map(HeaderValue::as_bytes);
-
-        match (content_length, transfer_encoding) {
-            (Some(0) | None, None) => Ok(Self::Empty),
-            (Some(size), None) => Ok(Self::Sized(size)),
-            (None, Some(b"chunked")) => Ok(Self::Chunked),
-            _ => return Err(Error::ContentType),
-        }
-    }
 }
 
 /// Validates TUS protocol headers and returns a subset of parsed values.
@@ -115,13 +85,11 @@ pub fn validate_post_headers(
         return Err(Error::Version);
     }
 
-    let body_type = BodyType::parse(headers)?;
-    if body_type.has_bytes() {
-        let content_type = headers.get(http::header::CONTENT_TYPE);
-        if content_type != Some(&EXPECTED_CONTENT_TYPE) {
-            return Err(Error::ContentType);
-        }
-    }
+    let has_upload = match headers.get(http::header::CONTENT_TYPE) {
+        Some(ct) if ct == &EXPECTED_CONTENT_TYPE => true,
+        None => false,
+        _ => return Err(Error::ContentType),
+    };
 
     let upload_length: Option<usize> = parse_header(headers, UPLOAD_LENGTH);
     let upload_defer_length: Option<usize> = parse_header(headers, UPLOAD_DEFER_LENGTH);
@@ -137,7 +105,7 @@ pub fn validate_post_headers(
     }?;
 
     Ok(ParsedHeaders {
-        body_type,
+        has_upload,
         upload_length,
     })
 }
@@ -165,16 +133,20 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(), Error> {
 }
 
 /// Prepares the required TUS request headers for upstream requests.
-pub fn request_headers(upload_length: Option<usize>) -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    headers.insert(TUS_RESUMABLE, TUS_VERSION);
-    headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+pub fn add_creation_headers(upload_length: Option<usize>, builder: &mut RequestBuilder) {
+    builder.header(TUS_RESUMABLE, TUS_VERSION);
     if let Some(upload_length) = upload_length {
-        headers.insert(UPLOAD_LENGTH, HeaderValue::from(upload_length));
+        builder.header(UPLOAD_LENGTH, HeaderValue::from(upload_length));
     } else {
-        headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from(1));
+        builder.header(UPLOAD_DEFER_LENGTH, "1");
     }
-    headers
+}
+
+/// Prepares the required TUS request headers for upstream requests.
+pub fn add_upload_headers(builder: &mut RequestBuilder) {
+    builder.header(TUS_RESUMABLE, TUS_VERSION);
+    builder.header(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+    builder.header(UPLOAD_OFFSET, "0"); // always zero until we implement retries / chunking
 }
 
 /// Prepares the required TUS response headers.
@@ -191,7 +163,7 @@ fn parse_header<K: AsHeaderName, V: FromStr>(headers: &HeaderMap, header_name: K
 
 #[cfg(test)]
 mod tests {
-    use http::HeaderValue;
+    use http::{HeaderValue, header};
 
     use super::*;
 
@@ -200,16 +172,6 @@ mod tests {
         let headers = HeaderMap::new();
         let result = validate_post_headers(&headers, false);
         assert!(matches!(result, Err(Error::Version)));
-    }
-
-    #[test]
-    fn test_validate_tus_headers_missing_content_type() {
-        let mut headers = HeaderMap::new();
-        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
-        headers.insert(header::CONTENT_LENGTH, HeaderValue::from_static("1024"));
-        let result = validate_post_headers(&headers, false);
-        assert!(matches!(result, Err(Error::ContentType)));
     }
 
     #[test]
@@ -232,7 +194,7 @@ mod tests {
         assert_eq!(
             result.unwrap(),
             ParsedHeaders {
-                body_type: BodyType::Sized(1024),
+                has_upload: true,
                 upload_length: Some(1024)
             }
         );
@@ -247,7 +209,7 @@ mod tests {
         assert_eq!(
             result.unwrap(),
             ParsedHeaders {
-                body_type: BodyType::Empty,
+                has_upload: false,
                 upload_length: Some(1024)
             }
         );
@@ -267,7 +229,7 @@ mod tests {
         assert_eq!(
             result.unwrap(),
             ParsedHeaders {
-                body_type: BodyType::Chunked,
+                has_upload: true,
                 upload_length: Some(1024)
             }
         );
@@ -296,7 +258,7 @@ mod tests {
         assert!(matches!(
             result,
             Ok(ParsedHeaders {
-                body_type: BodyType::Chunked,
+                has_upload: true,
                 upload_length: None
             })
         ));

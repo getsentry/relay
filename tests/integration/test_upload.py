@@ -281,6 +281,7 @@ def test_create_with_upload_processing(
         % (project_id, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
+            "Content-Type": "application/offset+octet-stream",
             "Upload-Length": str(len(data)),
         },
         data=data,
@@ -288,7 +289,7 @@ def test_create_with_upload_processing(
 
     assert response.status_code == 201
     assert response.headers["Tus-Resumable"] == "1.0.0"
-    assert response.headers["Upload-Offset"] == str(len(data))
+    assert response.headers["Upload-Offset"] == str(len(data)), response.headers
 
     # Validate location:
     path, query = response.headers["Location"].split("?")
@@ -352,9 +353,8 @@ def test_create_processing(
     )
 
     assert response.status_code == 204
-    print(response.headers["Location"])
     assert response.headers["Tus-Resumable"] == "1.0.0"
-    assert response.headers["Upload-Offset"] == str(len(data))
+    assert response.headers["Upload-Offset"] == str(len(data)), response.headers
 
 
 @pytest.mark.parametrize("defer_length_value", ["1", "2"])
