@@ -1,6 +1,7 @@
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
 use crate::processing::ForwardContext;
+use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::errors::ErrorsProcessor;
 use crate::processing::logs::LogsProcessor;
@@ -68,4 +69,5 @@ outputs!(
     TraceAttachments => TraceAttachmentsProcessor,
     TraceMetrics => TraceMetricsProcessor,
     Replays => ReplaysProcessor,
+    Attachments => AttachmentProcessor,
 );

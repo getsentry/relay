@@ -34,12 +34,11 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
-use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, TypedEnvelope};
+use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
@@ -94,7 +93,7 @@ impl Producer {
 /// Publishes an [`Envelope`](crate::envelope::Envelope) to the Sentry core application through Kafka topics.
 #[derive(Debug)]
 pub struct StoreEnvelope {
-    pub envelope: TypedEnvelope<Processed>,
+    pub envelope: ManagedEnvelope,
 }
 
 /// Publishes a list of [`Bucket`]s to the Sentry core application through Kafka topics.
@@ -181,6 +180,23 @@ impl Counted for StoreReplay {
     }
 }
 
+/// An attachment to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreAttachment {
+    /// The event ID.
+    pub event_id: EventId,
+    /// That attachment item.
+    pub attachment: Item,
+    /// Outcome quantities associated with this attachment.
+    pub quantities: Quantities,
+}
+
+impl Counted for StoreAttachment {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
 pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
@@ -205,6 +221,8 @@ pub enum Store {
     ProfileChunk(Managed<StoreProfileChunk>),
     /// A singular replay.
     Replay(Managed<StoreReplay>),
+    /// A singular attachment.
+    Attachment(Managed<StoreAttachment>),
 }
 
 impl Store {
@@ -217,6 +235,7 @@ impl Store {
             Store::Span(_) => "span",
             Store::ProfileChunk(_) => "profile_chunk",
             Store::Replay(_) => "replay",
+            Store::Attachment(_) => "attachment",
         }
     }
 }
@@ -271,6 +290,14 @@ impl FromMessage<Managed<StoreReplay>> for Store {
     }
 }
 
+impl FromMessage<Managed<StoreAttachment>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreAttachment>, _: ()) -> Self {
+        Self::Attachment(message)
+    }
+}
+
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     pool: StoreServicePool,
@@ -310,6 +337,7 @@ impl StoreService {
                 Store::Span(message) => self.handle_store_span(message),
                 Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
                 Store::Replay(message) => self.handle_store_replay(message),
+                Store::Attachment(message) => self.handle_store_attachment(message),
             }
         })
     }
@@ -732,6 +760,23 @@ impl StoreService {
                     relay_snuba_publish_disabled: true,
                 });
             self.produce(KafkaTopic::ReplayRecordings, kafka_msg)
+        });
+    }
+
+    fn handle_store_attachment(&self, message: Managed<StoreAttachment>) {
+        let scoping = message.scoping();
+        let _ = message.try_accept(|attachment| {
+            let result = self.produce_attachment(
+                attachment.event_id,
+                scoping.project_id,
+                &attachment.attachment,
+                // Hardcoded to `true` since standalone attachments are 'individual attachments'.
+                true,
+            );
+            // Since we are sending an 'individual attachment' this function should never return a
+            // `ChunkedAttachment`.
+            debug_assert!(!matches!(result, Ok(Some(_))));
+            result
         });
     }
 

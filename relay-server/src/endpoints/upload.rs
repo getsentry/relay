@@ -319,7 +319,7 @@ async fn check_request(
     envelope.require_feature(Feature::UploadEndpoint);
     let mut item = Item::new(ItemType::Attachment);
     item.set_payload(ContentType::AttachmentRef, vec![]);
-    item.set_attachment_length(upload_length.unwrap_or(1) as u64);
+    item.set_attachment_length(upload_length.unwrap_or(1));
     envelope.add_item(item);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
     let rate_limits = project

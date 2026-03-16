@@ -99,6 +99,11 @@ impl<G> TypedEnvelope<G> {
         self.0.accept()
     }
 
+    /// Returns the raw [`ManagedEnvelope`].
+    pub fn into_inner(self) -> ManagedEnvelope {
+        self.0
+    }
+
     /// Creates a new typed envelope.
     ///
     /// Note: this method is private to make sure that only `TryFrom` implementation is used, which

@@ -72,14 +72,11 @@ impl ProfileChunksProcessor {
 }
 
 impl processing::Processor for ProfileChunksProcessor {
-    type UnitOfWork = SerializedProfileChunks;
+    type Input = SerializedProfileChunks;
     type Output = ProfileChunkOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let profile_chunks = envelope
             .envelope_mut()
             .take_items_by(|item| matches!(*item.ty(), ItemType::ProfileChunk))
@@ -100,7 +97,7 @@ impl processing::Processor for ProfileChunksProcessor {
 
     async fn process(
         &self,
-        mut profile_chunks: Managed<Self::UnitOfWork>,
+        mut profile_chunks: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
         filter::feature_flag(ctx).reject(&profile_chunks)?;
