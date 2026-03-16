@@ -8,7 +8,7 @@
 <a href=#8 id=8 data-nosnippet>8</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#9 id=9 data-nosnippet>9</a></span><span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::statsd::RelayDistributions;
 <a href=#12 id=12 data-nosnippet>12</a>
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">mod </span>forward;
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">mod </span>process;
@@ -91,46 +91,54 @@
 <a href=#91 id=91 data-nosnippet>91</a>        attachments: Managed&lt;<span class="self">Self</span>::Input&gt;,
 <a href=#92 id=92 data-nosnippet>92</a>        ctx: processing::Context&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#93 id=93 data-nosnippet>93</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;processing::Output&lt;<span class="self">Self</span>::Output&gt;, Rejected&lt;<span class="self">Self</span>::Error&gt;&gt; {
-<a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">for </span>item <span class="kw">in </span><span class="kw-2">&amp;</span>attachments.attachments {
-<a href=#95 id=95 data-nosnippet>95</a>            <span class="kw">let </span>attachment_type_tag = <span class="kw">match </span>item.attachment_type() {
-<a href=#96 id=96 data-nosnippet>96</a>                <span class="prelude-val">Some</span>(t) =&gt; <span class="kw-2">&amp;</span>t.to_string(),
-<a href=#97 id=97 data-nosnippet>97</a>                <span class="prelude-val">None </span>=&gt; <span class="string">""</span>,
-<a href=#98 id=98 data-nosnippet>98</a>            };
-<a href=#99 id=99 data-nosnippet>99</a>            <span class="macro">relay_statsd::metric!</span>(
-<a href=#100 id=100 data-nosnippet>100</a>                counter(RelayCounters::StandaloneItem) += <span class="number">1</span>,
-<a href=#101 id=101 data-nosnippet>101</a>                processor = <span class="string">"new"</span>,
-<a href=#102 id=102 data-nosnippet>102</a>                item_type = item.ty().name(),
-<a href=#103 id=103 data-nosnippet>103</a>                attachment_type = attachment_type_tag,
-<a href=#104 id=104 data-nosnippet>104</a>            );
-<a href=#105 id=105 data-nosnippet>105</a>        }
-<a href=#106 id=106 data-nosnippet>106</a>
-<a href=#107 id=107 data-nosnippet>107</a>        <span class="kw">let </span><span class="kw-2">mut </span>attachments = <span class="self">self</span>.limiter.enforce_quotas(attachments, ctx).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#108 id=108 data-nosnippet>108</a>        process::scrub(<span class="kw-2">&amp;mut </span>attachments, ctx)<span class="question-mark">?</span>;
-<a href=#109 id=109 data-nosnippet>109</a>
-<a href=#110 id=110 data-nosnippet>110</a>        <span class="prelude-val">Ok</span>(Output::just(AttachmentsOutput(attachments)))
-<a href=#111 id=111 data-nosnippet>111</a>    }
-<a href=#112 id=112 data-nosnippet>112</a>}
-<a href=#113 id=113 data-nosnippet>113</a>
-<a href=#114 id=114 data-nosnippet>114</a><span class="doccomment">/// Serialized attachments extracted from an envelope.
-<a href=#115 id=115 data-nosnippet>115</a></span><span class="attr">#[derive(Debug)]
-<a href=#116 id=116 data-nosnippet>116</a></span><span class="kw">pub struct </span>SerializedAttachments {
-<a href=#117 id=117 data-nosnippet>117</a>    <span class="doccomment">/// Original envelope headers.
-<a href=#118 id=118 data-nosnippet>118</a>    </span>headers: EnvelopeHeaders,
-<a href=#119 id=119 data-nosnippet>119</a>    <span class="doccomment">/// A list of attachments.
-<a href=#120 id=120 data-nosnippet>120</a>    </span>attachments: Items,
-<a href=#121 id=121 data-nosnippet>121</a>}
-<a href=#122 id=122 data-nosnippet>122</a>
-<a href=#123 id=123 data-nosnippet>123</a><span class="kw">impl </span>Counted <span class="kw">for </span>SerializedAttachments {
-<a href=#124 id=124 data-nosnippet>124</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
-<a href=#125 id=125 data-nosnippet>125</a>        <span class="self">self</span>.attachments.quantities()
-<a href=#126 id=126 data-nosnippet>126</a>    }
-<a href=#127 id=127 data-nosnippet>127</a>}
-<a href=#128 id=128 data-nosnippet>128</a>
-<a href=#129 id=129 data-nosnippet>129</a><span class="kw">impl </span>CountRateLimited <span class="kw">for </span>Managed&lt;SerializedAttachments&gt; {
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">type </span>Error = Error;
-<a href=#131 id=131 data-nosnippet>131</a>}
-<a href=#132 id=132 data-nosnippet>132</a>
-<a href=#133 id=133 data-nosnippet>133</a><span class="doccomment">/// Output produced by the [`AttachmentProcessor`].
-<a href=#134 id=134 data-nosnippet>134</a></span><span class="attr">#[derive(Debug)]
-<a href=#135 id=135 data-nosnippet>135</a></span><span class="kw">pub struct </span>AttachmentsOutput(Managed&lt;SerializedAttachments&gt;);
+<a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">let </span>client_name = <span class="kw">crate</span>::utils::client_name_tag(attachments.headers.meta().client_name());
+<a href=#95 id=95 data-nosnippet>95</a>
+<a href=#96 id=96 data-nosnippet>96</a>        <span class="macro">relay_statsd::metric!</span>(
+<a href=#97 id=97 data-nosnippet>97</a>            distribution(RelayDistributions::StandaloneAttachmentCount) =
+<a href=#98 id=98 data-nosnippet>98</a>                attachments.attachments.len() <span class="kw">as </span>u64,
+<a href=#99 id=99 data-nosnippet>99</a>            sdk = client_name,
+<a href=#100 id=100 data-nosnippet>100</a>        );
+<a href=#101 id=101 data-nosnippet>101</a>
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="kw">for </span>item <span class="kw">in </span><span class="kw-2">&amp;</span>attachments.attachments {
+<a href=#103 id=103 data-nosnippet>103</a>            <span class="kw">let </span>attachment_type_tag = <span class="kw">match </span>item.attachment_type() {
+<a href=#104 id=104 data-nosnippet>104</a>                <span class="prelude-val">Some</span>(t) =&gt; <span class="kw-2">&amp;</span>t.to_string(),
+<a href=#105 id=105 data-nosnippet>105</a>                <span class="prelude-val">None </span>=&gt; <span class="string">""</span>,
+<a href=#106 id=106 data-nosnippet>106</a>            };
+<a href=#107 id=107 data-nosnippet>107</a>
+<a href=#108 id=108 data-nosnippet>108</a>            <span class="macro">relay_statsd::metric!</span>(
+<a href=#109 id=109 data-nosnippet>109</a>                distribution(RelayDistributions::StandaloneAttachmentSize) = item.len() <span class="kw">as </span>u64,
+<a href=#110 id=110 data-nosnippet>110</a>                sdk = client_name,
+<a href=#111 id=111 data-nosnippet>111</a>                attachment_type = attachment_type_tag,
+<a href=#112 id=112 data-nosnippet>112</a>            );
+<a href=#113 id=113 data-nosnippet>113</a>        }
+<a href=#114 id=114 data-nosnippet>114</a>
+<a href=#115 id=115 data-nosnippet>115</a>        <span class="kw">let </span><span class="kw-2">mut </span>attachments = <span class="self">self</span>.limiter.enforce_quotas(attachments, ctx).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#116 id=116 data-nosnippet>116</a>        process::scrub(<span class="kw-2">&amp;mut </span>attachments, ctx)<span class="question-mark">?</span>;
+<a href=#117 id=117 data-nosnippet>117</a>
+<a href=#118 id=118 data-nosnippet>118</a>        <span class="prelude-val">Ok</span>(Output::just(AttachmentsOutput(attachments)))
+<a href=#119 id=119 data-nosnippet>119</a>    }
+<a href=#120 id=120 data-nosnippet>120</a>}
+<a href=#121 id=121 data-nosnippet>121</a>
+<a href=#122 id=122 data-nosnippet>122</a><span class="doccomment">/// Serialized attachments extracted from an envelope.
+<a href=#123 id=123 data-nosnippet>123</a></span><span class="attr">#[derive(Debug)]
+<a href=#124 id=124 data-nosnippet>124</a></span><span class="kw">pub struct </span>SerializedAttachments {
+<a href=#125 id=125 data-nosnippet>125</a>    <span class="doccomment">/// Original envelope headers.
+<a href=#126 id=126 data-nosnippet>126</a>    </span>headers: EnvelopeHeaders,
+<a href=#127 id=127 data-nosnippet>127</a>    <span class="doccomment">/// A list of attachments.
+<a href=#128 id=128 data-nosnippet>128</a>    </span>attachments: Items,
+<a href=#129 id=129 data-nosnippet>129</a>}
+<a href=#130 id=130 data-nosnippet>130</a>
+<a href=#131 id=131 data-nosnippet>131</a><span class="kw">impl </span>Counted <span class="kw">for </span>SerializedAttachments {
+<a href=#132 id=132 data-nosnippet>132</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
+<a href=#133 id=133 data-nosnippet>133</a>        <span class="self">self</span>.attachments.quantities()
+<a href=#134 id=134 data-nosnippet>134</a>    }
+<a href=#135 id=135 data-nosnippet>135</a>}
+<a href=#136 id=136 data-nosnippet>136</a>
+<a href=#137 id=137 data-nosnippet>137</a><span class="kw">impl </span>CountRateLimited <span class="kw">for </span>Managed&lt;SerializedAttachments&gt; {
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="kw">type </span>Error = Error;
+<a href=#139 id=139 data-nosnippet>139</a>}
+<a href=#140 id=140 data-nosnippet>140</a>
+<a href=#141 id=141 data-nosnippet>141</a><span class="doccomment">/// Output produced by the [`AttachmentProcessor`].
+<a href=#142 id=142 data-nosnippet>142</a></span><span class="attr">#[derive(Debug)]
+<a href=#143 id=143 data-nosnippet>143</a></span><span class="kw">pub struct </span>AttachmentsOutput(Managed&lt;SerializedAttachments&gt;);
 </code></pre></div></section></main></body></html>
