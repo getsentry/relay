@@ -1,19 +1,32 @@
-use axum::RequestExt;
+use std::io;
+use std::str::FromStr;
+
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
+use bytes::Bytes;
+use futures::TryStreamExt;
+use futures::stream::BoxStream;
+use http::StatusCode;
+use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
+use relay_quotas::Scoping;
+use relay_system::Addr;
 use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::ContentType::OctetStream;
-use crate::envelope::{AttachmentType, Envelope};
+use crate::envelope::ContentType::{self, OctetStream};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::utils::UnconstrainedMultipart;
+use crate::services::outcome::DiscardReason;
+use crate::services::projects::project::ProjectInfo;
+use crate::services::upload::{Stream, Upload};
+use crate::utils;
+use crate::utils::{AttachmentStrategy, BadMultipart, BoundedStream};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -53,6 +66,63 @@ struct Parts {
     upload: &'static [&'static str],
 }
 
+struct PlaystationAttachmentStrategy<'a> {
+    upload_service: Option<&'a Addr<Upload>>,
+    scoping: Scoping,
+}
+
+impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
+    fn infer_type(&self, field: &Field) -> AttachmentType {
+        if field
+            .file_name()
+            .is_some_and(|f| f.ends_with(PROSPERODUMP_EXTENSION))
+        {
+            AttachmentType::Prosperodump
+        } else {
+            AttachmentType::Attachment
+        }
+    }
+
+    async fn add_to_item(
+        &self,
+        field: Field<'static>,
+        mut item: Item,
+        config: &Config,
+    ) -> Result<Option<Item>, multer::Error> {
+        let upload = match self.upload_service {
+            Some(upload) if self.infer_type(&field) != AttachmentType::Prosperodump => upload,
+            _ => return utils::read_attachment_bytes_into_item(field, item, config, true).await,
+        };
+        let content_type = field.content_type().cloned();
+        let stream: BoxStream<'static, io::Result<Bytes>> =
+            Box::pin(field.map_err(io::Error::other));
+        let stream = BoundedStream::new(stream, 1, config.max_upload_size());
+        let byte_counter = stream.byte_counter();
+        let stream = Stream {
+            scoping: self.scoping,
+            stream,
+        };
+        let result = upload.send(stream).await;
+        if let Ok(result) = result
+            && let Ok(location) = result.inspect_err(|e| {
+                relay_log::warn!(error = e as &dyn std::error::Error, "Upload failed");
+            })
+            && let Ok(location) = location.into_header_value()
+            && let Ok(location) = location.to_str()
+            && let Ok(payload) = serde_json::to_vec(&AttachmentPlaceholder {
+                location,
+                content_type: content_type.and_then(|ct| ContentType::from_str(ct.as_ref()).ok()),
+            })
+        {
+            item.set_payload(ContentType::AttachmentRef, payload);
+            item.set_attachment_length(byte_counter.get());
+            Ok(Some(item))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 fn create_data_request_response() -> DataRequestResponse {
     DataRequestResponse {
         parts: Parts {
@@ -70,20 +140,23 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-fn infer_attachment_type(_field_name: Option<&str>, file_name: &str) -> AttachmentType {
-    if file_name.ends_with(PROSPERODUMP_EXTENSION) {
-        AttachmentType::Prosperodump
-    } else {
-        AttachmentType::Attachment
-    }
-}
-
 async fn extract_multipart(
-    multipart: UnconstrainedMultipart,
+    multipart: Multipart<'static>,
     meta: RequestMeta,
-    config: &Config,
+    state: &ServiceState,
+    project_config: &ProjectInfo,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = multipart.items(infer_attachment_type, config).await?;
+    let scoping = project_config
+        .scoping(meta.public_key())
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+    let upload_service = project_config
+        .has_feature(Feature::PlaystationUploads)
+        .then_some(state.upload());
+    let attachment_strategy = PlaystationAttachmentStrategy {
+        scoping,
+        upload_service,
+    };
+    let mut items = utils::multipart_items(multipart, state.config(), attachment_strategy).await?;
 
     let prosperodump_item = items
         .iter_mut()
@@ -115,8 +188,19 @@ async fn handle(
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
 
-    let multipart = request.extract_with_state(&state).await?;
-    let mut envelope = extract_multipart(multipart, meta, state.config()).await?;
+    let project_config = state
+        .project_cache_handle()
+        .ready(meta.public_key(), state.config().query_timeout())
+        .await
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
+        .state()
+        .clone()
+        .enabled()
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+
+    let multipart = utils::multipart_from_request(request, multer::Constraints::new())
+        .map_err(BadMultipart::Multipart)?;
+    let mut envelope = extract_multipart(multipart, meta, &state, &project_config).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
     let id = envelope.event_id();

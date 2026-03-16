@@ -79,7 +79,7 @@ use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
     crate::services::objectstore::Objectstore,
-    crate::services::store::{Store, StoreEnvelope},
+    crate::services::store::Store,
     crate::utils::Enforcement,
     itertools::Itertools,
     relay_cardinality::{
@@ -1472,32 +1472,6 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
-    /// Processes user and client reports.
-    async fn process_client_reports(
-        &self,
-        managed_envelope: &mut TypedEnvelope<ClientReportGroup>,
-        ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            ctx,
-        )
-        .await?;
-
-        report::process_client_reports(
-            managed_envelope,
-            ctx.config,
-            ctx.project_info,
-            self.inner.addrs.outcome_aggregator.clone(),
-        );
-
-        Ok(Some(extracted_metrics))
-    }
-
     async fn process_nel(
         &self,
         mut managed_envelope: ManagedEnvelope,
@@ -1684,19 +1658,12 @@ impl EnvelopeProcessorService {
                 .await
             }
             ProcessingGroup::ClientReport => {
-                if ctx
-                    .project_info
-                    .has_feature(Feature::NewClientReportProcessing)
-                {
-                    self.process_with_processor(
-                        &self.inner.processing.client_reports,
-                        managed_envelope,
-                        ctx,
-                    )
-                    .await
-                } else {
-                    run!(process_client_reports, ctx)
-                }
+                self.process_with_processor(
+                    &self.inner.processing.client_reports,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
             }
             ProcessingGroup::Replay => {
                 self.process_with_processor(&self.inner.processing.replays, managed_envelope, ctx)
@@ -2064,30 +2031,18 @@ impl EnvelopeProcessorService {
             use crate::processing::StoreHandle;
 
             let objectstore = self.inner.addrs.objectstore.as_ref();
-            match submit {
-                Submit::Envelope(envelope) => {
-                    let envelope_has_attachments = envelope
-                        .envelope()
-                        .items()
-                        .any(|item| *item.ty() == ItemType::Attachment);
-                    // Whether Relay will store this attachment in objectstore or use kafka like before.
-                    let use_objectstore = || {
-                        let options = &self.inner.global_config.current().options;
-                        utils::sample(options.objectstore_attachments_sample_rate).is_keep()
-                    };
+            let global_config = &self.inner.global_config.current();
+            let handle = StoreHandle::new(store_forwarder, objectstore, global_config);
 
-                    if let Some(objectstore) = &self.inner.addrs.objectstore
-                        && envelope_has_attachments
-                        && use_objectstore()
-                    {
-                        // the `ObjectstoreService` will upload all attachments, and then forward the envelope to the `StoreService`.
-                        objectstore.send(StoreEnvelope { envelope })
-                    } else {
-                        store_forwarder.send(StoreEnvelope { envelope })
-                    }
-                }
+            match submit {
+                // Once check-ins and errors are fully moved to the new pipeline, this is only
+                // used for metrics forwarding.
+                //
+                // Metrics forwarding will n_never_ forward an envelope in processing, making
+                // this branch here unused.
+                Submit::Envelope(envelope) => handle.send_envelope(envelope.into_inner()),
                 Submit::Output { output, ctx } => output
-                    .forward_store(StoreHandle::new(store_forwarder, objectstore), ctx)
+                    .forward_store(handle, ctx)
                     .unwrap_or_else(|err| err.into_inner()),
             }
             return;

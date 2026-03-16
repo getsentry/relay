@@ -34,12 +34,11 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
-use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, TypedEnvelope};
+use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
@@ -94,7 +93,7 @@ impl Producer {
 /// Publishes an [`Envelope`](crate::envelope::Envelope) to the Sentry core application through Kafka topics.
 #[derive(Debug)]
 pub struct StoreEnvelope {
-    pub envelope: TypedEnvelope<Processed>,
+    pub envelope: ManagedEnvelope,
 }
 
 /// Publishes a list of [`Bucket`]s to the Sentry core application through Kafka topics.

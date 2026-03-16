@@ -188,4 +188,24 @@ mod tests {
         }
         "###);
     }
+
+    #[test]
+    fn test_trace_metric_with_custom_unit_preserved() {
+        let json = r#"{
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "custom.metric",
+            "type": "counter",
+            "value": 42,
+            "unit": "customunit"
+        }"#;
+
+        let data = Annotated::<TraceMetric>::from_json(json).unwrap();
+        let trace_metric = data.value().unwrap();
+
+        assert_eq!(
+            trace_metric.unit.value(),
+            Some(&MetricUnit::Custom("customunit".parse().unwrap()))
+        );
+    }
 }
