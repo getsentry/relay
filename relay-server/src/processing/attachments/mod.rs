@@ -8,7 +8,7 @@ use crate::processing::{self, CountRateLimited, Output, QuotaRateLimiter};
 #[cfg(feature = "processing")]
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
-use crate::statsd::{RelayCounters, RelayDistributions};
+use crate::statsd::RelayDistributions;
 
 mod forward;
 mod process;
