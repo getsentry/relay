@@ -163,7 +163,6 @@ jobs:
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
-        # Windows needs an older versino of the ssh agent: https://github.com/webfactory/ssh-agent/pull/17
         uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
