@@ -219,6 +219,9 @@ async fn handle_patch(
     let location = SignedLocation::from_parts(project_id, key, length, signature);
 
     let config = state.config();
+    if length.is_some_and(|len| len > config.max_upload_size()) {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE.into());
+    }
 
     // There is no real "fast path" for streaming uploads. Always wait for the project config
     // to be loaded:
