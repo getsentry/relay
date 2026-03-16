@@ -504,7 +504,10 @@ impl UploadRequest {
     fn length(&self) -> Option<usize> {
         match &self.kind {
             RequestKind::Create { length } => *length,
-            RequestKind::Upload { stream, .. } => stream.as_ref().and_then(BoundedStream::length),
+            RequestKind::Upload { stream, .. } => {
+                debug_assert!(stream.is_some());
+                stream.as_ref().and_then(BoundedStream::length)
+            }
         }
     }
 }
@@ -564,6 +567,7 @@ impl UpstreamRequest for UploadRequest {
     }
 
     fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
+        let upload_length = self.length();
         if let RequestKind::Upload { stream, .. } = &mut self.kind {
             let Some(body) = stream.take() else {
                 relay_log::error!("upload request was retried or never initialized");
@@ -580,7 +584,7 @@ impl UpstreamRequest for UploadRequest {
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
-        for (key, value) in tus::request_headers(self.length()) {
+        for (key, value) in tus::request_headers(upload_length) {
             let Some(key) = key else { continue };
             builder.header(key, value);
         }
